@@ -3,6 +3,16 @@ main = "index.js"
 compatibility_date = "2024-01-15"
 compatibility_flags = ["nodejs_compat"]
 
+# Durable Objects configuration
+[durable_objects]
+bindings = [
+  { name = "MCP_SESSION", class_name = "McpSession" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["McpSession"]
+
 # Worker configuration
 [env.production]
 name = "loresmith-ai"
@@ -27,6 +37,12 @@ environment = "production"
 binding = "DND_AGENT"
 service = "dndbeyond-agent"
 environment = "production"
+
+# KV bindings for session management (optional)
+# [[kv_namespaces]]
+# binding = "SESSIONS"
+# id = "your-sessions-kv-id"
+# preview_id = "your-sessions-kv-preview-id"
 
 # Secrets (set with: wrangler secret put API_KEY)
 # API_KEY - Master API key for upload authentication
