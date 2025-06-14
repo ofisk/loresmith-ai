@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoreSmith - D&D Campaign Planning Agents</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            color: white;
+        }
+        
+        .header h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .agent-card {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            text-align: center;
+        }
+        
+        .agent-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+        
+        .agent-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        
+        .agent-card h2 {
+            font-size: 1.8rem;
+            margin-bottom: 1rem;
+            color: #333;
+        }
+        
+        .agent-card p {
+            color: #666;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+        
+        .agent-links {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #333;
+            border: 2px solid #dee2e6;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .pdf-agent {
+            border-top: 4px solid #28a745;
+        }
+        
+        .dndbeyond-agent {
+            border-top: 4px solid #dc3545;
+        }
+        
+        .footer {
+            text-align: center;
+            color: white;
+            opacity: 0.8;
+        }
+        
+        .footer a {
+            color: white;
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2.5rem;
+            }
+            
+            .agents-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .agent-links {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏰 LoreSmith</h1>
+            <p>A collection of A2A protocol agents designed to enhance your D&D campaign planning experience with powerful document management and character integration tools.</p>
+        </div>
+        
+        <div class="agents-grid">
+            <div class="agent-card pdf-agent">
+                <div class="agent-icon">📚</div>
+                <h2>PDF Storage Agent</h2>
+                <p>Upload, store, and manage large PDF documents for your D&D campaigns. Supports files up to 200MB with secure API key authentication and a beautiful drag-and-drop interface.</p>
+                <div class="agent-links">
+                    <a href="./agents/pdf-agent/" class="btn btn-primary">Launch Agent</a>
+                    <a href="./agents/pdf-agent/README.md" class="btn btn-secondary">Documentation</a>
+                </div>
+            </div>
+            
+            <div class="agent-card dndbeyond-agent">
+                <div class="agent-icon">🎲</div>
+                <h2>D&D Beyond Agent</h2>
+                <p>Fetch character information directly from D&D Beyond using character IDs. Perfect for DMs who want to quickly access player character details and stats.</p>
+                <div class="agent-links">
+                    <a href="./agents/dndbeyond-agent/" class="btn btn-primary">Launch Agent</a>
+                    <a href="./agents/dndbeyond-agent/README.md" class="btn btn-secondary">Documentation</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Built with ❤️ for the D&D community | <a href="https://github.com/yourusername/loresmith" target="_blank">View on GitHub</a></p>
+        </div>
+    </div>
+</body>
+</html> 

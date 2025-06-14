@@ -1,0 +1,19 @@
+name = "dndbeyond-agent"
+main = "dndbeyond-agent.js"
+compatibility_date = "2024-01-01"
+
+# Environment variables for secrets
+[env.production.vars]
+ENVIRONMENT = "production"
+
+# Secrets (set via wrangler secret put)
+# API_KEY - Authentication key for accessing the agent
+
+# Custom domains (optional)
+# routes = [
+#   { pattern = "dndbeyond-agent.yourdomain.com/*", zone_name = "yourdomain.com" }
+# ]
+
+# Rate limiting and performance
+[limits]
+cpu_ms = 50000 

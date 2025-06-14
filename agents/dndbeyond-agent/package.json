@@ -1,0 +1,25 @@
+{
+  "name": "dndbeyond-agent",
+  "version": "1.0.0",
+  "description": "D&D Beyond Character & Campaign Agent - A Cloudflare Worker that provides A2A protocol access to D&D Beyond character and campaign data",
+  "main": "dndbeyond-agent.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "dnd",
+    "dndbeyond",
+    "cloudflare-worker",
+    "a2a-protocol",
+    "character-sheets",
+    "campaign-management"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+} 

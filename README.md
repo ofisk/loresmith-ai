@@ -1,254 +1,133 @@
-# LoreSmith PDF Storage Agent
+# 🏰 LoreSmith - D&D Campaign Planning Agents
 
-A2A Protocol agent for storing and managing D&D 5e PDFs for campaign planning. This Cloudflare Worker handles large PDF uploads, stores them securely, and provides **fully authenticated** access to prevent unauthorized usage and costs.
+A collection of A2A (Agent-to-Agent) protocol compliant agents designed to enhance your D&D campaign planning experience. Each agent provides specialized functionality for managing different aspects of your campaigns.
 
-## 🔒 Security Features
+## 🎯 Project Overview
 
-- **Full Authentication**: ALL PDF operations require valid API keys
-- **Two-tier Authentication**: Separate user and admin keys for different access levels
-- **Rate Limiting**: Configurable upload limits per hour/day to prevent abuse
-- **File Size Limits**: 50MB maximum per PDF (optimized for D&D content and Worker limits)
-- **Audit Trail**: Track who uploaded what and when
-- **Zero Public Access**: All content is private and authenticated
+LoreSmith consists of multiple specialized agents that can work independently or together to support D&D campaign management:
 
-## Features
+- **PDF Storage Agent** - Upload, store, and manage large PDF documents (up to 200MB)
+- **D&D Beyond Agent** - Fetch character information directly from D&D Beyond
 
-- **PDF Upload & Storage**: Upload large PDFs via multipart/form-data (authenticated)
-- **Metadata Management**: Automatic metadata extraction and tagging
-- **Secure Storage**: Uses Cloudflare R2 for reliable PDF storage
-- **A2A Protocol**: Full A2A protocol compliance with agent discovery
-- **RESTful API**: Clean endpoints for all operations
-- **CORS Support**: Cross-origin requests supported
-- **Cost Control**: Built-in limits and authentication to prevent unauthorized usage
+## 🚀 Quick Start
 
-## Setup
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd LoreSmith
+   ```
 
-### 1. Prerequisites
-- Cloudflare account with Workers and R2 enabled
-- Node.js and npm installed
-- Wrangler CLI installed (`npm install -g wrangler`)
+2. **Open the landing page**
+   - Open `index.html` in your browser to see all available agents
+   - Each agent has its own folder with complete documentation and deployment instructions
 
-### 2. Create Required Resources
+## 📁 Project Structure
 
-Create an R2 bucket for PDF storage:
-```bash
-wrangler r2 bucket create loresmith-pdfs
+```
+LoreSmith/
+├── index.html                 # Landing page with agent navigation
+├── agents/                    # All agents organized in this folder
+│   ├── pdf-agent/            # PDF Storage Agent
+│   │   ├── index.js          # Main worker code
+│   │   ├── ui-template.js    # Web UI template
+│   │   ├── wrangler.toml     # Cloudflare Worker configuration
+│   │   ├── package.json      # Dependencies
+│   │   └── README.md         # PDF agent documentation
+│   └── dndbeyond-agent/      # D&D Beyond Character Agent
+│       ├── index.js          # Main worker code
+│       ├── wrangler.toml     # Cloudflare Worker configuration
+│       ├── package.json      # Dependencies
+│       └── README.md         # D&D Beyond agent documentation
+└── README.md                 # This file
 ```
 
-Create KV namespaces for metadata and rate limiting:
-```bash
-wrangler kv:namespace create "PDF_METADATA"
-wrangler kv:namespace create "PDF_METADATA" --preview
-```
+## 🤖 Available Agents
 
-### 3. Set Up Authentication
+### 📚 PDF Storage Agent
+**Location:** `agents/pdf-agent/`
 
-**Generate secure API keys** (use a password manager or generator):
+A powerful document management system for D&D campaigns with:
+- Large file support (up to 200MB)
+- Secure API key authentication
+- Beautiful drag-and-drop web interface
+- Metadata extraction and search
+- Rate limiting and access controls
 
-Set your API keys as secrets (these won't be visible in your code):
-```bash
-# Set the main API key for uploads
-wrangler secret put API_KEY
+**Key Features:**
+- Presigned URL uploads for large files
+- Direct upload for smaller files (<95MB)
+- Full CRUD operations (Create, Read, Update, Delete)
+- Tag-based organization
+- Text preview extraction
 
-# Set the admin API key for delete operations  
-wrangler secret put ADMIN_API_KEY
-```
+### 🎲 D&D Beyond Agent
+**Location:** `agents/dndbeyond-agent/`
 
-When prompted, enter strong, unique keys like:
-- API_KEY: `lore_upload_abc123def456ghi789jkl012`
-- ADMIN_API_KEY: `lore_admin_xyz789uvw456rst123opq890`
+Character information fetching from D&D Beyond with:
+- Character lookup by ID
+- Formatted character data display
+- D&D-themed web interface
+- Rate limiting and error handling
 
-### 4. Update Configuration
+**Key Features:**
+- Unofficial D&D Beyond API integration
+- Character stats and information retrieval
+- Public character support
+- Comprehensive error handling
 
-Update `wrangler.toml` with your actual KV namespace IDs from step 2:
-```toml
-[[kv_namespaces]]
-binding = "PDF_METADATA"
-id = "your_actual_kv_namespace_id"
-preview_id = "your_actual_preview_kv_namespace_id"
-```
+## 🛠️ Development
 
-### 5. Deploy
+Each agent is self-contained and can be developed/deployed independently:
 
-```bash
-npm install
-wrangler deploy
-```
+1. **Navigate to the agent folder**
+   ```bash
+   cd agents/pdf-agent/        # or agents/dndbeyond-agent/
+   ```
 
-## API Endpoints
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-### Agent Discovery
-- **GET** `/.well-known/agent.json` - A2A protocol agent card (public)
+3. **Configure environment**
+   - Copy the example configuration
+   - Set up required secrets and bindings
 
-### PDF Operations
+4. **Deploy**
+   ```bash
+   npx wrangler deploy
+   ```
 
-#### 🔒 **All Endpoints Require Authentication**
-- **POST** `/upload` - Upload a PDF file
-  - **Authentication**: Required (API_KEY or ADMIN_API_KEY)
-  - Content-Type: `multipart/form-data`
-  - Fields: `file` (required), `name` (optional), `tags` (optional)
-  - Rate Limits: 10/hour, 50/day (configurable)
-  - File Size: Up to 50MB per PDF
-  
-- **GET** `/pdfs` - List all stored PDFs
-  - **Authentication**: Required (API_KEY or ADMIN_API_KEY)
-  
-- **GET** `/pdf/{id}` - Download a specific PDF
-  - **Authentication**: Required (API_KEY or ADMIN_API_KEY)
-  
-- **GET** `/pdf/{id}/metadata` - Get PDF metadata and text preview
-  - **Authentication**: Required (API_KEY or ADMIN_API_KEY)
-  
-- **DELETE** `/pdf/{id}` - Delete a PDF
-  - **Authentication**: Required (ADMIN_API_KEY only)
+## 🔧 A2A Protocol Compliance
 
-## Usage Examples
+All agents implement the A2A (Agent-to-Agent) protocol standard:
+- Agent capability cards at `/.well-known/agent.json`
+- Standardized API endpoints
+- Consistent authentication patterns
+- CORS support for cross-origin requests
 
-### Upload a PDF (with authentication)
-```bash
-curl -X POST https://your-worker.workers.dev/upload \
-  -H "Authorization: Bearer lore_upload_abc123def456ghi789jkl012" \
-  -F "file=@/path/to/your/dnd-manual.pdf" \
-  -F "name=Player's Handbook" \
-  -F "tags=core,rules,player"
-```
+## 📖 Documentation
 
-### List all PDFs (authentication required)
-```bash
-curl https://your-worker.workers.dev/pdfs \
-  -H "Authorization: Bearer lore_upload_abc123def456ghi789jkl012"
-```
+Each agent has comprehensive documentation in its respective folder:
+- **PDF Agent:** See `agents/pdf-agent/README.md`
+- **D&D Beyond Agent:** See `agents/dndbeyond-agent/README.md`
 
-### Get PDF metadata (authentication required)
-```bash
-curl https://your-worker.workers.dev/pdf/{pdf-id}/metadata \
-  -H "Authorization: Bearer lore_upload_abc123def456ghi789jkl012"
-```
+## 🤝 Contributing
 
-### Download a PDF (authentication required)
-```bash
-curl https://your-worker.workers.dev/pdf/{pdf-id} \
-  -H "Authorization: Bearer lore_upload_abc123def456ghi789jkl012" \
-  -o downloaded.pdf
-```
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes in the appropriate agent folder under `agents/`
+4. Test thoroughly
+5. Submit a pull request
 
-### Delete a PDF (admin authentication required)
-```bash
-curl -X DELETE https://your-worker.workers.dev/pdf/{pdf-id} \
-  -H "Authorization: Bearer lore_admin_xyz789uvw456rst123opq890"
-```
+## 📄 License
 
-## A2A Integration
+This project is open source and available under the MIT License.
 
-This agent is fully compatible with the A2A protocol. Other agents can discover its capabilities:
+## 🎮 Built for the D&D Community
 
-```javascript
-const response = await fetch('https://your-worker.workers.dev/.well-known/agent.json');
-const agentCard = await response.json();
-console.log(agentCard.authentication); // Shows auth requirements
-console.log(agentCard.rate_limits); // Shows current limits
+LoreSmith is built with ❤️ for Dungeon Masters and players who want to enhance their D&D experience with modern tools and automation.
 
-// All PDF operations require authentication
-const pdfsResponse = await fetch('https://your-worker.workers.dev/pdfs', {
-  headers: {
-    'Authorization': 'Bearer your-api-key'
-  }
-});
-```
+---
 
-## Cost Protection Features
-
-### 🛡️ **Built-in Safeguards**
-- **File Size Limit**: 10GB maximum per PDF (handles large D&D collections)
-- **Rate Limiting**: 10 uploads/hour, 50/day per API key (configurable)
-- **Full Authentication**: ALL endpoints require valid API keys
-- **Admin-only Deletion**: Prevent accidental data loss
-
-### 💰 **Cost Estimates**
-- **R2 Storage**: ~$0.015 per GB per month
-- **R2 Operations**: ~$0.0036 per 1000 requests  
-- **Worker Requests**: 100,000 free per day
-- **KV Operations**: 100,000 reads/day free
-
-**Example**: 100 x 100MB PDFs = ~$0.15/month storage + minimal operation costs
-
-### ⚙️ **Configurable Limits**
-
-Edit `wrangler.toml` to adjust rate limits:
-```toml
-[vars]
-RATE_LIMIT_UPLOADS_PER_HOUR = "5"    # Reduce for tighter control
-RATE_LIMIT_UPLOADS_PER_DAY = "25"    # Adjust based on your needs
-```
-
-## Development
-
-Run locally:
-```bash
-npm run dev
-```
-
-View logs:
-```bash
-npm run tail
-```
-
-## File Size Guidelines
-
-**50MB limit is perfect for D&D content:**
-- **Player's Handbook**: ~40MB (high quality)
-- **Monster Manual**: ~45MB
-- **Campaign modules**: 5-25MB typically
-- **Homebrew content**: Usually under 10MB
-
-**If your PDF is larger:**
-- Use PDF compression tools (often reduces size by 50-80%)
-- Split large compilations into separate books
-- Convert high-resolution scans to optimized PDFs
-
-Test authentication:
-```bash
-# This should fail (no auth)
-curl -X POST http://localhost:8787/upload -F "file=@test.pdf"
-
-# This should also fail (no auth for listing)
-curl http://localhost:8787/pdfs
-
-# This should work (with auth)
-curl -X POST http://localhost:8787/upload \
-  -H "Authorization: Bearer your-api-key" \
-  -F "file=@test.pdf"
-
-# This should work (authenticated listing)
-curl http://localhost:8787/pdfs \
-  -H "Authorization: Bearer your-api-key"
-```
-
-## Security Best Practices
-
-1. **Keep API keys secret** - Never commit them to version control
-2. **Use different keys** for different environments/users
-3. **Rotate keys periodically** using `wrangler secret put`
-4. **Monitor usage** via Cloudflare dashboard
-5. **Set conservative rate limits** initially, increase as needed
-6. **All content is private** - no public access to PDFs whatsoever
-
-## Troubleshooting
-
-### Authentication Errors
-- **401 Unauthorized**: Check your Authorization header format: `Bearer your-api-key`
-- **Rate limit exceeded**: Wait for the time period or use admin key for higher limits
-
-### Upload Errors  
-- **413 File too large**: Compress PDF or split large files (50MB limit)
-- **400 Invalid file**: Ensure file is a valid PDF with correct MIME type
-
-## Next Steps
-
-- Enhanced PDF text extraction with proper parsing libraries
-- Full-text search capabilities across stored PDFs
-- PDF thumbnails generation for quick previews
-- OCR for scanned PDFs
-- Integration with other D&D planning agents
-- User management with individual API keys
-- Usage analytics and cost monitoring
+**Get Started:** Open `index.html` in your browser to explore all available agents!
