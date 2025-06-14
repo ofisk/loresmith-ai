@@ -107,7 +107,7 @@ export default {
     }
 
     // Serve the upload UI
-    if (pathname === "/" || pathname === "/ui") {
+    if (pathname === "/agents/pdf-agent" || pathname === "/agents/pdf-agent/ui") {
       return new Response(this.getUploadUI(), {
         headers: {
           "Content-Type": "text/html",
