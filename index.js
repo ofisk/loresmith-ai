@@ -1111,10 +1111,5 @@ Visit the chat interface: ${baseUrl}/`, {
     }
 
     return capabilities[agent] || { error: "Agent not found" };
-  },
-
-  // Load and serve the chat interface HTML from template
-  getChatInterface() {
-    return CHAT_INTERFACE_HTML;
   }
 }; 
