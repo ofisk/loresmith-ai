@@ -53,8 +53,12 @@ export const UPLOAD_UI_HTML = `<!DOCTYPE html>
         .pdf-item .pdf-actions a:hover { text-decoration: underline; }
         .delete-btn { background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; }
         .delete-btn:hover { background: #c0392b; }
+        .download-btn { background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+        .download-btn:hover { background: #218838; }
         .info-btn { background: #17a2b8; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; }
         .info-btn:hover { background: #138496; }
+        .raw-info-btn { background: #6c757d; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+        .raw-info-btn:hover { background: #5a6268; }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
         .modal-content { background: white; margin: 5% auto; padding: 20px; border-radius: 10px; width: 80%; max-width: 600px; max-height: 80%; overflow-y: auto; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -326,9 +330,9 @@ export const UPLOAD_UI_HTML = `<!DOCTYPE html>
                         <div class="pdf-size">\${formatFileSize(pdf.size)} • \${pdf.tags.join(', ')}</div>
                     </div>
                                          <div class="pdf-actions">
-                         <a href="/pdf/\${pdf.id}" target="_blank">Download</a>
+                         <button class="download-btn" onclick="downloadPDF('\${pdf.id}')">Download</button>
                          <button class="info-btn" onclick="viewPDFDetails('\${pdf.id}')">Details</button>
-                         <a href="/pdf/\${pdf.id}/metadata" target="_blank">Raw Info</a>
+                         <button class="raw-info-btn" onclick="viewRawInfo('\${pdf.id}')">Raw Info</button>
                          <button class="delete-btn" onclick="deletePDF('\${pdf.id}', '\${pdf.originalName}')">Delete</button>
                      </div>
                 </div>
@@ -494,6 +498,107 @@ export const UPLOAD_UI_HTML = `<!DOCTYPE html>
               const rateLimitText = document.getElementById('rateLimitText');
               rateLimitText.textContent = message;
               rateLimitInfo.style.display = 'block';
+          }
+          
+          async function downloadPDF(pdfId) {
+              if (!apiKey) {
+                  showStatus('error', 'Please enter your API key first');
+                  return;
+              }
+              
+              try {
+                  showStatus('info', 'Preparing download...');
+                  
+                  const response = await fetch(\`/pdf/\${pdfId}\`, {
+                      headers: {
+                          'Authorization': \`Bearer \${apiKey}\`
+                      }
+                  });
+                  
+                  if (!response.ok) {
+                      const error = await response.json();
+                      throw new Error(error.error || 'Download failed');
+                  }
+                  
+                  // Get the filename from the response headers or use a default
+                  const contentDisposition = response.headers.get('content-disposition');
+                  let filename = 'download.pdf';
+                  if (contentDisposition) {
+                      const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+                      if (filenameMatch) {
+                          filename = filenameMatch[1];
+                      }
+                  }
+                  
+                  // Create blob and download
+                  const blob = await response.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = filename;
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  document.body.removeChild(a);
+                  
+                  showStatus('success', 'Download started!');
+                  setTimeout(() => {
+                      document.getElementById('status').style.display = 'none';
+                  }, 2000);
+                  
+              } catch (error) {
+                  showStatus('error', 'Download failed: ' + error.message);
+              }
+          }
+          
+          async function viewRawInfo(pdfId) {
+              if (!apiKey) {
+                  showStatus('error', 'Please enter your API key first');
+                  return;
+              }
+              
+              try {
+                  showStatus('info', 'Fetching raw metadata...');
+                  
+                  const response = await fetch(\`/pdf/\${pdfId}/metadata\`, {
+                      headers: {
+                          'Authorization': \`Bearer \${apiKey}\`
+                      }
+                  });
+                  
+                  const metadata = await response.json();
+                  
+                  if (metadata.error) {
+                      throw new Error(metadata.error);
+                  }
+                  
+                  // Open raw JSON in a new window
+                  const newWindow = window.open('', '_blank');
+                  newWindow.document.write(\`
+                      <html>
+                          <head>
+                              <title>Raw PDF Metadata</title>
+                              <style>
+                                  body { font-family: monospace; padding: 20px; background: #f5f5f5; }
+                                  pre { background: white; padding: 20px; border-radius: 8px; overflow: auto; }
+                              </style>
+                          </head>
+                          <body>
+                              <h2>Raw PDF Metadata</h2>
+                              <pre>\${JSON.stringify(metadata, null, 2)}</pre>
+                          </body>
+                      </html>
+                  \`);
+                  newWindow.document.close();
+                  
+                  showStatus('success', 'Raw metadata opened in new window');
+                  setTimeout(() => {
+                      document.getElementById('status').style.display = 'none';
+                  }, 2000);
+                  
+              } catch (error) {
+                  showStatus('error', 'Failed to fetch raw metadata: ' + error.message);
+              }
           }
     </script>
 </body>
