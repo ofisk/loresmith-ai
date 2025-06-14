@@ -150,34 +150,56 @@ export default {
 
     // Route to PDF agent
     if (pathname.startsWith("/agents/pdf-agent")) {
-      const pdfAgentUrl = env.PDF_AGENT_URL || "https://your-pdf-agent.workers.dev";
       const targetPath = pathname.replace("/agents/pdf-agent", "") || "/";
-      const targetUrl = new URL(targetPath + url.search, pdfAgentUrl);
+      const targetUrl = new URL(targetPath + url.search, url.origin);
       
-      // Forward the request to the PDF agent
+      // Forward the request to the PDF agent via service binding
       const modifiedRequest = new Request(targetUrl, {
         method: request.method,
         headers: request.headers,
         body: request.body
       });
       
-      return fetch(modifiedRequest);
+      // Use service binding if available, otherwise fallback to external URL
+      if (env.PDF_AGENT) {
+        return env.PDF_AGENT.fetch(modifiedRequest);
+      } else {
+        const pdfAgentUrl = env.PDF_AGENT_URL || "https://your-pdf-agent.workers.dev";
+        const fallbackUrl = new URL(targetPath + url.search, pdfAgentUrl);
+        const fallbackRequest = new Request(fallbackUrl, {
+          method: request.method,
+          headers: request.headers,
+          body: request.body
+        });
+        return fetch(fallbackRequest);
+      }
     }
 
     // Route to D&D Beyond agent
     if (pathname.startsWith("/agents/dndbeyond-agent")) {
-      const dndAgentUrl = env.DNDBEYOND_AGENT_URL || "https://your-dndbeyond-agent.workers.dev";
       const targetPath = pathname.replace("/agents/dndbeyond-agent", "") || "/";
-      const targetUrl = new URL(targetPath + url.search, dndAgentUrl);
+      const targetUrl = new URL(targetPath + url.search, url.origin);
       
-      // Forward the request to the D&D Beyond agent
+      // Forward the request to the D&D Beyond agent via service binding
       const modifiedRequest = new Request(targetUrl, {
         method: request.method,
         headers: request.headers,
         body: request.body
       });
       
-      return fetch(modifiedRequest);
+      // Use service binding if available, otherwise fallback to external URL
+      if (env.DND_AGENT) {
+        return env.DND_AGENT.fetch(modifiedRequest);
+      } else {
+        const dndAgentUrl = env.DNDBEYOND_AGENT_URL || "https://your-dndbeyond-agent.workers.dev";
+        const fallbackUrl = new URL(targetPath + url.search, dndAgentUrl);
+        const fallbackRequest = new Request(fallbackUrl, {
+          method: request.method,
+          headers: request.headers,
+          body: request.body
+        });
+        return fetch(fallbackRequest);
+      }
     }
 
     // Serve the main chat interface

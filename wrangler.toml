@@ -17,6 +17,17 @@ ENVIRONMENT = "production"
 PDF_AGENT_URL = "https://your-pdf-agent.workers.dev"
 DNDBEYOND_AGENT_URL = "https://your-dndbeyond-agent.workers.dev" 
 
+# Service bindings to other agents
+[[services]]
+binding = "PDF_AGENT"
+service = "pdf-agent"
+environment = "production"
+
+[[services]]
+binding = "DND_AGENT"
+service = "dndbeyond-agent"
+environment = "production"
+
 # Secrets (set with: wrangler secret put API_KEY)
 # API_KEY - Master API key for upload authentication
 # ADMIN_API_KEY - Admin key for management operations
