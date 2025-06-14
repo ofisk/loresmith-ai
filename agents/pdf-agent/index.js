@@ -1,4 +1,4 @@
-import { UPLOAD_UI_HTML } from './ui-template.js';
+import { UPLOAD_UI_HTML } from './pdf-agent-ui.js';
 
 export default {
   async fetch(req, env) {
