@@ -293,38 +293,7 @@ export const CHAT_INTERFACE_HTML = `<!DOCTYPE html>
             <div class="message assistant">
                 <h3>👋 Welcome to LoreSmith!</h3>
                 <p>I'm here to help you with D&D campaign planning. You can upload PDFs, look up characters, or just chat with me about what you need!</p>
-                <p><strong>Choose an action below or ask me anything:</strong></p>
-                
-                <!-- PDF Upload Section -->
-                <div class="action-section">
-                    <h4>📚 PDF Management</h4>
-                    <div class="form-group">
-                        <label for="pdfApiKey">API Key:</label>
-                        <input type="password" id="pdfApiKey" placeholder="Enter PDF agent API key">
-                    </div>
-                    <div class="form-group">
-                        <label for="pdfFile">Upload PDF:</label>
-                        <input type="file" id="pdfFile" accept=".pdf">
-                        <input type="text" id="pdfName" placeholder="Optional: Custom name">
-                        <input type="text" id="pdfTags" placeholder="Optional: Tags (comma-separated)">
-                    </div>
-                    <button class="btn btn-primary" onclick="uploadPDF()">Upload PDF</button>
-                    <button class="btn btn-secondary" onclick="listPDFs()">List PDFs</button>
-                </div>
-                
-                <!-- Character Lookup Section -->
-                <div class="action-section">
-                    <h4>🎲 Character Lookup</h4>
-                    <div class="form-group">
-                        <label for="charApiKey">API Key:</label>
-                        <input type="password" id="charApiKey" placeholder="Enter D&D Beyond agent API key">
-                    </div>
-                    <div class="form-group">
-                        <label for="characterId">Character ID:</label>
-                        <input type="number" id="characterId" placeholder="D&D Beyond character ID">
-                    </div>
-                    <button class="btn btn-primary" onclick="lookupCharacter()">Get Character</button>
-                </div>
+                <p><strong>Just tell me what you're looking for!</strong></p>
             </div>
         </div>
         
@@ -435,23 +404,43 @@ export const CHAT_INTERFACE_HTML = `<!DOCTYPE html>
             }
             
             // Add action buttons
-            if (data.action || data.alternative || data.agents) {
+            // Add action buttons or UI sections based on recommendation
+            if (data.recommendation === "PDF Storage Agent") {
+                html += \`
+                <div class="action-section">
+                    <h4>📚 PDF Management</h4>
+                    <div class="form-group">
+                        <label for="pdfApiKey">API Key:</label>
+                        <input type="password" id="pdfApiKey" placeholder="Enter PDF agent API key">
+                    </div>
+                    <div class="form-group">
+                        <label for="pdfFile">Upload PDF:</label>
+                        <input type="file" id="pdfFile" accept=".pdf">
+                        <input type="text" id="pdfName" placeholder="Optional: Custom name">
+                        <input type="text" id="pdfTags" placeholder="Optional: Tags (comma-separated)">
+                    </div>
+                    <button class="btn btn-primary" onclick="uploadPDF()">Upload PDF</button>
+                    <button class="btn btn-secondary" onclick="listPDFs()">List PDFs</button>
+                </div>\`;
+            } else if (data.recommendation === "D&D Beyond Agent") {
+                html += \`
+                <div class="action-section">
+                    <h4>🎲 Character Lookup</h4>
+                    <div class="form-group">
+                        <label for="charApiKey">API Key:</label>
+                        <input type="password" id="charApiKey" placeholder="Enter D&D Beyond agent API key">
+                    </div>
+                    <div class="form-group">
+                        <label for="characterId">Character ID:</label>
+                        <input type="number" id="characterId" placeholder="D&D Beyond character ID">
+                    </div>
+                    <button class="btn btn-primary" onclick="lookupCharacter()">Get Character</button>
+                </div>\`;
+            } else if (data.agents) {
+                // Show both options for general help
                 html += '<div class="action-buttons">';
-                
-                if (data.action) {
-                    html += \`<a href="\${data.action.url}" class="btn btn-primary" target="_blank">\${data.action.text}</a>\`;
-                }
-                
-                if (data.alternative) {
-                    html += \`<a href="\${data.alternative.url}" class="btn btn-secondary" target="_blank">\${data.alternative.text}</a>\`;
-                }
-                
-                if (data.agents) {
-                    data.agents.forEach(agent => {
-                        html += \`<a href="\${agent.url}" class="btn btn-primary" target="_blank">Launch \${agent.name.replace(/[📚🎲]/g, '').trim()}</a>\`;
-                    });
-                }
-                
+                html += '<button class="btn btn-primary" onclick="showPDFInterface()">📚 Manage PDFs</button>';
+                html += '<button class="btn btn-primary" onclick="showCharacterInterface()">🎲 Lookup Characters</button>';
                 html += '</div>';
             }
             
@@ -560,8 +549,27 @@ export const CHAT_INTERFACE_HTML = `<!DOCTYPE html>
             }
         }
         
-        // Character Lookup Function
-        async function lookupCharacter() {
+                 // Interface Display Functions
+         function showPDFInterface() {
+             const response = {
+                 message: "📚 PDF Management Interface",
+                 explanation: "Upload PDFs, manage your library, and organize your D&D documents.",
+                 recommendation: "PDF Storage Agent"
+             };
+             addAssistantResponse(response);
+         }
+         
+         function showCharacterInterface() {
+             const response = {
+                 message: "🎲 Character Lookup Interface", 
+                 explanation: "Look up D&D Beyond characters to get stats, abilities, and character information.",
+                 recommendation: "D&D Beyond Agent"
+             };
+             addAssistantResponse(response);
+         }
+         
+         // Character Lookup Function
+         async function lookupCharacter() {
             const apiKey = document.getElementById('charApiKey').value.trim();
             const characterId = document.getElementById('characterId').value.trim();
             
