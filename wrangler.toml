@@ -1,18 +1,22 @@
-name = "loresmith-assistant"
+name = "loresmith-ai"
 main = "index.js"
 compatibility_date = "2024-01-15"
 compatibility_flags = ["nodejs_compat"]
 
 # Worker configuration
 [env.production]
-name = "loresmith-assistant"
+name = "loresmith-ai"
 
 # Development configuration  
 [env.development]
-name = "loresmith-assistant-dev"
+name = "loresmith-ai-dev"
 
 # Variables (can be overridden with secrets for sensitive data)
 [vars]
 ENVIRONMENT = "production"
 PDF_AGENT_URL = "https://your-pdf-agent.workers.dev"
 DNDBEYOND_AGENT_URL = "https://your-dndbeyond-agent.workers.dev" 
+
+# Secrets (set with: wrangler secret put API_KEY)
+# API_KEY - Master API key for upload authentication
+# ADMIN_API_KEY - Admin key for management operations
