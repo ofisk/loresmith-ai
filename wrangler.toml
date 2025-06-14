@@ -13,4 +13,6 @@ name = "loresmith-assistant-dev"
 
 # Variables (can be overridden with secrets for sensitive data)
 [vars]
-ENVIRONMENT = "production" 
+ENVIRONMENT = "production"
+PDF_AGENT_URL = "https://your-pdf-agent.workers.dev"
+DNDBEYOND_AGENT_URL = "https://your-dndbeyond-agent.workers.dev" 

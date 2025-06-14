@@ -28,12 +28,7 @@ export default {
       });
     }
 
-    // Serve UI
-    if (pathname === "/" || pathname === "/ui") {
-      return new Response(this.getCharacterUI(), {
-        headers: { "Content-Type": "text/html", "Access-Control-Allow-Origin": "*" }
-      });
-    }
+    // API-only agent - no UI served directly
 
     // CORS
     if (req.method === "OPTIONS") {

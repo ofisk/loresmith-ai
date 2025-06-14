@@ -148,6 +148,38 @@ export default {
       });
     }
 
+    // Route to PDF agent
+    if (pathname.startsWith("/agents/pdf-agent")) {
+      const pdfAgentUrl = env.PDF_AGENT_URL || "https://your-pdf-agent.workers.dev";
+      const targetPath = pathname.replace("/agents/pdf-agent", "") || "/";
+      const targetUrl = new URL(targetPath + url.search, pdfAgentUrl);
+      
+      // Forward the request to the PDF agent
+      const modifiedRequest = new Request(targetUrl, {
+        method: request.method,
+        headers: request.headers,
+        body: request.body
+      });
+      
+      return fetch(modifiedRequest);
+    }
+
+    // Route to D&D Beyond agent
+    if (pathname.startsWith("/agents/dndbeyond-agent")) {
+      const dndAgentUrl = env.DNDBEYOND_AGENT_URL || "https://your-dndbeyond-agent.workers.dev";
+      const targetPath = pathname.replace("/agents/dndbeyond-agent", "") || "/";
+      const targetUrl = new URL(targetPath + url.search, dndAgentUrl);
+      
+      // Forward the request to the D&D Beyond agent
+      const modifiedRequest = new Request(targetUrl, {
+        method: request.method,
+        headers: request.headers,
+        body: request.body
+      });
+      
+      return fetch(modifiedRequest);
+    }
+
     // Serve the main chat interface
     if (pathname === "/" || pathname === "/chat") {
       return new Response(this.getChatInterface(), {

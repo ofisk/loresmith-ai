@@ -106,15 +106,7 @@ export default {
       });
     }
 
-    // Serve the upload UI
-    if (pathname === "/agents/pdf-agent" || pathname === "/agents/pdf-agent/ui") {
-      return new Response(this.getUploadUI(), {
-        headers: {
-          "Content-Type": "text/html",
-          "Access-Control-Allow-Origin": "*"
-        }
-      });
-    }
+    // API-only agent - no UI served directly
 
     // Handle CORS preflight requests
     if (req.method === "OPTIONS") {

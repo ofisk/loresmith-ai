@@ -213,6 +213,50 @@ export const CHAT_INTERFACE_HTML = `<!DOCTYPE html>
             background: rgba(255, 255, 255, 0.3);
         }
         
+        .action-section {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        
+        .action-section h4 {
+            color: #495057;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #dee2e6;
+            padding-bottom: 0.5rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .form-group input:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+        
+        .form-group input[type="file"] {
+            padding: 0.5rem;
+        }
+        
         @media (max-width: 768px) {
             .chat-container {
                 padding: 1rem;
@@ -248,8 +292,39 @@ export const CHAT_INTERFACE_HTML = `<!DOCTYPE html>
         <div class="messages" id="messages">
             <div class="message assistant">
                 <h3>👋 Welcome to LoreSmith!</h3>
-                <p>I'm here to help you find the perfect tools for your D&D campaign planning. Whether you need to manage PDFs, track characters, or organize your campaign, I'll guide you to the right agent.</p>
-                <p><strong>Just tell me what you're looking for!</strong></p>
+                <p>I'm here to help you with D&D campaign planning. You can upload PDFs, look up characters, or just chat with me about what you need!</p>
+                <p><strong>Choose an action below or ask me anything:</strong></p>
+                
+                <!-- PDF Upload Section -->
+                <div class="action-section">
+                    <h4>📚 PDF Management</h4>
+                    <div class="form-group">
+                        <label for="pdfApiKey">API Key:</label>
+                        <input type="password" id="pdfApiKey" placeholder="Enter PDF agent API key">
+                    </div>
+                    <div class="form-group">
+                        <label for="pdfFile">Upload PDF:</label>
+                        <input type="file" id="pdfFile" accept=".pdf">
+                        <input type="text" id="pdfName" placeholder="Optional: Custom name">
+                        <input type="text" id="pdfTags" placeholder="Optional: Tags (comma-separated)">
+                    </div>
+                    <button class="btn btn-primary" onclick="uploadPDF()">Upload PDF</button>
+                    <button class="btn btn-secondary" onclick="listPDFs()">List PDFs</button>
+                </div>
+                
+                <!-- Character Lookup Section -->
+                <div class="action-section">
+                    <h4>🎲 Character Lookup</h4>
+                    <div class="form-group">
+                        <label for="charApiKey">API Key:</label>
+                        <input type="password" id="charApiKey" placeholder="Enter D&D Beyond agent API key">
+                    </div>
+                    <div class="form-group">
+                        <label for="characterId">Character ID:</label>
+                        <input type="number" id="characterId" placeholder="D&D Beyond character ID">
+                    </div>
+                    <button class="btn btn-primary" onclick="lookupCharacter()">Get Character</button>
+                </div>
             </div>
         </div>
         
@@ -387,6 +462,152 @@ export const CHAT_INTERFACE_HTML = `<!DOCTYPE html>
         
         // Focus input on load
         document.getElementById('messageInput').focus();
+        
+        // PDF Management Functions
+        async function uploadPDF() {
+            const apiKey = document.getElementById('pdfApiKey').value.trim();
+            const fileInput = document.getElementById('pdfFile');
+            const name = document.getElementById('pdfName').value.trim();
+            const tags = document.getElementById('pdfTags').value.trim();
+            
+            if (!apiKey) {
+                addMessage('Please enter your PDF agent API key', 'assistant');
+                return;
+            }
+            
+            if (!fileInput.files[0]) {
+                addMessage('Please select a PDF file to upload', 'assistant');
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            if (file.type !== 'application/pdf') {
+                addMessage('Please select a valid PDF file', 'assistant');
+                return;
+            }
+            
+            addMessage(\`Uploading "\${file.name}" (\${(file.size / 1024 / 1024).toFixed(2)} MB)...\`, 'user');
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                if (name) formData.append('name', name);
+                if (tags) formData.append('tags', tags);
+                
+                const response = await fetch('/agents/pdf-agent/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': \`Bearer \${apiKey}\`
+                    },
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addMessage(\`✅ PDF uploaded successfully! ID: \${result.pdfId}\`, 'assistant');
+                    // Clear form
+                    fileInput.value = '';
+                    document.getElementById('pdfName').value = '';
+                    document.getElementById('pdfTags').value = '';
+                } else {
+                    addMessage(\`❌ Upload failed: \${result.error}\`, 'assistant');
+                }
+            } catch (error) {
+                addMessage(\`❌ Upload error: \${error.message}\`, 'assistant');
+            }
+        }
+        
+        async function listPDFs() {
+            const apiKey = document.getElementById('pdfApiKey').value.trim();
+            
+            if (!apiKey) {
+                addMessage('Please enter your PDF agent API key', 'assistant');
+                return;
+            }
+            
+            addMessage('Fetching your PDF library...', 'user');
+            
+            try {
+                const response = await fetch('/agents/pdf-agent/pdfs', {
+                    headers: {
+                        'Authorization': \`Bearer \${apiKey}\`
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.pdfs) {
+                    if (result.pdfs.length === 0) {
+                        addMessage('📚 Your PDF library is empty. Upload some PDFs to get started!', 'assistant');
+                    } else {
+                        let message = \`📚 Your PDF Library (\${result.count} files):\\n\\n\`;
+                        result.pdfs.forEach(pdf => {
+                            message += \`• \${pdf.originalName} (\${(pdf.size / 1024 / 1024).toFixed(2)} MB)\\n\`;
+                            message += \`  ID: \${pdf.id} | Uploaded: \${new Date(pdf.uploadDate).toLocaleDateString()}\\n\`;
+                            if (pdf.tags && pdf.tags.length > 0) {
+                                message += \`  Tags: \${pdf.tags.join(', ')}\\n\`;
+                            }
+                            message += '\\n';
+                        });
+                        addMessage(message, 'assistant');
+                    }
+                } else {
+                    addMessage(\`❌ Failed to fetch PDFs: \${result.error}\`, 'assistant');
+                }
+            } catch (error) {
+                addMessage(\`❌ Error fetching PDFs: \${error.message}\`, 'assistant');
+            }
+        }
+        
+        // Character Lookup Function
+        async function lookupCharacter() {
+            const apiKey = document.getElementById('charApiKey').value.trim();
+            const characterId = document.getElementById('characterId').value.trim();
+            
+            if (!apiKey) {
+                addMessage('Please enter your D&D Beyond agent API key', 'assistant');
+                return;
+            }
+            
+            if (!characterId || !characterId.match(/^\\d+$/)) {
+                addMessage('Please enter a valid character ID (numbers only)', 'assistant');
+                return;
+            }
+            
+            addMessage(\`Looking up character ID: \${characterId}...\`, 'user');
+            
+            try {
+                const response = await fetch(\`/agents/dndbeyond-agent/character/\${characterId}\`, {
+                    headers: {
+                        'Authorization': \`Bearer \${apiKey}\`
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success && result.character) {
+                    const char = result.character;
+                    let message = \`🎲 Character Found!\\n\\n\`;
+                    message += \`**\${char.name}** (Level \${char.level})\\n\`;
+                    message += \`Race: \${char.race}\\n\`;
+                    message += \`Classes: \${char.classes.map(c => \`\${c.name} \${c.level}\`).join(', ')}\\n\`;
+                    message += \`AC: \${char.armorClass} | HP: \${char.hitPoints.current}/\${char.hitPoints.max} | Speed: \${char.speed}\\n\\n\`;
+                    message += \`**Ability Scores:**\\n\`;
+                    message += \`STR: \${char.stats.strength} | DEX: \${char.stats.dexterity} | CON: \${char.stats.constitution}\\n\`;
+                    message += \`INT: \${char.stats.intelligence} | WIS: \${char.stats.wisdom} | CHA: \${char.stats.charisma}\`;
+                    
+                    addMessage(message, 'assistant');
+                    
+                    // Clear form
+                    document.getElementById('characterId').value = '';
+                } else {
+                    addMessage(\`❌ Character lookup failed: \${result.error || result.message}\`, 'assistant');
+                }
+            } catch (error) {
+                addMessage(\`❌ Character lookup error: \${error.message}\`, 'assistant');
+            }
+        }
     </script>
 </body>
 </html>`; 
