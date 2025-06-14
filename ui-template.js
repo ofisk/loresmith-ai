@@ -303,10 +303,11 @@ export const UPLOAD_UI_HTML = `<!DOCTYPE html>
         }
         
         async function loadPDFs() {
-            if (!apiKey) return;
+            const currentApiKey = document.getElementById('apiKey').value.trim();
+            if (!currentApiKey) return;
             try {
                 const response = await fetch('/pdfs', {
-                    headers: { 'Authorization': \`Bearer \${apiKey}\` }
+                    headers: { 'Authorization': \`Bearer \${currentApiKey}\` }
                 });
                 const result = await response.json();
                 if (result.pdfs) {
@@ -366,7 +367,8 @@ export const UPLOAD_UI_HTML = `<!DOCTYPE html>
         }
         
         async function deletePDF(pdfId, pdfName) {
-            if (!apiKey) {
+            const currentApiKey = document.getElementById('apiKey').value.trim();
+            if (!currentApiKey) {
                 showStatus('error', 'Please enter your API key first');
                 return;
             }
@@ -381,7 +383,7 @@ export const UPLOAD_UI_HTML = `<!DOCTYPE html>
                 const response = await fetch(\`/pdf/\${pdfId}\`, {
                     method: 'DELETE',
                     headers: {
-                        'Authorization': \`Bearer \${apiKey}\`
+                        'Authorization': \`Bearer \${currentApiKey}\`
                     }
                 });
                 
@@ -401,7 +403,8 @@ export const UPLOAD_UI_HTML = `<!DOCTYPE html>
          }
          
          async function viewPDFDetails(pdfId) {
-             if (!apiKey) {
+             const currentApiKey = document.getElementById('apiKey').value.trim();
+             if (!currentApiKey) {
                  showStatus('error', 'Please enter your API key first');
                  return;
              }
@@ -416,7 +419,7 @@ export const UPLOAD_UI_HTML = `<!DOCTYPE html>
              try {
                  const response = await fetch(\`/pdf/\${pdfId}/metadata\`, {
                      headers: {
-                         'Authorization': \`Bearer \${apiKey}\`
+                         'Authorization': \`Bearer \${currentApiKey}\`
                      }
                  });
                  
@@ -501,7 +504,8 @@ export const UPLOAD_UI_HTML = `<!DOCTYPE html>
           }
           
           async function downloadPDF(pdfId) {
-              if (!apiKey) {
+              const currentApiKey = document.getElementById('apiKey').value.trim();
+              if (!currentApiKey) {
                   showStatus('error', 'Please enter your API key first');
                   return;
               }
@@ -511,7 +515,7 @@ export const UPLOAD_UI_HTML = `<!DOCTYPE html>
                   
                   const response = await fetch(\`/pdf/\${pdfId}\`, {
                       headers: {
-                          'Authorization': \`Bearer \${apiKey}\`
+                          'Authorization': \`Bearer \${currentApiKey}\`
                       }
                   });
                   
@@ -552,7 +556,8 @@ export const UPLOAD_UI_HTML = `<!DOCTYPE html>
           }
           
           async function viewRawInfo(pdfId) {
-              if (!apiKey) {
+              const currentApiKey = document.getElementById('apiKey').value.trim();
+              if (!currentApiKey) {
                   showStatus('error', 'Please enter your API key first');
                   return;
               }
@@ -562,7 +567,7 @@ export const UPLOAD_UI_HTML = `<!DOCTYPE html>
                   
                   const response = await fetch(\`/pdf/\${pdfId}/metadata\`, {
                       headers: {
-                          'Authorization': \`Bearer \${apiKey}\`
+                          'Authorization': \`Bearer \${currentApiKey}\`
                       }
                   });
                   
