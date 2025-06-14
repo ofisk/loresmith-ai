@@ -1,0 +1,16 @@
+name = "loresmith-assistant"
+main = "index.js"
+compatibility_date = "2024-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Worker configuration
+[env.production]
+name = "loresmith-assistant"
+
+# Development configuration  
+[env.development]
+name = "loresmith-assistant-dev"
+
+# Variables (can be overridden with secrets for sensitive data)
+[vars]
+ENVIRONMENT = "production" 
