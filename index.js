@@ -1,3 +1,5 @@
+import { UPLOAD_UI_HTML } from './ui-template.js';
+
 export default {
   async fetch(req, env) {
     const { pathname } = new URL(req.url);
@@ -99,6 +101,16 @@ export default {
       }), {
         headers: { 
           "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
+    }
+
+    // Serve the upload UI
+    if (pathname === "/" || pathname === "/ui") {
+      return new Response(this.getUploadUI(), {
+        headers: {
+          "Content-Type": "text/html",
           "Access-Control-Allow-Origin": "*"
         }
       });
@@ -796,6 +808,11 @@ export default {
     } catch (error) {
       return "Text extraction failed - PDF uploaded successfully";
     }
+  },
+
+  // Load and serve the upload UI HTML from template
+  getUploadUI() {
+    return UPLOAD_UI_HTML;
   }
 };
   
