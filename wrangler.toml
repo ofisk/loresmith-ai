@@ -1,8 +1,6 @@
-name = "loresmith-worker"
+name = "loresmith"
 type = "javascript"
-
 account_id = "f67932e71175b3ee7c945c6bb84c5259"
 workers_dev = true
-main = "worker.js"
+main = "index.js"
 compatibility_date = "2025-06-14"
-
