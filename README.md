@@ -7,7 +7,7 @@ A2A Protocol agent for storing and managing D&D 5e PDFs for campaign planning. T
 - **Full Authentication**: ALL PDF operations require valid API keys
 - **Two-tier Authentication**: Separate user and admin keys for different access levels
 - **Rate Limiting**: Configurable upload limits per hour/day to prevent abuse
-- **File Size Limits**: 10GB maximum per PDF to handle large D&D collections
+- **File Size Limits**: 50MB maximum per PDF (optimized for D&D content and Worker limits)
 - **Audit Trail**: Track who uploaded what and when
 - **Zero Public Access**: All content is private and authenticated
 
@@ -88,7 +88,7 @@ wrangler deploy
   - Content-Type: `multipart/form-data`
   - Fields: `file` (required), `name` (optional), `tags` (optional)
   - Rate Limits: 10/hour, 50/day (configurable)
-  - File Size: Up to 10GB per PDF
+  - File Size: Up to 50MB per PDF
   
 - **GET** `/pdfs` - List all stored PDFs
   - **Authentication**: Required (API_KEY or ADMIN_API_KEY)
@@ -193,6 +193,19 @@ View logs:
 npm run tail
 ```
 
+## File Size Guidelines
+
+**50MB limit is perfect for D&D content:**
+- **Player's Handbook**: ~40MB (high quality)
+- **Monster Manual**: ~45MB
+- **Campaign modules**: 5-25MB typically
+- **Homebrew content**: Usually under 10MB
+
+**If your PDF is larger:**
+- Use PDF compression tools (often reduces size by 50-80%)
+- Split large compilations into separate books
+- Convert high-resolution scans to optimized PDFs
+
 Test authentication:
 ```bash
 # This should fail (no auth)
@@ -227,7 +240,7 @@ curl http://localhost:8787/pdfs \
 - **Rate limit exceeded**: Wait for the time period or use admin key for higher limits
 
 ### Upload Errors  
-- **413 File too large**: Compress PDF or split large files (10GB limit)
+- **413 File too large**: Compress PDF or split large files (50MB limit)
 - **400 Invalid file**: Ensure file is a valid PDF with correct MIME type
 
 ## Next Steps

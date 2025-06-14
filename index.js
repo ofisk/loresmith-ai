@@ -7,14 +7,15 @@ export default {
       return new Response(JSON.stringify({
         "@type": "AgentCard",
         "name": "LoreSmith PDF Storage Agent",
-        "description": "Stores and manages D&D 5e PDFs for campaign planning. Handles large PDF uploads, extracts metadata, and provides retrieval endpoints.",
+        "description": "Stores and manages D&D 5e PDFs for campaign planning. Handles large PDF uploads up to 200MB, extracts metadata, and provides retrieval endpoints.",
         "version": "1.0.0",
         "capabilities": [
           "pdf-upload",
           "pdf-storage", 
           "pdf-retrieval",
           "metadata-extraction",
-          "text-extraction"
+          "text-extraction",
+          "large-file-support"
         ],
         "api": {
           "url": "https://loresmith.example.workers.dev",
@@ -28,11 +29,39 @@ export default {
             "uploads_per_hour": 10,
             "uploads_per_day": 50
           },
+          "file_limits": {
+            "max_size": "200MB",
+            "supported_types": ["application/pdf"]
+          },
           "endpoints": [
+            {
+              "path": "/upload/request",
+              "method": "POST",
+              "description": "Request a presigned upload URL for large PDFs",
+              "accepts": "application/json",
+              "authentication": "required",
+              "parameters": {
+                "filename": "Original filename",
+                "size": "File size in bytes",
+                "name": "Optional custom name for the PDF",
+                "tags": "Optional comma-separated tags"
+              }
+            },
+            {
+              "path": "/upload/complete",
+              "method": "POST",
+              "description": "Complete the upload process after direct R2 upload",
+              "accepts": "application/json",
+              "authentication": "required",
+              "parameters": {
+                "upload_id": "Upload ID from request step",
+                "etag": "ETag returned from R2 upload"
+              }
+            },
             {
               "path": "/upload",
               "method": "POST",
-              "description": "Upload a PDF file",
+              "description": "Upload a PDF file (legacy method, <100MB only)",
               "accepts": "multipart/form-data",
               "authentication": "required",
               "parameters": {
@@ -86,7 +115,245 @@ export default {
       });
     }
 
-    // Upload PDF endpoint - REQUIRES AUTHENTICATION
+    // Request presigned upload URL - REQUIRES AUTHENTICATION
+    if (pathname === "/upload/request" && req.method === "POST") {
+      // Check authentication
+      const authResponse = await this.requireAuthentication(req, env);
+      if (authResponse.error) return authResponse.error;
+      const authResult = authResponse.success;
+
+      // Check rate limits
+      const rateLimitResult = await this.checkRateLimit(req, env, authResult.clientId);
+      if (!rateLimitResult.success) {
+        return new Response(JSON.stringify({
+          error: "Rate limit exceeded",
+          message: rateLimitResult.message,
+          limits: {
+            uploads_per_hour: parseInt(env.RATE_LIMIT_UPLOADS_PER_HOUR || "10"),
+            uploads_per_day: parseInt(env.RATE_LIMIT_UPLOADS_PER_DAY || "50")
+          },
+          retry_after: rateLimitResult.retryAfter
+        }), { 
+          status: 429,
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Retry-After": rateLimitResult.retryAfter?.toString() || "3600"
+          }
+        });
+      }
+
+      try {
+        const body = await req.json();
+        const { filename, size, name, tags } = body;
+
+        if (!filename || !size) {
+          return new Response(JSON.stringify({
+            error: "Missing required fields: filename and size"
+          }), { 
+            status: 400,
+            headers: { 
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
+          });
+        }
+
+        // Check file size (limit to 200MB)
+        const maxSize = 200 * 1024 * 1024; // 200MB
+        if (size > maxSize) {
+          return new Response(JSON.stringify({
+            error: "File too large",
+            message: `PDF must be smaller than ${maxSize / (1024 * 1024)}MB`,
+            size: size
+          }), { 
+            status: 413,
+            headers: { 
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
+          });
+        }
+
+        // Generate unique ID for the PDF
+        const uploadId = crypto.randomUUID();
+        const pdfKey = `pdfs/${uploadId}.pdf`;
+        
+        // Generate presigned URL for R2 upload
+        const presignedUrl = await env.loresmith_pdfs.createPresignedUrl(pdfKey, {
+          method: "PUT",
+          expiresIn: 3600, // 1 hour
+          httpMetadata: {
+            contentType: "application/pdf"
+          }
+        });
+
+        // Store pending upload metadata
+        const pendingMetadata = {
+          uploadId: uploadId,
+          originalName: name || filename,
+          filename: filename,
+          size: size,
+          tags: tags ? tags.split(",").map(t => t.trim()) : [],
+          uploadedBy: authResult.clientId,
+          status: "pending",
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 3600000).toISOString() // 1 hour
+        };
+
+        await env.PDF_METADATA.put(`pending:${uploadId}`, JSON.stringify(pendingMetadata), {
+          expirationTtl: 3600 // 1 hour
+        });
+
+        // Update rate limit counters
+        await this.updateRateLimit(env, authResult.clientId);
+
+        return new Response(JSON.stringify({
+          success: true,
+          upload_id: uploadId,
+          presigned_url: presignedUrl,
+          expires_in: 3600,
+          instructions: {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/pdf"
+            },
+            note: "Upload the file directly to the presigned URL, then call /upload/complete"
+          }
+        }), {
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+
+      } catch (error) {
+        return new Response(JSON.stringify({
+          error: "Failed to create upload request",
+          details: error.message
+        }), { 
+          status: 500,
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+      }
+    }
+
+    // Complete presigned upload - REQUIRES AUTHENTICATION
+    if (pathname === "/upload/complete" && req.method === "POST") {
+      // Check authentication
+      const authResponse = await this.requireAuthentication(req, env);
+      if (authResponse.error) return authResponse.error;
+      const authResult = authResponse.success;
+
+      try {
+        const body = await req.json();
+        const { upload_id, etag } = body;
+
+        if (!upload_id) {
+          return new Response(JSON.stringify({
+            error: "Missing required field: upload_id"
+          }), { 
+            status: 400,
+            headers: { 
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
+          });
+        }
+
+        // Get pending upload metadata
+        const pendingData = await env.PDF_METADATA.get(`pending:${upload_id}`);
+        if (!pendingData) {
+          return new Response(JSON.stringify({
+            error: "Upload not found or expired"
+          }), { 
+            status: 404,
+            headers: { 
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
+          });
+        }
+
+        const pendingMetadata = JSON.parse(pendingData);
+
+        // Verify the upload belongs to the authenticated user
+        if (pendingMetadata.uploadedBy !== authResult.clientId) {
+          return new Response(JSON.stringify({
+            error: "Unauthorized to complete this upload"
+          }), { 
+            status: 403,
+            headers: { 
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
+          });
+        }
+
+        // Verify the file exists in R2
+        const pdfKey = `pdfs/${upload_id}.pdf`;
+        const pdfObject = await env.loresmith_pdfs.head(pdfKey);
+        if (!pdfObject) {
+          return new Response(JSON.stringify({
+            error: "File not found in storage. Please retry the upload."
+          }), { 
+            status: 404,
+            headers: { 
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
+          });
+        }
+
+        // Create final metadata
+        const metadata = {
+          id: upload_id,
+          originalName: pendingMetadata.originalName,
+          uploadDate: new Date().toISOString(),
+          size: pdfObject.size,
+          tags: pendingMetadata.tags,
+          textPreview: "Large PDF - text extraction pending",
+          contentType: "application/pdf",
+          uploadedBy: authResult.clientId,
+          etag: etag
+        };
+
+        // Store final metadata
+        await env.PDF_METADATA.put(`pdf:${upload_id}`, JSON.stringify(metadata));
+
+        // Clean up pending metadata
+        await env.PDF_METADATA.delete(`pending:${upload_id}`);
+
+        return new Response(JSON.stringify({
+          success: true,
+          pdf_id: upload_id,
+          message: "PDF upload completed successfully",
+          metadata: metadata
+        }), {
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+
+      } catch (error) {
+        return new Response(JSON.stringify({
+          error: "Failed to complete upload",
+          details: error.message
+        }), { 
+          status: 500,
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+      }
+    }
+
+    // Legacy Upload PDF endpoint (for files <100MB) - REQUIRES AUTHENTICATION
     if (pathname === "/upload" && req.method === "POST") {
       // Check authentication
       const authResponse = await this.requireAuthentication(req, env);
@@ -132,14 +399,14 @@ export default {
           });
         }
 
-        // Check file size (limit to 10GB to control costs)
-        const modifier = 1024 * 1024 * 1024; //GB
-        const maxSize = 10 * modifier;
+        // Check file size (limit to 95MB for legacy uploads to stay under Worker limit)
+        const maxSize = 95 * 1024 * 1024; // 95MB
         if (file.size > maxSize) {
           return new Response(JSON.stringify({
-            error: "File too large",
-            message: `PDF must be smaller than ${maxSize / modifier}GB`,
-            size: file.size
+            error: "File too large for direct upload",
+            message: `Files larger than ${maxSize / (1024 * 1024)}MB must use the presigned upload method. Use /upload/request instead.`,
+            size: file.size,
+            recommendation: "Use /upload/request endpoint for files up to 200MB"
           }), { 
             status: 413,
             headers: { 
@@ -384,7 +651,7 @@ export default {
     }
 
     // Default response
-    return new Response("LoreSmith PDF Storage Agent Ready\n\nEndpoints:\n- GET /.well-known/agent.json - Agent capabilities\n- POST /upload - Upload PDF (AUTH REQUIRED)\n- GET /pdfs - List PDFs (AUTH REQUIRED)\n- GET /pdf/{id} - Download PDF (AUTH REQUIRED)\n- GET /pdf/{id}/metadata - Get PDF metadata (AUTH REQUIRED)\n- DELETE /pdf/{id} - Delete PDF (ADMIN AUTH REQUIRED)\n\nAuthentication: Bearer token in Authorization header", {
+    return new Response("LoreSmith PDF Storage Agent Ready\n\nEndpoints:\n- GET /.well-known/agent.json - Agent capabilities\n- POST /upload/request - Request presigned upload URL (up to 200MB)\n- POST /upload/complete - Complete presigned upload\n- POST /upload - Upload PDF directly (<95MB)\n- GET /pdfs - List PDFs (AUTH REQUIRED)\n- GET /pdf/{id} - Download PDF (AUTH REQUIRED)\n- GET /pdf/{id}/metadata - Get PDF metadata (AUTH REQUIRED)\n- DELETE /pdf/{id} - Delete PDF (ADMIN AUTH REQUIRED)\n\nAuthentication: Bearer token in Authorization header", {
       headers: { 
         "Content-Type": "text/plain",
         "Access-Control-Allow-Origin": "*"
