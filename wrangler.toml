@@ -4,3 +4,26 @@ account_id = "f67932e71175b3ee7c945c6bb84c5259"
 workers_dev = true
 main = "index.js"
 compatibility_date = "2025-06-14"
+
+# Environment variables for authentication
+[vars]
+RATE_LIMIT_UPLOADS_PER_HOUR = "10"
+RATE_LIMIT_UPLOADS_PER_DAY = "50"
+
+[[r2_buckets]]
+binding = "PDF_STORAGE"
+bucket_name = "loresmith-pdfs"
+binding = "loresmith_pdfs"
+
+[[kv_namespaces]]
+binding = "loresmith_ai"
+id = "df6dc898d50e4838bd8a8bed6328857b"
+preview_id = "your_preview_kv_namespace_id"
+
+binding = "PDF_METADATA"
+id = "406b4a88cb804e309079650e6b53a182"
+preview_id = "e9f43588be7d43c483cfb05f774e622e"
+
+# Secrets (set with: wrangler secret put API_KEY)
+# API_KEY - Master API key for upload authentication
+# ADMIN_API_KEY - Admin key for management operations
