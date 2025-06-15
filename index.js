@@ -63,12 +63,32 @@ export default {
       return this.handleListAgents(request);
     }
 
-    // Route to PDF agent
+    // NEW: Get UI chunk from PDF agent
+    if (pathname === "/ui/pdf-agent" && request.method === "GET") {
+      return this.getPdfAgentUI(request, env);
+    }
+
+    // NEW: Get UI chunk from D&D Beyond agent  
+    if (pathname === "/ui/dndbeyond-agent" && request.method === "GET") {
+      return this.getDndAgentUI(request, env);
+    }
+
+    // NEW: Proxy requests to PDF agent
+    if (pathname.startsWith("/proxy/pdf-agent/")) {
+      return this.proxyToPdfAgent(request, env, pathname, url);
+    }
+
+    // NEW: Proxy requests to D&D Beyond agent
+    if (pathname.startsWith("/proxy/dndbeyond-agent/")) {
+      return this.proxyToDndAgent(request, env, pathname, url);
+    }
+
+    // Route to PDF agent (legacy - for direct access)
     if (pathname.startsWith("/agents/pdf-agent")) {
       return this.routeToPdfAgent(request, env, pathname, url);
     }
 
-    // Route to D&D Beyond agent
+    // Route to D&D Beyond agent (legacy - for direct access)
     if (pathname.startsWith("/agents/dndbeyond-agent")) {
       return this.routeToDndAgent(request, env, pathname, url);
     }
@@ -752,9 +772,10 @@ export default {
     // Determine the best response based on keyword matching and provide direct routing
     if (pdfScore > campaignScore && pdfScore > 0) {
       return {
-        response: "📚 Perfect! I can help you with PDF management. I'm routing you to the PDF Storage Agent where you can upload, store, and organize your D&D books, modules, and homebrew content.",
+        response: "📚 Perfect! I can help you with PDF management. Loading the PDF Storage Agent interface where you can upload, store, and organize your D&D books, modules, and homebrew content.",
         agent_name: "PDF Storage Agent",
-        redirect_url: `${baseUrlClean}/agents/pdf-agent/`,
+        action: "load_agent_ui",
+        agent_type: "pdf-agent",
         routing_reason: "Detected PDF/document management intent",
         capabilities: [
           "Upload PDFs up to 200MB",
@@ -766,9 +787,10 @@ export default {
     } 
     else if (campaignScore > pdfScore && campaignScore > 0) {
       return {
-        response: "🎲 Great! I can help you with character and campaign management. I'm routing you to the D&D Beyond Agent where you can look up character information and manage campaign data.",
-        agent_name: "D&D Beyond Agent", 
-        redirect_url: `${baseUrlClean}/agents/dndbeyond-agent/`,
+        response: "🎲 Great! I can help you with character and campaign management. Loading the D&D Beyond Agent interface where you can look up character information and manage campaign data.",
+        agent_name: "D&D Beyond Agent",
+        action: "load_agent_ui", 
+        agent_type: "dndbeyond-agent",
         routing_reason: "Detected character/campaign management intent",
         capabilities: [
           "Look up D&D Beyond characters",
@@ -1010,6 +1032,210 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
             background: rgba(255, 255, 255, 0.3);
         }
         
+        .agent-ui-container {
+            background: white;
+            border-radius: 15px;
+            margin: 2rem 0;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .agent-ui-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .agent-ui-header h3 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        
+        .close-agent-ui {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .close-agent-ui:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .agent-ui-content {
+            padding: 2rem;
+        }
+        
+        .agent-ui-chunk .prompt {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid #667eea;
+        }
+        
+        .agent-ui-chunk .prompt h3 {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+        }
+        
+        .agent-ui-chunk .prompt p {
+            color: #495057;
+            line-height: 1.6;
+            margin: 0;
+        }
+        
+        .agent-ui-chunk .input-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .agent-ui-chunk .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .agent-ui-chunk .input-group input,
+        .agent-ui-chunk .input-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        
+        .agent-ui-chunk .input-group input:focus,
+        .agent-ui-chunk .input-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .agent-ui-chunk .file-preview {
+            background: #e8f4f8;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin: 1.5rem 0;
+            border: 2px solid #17a2b8;
+        }
+        
+        .agent-ui-chunk .file-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .agent-ui-chunk .file-detail {
+            background: white;
+            padding: 1rem;
+            border-radius: 6px;
+        }
+        
+        .agent-ui-chunk .pdfs-list {
+            margin: 1.5rem 0;
+        }
+        
+        .agent-ui-chunk .pdf-item {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            border: 1px solid #dee2e6;
+        }
+        
+        .agent-ui-chunk .pdf-item h4 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        
+        .agent-ui-chunk .pdf-meta {
+            color: #6c757d;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+        
+        .agent-ui-chunk .pdf-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .agent-ui-chunk .pdf-actions button {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            border-radius: 6px;
+        }
+        
+        .agent-ui-chunk .character-result {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-top: 1.5rem;
+            border: 1px solid #dee2e6;
+        }
+        
+        .agent-ui-chunk .character-display h4 {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+        }
+        
+        .agent-ui-chunk .character-display p {
+            margin-bottom: 0.5rem;
+            color: #495057;
+        }
+        
+        .agent-ui-chunk .status {
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            text-align: center;
+            display: none;
+        }
+        
+        .agent-ui-chunk .status.success {
+            background: #d5f4e6;
+            color: #27ae60;
+            border: 2px solid #27ae60;
+        }
+        
+        .agent-ui-chunk .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 2px solid #f5c6cb;
+        }
+        
+        .agent-ui-chunk .status.info {
+            background: #cce7ff;
+            color: #0066cc;
+            border: 2px solid #0066cc;
+        }
+        
+        .agent-ui-chunk .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+        
+        .agent-ui-chunk .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #27ae60, #2ecc71);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
@@ -1020,6 +1246,14 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
             }
             
             .agents-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .agent-ui-content {
+                padding: 1rem;
+            }
+            
+            .agent-ui-chunk .file-details {
                 grid-template-columns: 1fr;
             }
         }
@@ -1061,14 +1295,14 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
             <div class="agent-card">
                 <h3>📚 PDF Storage Agent</h3>
                 <p>Upload, store, and manage your D&D PDFs including rulebooks, adventures, and homebrew content. Supports files up to 200MB with metadata extraction.</p>
-                <button class="btn" onclick="window.open('/agents/pdf-agent/', '_blank')">Open PDF Agent</button>
+                <button class="btn" onclick="loadAgentUI('pdf-agent')">Use PDF Agent</button>
                 <button class="btn" onclick="sendSuggestion('I want to upload a PDF')">Ask About PDFs</button>
             </div>
             
             <div class="agent-card">
                 <h3>🎲 D&D Beyond Agent</h3>
                 <p>Look up public D&D Beyond characters to get stats, abilities, and character information. Perfect for DMs managing player characters.</p>
-                <button class="btn" onclick="window.open('/agents/dndbeyond-agent/', '_blank')">Open D&D Agent</button>
+                <button class="btn" onclick="loadAgentUI('dndbeyond-agent')">Use D&D Agent</button>
                 <button class="btn" onclick="sendSuggestion('Look up a character')">Ask About Characters</button>
             </div>
         </div>
@@ -1105,7 +1339,12 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
                     addMessage('Sorry, I encountered an error: ' + data.error, 'assistant');
                 } else {
                     // Handle different response types
-                    if (data.redirect_url) {
+                    if (data.action === 'load_agent_ui') {
+                        addMessage(data.response || 'Loading agent interface...', 'assistant');
+                        setTimeout(() => {
+                            loadAgentUI(data.agent_type);
+                        }, 500);
+                    } else if (data.redirect_url) {
                         addMessage(\`I'm redirecting you to: \${data.agent_name}\`, 'assistant');
                         setTimeout(() => {
                             window.open(data.redirect_url, '_blank');
@@ -1153,6 +1392,81 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
         
         // Focus input on load
         document.getElementById('messageInput').focus();
+        
+        // Agent UI management
+        async function loadAgentUI(agentType, step = '1') {
+            try {
+                const response = await fetch(\`/ui/\${agentType}?step=\${step}\`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAgentUI(data.title, data.html, data.scripts);
+                } else {
+                    addMessage('Failed to load agent interface', 'assistant');
+                }
+            } catch (error) {
+                addMessage('Error loading agent interface: ' + error.message, 'assistant');
+            }
+        }
+        
+        function showAgentUI(title, html, scripts) {
+            // Create agent UI container
+            const agentContainer = document.createElement('div');
+            agentContainer.className = 'agent-ui-container';
+            agentContainer.innerHTML = \`
+                <div class="agent-ui-header">
+                    <h3>\${title}</h3>
+                    <button class="close-agent-ui" onclick="closeAgentUI()">×</button>
+                </div>
+                <div class="agent-ui-content">
+                    \${html}
+                </div>
+            \`;
+            
+            // Add to page
+            const container = document.querySelector('.container');
+            container.appendChild(agentContainer);
+            
+            // Execute agent scripts
+            if (scripts) {
+                const scriptElement = document.createElement('script');
+                scriptElement.textContent = scripts;
+                document.head.appendChild(scriptElement);
+            }
+            
+            // Scroll to agent UI
+            agentContainer.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function closeAgentUI() {
+            const agentContainer = document.querySelector('.agent-ui-container');
+            if (agentContainer) {
+                agentContainer.remove();
+            }
+        }
+        
+        async function loadPdfAgentStep(step) {
+            await loadAgentUI('pdf-agent', step);
+        }
+        
+        function showAgentStatus(message, type) {
+            const statusDiv = document.getElementById('pdfStatus') || document.getElementById('dndStatus');
+            if (statusDiv) {
+                statusDiv.textContent = message;
+                statusDiv.className = 'status ' + type;
+                statusDiv.style.display = 'block';
+            } else {
+                // Fallback to chat message
+                addMessage(message, 'assistant');
+            }
+        }
+        
+        function hideAgentStatus() {
+            const statusDiv = document.getElementById('pdfStatus') || document.getElementById('dndStatus');
+            if (statusDiv) {
+                statusDiv.style.display = 'none';
+            }
+        }
     </script>
 </body>
 </html>`;
@@ -1441,5 +1755,450 @@ Visit the chat interface: ${baseUrl}/`, {
     }
 
     return capabilities[agent] || { error: "Agent not found" };
+  },
+
+  // NEW: Get UI chunk from PDF agent
+  async getPdfAgentUI(request, env) {
+    const step = new URL(request.url).searchParams.get('step') || '1';
+    
+    try {
+      // Create a request to get the PDF agent's UI step
+      const agentRequest = new Request('http://internal/ui-step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step, action: 'get_ui_chunk' })
+      });
+
+      let response;
+      if (env.PDF_AGENT) {
+        response = await env.PDF_AGENT.fetch(agentRequest);
+      } else {
+        // Fallback: generate UI chunk based on step
+        return this.generatePdfAgentUIChunk(step);
+      }
+
+      if (response.ok) {
+        return response;
+      } else {
+        return this.generatePdfAgentUIChunk(step);
+      }
+    } catch (error) {
+      return this.generatePdfAgentUIChunk(step);
+    }
+  },
+
+  // NEW: Get UI chunk from D&D Beyond agent  
+  async getDndAgentUI(request, env) {
+    const characterId = new URL(request.url).searchParams.get('characterId');
+    
+    try {
+      const agentRequest = new Request('http://internal/ui-chunk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get_ui_chunk', characterId })
+      });
+
+      let response;
+      if (env.DND_AGENT) {
+        response = await env.DND_AGENT.fetch(agentRequest);
+      } else {
+        return this.generateDndAgentUIChunk();
+      }
+
+      if (response.ok) {
+        return response;
+      } else {
+        return this.generateDndAgentUIChunk();
+      }
+    } catch (error) {
+      return this.generateDndAgentUIChunk();
+    }
+  },
+
+  // NEW: Proxy requests to PDF agent
+  async proxyToPdfAgent(request, env, pathname, url) {
+    const targetPath = pathname.replace("/proxy/pdf-agent", "") || "/";
+    const targetUrl = new URL(targetPath + url.search, url.origin);
+    
+    // Forward the request to the PDF agent via service binding
+    const modifiedRequest = new Request(targetUrl, {
+      method: request.method,
+      headers: request.headers,
+      body: request.body
+    });
+    
+    // Use service binding if available, otherwise fallback to external URL
+    if (env.PDF_AGENT) {
+      const response = await env.PDF_AGENT.fetch(modifiedRequest);
+      // Add CORS headers for proxy responses
+      const newResponse = new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: {
+          ...Object.fromEntries(response.headers),
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        }
+      });
+      return newResponse;
+    } else {
+      const pdfAgentUrl = env.PDF_AGENT_URL || "https://your-pdf-agent.workers.dev";
+      const fallbackUrl = new URL(targetPath + url.search, pdfAgentUrl);
+      const fallbackRequest = new Request(fallbackUrl, {
+        method: request.method,
+        headers: request.headers,
+        body: request.body
+      });
+      return fetch(fallbackRequest);
+    }
+  },
+
+  // NEW: Proxy requests to D&D Beyond agent
+  async proxyToDndAgent(request, env, pathname, url) {
+    const targetPath = pathname.replace("/proxy/dndbeyond-agent", "") || "/";
+    const targetUrl = new URL(targetPath + url.search, url.origin);
+    
+    // Forward the request to the D&D Beyond agent via service binding
+    const modifiedRequest = new Request(targetUrl, {
+      method: request.method,
+      headers: request.headers,
+      body: request.body
+    });
+    
+    // Use service binding if available, otherwise fallback to external URL
+    if (env.DND_AGENT) {
+      const response = await env.DND_AGENT.fetch(modifiedRequest);
+      // Add CORS headers for proxy responses
+      const newResponse = new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: {
+          ...Object.fromEntries(response.headers),
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        }
+      });
+      return newResponse;
+    } else {
+      const dndAgentUrl = env.DNDBEYOND_AGENT_URL || "https://your-dndbeyond-agent.workers.dev";
+      const fallbackUrl = new URL(targetPath + url.search, dndAgentUrl);
+      const fallbackRequest = new Request(fallbackUrl, {
+        method: request.method,
+        headers: request.headers,
+        body: request.body
+      });
+      return fetch(fallbackRequest);
+    }
+  },
+
+  // Generate PDF agent UI chunk as fallback
+  generatePdfAgentUIChunk(step = '1') {
+    const uiChunks = {
+      '1': {
+        title: '🔐 PDF Agent - API Key',
+        html: `
+          <div class="agent-ui-chunk">
+            <div class="prompt">
+              <h3>🔐 Welcome to PDF Manager</h3>
+              <p>To get started, please enter your API key to securely access your PDF library.</p>
+            </div>
+            <div class="input-group">
+              <label for="pdfApiKey">API Key</label>
+              <input type="password" id="pdfApiKey" placeholder="Enter your API key">
+            </div>
+            <button class="btn" onclick="validatePdfApiKey()">Continue</button>
+          </div>
+        `
+      },
+      '2': {
+        title: '📚 PDF Agent - Library',
+        html: `
+          <div class="agent-ui-chunk">
+            <div class="prompt">
+              <h3>📚 Your PDF Library</h3>
+              <p>Here are your currently stored PDFs. You can download, view details, or delete any of them.</p>
+            </div>
+            <div id="pdfsList" class="pdfs-list">
+              <div id="pdfsContainer">Loading...</div>
+            </div>
+            <button class="btn btn-success" onclick="goToPdfStep(3)">Upload New PDF</button>
+            <button class="btn btn-secondary" onclick="refreshPdfs()">Refresh List</button>
+          </div>
+        `
+      },
+      '3': {
+        title: '📤 PDF Agent - Upload',
+        html: `
+          <div class="agent-ui-chunk">
+            <div class="prompt">
+              <h3>📤 Upload New PDF</h3>
+              <p>Ready to add a new PDF to your library? Let's start by selecting the file you'd like to upload.</p>
+            </div>
+            <div class="input-group">
+              <label for="pdfFileInput">Choose PDF File</label>
+              <input type="file" id="pdfFileInput" accept=".pdf" onchange="handlePdfFileSelection()">
+            </div>
+            <button class="btn btn-secondary" onclick="goToPdfStep(2)">Back to Library</button>
+          </div>
+        `
+      },
+      '4': {
+        title: '📝 PDF Agent - Details',
+        html: `
+          <div class="agent-ui-chunk">
+            <div class="prompt">
+              <h3>📝 PDF Details</h3>
+              <p>Great! Now let's add some details to help organize your PDF in the library.</p>
+            </div>
+            <div id="pdfFilePreview" class="file-preview">
+              <h4>Selected File:</h4>
+              <div id="pdfFileDetails" class="file-details"></div>
+            </div>
+            <div class="input-group">
+              <label for="pdfName">PDF Name (optional)</label>
+              <input type="text" id="pdfName" placeholder="Custom name for your PDF">
+              <small style="color: #6c757d;">Leave blank to use the original filename</small>
+            </div>
+            <div class="input-group">
+              <label for="pdfTags">Tags (optional)</label>
+              <textarea id="pdfTags" placeholder="Add tags separated by commas (e.g., campaign, rules, homebrew, player-guide)"></textarea>
+              <small style="color: #6c757d;">Tags help you organize and find your PDFs later</small>
+            </div>
+            <button class="btn" onclick="goToPdfStep(5)">Review & Upload</button>
+            <button class="btn btn-secondary" onclick="goToPdfStep(3)">Choose Different File</button>
+          </div>
+        `
+      },
+      '5': {
+        title: '✅ PDF Agent - Confirm',
+        html: `
+          <div class="agent-ui-chunk">
+            <div class="prompt">
+              <h3>✅ Ready to Upload</h3>
+              <p>Please review your upload details below. Once you click "Upload PDF", the file will be processed and added to your library.</p>
+            </div>
+            <div id="pdfUploadSummary" class="file-preview">
+              <h4>Upload Summary:</h4>
+              <div id="pdfSummaryDetails"></div>
+            </div>
+            <div class="progress-bar" id="pdfProgressBar" style="display: none;">
+              <div class="progress-fill" id="pdfProgressFill"></div>
+            </div>
+            <div class="status" id="pdfStatus"></div>
+            <div id="pdfUploadActions">
+              <button class="btn btn-success" onclick="uploadPdfFile()">Upload PDF</button>
+              <button class="btn btn-secondary" onclick="goToPdfStep(4)">Edit Details</button>
+              <button class="btn btn-danger" onclick="cancelPdfUpload()">Cancel</button>
+            </div>
+          </div>
+        `
+      }
+    };
+
+    const chunk = uiChunks[step] || uiChunks['1'];
+    
+    return new Response(JSON.stringify({
+      success: true,
+      step: step,
+      title: chunk.title,
+      html: chunk.html,
+      scripts: this.getPdfAgentScripts()
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  },
+
+  // Generate D&D Beyond agent UI chunk as fallback
+  generateDndAgentUIChunk() {
+    return new Response(JSON.stringify({
+      success: true,
+      title: '🎲 D&D Beyond Character Lookup',
+      html: `
+        <div class="agent-ui-chunk">
+          <div class="prompt">
+            <h3>🎲 D&D Beyond Character Lookup</h3>
+            <p>Enter a D&D Beyond character ID to fetch character information. No authentication required!</p>
+          </div>
+          <div class="input-group">
+            <label for="dndCharacterId">Character ID</label>
+            <input type="text" id="dndCharacterId" placeholder="Enter character ID (e.g., 12345)">
+            <small style="color: #6c757d;">You can find this in the D&D Beyond character URL</small>
+          </div>
+          <button class="btn" onclick="lookupDndCharacter()">Look Up Character</button>
+          <div id="dndCharacterResult" class="character-result" style="display: none;"></div>
+        </div>
+      `,
+      scripts: this.getDndAgentScripts()
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  },
+
+  // Get PDF agent JavaScript functions
+  getPdfAgentScripts() {
+    return `
+      let currentPdfFile = null;
+      let pdfApiKey = localStorage.getItem('loresmith_pdf_api_key') || '';
+      
+      async function validatePdfApiKey() {
+        const apiKeyInput = document.getElementById('pdfApiKey');
+        pdfApiKey = apiKeyInput.value.trim();
+        
+        if (!pdfApiKey) {
+          showAgentStatus('Please enter your API key', 'error');
+          return;
+        }
+        
+        localStorage.setItem('loresmith_pdf_api_key', pdfApiKey);
+        
+        try {
+          showAgentStatus('Validating API key...', 'info');
+          const response = await fetch('/proxy/pdf-agent/pdfs', {
+            headers: { 'Authorization': 'Bearer ' + pdfApiKey }
+          });
+          
+          if (response.ok) {
+            hideAgentStatus();
+            loadPdfAgentStep(2);
+          } else {
+            showAgentStatus('Invalid API key. Please check and try again.', 'error');
+          }
+        } catch (error) {
+          showAgentStatus('Error validating API key: ' + error.message, 'error');
+        }
+      }
+      
+      function goToPdfStep(step) {
+        loadPdfAgentStep(step);
+      }
+      
+      async function refreshPdfs() {
+        const container = document.getElementById('pdfsContainer');
+        if (!container) return;
+        
+        container.innerHTML = 'Loading...';
+        
+        try {
+          const response = await fetch('/proxy/pdf-agent/pdfs', {
+            headers: { 'Authorization': 'Bearer ' + pdfApiKey }
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to load PDFs');
+          }
+          
+          const pdfs = await response.json();
+          
+          if (pdfs.length === 0) {
+            container.innerHTML = '<p style="color: #6c757d; text-align: center; padding: 20px;">No PDFs found. Upload your first PDF to get started!</p>';
+          } else {
+            let html = '';
+            pdfs.forEach(pdf => {
+              html += '<div class="pdf-item">';
+              html += '<h4>' + (pdf.name || pdf.filename) + '</h4>';
+              html += '<div class="pdf-meta">';
+              html += 'Size: ' + formatFileSize(pdf.size) + ' | ';
+              html += 'Uploaded: ' + new Date(pdf.uploaded_at).toLocaleDateString() + ' | ';
+              html += (pdf.tags ? 'Tags: ' + pdf.tags : 'No tags');
+              html += '</div>';
+              html += '<div class="pdf-actions">';
+              html += '<button class="btn" onclick="downloadPDF(\\'' + pdf.id + '\\', \\'' + pdf.filename + '\\')">Download</button>';
+              html += '<button class="btn btn-secondary" onclick="viewPDFInfo(\\'' + pdf.id + '\\')">View Info</button>';
+              html += '<button class="btn btn-danger" onclick="deletePDF(\\'' + pdf.id + '\\', \\'' + (pdf.name || pdf.filename) + '\\')">Delete</button>';
+              html += '</div>';
+              html += '</div>';
+            });
+            container.innerHTML = html;
+          }
+        } catch (error) {
+          container.innerHTML = '<p style="color: #dc3545;">Error loading PDFs: ' + error.message + '</p>';
+        }
+      }
+      
+      function handlePdfFileSelection() {
+        const fileInput = document.getElementById('pdfFileInput');
+        const file = fileInput.files[0];
+        
+        if (!file) return;
+        
+        if (file.type !== 'application/pdf') {
+          showAgentStatus('Please select a PDF file', 'error');
+          return;
+        }
+        
+        if (file.size > 200 * 1024 * 1024) {
+          showAgentStatus('File size exceeds 200MB limit', 'error');
+          return;
+        }
+        
+        currentPdfFile = file;
+        loadPdfAgentStep(4);
+      }
+      
+      function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
+    `;
+  },
+
+  // Get D&D Beyond agent JavaScript functions
+  getDndAgentScripts() {
+    return `
+      async function lookupDndCharacter() {
+        const characterIdInput = document.getElementById('dndCharacterId');
+        const characterId = characterIdInput.value.trim();
+        
+        if (!characterId) {
+          showAgentStatus('Please enter a character ID', 'error');
+          return;
+        }
+        
+        try {
+          showAgentStatus('Looking up character...', 'info');
+          const response = await fetch('/proxy/dndbeyond-agent/character/' + characterId);
+          
+          if (!response.ok) {
+            throw new Error('Character not found or not public');
+          }
+          
+          const character = await response.json();
+          displayDndCharacter(character);
+          hideAgentStatus();
+          
+        } catch (error) {
+          showAgentStatus('Error looking up character: ' + error.message, 'error');
+        }
+      }
+      
+      function displayDndCharacter(character) {
+        const resultDiv = document.getElementById('dndCharacterResult');
+        if (!resultDiv) return;
+        
+        let html = '<div class="character-display">';
+        html += '<h4>' + character.name + '</h4>';
+        html += '<p><strong>Class:</strong> ' + character.class + '</p>';
+        html += '<p><strong>Level:</strong> ' + character.level + '</p>';
+        html += '<p><strong>Race:</strong> ' + character.race + '</p>';
+        if (character.background) {
+          html += '<p><strong>Background:</strong> ' + character.background + '</p>';
+        }
+        html += '</div>';
+        
+        resultDiv.innerHTML = html;
+        resultDiv.style.display = 'block';
+      }
+    `;
   }
 }; 
