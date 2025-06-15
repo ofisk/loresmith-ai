@@ -1488,6 +1488,16 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
                     setTimeout(refreshPdfs, 100);
                 }
             }
+            
+            // Populate file details on step 4
+            if (step === '4') {
+                setTimeout(populateFileDetails, 100);
+            }
+            
+            // Populate upload summary on step 5
+            if (step === '5') {
+                setTimeout(populateUploadSummary, 100);
+            }
         }
         
         function showAgentStatus(message, type) {
@@ -1968,7 +1978,7 @@ Visit the chat interface: ${baseUrl}/`, {
               <textarea id="pdfTags" placeholder="Add tags separated by commas (e.g., campaign, rules, homebrew, player-guide)"></textarea>
               <small style="color: #6c757d;">Tags help you organize and find your PDFs later</small>
             </div>
-            <button class="btn" onclick="goToPdfStep(5)">Review & Upload</button>
+            <button class="btn" onclick="proceedToConfirmation()">Review & Upload</button>
             <button class="btn btn-secondary" onclick="goToPdfStep(3)">Choose Different File</button>
           </div>
         `
@@ -2049,6 +2059,7 @@ Visit the chat interface: ${baseUrl}/`, {
     return `
       let currentPdfFile = null;
       let pdfApiKey = localStorage.getItem('loresmith_pdf_api_key') || '';
+      let pdfUploadData = {}; // Store data between steps
       
       async function validatePdfApiKey() {
         const apiKeyInput = document.getElementById('pdfApiKey');
@@ -2081,6 +2092,11 @@ Visit the chat interface: ${baseUrl}/`, {
       }
       
       function goToPdfStep(step) {
+        // Clear upload data when going back to earlier steps
+        if (step <= 3) {
+          currentPdfFile = null;
+          pdfUploadData = {};
+        }
         loadPdfAgentStep(step);
       }
       
@@ -2153,6 +2169,16 @@ Visit the chat interface: ${baseUrl}/`, {
         }
         
         currentPdfFile = file;
+        
+        // Store file data for use in subsequent steps
+        pdfUploadData = {
+          filename: file.name,
+          size: file.size,
+          type: file.type,
+          lastModified: file.lastModified,
+          sizeFormatted: formatFileSize(file.size)
+        };
+        
         loadPdfAgentStep(4);
       }
       
@@ -2162,6 +2188,82 @@ Visit the chat interface: ${baseUrl}/`, {
         const sizes = ['Bytes', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
+      
+      function populateFileDetails() {
+        const detailsContainer = document.getElementById('pdfFileDetails');
+        const nameInput = document.getElementById('pdfName');
+        
+        if (detailsContainer && pdfUploadData.filename) {
+          let html = '<div class="file-info-item">';
+          html += '<strong>Filename:</strong> ' + pdfUploadData.filename + '<br>';
+          html += '<strong>Size:</strong> ' + pdfUploadData.sizeFormatted + '<br>';
+          html += '<strong>Type:</strong> ' + pdfUploadData.type + '<br>';
+          html += '<strong>Last Modified:</strong> ' + new Date(pdfUploadData.lastModified).toLocaleDateString();
+          html += '</div>';
+          detailsContainer.innerHTML = html;
+          
+          // Pre-populate the name field with filename (without extension)
+          if (nameInput && !nameInput.value) {
+            const nameWithoutExt = pdfUploadData.filename.replace(/\\.pdf$/i, '');
+            nameInput.value = nameWithoutExt;
+          }
+        } else if (detailsContainer) {
+          detailsContainer.innerHTML = '<p style="color: #dc3545;">No file selected. Please go back and select a file.</p>';
+        }
+      }
+      
+      function populateUploadSummary() {
+        const summaryContainer = document.getElementById('pdfSummaryDetails');
+        const nameInput = document.getElementById('pdfName');
+        const tagsInput = document.getElementById('pdfTags');
+        
+        if (summaryContainer && pdfUploadData.filename) {
+          // Get the current form values
+          const customName = nameInput ? nameInput.value.trim() : '';
+          const tags = tagsInput ? tagsInput.value.trim() : '';
+          
+          // Store form data for upload
+          pdfUploadData.customName = customName;
+          pdfUploadData.tags = tags;
+          
+          let html = '<div class="upload-summary">';
+          html += '<div class="summary-item"><strong>File:</strong> ' + pdfUploadData.filename + '</div>';
+          html += '<div class="summary-item"><strong>Size:</strong> ' + pdfUploadData.sizeFormatted + '</div>';
+          html += '<div class="summary-item"><strong>Display Name:</strong> ' + (customName || pdfUploadData.filename) + '</div>';
+          html += '<div class="summary-item"><strong>Tags:</strong> ' + (tags || 'None') + '</div>';
+          html += '</div>';
+          summaryContainer.innerHTML = html;
+        } else if (summaryContainer) {
+          summaryContainer.innerHTML = '<p style="color: #dc3545;">No file data available. Please start over.</p>';
+        }
+      }
+      
+      function proceedToConfirmation() {
+        // Store the form data before moving to next step
+        const nameInput = document.getElementById('pdfName');
+        const tagsInput = document.getElementById('pdfTags');
+        
+        if (nameInput) pdfUploadData.customName = nameInput.value.trim();
+        if (tagsInput) pdfUploadData.tags = tagsInput.value.trim();
+        
+        goToPdfStep(5);
+      }
+      
+      function cancelPdfUpload() {
+        currentPdfFile = null;
+        pdfUploadData = {};
+        goToPdfStep(2); // Go back to library
+      }
+      
+      function uploadPdfFile() {
+        if (!currentPdfFile || !pdfUploadData.filename) {
+          showAgentStatus('No file selected for upload', 'error');
+          return;
+        }
+        
+        showAgentStatus('Upload functionality coming soon...', 'info');
+        // TODO: Implement actual upload logic
       }
     `;
   },
