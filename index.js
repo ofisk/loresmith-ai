@@ -1464,42 +1464,6 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
             }
         }
         
-        async function loadPdfAgentStep(step) {
-            await loadAgentUI('pdf-agent', step);
-            
-            // Auto-populate API key if we have it stored
-            if (step === '1') {
-                const storedApiKey = localStorage.getItem('loresmith_pdf_api_key');
-                if (storedApiKey) {
-                    setTimeout(() => {
-                        const apiKeyInput = document.getElementById('pdfApiKey');
-                        if (apiKeyInput) {
-                            apiKeyInput.value = storedApiKey;
-                        }
-                    }, 100);
-                }
-            }
-            
-            // Auto-load PDFs if we're on step 2 and have an API key
-            if (step === '2') {
-                const storedApiKey = localStorage.getItem('loresmith_pdf_api_key');
-                if (storedApiKey) {
-                    pdfApiKey = storedApiKey;
-                    setTimeout(refreshPdfs, 100);
-                }
-            }
-            
-            // Populate file details on step 4
-            if (step === '4') {
-                setTimeout(populateFileDetails, 100);
-            }
-            
-            // Populate upload summary on step 5
-            if (step === '5') {
-                setTimeout(populateUploadSummary, 100);
-            }
-        }
-        
         function showAgentStatus(message, type) {
             const statusDiv = document.getElementById('pdfStatus') || document.getElementById('dndStatus');
             if (statusDiv) {
@@ -1906,116 +1870,87 @@ Visit the chat interface: ${baseUrl}/`, {
 
   // Generate PDF agent UI chunk as fallback
   generatePdfAgentUIChunk(step = '1') {
-    const uiChunks = {
-      '1': {
-        title: '🔐 PDF Agent - API Key',
-        html: `
-          <div class="agent-ui-chunk">
-            <div class="prompt">
-              <h3>🔐 Welcome to PDF Manager</h3>
-              <p>To get started, please enter your API key to securely access your PDF library.</p>
-            </div>
+    return new Response(JSON.stringify({
+      success: true,
+      title: '📚 PDF Library Manager',
+      html: `
+        <div class="agent-ui-chunk">
+          <div class="prompt">
+            <h3>📚 PDF Library Manager</h3>
+            <p>Manage your PDF collection with secure upload and organization features.</p>
+          </div>
+          
+          <!-- API Key Section -->
+          <div class="section" id="apiKeySection">
+            <h4>🔐 Authentication</h4>
             <div class="input-group">
               <label for="pdfApiKey">API Key</label>
               <input type="password" id="pdfApiKey" placeholder="Enter your API key">
-            </div>
-            <button class="btn" onclick="validatePdfApiKey()">Continue</button>
-          </div>
-        `
-      },
-      '2': {
-        title: '📚 PDF Agent - Library',
-        html: `
-          <div class="agent-ui-chunk">
-            <div class="prompt">
-              <h3>📚 Your PDF Library</h3>
-              <p>Here are your currently stored PDFs. You can download, view details, or delete any of them.</p>
-            </div>
-            <div id="pdfsList" class="pdfs-list">
-              <div id="pdfsContainer">Loading...</div>
-            </div>
-            <button class="btn btn-success" onclick="goToPdfStep(3)">Upload New PDF</button>
-            <button class="btn btn-secondary" onclick="refreshPdfs()">Refresh List</button>
-            <button class="btn btn-secondary" onclick="goToPdfStep(1)">Change API Key</button>
-          </div>
-        `
-      },
-      '3': {
-        title: '📤 PDF Agent - Upload',
-        html: `
-          <div class="agent-ui-chunk">
-            <div class="prompt">
-              <h3>📤 Upload New PDF</h3>
-              <p>Ready to add a new PDF to your library? Let's start by selecting the file you'd like to upload.</p>
-            </div>
-            <div class="input-group">
-              <label for="pdfFileInput">Choose PDF File</label>
-              <input type="file" id="pdfFileInput" accept=".pdf" onchange="handlePdfFileSelection()">
-            </div>
-            <button class="btn btn-secondary" onclick="goToPdfStep(2)">Back to Library</button>
-          </div>
-        `
-      },
-      '4': {
-        title: '📝 PDF Agent - Details',
-        html: `
-          <div class="agent-ui-chunk">
-            <div class="prompt">
-              <h3>📝 PDF Details</h3>
-              <p>Great! Now let's add some details to help organize your PDF in the library.</p>
-            </div>
-            <div id="pdfFilePreview" class="file-preview">
-              <h4>Selected File:</h4>
-              <div id="pdfFileDetails" class="file-details"></div>
-            </div>
-            <div class="input-group">
-              <label for="pdfName">PDF Name (optional)</label>
-              <input type="text" id="pdfName" placeholder="Custom name for your PDF">
-              <small style="color: #6c757d;">Leave blank to use the original filename</small>
-            </div>
-            <div class="input-group">
-              <label for="pdfTags">Tags (optional)</label>
-              <textarea id="pdfTags" placeholder="Add tags separated by commas (e.g., campaign, rules, homebrew, player-guide)"></textarea>
-              <small style="color: #6c757d;">Tags help you organize and find your PDFs later</small>
-            </div>
-            <button class="btn" onclick="proceedToConfirmation()">Review & Upload</button>
-            <button class="btn btn-secondary" onclick="goToPdfStep(3)">Choose Different File</button>
-          </div>
-        `
-      },
-      '5': {
-        title: '✅ PDF Agent - Confirm',
-        html: `
-          <div class="agent-ui-chunk">
-            <div class="prompt">
-              <h3>✅ Ready to Upload</h3>
-              <p>Please review your upload details below. Once you click "Upload PDF", the file will be processed and added to your library.</p>
-            </div>
-            <div id="pdfUploadSummary" class="file-preview">
-              <h4>Upload Summary:</h4>
-              <div id="pdfSummaryDetails"></div>
-            </div>
-            <div class="progress-bar" id="pdfProgressBar" style="display: none;">
-              <div class="progress-fill" id="pdfProgressFill"></div>
-            </div>
-            <div class="status" id="pdfStatus"></div>
-            <div id="pdfUploadActions">
-              <button class="btn btn-success" onclick="uploadPdfFile()">Upload PDF</button>
-              <button class="btn btn-secondary" onclick="goToPdfStep(4)">Edit Details</button>
-              <button class="btn btn-danger" onclick="cancelPdfUpload()">Cancel</button>
+              <button class="btn btn-sm" onclick="validatePdfApiKey()">Connect</button>
             </div>
           </div>
-        `
-      }
-    };
-
-    const chunk = uiChunks[step] || uiChunks['1'];
-    
-    return new Response(JSON.stringify({
-      success: true,
-      step: step,
-      title: chunk.title,
-      html: chunk.html,
+          
+          <!-- Main Content (hidden until authenticated) -->
+          <div id="mainContent" style="display: none;">
+            
+            <!-- Library Section -->
+            <div class="section">
+              <h4>📚 Your PDF Library</h4>
+              <div id="pdfsContainer" class="pdfs-container">Loading...</div>
+              <div class="library-actions">
+                <button class="btn btn-secondary btn-sm" onclick="refreshPdfs()">Refresh</button>
+                <button class="btn btn-secondary btn-sm" onclick="showApiKeySection()">Change API Key</button>
+              </div>
+            </div>
+            
+            <!-- Upload Section -->
+            <div class="section">
+              <h4>📤 Upload New PDF</h4>
+              <form id="pdfUploadForm" onsubmit="handlePdfUpload(event)">
+                <div class="input-group">
+                  <label for="pdfFileInput">Select PDF File</label>
+                  <input type="file" id="pdfFileInput" accept=".pdf" required onchange="handleFileSelection()">
+                  <small>Supports PDF files up to 200MB</small>
+                </div>
+                
+                <div id="filePreview" class="file-preview" style="display: none;">
+                  <h5>📄 Selected File</h5>
+                  <div id="fileDetails" class="file-details"></div>
+                </div>
+                
+                <div class="input-group">
+                  <label for="pdfName">Display Name (optional)</label>
+                  <input type="text" id="pdfName" placeholder="Custom name for your PDF">
+                  <small>Leave blank to use the original filename</small>
+                </div>
+                
+                <div class="input-group">
+                  <label for="pdfTags">Tags (optional)</label>
+                  <input type="text" id="pdfTags" placeholder="e.g., campaign, rules, homebrew">
+                  <small>Comma-separated tags to help organize your PDFs</small>
+                </div>
+                
+                <div class="upload-actions">
+                  <button type="submit" class="btn btn-success" id="uploadBtn" disabled>
+                    <span id="uploadBtnText">Upload PDF</span>
+                  </button>
+                  <button type="button" class="btn btn-secondary" onclick="clearUploadForm()">Clear</button>
+                </div>
+                
+                <div class="progress-container" id="uploadProgress" style="display: none;">
+                  <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                  </div>
+                  <div class="progress-text" id="progressText">Preparing upload...</div>
+                </div>
+                
+                <div id="uploadStatus" class="status-message"></div>
+              </form>
+            </div>
+            
+          </div>
+        </div>
+      `,
       scripts: this.getPdfAgentScripts()
     }), {
       headers: {
@@ -2059,7 +1994,21 @@ Visit the chat interface: ${baseUrl}/`, {
     return `
       let currentPdfFile = null;
       let pdfApiKey = localStorage.getItem('loresmith_pdf_api_key') || '';
-      let pdfUploadData = {}; // Store data between steps
+      
+      // Initialize the interface
+      document.addEventListener('DOMContentLoaded', function() {
+        initializePdfAgent();
+      });
+      
+      function initializePdfAgent() {
+        // Auto-populate API key if stored
+        const apiKeyInput = document.getElementById('pdfApiKey');
+        if (apiKeyInput && pdfApiKey) {
+          apiKeyInput.value = pdfApiKey;
+          // Auto-validate if we have a stored key
+          setTimeout(validatePdfApiKey, 100);
+        }
+      }
       
       async function validatePdfApiKey() {
         const apiKeyInput = document.getElementById('pdfApiKey');
@@ -2080,8 +2029,7 @@ Visit the chat interface: ${baseUrl}/`, {
           
           if (response.ok) {
             hideAgentStatus();
-            await loadPdfAgentStep(2);
-            // Load PDFs after the UI is loaded
+            showMainContent();
             setTimeout(refreshPdfs, 100);
           } else {
             showAgentStatus('Invalid API key. Please check and try again.', 'error');
@@ -2091,13 +2039,26 @@ Visit the chat interface: ${baseUrl}/`, {
         }
       }
       
-      function goToPdfStep(step) {
-        // Clear upload data when going back to earlier steps
-        if (step <= 3) {
-          currentPdfFile = null;
-          pdfUploadData = {};
-        }
-        loadPdfAgentStep(step);
+      function showMainContent() {
+        const apiKeySection = document.getElementById('apiKeySection');
+        const mainContent = document.getElementById('mainContent');
+        
+        if (apiKeySection) apiKeySection.style.display = 'none';
+        if (mainContent) mainContent.style.display = 'block';
+      }
+      
+      function showApiKeySection() {
+        const apiKeySection = document.getElementById('apiKeySection');
+        const mainContent = document.getElementById('mainContent');
+        
+        if (apiKeySection) apiKeySection.style.display = 'block';
+        if (mainContent) mainContent.style.display = 'none';
+        
+        // Clear the API key field for security
+        const apiKeyInput = document.getElementById('pdfApiKey');
+        if (apiKeyInput) apiKeyInput.value = '';
+        pdfApiKey = '';
+        localStorage.removeItem('loresmith_pdf_api_key');
       }
       
       async function refreshPdfs() {
@@ -2135,9 +2096,9 @@ Visit the chat interface: ${baseUrl}/`, {
                 html += (pdf.tags ? 'Tags: ' + pdf.tags : 'No tags');
                 html += '</div>';
                 html += '<div class="pdf-actions">';
-                html += '<button class="btn" onclick="downloadPDF(\\'' + pdf.id + '\\', \\'' + pdf.filename + '\\')">Download</button>';
-                html += '<button class="btn btn-secondary" onclick="viewPDFInfo(\\'' + pdf.id + '\\')">View Info</button>';
-                html += '<button class="btn btn-danger" onclick="deletePDF(\\'' + pdf.id + '\\', \\'' + (pdf.name || pdf.filename) + '\\')">Delete</button>';
+                html += '<button class="btn btn-sm" onclick="downloadPDF(\\'' + pdf.id + '\\', \\'' + pdf.filename + '\\')">Download</button>';
+                html += '<button class="btn btn-sm btn-secondary" onclick="viewPDFInfo(\\'' + pdf.id + '\\')">Info</button>';
+                html += '<button class="btn btn-sm btn-danger" onclick="deletePDF(\\'' + pdf.id + '\\', \\'' + (pdf.name || pdf.filename) + '\\')">Delete</button>';
                 html += '</div>';
                 html += '</div>';
               });
@@ -2152,34 +2113,57 @@ Visit the chat interface: ${baseUrl}/`, {
         }
       }
       
-      function handlePdfFileSelection() {
+      function handleFileSelection() {
         const fileInput = document.getElementById('pdfFileInput');
         const file = fileInput.files[0];
+        const filePreview = document.getElementById('filePreview');
+        const fileDetails = document.getElementById('fileDetails');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const pdfNameInput = document.getElementById('pdfName');
         
-        if (!file) return;
+        if (!file) {
+          if (filePreview) filePreview.style.display = 'none';
+          if (uploadBtn) uploadBtn.disabled = true;
+          currentPdfFile = null;
+          return;
+        }
         
         if (file.type !== 'application/pdf') {
           showAgentStatus('Please select a PDF file', 'error');
+          fileInput.value = '';
           return;
         }
         
         if (file.size > 200 * 1024 * 1024) {
           showAgentStatus('File size exceeds 200MB limit', 'error');
+          fileInput.value = '';
           return;
         }
         
         currentPdfFile = file;
         
-        // Store file data for use in subsequent steps
-        pdfUploadData = {
-          filename: file.name,
-          size: file.size,
-          type: file.type,
-          lastModified: file.lastModified,
-          sizeFormatted: formatFileSize(file.size)
-        };
+        // Show file details
+        if (fileDetails) {
+          fileDetails.innerHTML = \`
+            <div class="file-info">
+              <div><strong>Name:</strong> \${file.name}</div>
+              <div><strong>Size:</strong> \${formatFileSize(file.size)}</div>
+              <div><strong>Type:</strong> \${file.type}</div>
+              <div><strong>Modified:</strong> \${new Date(file.lastModified).toLocaleDateString()}</div>
+            </div>
+          \`;
+        }
         
-        loadPdfAgentStep(4);
+        // Auto-populate name field with filename (without extension)
+        if (pdfNameInput && !pdfNameInput.value) {
+          const nameWithoutExt = file.name.replace(/\\.pdf$/i, '');
+          pdfNameInput.value = nameWithoutExt;
+        }
+        
+        if (filePreview) filePreview.style.display = 'block';
+        if (uploadBtn) uploadBtn.disabled = false;
+        
+        hideAgentStatus();
       }
       
       function formatFileSize(bytes) {
@@ -2190,80 +2174,144 @@ Visit the chat interface: ${baseUrl}/`, {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
       }
       
-      function populateFileDetails() {
-        const detailsContainer = document.getElementById('pdfFileDetails');
-        const nameInput = document.getElementById('pdfName');
+      function clearUploadForm() {
+        const form = document.getElementById('pdfUploadForm');
+        const filePreview = document.getElementById('filePreview');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const uploadStatus = document.getElementById('uploadStatus');
         
-        if (detailsContainer && pdfUploadData.filename) {
-          let html = '<div class="file-info-item">';
-          html += '<strong>Filename:</strong> ' + pdfUploadData.filename + '<br>';
-          html += '<strong>Size:</strong> ' + pdfUploadData.sizeFormatted + '<br>';
-          html += '<strong>Type:</strong> ' + pdfUploadData.type + '<br>';
-          html += '<strong>Last Modified:</strong> ' + new Date(pdfUploadData.lastModified).toLocaleDateString();
-          html += '</div>';
-          detailsContainer.innerHTML = html;
-          
-          // Pre-populate the name field with filename (without extension)
-          if (nameInput && !nameInput.value) {
-            const nameWithoutExt = pdfUploadData.filename.replace(/\\.pdf$/i, '');
-            nameInput.value = nameWithoutExt;
-          }
-        } else if (detailsContainer) {
-          detailsContainer.innerHTML = '<p style="color: #dc3545;">No file selected. Please go back and select a file.</p>';
-        }
-      }
-      
-      function populateUploadSummary() {
-        const summaryContainer = document.getElementById('pdfSummaryDetails');
-        const nameInput = document.getElementById('pdfName');
-        const tagsInput = document.getElementById('pdfTags');
+        if (form) form.reset();
+        if (filePreview) filePreview.style.display = 'none';
+        if (uploadBtn) uploadBtn.disabled = true;
+        if (uploadProgress) uploadProgress.style.display = 'none';
+        if (uploadStatus) uploadStatus.innerHTML = '';
         
-        if (summaryContainer && pdfUploadData.filename) {
-          // Get the current form values
-          const customName = nameInput ? nameInput.value.trim() : '';
-          const tags = tagsInput ? tagsInput.value.trim() : '';
-          
-          // Store form data for upload
-          pdfUploadData.customName = customName;
-          pdfUploadData.tags = tags;
-          
-          let html = '<div class="upload-summary">';
-          html += '<div class="summary-item"><strong>File:</strong> ' + pdfUploadData.filename + '</div>';
-          html += '<div class="summary-item"><strong>Size:</strong> ' + pdfUploadData.sizeFormatted + '</div>';
-          html += '<div class="summary-item"><strong>Display Name:</strong> ' + (customName || pdfUploadData.filename) + '</div>';
-          html += '<div class="summary-item"><strong>Tags:</strong> ' + (tags || 'None') + '</div>';
-          html += '</div>';
-          summaryContainer.innerHTML = html;
-        } else if (summaryContainer) {
-          summaryContainer.innerHTML = '<p style="color: #dc3545;">No file data available. Please start over.</p>';
-        }
-      }
-      
-      function proceedToConfirmation() {
-        // Store the form data before moving to next step
-        const nameInput = document.getElementById('pdfName');
-        const tagsInput = document.getElementById('pdfTags');
-        
-        if (nameInput) pdfUploadData.customName = nameInput.value.trim();
-        if (tagsInput) pdfUploadData.tags = tagsInput.value.trim();
-        
-        goToPdfStep(5);
-      }
-      
-      function cancelPdfUpload() {
         currentPdfFile = null;
-        pdfUploadData = {};
-        goToPdfStep(2); // Go back to library
+        hideAgentStatus();
       }
       
-      function uploadPdfFile() {
-        if (!currentPdfFile || !pdfUploadData.filename) {
-          showAgentStatus('No file selected for upload', 'error');
+      async function handlePdfUpload(event) {
+        event.preventDefault();
+        
+        if (!currentPdfFile) {
+          showAgentStatus('Please select a file first', 'error');
           return;
         }
         
-        showAgentStatus('Upload functionality coming soon...', 'info');
-        // TODO: Implement actual upload logic
+        if (!pdfApiKey) {
+          showAgentStatus('API key required', 'error');
+          return;
+        }
+        
+        const formData = new FormData();
+        const nameInput = document.getElementById('pdfName');
+        const tagsInput = document.getElementById('pdfTags');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadBtnText = document.getElementById('uploadBtnText');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const uploadStatus = document.getElementById('uploadStatus');
+        
+        // Prepare form data
+        formData.append('file', currentPdfFile);
+        if (nameInput && nameInput.value.trim()) {
+          formData.append('name', nameInput.value.trim());
+        }
+        if (tagsInput && tagsInput.value.trim()) {
+          formData.append('tags', tagsInput.value.trim());
+        }
+        
+        // Update UI for upload
+        if (uploadBtn) uploadBtn.disabled = true;
+        if (uploadBtnText) uploadBtnText.textContent = 'Uploading...';
+        if (uploadProgress) uploadProgress.style.display = 'block';
+        if (progressText) progressText.textContent = 'Preparing upload...';
+        
+        try {
+          const response = await fetch('/proxy/pdf-agent/upload', {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + pdfApiKey
+            },
+            body: formData
+          });
+          
+          const result = await response.json();
+          
+          if (response.ok && result.success) {
+            if (progressFill) progressFill.style.width = '100%';
+            if (progressText) progressText.textContent = 'Upload complete!';
+            if (uploadStatus) {
+              uploadStatus.innerHTML = '<div style="color: #28a745;">✅ PDF uploaded successfully!</div>';
+            }
+            
+            // Clear form and refresh library
+            setTimeout(() => {
+              clearUploadForm();
+              refreshPdfs();
+            }, 2000);
+            
+          } else {
+            throw new Error(result.error || result.message || 'Upload failed');
+          }
+          
+        } catch (error) {
+          if (uploadStatus) {
+            uploadStatus.innerHTML = '<div style="color: #dc3545;">❌ Upload failed: ' + error.message + '</div>';
+          }
+          showAgentStatus('Upload failed: ' + error.message, 'error');
+        } finally {
+          // Reset upload button
+          if (uploadBtn) uploadBtn.disabled = false;
+          if (uploadBtnText) uploadBtnText.textContent = 'Upload PDF';
+          
+          // Hide progress after delay
+          setTimeout(() => {
+            if (uploadProgress) uploadProgress.style.display = 'none';
+          }, 3000);
+        }
+      }
+      
+      // PDF library action functions
+      function downloadPDF(pdfId, filename) {
+        const url = '/proxy/pdf-agent/pdf/' + pdfId;
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+      }
+      
+      function viewPDFInfo(pdfId) {
+        // TODO: Implement PDF info modal
+        showAgentStatus('PDF info feature coming soon', 'info');
+      }
+      
+      async function deletePDF(pdfId, filename) {
+        if (!confirm('Are you sure you want to delete "' + filename + '"? This action cannot be undone.')) {
+          return;
+        }
+        
+        try {
+          const response = await fetch('/proxy/pdf-agent/pdf/' + pdfId, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': 'Bearer ' + pdfApiKey
+            }
+          });
+          
+          const result = await response.json();
+          
+          if (response.ok && result.success) {
+            showAgentStatus('PDF deleted successfully', 'success');
+            refreshPdfs();
+          } else {
+            throw new Error(result.error || result.message || 'Delete failed');
+          }
+        } catch (error) {
+          showAgentStatus('Delete failed: ' + error.message, 'error');
+        }
       }
     `;
   },
