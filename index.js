@@ -2095,32 +2095,41 @@ Visit the chat interface: ${baseUrl}/`, {
             headers: { 'Authorization': 'Bearer ' + pdfApiKey }
           });
           
-          if (!response.ok) {
-            throw new Error('Failed to load PDFs');
-          }
+          const data = await response.json();
           
-          const pdfs = await response.json();
-          
-          if (pdfs.length === 0) {
-            container.innerHTML = '<p style="color: #6c757d; text-align: center; padding: 20px;">No PDFs found. Upload your first PDF to get started!</p>';
+          // Handle the new response format with pdfs array and message
+          if (data.pdfs !== undefined) {
+            if (data.pdfs.length === 0) {
+              // Use the message from the server if available
+              const message = data.message || 'No PDFs found. Upload your first PDF to get started!';
+              container.innerHTML = '<p style="color: #6c757d; text-align: center; padding: 20px;">' + message + '</p>';
+              
+              // Show debug info if available
+              if (data.debug) {
+                console.log('PDF Agent Debug:', data.debug);
+              }
+            } else {
+              let html = '';
+              data.pdfs.forEach(pdf => {
+                html += '<div class="pdf-item">';
+                html += '<h4>' + (pdf.name || pdf.filename) + '</h4>';
+                html += '<div class="pdf-meta">';
+                html += 'Size: ' + formatFileSize(pdf.size) + ' | ';
+                html += 'Uploaded: ' + new Date(pdf.uploaded_at).toLocaleDateString() + ' | ';
+                html += (pdf.tags ? 'Tags: ' + pdf.tags : 'No tags');
+                html += '</div>';
+                html += '<div class="pdf-actions">';
+                html += '<button class="btn" onclick="downloadPDF(\\'' + pdf.id + '\\', \\'' + pdf.filename + '\\')">Download</button>';
+                html += '<button class="btn btn-secondary" onclick="viewPDFInfo(\\'' + pdf.id + '\\')">View Info</button>';
+                html += '<button class="btn btn-danger" onclick="deletePDF(\\'' + pdf.id + '\\', \\'' + (pdf.name || pdf.filename) + '\\')">Delete</button>';
+                html += '</div>';
+                html += '</div>';
+              });
+              container.innerHTML = html;
+            }
           } else {
-            let html = '';
-            pdfs.forEach(pdf => {
-              html += '<div class="pdf-item">';
-              html += '<h4>' + (pdf.name || pdf.filename) + '</h4>';
-              html += '<div class="pdf-meta">';
-              html += 'Size: ' + formatFileSize(pdf.size) + ' | ';
-              html += 'Uploaded: ' + new Date(pdf.uploaded_at).toLocaleDateString() + ' | ';
-              html += (pdf.tags ? 'Tags: ' + pdf.tags : 'No tags');
-              html += '</div>';
-              html += '<div class="pdf-actions">';
-              html += '<button class="btn" onclick="downloadPDF(\\'' + pdf.id + '\\', \\'' + pdf.filename + '\\')">Download</button>';
-              html += '<button class="btn btn-secondary" onclick="viewPDFInfo(\\'' + pdf.id + '\\')">View Info</button>';
-              html += '<button class="btn btn-danger" onclick="deletePDF(\\'' + pdf.id + '\\', \\'' + (pdf.name || pdf.filename) + '\\')">Delete</button>';
-              html += '</div>';
-              html += '</div>';
-            });
-            container.innerHTML = html;
+            // Handle old format or error responses
+            throw new Error(data.error || data.message || 'Unexpected response format');
           }
         } catch (error) {
           container.innerHTML = '<p style="color: #dc3545;">Error loading PDFs: ' + error.message + '</p>';
