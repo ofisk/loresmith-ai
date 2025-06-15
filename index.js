@@ -1,4 +1,4 @@
-import { CHAT_INTERFACE_HTML } from './chat-template.js';
+// Chat interface will be embedded directly
 import { McpSession } from './mcp-session.js';
 
 export { McpSession };
@@ -749,83 +749,413 @@ export default {
     const campaignScore = campaignKeywords.filter(keyword => lowerMessage.includes(keyword)).length;
     const helpScore = helpKeywords.filter(keyword => lowerMessage.includes(keyword)).length;
 
-    // Determine the best response based on keyword matching
+    // Determine the best response based on keyword matching and provide direct routing
     if (pdfScore > campaignScore && pdfScore > 0) {
       return {
-        message: "It sounds like you need help with PDF management! 📚",
-        recommendation: "PDF Storage Agent",
-        explanation: "Based on your message, I recommend the PDF Storage Agent. It's perfect for uploading, storing, and organizing your D&D books, modules, and homebrew content.",
-        features: [
-          "Upload PDFs up to 200MB (perfect for high-quality D&D books)",
-          "Secure storage with API key authentication",
-          "Beautiful drag-and-drop web interface",
-          "Metadata extraction and tagging system",
-          "Easy sharing and organization"
-        ],
-        action: {
-          text: "Launch PDF Storage Agent",
-          url: `${baseUrlClean}/agents/pdf-agent/`
-        },
-        alternative: {
-          text: "Or explore the D&D Beyond Agent",
-          url: `${baseUrlClean}/agents/dndbeyond-agent/`
-        }
+        response: "📚 Perfect! I can help you with PDF management. I'm routing you to the PDF Storage Agent where you can upload, store, and organize your D&D books, modules, and homebrew content.",
+        agent_name: "PDF Storage Agent",
+        redirect_url: `${baseUrlClean}/agents/pdf-agent/`,
+        routing_reason: "Detected PDF/document management intent",
+        capabilities: [
+          "Upload PDFs up to 200MB",
+          "Secure storage and organization", 
+          "Metadata extraction and tagging",
+          "Easy sharing and retrieval"
+        ]
       };
     } 
     else if (campaignScore > pdfScore && campaignScore > 0) {
       return {
-        message: "Looks like you're interested in character and campaign management! 🎲",
-        recommendation: "D&D Beyond Agent",
-        explanation: "Based on your message, I recommend the D&D Beyond Agent. It's great for DMs who want to access player character information and integrate it into their campaign planning.",
-        features: [
-          "Fetch character data directly from D&D Beyond",
-          "Quick access to player stats and abilities",
-          "Perfect for encounter planning and session prep",
-          "Clean, D&D-themed interface",
-          "Supports public character lookups"
-        ],
-        action: {
-          text: "Launch D&D Beyond Agent",
-          url: `${baseUrlClean}/agents/dndbeyond-agent/`
-        },
-        alternative: {
-          text: "Or check out the PDF Storage Agent",
-          url: `${baseUrlClean}/agents/pdf-agent/`
-        }
+        response: "🎲 Great! I can help you with character and campaign management. I'm routing you to the D&D Beyond Agent where you can look up character information and manage campaign data.",
+        agent_name: "D&D Beyond Agent", 
+        redirect_url: `${baseUrlClean}/agents/dndbeyond-agent/`,
+        routing_reason: "Detected character/campaign management intent",
+        capabilities: [
+          "Look up D&D Beyond characters",
+          "Access character stats and abilities",
+          "Support for public character data",
+          "Perfect for DM session prep"
+        ]
       };
     }
     else {
-      // General help or unclear intent
+      // General help or unclear intent - provide overview without redirect
       return {
-        message: "Welcome to LoreSmith! 🏰 I'm here to help you find the right tools for your D&D campaign.",
-        recommendation: "Let me show you what's available",
-        explanation: "LoreSmith offers specialized agents to enhance your D&D experience. Here's what each one does:",
-        agents: [
-          {
-            name: "📚 PDF Storage Agent",
-            description: "Perfect for storing and managing your D&D books, modules, and homebrew content",
-            best_for: "DMs and players who want to organize their PDF collection",
-            url: `${baseUrlClean}/agents/pdf-agent/`
-          },
-          {
-            name: "🎲 D&D Beyond Agent", 
-            description: "Fetch character information from D&D Beyond for campaign planning",
-            best_for: "DMs who want quick access to player character data",
-            url: `${baseUrlClean}/agents/dndbeyond-agent/`
-          }
-        ],
-        suggestions: [
-          "Try saying: 'I need to store my D&D books'",
-          "Or ask: 'How can I manage player characters?'",
-          "Or: 'I'm a new DM, what tools do you recommend?'"
-        ]
+        response: `🏰 Welcome to LoreSmith MCP Router! I'm your intelligent assistant for D&D campaign management.
+
+<strong>Available Agents:</strong>
+
+📚 <strong>PDF Storage Agent</strong> - Upload and manage your D&D books, modules, and homebrew content
+🎲 <strong>D&D Beyond Agent</strong> - Look up character information and campaign data
+
+<strong>How to use me:</strong>
+• Say "I need to store PDFs" → Routes to PDF Agent
+• Say "Look up character ID 12345" → Routes to D&D Agent  
+• Ask specific questions about what you need
+
+<strong>Try these examples:</strong>
+• "I want to upload my Player's Handbook"
+• "Help me look up a character"
+• "I need campaign planning tools"
+
+Just tell me what you want to do and I'll connect you to the right agent!`,
+        routing_reason: "General help request - showing available options"
       };
     }
   },
 
-  // Load and serve the chat interface HTML from template
+  // Load and serve the chat interface HTML - simple routing interface
   getChatInterface() {
-    return CHAT_INTERFACE_HTML;
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoreSmith MCP Router - D&D Campaign Management</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: #333;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            text-align: center;
+            color: white;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.2rem;
+        }
+        
+        .container {
+            flex: 1;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2rem;
+            width: 100%;
+        }
+        
+        .chat-section {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .messages {
+            min-height: 300px;
+            max-height: 500px;
+            overflow-y: auto;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            background: #f8f9fa;
+        }
+        
+        .message {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        
+        .message.user {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-left: 20%;
+        }
+        
+        .message.assistant {
+            background: white;
+            border: 1px solid #dee2e6;
+            margin-right: 20%;
+        }
+        
+        .input-area {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .input-area input {
+            flex: 1;
+            padding: 1rem;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 1rem;
+            outline: none;
+        }
+        
+        .input-area input:focus {
+            border-color: #667eea;
+        }
+        
+        .input-area button {
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .input-area button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .agent-card {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+        
+        .agent-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .agent-card h3 {
+            color: #495057;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+        
+        .agent-card p {
+            color: #666;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+        
+        .agent-card .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            margin-right: 1rem;
+        }
+        
+        .agent-card .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .suggestions {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+        }
+        
+        .suggestions h4 {
+            color: white;
+            margin-bottom: 1rem;
+        }
+        
+        .suggestion-buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .suggestion-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 0.75rem 1.5rem;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+        
+        .suggestion-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .input-area {
+                flex-direction: column;
+            }
+            
+            .agents-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏰 LoreSmith MCP Router</h1>
+        <p>Intelligent routing to your D&D campaign management tools</p>
+    </div>
+    
+    <div class="container">
+        <div class="suggestions">
+            <h4>Try asking me:</h4>
+            <div class="suggestion-buttons">
+                <button class="suggestion-btn" onclick="sendSuggestion('I need to store my D&D books')">Store D&D books</button>
+                <button class="suggestion-btn" onclick="sendSuggestion('Look up character ID 12345')">Look up character</button>
+                <button class="suggestion-btn" onclick="sendSuggestion('What agents are available?')">Show agents</button>
+                <button class="suggestion-btn" onclick="sendSuggestion('Help me plan my campaign')">Campaign planning</button>
+            </div>
+        </div>
+        
+        <div class="chat-section">
+            <div class="messages" id="messages">
+                <div class="message assistant">
+                    <h3>👋 Welcome to LoreSmith MCP Router!</h3>
+                    <p>I'm your intelligent routing assistant. Tell me what you need, and I'll connect you to the right agent or handle your request directly.</p>
+                    <p><strong>Just describe what you want to do!</strong></p>
+                </div>
+            </div>
+            
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Tell me what you need help with..." onkeypress="handleKeyPress(event)">
+                <button onclick="sendMessage()" id="sendButton">Send</button>
+            </div>
+        </div>
+        
+        <div class="agents-grid">
+            <div class="agent-card">
+                <h3>📚 PDF Storage Agent</h3>
+                <p>Upload, store, and manage your D&D PDFs including rulebooks, adventures, and homebrew content. Supports files up to 200MB with metadata extraction.</p>
+                <button class="btn" onclick="window.open('/agents/pdf-agent/', '_blank')">Open PDF Agent</button>
+                <button class="btn" onclick="sendSuggestion('I want to upload a PDF')">Ask About PDFs</button>
+            </div>
+            
+            <div class="agent-card">
+                <h3>🎲 D&D Beyond Agent</h3>
+                <p>Look up public D&D Beyond characters to get stats, abilities, and character information. Perfect for DMs managing player characters.</p>
+                <button class="btn" onclick="window.open('/agents/dndbeyond-agent/', '_blank')">Open D&D Agent</button>
+                <button class="btn" onclick="sendSuggestion('Look up a character')">Ask About Characters</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // Add user message to chat
+            addMessage(message, 'user');
+            
+            // Clear input and disable button
+            input.value = '';
+            const sendButton = document.getElementById('sendButton');
+            sendButton.disabled = true;
+            sendButton.textContent = 'Thinking...';
+            
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    addMessage('Sorry, I encountered an error: ' + data.error, 'assistant');
+                } else {
+                    // Handle different response types
+                    if (data.redirect_url) {
+                        addMessage(\`I'm redirecting you to: \${data.agent_name}\`, 'assistant');
+                        setTimeout(() => {
+                            window.open(data.redirect_url, '_blank');
+                        }, 1000);
+                    } else {
+                        addMessage(data.response || data.message || 'Request processed', 'assistant');
+                    }
+                }
+                
+            } catch (error) {
+                addMessage('Sorry, I had trouble processing your request. Please try again.', 'assistant');
+            }
+            
+            // Re-enable button
+            sendButton.disabled = false;
+            sendButton.textContent = 'Send';
+            input.focus();
+        }
+        
+        function sendSuggestion(text) {
+            document.getElementById('messageInput').value = text;
+            sendMessage();
+        }
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        function addMessage(text, sender) {
+            const messages = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = \`message \${sender}\`;
+            
+            if (sender === 'assistant') {
+                messageDiv.innerHTML = text;
+            } else {
+                messageDiv.textContent = text;
+            }
+            
+            messages.appendChild(messageDiv);
+            messages.scrollTop = messages.scrollHeight;
+        }
+        
+        // Focus input on load
+        document.getElementById('messageInput').focus();
+    </script>
+</body>
+</html>`;
   },
 
   // Route to PDF agent
