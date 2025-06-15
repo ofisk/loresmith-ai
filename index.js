@@ -1396,6 +1396,25 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
         // Agent UI management
         async function loadAgentUI(agentType, step = '1') {
             try {
+                // For PDF agent, check if we should skip to step 2 if API key exists
+                if (agentType === 'pdf-agent' && step === '1') {
+                    const storedApiKey = localStorage.getItem('loresmith_pdf_api_key');
+                    if (storedApiKey) {
+                        // Test the stored API key
+                        try {
+                            const testResponse = await fetch('/proxy/pdf-agent/pdfs', {
+                                headers: { 'Authorization': 'Bearer ' + storedApiKey }
+                            });
+                            if (testResponse.ok) {
+                                // API key is valid, skip to step 2
+                                step = '2';
+                            }
+                        } catch (e) {
+                            // API key test failed, continue with step 1
+                        }
+                    }
+                }
+                
                 const response = await fetch(\`/ui/\${agentType}?step=\${step}\`);
                 const data = await response.json();
                 
@@ -1447,6 +1466,28 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
         
         async function loadPdfAgentStep(step) {
             await loadAgentUI('pdf-agent', step);
+            
+            // Auto-populate API key if we have it stored
+            if (step === '1') {
+                const storedApiKey = localStorage.getItem('loresmith_pdf_api_key');
+                if (storedApiKey) {
+                    setTimeout(() => {
+                        const apiKeyInput = document.getElementById('pdfApiKey');
+                        if (apiKeyInput) {
+                            apiKeyInput.value = storedApiKey;
+                        }
+                    }, 100);
+                }
+            }
+            
+            // Auto-load PDFs if we're on step 2 and have an API key
+            if (step === '2') {
+                const storedApiKey = localStorage.getItem('loresmith_pdf_api_key');
+                if (storedApiKey) {
+                    pdfApiKey = storedApiKey;
+                    setTimeout(refreshPdfs, 100);
+                }
+            }
         }
         
         function showAgentStatus(message, type) {
@@ -1761,58 +1802,18 @@ Visit the chat interface: ${baseUrl}/`, {
   async getPdfAgentUI(request, env) {
     const step = new URL(request.url).searchParams.get('step') || '1';
     
-    try {
-      // Create a request to get the PDF agent's UI step
-      const agentRequest = new Request('http://internal/ui-step', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ step, action: 'get_ui_chunk' })
-      });
-
-      let response;
-      if (env.PDF_AGENT) {
-        response = await env.PDF_AGENT.fetch(agentRequest);
-      } else {
-        // Fallback: generate UI chunk based on step
-        return this.generatePdfAgentUIChunk(step);
-      }
-
-      if (response.ok) {
-        return response;
-      } else {
-        return this.generatePdfAgentUIChunk(step);
-      }
-    } catch (error) {
-      return this.generatePdfAgentUIChunk(step);
-    }
+    // For now, always use the fallback UI generation since the PDF agent
+    // doesn't have UI chunk endpoints. In the future, we could add those endpoints.
+    return this.generatePdfAgentUIChunk(step);
   },
 
   // NEW: Get UI chunk from D&D Beyond agent  
   async getDndAgentUI(request, env) {
     const characterId = new URL(request.url).searchParams.get('characterId');
     
-    try {
-      const agentRequest = new Request('http://internal/ui-chunk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'get_ui_chunk', characterId })
-      });
-
-      let response;
-      if (env.DND_AGENT) {
-        response = await env.DND_AGENT.fetch(agentRequest);
-      } else {
-        return this.generateDndAgentUIChunk();
-      }
-
-      if (response.ok) {
-        return response;
-      } else {
-        return this.generateDndAgentUIChunk();
-      }
-    } catch (error) {
-      return this.generateDndAgentUIChunk();
-    }
+    // For now, always use the fallback UI generation since the D&D Beyond agent
+    // doesn't have UI chunk endpoints. In the future, we could add those endpoints.
+    return this.generateDndAgentUIChunk();
   },
 
   // NEW: Proxy requests to PDF agent
@@ -1925,6 +1926,7 @@ Visit the chat interface: ${baseUrl}/`, {
             </div>
             <button class="btn btn-success" onclick="goToPdfStep(3)">Upload New PDF</button>
             <button class="btn btn-secondary" onclick="refreshPdfs()">Refresh List</button>
+            <button class="btn btn-secondary" onclick="goToPdfStep(1)">Change API Key</button>
           </div>
         `
       },
@@ -2067,7 +2069,9 @@ Visit the chat interface: ${baseUrl}/`, {
           
           if (response.ok) {
             hideAgentStatus();
-            loadPdfAgentStep(2);
+            await loadPdfAgentStep(2);
+            // Load PDFs after the UI is loaded
+            setTimeout(refreshPdfs, 100);
           } else {
             showAgentStatus('Invalid API key. Please check and try again.', 'error');
           }
