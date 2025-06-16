@@ -24,8 +24,8 @@ name = "loresmith-ai-dev"
 # Variables (can be overridden with secrets for sensitive data)
 [vars]
 ENVIRONMENT = "production"
-PDF_AGENT_URL = "https://your-pdf-agent.workers.dev"
-DNDBEYOND_AGENT_URL = "https://your-dndbeyond-agent.workers.dev" 
+PDF_AGENT_URL = "https://pdf-agent.oren-t-fisk.workers.dev/"
+DNDBEYOND_AGENT_URL = "https://dndbeyond-agent.oren-t-fisk.workers.dev/" 
 
 # Service bindings to other agents
 [[services]]
