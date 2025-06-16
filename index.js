@@ -1164,10 +1164,15 @@ What can I help you with today?`,
                     // Handle different response types
                     if (data.action === 'load_agent_ui') {
                         addMessage(data.response || 'Loading agent interface...', 'assistant');
-                        setTimeout(() => {
-                            // Use the original user message as the prompt for agent determination
+                                            setTimeout(() => {
+                        // Load agent UI directly using the agent type from the response
+                        if (data.agent_type) {
+                            loadAgentUIByAgentId(data.agent_type);
+                        } else {
+                            // Fallback to prompt-based determination
                             loadAgentUI(message);
-                        }, 500);
+                        }
+                    }, 500);
                     } else if (data.redirect_url) {
                         addMessage(\`I'm redirecting you to: \${data.agent_name}\`, 'assistant');
                         setTimeout(() => {
@@ -1246,7 +1251,7 @@ What can I help you with today?`,
                                 <div class="capabilities">
                                     <strong>Capabilities:</strong> \${agent.capabilities.join(', ')}
                                 </div>
-                                <button class="btn" onclick="loadAgentUI('\${prompt}')">\${getAgentIcon(agent.capabilities)} Use \${agent.name}</button>
+                                <button class="btn" onclick="loadAgentUIByAgentId('\${agent.id}')">\${getAgentIcon(agent.capabilities)} Use \${agent.name}</button>
                                 <button class="btn" onclick="sendSuggestion('Tell me about \${agent.name.toLowerCase()}')">\${getAgentIcon(agent.capabilities)} Ask About This Agent</button>
                             </div>
                         \`;
@@ -1337,6 +1342,48 @@ What can I help you with today?`,
         // Load agent UI based on natural language prompt
         async function loadAgentUIFromPrompt(prompt) {
             return loadAgentUI(prompt);
+        }
+        
+        // Load agent UI directly by agent ID
+        async function loadAgentUIByAgentId(agentId) {
+            try {
+                // First, get agent information to validate it exists
+                const agentsResponse = await fetch('/agents');
+                const agentsData = await agentsResponse.json();
+                
+                const agent = agentsData.agents?.find(a => a.id === agentId);
+                if (!agent) {
+                    addMessage(\`Agent '\${agentId}' not found\`, 'assistant');
+                    return;
+                }
+                
+                // Request UI directly from the agent
+                const uiUrl = \`/proxy/\${agentId}/ui\`;
+                const response = await fetch(uiUrl);
+                
+                if (response.ok) {
+                    const contentType = response.headers.get('content-type');
+                    
+                    if (contentType && contentType.includes('text/html')) {
+                        // Handle HTML response - insert directly into page
+                        const htmlContent = await response.text();
+                        showAgentHTMLUI(htmlContent);
+                    } else {
+                        // Handle JSON response (legacy format)
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            showAgentUI(data.title || agent.name, data.html, data.scripts);
+                        } else {
+                            addMessage(\`Failed to load \${agent.name} interface: \${data.error || 'Unknown error'}\`, 'assistant');
+                        }
+                    }
+                } else {
+                    addMessage(\`Failed to load \${agent.name} interface (HTTP \${response.status})\`, 'assistant');
+                }
+            } catch (error) {
+                addMessage(\`Error loading agent interface: \${error.message}\`, 'assistant');
+            }
         }
         
         function showAgentHTMLUI(htmlContent) {
@@ -1448,6 +1495,8 @@ What can I help you with today?`,
                     delete window[funcName];
                 }
             });
+            
+            agentContainer.remove();
         }
         
         // Load dynamic suggestions based on available agents
@@ -1468,9 +1517,7 @@ What can I help you with today?`,
                     // Add agent-specific suggestions
                     let agentButtons = '';
                     data.agents.slice(0, 3).forEach(agent => {
-                        const primaryCap = agent.capabilities[0] || 'help';
-                        const suggestion = \`I need help with \${primaryCap}\`;
-                        agentButtons += \`<button class="suggestion-btn" onclick="sendSuggestion('\${suggestion}')">\${getAgentIcon(agent.capabilities)} \${agent.name}</button>\`;
+                        agentButtons += \`<button class="suggestion-btn" onclick="loadAgentUIByAgentId('\${agent.id}')">\${getAgentIcon(agent.capabilities)} \${agent.name}</button>\`;
                     });
                     
                     suggestionButtons.innerHTML = genericButtons + agentButtons;
