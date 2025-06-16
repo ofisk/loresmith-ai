@@ -2283,9 +2283,299 @@ Visit the chat interface: ${baseUrl}/`, {
         link.click();
       }
       
-      function viewPDFInfo(pdfId) {
-        // TODO: Implement PDF info modal
-        showAgentStatus('PDF info feature coming soon', 'info');
+      async function viewPDFInfo(pdfId) {
+        try {
+          showAgentStatus('Loading PDF information...', 'info');
+          
+          const response = await fetch('/proxy/pdf-agent/pdf/' + pdfId + '/metadata', {
+            headers: {
+              'Authorization': 'Bearer ' + pdfApiKey
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to load PDF information');
+          }
+          
+          const pdfData = await response.json();
+          showPDFInfoModal(pdfData);
+          hideAgentStatus();
+          
+        } catch (error) {
+          showAgentStatus('Error loading PDF info: ' + error.message, 'error');
+        }
+      }
+      
+      function showPDFInfoModal(pdfData) {
+        // Create modal HTML
+        const modalHtml = \`
+          <div class="pdf-info-modal-overlay" id="pdfInfoModal" onclick="closePDFInfoModal(event)">
+            <div class="pdf-info-modal" onclick="event.stopPropagation()">
+              <div class="modal-header">
+                <h3>📄 PDF Information</h3>
+                <button class="modal-close" onclick="closePDFInfoModal()">&times;</button>
+              </div>
+              <div class="modal-body">
+                <div class="pdf-info-grid">
+                  <div class="info-item">
+                    <label>Display Name:</label>
+                    <span>\${pdfData.name || pdfData.filename}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Original Filename:</label>
+                    <span>\${pdfData.filename}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>File Size:</label>
+                    <span>\${formatFileSize(pdfData.size)}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Upload Date:</label>
+                    <span>\${new Date(pdfData.uploaded_at).toLocaleString()}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>File ID:</label>
+                    <span class="monospace">\${pdfData.id}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>MIME Type:</label>
+                    <span>\${pdfData.mime_type || 'application/pdf'}</span>
+                  </div>
+                  \${pdfData.tags ? \`
+                    <div class="info-item">
+                      <label>Tags:</label>
+                      <span class="tags-display">\${pdfData.tags}</span>
+                    </div>
+                  \` : ''}
+                  \${pdfData.text_preview ? \`
+                    <div class="info-item full-width">
+                      <label>Text Preview:</label>
+                      <div class="text-preview">\${pdfData.text_preview}</div>
+                    </div>
+                  \` : ''}
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button class="btn btn-primary" onclick="downloadPDF('\${pdfData.id}', '\${pdfData.filename}')">
+                  📥 Download PDF
+                </button>
+                <button class="btn btn-danger" onclick="deletePDFFromModal('\${pdfData.id}', '\${pdfData.name || pdfData.filename}')">
+                  🗑️ Delete PDF
+                </button>
+                <button class="btn btn-secondary" onclick="closePDFInfoModal()">Close</button>
+              </div>
+            </div>
+          </div>
+        \`;
+        
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Add modal styles if not already present
+        if (!document.getElementById('pdfInfoModalStyles')) {
+          const styles = \`
+            <style id="pdfInfoModalStyles">
+              .pdf-info-modal-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+                animation: fadeIn 0.2s ease-out;
+              }
+              
+              .pdf-info-modal {
+                background: white;
+                border-radius: 8px;
+                max-width: 600px;
+                width: 90%;
+                max-height: 80vh;
+                overflow-y: auto;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+                animation: slideIn 0.3s ease-out;
+              }
+              
+              .modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 20px;
+                border-bottom: 1px solid #eee;
+                background: #f8f9fa;
+                border-radius: 8px 8px 0 0;
+              }
+              
+              .modal-header h3 {
+                margin: 0;
+                color: #333;
+              }
+              
+              .modal-close {
+                background: none;
+                border: none;
+                font-size: 24px;
+                cursor: pointer;
+                color: #666;
+                padding: 0;
+                width: 30px;
+                height: 30px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 4px;
+              }
+              
+              .modal-close:hover {
+                background: #e9ecef;
+                color: #333;
+              }
+              
+              .modal-body {
+                padding: 20px;
+              }
+              
+              .pdf-info-grid {
+                display: grid;
+                gap: 15px;
+              }
+              
+              .info-item {
+                display: grid;
+                grid-template-columns: 140px 1fr;
+                gap: 10px;
+                align-items: start;
+              }
+              
+              .info-item.full-width {
+                grid-template-columns: 1fr;
+              }
+              
+              .info-item label {
+                font-weight: 600;
+                color: #555;
+                font-size: 14px;
+              }
+              
+              .info-item span {
+                color: #333;
+                word-break: break-word;
+              }
+              
+              .monospace {
+                font-family: 'Courier New', monospace;
+                font-size: 12px;
+                background: #f8f9fa;
+                padding: 2px 6px;
+                border-radius: 3px;
+              }
+              
+              .tags-display {
+                background: #e3f2fd;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-size: 14px;
+              }
+              
+              .text-preview {
+                background: #f8f9fa;
+                border: 1px solid #dee2e6;
+                border-radius: 4px;
+                padding: 12px;
+                font-size: 13px;
+                line-height: 1.4;
+                max-height: 150px;
+                overflow-y: auto;
+                color: #666;
+                font-family: system-ui, -apple-system, sans-serif;
+              }
+              
+              .modal-footer {
+                padding: 20px;
+                border-top: 1px solid #eee;
+                display: flex;
+                gap: 10px;
+                justify-content: flex-end;
+                background: #f8f9fa;
+                border-radius: 0 0 8px 8px;
+              }
+              
+              .modal-footer .btn {
+                padding: 8px 16px;
+                font-size: 14px;
+              }
+              
+              @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+              }
+              
+                             @keyframes slideIn {
+                 from { 
+                   opacity: 0;
+                   transform: translateY(-20px) scale(0.95);
+                 }
+                 to { 
+                   opacity: 1;
+                   transform: translateY(0) scale(1);
+                 }
+               }
+               
+               @keyframes fadeOut {
+                 from { opacity: 1; }
+                 to { opacity: 0; }
+               }
+              
+              @media (max-width: 600px) {
+                .pdf-info-modal {
+                  width: 95%;
+                  margin: 10px;
+                }
+                
+                .info-item {
+                  grid-template-columns: 1fr;
+                  gap: 5px;
+                }
+                
+                .modal-footer {
+                  flex-direction: column;
+                }
+                
+                .modal-footer .btn {
+                  width: 100%;
+                }
+              }
+            </style>
+          \`;
+          document.head.insertAdjacentHTML('beforeend', styles);
+        }
+      }
+      
+      function closePDFInfoModal(event) {
+        // Only close if clicking overlay or close button
+        if (event && event.target !== event.currentTarget && !event.target.classList.contains('modal-close')) {
+          return;
+        }
+        
+        const modal = document.getElementById('pdfInfoModal');
+        if (modal) {
+          modal.style.animation = 'fadeOut 0.2s ease-out';
+          setTimeout(() => {
+            modal.remove();
+          }, 200);
+        }
+      }
+      
+      async function deletePDFFromModal(pdfId, filename) {
+        // Close modal first
+        closePDFInfoModal();
+        
+        // Then proceed with deletion
+        await deletePDF(pdfId, filename);
       }
       
       async function deletePDF(pdfId, filename) {
