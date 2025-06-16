@@ -1379,7 +1379,7 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
                         addMessage(data.response || 'Loading agent interface...', 'assistant');
                         setTimeout(() => {
                             // Use the original user message as the prompt for agent determination
-                            loadAgentUI(userMessage);
+                            loadAgentUI(message);
                         }, 500);
                     } else if (data.redirect_url) {
                         addMessage(\`I'm redirecting you to: \${data.agent_name}\`, 'assistant');
