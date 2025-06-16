@@ -1528,14 +1528,25 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
                 }
                 
                 const response = await fetch(url);
-                const data = await response.json();
                 
-                if (data.success) {
-                    showAgentUI(data.title, data.html, data.scripts);
+                // Check if response is HTML or JSON
+                const contentType = response.headers.get('content-type');
+                
+                if (contentType && contentType.includes('text/html')) {
+                    // Handle HTML response - insert directly into page
+                    const htmlContent = await response.text();
+                    showAgentHTMLUI(htmlContent);
                 } else {
-                    addMessage('Failed to load agent interface: ' + (data.error || 'Unknown error'), 'assistant');
-                    if (data.examples) {
-                        addMessage('Try one of these examples: ' + data.examples.join(', '), 'assistant');
+                    // Handle JSON response (legacy format)
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showAgentUI(data.title, data.html, data.scripts);
+                    } else {
+                        addMessage('Failed to load agent interface: ' + (data.error || 'Unknown error'), 'assistant');
+                        if (data.examples) {
+                            addMessage('Try one of these examples: ' + data.examples.join(', '), 'assistant');
+                        }
                     }
                 }
             } catch (error) {
@@ -1548,6 +1559,28 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
             return loadAgentUI(prompt);
         }
         
+        function showAgentHTMLUI(htmlContent) {
+            // Create agent UI container for complete HTML
+            const agentContainer = document.createElement('div');
+            agentContainer.className = 'agent-ui-container';
+            agentContainer.innerHTML = \`
+                <div class="agent-ui-header">
+                    <h3>Agent Interface</h3>
+                    <button class="close-agent-ui" onclick="closeAgentUI()">×</button>
+                </div>
+                <div class="agent-ui-content">
+                    \${htmlContent}
+                </div>
+            \`;
+            
+            // Add to page
+            const container = document.querySelector('.container');
+            container.appendChild(agentContainer);
+            
+            // Scroll to agent UI
+            agentContainer.scrollIntoView({ behavior: 'smooth' });
+        }
+
         function showAgentUI(title, html, scripts) {
             // Create agent UI container
             const agentContainer = document.createElement('div');
@@ -2108,10 +2141,10 @@ Visit the chat interface: ${baseUrl}/`, {
     const step = new URL(request.url).searchParams.get('step') || '1';
     
     try {
-      // Create request to agent's UI chunk endpoint
-      const agentRequest = new Request('http://internal/ui-chunk?step=' + step, {
+      // Create request to agent's complete UI endpoint
+      const agentRequest = new Request('http://internal/ui?step=' + step, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'text/html' }
       });
 
       // Use the agent's service binding to fetch UI
@@ -2119,18 +2152,181 @@ Visit the chat interface: ${baseUrl}/`, {
 
       // Return agent response if successful, otherwise fallback
       if (response && response.ok) {
-        return response;
+        // Ensure proper content type for HTML response
+        const responseText = await response.text();
+        return new Response(responseText, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: {
+            'Content-Type': 'text/html',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
       } else {
-        return this.generateGenericAgentUnavailableChunk(agentObject);
+        return this.generateGenericAgentUnavailableHTML(agentObject);
       }
       
     } catch (error) {
       console.warn(`Failed to get UI from agent ${agentObject.id}:`, error);
-      return this.generateGenericAgentUnavailableChunk(agentObject);
+      return this.generateGenericAgentUnavailableHTML(agentObject);
     }
   },
 
-  // Generate a generic "agent unavailable" response
+  // Generate a generic "agent unavailable" HTML response
+  generateGenericAgentUnavailableHTML(agentObject) {
+    const unavailableHTML = `
+      <div class="agent-unavailable">
+        <style>
+          .agent-unavailable {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            font-family: system-ui, -apple-system, sans-serif;
+            text-align: center;
+          }
+          
+          .unavailable-card {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border: 1px solid #e1e5e9;
+          }
+          
+          .unavailable-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+          }
+          
+          .unavailable-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 12px;
+          }
+          
+          .unavailable-description {
+            color: #6b7280;
+            margin-bottom: 30px;
+            line-height: 1.6;
+          }
+          
+          .unavailable-status {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 1px solid #fecaca;
+          }
+          
+          .capabilities-section {
+            text-align: left;
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+          }
+          
+          .capabilities-title {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 12px;
+          }
+          
+          .capabilities-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+          }
+          
+          .capabilities-list li {
+            padding: 6px 0;
+            color: #6b7280;
+            border-bottom: 1px solid #e5e7eb;
+          }
+          
+          .capabilities-list li:last-child {
+            border-bottom: none;
+          }
+          
+          .capabilities-list li:before {
+            content: "•";
+            color: #3b82f6;
+            margin-right: 8px;
+          }
+          
+          .instructions {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            text-align: left;
+          }
+          
+          .instructions h4 {
+            margin: 0 0 12px 0;
+            color: #1e3a8a;
+          }
+          
+          .instructions ol {
+            margin: 0;
+            padding-left: 20px;
+          }
+          
+          .instructions li {
+            margin-bottom: 8px;
+            line-height: 1.5;
+          }
+          
+          .instructions code {
+            background: #1e3a8a;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+          }
+        </style>
+        
+        <div class="unavailable-card">
+          <div class="unavailable-icon">⚠️</div>
+          <h2 class="unavailable-title">${agentObject.name} Unavailable</h2>
+          <p class="unavailable-description">${agentObject.description}</p>
+          
+          <div class="unavailable-status">
+            ${agentObject.name} is currently unavailable. The service binding may not be configured or the agent may not be deployed.
+          </div>
+          
+          <div class="capabilities-section">
+            <h4 class="capabilities-title">Agent Capabilities:</h4>
+            <ul class="capabilities-list">
+              ${agentObject.capabilities.map(cap => `<li>${cap}</li>`).join('')}
+            </ul>
+          </div>
+          
+          <div class="instructions">
+            <h4>To fix this issue:</h4>
+            <ol>
+              <li>Ensure the agent is deployed: <code>cd ${agentObject.id}-agent && wrangler deploy</code></li>
+              <li>Check that service bindings are configured in wrangler.toml</li>
+              <li>Verify the agent's <code>/ui</code> endpoint is working</li>
+              <li>Restart the main agent after making changes</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    `;
+
+    return new Response(unavailableHTML, {
+      headers: {
+        'Content-Type': 'text/html',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  },
+
+  // Generate a generic "agent unavailable" response (legacy JSON format)
   generateGenericAgentUnavailableChunk(agentObject) {
     return new Response(JSON.stringify({
       success: true,
