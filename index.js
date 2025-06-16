@@ -1360,29 +1360,43 @@ What can I help you with today?`,
             // Execute any script tags in the HTML content
             const scripts = agentContainer.querySelectorAll('script');
             scripts.forEach(script => {
-                const newScript = document.createElement('script');
-                
-                if (script.src) {
-                    // External script
-                    newScript.src = script.src;
-                } else {
-                    // Inline script
-                    newScript.textContent = script.textContent;
-                }
-                
-                // Mark as agent script for cleanup
-                newScript.setAttribute('data-agent-script', 'true');
-                
-                // Copy any attributes
-                Array.from(script.attributes).forEach(attr => {
-                    if (attr.name !== 'src') {
-                        newScript.setAttribute(attr.name, attr.value);
+                try {
+                    const newScript = document.createElement('script');
+                    
+                    // Mark as agent script for cleanup first
+                    newScript.setAttribute('data-agent-script', 'true');
+                    
+                    if (script.src) {
+                        // External script
+                        newScript.src = script.src;
+                        newScript.type = 'text/javascript';
+                    } else {
+                        // Inline script - be careful with content
+                        const scriptContent = script.textContent || script.innerHTML;
+                        if (scriptContent && scriptContent.trim()) {
+                            newScript.type = 'text/javascript';
+                            newScript.textContent = scriptContent;
+                        } else {
+                            // Skip empty scripts
+                            return;
+                        }
                     }
-                });
-                
-                // Remove old script and add new one to trigger execution
-                script.remove();
-                document.head.appendChild(newScript);
+                    
+                    // Copy other attributes (except src which we handled above)
+                    Array.from(script.attributes).forEach(attr => {
+                        if (attr.name !== 'src' && attr.name !== 'type') {
+                            newScript.setAttribute(attr.name, attr.value);
+                        }
+                    });
+                    
+                    // Remove old script first
+                    script.remove();
+                    
+                    // Add new script to head to trigger execution
+                    document.head.appendChild(newScript);
+                } catch (error) {
+                    console.warn('Failed to execute agent script:', error);
+                }
             });
             
             // Scroll to agent UI
