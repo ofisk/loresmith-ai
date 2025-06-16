@@ -1357,6 +1357,34 @@ What can I help you with today?`,
             const container = document.querySelector('.container');
             container.appendChild(agentContainer);
             
+            // Execute any script tags in the HTML content
+            const scripts = agentContainer.querySelectorAll('script');
+            scripts.forEach(script => {
+                const newScript = document.createElement('script');
+                
+                if (script.src) {
+                    // External script
+                    newScript.src = script.src;
+                } else {
+                    // Inline script
+                    newScript.textContent = script.textContent;
+                }
+                
+                // Mark as agent script for cleanup
+                newScript.setAttribute('data-agent-script', 'true');
+                
+                // Copy any attributes
+                Array.from(script.attributes).forEach(attr => {
+                    if (attr.name !== 'src') {
+                        newScript.setAttribute(attr.name, attr.value);
+                    }
+                });
+                
+                // Remove old script and add new one to trigger execution
+                script.remove();
+                document.head.appendChild(newScript);
+            });
+            
             // Scroll to agent UI
             agentContainer.scrollIntoView({ behavior: 'smooth' });
         }
@@ -1391,10 +1419,21 @@ What can I help you with today?`,
         }
         
         function closeAgentUI() {
-            const agentContainer = document.querySelector('.agent-ui-container');
-            if (agentContainer) {
-                agentContainer.remove();
-            }
+            // Remove any scripts that were added for this agent
+            const scripts = document.head.querySelectorAll('script[data-agent-script]');
+            scripts.forEach(script => script.remove());
+            
+            // Clear any global functions that might conflict
+            const agentFunctions = [
+                'validatePdfApiKey', 'uploadPdf', 'deletePdf', 'downloadPdf',
+                'lookupCharacter', 'fetchCharacterStats', 'displayCharacter'
+            ];
+            
+            agentFunctions.forEach(funcName => {
+                if (window[funcName]) {
+                    delete window[funcName];
+                }
+            });
         }
         
         // Load dynamic suggestions based on available agents
