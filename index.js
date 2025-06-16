@@ -1317,23 +1317,9 @@ What can I help you with today?`,
                 // Check if response is HTML or JSON
                 const contentType = response.headers.get('content-type');
                 
-                if (contentType && contentType.includes('text/html')) {
-                    // Handle HTML response - insert directly into page
-                    const htmlContent = await response.text();
-                    showAgentHTMLUI(htmlContent);
-                } else {
-                    // Handle JSON response (legacy format)
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        showAgentUI(data.title, data.html, data.scripts);
-                    } else {
-                        addMessage('Failed to load agent interface: ' + (data.error || 'Unknown error'), 'assistant');
-                        if (data.examples) {
-                            addMessage('Try one of these examples: ' + data.examples.join(', '), 'assistant');
-                        }
-                    }
-                }
+                // Handle HTML response - insert directly into page
+                const htmlContent = await response.text();
+                showAgentHTMLUI(htmlContent);
             } catch (error) {
                 addMessage('Error loading agent interface: ' + error.message, 'assistant');
             }
