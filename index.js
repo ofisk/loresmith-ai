@@ -60,17 +60,55 @@ export default {
 
     // List available agents
     if (pathname === "/agents" && request.method === "GET") {
-      return this.handleListAgents(request);
+      return this.handleListAgents(request, env);
     }
 
-    // NEW: Get UI chunk from PDF agent
-    if (pathname === "/ui/pdf-agent" && request.method === "GET") {
-      return this.getPdfAgentUI(request, env);
-    }
-
-    // NEW: Get UI chunk from D&D Beyond agent  
-    if (pathname === "/ui/dndbeyond-agent" && request.method === "GET") {
-      return this.getDndAgentUI(request, env);
+    // Generic agent UI retrieval based on user intent
+    if (pathname === "/ui" && request.method === "GET") {
+      const userPrompt = url.searchParams.get('prompt');
+      const agentHint = url.searchParams.get('agent'); // Optional hint from client
+      
+      if (!userPrompt && !agentHint) {
+        return new Response(JSON.stringify({ 
+          error: "Either 'prompt' or 'agent' parameter is required",
+          examples: [
+            "/ui?prompt=I want to upload a PDF",
+            "/ui?prompt=Look up D&D character",
+            "/ui?agent=pdf"
+          ]
+        }), { 
+          status: 400, 
+          headers: { "Content-Type": "application/json" } 
+        });
+      }
+      
+      // Determine which agent to use based on user intent
+      const targetAgent = await this.determineTargetAgent(userPrompt, agentHint, env);
+      
+      if (!targetAgent) {
+        // Get available agents for better error message
+        const availableAgents = await this.discoverAgents(env);
+        const agentSuggestions = availableAgents.map(agent => 
+          `${agent.name}: ${agent.capabilities.join(', ')}`
+        );
+        
+        return new Response(JSON.stringify({ 
+          error: "Could not determine appropriate agent for this request",
+          suggestion: "Try being more specific about what you want to do",
+          availableAgents: agentSuggestions,
+          examples: [
+            "/ui?prompt=I want to upload a PDF",
+            "/ui?prompt=Look up D&D character",
+            "/ui?agent=pdf"
+          ]
+        }), { 
+          status: 400, 
+          headers: { "Content-Type": "application/json" } 
+        });
+      }
+      
+      // Fetch UI from the determined agent
+      return this.getAgentUI(request, env, targetAgent);
     }
 
     // NEW: Proxy requests to PDF agent
@@ -699,45 +737,53 @@ export default {
     }
   },
 
-  // List available agents
-  async handleListAgents(request) {
-    const baseUrl = request.url.replace(new URL(request.url).pathname, "");
-    
-    return new Response(JSON.stringify({
-      agents: [
-        {
-          name: "PDF Storage Agent",
-          description: "Upload, store, and manage large PDF documents for your D&D campaigns. Supports files up to 200MB with secure authentication.",
-          capabilities: ["pdf-upload", "pdf-storage", "pdf-retrieval", "metadata-extraction", "large-file-support"],
-          url: `${baseUrl}/agents/pdf-agent/`,
-          use_cases: [
-            "Store Player's Handbook, Monster Manual, and other core books",
-            "Upload campaign modules and adventures",
-            "Organize homebrew content and house rules",
-            "Share PDFs securely with your gaming group"
-          ]
+  // List available agents dynamically discovered from agent cards
+  async handleListAgents(request, env) {
+    try {
+      const discoveredAgents = await this.discoverAgents(env);
+      const baseUrl = request.url.replace(new URL(request.url).pathname, "");
+      
+      const agentList = discoveredAgents.map(agent => ({
+        id: agent.id,
+        name: agent.name,
+        description: agent.description,
+        capabilities: agent.capabilities,
+        url: `${baseUrl}/agents/${agent.id}/`,
+        ui_endpoint: `/ui?agent=${agent.id}`,
+        agent_card: agent.card // Include full agent card for detailed info
+      }));
+
+      return new Response(JSON.stringify({
+        agents: agentList,
+        total: agentList.length,
+        mcpCompatible: true,
+        routing_info: {
+          description: "Send natural language requests to /ui for intelligent agent routing",
+          ui_endpoint: "/ui?prompt=your_request_here",
+          chat_endpoint: "/chat"
         },
-        {
-          name: "D&D Beyond Agent",
-          description: "Fetch character information directly from D&D Beyond using character IDs. Perfect for DMs managing player characters.",
-          capabilities: ["character-lookup", "stats-retrieval", "campaign-integration", "public-character-access"],
-          url: `${baseUrl}/agents/dndbeyond-agent/`,
-          use_cases: [
-            "Quickly access player character stats during sessions",
-            "Prepare encounters based on party composition",
-            "Track character progression and abilities",
-            "Integrate character data into campaign planning"
-          ]
+        discovery_method: "agent_cards_mcp_compliant"
+      }), {
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
         }
-      ],
-      total: 2,
-      mcpCompatible: true
-    }), {
-      headers: { 
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
-      }
-    });
+      });
+    } catch (error) {
+      return new Response(JSON.stringify({
+        error: "Failed to discover agents",
+        details: error.message,
+        agents: [],
+        total: 0,
+        fallback_info: "Agent discovery failed - check service bindings"
+      }), {
+        status: 500,
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
+    }
   },
 
   // Process user messages and provide intelligent routing
@@ -1291,21 +1337,11 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
             </div>
         </div>
         
-        <div class="agents-grid">
-            <div class="agent-card">
-                <h3>📚 PDF Storage Agent</h3>
-                <p>Upload, store, and manage your D&D PDFs including rulebooks, adventures, and homebrew content. Supports files up to 200MB with metadata extraction.</p>
-                <button class="btn" onclick="loadAgentUI('pdf-agent')">Use PDF Agent</button>
-                <button class="btn" onclick="sendSuggestion('I want to upload a PDF')">Ask About PDFs</button>
+                    <div class="agents-grid" id="agentsGrid">
+              <div class="loading-agents">
+                <p>🔍 Discovering available agents...</p>
+              </div>
             </div>
-            
-            <div class="agent-card">
-                <h3>🎲 D&D Beyond Agent</h3>
-                <p>Look up public D&D Beyond characters to get stats, abilities, and character information. Perfect for DMs managing player characters.</p>
-                <button class="btn" onclick="loadAgentUI('dndbeyond-agent')">Use D&D Agent</button>
-                <button class="btn" onclick="sendSuggestion('Look up a character')">Ask About Characters</button>
-            </div>
-        </div>
     </div>
 
     <script>
@@ -1342,7 +1378,8 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
                     if (data.action === 'load_agent_ui') {
                         addMessage(data.response || 'Loading agent interface...', 'assistant');
                         setTimeout(() => {
-                            loadAgentUI(data.agent_type);
+                            // Use the original user message as the prompt for agent determination
+                            loadAgentUI(userMessage);
                         }, 500);
                     } else if (data.redirect_url) {
                         addMessage(\`I'm redirecting you to: \${data.agent_name}\`, 'assistant');
@@ -1393,39 +1430,122 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
         // Focus input on load
         document.getElementById('messageInput').focus();
         
-        // Agent UI management
-        async function loadAgentUI(agentType, step = '1') {
+        // Load available agents dynamically
+        loadAvailableAgents();
+        
+        // Load and display available agents from discovery
+        async function loadAvailableAgents() {
             try {
-                // For PDF agent, check if we should skip to step 2 if API key exists
-                if (agentType === 'pdf-agent' && step === '1') {
-                    const storedApiKey = localStorage.getItem('loresmith_pdf_api_key');
-                    if (storedApiKey) {
-                        // Test the stored API key
-                        try {
-                            const testResponse = await fetch('/proxy/pdf-agent/pdfs', {
-                                headers: { 'Authorization': 'Bearer ' + storedApiKey }
-                            });
-                            if (testResponse.ok) {
-                                // API key is valid, skip to step 2
-                                step = '2';
-                            }
-                        } catch (e) {
-                            // API key test failed, continue with step 1
-                        }
-                    }
+                const response = await fetch('/agents');
+                const data = await response.json();
+                
+                const agentsGrid = document.getElementById('agentsGrid');
+                
+                if (data.agents && data.agents.length > 0) {
+                    let html = '';
+                    
+                    data.agents.forEach(agent => {
+                        // Create natural language prompts based on agent capabilities
+                        const primaryCapability = agent.capabilities[0] || 'general tasks';
+                        const prompt = generatePromptFromCapabilities(agent.capabilities, agent.name);
+                        
+                        html += \`
+                            <div class="agent-card">
+                                <h3>\${agent.name}</h3>
+                                <p>\${agent.description}</p>
+                                <div class="capabilities">
+                                    <strong>Capabilities:</strong> \${agent.capabilities.join(', ')}
+                                </div>
+                                <button class="btn" onclick="loadAgentUI('\${prompt}')">\${getAgentIcon(agent.capabilities)} Use \${agent.name}</button>
+                                <button class="btn" onclick="sendSuggestion('Tell me about \${agent.name.toLowerCase()}')">\${getAgentIcon(agent.capabilities)} Ask About This Agent</button>
+                            </div>
+                        \`;
+                    });
+                    
+                    agentsGrid.innerHTML = html;
+                } else {
+                    agentsGrid.innerHTML = '<div class="no-agents"><p>⚠️ No agents available. Check service configuration.</p></div>';
+                }
+            } catch (error) {
+                const agentsGrid = document.getElementById('agentsGrid');
+                agentsGrid.innerHTML = '<div class="error-agents"><p>❌ Failed to load agents: ' + error.message + '</p></div>';
+            }
+        }
+        
+        // Generate natural language prompt from agent capabilities
+        function generatePromptFromCapabilities(capabilities, agentName) {
+            // Map capabilities to natural language prompts
+            const capabilityPrompts = {
+                'pdf-upload': 'I want to upload and manage PDFs',
+                'pdf-storage': 'I need to store PDF documents',
+                'character-lookup': 'I want to lookup D&D Beyond characters',
+                'character-sheet': 'I need character information',
+                'campaign-management': 'I want to manage my campaign',
+                'stats-retrieval': 'I need character stats'
+            };
+            
+            // Find the best matching prompt
+            for (const capability of capabilities) {
+                const normalizedCap = capability.toLowerCase().replace(/[-_\s]+/g, '-');
+                if (capabilityPrompts[normalizedCap]) {
+                    return capabilityPrompts[normalizedCap];
+                }
+            }
+            
+            // Fallback: use agent name and first capability
+            const firstCap = capabilities[0] || 'help';
+            return \`I want to use \${agentName} for \${firstCap}\`;
+        }
+        
+        // Get appropriate icon for agent based on capabilities
+        function getAgentIcon(capabilities) {
+            const capString = capabilities.join(' ').toLowerCase();
+            
+            if (capString.includes('pdf') || capString.includes('document') || capString.includes('file')) {
+                return '📚';
+            } else if (capString.includes('character') || capString.includes('dnd') || capString.includes('beyond')) {
+                return '🐉';
+            } else if (capString.includes('campaign') || capString.includes('session')) {
+                return '🎲';
+            } else {
+                return '🔧';
+            }
+        }
+        
+        // Generic agent UI management based on user intent
+        async function loadAgentUI(promptOrAgent, step = '1') {
+            try {
+                let url;
+                
+                // Check if it's a legacy agent type or a natural language prompt
+                if (promptOrAgent === 'pdf-agent' || promptOrAgent === 'pdf') {
+                    url = \`/ui?agent=pdf&step=\${step}\`;
+                } else if (promptOrAgent === 'dndbeyond-agent' || promptOrAgent === 'dndbeyond') {
+                    url = \`/ui?agent=dndbeyond&step=\${step}\`;
+                } else {
+                    // Treat as natural language prompt
+                    url = \`/ui?prompt=\${encodeURIComponent(promptOrAgent)}&step=\${step}\`;
                 }
                 
-                const response = await fetch(\`/ui/\${agentType}?step=\${step}\`);
+                const response = await fetch(url);
                 const data = await response.json();
                 
                 if (data.success) {
                     showAgentUI(data.title, data.html, data.scripts);
                 } else {
-                    addMessage('Failed to load agent interface', 'assistant');
+                    addMessage('Failed to load agent interface: ' + (data.error || 'Unknown error'), 'assistant');
+                    if (data.examples) {
+                        addMessage('Try one of these examples: ' + data.examples.join(', '), 'assistant');
+                    }
                 }
             } catch (error) {
                 addMessage('Error loading agent interface: ' + error.message, 'assistant');
             }
+        }
+        
+        // Load agent UI based on natural language prompt
+        async function loadAgentUIFromPrompt(prompt) {
+            return loadAgentUI(prompt);
         }
         
         function showAgentUI(title, html, scripts) {
@@ -1772,64 +1892,6 @@ Visit the chat interface: ${baseUrl}/`, {
     return capabilities[agent] || { error: "Agent not found" };
   },
 
-  // NEW: Get UI chunk from PDF agent
-  async getPdfAgentUI(request, env) {
-    const step = new URL(request.url).searchParams.get('step') || '1';
-    
-    try {
-      // Request UI chunk from PDF agent
-      const agentRequest = new Request('http://internal/ui-chunk?step=' + step, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      let response;
-      if (env.PDF_AGENT) {
-        response = await env.PDF_AGENT.fetch(agentRequest);
-      } else {
-        // Fallback: generate simple UI chunk
-        return this.generateSimplePdfAgentUIChunk();
-      }
-
-      if (response.ok) {
-        return response;
-      } else {
-        return this.generateSimplePdfAgentUIChunk();
-      }
-    } catch (error) {
-      return this.generateSimplePdfAgentUIChunk();
-    }
-  },
-
-  // NEW: Get UI chunk from D&D Beyond agent  
-  async getDndAgentUI(request, env) {
-    const step = new URL(request.url).searchParams.get('step') || '1';
-    
-    try {
-      // Request UI chunk from D&D Beyond agent
-      const agentRequest = new Request('http://internal/ui-chunk?step=' + step, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      let response;
-      if (env.DNDBEYOND_AGENT) {
-        response = await env.DNDBEYOND_AGENT.fetch(agentRequest);
-      } else {
-        // Fallback: generate simple UI chunk
-        return this.generateSimpleDndAgentUIChunk();
-      }
-
-      if (response.ok) {
-        return response;
-      } else {
-        return this.generateSimpleDndAgentUIChunk();
-      }
-    } catch (error) {
-      return this.generateSimpleDndAgentUIChunk();
-    }
-  },
-
   // NEW: Proxy requests to PDF agent
   async proxyToPdfAgent(request, env, pathname, url) {
     const targetPath = pathname.replace("/proxy/pdf-agent", "") || "/";
@@ -1908,44 +1970,185 @@ Visit the chat interface: ${baseUrl}/`, {
     }
   },
 
-  // Simple fallback PDF agent UI chunk when agent is unavailable
-  generateSimplePdfAgentUIChunk() {
-    return new Response(JSON.stringify({
-      success: true,
-      title: '📚 PDF Agent Unavailable',
-      html: `
-        <div class="agent-ui-chunk">
-          <div class="prompt">
-            <h3>📚 PDF Agent</h3>
-            <p>The PDF agent is currently unavailable. Please try again later.</p>
-          </div>
-          <div class="status-message" style="color: #dc3545; text-align: center; padding: 20px;">
-            ⚠️ PDF agent service is not responding. Please check the service status.
-          </div>
-        </div>
-      `,
-      scripts: ''
-    }), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
+
+
+  // Discover and cache available agents from their agent cards
+  async discoverAgents(env) {
+    const agents = [];
+    
+    // Get list of available agent service bindings from environment
+    const agentBindings = this.getAgentBindings(env);
+    
+    for (const [agentId, binding] of agentBindings) {
+      try {
+        // Fetch agent card from each agent
+        const agentCardRequest = new Request('http://internal/.well-known/agent.json', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const response = await binding.fetch(agentCardRequest);
+        if (response.ok) {
+          const agentCard = await response.json();
+          agents.push({
+            id: agentId,
+            binding: binding,
+            card: agentCard,
+            capabilities: agentCard.capabilities || [],
+            description: agentCard.description || '',
+            name: agentCard.name || agentId
+          });
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch agent card for ${agentId}:`, error);
       }
-    });
+    }
+    
+    return agents;
   },
 
-  // Simple fallback D&D Beyond agent UI chunk when agent is unavailable
-  generateSimpleDndAgentUIChunk() {
+  // Get agent service bindings from environment
+  getAgentBindings(env) {
+    const bindings = new Map();
+    
+    // Dynamically discover agent bindings by checking common patterns
+    if (env.PDF_AGENT) bindings.set('pdf', env.PDF_AGENT);
+    if (env.DNDBEYOND_AGENT) bindings.set('dndbeyond', env.DNDBEYOND_AGENT);
+    if (env.DND_AGENT) bindings.set('dnd', env.DND_AGENT);
+    
+    // Could be extended to check for other patterns like:
+    // - env.AGENTS (array of agent bindings)
+    // - env variables matching *_AGENT pattern
+    // - Configuration-based discovery
+    
+    return bindings;
+  },
+
+  // Determine which agent to use based on user intent and discovered agent capabilities
+  async determineTargetAgent(userPrompt, agentHint, env) {
+    // Discover available agents
+    const availableAgents = await this.discoverAgents(env);
+    
+    if (availableAgents.length === 0) {
+      return null;
+    }
+
+    // If explicit agent hint is provided, try to match it
+    if (agentHint) {
+      const normalizedHint = agentHint.toLowerCase();
+      
+      // Try exact ID match first
+      const exactMatch = availableAgents.find(agent => 
+        agent.id.toLowerCase() === normalizedHint ||
+        agent.name.toLowerCase().includes(normalizedHint)
+      );
+      if (exactMatch) return exactMatch;
+      
+      // Try capability match
+      const capabilityMatch = availableAgents.find(agent =>
+        agent.capabilities.some(cap => cap.toLowerCase().includes(normalizedHint))
+      );
+      if (capabilityMatch) return capabilityMatch;
+    }
+
+    // If no prompt provided, can't determine intent
+    if (!userPrompt) {
+      return null;
+    }
+
+    // Analyze user prompt against agent capabilities and descriptions
+    const prompt = userPrompt.toLowerCase();
+    const scores = [];
+    
+    for (const agent of availableAgents) {
+      let score = 0;
+      
+      // Score based on capabilities
+      for (const capability of agent.capabilities) {
+        const capWords = capability.toLowerCase().split(/[-_\s]+/);
+        for (const word of capWords) {
+          if (word.length > 2 && prompt.includes(word)) {
+            score += 3; // High weight for capability matches
+          }
+        }
+      }
+      
+      // Score based on description
+      const descWords = agent.description.toLowerCase().split(/\s+/);
+      for (const word of descWords) {
+        if (word.length > 3 && prompt.includes(word)) {
+          score += 1; // Lower weight for description matches
+        }
+      }
+      
+      // Score based on agent name
+      const nameWords = agent.name.toLowerCase().split(/\s+/);
+      for (const word of nameWords) {
+        if (word.length > 2 && prompt.includes(word)) {
+          score += 2; // Medium weight for name matches
+        }
+      }
+      
+      if (score > 0) {
+        scores.push({ agent, score });
+      }
+    }
+    
+    // Return the highest scoring agent, or null if no matches
+    if (scores.length === 0) {
+      return null;
+    }
+    
+    scores.sort((a, b) => b.score - a.score);
+    return scores[0].agent;
+  },
+
+  // Generic method to get UI from any discovered agent
+  async getAgentUI(request, env, agentObject) {
+    const step = new URL(request.url).searchParams.get('step') || '1';
+    
+    try {
+      // Create request to agent's UI chunk endpoint
+      const agentRequest = new Request('http://internal/ui-chunk?step=' + step, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      // Use the agent's service binding to fetch UI
+      const response = await agentObject.binding.fetch(agentRequest);
+
+      // Return agent response if successful, otherwise fallback
+      if (response && response.ok) {
+        return response;
+      } else {
+        return this.generateGenericAgentUnavailableChunk(agentObject);
+      }
+      
+    } catch (error) {
+      console.warn(`Failed to get UI from agent ${agentObject.id}:`, error);
+      return this.generateGenericAgentUnavailableChunk(agentObject);
+    }
+  },
+
+  // Generate a generic "agent unavailable" response
+  generateGenericAgentUnavailableChunk(agentObject) {
     return new Response(JSON.stringify({
       success: true,
-      title: '🐉 D&D Beyond Agent Unavailable',
+      title: `${agentObject.name} Unavailable`,
       html: `
         <div class="agent-ui-chunk">
           <div class="prompt">
-            <h3>🐉 D&D Beyond Agent</h3>
-            <p>The D&D Beyond agent is currently unavailable. Please try again later.</p>
+            <h3>${agentObject.name}</h3>
+            <p>${agentObject.description}</p>
           </div>
           <div class="status-message" style="color: #dc3545; text-align: center; padding: 20px;">
-            ⚠️ D&D Beyond agent service is not responding. Please check the service status.
+            ⚠️ ${agentObject.name} is currently unavailable. Please try again later.
+          </div>
+          <div class="agent-capabilities" style="margin-top: 20px;">
+            <h4>Agent Capabilities:</h4>
+            <ul>
+              ${agentObject.capabilities.map(cap => `<li>${cap}</li>`).join('')}
+            </ul>
           </div>
         </div>
       `,
