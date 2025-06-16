@@ -111,24 +111,14 @@ export default {
       return this.getAgentUI(request, env, targetAgent);
     }
 
-    // NEW: Proxy requests to PDF agent
-    if (pathname.startsWith("/proxy/pdf-agent/")) {
-      return this.proxyToPdfAgent(request, env, pathname, url);
+    // Dynamic proxy requests to discovered agents
+    if (pathname.startsWith("/proxy/")) {
+      return this.proxyToAgent(request, env, pathname, url);
     }
 
-    // NEW: Proxy requests to D&D Beyond agent
-    if (pathname.startsWith("/proxy/dndbeyond-agent/")) {
-      return this.proxyToDndAgent(request, env, pathname, url);
-    }
-
-    // Route to PDF agent (legacy - for direct access)
-    if (pathname.startsWith("/agents/pdf-agent")) {
-      return this.routeToPdfAgent(request, env, pathname, url);
-    }
-
-    // Route to D&D Beyond agent (legacy - for direct access)
-    if (pathname.startsWith("/agents/dndbeyond-agent")) {
-      return this.routeToDndAgent(request, env, pathname, url);
+    // Dynamic routing to discovered agents (legacy - for direct access)
+    if (pathname.startsWith("/agents/")) {
+      return this.routeToAgent(request, env, pathname, url);
     }
 
     // Serve the main chat interface
@@ -226,20 +216,7 @@ export default {
           }
         ]
       },
-      "related_agents": [
-        {
-          "name": "PDF Storage Agent",
-          "description": "Upload and manage D&D PDFs up to 200MB",
-          "path": "/agents/pdf-agent/",
-          "capabilities": ["pdf-upload", "pdf-storage", "pdf-retrieval", "metadata-extraction"]
-        },
-        {
-          "name": "D&D Beyond Agent", 
-          "description": "Fetch character information from D&D Beyond",
-          "path": "/agents/dndbeyond-agent/",
-          "capabilities": ["character-lookup", "stats-retrieval", "campaign-integration"]
-        }
-      ]
+      "related_agents": await this.getDiscoveredAgentsForCard(request, env)
     }), {
       headers: { 
         "Content-Type": "application/json",
@@ -357,76 +334,7 @@ export default {
     return new Response(JSON.stringify({
       "jsonrpc": "2.0",
       "result": {
-        "tools": [
-          {
-            "name": "route_to_pdf_agent",
-            "description": "Route user to PDF storage and management agent for uploading, organizing, and retrieving D&D documents",
-            "inputSchema": {
-              "type": "object",
-              "properties": {
-                "intent": {
-                  "type": "string",
-                  "description": "User's intent regarding PDF management"
-                },
-                "context": {
-                  "type": "string", 
-                  "description": "Additional context about their PDF needs"
-                }
-              },
-              "required": ["intent"]
-            }
-          },
-          {
-            "name": "route_to_dnd_agent",
-            "description": "Route user to D&D Beyond character lookup agent for accessing player character data",
-            "inputSchema": {
-              "type": "object",
-              "properties": {
-                "intent": {
-                  "type": "string",
-                  "description": "User's intent regarding character management"
-                },
-                "context": {
-                  "type": "string",
-                  "description": "Additional context about their character needs"
-                }
-              },
-              "required": ["intent"]
-            }
-          },
-          {
-            "name": "analyze_user_intent",
-            "description": "Analyze user message to determine the best agent or tool recommendation",
-            "inputSchema": {
-              "type": "object",
-              "properties": {
-                "message": {
-                  "type": "string",
-                  "description": "User's message to analyze"
-                },
-                "context": {
-                  "type": "string",
-                  "description": "Previous conversation context"
-                }
-              },
-              "required": ["message"]
-            }
-          },
-          {
-            "name": "get_agent_capabilities",
-            "description": "Get detailed information about available agents and their capabilities",
-            "inputSchema": {
-              "type": "object",
-              "properties": {
-                "agent": {
-                  "type": "string",
-                  "enum": ["pdf-agent", "dnd-agent", "all"],
-                  "description": "Which agent's capabilities to retrieve"
-                }
-              }
-            }
-          }
-        ]
+        "tools": await this.generateDynamicMcpTools(env)
       }
     }), {
       headers: { 
@@ -442,97 +350,7 @@ export default {
       const body = await request.json();
       const { name, arguments: args } = body.params;
 
-      switch (name) {
-        case "analyze_user_intent":
-          const analysis = await this.analyzeUserIntent(args.message, args.context);
-          return new Response(JSON.stringify({
-            "jsonrpc": "2.0",
-            "result": {
-              "content": [
-                {
-                  "type": "text",
-                  "text": JSON.stringify(analysis, null, 2)
-                }
-              ]
-            }
-          }), {
-            headers: { 
-              "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*"
-            }
-          });
-
-        case "route_to_pdf_agent":
-          return new Response(JSON.stringify({
-            "jsonrpc": "2.0",
-            "result": {
-              "content": [
-                {
-                  "type": "text",
-                  "text": `Routing to PDF Agent for: ${args.intent}\nURL: ${new URL(request.url).origin}/agents/pdf-agent/`
-                }
-              ]
-            }
-          }), {
-            headers: { 
-              "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*"
-            }
-          });
-
-        case "route_to_dnd_agent":
-          return new Response(JSON.stringify({
-            "jsonrpc": "2.0",
-            "result": {
-              "content": [
-                {
-                  "type": "text",
-                  "text": `Routing to D&D Beyond Agent for: ${args.intent}\nURL: ${new URL(request.url).origin}/agents/dndbeyond-agent/`
-                }
-              ]
-            }
-          }), {
-            headers: { 
-              "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*"
-            }
-          });
-
-        case "get_agent_capabilities":
-          const capabilities = await this.getAgentCapabilities(args.agent || "all");
-          return new Response(JSON.stringify({
-            "jsonrpc": "2.0",
-            "result": {
-              "content": [
-                {
-                  "type": "text",
-                  "text": JSON.stringify(capabilities, null, 2)
-                }
-              ]
-            }
-          }), {
-            headers: { 
-              "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*"
-            }
-          });
-
-        default:
-          return new Response(JSON.stringify({
-            "jsonrpc": "2.0",
-            "error": {
-              "code": -32601,
-              "message": "Method not found",
-              "data": `Tool '${name}' not found`
-            }
-          }), { 
-            status: 404,
-            headers: { 
-              "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*"
-            }
-          });
-      }
+      return await this.executeDynamicMcpTool(name, args, request, env);
     } catch (error) {
       return new Response(JSON.stringify({
         "jsonrpc": "2.0",
@@ -610,7 +428,7 @@ export default {
       }
 
       // Enhanced message processing with session context
-      const response = await this.processUserMessage(message, { ...context, ...sessionContext }, request.url);
+      const response = await this.processUserMessage(message, { ...context, ...sessionContext }, request.url, env);
       
       // Update session context in Durable Object
       if (currentSessionId) {
@@ -787,87 +605,57 @@ export default {
   },
 
   // Process user messages and provide intelligent routing
-  async processUserMessage(message, context, baseUrl) {
+  async processUserMessage(message, context, baseUrl, env) {
     const lowerMessage = message.toLowerCase();
     const baseUrlClean = baseUrl.replace(/\/chat.*$/, "");
     
-    // Keywords for PDF management
-    const pdfKeywords = [
-      'pdf', 'book', 'manual', 'document', 'file', 'upload', 'store', 'storage',
-      'handbook', 'monster manual', 'dmg', 'phb', 'module', 'adventure',
-      'homebrew', 'rules', 'reference', 'download', 'organize'
-    ];
+    // Discover available agents dynamically
+    const availableAgents = await this.discoverAgents(env);
     
-    // Keywords for character/campaign management
-    const campaignKeywords = [
-      'character', 'player', 'stats', 'sheet', 'beyond', 'dndbeyond',
-      'campaign', 'party', 'encounter', 'npc', 'dm', 'dungeon master',
-      'session', 'tracking', 'management', 'planning'
-    ];
-
-    // Keywords for general help/introduction
-    const helpKeywords = [
-      'help', 'what', 'how', 'new', 'start', 'begin', 'options', 'available',
-      'tools', 'features', 'can you', 'do you have'
-    ];
-
-    const pdfScore = pdfKeywords.filter(keyword => lowerMessage.includes(keyword)).length;
-    const campaignScore = campaignKeywords.filter(keyword => lowerMessage.includes(keyword)).length;
-    const helpScore = helpKeywords.filter(keyword => lowerMessage.includes(keyword)).length;
-
-    // Determine the best response based on keyword matching and provide direct routing
-    if (pdfScore > campaignScore && pdfScore > 0) {
+    if (availableAgents.length === 0) {
       return {
-        response: "📚 Perfect! I can help you with PDF management. Loading the PDF Storage Agent interface where you can upload, store, and organize your D&D books, modules, and homebrew content.",
-        agent_name: "PDF Storage Agent",
-        action: "load_agent_ui",
-        agent_type: "pdf-agent",
-        routing_reason: "Detected PDF/document management intent",
-        capabilities: [
-          "Upload PDFs up to 200MB",
-          "Secure storage and organization", 
-          "Metadata extraction and tagging",
-          "Easy sharing and retrieval"
-        ]
-      };
-    } 
-    else if (campaignScore > pdfScore && campaignScore > 0) {
-      return {
-        response: "🎲 Great! I can help you with character and campaign management. Loading the D&D Beyond Agent interface where you can look up character information and manage campaign data.",
-        agent_name: "D&D Beyond Agent",
-        action: "load_agent_ui", 
-        agent_type: "dndbeyond-agent",
-        routing_reason: "Detected character/campaign management intent",
-        capabilities: [
-          "Look up D&D Beyond characters",
-          "Access character stats and abilities",
-          "Support for public character data",
-          "Perfect for DM session prep"
-        ]
+        response: "🏰 Welcome to LoreSmith MCP Router! I'm your intelligent assistant for campaign management.\n\nNo agents are currently available. Please check your service configuration.",
+        routing_reason: "No agents available"
       };
     }
-    else {
-      // General help or unclear intent - provide overview without redirect
+
+    // Dynamic intent analysis based on available agents
+    const bestMatch = await this.matchMessageToAgent(message, availableAgents);
+    
+    if (bestMatch && bestMatch.confidence > 0.3) {
       return {
-        response: `🏰 Welcome to LoreSmith MCP Router! I'm your intelligent assistant for D&D campaign management.
+        response: `${bestMatch.agent.icon || '🤖'} Perfect! I can help you with ${bestMatch.agent.name}. Loading the agent interface where you can access ${bestMatch.agent.capabilities.join(', ')}.`,
+        agent_name: bestMatch.agent.name,
+        action: "load_agent_ui",
+        agent_type: bestMatch.agent.id,
+        routing_reason: `Detected ${bestMatch.agent.name} intent (confidence: ${Math.round(bestMatch.confidence * 100)}%)`,
+        capabilities: bestMatch.agent.capabilities
+      };
+    } else {
+      // General help - show available agents dynamically
+      const agentsList = availableAgents.map(agent => 
+        `${agent.icon || '🤖'} <strong>${agent.name}</strong> - ${agent.description}`
+      ).join('\n');
+      
+      const examples = availableAgents.slice(0, 3).map(agent => 
+        `• "I need ${agent.capabilities[0] || 'help'}"`
+      ).join('\n');
+
+      return {
+        response: `🏰 Welcome to LoreSmith MCP Router! I'm your intelligent assistant for campaign management.
 
 <strong>Available Agents:</strong>
 
-📚 <strong>PDF Storage Agent</strong> - Upload and manage your D&D books, modules, and homebrew content
-🎲 <strong>D&D Beyond Agent</strong> - Look up character information and campaign data
+${agentsList}
 
 <strong>How to use me:</strong>
-• Say "I need to store PDFs" → Routes to PDF Agent
-• Say "Look up character ID 12345" → Routes to D&D Agent  
-• Ask specific questions about what you need
+Just describe what you need and I'll connect you to the right agent!
 
 <strong>Try these examples:</strong>
-• "I want to upload my Player's Handbook"
-• "Help me look up a character"
-• "I need campaign planning tools"
+${examples}
 
-Just tell me what you want to do and I'll connect you to the right agent!`,
-        routing_reason: "General help request - showing available options"
+What can I help you with today?`,
+        routing_reason: "General help request - showing dynamically discovered agents"
       };
     }
   },
@@ -1314,11 +1102,10 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
     <div class="container">
         <div class="suggestions">
             <h4>Try asking me:</h4>
-            <div class="suggestion-buttons">
-                <button class="suggestion-btn" onclick="sendSuggestion('I need to store my D&D books')">Store D&D books</button>
-                <button class="suggestion-btn" onclick="sendSuggestion('Look up character ID 12345')">Look up character</button>
+            <div class="suggestion-buttons" id="suggestionButtons">
                 <button class="suggestion-btn" onclick="sendSuggestion('What agents are available?')">Show agents</button>
-                <button class="suggestion-btn" onclick="sendSuggestion('Help me plan my campaign')">Campaign planning</button>
+                <button class="suggestion-btn" onclick="sendSuggestion('Help me get started')">Get started</button>
+                <button class="suggestion-btn" onclick="sendSuggestion('What can you help me with?')">Show capabilities</button>
             </div>
         </div>
         
@@ -1432,6 +1219,9 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
         
         // Load available agents dynamically
         loadAvailableAgents();
+        
+        // Load dynamic suggestions
+        loadDynamicSuggestions();
         
         // Load and display available agents from discovery
         async function loadAvailableAgents() {
@@ -1607,6 +1397,36 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
             }
         }
         
+        // Load dynamic suggestions based on available agents
+        async function loadDynamicSuggestions() {
+            try {
+                const response = await fetch('/agents');
+                const data = await response.json();
+                
+                const suggestionButtons = document.getElementById('suggestionButtons');
+                
+                if (data.agents && data.agents.length > 0) {
+                    // Keep the generic buttons
+                    const genericButtons = \`
+                        <button class="suggestion-btn" onclick="sendSuggestion('What agents are available?')">Show agents</button>
+                        <button class="suggestion-btn" onclick="sendSuggestion('Help me get started')">Get started</button>
+                    \`;
+                    
+                    // Add agent-specific suggestions
+                    let agentButtons = '';
+                    data.agents.slice(0, 3).forEach(agent => {
+                        const primaryCap = agent.capabilities[0] || 'help';
+                        const suggestion = \`I need help with \${primaryCap}\`;
+                        agentButtons += \`<button class="suggestion-btn" onclick="sendSuggestion('\${suggestion}')">\${getAgentIcon(agent.capabilities)} \${agent.name}</button>\`;
+                    });
+                    
+                    suggestionButtons.innerHTML = genericButtons + agentButtons;
+                }
+            } catch (error) {
+                console.warn('Failed to load dynamic suggestions:', error);
+            }
+        }
+        
         function showAgentStatus(message, type) {
             const statusDiv = document.getElementById('pdfStatus') || document.getElementById('dndStatus');
             if (statusDiv) {
@@ -1630,58 +1450,33 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
 </html>`;
   },
 
-  // Route to PDF agent
-  async routeToPdfAgent(request, env, pathname, url) {
-    const targetPath = pathname.replace("/agents/pdf-agent", "") || "/";
+  // Dynamic route to any discovered agent
+  async routeToAgent(request, env, pathname, url) {
+    const pathParts = pathname.split('/');
+    const agentId = pathParts[2]; // /agents/{agentId}/...
+    
+    if (!agentId) {
+      return new Response('Agent ID required in path', { status: 400 });
+    }
+    
+    const availableAgents = await this.discoverAgents(env);
+    const targetAgent = availableAgents.find(agent => agent.id === agentId);
+    
+    if (!targetAgent) {
+      return new Response(`Agent '${agentId}' not found`, { status: 404 });
+    }
+    
+    const targetPath = pathname.replace(`/agents/${agentId}`, "") || "/";
     const targetUrl = new URL(targetPath + url.search, url.origin);
     
-    // Forward the request to the PDF agent via service binding
+    // Forward the request to the agent via service binding
     const modifiedRequest = new Request(targetUrl, {
       method: request.method,
       headers: request.headers,
       body: request.body
     });
     
-    // Use service binding if available, otherwise fallback to external URL
-    if (env.PDF_AGENT) {
-      return env.PDF_AGENT.fetch(modifiedRequest);
-    } else {
-      const pdfAgentUrl = env.PDF_AGENT_URL || "https://your-pdf-agent.workers.dev";
-      const fallbackUrl = new URL(targetPath + url.search, pdfAgentUrl);
-      const fallbackRequest = new Request(fallbackUrl, {
-        method: request.method,
-        headers: request.headers,
-        body: request.body
-      });
-      return fetch(fallbackRequest);
-    }
-  },
-
-  // Route to D&D Beyond agent
-  async routeToDndAgent(request, env, pathname, url) {
-    const targetPath = pathname.replace("/agents/dndbeyond-agent", "") || "/";
-    const targetUrl = new URL(targetPath + url.search, url.origin);
-    
-    // Forward the request to the D&D Beyond agent via service binding
-    const modifiedRequest = new Request(targetUrl, {
-      method: request.method,
-      headers: request.headers,
-      body: request.body
-    });
-    
-    // Use service binding if available, otherwise fallback to external URL
-    if (env.DND_AGENT) {
-      return env.DND_AGENT.fetch(modifiedRequest);
-    } else {
-      const dndAgentUrl = env.DNDBEYOND_AGENT_URL || "https://your-dndbeyond-agent.workers.dev";
-      const fallbackUrl = new URL(targetPath + url.search, dndAgentUrl);
-      const fallbackRequest = new Request(fallbackUrl, {
-        method: request.method,
-        headers: request.headers,
-        body: request.body
-      });
-      return fetch(fallbackRequest);
-    }
+    return targetAgent.binding.fetch(modifiedRequest);
   },
 
   // Serve the main chat interface
@@ -1725,8 +1520,7 @@ I'm your intelligent assistant for D&D campaign management! I use Cloudflare Dur
 - GET /agents - List all available agents
 
 🎲 Available Agents:
-- PDF Storage Agent: ${baseUrl}/agents/pdf-agent/
-- D&D Beyond Agent: ${baseUrl}/agents/dndbeyond-agent/
+${await this.getAgentListForDisplay(env, baseUrl)}
 
 Try asking me:
 - "I need to store my D&D books"
@@ -1862,135 +1656,79 @@ Visit the chat interface: ${baseUrl}/`, {
     return toolMap[intent] || ['analyze_user_intent'];
   },
 
-  // Get agent capabilities for MCP tool
-  async getAgentCapabilities(agent = "all") {
-    const capabilities = {
-      "pdf-agent": {
-        name: "PDF Storage Agent",
-        description: "Secure PDF storage and management for D&D campaigns",
-        capabilities: [
-          "pdf-upload", "pdf-storage", "pdf-retrieval",
-          "metadata-extraction", "large-file-support", "authentication"
-        ],
-        endpoints: [
-          "POST /upload/request - Request presigned upload URL",
-          "POST /upload/complete - Complete presigned upload", 
-          "POST /upload - Direct upload (legacy, <95MB)",
-          "GET /pdfs - List stored PDFs",
-          "GET /pdf/{id} - Download PDF",
-          "GET /pdf/{id}/metadata - Get PDF metadata",
-          "DELETE /pdf/{id} - Delete PDF (admin only)"
-        ],
-        file_limits: {
-          max_size: "200MB",
-          supported_types: ["application/pdf"]
-        }
-      },
-      "dnd-agent": {
-        name: "D&D Beyond Agent",
-        description: "Character data retrieval from D&D Beyond",
-        capabilities: [
-          "character-lookup", "stats-retrieval", "campaign-integration",
-          "public-character-access", "json-api"
-        ],
-        endpoints: [
-          "GET /character/{id} - Get character data",
-          "GET /character/{id}/stats - Get character stats only",
-          "GET /.well-known/agent.json - Agent capabilities"
-        ],
-        requirements: {
-          character_visibility: "public",
-          api_limitations: "Read-only access to public character data"
-        }
-      }
-    };
-
+  // Get agent capabilities dynamically from discovered agents
+  async getAgentCapabilities(agent = "all", env) {
+    const discoveredAgents = await this.discoverAgents(env);
+    
     if (agent === "all") {
+      const capabilities = {};
+      for (const discoveredAgent of discoveredAgents) {
+        capabilities[discoveredAgent.id] = {
+          name: discoveredAgent.name,
+          description: discoveredAgent.description,
+          capabilities: discoveredAgent.capabilities,
+          card: discoveredAgent.card
+        };
+      }
+      
       return {
-        total_agents: 2,
+        total_agents: discoveredAgents.length,
         agents: capabilities
       };
     }
 
-    return capabilities[agent] || { error: "Agent not found" };
+    const foundAgent = discoveredAgents.find(a => a.id === agent);
+    if (foundAgent) {
+      return {
+        name: foundAgent.name,
+        description: foundAgent.description,
+        capabilities: foundAgent.capabilities,
+        card: foundAgent.card
+      };
+    }
+
+    return { error: "Agent not found" };
   },
 
-  // NEW: Proxy requests to PDF agent
-  async proxyToPdfAgent(request, env, pathname, url) {
-    const targetPath = pathname.replace("/proxy/pdf-agent", "") || "/";
+  // Dynamic proxy requests to any discovered agent  
+  async proxyToAgent(request, env, pathname, url) {
+    const pathParts = pathname.split('/');
+    const agentId = pathParts[2]; // /proxy/{agentId}/...
+    
+    if (!agentId) {
+      return new Response('Agent ID required in proxy path', { status: 400 });
+    }
+    
+    const availableAgents = await this.discoverAgents(env);
+    const targetAgent = availableAgents.find(agent => agent.id === agentId);
+    
+    if (!targetAgent) {
+      return new Response(`Agent '${agentId}' not found for proxy`, { status: 404 });
+    }
+    
+    const targetPath = pathname.replace(`/proxy/${agentId}`, "") || "/";
     const targetUrl = new URL(targetPath + url.search, url.origin);
     
-    // Forward the request to the PDF agent via service binding
+    // Forward the request to the agent via service binding
     const modifiedRequest = new Request(targetUrl, {
       method: request.method,
       headers: request.headers,
       body: request.body
     });
     
-    // Use service binding if available, otherwise fallback to external URL
-    if (env.PDF_AGENT) {
-      const response = await env.PDF_AGENT.fetch(modifiedRequest);
-      // Add CORS headers for proxy responses
-      const newResponse = new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: {
-          ...Object.fromEntries(response.headers),
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-        }
-      });
-      return newResponse;
-    } else {
-      const pdfAgentUrl = env.PDF_AGENT_URL || "https://your-pdf-agent.workers.dev";
-      const fallbackUrl = new URL(targetPath + url.search, pdfAgentUrl);
-      const fallbackRequest = new Request(fallbackUrl, {
-        method: request.method,
-        headers: request.headers,
-        body: request.body
-      });
-      return fetch(fallbackRequest);
-    }
-  },
-
-  // NEW: Proxy requests to D&D Beyond agent
-  async proxyToDndAgent(request, env, pathname, url) {
-    const targetPath = pathname.replace("/proxy/dndbeyond-agent", "") || "/";
-    const targetUrl = new URL(targetPath + url.search, url.origin);
-    
-    // Forward the request to the D&D Beyond agent via service binding
-    const modifiedRequest = new Request(targetUrl, {
-      method: request.method,
-      headers: request.headers,
-      body: request.body
+    const response = await targetAgent.binding.fetch(modifiedRequest);
+    // Add CORS headers for proxy responses
+    const newResponse = new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: {
+        ...Object.fromEntries(response.headers),
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+      }
     });
-    
-    // Use service binding if available, otherwise fallback to external URL
-    if (env.DND_AGENT) {
-      const response = await env.DND_AGENT.fetch(modifiedRequest);
-      // Add CORS headers for proxy responses
-      const newResponse = new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: {
-          ...Object.fromEntries(response.headers),
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-        }
-      });
-      return newResponse;
-    } else {
-      const dndAgentUrl = env.DNDBEYOND_AGENT_URL || "https://your-dndbeyond-agent.workers.dev";
-      const fallbackUrl = new URL(targetPath + url.search, dndAgentUrl);
-      const fallbackRequest = new Request(fallbackUrl, {
-        method: request.method,
-        headers: request.headers,
-        body: request.body
-      });
-      return fetch(fallbackRequest);
-    }
+    return newResponse;
   },
 
 
@@ -2030,19 +1768,27 @@ Visit the chat interface: ${baseUrl}/`, {
     return agents;
   },
 
-  // Get agent service bindings from environment
+  // Get agent service bindings from environment dynamically
   getAgentBindings(env) {
     const bindings = new Map();
     
-    // Dynamically discover agent bindings by checking common patterns
-    if (env.PDF_AGENT) bindings.set('pdf', env.PDF_AGENT);
-    if (env.DNDBEYOND_AGENT) bindings.set('dndbeyond', env.DNDBEYOND_AGENT);
-    if (env.DND_AGENT) bindings.set('dnd', env.DND_AGENT);
+    // Dynamically discover agent bindings by checking environment variables
+    for (const [key, value] of Object.entries(env)) {
+      // Look for service bindings that match agent pattern
+      if (key.endsWith('_AGENT') && typeof value === 'object' && value.fetch) {
+        const agentId = key.replace('_AGENT', '').toLowerCase();
+        bindings.set(agentId, value);
+      }
+    }
     
-    // Could be extended to check for other patterns like:
-    // - env.AGENTS (array of agent bindings)
-    // - env variables matching *_AGENT pattern
-    // - Configuration-based discovery
+    // Also check for other common patterns
+    if (env.AGENTS && Array.isArray(env.AGENTS)) {
+      for (const agent of env.AGENTS) {
+        if (agent.id && agent.binding) {
+          bindings.set(agent.id, agent.binding);
+        }
+      }
+    }
     
     return bindings;
   },
@@ -2347,5 +2093,289 @@ Visit the chat interface: ${baseUrl}/`, {
     });
   },
 
+  // Get discovered agents for agent card endpoint
+  async getDiscoveredAgentsForCard(request, env) {
+    try {
+      const discoveredAgents = await this.discoverAgents(env);
+      const baseUrl = request.url.replace(new URL(request.url).pathname, "");
+      
+      return discoveredAgents.map(agent => ({
+        name: agent.name,
+        description: agent.description,
+        path: `/agents/${agent.id}/`,
+        capabilities: agent.capabilities
+      }));
+    } catch (error) {
+      console.warn("Failed to discover agents for card:", error);
+      return [];
+    }
+  },
+
+  // Generate dynamic MCP tools based on discovered agents
+  async generateDynamicMcpTools(env) {
+    const tools = [];
+    
+    try {
+      const discoveredAgents = await this.discoverAgents(env);
+      
+      // Add generic tools
+      tools.push({
+        name: "analyze_user_intent",
+        description: "Analyze user message to determine the best agent or tool recommendation",
+        inputSchema: {
+          type: "object",
+          properties: {
+            message: {
+              type: "string",
+              description: "User's message to analyze"
+            },
+            context: {
+              type: "string",
+              description: "Previous conversation context"
+            }
+          },
+          required: ["message"]
+        }
+      });
+
+      tools.push({
+        name: "get_agent_capabilities",
+        description: "Get detailed information about available agents and their capabilities",
+        inputSchema: {
+          type: "object",
+          properties: {
+            agent: {
+              type: "string",
+              enum: ["all", ...discoveredAgents.map(a => a.id)],
+              description: "Which agent's capabilities to retrieve"
+            }
+          }
+        }
+      });
+
+      // Add dynamic routing tools for each discovered agent
+      for (const agent of discoveredAgents) {
+        tools.push({
+          name: `route_to_${agent.id}`,
+          description: `Route user to ${agent.name} for ${agent.description}`,
+          inputSchema: {
+            type: "object",
+            properties: {
+              intent: {
+                type: "string",
+                description: `User's intent regarding ${agent.name}`
+              },
+              context: {
+                type: "string",
+                description: `Additional context about their ${agent.name} needs`
+              }
+            },
+            required: ["intent"]
+          }
+        });
+      }
+    } catch (error) {
+      console.warn("Failed to generate dynamic MCP tools:", error);
+      // Fallback to basic tools
+      tools.push({
+        name: "analyze_user_intent",
+        description: "Analyze user message to determine the best agent or tool recommendation",
+        inputSchema: {
+          type: "object",
+          properties: {
+            message: { type: "string", description: "User's message to analyze" },
+            context: { type: "string", description: "Previous conversation context" }
+          },
+          required: ["message"]
+        }
+      });
+    }
+
+    return tools;
+  },
+
+  // Execute dynamic MCP tools
+  async executeDynamicMcpTool(name, args, request, env) {
+    try {
+      if (name === "analyze_user_intent") {
+        const analysis = await this.analyzeUserIntent(args.message, args.context);
+        return new Response(JSON.stringify({
+          "jsonrpc": "2.0",
+          "result": {
+            "content": [{
+              "type": "text",
+              "text": JSON.stringify(analysis, null, 2)
+            }]
+          }
+        }), {
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+      }
+
+      if (name === "get_agent_capabilities") {
+        const capabilities = await this.getAgentCapabilities(args.agent || "all", env);
+        return new Response(JSON.stringify({
+          "jsonrpc": "2.0",
+          "result": {
+            "content": [{
+              "type": "text",
+              "text": JSON.stringify(capabilities, null, 2)
+            }]
+          }
+        }), {
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+      }
+
+      // Handle dynamic routing tools
+      if (name.startsWith("route_to_")) {
+        const agentId = name.replace("route_to_", "");
+        const discoveredAgents = await this.discoverAgents(env);
+        const agent = discoveredAgents.find(a => a.id === agentId);
+        
+        if (agent) {
+          return new Response(JSON.stringify({
+            "jsonrpc": "2.0",
+            "result": {
+              "content": [{
+                "type": "text",
+                "text": `Routing to ${agent.name} for: ${args.intent}\nURL: ${new URL(request.url).origin}/agents/${agent.id}/`
+              }]
+            }
+          }), {
+            headers: { 
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
+          });
+        }
+      }
+
+      // Tool not found
+      return new Response(JSON.stringify({
+        "jsonrpc": "2.0",
+        "error": {
+          "code": -32601,
+          "message": "Method not found",
+          "data": `Tool '${name}' not found`
+        }
+      }), { 
+        status: 404,
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
+
+    } catch (error) {
+      return new Response(JSON.stringify({
+        "jsonrpc": "2.0",
+        "error": {
+          "code": -32603,
+          "message": "Internal error",
+          "data": error.message
+        }
+      }), { 
+        status: 500,
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
+    }
+  },
+
+  // Match user message to best available agent
+  async matchMessageToAgent(message, availableAgents) {
+    const lowerMessage = message.toLowerCase();
+    const scores = [];
+
+    for (const agent of availableAgents) {
+      let score = 0;
+      let matches = [];
+
+      // Score based on capabilities
+      for (const capability of agent.capabilities) {
+        const capWords = capability.toLowerCase().split(/[-_\s]+/);
+        for (const word of capWords) {
+          if (word.length > 2 && lowerMessage.includes(word)) {
+            score += 3;
+            matches.push(word);
+          }
+        }
+      }
+
+      // Score based on description
+      const descWords = agent.description.toLowerCase().split(/\s+/);
+      for (const word of descWords) {
+        if (word.length > 3 && lowerMessage.includes(word)) {
+          score += 1;
+          matches.push(word);
+        }
+      }
+
+      // Score based on agent name
+      const nameWords = agent.name.toLowerCase().split(/\s+/);
+      for (const word of nameWords) {
+        if (word.length > 2 && lowerMessage.includes(word)) {
+          score += 2;
+          matches.push(word);
+        }
+      }
+
+      if (score > 0) {
+        scores.push({
+          agent: { ...agent, icon: this.getAgentIcon(agent.capabilities) },
+          score,
+          confidence: Math.min(score / 10, 1), // Normalize to 0-1
+          matches
+        });
+      }
+    }
+
+    if (scores.length === 0) {
+      return null;
+    }
+
+    scores.sort((a, b) => b.score - a.score);
+    return scores[0];
+  },
+
+  // Get appropriate icon for agent based on capabilities
+  getAgentIcon(capabilities) {
+    const capString = capabilities.join(' ').toLowerCase();
+    
+    if (capString.includes('pdf') || capString.includes('document') || capString.includes('file')) {
+      return '📚';
+    } else if (capString.includes('character') || capString.includes('dnd') || capString.includes('beyond')) {
+      return '🐉';
+    } else if (capString.includes('campaign') || capString.includes('session')) {
+      return '🎲';
+    } else {
+      return '🤖';
+    }
+  },
+
+  // Get agent list for display in default response
+  async getAgentListForDisplay(env, baseUrl) {
+    try {
+      const discoveredAgents = await this.discoverAgents(env);
+      if (discoveredAgents.length === 0) {
+        return "No agents currently available.";
+      }
+      
+      return discoveredAgents.map(agent => 
+        `- ${agent.name}: ${baseUrl}/agents/${agent.id}/`
+      ).join('\n');
+    } catch (error) {
+      return "Agent discovery failed.";
+    }
+  }
 
 }; 
