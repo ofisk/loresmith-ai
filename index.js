@@ -1412,36 +1412,30 @@ What can I help you with today?`,
                         
                         document.head.appendChild(newScript);
                     } else {
-                        // Inline script - use safer execution method
+                        // Inline script - use direct eval approach
                         const scriptContent = script.textContent || script.innerHTML;
                         if (scriptContent && scriptContent.trim()) {
                             try {
-                                // Use Function constructor for safer evaluation
-                                const scriptFunc = new Function(scriptContent);
-                                scriptFunc();
-                                
-                                // Keep track of executed scripts for cleanup
-                                window.agentScriptContents = window.agentScriptContents || [];
-                                window.agentScriptContents.push({
-                                    index: index,
-                                    content: scriptContent,
-                                    executed: true
-                                });
-                            } catch (scriptError) {
-                                console.warn('Failed to execute inline agent script:', scriptError);
-                                
-                                // Fallback: try with createElement if Function constructor fails
+                                // Primary: eval() in global scope
+                                (function() {
+                                    eval(scriptContent);
+                                })();
+                            } catch (evalError) {
                                 try {
-                                    const newScript = document.createElement('script');
-                                    newScript.type = 'text/javascript';
-                                    newScript.setAttribute('data-agent-script', 'true');
-                                    newScript.setAttribute('data-agent-script-index', index);
-                                    
-                                    // Use textContent instead of innerHTML for better safety
-                                    newScript.textContent = scriptContent;
-                                    document.head.appendChild(newScript);
+                                    // Fallback 1: createElement with textNode
+                                    const textNode = document.createTextNode(scriptContent);
+                                    newScript.appendChild(textNode);
                                 } catch (appendError) {
-                                    console.warn('Failed to append agent script via createElement:', appendError);
+                                    try {
+                                        // Fallback 2: textContent with sanitization
+                                        const sanitizedContent = scriptContent
+                                            .replace(/^\s*<!\[CDATA\[/, '')
+                                            .replace(/\]\]>\s*$/, '')
+                                            .trim();
+                                        finalScript.textContent = sanitizedContent;
+                                    } catch (finalError) {
+                                        // All methods failed
+                                    }
                                 }
                             }
                         }
