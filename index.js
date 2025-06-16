@@ -1776,18 +1776,58 @@ Visit the chat interface: ${baseUrl}/`, {
   async getPdfAgentUI(request, env) {
     const step = new URL(request.url).searchParams.get('step') || '1';
     
-    // For now, always use the fallback UI generation since the PDF agent
-    // doesn't have UI chunk endpoints. In the future, we could add those endpoints.
-    return this.generatePdfAgentUIChunk(step);
+    try {
+      // Request UI chunk from PDF agent
+      const agentRequest = new Request('http://internal/ui-chunk?step=' + step, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      let response;
+      if (env.PDF_AGENT) {
+        response = await env.PDF_AGENT.fetch(agentRequest);
+      } else {
+        // Fallback: generate simple UI chunk
+        return this.generateSimplePdfAgentUIChunk();
+      }
+
+      if (response.ok) {
+        return response;
+      } else {
+        return this.generateSimplePdfAgentUIChunk();
+      }
+    } catch (error) {
+      return this.generateSimplePdfAgentUIChunk();
+    }
   },
 
   // NEW: Get UI chunk from D&D Beyond agent  
   async getDndAgentUI(request, env) {
-    const characterId = new URL(request.url).searchParams.get('characterId');
+    const step = new URL(request.url).searchParams.get('step') || '1';
     
-    // For now, always use the fallback UI generation since the D&D Beyond agent
-    // doesn't have UI chunk endpoints. In the future, we could add those endpoints.
-    return this.generateDndAgentUIChunk();
+    try {
+      // Request UI chunk from D&D Beyond agent
+      const agentRequest = new Request('http://internal/ui-chunk?step=' + step, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      let response;
+      if (env.DNDBEYOND_AGENT) {
+        response = await env.DNDBEYOND_AGENT.fetch(agentRequest);
+      } else {
+        // Fallback: generate simple UI chunk
+        return this.generateSimpleDndAgentUIChunk();
+      }
+
+      if (response.ok) {
+        return response;
+      } else {
+        return this.generateSimpleDndAgentUIChunk();
+      }
+    } catch (error) {
+      return this.generateSimpleDndAgentUIChunk();
+    }
   },
 
   // NEW: Proxy requests to PDF agent
@@ -1868,90 +1908,23 @@ Visit the chat interface: ${baseUrl}/`, {
     }
   },
 
-  // Generate PDF agent UI chunk as fallback
-  generatePdfAgentUIChunk(step = '1') {
+  // Simple fallback PDF agent UI chunk when agent is unavailable
+  generateSimplePdfAgentUIChunk() {
     return new Response(JSON.stringify({
       success: true,
-      title: '📚 PDF Library Manager',
+      title: '📚 PDF Agent Unavailable',
       html: `
         <div class="agent-ui-chunk">
           <div class="prompt">
-            <h3>📚 PDF Library Manager</h3>
-            <p>Manage your PDF collection with secure upload and organization features.</p>
+            <h3>📚 PDF Agent</h3>
+            <p>The PDF agent is currently unavailable. Please try again later.</p>
           </div>
-          
-          <!-- API Key Section -->
-          <div class="section" id="apiKeySection">
-            <h4>🔐 Authentication</h4>
-            <div class="input-group">
-              <label for="pdfApiKey">API Key</label>
-              <input type="password" id="pdfApiKey" placeholder="Enter your API key">
-              <button class="btn btn-sm" onclick="validatePdfApiKey()">Connect</button>
-            </div>
-          </div>
-          
-          <!-- Main Content (hidden until authenticated) -->
-          <div id="mainContent" style="display: none;">
-            
-            <!-- Library Section -->
-            <div class="section">
-              <h4>📚 Your PDF Library</h4>
-              <div id="pdfsContainer" class="pdfs-container">Loading...</div>
-              <div class="library-actions">
-                <button class="btn btn-secondary btn-sm" onclick="refreshPdfs()">Refresh</button>
-                <button class="btn btn-secondary btn-sm" onclick="showApiKeySection()">Change API Key</button>
-              </div>
-            </div>
-            
-            <!-- Upload Section -->
-            <div class="section">
-              <h4>📤 Upload New PDF</h4>
-              <form id="pdfUploadForm" onsubmit="handlePdfUpload(event)">
-                <div class="input-group">
-                  <label for="pdfFileInput">Select PDF File</label>
-                  <input type="file" id="pdfFileInput" accept=".pdf" required onchange="handleFileSelection()">
-                  <small>Supports PDF files up to 200MB</small>
-                </div>
-                
-                <div id="filePreview" class="file-preview" style="display: none;">
-                  <h5>📄 Selected File</h5>
-                  <div id="fileDetails" class="file-details"></div>
-                </div>
-                
-                <div class="input-group">
-                  <label for="pdfName">Display Name (optional)</label>
-                  <input type="text" id="pdfName" placeholder="Custom name for your PDF">
-                  <small>Leave blank to use the original filename</small>
-                </div>
-                
-                <div class="input-group">
-                  <label for="pdfTags">Tags (optional)</label>
-                  <input type="text" id="pdfTags" placeholder="e.g., campaign, rules, homebrew">
-                  <small>Comma-separated tags to help organize your PDFs</small>
-                </div>
-                
-                <div class="upload-actions">
-                  <button type="submit" class="btn btn-success" id="uploadBtn" disabled>
-                    <span id="uploadBtnText">Upload PDF</span>
-                  </button>
-                  <button type="button" class="btn btn-secondary" onclick="clearUploadForm()">Clear</button>
-                </div>
-                
-                <div class="progress-container" id="uploadProgress" style="display: none;">
-                  <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
-                  </div>
-                  <div class="progress-text" id="progressText">Preparing upload...</div>
-                </div>
-                
-                <div id="uploadStatus" class="status-message"></div>
-              </form>
-            </div>
-            
+          <div class="status-message" style="color: #dc3545; text-align: center; padding: 20px;">
+            ⚠️ PDF agent service is not responding. Please check the service status.
           </div>
         </div>
       `,
-      scripts: this.getPdfAgentScripts()
+      scripts: ''
     }), {
       headers: {
         'Content-Type': 'application/json',
@@ -1960,27 +1933,23 @@ Visit the chat interface: ${baseUrl}/`, {
     });
   },
 
-  // Generate D&D Beyond agent UI chunk as fallback
-  generateDndAgentUIChunk() {
+  // Simple fallback D&D Beyond agent UI chunk when agent is unavailable
+  generateSimpleDndAgentUIChunk() {
     return new Response(JSON.stringify({
       success: true,
-      title: '🎲 D&D Beyond Character Lookup',
+      title: '🐉 D&D Beyond Agent Unavailable',
       html: `
         <div class="agent-ui-chunk">
           <div class="prompt">
-            <h3>🎲 D&D Beyond Character Lookup</h3>
-            <p>Enter a D&D Beyond character ID to fetch character information. No authentication required!</p>
+            <h3>🐉 D&D Beyond Agent</h3>
+            <p>The D&D Beyond agent is currently unavailable. Please try again later.</p>
           </div>
-          <div class="input-group">
-            <label for="dndCharacterId">Character ID</label>
-            <input type="text" id="dndCharacterId" placeholder="Enter character ID (e.g., 12345)">
-            <small style="color: #6c757d;">You can find this in the D&D Beyond character URL</small>
+          <div class="status-message" style="color: #dc3545; text-align: center; padding: 20px;">
+            ⚠️ D&D Beyond agent service is not responding. Please check the service status.
           </div>
-          <button class="btn" onclick="lookupDndCharacter()">Look Up Character</button>
-          <div id="dndCharacterResult" class="character-result" style="display: none;"></div>
         </div>
       `,
-      scripts: this.getDndAgentScripts()
+      scripts: ''
     }), {
       headers: {
         'Content-Type': 'application/json',
@@ -1989,669 +1958,5 @@ Visit the chat interface: ${baseUrl}/`, {
     });
   },
 
-  // Get PDF agent JavaScript functions
-  getPdfAgentScripts() {
-    return `
-      let currentPdfFile = null;
-      let pdfApiKey = localStorage.getItem('loresmith_pdf_api_key') || '';
-      
-      // Initialize the interface
-      document.addEventListener('DOMContentLoaded', function() {
-        initializePdfAgent();
-      });
-      
-      function initializePdfAgent() {
-        // Auto-populate API key if stored
-        const apiKeyInput = document.getElementById('pdfApiKey');
-        if (apiKeyInput && pdfApiKey) {
-          apiKeyInput.value = pdfApiKey;
-          // Auto-validate if we have a stored key
-          setTimeout(validatePdfApiKey, 100);
-        }
-      }
-      
-      async function validatePdfApiKey() {
-        const apiKeyInput = document.getElementById('pdfApiKey');
-        pdfApiKey = apiKeyInput.value.trim();
-        
-        if (!pdfApiKey) {
-          showAgentStatus('Please enter your API key', 'error');
-          return;
-        }
-        
-        localStorage.setItem('loresmith_pdf_api_key', pdfApiKey);
-        
-        try {
-          showAgentStatus('Validating API key...', 'info');
-          const response = await fetch('/proxy/pdf-agent/pdfs', {
-            headers: { 'Authorization': 'Bearer ' + pdfApiKey }
-          });
-          
-          if (response.ok) {
-            hideAgentStatus();
-            showMainContent();
-            setTimeout(refreshPdfs, 100);
-          } else {
-            showAgentStatus('Invalid API key. Please check and try again.', 'error');
-          }
-        } catch (error) {
-          showAgentStatus('Error validating API key: ' + error.message, 'error');
-        }
-      }
-      
-      function showMainContent() {
-        const apiKeySection = document.getElementById('apiKeySection');
-        const mainContent = document.getElementById('mainContent');
-        
-        if (apiKeySection) apiKeySection.style.display = 'none';
-        if (mainContent) mainContent.style.display = 'block';
-      }
-      
-      function showApiKeySection() {
-        const apiKeySection = document.getElementById('apiKeySection');
-        const mainContent = document.getElementById('mainContent');
-        
-        if (apiKeySection) apiKeySection.style.display = 'block';
-        if (mainContent) mainContent.style.display = 'none';
-        
-        // Clear the API key field for security
-        const apiKeyInput = document.getElementById('pdfApiKey');
-        if (apiKeyInput) apiKeyInput.value = '';
-        pdfApiKey = '';
-        localStorage.removeItem('loresmith_pdf_api_key');
-      }
-      
-      async function refreshPdfs() {
-        const container = document.getElementById('pdfsContainer');
-        if (!container) return;
-        
-        container.innerHTML = 'Loading...';
-        
-        try {
-          const response = await fetch('/proxy/pdf-agent/pdfs', {
-            headers: { 'Authorization': 'Bearer ' + pdfApiKey }
-          });
-          
-          const data = await response.json();
-          
-          // Handle the new response format with pdfs array and message
-          if (data.pdfs !== undefined) {
-            if (data.pdfs.length === 0) {
-              // Use the message from the server if available
-              const message = data.message || 'No PDFs found. Upload your first PDF to get started!';
-              container.innerHTML = '<p style="color: #6c757d; text-align: center; padding: 20px;">' + message + '</p>';
-              
-              // Show debug info if available
-              if (data.debug) {
-                console.log('PDF Agent Debug:', data.debug);
-              }
-            } else {
-              let html = '';
-              data.pdfs.forEach(pdf => {
-                html += '<div class="pdf-item">';
-                html += '<h4>' + (pdf.name || pdf.filename) + '</h4>';
-                html += '<div class="pdf-meta">';
-                html += 'Size: ' + formatFileSize(pdf.size) + ' | ';
-                html += 'Uploaded: ' + new Date(pdf.uploaded_at).toLocaleDateString() + ' | ';
-                html += (pdf.tags ? 'Tags: ' + pdf.tags : 'No tags');
-                html += '</div>';
-                html += '<div class="pdf-actions">';
-                html += '<button class="btn btn-sm" onclick="downloadPDF(\\'' + pdf.id + '\\', \\'' + pdf.filename + '\\')">Download</button>';
-                html += '<button class="btn btn-sm btn-secondary" onclick="viewPDFInfo(\\'' + pdf.id + '\\')">Info</button>';
-                html += '<button class="btn btn-sm btn-danger" onclick="deletePDF(\\'' + pdf.id + '\\', \\'' + (pdf.name || pdf.filename) + '\\')">Delete</button>';
-                html += '</div>';
-                html += '</div>';
-              });
-              container.innerHTML = html;
-            }
-          } else {
-            // Handle old format or error responses
-            throw new Error(data.error || data.message || 'Unexpected response format');
-          }
-        } catch (error) {
-          container.innerHTML = '<p style="color: #dc3545;">Error loading PDFs: ' + error.message + '</p>';
-        }
-      }
-      
-      function handleFileSelection() {
-        const fileInput = document.getElementById('pdfFileInput');
-        const file = fileInput.files[0];
-        const filePreview = document.getElementById('filePreview');
-        const fileDetails = document.getElementById('fileDetails');
-        const uploadBtn = document.getElementById('uploadBtn');
-        const pdfNameInput = document.getElementById('pdfName');
-        
-        if (!file) {
-          if (filePreview) filePreview.style.display = 'none';
-          if (uploadBtn) uploadBtn.disabled = true;
-          currentPdfFile = null;
-          return;
-        }
-        
-        if (file.type !== 'application/pdf') {
-          showAgentStatus('Please select a PDF file', 'error');
-          fileInput.value = '';
-          return;
-        }
-        
-        if (file.size > 200 * 1024 * 1024) {
-          showAgentStatus('File size exceeds 200MB limit', 'error');
-          fileInput.value = '';
-          return;
-        }
-        
-        currentPdfFile = file;
-        
-        // Show file details
-        if (fileDetails) {
-          fileDetails.innerHTML = \`
-            <div class="file-info">
-              <div><strong>Name:</strong> \${file.name}</div>
-              <div><strong>Size:</strong> \${formatFileSize(file.size)}</div>
-              <div><strong>Type:</strong> \${file.type}</div>
-              <div><strong>Modified:</strong> \${new Date(file.lastModified).toLocaleDateString()}</div>
-            </div>
-          \`;
-        }
-        
-        // Auto-populate name field with filename (without extension)
-        if (pdfNameInput && !pdfNameInput.value) {
-          const nameWithoutExt = file.name.replace(/\\.pdf$/i, '');
-          pdfNameInput.value = nameWithoutExt;
-        }
-        
-        if (filePreview) filePreview.style.display = 'block';
-        if (uploadBtn) uploadBtn.disabled = false;
-        
-        hideAgentStatus();
-      }
-      
-      function formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-      }
-      
-      function clearUploadForm() {
-        const form = document.getElementById('pdfUploadForm');
-        const filePreview = document.getElementById('filePreview');
-        const uploadBtn = document.getElementById('uploadBtn');
-        const uploadProgress = document.getElementById('uploadProgress');
-        const uploadStatus = document.getElementById('uploadStatus');
-        
-        if (form) form.reset();
-        if (filePreview) filePreview.style.display = 'none';
-        if (uploadBtn) uploadBtn.disabled = true;
-        if (uploadProgress) uploadProgress.style.display = 'none';
-        if (uploadStatus) uploadStatus.innerHTML = '';
-        
-        currentPdfFile = null;
-        hideAgentStatus();
-      }
-      
-      async function handlePdfUpload(event) {
-        event.preventDefault();
-        
-        if (!currentPdfFile) {
-          showAgentStatus('Please select a file first', 'error');
-          return;
-        }
-        
-        if (!pdfApiKey) {
-          showAgentStatus('API key required', 'error');
-          return;
-        }
-        
-        const formData = new FormData();
-        const nameInput = document.getElementById('pdfName');
-        const tagsInput = document.getElementById('pdfTags');
-        const uploadBtn = document.getElementById('uploadBtn');
-        const uploadBtnText = document.getElementById('uploadBtnText');
-        const uploadProgress = document.getElementById('uploadProgress');
-        const progressFill = document.getElementById('progressFill');
-        const progressText = document.getElementById('progressText');
-        const uploadStatus = document.getElementById('uploadStatus');
-        
-        // Prepare form data
-        formData.append('file', currentPdfFile);
-        if (nameInput && nameInput.value.trim()) {
-          formData.append('name', nameInput.value.trim());
-        }
-        if (tagsInput && tagsInput.value.trim()) {
-          formData.append('tags', tagsInput.value.trim());
-        }
-        
-        // Update UI for upload
-        if (uploadBtn) uploadBtn.disabled = true;
-        if (uploadBtnText) uploadBtnText.textContent = 'Uploading...';
-        if (uploadProgress) uploadProgress.style.display = 'block';
-        if (progressText) progressText.textContent = 'Preparing upload...';
-        
-        try {
-          const response = await fetch('/proxy/pdf-agent/upload', {
-            method: 'POST',
-            headers: {
-              'Authorization': 'Bearer ' + pdfApiKey
-            },
-            body: formData
-          });
-          
-          const result = await response.json();
-          
-          if (response.ok && result.success) {
-            if (progressFill) progressFill.style.width = '100%';
-            if (progressText) progressText.textContent = 'Upload complete!';
-            if (uploadStatus) {
-              uploadStatus.innerHTML = '<div style="color: #28a745;">✅ PDF uploaded successfully!</div>';
-            }
-            
-            // Clear form and refresh library
-            setTimeout(() => {
-              clearUploadForm();
-              refreshPdfs();
-            }, 2000);
-            
-          } else {
-            throw new Error(result.error || result.message || 'Upload failed');
-          }
-          
-        } catch (error) {
-          if (uploadStatus) {
-            uploadStatus.innerHTML = '<div style="color: #dc3545;">❌ Upload failed: ' + error.message + '</div>';
-          }
-          showAgentStatus('Upload failed: ' + error.message, 'error');
-        } finally {
-          // Reset upload button
-          if (uploadBtn) uploadBtn.disabled = false;
-          if (uploadBtnText) uploadBtnText.textContent = 'Upload PDF';
-          
-          // Hide progress after delay
-          setTimeout(() => {
-            if (uploadProgress) uploadProgress.style.display = 'none';
-          }, 3000);
-        }
-      }
-      
-      // PDF library action functions
-      function downloadPDF(pdfId, filename) {
-        const url = '/proxy/pdf-agent/pdf/' + pdfId;
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        link.click();
-      }
-      
-      async function viewPDFInfo(pdfId) {
-        try {
-          showAgentStatus('Loading PDF information...', 'info');
-          
-          const response = await fetch('/proxy/pdf-agent/pdf/' + pdfId + '/metadata', {
-            headers: {
-              'Authorization': 'Bearer ' + pdfApiKey
-            }
-          });
-          
-          if (!response.ok) {
-            throw new Error('Failed to load PDF information');
-          }
-          
-          const pdfData = await response.json();
-          showPDFInfoModal(pdfData);
-          hideAgentStatus();
-          
-        } catch (error) {
-          showAgentStatus('Error loading PDF info: ' + error.message, 'error');
-        }
-      }
-      
-      function showPDFInfoModal(pdfData) {
-        // Create modal HTML
-        const modalHtml = \`
-          <div class="pdf-info-modal-overlay" id="pdfInfoModal" onclick="closePDFInfoModal(event)">
-            <div class="pdf-info-modal" onclick="event.stopPropagation()">
-              <div class="modal-header">
-                <h3>📄 PDF Information</h3>
-                <button class="modal-close" onclick="closePDFInfoModal()">&times;</button>
-              </div>
-              <div class="modal-body">
-                <div class="pdf-info-grid">
-                  <div class="info-item">
-                    <label>Display Name:</label>
-                    <span>\${pdfData.name || pdfData.filename}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>Original Filename:</label>
-                    <span>\${pdfData.filename}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>File Size:</label>
-                    <span>\${formatFileSize(pdfData.size)}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>Upload Date:</label>
-                    <span>\${new Date(pdfData.uploaded_at).toLocaleString()}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>File ID:</label>
-                    <span class="monospace">\${pdfData.id}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>MIME Type:</label>
-                    <span>\${pdfData.mime_type || 'application/pdf'}</span>
-                  </div>
-                  \${pdfData.tags ? \`
-                    <div class="info-item">
-                      <label>Tags:</label>
-                      <span class="tags-display">\${pdfData.tags}</span>
-                    </div>
-                  \` : ''}
-                  \${pdfData.text_preview ? \`
-                    <div class="info-item full-width">
-                      <label>Text Preview:</label>
-                      <div class="text-preview">\${pdfData.text_preview}</div>
-                    </div>
-                  \` : ''}
-                </div>
-              </div>
-              <div class="modal-footer">
-                <button class="btn btn-primary" onclick="downloadPDF('\${pdfData.id}', '\${pdfData.filename}')">
-                  📥 Download PDF
-                </button>
-                <button class="btn btn-danger" onclick="deletePDFFromModal('\${pdfData.id}', '\${pdfData.name || pdfData.filename}')">
-                  🗑️ Delete PDF
-                </button>
-                <button class="btn btn-secondary" onclick="closePDFInfoModal()">Close</button>
-              </div>
-            </div>
-          </div>
-        \`;
-        
-        // Add modal to page
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-        
-        // Add modal styles if not already present
-        if (!document.getElementById('pdfInfoModalStyles')) {
-          const styles = \`
-            <style id="pdfInfoModalStyles">
-              .pdf-info-modal-overlay {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0, 0, 0, 0.5);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                z-index: 1000;
-                animation: fadeIn 0.2s ease-out;
-              }
-              
-              .pdf-info-modal {
-                background: white;
-                border-radius: 8px;
-                max-width: 600px;
-                width: 90%;
-                max-height: 80vh;
-                overflow-y: auto;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-                animation: slideIn 0.3s ease-out;
-              }
-              
-              .modal-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 20px;
-                border-bottom: 1px solid #eee;
-                background: #f8f9fa;
-                border-radius: 8px 8px 0 0;
-              }
-              
-              .modal-header h3 {
-                margin: 0;
-                color: #333;
-              }
-              
-              .modal-close {
-                background: none;
-                border: none;
-                font-size: 24px;
-                cursor: pointer;
-                color: #666;
-                padding: 0;
-                width: 30px;
-                height: 30px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                border-radius: 4px;
-              }
-              
-              .modal-close:hover {
-                background: #e9ecef;
-                color: #333;
-              }
-              
-              .modal-body {
-                padding: 20px;
-              }
-              
-              .pdf-info-grid {
-                display: grid;
-                gap: 15px;
-              }
-              
-              .info-item {
-                display: grid;
-                grid-template-columns: 140px 1fr;
-                gap: 10px;
-                align-items: start;
-              }
-              
-              .info-item.full-width {
-                grid-template-columns: 1fr;
-              }
-              
-              .info-item label {
-                font-weight: 600;
-                color: #555;
-                font-size: 14px;
-              }
-              
-              .info-item span {
-                color: #333;
-                word-break: break-word;
-              }
-              
-              .monospace {
-                font-family: 'Courier New', monospace;
-                font-size: 12px;
-                background: #f8f9fa;
-                padding: 2px 6px;
-                border-radius: 3px;
-              }
-              
-              .tags-display {
-                background: #e3f2fd;
-                padding: 4px 8px;
-                border-radius: 4px;
-                font-size: 14px;
-              }
-              
-              .text-preview {
-                background: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-radius: 4px;
-                padding: 12px;
-                font-size: 13px;
-                line-height: 1.4;
-                max-height: 150px;
-                overflow-y: auto;
-                color: #666;
-                font-family: system-ui, -apple-system, sans-serif;
-              }
-              
-              .modal-footer {
-                padding: 20px;
-                border-top: 1px solid #eee;
-                display: flex;
-                gap: 10px;
-                justify-content: flex-end;
-                background: #f8f9fa;
-                border-radius: 0 0 8px 8px;
-              }
-              
-              .modal-footer .btn {
-                padding: 8px 16px;
-                font-size: 14px;
-              }
-              
-              @keyframes fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-              }
-              
-                             @keyframes slideIn {
-                 from { 
-                   opacity: 0;
-                   transform: translateY(-20px) scale(0.95);
-                 }
-                 to { 
-                   opacity: 1;
-                   transform: translateY(0) scale(1);
-                 }
-               }
-               
-               @keyframes fadeOut {
-                 from { opacity: 1; }
-                 to { opacity: 0; }
-               }
-              
-              @media (max-width: 600px) {
-                .pdf-info-modal {
-                  width: 95%;
-                  margin: 10px;
-                }
-                
-                .info-item {
-                  grid-template-columns: 1fr;
-                  gap: 5px;
-                }
-                
-                .modal-footer {
-                  flex-direction: column;
-                }
-                
-                .modal-footer .btn {
-                  width: 100%;
-                }
-              }
-            </style>
-          \`;
-          document.head.insertAdjacentHTML('beforeend', styles);
-        }
-      }
-      
-      function closePDFInfoModal(event) {
-        // Only close if clicking overlay or close button
-        if (event && event.target !== event.currentTarget && !event.target.classList.contains('modal-close')) {
-          return;
-        }
-        
-        const modal = document.getElementById('pdfInfoModal');
-        if (modal) {
-          modal.style.animation = 'fadeOut 0.2s ease-out';
-          setTimeout(() => {
-            modal.remove();
-          }, 200);
-        }
-      }
-      
-      async function deletePDFFromModal(pdfId, filename) {
-        // Close modal first
-        closePDFInfoModal();
-        
-        // Then proceed with deletion
-        await deletePDF(pdfId, filename);
-      }
-      
-      async function deletePDF(pdfId, filename) {
-        if (!confirm('Are you sure you want to delete "' + filename + '"? This action cannot be undone.')) {
-          return;
-        }
-        
-        try {
-          const response = await fetch('/proxy/pdf-agent/pdf/' + pdfId, {
-            method: 'DELETE',
-            headers: {
-              'Authorization': 'Bearer ' + pdfApiKey
-            }
-          });
-          
-          const result = await response.json();
-          
-          if (response.ok && result.success) {
-            showAgentStatus('PDF deleted successfully', 'success');
-            refreshPdfs();
-          } else {
-            throw new Error(result.error || result.message || 'Delete failed');
-          }
-        } catch (error) {
-          showAgentStatus('Delete failed: ' + error.message, 'error');
-        }
-      }
-    `;
-  },
 
-  // Get D&D Beyond agent JavaScript functions
-  getDndAgentScripts() {
-    return `
-      async function lookupDndCharacter() {
-        const characterIdInput = document.getElementById('dndCharacterId');
-        const characterId = characterIdInput.value.trim();
-        
-        if (!characterId) {
-          showAgentStatus('Please enter a character ID', 'error');
-          return;
-        }
-        
-        try {
-          showAgentStatus('Looking up character...', 'info');
-          const response = await fetch('/proxy/dndbeyond-agent/character/' + characterId);
-          
-          if (!response.ok) {
-            throw new Error('Character not found or not public');
-          }
-          
-          const character = await response.json();
-          displayDndCharacter(character);
-          hideAgentStatus();
-          
-        } catch (error) {
-          showAgentStatus('Error looking up character: ' + error.message, 'error');
-        }
-      }
-      
-      function displayDndCharacter(character) {
-        const resultDiv = document.getElementById('dndCharacterResult');
-        if (!resultDiv) return;
-        
-        let html = '<div class="character-display">';
-        html += '<h4>' + character.name + '</h4>';
-        html += '<p><strong>Class:</strong> ' + character.class + '</p>';
-        html += '<p><strong>Level:</strong> ' + character.level + '</p>';
-        html += '<p><strong>Race:</strong> ' + character.race + '</p>';
-        if (character.background) {
-          html += '<p><strong>Background:</strong> ' + character.background + '</p>';
-        }
-        html += '</div>';
-        
-        resultDiv.innerHTML = html;
-        resultDiv.style.display = 'block';
-      }
-    `;
-  }
 }; 
