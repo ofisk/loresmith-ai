@@ -1406,43 +1406,62 @@ What can I help you with today?`,
             
             // Execute any script tags in the HTML content
             const scripts = agentContainer.querySelectorAll('script');
-            scripts.forEach(script => {
+            scripts.forEach((script, index) => {
                 try {
-                    const newScript = document.createElement('script');
-                    
-                    // Mark as agent script for cleanup first
-                    newScript.setAttribute('data-agent-script', 'true');
-                    
-                    if (script.src) {
-                        // External script
-                        newScript.src = script.src;
-                        newScript.type = 'text/javascript';
-                    } else {
-                        // Inline script - be careful with content
-                        const scriptContent = script.textContent || script.innerHTML;
-                        if (scriptContent && scriptContent.trim()) {
-                            newScript.type = 'text/javascript';
-                            newScript.textContent = scriptContent;
-                        } else {
-                            // Skip empty scripts
-                            return;
-                        }
-                    }
-                    
-                    // Copy other attributes (except src which we handled above)
-                    Array.from(script.attributes).forEach(attr => {
-                        if (attr.name !== 'src' && attr.name !== 'type') {
-                            newScript.setAttribute(attr.name, attr.value);
-                        }
-                    });
-                    
-                    // Remove old script first
+                    // Remove old script first to prevent conflicts
                     script.remove();
                     
-                    // Add new script to head to trigger execution
-                    document.head.appendChild(newScript);
+                    if (script.src) {
+                        // External script - create new script element
+                        const newScript = document.createElement('script');
+                        newScript.src = script.src;
+                        newScript.type = 'text/javascript';
+                        newScript.setAttribute('data-agent-script', 'true');
+                        newScript.setAttribute('data-agent-script-index', index);
+                        
+                        // Add error handling for external scripts
+                        newScript.onerror = () => {
+                            console.warn(\`Failed to load external agent script: \${script.src}\`);
+                        };
+                        
+                        document.head.appendChild(newScript);
+                    } else {
+                        // Inline script - use safer execution method
+                        const scriptContent = script.textContent || script.innerHTML;
+                        if (scriptContent && scriptContent.trim()) {
+                            try {
+                                // Use Function constructor for safer evaluation
+                                const scriptFunc = new Function(scriptContent);
+                                scriptFunc();
+                                
+                                // Keep track of executed scripts for cleanup
+                                window.agentScriptContents = window.agentScriptContents || [];
+                                window.agentScriptContents.push({
+                                    index: index,
+                                    content: scriptContent,
+                                    executed: true
+                                });
+                            } catch (scriptError) {
+                                console.warn('Failed to execute inline agent script:', scriptError);
+                                
+                                // Fallback: try with createElement if Function constructor fails
+                                try {
+                                    const newScript = document.createElement('script');
+                                    newScript.type = 'text/javascript';
+                                    newScript.setAttribute('data-agent-script', 'true');
+                                    newScript.setAttribute('data-agent-script-index', index);
+                                    
+                                    // Use textContent instead of innerHTML for better safety
+                                    newScript.textContent = scriptContent;
+                                    document.head.appendChild(newScript);
+                                } catch (appendError) {
+                                    console.warn('Failed to append agent script via createElement:', appendError);
+                                }
+                            }
+                        }
+                    }
                 } catch (error) {
-                    console.warn('Failed to execute agent script:', error);
+                    console.warn(\`Failed to process agent script \${index}:\`, error);
                 }
             });
             
@@ -1480,23 +1499,32 @@ What can I help you with today?`,
         }
         
         function closeAgentUI() {
-            // Remove any scripts that were added for this agent
-            const scripts = document.head.querySelectorAll('script[data-agent-script]');
-            scripts.forEach(script => script.remove());
-            
-            // Clear any global functions that might conflict
-            const agentFunctions = [
-                'validatePdfApiKey', 'uploadPdf', 'deletePdf', 'downloadPdf',
-                'lookupCharacter', 'fetchCharacterStats', 'displayCharacter'
-            ];
-            
-            agentFunctions.forEach(funcName => {
-                if (window[funcName]) {
-                    delete window[funcName];
+            const agentContainer = document.querySelector('.agent-ui-container');
+            if (agentContainer) {
+                // Remove any scripts that were added for this agent
+                const scripts = document.head.querySelectorAll('script[data-agent-script]');
+                scripts.forEach(script => script.remove());
+                
+                // Clear script content tracking
+                if (window.agentScriptContents) {
+                    delete window.agentScriptContents;
                 }
-            });
-            
-            agentContainer.remove();
+                
+                // Clear any global functions that might conflict
+                const agentFunctions = [
+                    'validatePdfApiKey', 'uploadPdf', 'deletePdf', 'downloadPdf',
+                    'lookupCharacter', 'fetchCharacterStats', 'displayCharacter',
+                    'showStatus', 'hideStatus', 'updateProgress', 'resetForm'
+                ];
+                
+                agentFunctions.forEach(funcName => {
+                    if (window[funcName]) {
+                        delete window[funcName];
+                    }
+                });
+                
+                agentContainer.remove();
+            }
         }
         
         // Load dynamic suggestions based on available agents
