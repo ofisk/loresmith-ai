@@ -1515,17 +1515,7 @@ Just tell me what you want to do and I'll connect you to the right agent!`,
         // Generic agent UI management based on user intent
         async function loadAgentUI(promptOrAgent, step = '1') {
             try {
-                let url;
-                
-                // Check if it's a legacy agent type or a natural language prompt
-                if (promptOrAgent === 'pdf-agent' || promptOrAgent === 'pdf') {
-                    url = \`/ui?agent=pdf&step=\${step}\`;
-                } else if (promptOrAgent === 'dndbeyond-agent' || promptOrAgent === 'dndbeyond') {
-                    url = \`/ui?agent=dndbeyond&step=\${step}\`;
-                } else {
-                    // Treat as natural language prompt
-                    url = \`/ui?prompt=\${encodeURIComponent(promptOrAgent)}&step=\${step}\`;
-                }
+                let url = \`/ui?prompt=\${encodeURIComponent(promptOrAgent)}&step=\${step}\`;
                 
                 const response = await fetch(url);
                 
