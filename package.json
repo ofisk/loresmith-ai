@@ -6,6 +6,7 @@
   "private": true,
   "scripts": {
     "start": "vite dev",
+    "build": "vite build",
     "deploy": "vite build && wrangler deploy",
     "test": "vitest",
     "types": "wrangler types",
