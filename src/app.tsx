@@ -17,7 +17,6 @@ import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvoca
 import {
   Bug,
   Moon,
-  Robot,
   Sun,
   Trash,
   PaperPlaneTilt,
@@ -113,8 +112,11 @@ export default function Chat() {
       <HasOpenAIKey />
       <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-lg flex flex-col shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
         <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
-         <div className="flex items-center justify-center rounded-lg" style={{ width: 28, height: 28 }}>
-          <img
+          <div
+            className="flex items-center justify-center rounded-lg"
+            style={{ width: 28, height: 28 }}
+          >
+            <img
               src={loresmith}
               alt="LoreSmith logo"
               width={28}
@@ -164,11 +166,19 @@ export default function Chat() {
               <Card className="p-6 max-w-md mx-auto bg-neutral-100 dark:bg-neutral-900">
                 <div className="text-left space-y-4">
                   <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
-                    <img src={loresmith} alt="LoreSmith logo" width={48} height={48} />
+                    <img
+                      src={loresmith}
+                      alt="LoreSmith logo"
+                      width={48}
+                      height={48}
+                    />
                   </div>
-                  <h3 className="font-semibold text-lg">👋 Welcome to LoreSmith MCP Router!</h3>
+                  <h3 className="font-semibold text-lg">
+                    👋 Welcome to LoreSmith MCP Router!
+                  </h3>
                   <p className="text-muted-foreground text-sm">
-                   Speak your query, and I shall summon the most fitting agent. Try:
+                    Speak your query, and I shall summon the most fitting agent.
+                    Try:
                   </p>
                   <ul className="text-sm text-left space-y-2">
                     <li className="flex items-center gap-2">
