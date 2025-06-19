@@ -25,6 +25,7 @@ import {
 } from "@phosphor-icons/react";
 
 import loresmith from "@/assets/loresmith.png";
+import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
 
 // List of tools that require human confirmation
 // NOTE: this should match the keys in the executions object in tools.ts
@@ -222,10 +223,12 @@ export default function Chat() {
                   <ul className="text-sm text-left space-y-2">
                     <li className="flex items-center gap-2">
                       <span className="text-purple-500">•</span>
+                      <Lightbulb size={12} />
                       <span>Get started</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="text-purple-500">•</span>
+                      <Robot alt="Agents icon" width={12} height={12} />
                       <span>Show agents</span>
                     </li>
                   </ul>
