@@ -11,6 +11,7 @@ import {
   type ToolSet,
 } from "ai";
 import { openai } from "@ai-sdk/openai";
+import { Hono } from "hono";
 import { processToolCalls } from "./utils";
 import { tools, executions } from "./tools";
 // import { env } from "cloudflare:workers";
@@ -103,25 +104,23 @@ If the user asks to schedule a task, use the schedule tool to schedule the task.
 /**
  * Worker entry point that routes incoming requests to the appropriate handler
  */
-export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
-    const url = new URL(request.url);
+const app = new Hono<{ Bindings: Env }>();
 
-    if (url.pathname === "/check-open-ai-key") {
-      const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
-      return Response.json({
-        success: hasOpenAIKey,
-      });
-    }
-    if (!process.env.OPENAI_API_KEY) {
-      console.error(
-        "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
-      );
-    }
-    return (
-      // Route the request to our agent or return 404 if not found
-      (await routeAgentRequest(request, env)) ||
-      new Response("Not found", { status: 404 })
+app.get("/check-open-ai-key", (c) => {
+  const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+  return c.json({ success: hasOpenAIKey });
+});
+
+app.all("*", async (c) => {
+  if (!process.env.OPENAI_API_KEY) {
+    console.error(
+      "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
     );
-  },
-} satisfies ExportedHandler<Env>;
+  }
+  return (
+    (await routeAgentRequest(c.req.raw, c.env)) ||
+    new Response("Not found", { status: 404 })
+  );
+});
+
+export default app;
