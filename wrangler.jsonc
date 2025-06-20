@@ -22,6 +22,12 @@
       },
     ],
   },
+  "r2_buckets": [
+    {
+      "binding": "PDF_BUCKET",
+      "bucket_name": "loresmith-pdfs",
+    },
+  ],
   "migrations": [
     {
       "tag": "v1",
@@ -52,6 +58,17 @@
   /**
    * Note: Use secrets to store sensitive data.
    * https://developers.cloudflare.com/workers/configuration/secrets/
+   *
+   * Required secrets for this project:
+   * - OPENAI_API_KEY: OpenAI API key for AI functionality
+   * - PDF_ADMIN_SECRET: Secret key for PDF upload authentication (admin only)
+   *
+   * PDF Configuration: See src/shared.ts PDF_CONFIG for centralized constants
+   * - Storage limit: 10GB total
+   * - File size limit: 200MB per file
+   * - Upload threshold: 50MB (presigned URLs for larger files)
+   *
+   * Set secrets using: npx wrangler secret put SECRET_NAME
    */
 
   /**

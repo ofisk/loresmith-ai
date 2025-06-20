@@ -12,6 +12,7 @@ import {
 } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { processToolCalls } from "./utils";
 import { tools, executions } from "./tools";
 // import { env } from "cloudflare:workers";
@@ -106,21 +107,39 @@ If the user asks to schedule a task, use the schedule tool to schedule the task.
  */
 const app = new Hono<{ Bindings: Env }>();
 
+// Add CORS middleware
+app.use("*", cors({
+  origin: (origin) => {
+    const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS?.split(",").map(o => o.trim()) || [];
+    return allowedOrigins.includes(origin || "") || !origin ? origin : null;
+  },
+  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowHeaders: ["Content-Type", "Authorization"],
+}));
+
 app.get("/check-open-ai-key", (c) => {
   const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
   return c.json({ success: hasOpenAIKey });
 });
 
+
 app.all("*", async (c) => {
+  console.log(`Incoming request: ${c.req.method} ${c.req.url}`);
+  
   if (!process.env.OPENAI_API_KEY) {
     console.error(
       "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
     );
   }
-  return (
-    (await routeAgentRequest(c.req.raw, c.env)) ||
-    new Response("Not found", { status: 404 })
-  );
+  
+  const result = await routeAgentRequest(c.req.raw, c.env);
+  if (result) {
+    console.log("routeAgentRequest handled the request");
+    return result;
+  } else {
+    console.log("routeAgentRequest did not handle the request, returning 404");
+    return new Response("Not found", { status: 404 });
+  }
 });
 
 export default app;
