@@ -24,12 +24,36 @@ import {
 } from "@phosphor-icons/react";
 
 import loresmith from "@/assets/loresmith.png";
+import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
 
 // List of tools that require human confirmation
 // NOTE: this should match the keys in the executions object in tools.ts
 const toolsRequiringConfirmation: (keyof typeof tools)[] = [
   "getWeatherInformation",
 ];
+
+/**
+ * Generate a unique session ID for this browser session
+ * This will be used to create a unique Durable Object ID for each session
+ */
+function generateSessionId(): string {
+  return `session-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
+/**
+ * Get or create a session ID, persisting it in sessionStorage
+ * This ensures the same session ID is used for the duration of the browser session
+ */
+function getSessionId(): string {
+  const existingSessionId = sessionStorage.getItem("chat-session-id");
+  if (existingSessionId) {
+    return existingSessionId;
+  }
+
+  const newSessionId = generateSessionId();
+  sessionStorage.setItem("chat-session-id", newSessionId);
+  return newSessionId;
+}
 
 export default function Chat() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -40,6 +64,9 @@ export default function Chat() {
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Get session ID for this browser session
+  const sessionId = getSessionId();
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -71,6 +98,7 @@ export default function Chat() {
 
   const agent = useAgent({
     agent: "chat",
+    name: sessionId, // Use the session ID to create a unique Durable Object for this session
   });
 
   const {
@@ -86,6 +114,17 @@ export default function Chat() {
     agent,
     maxSteps: 5,
   });
+
+  // Enhanced clear history function that creates a new session
+  const handleClearHistory = () => {
+    clearHistory();
+    // Optionally create a new session ID when clearing history
+    // This creates a completely fresh chat session
+    const newSessionId = generateSessionId();
+    sessionStorage.setItem("chat-session-id", newSessionId);
+    // Reload the page to reinitialize with the new session ID
+    window.location.reload();
+  };
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -153,7 +192,7 @@ export default function Chat() {
             size="md"
             shape="square"
             className="rounded-full h-9 w-9"
-            onClick={clearHistory}
+            onClick={handleClearHistory}
           >
             <Trash size={20} />
           </Button>
@@ -183,10 +222,12 @@ export default function Chat() {
                   <ul className="text-sm text-left space-y-2">
                     <li className="flex items-center gap-2">
                       <span className="text-purple-500">•</span>
+                      <Lightbulb size={12} />
                       <span>Get started</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="text-purple-500">•</span>
+                      <Robot alt="Agents icon" width={12} height={12} />
                       <span>Show agents</span>
                     </li>
                   </ul>
