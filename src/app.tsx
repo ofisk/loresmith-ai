@@ -110,10 +110,21 @@ export default function Chat() {
     clearHistory,
     isLoading,
     stop,
+    setInput,
+    append,
   } = useAgentChat({
     agent,
     maxSteps: 5,
   });
+
+  // Function to handle suggested prompts
+  const handleSuggestionSubmit = (suggestion: string) => {
+    append({
+      role: "user",
+      content: suggestion,
+    });
+    setInput("");
+  };
 
   // Enhanced clear history function that creates a new session
   const handleClearHistory = () => {
@@ -219,17 +230,25 @@ export default function Chat() {
                     Speak your query, and I shall summon the most fitting agent.
                     Try:
                   </p>
-                  <ul className="text-sm text-left space-y-2">
-                    <li className="flex items-center gap-2">
-                      <span className="text-purple-500">•</span>
+                  <div className="flex justify-center gap-2 pt-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="bg-neutral-100 dark:bg-neutral-600"
+                      onClick={() => handleSuggestionSubmit("Get started")}
+                    >
                       <Lightbulb size={12} />
-                      <span>Get started</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-purple-500">•</span>
-                      <span>Show agents</span>
-                    </li>
-                  </ul>
+                      Get started
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="bg-neutral-100 dark:bg-neutral-600"
+                      onClick={() => handleSuggestionSubmit("Show agents")}
+                    >
+                      Show agents
+                    </Button>
+                  </div>
                 </div>
               </Card>
             </div>
