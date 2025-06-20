@@ -168,7 +168,7 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
     try {
       // Step 1: Generate presigned URL
       updateFileState(fileIndex, { status: "generating-url" });
-      
+
       const urlResult = await invokeTool("generatePdfUploadUrl", {
         filename: fileState.file.name,
         fileSize: fileState.file.size,
@@ -196,7 +196,7 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
 
       // Step 3: Confirm upload
       updateFileState(fileIndex, { status: "confirming" });
-      
+
       const result = await invokeTool("confirmPdfUpload", {
         uploadId: uploadId,
       });

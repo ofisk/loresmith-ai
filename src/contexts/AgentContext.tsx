@@ -24,7 +24,10 @@ interface AgentProviderProps {
   sessionId: string;
 }
 
-export const AgentProvider: React.FC<AgentProviderProps> = ({ children, sessionId }) => {
+export const AgentProvider: React.FC<AgentProviderProps> = ({
+  children,
+  sessionId,
+}) => {
   const agent = useAgent({
     agent: "Chat",
     name: sessionId,
@@ -48,10 +51,10 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({ children, sessionI
   const invokeTool = async (toolName: string, args: any): Promise<any> => {
     // For now, we'll use a simple approach: add a message that triggers the tool
     // and then wait for the response. This is a simplified version.
-    
+
     // Create a unique message ID for this tool invocation
     const messageId = `tool-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    
+
     // Add a message that will trigger the tool
     const toolMessage = {
       id: messageId,
@@ -69,9 +72,9 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({ children, sessionI
       // 2. Trigger the agent to process the message
       // 3. Wait for the tool result
       // 4. Resolve with the result
-      
+
       console.log(`Tool invocation requested: ${toolName}`, args);
-      
+
       // For now, simulate a successful response
       setTimeout(() => {
         resolve({
@@ -97,9 +100,7 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({ children, sessionI
   };
 
   return (
-    <AgentContext.Provider value={value}>
-      {children}
-    </AgentContext.Provider>
+    <AgentContext.Provider value={value}>{children}</AgentContext.Provider>
   );
 };
 
@@ -109,4 +110,4 @@ export const useAgentContext = (): AgentContextType => {
     throw new Error("useAgentContext must be used within an AgentProvider");
   }
   return context;
-}; 
+};

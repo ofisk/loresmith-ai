@@ -18,11 +18,6 @@ import { tools, executions } from "./tools";
 // import { env } from "cloudflare:workers";
 
 const model = openai("gpt-4o-2024-11-20");
-// Cloudflare AI Gateway
-// const openai = createOpenAI({
-//   apiKey: env.OPENAI_API_KEY,
-//   baseURL: env.GATEWAY_BASE_URL,
-// });
 
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
@@ -33,10 +28,7 @@ export class Chat extends AIChatAgent<Env> {
    * @param onFinish - Callback function executed when streaming completes
    */
 
-  async onChatMessage(
-    onFinish: StreamTextOnFinishCallback<ToolSet>,
-    options?: { abortSignal?: AbortSignal }
-  ) {
+  async onChatMessage(onFinish: StreamTextOnFinishCallback<ToolSet>) {
     // const mcpConnection = await this.mcp.connect(
     //   "https://path-to-mcp-server/sse"
     // );
@@ -108,30 +100,33 @@ If the user asks to schedule a task, use the schedule tool to schedule the task.
 const app = new Hono<{ Bindings: Env }>();
 
 // Add CORS middleware
-app.use("*", cors({
-  origin: (origin) => {
-    const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS?.split(",").map(o => o.trim()) || [];
-    return allowedOrigins.includes(origin || "") || !origin ? origin : null;
-  },
-  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowHeaders: ["Content-Type", "Authorization"],
-}));
+app.use(
+  "*",
+  cors({
+    origin: (origin) => {
+      const allowedOrigins =
+        process.env.CORS_ALLOWED_ORIGINS?.split(",").map((o) => o.trim()) || [];
+      return allowedOrigins.includes(origin || "") || !origin ? origin : null;
+    },
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
 app.get("/check-open-ai-key", (c) => {
   const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
   return c.json({ success: hasOpenAIKey });
 });
 
-
 app.all("*", async (c) => {
   console.log(`Incoming request: ${c.req.method} ${c.req.url}`);
-  
+
   if (!process.env.OPENAI_API_KEY) {
     console.error(
       "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
     );
   }
-  
+
   const result = await routeAgentRequest(c.req.raw, c.env);
   if (result) {
     console.log("routeAgentRequest handled the request");

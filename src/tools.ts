@@ -16,7 +16,7 @@ import { PDF_CONFIG } from "./shared";
  */
 async function initializeDatabaseTables(agent: Chat) {
   // Create completed uploads table
-   agent.sql`
+  agent.sql`
     CREATE TABLE IF NOT EXISTS completed_uploads (
       id TEXT PRIMARY KEY,
       key TEXT NOT NULL,
@@ -30,7 +30,7 @@ async function initializeDatabaseTables(agent: Chat) {
   `;
 
   // Create pending uploads table
-   agent.sql`
+  agent.sql`
     CREATE TABLE IF NOT EXISTS pending_uploads (
       id TEXT PRIMARY KEY,
       key TEXT NOT NULL,
@@ -44,7 +44,7 @@ async function initializeDatabaseTables(agent: Chat) {
   `;
 
   // Create verified secrets table
-   agent.sql`
+  agent.sql`
     CREATE TABLE IF NOT EXISTS verified_secrets (
       id TEXT PRIMARY KEY,
       secret TEXT NOT NULL,
@@ -210,10 +210,10 @@ const confirmPdfUpload = tool({
   execute: async ({ uploadId }) => {
     try {
       const { agent } = getCurrentAgent<Chat>();
-      
+
       // Initialize database tables
       await initializeDatabaseTables(agent!);
-      
+
       const r2Bucket = (agent as any).env?.PDF_BUCKET;
 
       if (!r2Bucket) {
@@ -588,7 +588,8 @@ const setAdminSecret = tool({
         status: "SUCCESS",
         code: "SECRET_VERIFIED",
         secret: secret,
-        message: "**The Sacred Incantation is accepted!**\n\n🧙‍♂️ *The magical barriers have recognized your worthiness, noble seeker of knowledge!*\n\nYour access to the LoreSmith's mystical archive has been granted. You may now use the enchanted file selector to upload your precious scrolls and documents to our ethereal vault.\n\n📜 **The archive awaits your contributions to the realm of knowledge!**\n\n*Note: Your incantation will be remembered for this session, so you won't need to speak it again until you close your mystical portal (browser tab).",
+        message:
+          "**The Sacred Incantation is accepted!**\n\n🧙‍♂️ *The magical barriers have recognized your worthiness, noble seeker of knowledge!*\n\nYour access to the LoreSmith's mystical archive has been granted. You may now use the enchanted file selector to upload your precious scrolls and documents to our ethereal vault.\n\n📜 **The archive awaits your contributions to the realm of knowledge!**\n\n*Note: Your incantation will be remembered for this session, so you won't need to speak it again until you close your mystical portal (browser tab).",
         suppressFollowUp: true,
       });
     } catch (error) {

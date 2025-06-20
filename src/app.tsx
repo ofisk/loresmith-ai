@@ -101,7 +101,7 @@ export default function Chat() {
 
   return (
     <AgentProvider sessionId={sessionId}>
-      <ChatContent 
+      <ChatContent
         theme={theme}
         showDebug={showDebug}
         textareaHeight={textareaHeight}
@@ -199,12 +199,18 @@ function ChatContent({
                 const parsedResult = JSON.parse(result);
                 if (parsedResult.status === "SUCCESS" && parsedResult.secret) {
                   setAdminSecret(parsedResult.secret);
-                  sessionStorage.setItem("pdf-admin-secret", parsedResult.secret);
+                  sessionStorage.setItem(
+                    "pdf-admin-secret",
+                    parsedResult.secret
+                  );
                   return;
                 }
               } catch (error) {
                 // If JSON parsing fails, ignore this result
-                console.warn("Failed to parse setAdminSecret result as JSON:", error);
+                console.warn(
+                  "Failed to parse setAdminSecret result as JSON:",
+                  error
+                );
               }
             }
           }
@@ -409,8 +415,9 @@ function ChatContent({
 
                             // Render requestAdminSecret and setAdminSecret results as regular text messages
                             if (
-                              (toolInvocation.toolName === "requestAdminSecret" ||
-                               toolInvocation.toolName === "setAdminSecret") &&
+                              (toolInvocation.toolName ===
+                                "requestAdminSecret" ||
+                                toolInvocation.toolName === "setAdminSecret") &&
                               toolInvocation.state === "result"
                             ) {
                               return (
@@ -420,16 +427,20 @@ function ChatContent({
                                     className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 rounded-bl-none border-assistant-border`}
                                   >
                                     <MemoizedMarkdown
-                                        id={`${m.id}-${i}`}
-                                        content={(() => {
+                                      id={`${m.id}-${i}`}
+                                      content={(() => {
                                         try {
-                                            const parsedResult = JSON.parse(toolInvocation.result);
-                                            const message = parsedResult.message || toolInvocation.result;
-                                            return message;
+                                          const parsedResult = JSON.parse(
+                                            toolInvocation.result
+                                          );
+                                          const message =
+                                            parsedResult.message ||
+                                            toolInvocation.result;
+                                          return message;
                                         } catch {
-                                            return toolInvocation.result;
+                                          return toolInvocation.result;
                                         }
-                                        })()}
+                                      })()}
                                     />
                                   </Card>
                                   <p className="text-xs text-muted-foreground mt-1 text-left">
@@ -472,7 +483,7 @@ function ChatContent({
               adminSecret={adminSecret}
               onUploadStart={(files) => {
                 // Add a message to the chat when upload starts
-                const fileNames = files.map(f => f.name).join(", ");
+                const fileNames = files.map((f) => f.name).join(", ");
                 // We could add this to the conversation if needed
                 console.log(`Starting upload of: ${fileNames}`);
               }}
