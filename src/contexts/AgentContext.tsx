@@ -1,26 +1,43 @@
-import React, { createContext } from "react";
+import type React from "react";
+import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 import { useAgent } from "agents/react";
 import { useAgentChat } from "agents/ai-react";
+import type { Message } from "@ai-sdk/react";
+import type { ChatRequestOptions } from "ai";
 
 interface AgentContextType {
-  agent: any;
-  messages: any[];
+  agent: unknown;
+  messages: Message[];
   input: string;
   handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  handleSubmit: (e: React.FormEvent, options?: any) => void;
-  addToolResult: (params: { toolCallId: string; result: any }) => void;
+  handleSubmit: (
+    event?: { preventDefault?: (() => void) | undefined } | undefined,
+    chatRequestOptions?: ChatRequestOptions | undefined
+  ) => void;
+  addToolResult: (params: { toolCallId: string; result: unknown }) => void;
   clearHistory: () => void;
   isLoading: boolean;
   stop: () => void;
   // Additional functions from useAgentChat
   setInput: (input: string) => void;
-  append: (message: any) => void;
+  append: (message: Message) => void;
   // Method to invoke tools programmatically
-  invokeTool: (toolName: string, args: any) => Promise<any>;
+  invokeTool: (toolName: string, args: unknown) => Promise<unknown>;
 }
 
-const AgentContext = createContext<AgentContextType | undefined>(undefined);
+export const AgentContext = createContext<AgentContextType | undefined>(
+  undefined
+);
+
+// Hook to consume the agent context
+export const useAgentContext = () => {
+  const context = useContext(AgentContext);
+  if (context === undefined) {
+    throw new Error("useAgentContext must be used within an AgentProvider");
+  }
+  return context;
+};
 
 interface AgentProviderProps {
   children: ReactNode;
@@ -53,24 +70,16 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({
   });
 
   // Method to invoke tools programmatically
-  const invokeTool = async (toolName: string, args: any): Promise<any> => {
+  const invokeTool = async (
+    toolName: string,
+    args: unknown
+  ): Promise<unknown> => {
     // For now, we'll use a simple approach: add a message that triggers the tool
     // and then wait for the response. This is a simplified version.
 
-    // Create a unique message ID for this tool invocation
-    const messageId = `tool-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-    // Add a message that will trigger the tool
-    const toolMessage = {
-      id: messageId,
-      role: "user" as const,
-      content: `Execute tool: ${toolName}`,
-      createdAt: new Date(),
-    };
-
     // We need to integrate this with the agent system properly
     // For now, return a promise that will be resolved when the tool completes
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       // This is a placeholder implementation
       // In a real implementation, we would:
       // 1. Add the message to the conversation

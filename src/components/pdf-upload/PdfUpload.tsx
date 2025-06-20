@@ -1,15 +1,15 @@
-import React, { useState, useRef } from "react";
+import type React from "react";
+import { useState, useRef } from "react";
 import { Button } from "../button/Button";
 import { Paperclip, X, CheckCircle, XCircle } from "@phosphor-icons/react";
 import { PDF_CONFIG } from "../../shared";
-import { useAgentChat } from "agents/ai-react";
-
+import { useAgentContext } from "@/contexts/AgentContext";
 
 interface PdfUploadProps {
   onUploadStart?: (files: File[]) => void;
-  onUploadComplete?: (results: any[]) => void;
+  onUploadComplete?: (results: unknown[]) => void;
   onUploadError?: (error: string) => void;
-  onFileUploadComplete?: (file: File, result: any) => void;
+  onFileUploadComplete?: (file: File, result: unknown) => void;
   onFileUploadError?: (file: File, error: string) => void;
   disabled?: boolean;
   multiple?: boolean;
@@ -30,7 +30,7 @@ interface FileUploadState {
   uploadUrl: string | null;
   uploadId: string | null;
   error: string | null;
-  result: any;
+  result: unknown;
 }
 
 export const PdfUpload: React.FC<PdfUploadProps> = ({
@@ -44,6 +44,7 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
   maxFiles = PDF_CONFIG.MAX_FILES_DEFAULT, //limiting here to 10 files to avoid unnecessary cost during development -- can be removed later
   adminSecret, //admin secret to avoid random uploads from the internet -- can be removed later or moved to smarter auth
 }) => {
+  const { invokeTool } = useAgentContext();
   const [fileStates, setFileStates] = useState<FileUploadState[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -121,14 +122,12 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
 
     if (usePresignedUrl) {
       return await uploadViaPresignedUrl(fileIndex);
-    } else {
-      return await uploadViaBase64(fileIndex);
     }
+    return await uploadViaBase64(fileIndex);
   };
 
   const uploadViaBase64 = async (fileIndex: number) => {
     const fileState = fileStates[fileIndex];
-    const { invokeTool } = useAgentChat();
 
     try {
       // Step 1: Convert file to base64
@@ -164,7 +163,6 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
 
   const uploadViaPresignedUrl = async (fileIndex: number) => {
     const fileState = fileStates[fileIndex];
-    const { invokeTool } = useAgentChat();
 
     try {
       // Step 1: Generate presigned URL
@@ -176,39 +174,49 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
         adminSecret: adminSecret,
       });
 
-      const uploadUrl = urlResult.uploadUrl;
-      const uploadId = urlResult.uploadId;
+      // Type guard for urlResult
+      if (
+        typeof urlResult === "object" &&
+        urlResult !== null &&
+        "uploadUrl" in urlResult &&
+        "uploadId" in urlResult
+      ) {
+        const uploadUrl = (urlResult as { uploadUrl: string }).uploadUrl;
+        const uploadId = (urlResult as { uploadId: string }).uploadId;
 
-      if (!uploadUrl || !uploadId) {
-        throw new Error("Invalid upload URL response");
+        if (!uploadUrl || !uploadId) {
+          throw new Error("Invalid upload URL response");
+        }
+
+        updateFileState(fileIndex, {
+          status: "uploading",
+          uploadUrl,
+          uploadId,
+          progress: 0,
+        });
+
+        // Step 2: Upload directly to R2
+        await uploadToR2(fileState.file, uploadUrl, (progress) => {
+          updateFileState(fileIndex, { progress });
+        });
+
+        // Step 3: Confirm upload
+        updateFileState(fileIndex, { status: "confirming" });
+
+        const result = await invokeTool("confirmPdfUpload", {
+          uploadId: uploadId,
+        });
+
+        updateFileState(fileIndex, {
+          status: "completed",
+          result: result || "Upload completed",
+          progress: 100,
+        });
+
+        onFileUploadComplete?.(fileState.file, result);
+      } else {
+        throw new Error("Invalid upload URL response format");
       }
-
-      updateFileState(fileIndex, {
-        status: "uploading",
-        uploadUrl,
-        uploadId,
-        progress: 0,
-      });
-
-      // Step 2: Upload directly to R2
-      await uploadToR2(fileState.file, uploadUrl, (progress) => {
-        updateFileState(fileIndex, { progress });
-      });
-
-      // Step 3: Confirm upload
-      updateFileState(fileIndex, { status: "confirming" });
-
-      const result = await invokeTool("confirmPdfUpload", {
-        uploadId: uploadId,
-      });
-
-      updateFileState(fileIndex, {
-        status: "completed",
-        result: result || "Upload completed",
-        progress: 100,
-      });
-
-      onFileUploadComplete?.(fileState.file, result);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Upload failed";
@@ -413,6 +421,7 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
+                    <title>Error</title>
                     <path
                       fillRule="evenodd"
                       d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"

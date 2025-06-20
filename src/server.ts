@@ -18,6 +18,11 @@ import { tools, executions } from "./tools";
 // import { env } from "cloudflare:workers";
 
 const model = openai("gpt-4o-2024-11-20");
+// Cloudflare AI Gateway
+// const openai = createOpenAI({
+//   apiKey: env.OPENAI_API_KEY,
+//   baseURL: env.GATEWAY_BASE_URL,
+// });
 
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
@@ -131,10 +136,9 @@ app.all("*", async (c) => {
   if (result) {
     console.log("routeAgentRequest handled the request");
     return result;
-  } else {
-    console.log("routeAgentRequest did not handle the request, returning 404");
-    return new Response("Not found", { status: 404 });
   }
+  console.log("routeAgentRequest did not handle the request, returning 404");
+  return new Response("Not found", { status: 404 });
 });
 
 export default app;

@@ -11,9 +11,7 @@ import { Textarea } from "@/components/textarea/Textarea";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import { PdfUpload } from "@/components/pdf-upload/PdfUpload";
-import { AgentProvider } from "@/contexts/AgentContext";
-import { useAgentChat } from "agents/ai-react";
-
+import { AgentProvider, useAgentContext } from "@/contexts/AgentContext";
 
 // Icon imports
 import {
@@ -153,16 +151,15 @@ function ChatContent({
     stop,
     setInput,
     append,
-  } = useAgentChat({
-    agent,
-    maxSteps: 5,
-  });
+  } = useAgentContext();
 
   // Function to handle suggested prompts
   const handleSuggestionSubmit = (suggestion: string) => {
     append({
+      id: `suggestion-${Date.now()}`,
       role: "user",
       content: suggestion,
+      createdAt: new Date(),
     });
     setInput("");
   };
@@ -219,7 +216,7 @@ function ChatContent({
         }
       }
     }
-  }, [agentMessages, adminSecret]);
+  }, [agentMessages, adminSecret, setAdminSecret]);
 
   const pendingToolCallConfirmation = agentMessages.some((m: Message) =>
     m.parts?.some(
@@ -425,9 +422,7 @@ function ChatContent({
                               return (
                                 // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
                                 <div key={i}>
-                                  <Card
-                                    className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 rounded-bl-none border-assistant-border`}
-                                  >
+                                  <Card className="p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 rounded-bl-none border-assistant-border">
                                     <MemoizedMarkdown
                                       id={`${m.id}-${i}`}
                                       content={(() => {
