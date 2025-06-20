@@ -43,7 +43,6 @@
     // "typeRoots": [],                                  /* Specify multiple folders that act like './node_modules/@types'. */
     "types": [
       "./worker-configuration.d.ts",
-      "./worker-configuration.d.ts",
       "node",
       "node",
       "vite/client"

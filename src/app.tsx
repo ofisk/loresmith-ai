@@ -17,7 +17,6 @@ import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvoca
 import {
   Bug,
   Moon,
-  Robot,
   Sun,
   Trash,
   PaperPlaneTilt,
