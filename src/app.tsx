@@ -11,7 +11,9 @@ import { Textarea } from "@/components/textarea/Textarea";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import { PdfUpload } from "@/components/pdf-upload/PdfUpload";
-import { AgentProvider, useAgentContext } from "@/contexts/AgentContext";
+import { AgentProvider } from "@/contexts/AgentContext";
+import { useAgentChat } from "agents/ai-react";
+
 
 // Icon imports
 import {

@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from "react";
+import React, { createContext } from "react";
 import type { ReactNode } from "react";
 import { useAgent } from "agents/react";
 import { useAgentChat } from "agents/ai-react";
@@ -13,6 +13,9 @@ interface AgentContextType {
   clearHistory: () => void;
   isLoading: boolean;
   stop: () => void;
+  // Additional functions from useAgentChat
+  setInput: (input: string) => void;
+  append: (message: any) => void;
   // Method to invoke tools programmatically
   invokeTool: (toolName: string, args: any) => Promise<any>;
 }
@@ -42,6 +45,8 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({
     clearHistory,
     isLoading,
     stop,
+    setInput,
+    append,
   } = useAgentChat({
     agent,
     maxSteps: 5,
@@ -96,18 +101,12 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({
     clearHistory,
     isLoading,
     stop,
+    setInput,
+    append,
     invokeTool,
   };
 
   return (
     <AgentContext.Provider value={value}>{children}</AgentContext.Provider>
   );
-};
-
-export const useAgentContext = (): AgentContextType => {
-  const context = useContext(AgentContext);
-  if (context === undefined) {
-    throw new Error("useAgentContext must be used within an AgentProvider");
-  }
-  return context;
 };

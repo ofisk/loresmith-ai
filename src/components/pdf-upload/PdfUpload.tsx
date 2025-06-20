@@ -2,7 +2,8 @@ import React, { useState, useRef } from "react";
 import { Button } from "../button/Button";
 import { Paperclip, X, CheckCircle, XCircle } from "@phosphor-icons/react";
 import { PDF_CONFIG } from "../../shared";
-import { useAgentContext } from "../../contexts/AgentContext";
+import { useAgentChat } from "agents/ai-react";
+
 
 interface PdfUploadProps {
   onUploadStart?: (files: File[]) => void;
@@ -127,7 +128,7 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
 
   const uploadViaBase64 = async (fileIndex: number) => {
     const fileState = fileStates[fileIndex];
-    const { invokeTool } = useAgentContext();
+    const { invokeTool } = useAgentChat();
 
     try {
       // Step 1: Convert file to base64
@@ -163,7 +164,7 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
 
   const uploadViaPresignedUrl = async (fileIndex: number) => {
     const fileState = fileStates[fileIndex];
-    const { invokeTool } = useAgentContext();
+    const { invokeTool } = useAgentChat();
 
     try {
       // Step 1: Generate presigned URL
