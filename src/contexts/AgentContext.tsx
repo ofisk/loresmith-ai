@@ -74,30 +74,36 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({
     toolName: string,
     args: unknown
   ): Promise<unknown> => {
-    // For now, we'll use a simple approach: add a message that triggers the tool
-    // and then wait for the response. This is a simplified version.
+    try {
+      // Create a message that will trigger the tool execution
+      const toolMessage = {
+        id: `tool-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        role: "user" as const,
+        content: `Execute tool: ${toolName} with arguments: ${JSON.stringify(args)}`,
+        createdAt: new Date(),
+      };
 
-    // We need to integrate this with the agent system properly
-    // For now, return a promise that will be resolved when the tool completes
-    return new Promise((resolve) => {
-      // This is a placeholder implementation
-      // In a real implementation, we would:
-      // 1. Add the message to the conversation
-      // 2. Trigger the agent to process the message
-      // 3. Wait for the tool result
-      // 4. Resolve with the result
+      // Add the message to trigger tool execution
+      await append(toolMessage);
 
-      console.log(`Tool invocation requested: ${toolName}`, args);
+      // For now, return a promise that will be resolved when the tool completes
+      // In a real implementation, we would wait for the tool result from the agent
+      return new Promise((resolve) => {
+        console.log(`Tool invocation requested: ${toolName}`, args);
 
-      // For now, simulate a successful response
-      setTimeout(() => {
-        resolve({
-          success: true,
-          message: `Tool ${toolName} executed successfully`,
-          result: args,
-        });
-      }, 1000);
-    });
+        // Simulate a successful response for now
+        setTimeout(() => {
+          resolve({
+            success: true,
+            message: `Tool ${toolName} executed successfully`,
+            result: args,
+          });
+        }, 1000);
+      });
+    } catch (error) {
+      console.error(`Error invoking tool ${toolName}:`, error);
+      throw error;
+    }
   };
 
   const value: AgentContextType = {

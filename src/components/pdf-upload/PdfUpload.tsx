@@ -165,7 +165,7 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
     const fileState = fileStates[fileIndex];
 
     try {
-      // Step 1: Generate presigned URL
+      // Step 1: Generate upload URL
       updateFileState(fileIndex, { status: "generating-url" });
 
       const urlResult = await invokeTool("generatePdfUploadUrl", {
@@ -195,25 +195,25 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
           progress: 0,
         });
 
-        // Step 2: Upload directly to R2
+        // Step 2: Upload directly to our endpoint
         await uploadToR2(fileState.file, uploadUrl, (progress) => {
           updateFileState(fileIndex, { progress });
         });
 
-        // Step 3: Confirm upload
+        // Step 3: Confirm upload completion
         updateFileState(fileIndex, { status: "confirming" });
 
-        const result = await invokeTool("confirmPdfUpload", {
+        const confirmResult = await invokeTool("confirmPdfUpload", {
           uploadId: uploadId,
         });
 
         updateFileState(fileIndex, {
           status: "completed",
-          result: result || "Upload completed",
+          result: confirmResult || "Upload completed",
           progress: 100,
         });
 
-        onFileUploadComplete?.(fileState.file, result);
+        onFileUploadComplete?.(fileState.file, confirmResult);
       } else {
         throw new Error("Invalid upload URL response format");
       }
@@ -255,9 +255,14 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
         reject(new Error("Upload failed"));
       });
 
-      xhr.open("PUT", uploadUrl);
-      xhr.setRequestHeader("Content-Type", "application/pdf");
-      xhr.send(file);
+      // Use our direct upload endpoint
+      xhr.open("POST", uploadUrl);
+      xhr.setRequestHeader("X-Admin-Secret", adminSecret || "");
+      
+      // Create FormData to send the file
+      const formData = new FormData();
+      formData.append("file", file);
+      xhr.send(formData);
     });
   };
 

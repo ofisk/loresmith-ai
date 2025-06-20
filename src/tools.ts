@@ -205,14 +205,15 @@ const generatePdfUploadUrl = tool({
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       const key = `uploads/${timestamp}-${filename}`;
 
-      // For now, return a placeholder response
-      const presignedUrl = `https://placeholder-url-for-${key}`;
-
       // Store upload metadata for completion tracking
       const uploadId = `upload_${timestamp}_${Math.random().toString(36).slice(2, 11)}`;
       const expiresAt = new Date(
         Date.now() + PDF_CONFIG.PRESIGNED_URL_EXPIRY_HOURS * 60 * 60 * 1000
       ).toISOString();
+
+      // For now, create a direct upload endpoint URL
+      // This will be handled by a separate upload endpoint in the worker
+      const uploadUrl = `/api/upload-pdf?key=${encodeURIComponent(key)}&uploadId=${encodeURIComponent(uploadId)}`;
 
       await agent!.sql`
         INSERT INTO pending_uploads (id, key, filename, file_size, description, tags, created_at, expires_at)
@@ -221,7 +222,7 @@ const generatePdfUploadUrl = tool({
 
       return {
         uploadId,
-        uploadUrl: presignedUrl,
+        uploadUrl: uploadUrl,
         key,
         expiresIn: 3600,
         message: `Generated upload URL for "${filename}" (${(fileSize / 1024 / 1024).toFixed(2)}MB). Upload must be completed within 1 hour.`,

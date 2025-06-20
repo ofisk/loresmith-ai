@@ -123,6 +123,72 @@ app.get("/check-open-ai-key", (c) => {
   return c.json({ success: hasOpenAIKey });
 });
 
+// Direct PDF upload endpoint
+app.post("/api/upload-pdf", async (c) => {
+  try {
+    const { key, uploadId } = c.req.query();
+    const adminSecret = c.req.header("X-Admin-Secret");
+    
+    if (!key || !uploadId) {
+      return c.json({ error: "Missing key or uploadId parameter" }, 400);
+    }
+
+    if (!adminSecret) {
+      return c.json({ error: "Missing admin secret" }, 401);
+    }
+
+    // Verify admin secret
+    if (adminSecret !== c.env.PDF_ADMIN_SECRET) {
+      return c.json({ error: "Unauthorized. Invalid admin secret." }, 401);
+    }
+
+    // Get the file from the request body
+    const formData = await c.req.formData();
+    const file = formData.get("file") as File;
+    
+    if (!file) {
+      return c.json({ error: "No file provided" }, 400);
+    }
+
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      return c.json({ error: "File must be a PDF" }, 400);
+    }
+
+    // Check file size
+    if (file.size > 200 * 1024 * 1024) { // 200MB limit
+      return c.json({ error: "File size exceeds 200MB limit" }, 400);
+    }
+
+    // Upload to R2
+    const arrayBuffer = await file.arrayBuffer();
+    await c.env.PDF_BUCKET.put(key, arrayBuffer, {
+      httpMetadata: {
+        contentType: "application/pdf",
+        contentDisposition: `attachment; filename="${file.name}"`,
+      },
+      customMetadata: {
+        originalFilename: file.name,
+        uploadDate: new Date().toISOString(),
+        uploadId,
+      },
+    });
+
+    return c.json({ 
+      success: true, 
+      message: `File "${file.name}" uploaded successfully`,
+      key,
+      uploadId 
+    });
+  } catch (error) {
+    console.error("Upload error:", error);
+    return c.json({ 
+      error: "Upload failed", 
+      details: error instanceof Error ? error.message : "Unknown error" 
+    }, 500);
+  }
+});
+
 app.all("*", async (c) => {
   console.log(`Incoming request: ${c.req.method} ${c.req.url}`);
 
