@@ -227,7 +227,6 @@ export default function Chat() {
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="text-purple-500">•</span>
-                      <Robot alt="Agents icon" width={12} height={12} />
                       <span>Show agents</span>
                     </li>
                   </ul>
