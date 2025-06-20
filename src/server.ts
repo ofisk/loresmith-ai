@@ -128,7 +128,7 @@ app.post("/api/upload-pdf", async (c) => {
   try {
     const { key, uploadId } = c.req.query();
     const adminSecret = c.req.header("X-Admin-Secret");
-    
+
     if (!key || !uploadId) {
       return c.json({ error: "Missing key or uploadId parameter" }, 400);
     }
@@ -145,7 +145,7 @@ app.post("/api/upload-pdf", async (c) => {
     // Get the file from the request body
     const formData = await c.req.formData();
     const file = formData.get("file") as File;
-    
+
     if (!file) {
       return c.json({ error: "No file provided" }, 400);
     }
@@ -156,7 +156,8 @@ app.post("/api/upload-pdf", async (c) => {
     }
 
     // Check file size
-    if (file.size > 200 * 1024 * 1024) { // 200MB limit
+    if (file.size > 200 * 1024 * 1024) {
+      // 200MB limit
       return c.json({ error: "File size exceeds 200MB limit" }, 400);
     }
 
@@ -174,18 +175,21 @@ app.post("/api/upload-pdf", async (c) => {
       },
     });
 
-    return c.json({ 
-      success: true, 
+    return c.json({
+      success: true,
       message: `File "${file.name}" uploaded successfully`,
       key,
-      uploadId 
+      uploadId,
     });
   } catch (error) {
     console.error("Upload error:", error);
-    return c.json({ 
-      error: "Upload failed", 
-      details: error instanceof Error ? error.message : "Unknown error" 
-    }, 500);
+    return c.json(
+      {
+        error: "Upload failed",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      500
+    );
   }
 });
 

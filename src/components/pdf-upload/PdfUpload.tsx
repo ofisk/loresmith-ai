@@ -258,7 +258,7 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
       // Use our direct upload endpoint
       xhr.open("POST", uploadUrl);
       xhr.setRequestHeader("X-Admin-Secret", adminSecret || "");
-      
+
       // Create FormData to send the file
       const formData = new FormData();
       formData.append("file", file);
