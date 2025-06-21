@@ -15,7 +15,35 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { processToolCalls } from "./utils";
 import { tools, executions } from "./tools";
+import { pdfRoutes } from "./routes/pdf-routes";
 // import { env } from "cloudflare:workers";
+
+/**
+ * PDF Upload Architecture
+ *
+ * This application uses a hybrid approach for PDF uploads:
+ *
+ * 1. DIRECT API ENDPOINTS (Primary method for UI uploads)
+ *    - Purpose: User-initiated uploads from the frontend
+ *    - Performance: Fast, direct server-to-R2 communication
+ *    - Benefits: No agent overhead, immediate feedback, real-time progress
+ *    - Endpoints: /api/generate-upload-url, /api/upload-pdf, /api/upload-pdf-direct
+ *
+ * 2. AGENT TOOLS (Secondary method for AI-driven operations)
+ *    - Purpose: AI-initiated uploads and complex operations
+ *    - Context: Run within agent environment with full database access
+ *    - Benefits: Context awareness, integration with AI workflows
+ *    - Tools: generatePdfUploadUrl, uploadPdfFile, confirmPdfUpload
+ *
+ * Why this hybrid approach?
+ * - UI uploads need speed and reliability (direct APIs)
+ * - AI operations need context and intelligence (agent tools)
+ * - Both systems can coexist and complement each other
+ *
+ * File size handling:
+ * - Small files (< 50MB): Base64 upload via /api/upload-pdf-direct
+ * - Large files (≥ 50MB): Presigned URL via /api/generate-upload-url
+ */
 
 const model = openai("gpt-4o-2024-11-20");
 // Cloudflare AI Gateway
@@ -123,76 +151,6 @@ app.get("/check-open-ai-key", (c) => {
   return c.json({ success: hasOpenAIKey });
 });
 
-// Direct PDF upload endpoint
-app.post("/api/upload-pdf", async (c) => {
-  try {
-    const { key, uploadId } = c.req.query();
-    const adminSecret = c.req.header("X-Admin-Secret");
-
-    if (!key || !uploadId) {
-      return c.json({ error: "Missing key or uploadId parameter" }, 400);
-    }
-
-    if (!adminSecret) {
-      return c.json({ error: "Missing admin secret" }, 401);
-    }
-
-    // Verify admin secret
-    if (adminSecret !== c.env.PDF_ADMIN_SECRET) {
-      return c.json({ error: "Unauthorized. Invalid admin secret." }, 401);
-    }
-
-    // Get the file from the request body
-    const formData = await c.req.formData();
-    const file = formData.get("file") as File;
-
-    if (!file) {
-      return c.json({ error: "No file provided" }, 400);
-    }
-
-    // Validate file type
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      return c.json({ error: "File must be a PDF" }, 400);
-    }
-
-    // Check file size
-    if (file.size > 200 * 1024 * 1024) {
-      // 200MB limit
-      return c.json({ error: "File size exceeds 200MB limit" }, 400);
-    }
-
-    // Upload to R2
-    const arrayBuffer = await file.arrayBuffer();
-    await c.env.PDF_BUCKET.put(key, arrayBuffer, {
-      httpMetadata: {
-        contentType: "application/pdf",
-        contentDisposition: `attachment; filename="${file.name}"`,
-      },
-      customMetadata: {
-        originalFilename: file.name,
-        uploadDate: new Date().toISOString(),
-        uploadId,
-      },
-    });
-
-    return c.json({
-      success: true,
-      message: `File "${file.name}" uploaded successfully`,
-      key,
-      uploadId,
-    });
-  } catch (error) {
-    console.error("Upload error:", error);
-    return c.json(
-      {
-        error: "Upload failed",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      500
-    );
-  }
-});
-
 app.all("*", async (c) => {
   console.log(`Incoming request: ${c.req.method} ${c.req.url}`);
 
@@ -210,5 +168,8 @@ app.all("*", async (c) => {
   console.log("routeAgentRequest did not handle the request, returning 404");
   return new Response("Not found", { status: 404 });
 });
+
+// Mount PDF routes
+app.route("/", pdfRoutes);
 
 export default app;

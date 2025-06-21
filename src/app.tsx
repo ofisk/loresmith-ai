@@ -12,6 +12,14 @@ import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import { PdfUpload } from "@/components/pdf-upload/PdfUpload";
 import { AgentProvider, useAgentContext } from "@/contexts/AgentContext";
+import { AdminProvider, useAdmin } from "@/contexts/AdminContext";
+
+// Hook imports
+import { usePdfUpload } from "@/hooks/usePdfUpload";
+import { useToolConfirmation } from "@/hooks/useToolConfirmation";
+
+// Utility imports
+import { formatToolResult, isAdminSecretTool } from "@/tools";
 
 // Icon imports
 import {
@@ -24,12 +32,6 @@ import {
   Lightbulb,
 } from "@phosphor-icons/react";
 import loresmith from "@/assets/loresmith.png";
-
-// List of tools that require human confirmation
-// NOTE: this should match the keys in the executions object in tools.ts
-const toolsRequiringConfirmation: (keyof typeof tools)[] = [
-  "getWeatherInformation",
-];
 
 /**
  * Generate a unique session ID for this browser session
@@ -62,10 +64,6 @@ export default function Chat() {
   });
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
-  const [adminSecret, setAdminSecret] = useState<string>(() => {
-    // Get admin secret from sessionStorage
-    return sessionStorage.getItem("pdf-admin-secret") || "";
-  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Get session ID for this browser session
@@ -100,20 +98,20 @@ export default function Chat() {
   };
 
   return (
-    <AgentProvider sessionId={sessionId}>
-      <ChatContent
-        theme={theme}
-        showDebug={showDebug}
-        textareaHeight={textareaHeight}
-        adminSecret={adminSecret}
-        setAdminSecret={setAdminSecret}
-        messagesEndRef={messagesEndRef}
-        scrollToBottom={scrollToBottom}
-        toggleTheme={toggleTheme}
-        setShowDebug={setShowDebug}
-        setTextareaHeight={setTextareaHeight}
-      />
-    </AgentProvider>
+    <AdminProvider>
+      <AgentProvider sessionId={sessionId}>
+        <ChatContent
+          theme={theme}
+          showDebug={showDebug}
+          textareaHeight={textareaHeight}
+          messagesEndRef={messagesEndRef}
+          scrollToBottom={scrollToBottom}
+          toggleTheme={toggleTheme}
+          setShowDebug={setShowDebug}
+          setTextareaHeight={setTextareaHeight}
+        />
+      </AgentProvider>
+    </AdminProvider>
   );
 }
 
@@ -121,8 +119,6 @@ function ChatContent({
   theme,
   showDebug,
   textareaHeight,
-  adminSecret,
-  setAdminSecret,
   messagesEndRef,
   scrollToBottom,
   toggleTheme,
@@ -132,12 +128,10 @@ function ChatContent({
   theme: "dark" | "light";
   showDebug: boolean;
   textareaHeight: string;
-  adminSecret: string;
-  setAdminSecret: (secret: string) => void;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   scrollToBottom: () => void;
   toggleTheme: () => void;
-  setShowDebug: (show: boolean) => void;
+  setShowDebug: (show: boolean | ((prev: boolean) => boolean)) => void;
   setTextareaHeight: (height: string) => void;
 }) {
   const {
@@ -152,6 +146,23 @@ function ChatContent({
     setInput,
     append,
   } = useAgentContext();
+
+  const { verifyFromToolResult } = useAdmin();
+
+  // Use the PDF upload hook for centralized upload handling
+  const {
+    handleUploadStart,
+    handleFileUploadComplete,
+    handleUploadError,
+    adminSecret,
+  } = usePdfUpload();
+
+  // Use the tool confirmation hook for centralized confirmation handling
+  const {
+    pendingToolCallConfirmation,
+    isToolPendingConfirmation,
+    getConfirmationMessageForTool,
+  } = useToolConfirmation(agentMessages);
 
   // Function to handle suggested prompts
   const handleSuggestionSubmit = (suggestion: string) => {
@@ -182,52 +193,8 @@ function ChatContent({
 
   // Check for admin secret verification from tool results
   useEffect(() => {
-    if (!adminSecret && agentMessages.length > 0) {
-      // Look for successful setAdminSecret tool invocation
-      for (const message of agentMessages) {
-        if (message.parts) {
-          for (const part of message.parts) {
-            if (
-              part.type === "tool-invocation" &&
-              part.toolInvocation.toolName === "setAdminSecret" &&
-              part.toolInvocation.state === "result"
-            ) {
-              const result = part.toolInvocation.result;
-              try {
-                // Parse JSON response
-                const parsedResult = JSON.parse(result);
-                if (parsedResult.status === "SUCCESS" && parsedResult.secret) {
-                  setAdminSecret(parsedResult.secret);
-                  sessionStorage.setItem(
-                    "pdf-admin-secret",
-                    parsedResult.secret
-                  );
-                  return;
-                }
-              } catch (error) {
-                // If JSON parsing fails, ignore this result
-                console.warn(
-                  "Failed to parse setAdminSecret result as JSON:",
-                  error
-                );
-              }
-            }
-          }
-        }
-      }
-    }
-  }, [agentMessages, adminSecret, setAdminSecret]);
-
-  const pendingToolCallConfirmation = agentMessages.some((m: Message) =>
-    m.parts?.some(
-      (part) =>
-        part.type === "tool-invocation" &&
-        part.toolInvocation.state === "call" &&
-        toolsRequiringConfirmation.includes(
-          part.toolInvocation.toolName as keyof typeof tools
-        )
-    )
-  );
+    verifyFromToolResult(agentMessages);
+  }, [agentMessages, verifyFromToolResult]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -260,7 +227,7 @@ function ChatContent({
             <Toggle
               toggled={showDebug}
               aria-label="Toggle debug mode"
-              onClick={() => setShowDebug(!showDebug)}
+              onClick={() => setShowDebug((prev) => !prev)}
             />
           </div>
 
@@ -404,19 +371,14 @@ function ChatContent({
                           if (part.type === "tool-invocation") {
                             const toolInvocation = part.toolInvocation;
                             const toolCallId = toolInvocation.toolCallId;
-                            const needsConfirmation =
-                              toolsRequiringConfirmation.includes(
-                                toolInvocation.toolName as keyof typeof tools
-                              );
+                            const needsConfirmation = isToolPendingConfirmation(toolCallId);
 
                             // Skip rendering the card in debug mode
                             if (showDebug) return null;
 
                             // Render requestAdminSecret and setAdminSecret results as regular text messages
                             if (
-                              (toolInvocation.toolName ===
-                                "requestAdminSecret" ||
-                                toolInvocation.toolName === "setAdminSecret") &&
+                              isAdminSecretTool(toolInvocation.toolName) &&
                               toolInvocation.state === "result"
                             ) {
                               return (
@@ -425,19 +387,7 @@ function ChatContent({
                                   <Card className="p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 rounded-bl-none border-assistant-border">
                                     <MemoizedMarkdown
                                       id={`${m.id}-${i}`}
-                                      content={(() => {
-                                        try {
-                                          const parsedResult = JSON.parse(
-                                            toolInvocation.result
-                                          );
-                                          const message =
-                                            parsedResult.message ||
-                                            toolInvocation.result;
-                                          return message;
-                                        } catch {
-                                          return toolInvocation.result;
-                                        }
-                                      })()}
+                                      content={formatToolResult(toolInvocation.result)}
                                     />
                                   </Card>
                                   <p className="text-xs text-muted-foreground mt-1 text-left">
@@ -478,30 +428,9 @@ function ChatContent({
           <div className="p-3 border-b border-neutral-200 dark:border-neutral-700">
             <PdfUpload
               adminSecret={adminSecret}
-              onUploadStart={(files) => {
-                // Add a message to the chat when upload starts
-                const fileNames = files.map((f) => f.name).join(", ");
-                // We could add this to the conversation if needed
-                console.log(`Starting upload of: ${fileNames}`);
-              }}
-              onFileUploadComplete={(file, result) => {
-                // Add a success message to the chat
-                console.log(`Upload completed: ${file.name}`, result);
-              }}
-              onUploadError={(error) => {
-                if (
-                  error.includes("Unauthorized") ||
-                  error.includes("Admin secret")
-                ) {
-                  const newSecret = prompt(
-                    "🧙‍♂️ Speak the Sacred Incantation (admin secret) to access the mystical archive:"
-                  );
-                  if (newSecret) {
-                    setAdminSecret(newSecret);
-                    sessionStorage.setItem("pdf-admin-secret", newSecret);
-                  }
-                }
-              }}
+              onUploadStart={handleUploadStart}
+              onFileUploadComplete={handleFileUploadComplete}
+              onUploadError={handleUploadError}
             />
           </div>
 

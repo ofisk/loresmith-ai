@@ -5,6 +5,32 @@ import { Paperclip, X, CheckCircle, XCircle } from "@phosphor-icons/react";
 import { PDF_CONFIG } from "../../shared";
 import { useAgentContext } from "@/contexts/AgentContext";
 
+/**
+ * PDF Upload Component - Hybrid Architecture
+ *
+ * This component uses DIRECT API ENDPOINTS for uploads, bypassing the agent system
+ * for better performance and user experience. This is the primary upload method
+ * for user-initiated uploads from the UI.
+ *
+ * Architecture Decision:
+ * - UI uploads → Direct APIs (fast, reliable, immediate feedback)
+ * - AI operations → Agent tools (context-aware, intelligent processing)
+ *
+ * Upload Methods:
+ * 1. Small files (< 50MB): Base64 upload via /api/upload-pdf-direct
+ * 2. Large files (≥ 50MB): Presigned URL via /api/generate-upload-url → /api/upload-pdf → /api/confirm-upload
+ *
+ * Benefits of Direct API Approach:
+ * - ✅ No agent processing overhead
+ * - ✅ Real-time progress tracking
+ * - ✅ Immediate error feedback
+ * - ✅ Direct server-to-R2 communication
+ * - ✅ Better user experience
+ *
+ * Note: Agent tools are still available for AI-driven operations, but this component
+ * uses direct APIs for optimal performance.
+ */
+
 interface PdfUploadProps {
   onUploadStart?: (files: File[]) => void;
   onUploadComplete?: (results: unknown[]) => void;
@@ -31,6 +57,8 @@ interface FileUploadState {
   uploadId: string | null;
   error: string | null;
   result: unknown;
+  description?: string;
+  tags?: string[];
 }
 
 export const PdfUpload: React.FC<PdfUploadProps> = ({
@@ -47,6 +75,8 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
   const { invokeTool } = useAgentContext();
   const [fileStates, setFileStates] = useState<FileUploadState[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [globalDescription, setGlobalDescription] = useState("");
+  const [globalTags, setGlobalTags] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,6 +101,8 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
       uploadId: null,
       error: null,
       result: null,
+      description: globalDescription,
+      tags: globalTags ? globalTags.split(",").map(tag => tag.trim()).filter(Boolean) : [],
     }));
 
     setFileStates((prev) => [...prev, ...newFileStates]);
@@ -126,6 +158,11 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
     return await uploadViaBase64(fileIndex);
   };
 
+  /**
+   * Upload small files (< 50MB) using base64 encoding
+   * Uses direct API endpoint /api/upload-pdf-direct for optimal performance
+   * Bypasses agent system for immediate feedback and reliability
+   */
   const uploadViaBase64 = async (fileIndex: number) => {
     const fileState = fileStates[fileIndex];
 
@@ -134,18 +171,34 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
       updateFileState(fileIndex, { status: "generating-url", progress: 10 });
       const base64Data = await convertFileToBase64(fileState.file);
 
-      // Step 2: Upload using the uploadPdfFile tool
+      // Step 2: Upload using direct API endpoint (bypasses agent system)
       updateFileState(fileIndex, { status: "uploading", progress: 50 });
 
-      const result = await invokeTool("uploadPdfFile", {
-        filename: fileState.file.name,
-        fileData: base64Data,
-        adminSecret: adminSecret,
+      const response = await fetch("/api/upload-pdf-direct", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Secret": adminSecret || "",
+        },
+        body: JSON.stringify({
+          filename: fileState.file.name,
+          fileData: base64Data,
+          description: fileState.description,
+          tags: fileState.tags,
+          adminSecret: adminSecret,
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = (await response.json()) as { error?: string };
+        throw new Error(errorData.error || "Upload failed");
+      }
+
+      const result = (await response.json()) as { message?: string };
 
       updateFileState(fileIndex, {
         status: "completed",
-        result: result || "Upload completed",
+        result: result.message || "Upload completed",
         progress: 100,
       });
 
@@ -161,18 +214,42 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
     }
   };
 
+  /**
+   * Upload large files (≥ 50MB) using presigned URL workflow
+   * Uses direct API endpoints for optimal performance:
+   * 1. /api/generate-upload-url - Generate upload URL
+   * 2. /api/upload-pdf - Upload file via FormData
+   * 3. /api/confirm-upload - Confirm completion
+   *
+   * Bypasses agent system for immediate feedback and reliability
+   */
   const uploadViaPresignedUrl = async (fileIndex: number) => {
     const fileState = fileStates[fileIndex];
 
     try {
-      // Step 1: Generate upload URL
+      // Step 1: Generate upload URL using direct API (bypasses agent system)
       updateFileState(fileIndex, { status: "generating-url" });
 
-      const urlResult = await invokeTool("generatePdfUploadUrl", {
-        filename: fileState.file.name,
-        fileSize: fileState.file.size,
-        adminSecret: adminSecret,
+      const response = await fetch("/api/generate-upload-url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Secret": adminSecret || "",
+        },
+        body: JSON.stringify({
+          filename: fileState.file.name,
+          fileSize: fileState.file.size,
+          description: fileState.description,
+          tags: fileState.tags,
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = (await response.json()) as { error?: string };
+        throw new Error(errorData.error || "Failed to generate upload URL");
+      }
+
+      const urlResult = await response.json();
 
       // Type guard for urlResult
       if (
@@ -195,21 +272,37 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
           progress: 0,
         });
 
-        // Step 2: Upload directly to our endpoint
+        // Step 2: Upload directly to our endpoint (bypasses agent system)
         await uploadToR2(fileState.file, uploadUrl, (progress) => {
           updateFileState(fileIndex, { progress });
         });
 
-        // Step 3: Confirm upload completion
+        // Step 3: Confirm upload completion using direct API (bypasses agent system)
         updateFileState(fileIndex, { status: "confirming" });
 
-        const confirmResult = await invokeTool("confirmPdfUpload", {
-          uploadId: uploadId,
+        const confirmResponse = await fetch("/api/confirm-upload", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Admin-Secret": adminSecret || "",
+          },
+          body: JSON.stringify({ uploadId }),
         });
+
+        if (!confirmResponse.ok) {
+          const errorData = (await confirmResponse.json()) as {
+            error?: string;
+          };
+          throw new Error(errorData.error || "Failed to confirm upload");
+        }
+
+        const confirmResult = (await confirmResponse.json()) as {
+          message?: string;
+        };
 
         updateFileState(fileIndex, {
           status: "completed",
-          result: confirmResult || "Upload completed",
+          result: confirmResult.message || "Upload completed",
           progress: 100,
         });
 
@@ -401,6 +494,42 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
           </Button>
         )}
       </div>
+
+      {/* Global Description and Tags */}
+      {fileStates.length > 0 && (
+        <div className="mt-3 space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Description (optional)
+            </label>
+            <Textarea
+              placeholder="Enter a description for all files..."
+              value={globalDescription}
+              onChange={(e) => setGlobalDescription(e.target.value)}
+              className="w-full"
+              rows={2}
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Tags (optional)
+            </label>
+            <div className="flex items-center gap-2">
+              <Tag size={16} className="text-neutral-400" />
+              <Input
+                placeholder="Enter tags separated by commas..."
+                value={globalTags}
+                onValueChange={(value) => setGlobalTags(value)}
+                className="flex-1"
+              />
+            </div>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+              Example: research, important, draft
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Upload Summary */}
       {fileStates.length > 0 && (

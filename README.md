@@ -15,6 +15,147 @@ A starter template for building AI-powered chat agents using Cloudflare's Agent 
 - ⚡️ Real-time streaming responses
 - 🔄 State management and chat history
 - 🎨 Modern, responsive UI
+- 📄 PDF upload functionality with R2 storage
+
+## PDF Upload Architecture
+
+This application uses a hybrid approach for PDF uploads:
+
+### 1. DIRECT API ENDPOINTS (Primary method for UI uploads)
+- **Purpose**: User-initiated uploads from the frontend
+- **Performance**: Fast, direct server-to-R2 communication
+- **Benefits**: No agent overhead, immediate feedback, real-time progress
+- **Endpoints**: `/api/generate-upload-url`, `/api/upload-pdf`, `/api/upload-pdf-direct`
+
+### 2. AGENT TOOLS (Secondary method for AI-driven operations)
+- **Purpose**: AI-initiated uploads and complex operations
+- **Context**: Run within agent environment with full database access
+- **Benefits**: Context awareness, integration with AI workflows
+- **Tools**: `generatePdfUploadUrl`, `uploadPdfFile`, `confirmPdfUpload`
+
+### Why this hybrid approach?
+- UI uploads need speed and reliability (direct APIs)
+- AI operations need context and intelligence (agent tools)
+- Both systems can coexist and complement each other
+
+### File size handling:
+- Small files (< 50MB): Base64 upload via `/api/upload-pdf-direct`
+- Large files (≥ 50MB): Presigned URL via `/api/generate-upload-url`
+
+## PDF Metadata Management
+
+The application uses **Cloudflare KV** for storing PDF metadata, providing fast and cost-effective metadata management separate from file storage.
+
+### Metadata Storage Features
+
+#### Core Metadata Fields
+- `id`: Unique identifier for the PDF
+- `key`: R2 object key for file retrieval
+- `filename`: Original filename
+- `fileSize`: File size in bytes
+- `description`: Optional description
+- `tags`: Array of tags for categorization
+- `uploadedAt`: ISO timestamp of upload
+- `uploadedBy`: User identifier
+- `contentType`: MIME type (application/pdf)
+- `status`: Upload status (uploading/completed/error)
+
+#### Additional Metadata
+- `pageCount`: Number of pages (extracted from PDF)
+- `title`: PDF title
+- `author`: PDF author
+- `subject`: PDF subject
+- `keywords`: PDF keywords
+- `customFields`: User-defined key-value pairs
+
+### API Endpoints
+
+#### Upload Endpoints
+```javascript
+// Generate upload URL (large files)
+POST /api/generate-upload-url
+{
+  "filename": "document.pdf",
+  "fileSize": 1048576,
+  "description": "Research paper",
+  "tags": ["research", "academic"]
+}
+
+// Direct upload (small files)
+POST /api/upload-pdf-direct
+{
+  "filename": "document.pdf",
+  "fileData": "base64-encoded-content",
+  "description": "Research paper",
+  "tags": ["research", "academic"]
+}
+```
+
+#### Management Endpoints
+```javascript
+// List PDFs with filtering
+GET /api/pdfs?limit=50&tags=research&status=completed
+
+// Get specific PDF metadata
+GET /api/pdfs/{id}
+
+// Update PDF metadata
+PUT /api/pdfs/{id}
+{
+  "description": "Updated description",
+  "tags": ["updated", "tags"]
+}
+
+// Delete PDF (with optional file deletion)
+DELETE /api/pdfs/{id}?deleteFile=true
+
+// Search PDFs
+GET /api/pdfs/search/{query}?limit=20
+
+// Get PDFs by tag
+GET /api/pdfs/tag/{tag}?limit=50
+
+// Get storage statistics
+GET /api/pdfs/stats
+```
+
+### Benefits of KV Storage
+
+1. **Performance**: Sub-millisecond read/write operations
+2. **Cost-effective**: Much cheaper than R2 for metadata
+3. **Scalability**: Automatic scaling with traffic
+4. **Indexing**: Built-in support for tag-based filtering
+5. **Reliability**: 99.9% availability SLA
+
+### Metadata Service Features
+
+- **Automatic indexing**: Tags are automatically indexed for fast filtering
+- **Search functionality**: Full-text search across filename, description, and tags
+- **Pagination**: Efficient cursor-based pagination
+- **Statistics**: Storage usage and tag distribution analytics
+- **Error handling**: Graceful error recovery and status tracking
+
+### Configuration
+
+Add the KV namespace to your `wrangler.jsonc`:
+
+```json
+{
+  "kv_namespaces": [
+    {
+      "binding": "PDF_METADATA",
+      "id": "your-kv-namespace-id",
+      "preview_id": "your-preview-kv-namespace-id"
+    }
+  ]
+}
+```
+
+Create the KV namespace:
+```bash
+wrangler kv:namespace create "PDF_METADATA"
+wrangler kv:namespace create "PDF_METADATA" --preview
+```
 
 ## Prerequisites
 

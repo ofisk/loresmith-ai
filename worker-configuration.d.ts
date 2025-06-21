@@ -4,10 +4,12 @@
 declare namespace Cloudflare {
 	interface Env {
 		OPENAI_API_KEY: string;
-		PDF_ADMIN_SECRET: string;
+		ADMIN_SECRET: string;
+		PDF_BUCKET: R2Bucket;
+		PDF_METADATA: KVNamespace;
 		VITE_API_URL: string;
 		Chat: DurableObjectNamespace<import("./src/server").Chat>;
-		PDF_BUCKET: R2Bucket;
+		
 	}
 }
 interface Env extends Cloudflare.Env {}
@@ -15,7 +17,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "OPENAI_API_KEY" | "PDF_ADMIN_SECRET" | "VITE_API_URL">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "OPENAI_API_KEY" | "ADMIN_SECRET" | "VITE_API_URL">> {}
 }
 
 // Begin runtime types

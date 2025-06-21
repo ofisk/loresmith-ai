@@ -28,6 +28,13 @@
       "bucket_name": "loresmith-pdfs",
     },
   ],
+  "kv_namespaces": [
+    {
+      "binding": "PDF_METADATA",
+      "id": "pdf-metadata",
+      "preview_id": "pdf-metadata-preview",
+    },
+  ],
   "migrations": [
     {
       "tag": "v1",
@@ -61,7 +68,7 @@
    *
    * Required secrets for this project:
    * - OPENAI_API_KEY: OpenAI API key for AI functionality
-   * - PDF_ADMIN_SECRET: Secret key for PDF upload authentication (admin only)
+   * - ADMIN_SECRET: Secret key for PDF upload authentication (admin only)
    *
    * PDF Configuration: See src/shared.ts PDF_CONFIG for centralized constants
    * - Storage limit: 10GB total
