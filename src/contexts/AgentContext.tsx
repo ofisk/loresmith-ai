@@ -1,3 +1,7 @@
+import type { Message } from "@ai-sdk/react";
+import { useAgentChat } from "agents/ai-react";
+import { useAgent } from "agents/react";
+import type { ChatRequestOptions } from "ai";
 import type React from "react";
 import { createContext, useContext } from "react";
 import type { ReactNode } from "react";

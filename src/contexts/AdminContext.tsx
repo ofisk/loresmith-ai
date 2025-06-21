@@ -1,14 +1,15 @@
 /**
  * Admin Secret Context
- * 
+ *
  * Manages admin secret state, verification, storage, and prompt handling.
  * This centralizes all admin secret logic that was previously scattered
  * throughout the application.
  */
 
-import React, { createContext, useContext, useState, useEffect } from "react";
-import type { ReactNode } from "react";
 import type { Message } from "@ai-sdk/react";
+import type React from "react";
+import { createContext, useContext, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 
 interface AdminContextType {
   adminSecret: string;
@@ -100,10 +101,7 @@ export const AdminProvider: React.FC<AdminProviderProps> = ({ children }) => {
 
   // Handle PDF upload errors and prompt for admin secret if needed
   const handleUploadError = (error: string) => {
-    if (
-      error.includes("Unauthorized") ||
-      error.includes("Admin secret")
-    ) {
+    if (error.includes("Unauthorized") || error.includes("Admin secret")) {
       const newSecret = prompt(
         "🧙‍♂️ Speak the Sacred Incantation (admin secret) to access the mystical archive:"
       );
@@ -123,8 +121,6 @@ export const AdminProvider: React.FC<AdminProviderProps> = ({ children }) => {
   };
 
   return (
-    <AdminContext.Provider value={value}>
-      {children}
-    </AdminContext.Provider>
+    <AdminContext.Provider value={value}>{children}</AdminContext.Provider>
   );
-}; 
+};

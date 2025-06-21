@@ -6,11 +6,11 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-import type { Chat } from "./server";
+import type { Message } from "@ai-sdk/react";
 import { getCurrentAgent } from "agents";
 import { unstable_scheduleSchema } from "agents/schedule";
+import type { Chat } from "./server";
 import { pdfTools } from "./tools/pdf-tools";
-import type { Message } from "@ai-sdk/react";
 
 const scheduleTask = tool({
   description: "A tool to schedule a task to be executed at a later time",
@@ -97,7 +97,7 @@ export interface ToolResult {
   code: string;
   message: string;
   status: "SUCCESS" | "ERROR" | "FAILED";
-  
+
   // Optional properties
   secret?: string | null;
   suppressFollowUp?: boolean;
@@ -119,7 +119,9 @@ export function parseToolResult(result: string): ToolResult | null {
 /**
  * Extract admin secret from setAdminSecret tool result
  */
-export function extractAdminSecretFromToolResult(messages: Message[]): string | null {
+export function extractAdminSecretFromToolResult(
+  messages: Message[]
+): string | null {
   for (const message of messages) {
     if (message.parts) {
       for (const part of message.parts) {
@@ -130,11 +132,8 @@ export function extractAdminSecretFromToolResult(messages: Message[]): string | 
         ) {
           const result = part.toolInvocation?.result;
           const parsedResult = parseToolResult(result);
-          
-          if (
-            parsedResult?.status === "SUCCESS" &&
-            parsedResult?.secret
-          ) {
+
+          if (parsedResult?.status === "SUCCESS" && parsedResult?.secret) {
             return parsedResult.secret;
           }
         }

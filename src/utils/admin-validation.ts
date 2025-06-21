@@ -1,26 +1,26 @@
 /**
  * Admin Secret Validation Utilities
- * 
+ *
  * Generic utilities for validating admin secrets in API routes and tools.
  * This reduces code duplication and centralizes admin secret validation logic.
  * Can be reused by any feature that requires admin authentication.
- * 
+ *
  * Usage:
  * - Import directly: import { validateAdminSecretFromHeader } from "./utils/admin-validation"
  * - Import from feature-specific files: import { validateAdminSecretFromHeader } from "./utils/pdf-admin-validation"
- * 
+ *
  * Features:
  * - Header-based validation (X-Admin-Secret header)
  * - Body-based validation (adminSecret field in request body)
  * - Error response generation
  * - Convenience functions for route handlers
  * - Customizable error messages for feature-specific contexts
- * 
+ *
  * Environment Variable:
  * - ADMIN_SECRET: The secret key required for admin authentication
- * 
+ *
  * Examples:
- * 
+ *
  * Basic usage:
  * ```typescript
  * // In a route handler
@@ -29,7 +29,7 @@
  *   return createAdminSecretErrorResponse(adminSecretValidation);
  * }
  * ```
- * 
+ *
  * With custom error messages:
  * ```typescript
  * // For PDF operations
@@ -37,13 +37,13 @@
  *   notConfiguredMessage: "PDF upload not configured. Admin secret not set.",
  *   unauthorizedMessage: "Unauthorized. Invalid admin secret for PDF operations."
  * });
- * 
+ *
  * // For user management operations
  * const adminSecretValidation = validateAdminSecretFromHeader(c, c.env, {
  *   notConfiguredMessage: "User management not configured. Admin secret not set.",
  *   unauthorizedMessage: "Unauthorized. Invalid admin secret for user management."
  * });
- * 
+ *
  * // For system configuration operations
  * const adminSecretValidation = validateAdminSecretFromHeader(c, c.env, {
  *   notConfiguredMessage: "System configuration not available. Admin secret not set.",
@@ -157,7 +157,7 @@ export function validateAdminSecretFromBody(
  */
 export function createAdminSecretErrorResponse(
   result: AdminSecretValidationResult,
-  status: number = 401
+  status = 401
 ) {
   return new Response(
     JSON.stringify({
@@ -183,10 +183,10 @@ export function validateAdminSecretOrFail(
   options: AdminSecretValidationOptions = {}
 ): string {
   const result = validateAdminSecretFromHeader(c, env, options);
-  
+
   if (!result.isValid) {
     throw new Error(result.error || "Admin secret validation failed");
   }
-  
+
   return result.adminSecret!;
-} 
+}

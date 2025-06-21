@@ -4,7 +4,6 @@ import useClickOutside from "@/hooks/useClickOutside";
 import { X } from "@phosphor-icons/react";
 
 import { useEffect, useRef } from "react";
-import { cn } from "@/lib/utils";
 
 type ModalProps = {
   className?: string;

@@ -1,10 +1,13 @@
 import { Hono } from "hono";
 import { PdfMetadataService } from "../services/pdf-metadata";
-import { validateAdminSecretFromHeader, createAdminSecretErrorResponse } from "../utils/pdf-admin-validation";
+import {
+  createAdminSecretErrorResponse,
+  validateAdminSecretFromHeader,
+} from "../utils/pdf-admin-validation";
 
 /**
  * PDF Routes Module
- * 
+ *
  * Contains all PDF-related endpoints for upload, management, and metadata operations.
  * This module provides a clean separation of concerns for PDF functionality.
  */
@@ -22,7 +25,7 @@ export const pdfRoutes = new Hono<{ Bindings: Env }>();
 pdfRoutes.post("/api/upload-pdf", async (c) => {
   try {
     const { key, uploadId } = c.req.query();
-    
+
     // Validate admin secret
     const adminSecretValidation = validateAdminSecretFromHeader(c, c.env);
     if (!adminSecretValidation.isValid) {
@@ -78,18 +81,22 @@ pdfRoutes.post("/api/upload-pdf", async (c) => {
     });
   } catch (error) {
     console.error("Upload error:", error);
-    
+
     // Update metadata status to error if uploadId is available
     try {
       const { uploadId } = c.req.query();
       if (uploadId) {
         const metadataService = new PdfMetadataService(c.env.PDF_METADATA);
-        await metadataService.updateStatus(uploadId, "error", error instanceof Error ? error.message : "Unknown error");
+        await metadataService.updateStatus(
+          uploadId,
+          "error",
+          error instanceof Error ? error.message : "Unknown error"
+        );
       }
     } catch (metadataError) {
       console.error("Failed to update metadata status:", metadataError);
     }
-    
+
     return c.json(
       {
         error: "Upload failed",
@@ -104,7 +111,7 @@ pdfRoutes.post("/api/upload-pdf", async (c) => {
 pdfRoutes.post("/api/generate-upload-url", async (c) => {
   try {
     const { filename, fileSize, description, tags } = await c.req.json();
-    
+
     // Validate admin secret
     const adminSecretValidation = validateAdminSecretFromHeader(c, c.env);
     if (!adminSecretValidation.isValid) {
@@ -174,7 +181,7 @@ pdfRoutes.post("/api/generate-upload-url", async (c) => {
 pdfRoutes.post("/api/confirm-upload", async (c) => {
   try {
     const { uploadId } = await c.req.json();
-    
+
     // Validate admin secret
     const adminSecretValidation = validateAdminSecretFromHeader(c, c.env);
     if (!adminSecretValidation.isValid) {
@@ -209,7 +216,7 @@ pdfRoutes.post("/api/confirm-upload", async (c) => {
 pdfRoutes.post("/api/upload-pdf-direct", async (c) => {
   try {
     const { filename, fileData, description, tags } = await c.req.json();
-    
+
     // Validate admin secret
     const adminSecretValidation = validateAdminSecretFromHeader(c, c.env);
     if (!adminSecretValidation.isValid) {
@@ -283,18 +290,22 @@ pdfRoutes.post("/api/upload-pdf-direct", async (c) => {
     });
   } catch (error) {
     console.error("Direct upload error:", error);
-    
+
     // Update metadata status to error if uploadId is available
     try {
       const { uploadId } = await c.req.json();
       if (uploadId) {
         const metadataService = new PdfMetadataService(c.env.PDF_METADATA);
-        await metadataService.updateStatus(uploadId, "error", error instanceof Error ? error.message : "Unknown error");
+        await metadataService.updateStatus(
+          uploadId,
+          "error",
+          error instanceof Error ? error.message : "Unknown error"
+        );
       }
     } catch (metadataError) {
       console.error("Failed to update metadata status:", metadataError);
     }
-    
+
     return c.json(
       {
         error: "Upload failed",
@@ -324,7 +335,7 @@ pdfRoutes.get("/api/pdfs", async (c) => {
 
     const metadataService = new PdfMetadataService(c.env.PDF_METADATA);
     const result = await metadataService.listMetadata({
-      limit: limit ? parseInt(limit) : 50,
+      limit: limit ? Number.parseInt(limit) : 50,
       cursor,
       tags: tags ? tags.split(",") : undefined,
       uploadedBy,
@@ -348,7 +359,7 @@ pdfRoutes.get("/api/pdfs", async (c) => {
 pdfRoutes.get("/api/pdfs/:id", async (c) => {
   try {
     const { id } = c.req.param();
-    
+
     // Validate admin secret
     const adminSecretValidation = validateAdminSecretFromHeader(c, c.env);
     if (!adminSecretValidation.isValid) {
@@ -380,7 +391,7 @@ pdfRoutes.put("/api/pdfs/:id", async (c) => {
   try {
     const { id } = c.req.param();
     const updates = await c.req.json();
-    
+
     // Validate admin secret
     const adminSecretValidation = validateAdminSecretFromHeader(c, c.env);
     if (!adminSecretValidation.isValid) {
@@ -412,7 +423,7 @@ pdfRoutes.delete("/api/pdfs/:id", async (c) => {
   try {
     const { id } = c.req.param();
     const { deleteFile } = c.req.query();
-    
+
     // Validate admin secret
     const adminSecretValidation = validateAdminSecretFromHeader(c, c.env);
     if (!adminSecretValidation.isValid) {
@@ -456,7 +467,7 @@ pdfRoutes.get("/api/pdfs/search/:query", async (c) => {
   try {
     const { query } = c.req.param();
     const { limit } = c.req.query();
-    
+
     // Validate admin secret
     const adminSecretValidation = validateAdminSecretFromHeader(c, c.env);
     if (!adminSecretValidation.isValid) {
@@ -466,7 +477,7 @@ pdfRoutes.get("/api/pdfs/search/:query", async (c) => {
     const metadataService = new PdfMetadataService(c.env.PDF_METADATA);
     const results = await metadataService.searchPdfs(
       query,
-      limit ? parseInt(limit) : 20
+      limit ? Number.parseInt(limit) : 20
     );
 
     return c.json({ results });
@@ -487,7 +498,7 @@ pdfRoutes.get("/api/pdfs/tag/:tag", async (c) => {
   try {
     const { tag } = c.req.param();
     const { limit } = c.req.query();
-    
+
     // Validate admin secret
     const adminSecretValidation = validateAdminSecretFromHeader(c, c.env);
     if (!adminSecretValidation.isValid) {
@@ -497,7 +508,7 @@ pdfRoutes.get("/api/pdfs/tag/:tag", async (c) => {
     const metadataService = new PdfMetadataService(c.env.PDF_METADATA);
     const results = await metadataService.getPdfsByTag(
       tag,
-      limit ? parseInt(limit) : 50
+      limit ? Number.parseInt(limit) : 50
     );
 
     return c.json({ results });
@@ -536,4 +547,4 @@ pdfRoutes.get("/api/pdfs/stats", async (c) => {
       500
     );
   }
-}); 
+});

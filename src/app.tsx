@@ -1,18 +1,17 @@
-import { useEffect, useState, useRef, useCallback, use } from "react";
 import type { Message } from "@ai-sdk/react";
-import type { tools } from "./tools";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 
+import { Avatar } from "@/components/avatar/Avatar";
 // Component imports
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
-import { Avatar } from "@/components/avatar/Avatar";
-import { Toggle } from "@/components/toggle/Toggle";
-import { Textarea } from "@/components/textarea/Textarea";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
-import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import { PdfUpload } from "@/components/pdf-upload/PdfUpload";
-import { AgentProvider, useAgentContext } from "@/contexts/AgentContext";
+import { Textarea } from "@/components/textarea/Textarea";
+import { Toggle } from "@/components/toggle/Toggle";
+import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import { AdminProvider, useAdmin } from "@/contexts/AdminContext";
+import { AgentProvider, useAgentContext } from "@/contexts/AgentContext";
 
 // Hook imports
 import { usePdfUpload } from "@/hooks/usePdfUpload";
@@ -21,17 +20,17 @@ import { useToolConfirmation } from "@/hooks/useToolConfirmation";
 // Utility imports
 import { formatToolResult, isAdminSecretTool } from "@/tools";
 
+import loresmith from "@/assets/loresmith.png";
 // Icon imports
 import {
   Bug,
+  Lightbulb,
   Moon,
-  Sun,
-  Trash,
   PaperPlaneTilt,
   Stop,
-  Lightbulb,
+  Sun,
+  Trash,
 } from "@phosphor-icons/react";
-import loresmith from "@/assets/loresmith.png";
 
 /**
  * Generate a unique session ID for this browser session
@@ -158,11 +157,8 @@ function ChatContent({
   } = usePdfUpload();
 
   // Use the tool confirmation hook for centralized confirmation handling
-  const {
-    pendingToolCallConfirmation,
-    isToolPendingConfirmation,
-    getConfirmationMessageForTool,
-  } = useToolConfirmation(agentMessages);
+  const { pendingToolCallConfirmation, isToolPendingConfirmation } =
+    useToolConfirmation(agentMessages);
 
   // Function to handle suggested prompts
   const handleSuggestionSubmit = (suggestion: string) => {
@@ -371,7 +367,8 @@ function ChatContent({
                           if (part.type === "tool-invocation") {
                             const toolInvocation = part.toolInvocation;
                             const toolCallId = toolInvocation.toolCallId;
-                            const needsConfirmation = isToolPendingConfirmation(toolCallId);
+                            const needsConfirmation =
+                              isToolPendingConfirmation(toolCallId);
 
                             // Skip rendering the card in debug mode
                             if (showDebug) return null;
@@ -387,7 +384,9 @@ function ChatContent({
                                   <Card className="p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 rounded-bl-none border-assistant-border">
                                     <MemoizedMarkdown
                                       id={`${m.id}-${i}`}
-                                      content={formatToolResult(toolInvocation.result)}
+                                      content={formatToolResult(
+                                        toolInvocation.result
+                                      )}
                                     />
                                   </Card>
                                   <p className="text-xs text-muted-foreground mt-1 text-left">

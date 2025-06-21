@@ -13,15 +13,18 @@ src/routes/
 ## Organization
 
 ### PDF Routes (`pdf-routes.ts`)
+
 Contains all PDF-related endpoints:
 
 #### Upload Endpoints
+
 - `POST /api/upload-pdf` - FormData upload for large files
 - `POST /api/generate-upload-url` - Generate presigned URLs
 - `POST /api/upload-pdf-direct` - Base64 upload for small files
 - `POST /api/confirm-upload` - Confirm upload completion
 
 #### Management Endpoints
+
 - `GET /api/pdfs` - List PDFs with filtering
 - `GET /api/pdfs/:id` - Get specific PDF metadata
 - `PUT /api/pdfs/:id` - Update PDF metadata
@@ -49,6 +52,7 @@ app.route("/", pdfRoutes);
 3. Import and mount the routes directly in `server.ts`
 
 Example:
+
 ```typescript
 // feature-routes.ts
 export const featureRoutes = new Hono<{ Bindings: Env }>();
@@ -69,4 +73,4 @@ app.route("/", featureRoutes);
 - **Scalability**: Simple to add new route modules
 - **Testing**: Routes can be tested independently
 - **Documentation**: Clear organization makes code self-documenting
-- **Simplicity**: Direct imports without unnecessary abstraction layers 
+- **Simplicity**: Direct imports without unnecessary abstraction layers

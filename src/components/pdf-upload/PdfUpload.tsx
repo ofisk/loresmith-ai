@@ -1,9 +1,11 @@
+import { CheckCircle, Paperclip, X, XCircle } from "@phosphor-icons/react";
 import type React from "react";
-import { useState, useRef } from "react";
-import { Button } from "../button/Button";
-import { Paperclip, X, CheckCircle, XCircle } from "@phosphor-icons/react";
+import { useRef, useState } from "react";
 import { PDF_CONFIG } from "../../shared";
-import { useAgentContext } from "@/contexts/AgentContext";
+import { Button } from "../button/Button";
+import { Textarea } from "@/components/textarea/Textarea";
+import { Tag } from "@phosphor-icons/react";
+import { Input } from "@/components/input/Input";
 
 /**
  * PDF Upload Component - Hybrid Architecture
@@ -72,7 +74,6 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
   maxFiles = PDF_CONFIG.MAX_FILES_DEFAULT, //limiting here to 10 files to avoid unnecessary cost during development -- can be removed later
   adminSecret, //admin secret to avoid random uploads from the internet -- can be removed later or moved to smarter auth
 }) => {
-  const { invokeTool } = useAgentContext();
   const [fileStates, setFileStates] = useState<FileUploadState[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [globalDescription, setGlobalDescription] = useState("");
@@ -102,7 +103,12 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
       error: null,
       result: null,
       description: globalDescription,
-      tags: globalTags ? globalTags.split(",").map(tag => tag.trim()).filter(Boolean) : [],
+      tags: globalTags
+        ? globalTags
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter(Boolean)
+        : [],
     }));
 
     setFileStates((prev) => [...prev, ...newFileStates]);
@@ -499,10 +505,14 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
       {fileStates.length > 0 && (
         <div className="mt-3 space-y-3">
           <div>
-            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+            <label
+              htmlFor="pdf-description"
+              className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1"
+            >
               Description (optional)
             </label>
             <Textarea
+              id="pdf-description"
               placeholder="Enter a description for all files..."
               value={globalDescription}
               onChange={(e) => setGlobalDescription(e.target.value)}
@@ -510,14 +520,18 @@ export const PdfUpload: React.FC<PdfUploadProps> = ({
               rows={2}
             />
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+            <label
+              htmlFor="pdf-tags"
+              className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1"
+            >
               Tags (optional)
             </label>
             <div className="flex items-center gap-2">
               <Tag size={16} className="text-neutral-400" />
               <Input
+                id="pdf-tags"
                 placeholder="Enter tags separated by commas..."
                 value={globalTags}
                 onValueChange={(value) => setGlobalTags(value)}

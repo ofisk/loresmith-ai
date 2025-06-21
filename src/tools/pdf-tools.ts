@@ -1,6 +1,6 @@
 /**
  * PDF Tools Module
- * 
+ *
  * This module contains all PDF-related tools for AI-driven operations.
  * These tools are designed for AI-initiated uploads and operations.
  * For user-initiated uploads from the UI, the application uses direct API endpoints
@@ -17,10 +17,10 @@
  * - Complex operations combining multiple tools
  */
 
+import { getCurrentAgent } from "agents";
 import { tool } from "ai";
 import { z } from "zod";
 import type { Chat } from "../server";
-import { getCurrentAgent } from "agents";
 import { PDF_CONFIG } from "../shared";
 
 // Type definitions for PDF operations
@@ -570,7 +570,9 @@ export const requestAdminSecret = tool({
         status: "ERROR",
         code: "REQUEST_ERROR",
         message:
-          error instanceof Error ? error.message : "Failed to request admin secret",
+          error instanceof Error
+            ? error.message
+            : "Failed to request admin secret",
         suppressFollowUp: true,
       });
     }
@@ -614,7 +616,9 @@ export const checkAdminSecretVerified = tool({
         status: "ERROR",
         code: "CHECK_ERROR",
         message:
-          error instanceof Error ? error.message : "Failed to check admin secret status",
+          error instanceof Error
+            ? error.message
+            : "Failed to check admin secret status",
         suppressFollowUp: true,
       });
     }
@@ -687,4 +691,4 @@ export const pdfTools = {
   requestAdminSecret,
   checkAdminSecretVerified,
   setAdminSecret,
-}; 
+};
