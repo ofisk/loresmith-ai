@@ -2,37 +2,15 @@
  * Tool definitions for the AI chat agent
  * Tools can either require human confirmation or execute automatically
  */
+
 import { tool } from "ai";
 import { z } from "zod";
 
-import type { Chat } from "./server";
+import type { Message } from "@ai-sdk/react";
 import { getCurrentAgent } from "agents";
 import { unstable_scheduleSchema } from "agents/schedule";
-
-/**
- * Weather information tool that requires human confirmation
- * When invoked, this will present a confirmation dialog to the user
- * The actual implementation is in the executions object below
- */
-const getWeatherInformation = tool({
-  description: "show the weather in a given city to the user",
-  parameters: z.object({ city: z.string() }),
-  // Omitting execute function makes this tool require human confirmation
-});
-
-/**
- * Local time tool that executes automatically
- * Since it includes an execute function, it will run without user confirmation
- * This is suitable for low-risk operations that don't need oversight
- */
-const getLocalTime = tool({
-  description: "get the local time for a specified location",
-  parameters: z.object({ location: z.string() }),
-  execute: async ({ location }) => {
-    console.log(`Getting local time for ${location}`);
-    return "10am";
-  },
-});
+import type { Chat } from "./server";
+import { pdfTools } from "./tools/pdf-tools";
 
 const scheduleTask = tool({
   description: "A tool to schedule a task to be executed at a later time",
@@ -110,12 +88,105 @@ const cancelScheduledTask = tool({
 });
 
 /**
+ * Generic tool result processing utilities
+ * These functions can be reused across different tool types
+ */
+
+export interface ToolResult {
+  // Required properties
+  code: string;
+  message: string;
+  status: "SUCCESS" | "ERROR" | "FAILED";
+
+  // Optional properties
+  secret?: string | null;
+  suppressFollowUp?: boolean;
+}
+
+/**
+ * Parse tool result from JSON string
+ */
+export function parseToolResult(result: string): ToolResult | null {
+  try {
+    const parsed = JSON.parse(result);
+    return parsed as ToolResult;
+  } catch (error) {
+    console.warn("Failed to parse tool result as JSON:", error);
+    return null;
+  }
+}
+
+/**
+ * Extract admin secret from setAdminSecret tool result
+ */
+export function extractAdminSecretFromToolResult(
+  messages: Message[]
+): string | null {
+  for (const message of messages) {
+    if (message.parts) {
+      for (const part of message.parts) {
+        if (
+          part.type === "tool-invocation" &&
+          part.toolInvocation?.toolName === "setAdminSecret" &&
+          part.toolInvocation?.state === "result"
+        ) {
+          const result = part.toolInvocation?.result;
+          const parsedResult = parseToolResult(result);
+
+          if (parsedResult?.status === "SUCCESS" && parsedResult?.secret) {
+            return parsedResult.secret;
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Check if a tool is an admin secret tool
+ */
+export function isAdminSecretTool(toolName: string): boolean {
+  return toolName === "requestAdminSecret" || toolName === "setAdminSecret";
+}
+
+/**
+ * Format tool result for display
+ * This function handles formatting of tool results for display in the UI
+ */
+export function formatToolResult(result: unknown): string {
+  if (typeof result === "string") {
+    return result;
+  }
+
+  if (typeof result === "object" && result !== null) {
+    // Handle JSON stringified results (common for admin secret tools)
+    if ("status" in result && "message" in result) {
+      const typedResult = result as { status: string; message: string };
+      return typedResult.message;
+    }
+
+    // Handle other object results
+    return JSON.stringify(result, null, 2);
+  }
+
+  return String(result);
+}
+
+/**
+ * Check if a tool result should suppress follow-up messages
+ */
+export function shouldSuppressFollowUp(toolResult: string): boolean {
+  const parsed = parseToolResult(toolResult);
+  return parsed?.suppressFollowUp === true;
+}
+
+/**
  * Export all available tools
  * These will be provided to the AI model to describe available capabilities
  */
 export const tools = {
-  getWeatherInformation,
-  getLocalTime,
+  ...pdfTools,
   scheduleTask,
   getScheduledTasks,
   cancelScheduledTask,
@@ -128,8 +199,5 @@ export const tools = {
  * NOTE: keys below should match toolsRequiringConfirmation in app.tsx
  */
 export const executions = {
-  getWeatherInformation: async ({ city }: { city: string }) => {
-    console.log(`Getting weather information for ${city}`);
-    return `The weather in ${city} is sunny`;
-  },
+  deletePdfFile: pdfTools.deletePdfFile.execute,
 };

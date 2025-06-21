@@ -1,20 +1,49 @@
-import { routeAgentRequest, type Schedule } from "agents";
+import { type Schedule, routeAgentRequest } from "agents";
 
 import { unstable_getSchedulePrompt } from "agents/schedule";
 
+import { openai } from "@ai-sdk/openai";
 import { AIChatAgent } from "agents/ai-chat-agent";
 import {
+  type StreamTextOnFinishCallback,
+  type ToolSet,
   createDataStreamResponse,
   generateId,
   streamText,
-  type StreamTextOnFinishCallback,
-  type ToolSet,
 } from "ai";
-import { openai } from "@ai-sdk/openai";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { pdfRoutes } from "./routes/pdf-routes";
+import { executions, tools } from "./tools";
 import { processToolCalls } from "./utils";
-import { tools, executions } from "./tools";
 // import { env } from "cloudflare:workers";
+
+/**
+ * PDF Upload Architecture
+ *
+ * This application uses a hybrid approach for PDF uploads:
+ *
+ * 1. DIRECT API ENDPOINTS (Primary method for UI uploads)
+ *    - Purpose: User-initiated uploads from the frontend
+ *    - Performance: Fast, direct server-to-R2 communication
+ *    - Benefits: No agent overhead, immediate feedback, real-time progress
+ *    - Endpoints: /api/generate-upload-url, /api/upload-pdf, /api/upload-pdf-direct
+ *
+ * 2. AGENT TOOLS (Secondary method for AI-driven operations)
+ *    - Purpose: AI-initiated uploads and complex operations
+ *    - Context: Run within agent environment with full database access
+ *    - Benefits: Context awareness, integration with AI workflows
+ *    - Tools: generatePdfUploadUrl, uploadPdfFile, confirmPdfUpload
+ *
+ * Why this hybrid approach?
+ * - UI uploads need speed and reliability (direct APIs)
+ * - AI operations need context and intelligence (agent tools)
+ * - Both systems can coexist and complement each other
+ *
+ * File size handling:
+ * - Small files (< 50MB): Base64 upload via /api/upload-pdf-direct
+ * - Large files (≥ 50MB): Presigned URL via /api/generate-upload-url
+ */
 
 const model = openai("gpt-4o-2024-11-20");
 // Cloudflare AI Gateway
@@ -32,10 +61,7 @@ export class Chat extends AIChatAgent<Env> {
    * @param onFinish - Callback function executed when streaming completes
    */
 
-  async onChatMessage(
-    onFinish: StreamTextOnFinishCallback<ToolSet>,
-    options?: { abortSignal?: AbortSignal }
-  ) {
+  async onChatMessage(onFinish: StreamTextOnFinishCallback<ToolSet>) {
     // const mcpConnection = await this.mcp.connect(
     //   "https://path-to-mcp-server/sse"
     // );
@@ -106,21 +132,44 @@ If the user asks to schedule a task, use the schedule tool to schedule the task.
  */
 const app = new Hono<{ Bindings: Env }>();
 
+// Add CORS middleware
+app.use(
+  "*",
+  cors({
+    origin: (origin) => {
+      const allowedOrigins =
+        process.env.CORS_ALLOWED_ORIGINS?.split(",").map((o) => o.trim()) || [];
+      return allowedOrigins.includes(origin || "") || !origin ? origin : null;
+    },
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
 app.get("/check-open-ai-key", (c) => {
   const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
   return c.json({ success: hasOpenAIKey });
 });
 
 app.all("*", async (c) => {
+  console.log(`Incoming request: ${c.req.method} ${c.req.url}`);
+
   if (!process.env.OPENAI_API_KEY) {
     console.error(
       "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
     );
   }
-  return (
-    (await routeAgentRequest(c.req.raw, c.env)) ||
-    new Response("Not found", { status: 404 })
-  );
+
+  const result = await routeAgentRequest(c.req.raw, c.env);
+  if (result) {
+    console.log("routeAgentRequest handled the request");
+    return result;
+  }
+  console.log("routeAgentRequest did not handle the request, returning 404");
+  return new Response("Not found", { status: 404 });
 });
+
+// Mount PDF routes
+app.route("/", pdfRoutes);
 
 export default app;

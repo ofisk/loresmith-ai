@@ -15,6 +15,218 @@ A starter template for building AI-powered chat agents using Cloudflare's Agent 
 - ⚡️ Real-time streaming responses
 - 🔄 State management and chat history
 - 🎨 Modern, responsive UI
+- 📄 PDF upload functionality with R2 storage
+- 🏗️ Modular architecture with separation of concerns
+
+## Architecture Overview
+
+This application follows a modular architecture pattern for better maintainability and scalability:
+
+### Core Structure
+
+```
+src/
+├── app.tsx                    # Main chat UI component
+├── server.ts                  # Worker entry point and agent routing
+├── client.tsx                 # Client-side entry point
+├── shared.ts                  # Shared constants and configuration
+├── styles.css                 # Global styles
+├── contexts/                  # React context providers
+│   ├── AdminContext.tsx       # Admin secret management
+│   └── AgentContext.tsx       # Agent state and interactions
+├── components/                # Reusable UI components
+│   ├── avatar/               # Avatar components
+│   ├── button/               # Button components
+│   ├── card/                 # Card components
+│   ├── dropdown/             # Dropdown components
+│   ├── input/                # Input components
+│   ├── label/                # Label components
+│   ├── loader/               # Loading components
+│   ├── menu-bar/             # Menu bar components
+│   ├── modal/                # Modal components
+│   ├── orbit-site/           # Orbit site components
+│   ├── pdf-upload/           # PDF upload components
+│   ├── select/               # Select components
+│   ├── slot/                 # Slot components
+│   ├── textarea/             # Textarea components
+│   ├── toggle/               # Toggle components
+│   ├── tool-invocation-card/ # Tool invocation components
+│   └── tooltip/              # Tooltip components
+├── hooks/                     # Custom React hooks
+│   ├── useClickOutside.tsx   # Click outside detection
+│   ├── useMenuNavigation.tsx # Menu navigation
+│   ├── usePdfUpload.ts       # PDF upload logic
+│   ├── useTheme.ts           # Theme management
+│   └── useToolConfirmation.ts # Tool confirmation logic
+├── lib/                       # Utility libraries
+│   └── utils.ts              # General utilities
+├── providers/                 # Provider components
+│   ├── index.tsx             # Provider exports
+│   ├── ModalProvider.tsx     # Modal state management
+│   └── TooltipProvider.tsx   # Tooltip state management
+├── routes/                    # API route modules
+│   ├── pdf-routes.ts         # PDF upload and management endpoints
+│   └── README.md             # Routes documentation
+├── services/                  # Service layer
+│   └── pdf-metadata.ts       # PDF metadata management
+├── tools/                     # Tool modules
+│   └── pdf-tools.ts          # PDF-related AI tools
+├── utils/                     # Utility functions
+│   ├── admin-validation.ts   # Generic admin validation
+│   ├── pdf-admin-validation.ts # PDF-specific admin validation
+│   └── pdf-tool-confirmation.ts # PDF tool confirmation logic
+└── assets/                    # Static assets
+    └── loresmith.png         # Application logo
+```
+
+## PDF Upload Architecture
+
+This application uses a hybrid approach for PDF uploads:
+
+### 1. DIRECT API ENDPOINTS (Primary method for UI uploads)
+
+- **Purpose**: User-initiated uploads from the frontend
+- **Performance**: Fast, direct server-to-R2 communication
+- **Benefits**: No agent overhead, immediate feedback, real-time progress
+- **Endpoints**: `/api/generate-upload-url`, `/api/upload-pdf`, `/api/upload-pdf-direct`
+
+### 2. AGENT TOOLS (Secondary method for AI-driven operations)
+
+- **Purpose**: AI-initiated uploads and complex operations
+- **Context**: Run within agent environment with full database access
+- **Benefits**: Context awareness, integration with AI workflows
+- **Tools**: `generatePdfUploadUrl`, `uploadPdfFile`, `confirmPdfUpload`
+
+### Why this hybrid approach?
+
+- UI uploads need speed and reliability (direct APIs)
+- AI operations need context and intelligence (agent tools)
+- Both systems can coexist and complement each other
+
+### File size handling:
+
+- Small files (< 50MB): Base64 upload via `/api/upload-pdf-direct`
+- Large files (≥ 50MB): Presigned URL via `/api/generate-upload-url`
+
+## PDF Metadata Management
+
+The application uses **Cloudflare KV** for storing PDF metadata, providing fast and cost-effective metadata management separate from file storage.
+
+### Metadata Storage Features
+
+#### Core Metadata Fields
+
+- `id`: Unique identifier for the PDF
+- `key`: R2 object key for file retrieval
+- `filename`: Original filename
+- `fileSize`: File size in bytes
+- `description`: Optional description
+- `tags`: Array of tags for categorization
+- `uploadedAt`: ISO timestamp of upload
+- `uploadedBy`: User identifier
+- `contentType`: MIME type (application/pdf)
+- `status`: Upload status (uploading/completed/error)
+
+#### Additional Metadata
+
+- `pageCount`: Number of pages (extracted from PDF)
+- `title`: PDF title
+- `author`: PDF author
+- `subject`: PDF subject
+- `keywords`: PDF keywords
+- `customFields`: User-defined key-value pairs
+
+### API Endpoints
+
+#### Upload Endpoints
+
+```javascript
+// Generate upload URL (large files)
+POST /api/generate-upload-url
+{
+  "filename": "document.pdf",
+  "fileSize": 1048576,
+  "description": "Research paper",
+  "tags": ["research", "academic"]
+}
+
+// Direct upload (small files)
+POST /api/upload-pdf-direct
+{
+  "filename": "document.pdf",
+  "fileData": "base64-encoded-content",
+  "description": "Research paper",
+  "tags": ["research", "academic"]
+}
+```
+
+#### Management Endpoints
+
+```javascript
+// List PDFs with filtering
+GET /api/pdfs?limit=50&tags=research&status=completed
+
+// Get specific PDF metadata
+GET /api/pdfs/{id}
+
+// Update PDF metadata
+PUT /api/pdfs/{id}
+{
+  "description": "Updated description",
+  "tags": ["updated", "tags"]
+}
+
+// Delete PDF (with optional file deletion)
+DELETE /api/pdfs/{id}?deleteFile=true
+
+// Search PDFs
+GET /api/pdfs/search/{query}?limit=20
+
+// Get PDFs by tag
+GET /api/pdfs/tag/{tag}?limit=50
+
+// Get storage statistics
+GET /api/pdfs/stats
+```
+
+### Benefits of KV Storage
+
+1. **Performance**: Sub-millisecond read/write operations
+2. **Cost-effective**: Much cheaper than R2 for metadata
+3. **Scalability**: Automatic scaling with traffic
+4. **Indexing**: Built-in support for tag-based filtering
+5. **Reliability**: 99.9% availability SLA
+
+### Metadata Service Features
+
+- **Automatic indexing**: Tags are automatically indexed for fast filtering
+- **Search functionality**: Full-text search across filename, description, and tags
+- **Pagination**: Efficient cursor-based pagination
+- **Statistics**: Storage usage and tag distribution analytics
+- **Error handling**: Graceful error recovery and status tracking
+
+### Configuration
+
+Add the KV namespace to your `wrangler.jsonc`:
+
+```json
+{
+  "kv_namespaces": [
+    {
+      "binding": "PDF_METADATA",
+      "id": "your-kv-namespace-id",
+      "preview_id": "your-preview-kv-namespace-id"
+    }
+  ]
+}
+```
+
+Create the KV namespace:
+
+```bash
+wrangler kv:namespace create "PDF_METADATA"
+wrangler kv:namespace create "PDF_METADATA" --preview
+```
 
 ## Prerequisites
 
@@ -41,6 +253,7 @@ Create a `.dev.vars` file:
 
 ```env
 OPENAI_API_KEY=your_openai_api_key
+ADMIN_SECRET=your_admin_secret_for_admin_actions
 ```
 
 4. Run locally:
@@ -57,13 +270,61 @@ npm run deploy
 
 ## Project Structure
 
+This application follows a modular architecture pattern for better maintainability and scalability:
+
 ```
-├── src/
-│   ├── app.tsx        # Chat UI implementation
-│   ├── server.ts      # Chat agent logic
-│   ├── tools.ts       # Tool definitions
-│   ├── utils.ts       # Helper functions
-│   └── styles.css     # UI styling
+src/
+├── app.tsx                    # Main chat UI component
+├── server.ts                  # Worker entry point and agent routing
+├── client.tsx                 # Client-side entry point
+├── shared.ts                  # Shared constants and configuration
+├── styles.css                 # Global styles
+├── contexts/                  # React context providers
+│   ├── AdminContext.tsx       # Admin secret management
+│   └── AgentContext.tsx       # Agent state and interactions
+├── components/                # Reusable UI components
+│   ├── avatar/               # Avatar components
+│   ├── button/               # Button components
+│   ├── card/                 # Card components
+│   ├── dropdown/             # Dropdown components
+│   ├── input/                # Input components
+│   ├── label/                # Label components
+│   ├── loader/               # Loading components
+│   ├── menu-bar/             # Menu bar components
+│   ├── modal/                # Modal components
+│   ├── orbit-site/           # Orbit site components
+│   ├── pdf-upload/           # PDF upload components
+│   ├── select/               # Select components
+│   ├── slot/                 # Slot components
+│   ├── textarea/             # Textarea components
+│   ├── toggle/               # Toggle components
+│   ├── tool-invocation-card/ # Tool invocation components
+│   └── tooltip/              # Tooltip components
+├── hooks/                     # Custom React hooks
+│   ├── useClickOutside.tsx   # Click outside detection
+│   ├── useMenuNavigation.tsx # Menu navigation
+│   ├── usePdfUpload.ts       # PDF upload logic
+│   ├── useTheme.ts           # Theme management
+│   └── useToolConfirmation.ts # Tool confirmation logic
+├── lib/                       # Utility libraries
+│   └── utils.ts              # General utilities
+├── providers/                 # Provider components
+│   ├── index.tsx             # Provider exports
+│   ├── ModalProvider.tsx     # Modal state management
+│   └── TooltipProvider.tsx   # Tooltip state management
+├── routes/                    # API route modules
+│   ├── pdf-routes.ts         # PDF upload and management endpoints
+│   └── README.md             # Routes documentation
+├── services/                  # Service layer
+│   └── pdf-metadata.ts       # PDF metadata management
+├── tools/                     # Tool modules
+│   └── pdf-tools.ts          # PDF-related AI tools
+├── utils/                     # Utility functions
+│   ├── admin-validation.ts   # Generic admin validation
+│   ├── pdf-admin-validation.ts # PDF-specific admin validation
+│   └── pdf-tool-confirmation.ts # PDF tool confirmation logic
+└── assets/                    # Static assets
+    └── loresmith.png         # Application logo
 ```
 
 ## Customization Guide

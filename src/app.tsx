@@ -1,36 +1,36 @@
-import { useEffect, useState, useRef, useCallback, use } from "react";
-import { useAgent } from "agents/react";
-import { useAgentChat } from "agents/ai-react";
 import type { Message } from "@ai-sdk/react";
-import type { tools } from "./tools";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 
+import { Avatar } from "@/components/avatar/Avatar";
 // Component imports
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
-import { Avatar } from "@/components/avatar/Avatar";
-import { Toggle } from "@/components/toggle/Toggle";
-import { Textarea } from "@/components/textarea/Textarea";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
+import { PdfUpload } from "@/components/pdf-upload/PdfUpload";
+import { Textarea } from "@/components/textarea/Textarea";
+import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
+import { AdminProvider, useAdmin } from "@/contexts/AdminContext";
+import { AgentProvider, useAgentContext } from "@/contexts/AgentContext";
 
+// Hook imports
+import { usePdfUpload } from "@/hooks/usePdfUpload";
+import { useToolConfirmation } from "@/hooks/useToolConfirmation";
+
+// Utility imports
+import { formatToolResult, isAdminSecretTool } from "@/tools";
+
+import loresmith from "@/assets/loresmith.png";
 // Icon imports
 import {
   Bug,
+  Lightbulb,
   Moon,
-  Sun,
-  Trash,
   PaperPlaneTilt,
   Stop,
+  Sun,
+  Trash,
 } from "@phosphor-icons/react";
-
-import loresmith from "@/assets/loresmith.png";
-import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
-
-// List of tools that require human confirmation
-// NOTE: this should match the keys in the executions object in tools.ts
-const toolsRequiringConfirmation: (keyof typeof tools)[] = [
-  "getWeatherInformation",
-];
 
 /**
  * Generate a unique session ID for this browser session
@@ -96,11 +96,43 @@ export default function Chat() {
     setTheme(newTheme);
   };
 
-  const agent = useAgent({
-    agent: "chat",
-    name: sessionId, // Use the session ID to create a unique Durable Object for this session
-  });
+  return (
+    <AdminProvider>
+      <AgentProvider sessionId={sessionId}>
+        <ChatContent
+          theme={theme}
+          showDebug={showDebug}
+          textareaHeight={textareaHeight}
+          messagesEndRef={messagesEndRef}
+          scrollToBottom={scrollToBottom}
+          toggleTheme={toggleTheme}
+          setShowDebug={setShowDebug}
+          setTextareaHeight={setTextareaHeight}
+        />
+      </AgentProvider>
+    </AdminProvider>
+  );
+}
 
+function ChatContent({
+  theme,
+  showDebug,
+  textareaHeight,
+  messagesEndRef,
+  scrollToBottom,
+  toggleTheme,
+  setShowDebug,
+  setTextareaHeight,
+}: {
+  theme: "dark" | "light";
+  showDebug: boolean;
+  textareaHeight: string;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  scrollToBottom: () => void;
+  toggleTheme: () => void;
+  setShowDebug: (show: boolean | ((prev: boolean) => boolean)) => void;
+  setTextareaHeight: (height: string) => void;
+}) {
   const {
     messages: agentMessages,
     input: agentInput,
@@ -112,16 +144,29 @@ export default function Chat() {
     stop,
     setInput,
     append,
-  } = useAgentChat({
-    agent,
-    maxSteps: 5,
-  });
+  } = useAgentContext();
+
+  const { verifyFromToolResult } = useAdmin();
+
+  // Use the PDF upload hook for centralized upload handling
+  const {
+    handleUploadStart,
+    handleFileUploadComplete,
+    handleUploadError,
+    adminSecret,
+  } = usePdfUpload();
+
+  // Use the tool confirmation hook for centralized confirmation handling
+  const { pendingToolCallConfirmation, isToolPendingConfirmation } =
+    useToolConfirmation(agentMessages);
 
   // Function to handle suggested prompts
   const handleSuggestionSubmit = (suggestion: string) => {
     append({
+      id: `suggestion-${Date.now()}`,
       role: "user",
       content: suggestion,
+      createdAt: new Date(),
     });
     setInput("");
   };
@@ -142,16 +187,10 @@ export default function Chat() {
     agentMessages.length > 0 && scrollToBottom();
   }, [agentMessages, scrollToBottom]);
 
-  const pendingToolCallConfirmation = agentMessages.some((m: Message) =>
-    m.parts?.some(
-      (part) =>
-        part.type === "tool-invocation" &&
-        part.toolInvocation.state === "call" &&
-        toolsRequiringConfirmation.includes(
-          part.toolInvocation.toolName as keyof typeof tools
-        )
-    )
-  );
+  // Check for admin secret verification from tool results
+  useEffect(() => {
+    verifyFromToolResult(agentMessages);
+  }, [agentMessages, verifyFromToolResult]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -307,10 +346,9 @@ export default function Chat() {
                                   )}
                                   <MemoizedMarkdown
                                     id={`${m.id}-${i}`}
-                                    content={part.text.replace(
-                                      /^scheduled message: /,
-                                      ""
-                                    )}
+                                    content={part.text
+                                      .replace(/^scheduled message: /, "")
+                                      .replace(/^SECRET_VERIFIED:[^:]+:/, "")}
                                   />
                                 </Card>
                                 <p
@@ -330,12 +368,35 @@ export default function Chat() {
                             const toolInvocation = part.toolInvocation;
                             const toolCallId = toolInvocation.toolCallId;
                             const needsConfirmation =
-                              toolsRequiringConfirmation.includes(
-                                toolInvocation.toolName as keyof typeof tools
-                              );
+                              isToolPendingConfirmation(toolCallId);
 
                             // Skip rendering the card in debug mode
                             if (showDebug) return null;
+
+                            // Render requestAdminSecret and setAdminSecret results as regular text messages
+                            if (
+                              isAdminSecretTool(toolInvocation.toolName) &&
+                              toolInvocation.state === "result"
+                            ) {
+                              return (
+                                // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
+                                <div key={i}>
+                                  <Card className="p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 rounded-bl-none border-assistant-border">
+                                    <MemoizedMarkdown
+                                      id={`${m.id}-${i}`}
+                                      content={formatToolResult(
+                                        toolInvocation.result
+                                      )}
+                                    />
+                                  </Card>
+                                  <p className="text-xs text-muted-foreground mt-1 text-left">
+                                    {formatTime(
+                                      new Date(m.createdAt as unknown as string)
+                                    )}
+                                  </p>
+                                </div>
+                              );
+                            }
 
                             return (
                               <ToolInvocationCard
@@ -361,76 +422,84 @@ export default function Chat() {
         </div>
 
         {/* Input Area */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleAgentSubmit(e, {
-              data: {
-                annotations: {
-                  hello: "world",
-                },
-              },
-            });
-            setTextareaHeight("auto"); // Reset height after submission
-          }}
-          className="p-3 bg-neutral-50 absolute bottom-0 left-0 right-0 z-10 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
-        >
-          <div className="flex items-center gap-2">
-            <div className="flex-1 relative">
-              <Textarea
-                disabled={pendingToolCallConfirmation}
-                placeholder={
-                  pendingToolCallConfirmation
-                    ? "Please respond to the tool confirmation above..."
-                    : "What knowledge do you seek today?"
-                }
-                className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-base ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900"
-                value={agentInput}
-                onChange={(e) => {
-                  handleAgentInputChange(e);
-                  // Auto-resize the textarea
-                  e.target.style.height = "auto";
-                  e.target.style.height = `${e.target.scrollHeight}px`;
-                  setTextareaHeight(`${e.target.scrollHeight}px`);
-                }}
-                onKeyDown={(e) => {
-                  if (
-                    e.key === "Enter" &&
-                    !e.shiftKey &&
-                    !e.nativeEvent.isComposing
-                  ) {
-                    e.preventDefault();
-                    handleAgentSubmit(e as unknown as React.FormEvent);
-                    setTextareaHeight("auto"); // Reset height on Enter submission
+        <div className="absolute bottom-0 left-0 right-0 z-10 border-t border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900">
+          {/* File Upload Component */}
+          <div className="p-3 border-b border-neutral-200 dark:border-neutral-700">
+            <PdfUpload
+              adminSecret={adminSecret}
+              onUploadStart={handleUploadStart}
+              onFileUploadComplete={handleFileUploadComplete}
+              onUploadError={handleUploadError}
+            />
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleAgentSubmit(e, {});
+              setTextareaHeight("auto"); // Reset height after submission
+            }}
+            className="p-3"
+          >
+            <div className="flex items-center gap-2">
+              <div className="flex-1 relative">
+                <Textarea
+                  disabled={pendingToolCallConfirmation}
+                  placeholder={
+                    pendingToolCallConfirmation
+                      ? "Please respond to the tool confirmation above..."
+                      : "What knowledge do you seek today?"
                   }
-                }}
-                rows={2}
-                style={{ height: textareaHeight }}
-              />
-              <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
-                {isLoading ? (
-                  <button
-                    type="button"
-                    onClick={stop}
-                    className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                    aria-label="Stop generation"
-                  >
-                    <Stop size={16} />
-                  </button>
-                ) : (
-                  <button
-                    type="submit"
-                    className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                    disabled={pendingToolCallConfirmation || !agentInput.trim()}
-                    aria-label="Send message"
-                  >
-                    <PaperPlaneTilt size={16} />
-                  </button>
-                )}
+                  className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-base ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900"
+                  value={agentInput}
+                  onChange={(e) => {
+                    handleAgentInputChange(e);
+                    // Auto-resize the textarea
+                    e.target.style.height = "auto";
+                    e.target.style.height = `${e.target.scrollHeight}px`;
+                    setTextareaHeight(`${e.target.scrollHeight}px`);
+                  }}
+                  onKeyDown={(e) => {
+                    if (
+                      e.key === "Enter" &&
+                      !e.shiftKey &&
+                      !e.nativeEvent.isComposing
+                    ) {
+                      e.preventDefault();
+                      handleAgentSubmit(e as unknown as React.FormEvent);
+                      setTextareaHeight("auto"); // Reset height on Enter submission
+                    }
+                  }}
+                  rows={2}
+                  style={{ height: textareaHeight }}
+                />
+                <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
+                  {isLoading ? (
+                    <button
+                      type="button"
+                      onClick={stop}
+                      className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
+                      aria-label="Stop generation"
+                    >
+                      <Stop size={16} />
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
+                      disabled={
+                        pendingToolCallConfirmation || !agentInput.trim()
+                      }
+                      aria-label="Send message"
+                    >
+                      <PaperPlaneTilt size={16} />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );
