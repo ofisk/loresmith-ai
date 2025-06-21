@@ -5,10 +5,6 @@ import type { ChatRequestOptions } from "ai";
 import type React from "react";
 import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
-import { useAgent } from "agents/react";
-import { useAgentChat } from "agents/ai-react";
-import type { Message } from "@ai-sdk/react";
-import type { ChatRequestOptions } from "ai";
 
 interface AgentContextType {
   agent: unknown;

@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils";
 import { useTooltip } from "@/providers/TooltipProvider";
-import { cn } from "@/lib/utils";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 export type TooltipProps = {
