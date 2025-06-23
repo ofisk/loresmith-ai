@@ -128,7 +128,7 @@ app.post("/pdf/authenticate", async (c) => {
       return c.json({ error: "sessionId and providedKey are required" }, 400);
     }
 
-    const expectedKey = "dev-admin-key-2024"; // In production, this should be a secret
+    const expectedKey = c.env.ADMIN_SECRET; // Use the environment variable from Cloudflare
     
     // Get the SessionFileTracker Durable Object for this session
     const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
