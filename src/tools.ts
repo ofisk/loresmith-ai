@@ -34,6 +34,46 @@ const getLocalTime = tool({
   },
 });
 
+/**
+ * Tool to set admin secret for PDF upload functionality
+ * This validates the provided admin key and stores it in the session
+ */
+const setAdminSecret = tool({
+  description: "Validate and store the admin key for PDF upload functionality",
+  parameters: z.object({ 
+    adminKey: z.string().describe("The admin key provided by the user") 
+  }),
+  execute: async ({ adminKey }) => {
+    try {
+      // Use a default session ID for now
+      const sessionId = "default-session";
+      
+      // Make a request to authenticate the session
+      const response = await fetch(`${process.env.API_BASE_URL || 'http://localhost:8787'}/pdf/authenticate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId,
+          providedKey: adminKey
+        })
+      });
+
+      const result = await response.json() as { success: boolean; authenticated: boolean; error?: string };
+      
+      if (result.success && result.authenticated) {
+        return `✅ Admin key validated successfully! You now have access to PDF upload and parsing features.`;
+      } else {
+        return `❌ Invalid admin key. Please check your key and try again.`;
+      }
+    } catch (error) {
+      console.error("Error validating admin key:", error);
+      return `❌ Error validating admin key: ${error}`;
+    }
+  },
+});
+
 const scheduleTask = tool({
   description: "A tool to schedule a task to be executed at a later time",
   parameters: unstable_scheduleSchema,
@@ -116,6 +156,7 @@ const cancelScheduledTask = tool({
 export const tools = {
   getWeatherInformation,
   getLocalTime,
+  setAdminSecret,
   scheduleTask,
   getScheduledTasks,
   cancelScheduledTask,

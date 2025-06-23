@@ -66,6 +66,11 @@ export class Chat extends AIChatAgent<Env> {
 ${unstable_getSchedulePrompt({ date: new Date() })}
 
 If the user asks to schedule a task, use the schedule tool to schedule the task.
+
+🔐 IMPORTANT: When a user starts a session, prompt them with:
+"Please paste your admin key to enable upload and parsing features."
+
+If they provide an admin key, immediately call the setAdminSecret tool to validate it.
 `,
           messages: processedMessages,
           tools: allTools,
@@ -101,6 +106,9 @@ If the user asks to schedule a task, use the schedule tool to schedule the task.
   }
 }
 
+// Export the SessionFileTracker Durable Object
+export { SessionFileTracker } from "./durable-objects/SessionFileTracker";
+
 /**
  * Worker entry point that routes incoming requests to the appropriate handler
  */
@@ -109,6 +117,209 @@ const app = new Hono<{ Bindings: Env }>();
 app.get("/check-open-ai-key", (c) => {
   const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
   return c.json({ success: hasOpenAIKey });
+});
+
+// PDF Authentication Route
+app.post("/pdf/authenticate", async (c) => {
+  try {
+    const { sessionId, providedKey } = await c.req.json();
+    
+    if (!sessionId || !providedKey) {
+      return c.json({ error: "sessionId and providedKey are required" }, 400);
+    }
+
+    const expectedKey = "dev-admin-key-2024"; // In production, this should be a secret
+    
+    // Get the SessionFileTracker Durable Object for this session
+    const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
+    const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
+    
+    // Send validation request to the Durable Object
+    const authResponse = await sessionTracker.fetch("https://dummy-host/validate-session-auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, providedKey, expectedKey })
+    });
+
+    const authResult = await authResponse.json() as { success: boolean; authenticated: boolean; authenticatedAt?: string; error?: string };
+    
+    if (authResult.success && authResult.authenticated) {
+      return c.json({ 
+        success: true, 
+        authenticated: true,
+        authenticatedAt: authResult.authenticatedAt
+      });
+    } else {
+      return c.json({ 
+        success: false, 
+        authenticated: false,
+        error: "Invalid admin key"
+      }, 401);
+    }
+
+  } catch (error) {
+    console.error("Error authenticating session:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// PDF Upload URL Route
+app.post("/pdf/upload-url", async (c) => {
+  try {
+    const { sessionId, fileName } = await c.req.json();
+    
+    if (!sessionId || !fileName) {
+      return c.json({ error: "sessionId and fileName are required" }, 400);
+    }
+
+    // Check if session is authenticated
+    const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
+    const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
+    
+    const authCheckResponse = await sessionTracker.fetch("https://dummy-host/is-session-authenticated", {
+      method: "GET"
+    });
+    
+    const authCheck = await authCheckResponse.json() as { authenticated: boolean };
+    if (!authCheck.authenticated) {
+      return c.json({ error: "Session not authenticated" }, 401);
+    }
+
+    // Generate unique file key
+    const fileKey = `uploads/${sessionId}/${crypto.randomUUID()}-${fileName}`;
+    
+    // For now, return a direct upload URL (in production, use presigned URLs)
+    const uploadUrl = `https://api.cloudflare.com/client/v4/accounts/storage/buckets/loresmith-pdfs/objects/${fileKey}`;
+
+    // Add file metadata to SessionFileTracker
+    await sessionTracker.fetch("https://dummy-host/add-file", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId,
+        fileKey,
+        fileName,
+        fileSize: 0, // Will be updated after upload
+        metadata: { status: "uploading" }
+      })
+    });
+
+    return c.json({
+      uploadUrl,
+      fileKey,
+      sessionId
+    });
+
+  } catch (error) {
+    console.error("Error generating upload URL:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// PDF Ingest Route
+app.post("/pdf/ingest", async (c) => {
+  try {
+    const { sessionId, fileKey } = await c.req.json();
+    
+    if (!sessionId || !fileKey) {
+      return c.json({ error: "sessionId and fileKey are required" }, 400);
+    }
+
+    // Check if session is authenticated
+    const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
+    const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
+    
+    const authCheckResponse = await sessionTracker.fetch("https://dummy-host/is-session-authenticated", {
+      method: "GET"
+    });
+    
+    const authCheck = await authCheckResponse.json() as { authenticated: boolean };
+    if (!authCheck.authenticated) {
+      return c.json({ error: "Session not authenticated" }, 401);
+    }
+
+    // Update status to parsing
+    await sessionTracker.fetch("https://dummy-host/update-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileKey,
+        status: "parsing"
+      })
+    });
+
+    // Simulate parsing process
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Update status to parsed
+    await sessionTracker.fetch("https://dummy-host/update-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileKey,
+        status: "parsed"
+      })
+    });
+
+    return c.json({
+      success: true,
+      fileKey,
+      status: "parsed"
+    });
+
+  } catch (error) {
+    console.error("Error ingesting PDF:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// Get Files Route
+app.get("/pdf/files", async (c) => {
+  try {
+    const sessionId = c.req.query("sessionId");
+    
+    if (!sessionId) {
+      return c.json({ error: "sessionId query parameter is required" }, 400);
+    }
+
+    const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
+    const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
+    
+    const filesResponse = await sessionTracker.fetch(`https://dummy-host/get-files?sessionId=${sessionId}`, {
+      method: "GET"
+    });
+    
+    const files = await filesResponse.json() as { files: any[] };
+    
+    return c.json(files);
+
+  } catch (error) {
+    console.error("Error getting files:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// PDF Stats Route
+app.get("/pdf/stats", async (c) => {
+  try {
+    // This would require aggregating data from all sessions
+    // For now, return basic stats structure
+    return c.json({
+      totalSessions: 0,
+      totalFiles: 0,
+      filesByStatus: {
+        uploading: 0,
+        uploaded: 0,
+        parsing: 0,
+        parsed: 0,
+        error: 0
+      }
+    });
+
+  } catch (error) {
+    console.error("Error getting stats:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
 });
 
 app.all("*", async (c) => {
