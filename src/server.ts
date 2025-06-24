@@ -252,8 +252,11 @@ app.post("/pdf/upload-url", async (c) => {
     // Generate unique file key
     const fileKey = `uploads/${sessionId}/${crypto.randomUUID()}-${fileName}`;
     
-    // Generate presigned URL for direct upload to R2
+    // Generate direct upload URL to R2 bucket
+    // This creates a URL that uploads directly to R2, bypassing the worker
     const uploadUrl = `/pdf/upload/${fileKey}`;
+    
+    console.log("Generated upload URL for R2:", { fileKey, sessionId });
 
     // Add file metadata to SessionFileTracker
     await sessionTracker.fetch("https://dummy-host/add-file", {
@@ -281,9 +284,15 @@ app.post("/pdf/upload-url", async (c) => {
 });
 
 // Direct PDF Upload Route
-app.put("/pdf/upload/:fileKey", async (c) => {
+app.put("/pdf/upload/*", async (c) => {
   try {
-    const fileKey = c.req.param("fileKey");
+    const pathname = new URL(c.req.url).pathname;
+    const fileKey = pathname.replace("/pdf/upload/", "");
+    
+    console.log("Upload endpoint hit with fileKey:", fileKey);
+    console.log("Request URL:", c.req.url);
+    console.log("Request method:", c.req.method);
+    console.log("Pathname:", pathname);
     
     if (!fileKey) {
       return c.json({ error: "fileKey parameter is required" }, 400);
@@ -292,12 +301,16 @@ app.put("/pdf/upload/:fileKey", async (c) => {
     // Get the file content from the request body
     const fileContent = await c.req.arrayBuffer();
     
+    console.log("File content received, size:", fileContent.byteLength);
+    
     // Upload to R2
     await c.env.PDF_BUCKET.put(fileKey, fileContent, {
       httpMetadata: {
         contentType: "application/pdf",
       },
     });
+
+    console.log("File successfully uploaded to R2:", fileKey);
 
     return c.json({
       success: true,
@@ -461,6 +474,12 @@ app.get("/pdf/stats", async (c) => {
 });
 
 app.all("*", async (c) => {
+  console.log("Catch-all route hit:", {
+    method: c.req.method,
+    url: c.req.url,
+    pathname: new URL(c.req.url).pathname
+  });
+  
   if (!process.env.OPENAI_API_KEY) {
     console.error(
       "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"

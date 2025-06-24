@@ -91,10 +91,7 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
       });
 
       // Step 2: Wait for agent response and extract upload URL
-      // We need to wait for the agent to respond with the upload URL
-      // This is a simplified approach - in production you might want a more robust message listening system
-      
-      // For now, we'll simulate the flow by making the upload request directly
+      // For now, we'll make a direct API call to get the upload URL
       // In a full implementation, you'd parse the agent's response to get the upload URL
       
       const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
@@ -117,6 +114,10 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
       }
 
       const uploadUrlResult = await uploadUrlResponse.json() as { uploadUrl: string; fileKey: string };
+      
+      console.log("Upload URL result:", uploadUrlResult);
+      console.log("API Base URL:", apiBaseUrl);
+      console.log("Full upload URL:", `${apiBaseUrl}${uploadUrlResult.uploadUrl}`);
       
       // Step 3: Upload file directly to R2 using the presigned URL
       const uploadResponse = await fetch(`${apiBaseUrl}${uploadUrlResult.uploadUrl}`, {
