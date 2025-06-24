@@ -197,6 +197,8 @@ export class SessionFileTracker extends DurableObject {
       );
     }
 
+    // Use the expectedKey passed from the server (which comes from environment variable)
+    // Fall back to hardcoded key only for development/testing
     const keyToCheck = expectedKey || this.EXPECTED_ADMIN_KEY;
 
     if (providedKey === keyToCheck) {
@@ -214,6 +216,7 @@ export class SessionFileTracker extends DurableObject {
         }
       );
     }
+
     return new Response(
       JSON.stringify({
         success: false,
