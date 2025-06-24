@@ -4,6 +4,7 @@ import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { cn } from "@/lib/utils";
 import type { Message } from "@ai-sdk/react";
+import { AUTH_CODES, type ToolResult } from "@/shared";
 
 interface PdfUploadAgentProps {
   sessionId: string;
@@ -32,36 +33,59 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
     }
   };
 
-  // Listen for agent responses to determine authentication status
+  // Listen for tool invocations to determine authentication status
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
-    if (lastMessage && lastMessage.role === "assistant") {
-      const content = lastMessage.content;
-      if (typeof content === "string") {
-        // Check for successful authentication messages
-        if (content.includes("✅ Admin key validated successfully") || 
-            content.includes("✅ Session is authenticated") ||
-            content.includes("successfully validated") ||
-            content.includes("access to PDF upload")) {
-          setIsAuthenticated(true);
-          setAuthError(null);
-          console.log("Authentication detected as successful");
-        } 
-        // Check for failed authentication messages
-        else if (content.includes("❌ Invalid admin key") ||
-                 content.includes("❌ Session is not authenticated") ||
-                 content.includes("Invalid admin key")) {
-          setIsAuthenticated(false);
-          setAuthError("Authentication failed. Please check your admin key.");
-          console.log("Authentication detected as failed");
+    if (lastMessage && lastMessage.role === "assistant" && lastMessage.parts) {
+      // Look for tool invocation parts
+      lastMessage.parts.forEach((part) => {
+        if (part.type === "tool-invocation") {
+          const { toolInvocation } = part;
+          
+          // Check for setAdminSecret tool completion
+          if (toolInvocation.toolName === "setAdminSecret" && toolInvocation.state === "result") {
+            const result = toolInvocation.result as ToolResult;
+            
+            // Check if the result is a structured response
+            if (result && typeof result === "object" && "code" in result) {
+              if (result.code === AUTH_CODES.SUCCESS) {
+                setIsAuthenticated(true);
+                setAuthError(null);
+                console.log("Authentication successful via setAdminSecret tool", result);
+              } else if (result.code === AUTH_CODES.INVALID_KEY) {
+                setIsAuthenticated(false);
+                setAuthError(result.message || "Authentication failed. Please check your admin key.");
+                console.log("Authentication failed via setAdminSecret tool", result);
+              } else if (result.code === AUTH_CODES.ERROR) {
+                setIsAuthenticated(false);
+                setAuthError(result.message || "Authentication error occurred.");
+                console.log("Authentication error via setAdminSecret tool", result);
+              }
+            }
+          }
+          
+          // Check for checkPdfAuthStatus tool completion
+          if (toolInvocation.toolName === "checkPdfAuthStatus" && toolInvocation.state === "result") {
+            const result = toolInvocation.result as ToolResult;
+            
+            if (result && typeof result === "object" && "code" in result) {
+              if (result.code === AUTH_CODES.SUCCESS) {
+                setIsAuthenticated(true);
+                setAuthError(null);
+                console.log("Authentication status confirmed via checkPdfAuthStatus tool", result);
+              } else if (result.code === AUTH_CODES.SESSION_NOT_AUTHENTICATED) {
+                setIsAuthenticated(false);
+                setAuthError(result.message || "Session not authenticated");
+                console.log("Authentication status denied via checkPdfAuthStatus tool", result);
+              } else if (result.code === AUTH_CODES.ERROR) {
+                setIsAuthenticated(false);
+                setAuthError(result.message || "Error checking authentication status");
+                console.log("Authentication check error via checkPdfAuthStatus tool", result);
+              }
+            }
+          }
         }
-        // Check for general authentication status responses
-        else if (content.includes("Session is authenticated for PDF operations")) {
-          setIsAuthenticated(true);
-          setAuthError(null);
-          console.log("Authentication status confirmed");
-        }
-      }
+      });
     }
   }, [messages]);
 

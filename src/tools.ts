@@ -8,6 +8,7 @@ import { z } from "zod";
 import type { Chat } from "./server";
 import { getCurrentAgent } from "agents";
 import { unstable_scheduleSchema } from "agents/schedule";
+import { AUTH_CODES, type ToolResult } from "./shared";
 
 /**
  * Weather information tool that requires human confirmation
@@ -43,7 +44,7 @@ const setAdminSecret = tool({
   parameters: z.object({ 
     adminKey: z.string().describe("The admin key provided by the user") 
   }),
-  execute: async ({ adminKey }) => {
+  execute: async ({ adminKey }): Promise<ToolResult> => {
     try {
       // Get the current agent to access session ID
       const { agent } = getCurrentAgent<Chat>();
@@ -65,13 +66,25 @@ const setAdminSecret = tool({
       const result = await response.json() as { success: boolean; authenticated: boolean; error?: string };
       
       if (result.success && result.authenticated) {
-        return `✅ Admin key validated successfully! You now have access to PDF upload and parsing features. Please go ahead and upload your PDF file.`;
+        return {
+          code: AUTH_CODES.SUCCESS,
+          message: "Admin key validated successfully! You now have access to PDF upload and parsing features.",
+          data: { authenticated: true }
+        };
       } else {
-        return `❌ Invalid admin key. Please check your key and try again.`;
+        return {
+          code: AUTH_CODES.INVALID_KEY,
+          message: "Invalid admin key. Please check your key and try again.",
+          data: { authenticated: false }
+        };
       }
     } catch (error) {
       console.error("Error validating admin key:", error);
-      return `❌ Error validating admin key: ${error}`;
+      return {
+        code: AUTH_CODES.ERROR,
+        message: `Error validating admin key: ${error}`,
+        data: { authenticated: false }
+      };
     }
   },
 });
@@ -83,17 +96,46 @@ const setAdminSecret = tool({
 const checkPdfAuthStatus = tool({
   description: "Check if the current session is authenticated for PDF upload operations",
   parameters: z.object({}),
-  execute: async () => {
+  execute: async (): Promise<ToolResult> => {
     try {
       const { agent } = getCurrentAgent<Chat>();
       const sessionId = agent?.name || "default-session";
       
-      // For now, return a simple response
-      // In a real implementation, you'd check the Durable Object
-      return `✅ Session is authenticated for PDF operations. You can upload PDF files.`;
+      // Make HTTP request to check authentication status
+      const apiBaseUrl = process.env.VITE_API_URL || "http://localhost:8787";
+      const response = await fetch(`${apiBaseUrl}/pdf/authenticate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sessionId,
+          providedKey: "check-status-only" // Special value to indicate status check
+        })
+      });
+
+      const result = await response.json() as { success: boolean; authenticated: boolean; error?: string };
+      
+      if (result.success && result.authenticated) {
+        return {
+          code: AUTH_CODES.SUCCESS,
+          message: "Session is authenticated for PDF operations. You can upload PDF files.",
+          data: { authenticated: true }
+        };
+      } else {
+        return {
+          code: AUTH_CODES.SESSION_NOT_AUTHENTICATED,
+          message: "Session is not authenticated for PDF operations. Please provide your admin key to enable PDF upload functionality.",
+          data: { authenticated: false }
+        };
+      }
     } catch (error) {
       console.error("Error checking PDF auth status:", error);
-      return `❌ Error checking authentication status: ${error}`;
+      return {
+        code: AUTH_CODES.ERROR,
+        message: `Error checking authentication status: ${error}`,
+        data: { authenticated: false }
+      };
     }
   },
 });

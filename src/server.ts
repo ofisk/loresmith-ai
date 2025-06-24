@@ -146,15 +146,34 @@ app.post("/pdf/authenticate", async (c) => {
   try {
     const { sessionId, providedKey } = await c.req.json();
     
-    if (!sessionId || !providedKey) {
-      return c.json({ error: "sessionId and providedKey are required" }, 400);
+    if (!sessionId) {
+      return c.json({ error: "sessionId is required" }, 400);
     }
 
-    const expectedKey = c.env.ADMIN_SECRET; // Use the environment variable from Cloudflare
-    
     // Get the SessionFileTracker Durable Object for this session
     const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
     const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
+    
+    // Check if this is a status check request
+    if (providedKey === "check-status-only") {
+      const authCheckResponse = await sessionTracker.fetch("https://dummy-host/is-session-authenticated", {
+        method: "GET"
+      });
+      
+      const authCheck = await authCheckResponse.json() as { authenticated: boolean };
+      
+      return c.json({ 
+        success: true, 
+        authenticated: authCheck.authenticated
+      });
+    }
+    
+    // Regular authentication flow
+    if (!providedKey) {
+      return c.json({ error: "providedKey is required" }, 400);
+    }
+
+    const expectedKey = c.env.ADMIN_SECRET; // Use the environment variable from Cloudflare
     
     // Send validation request to the Durable Object
     const authResponse = await sessionTracker.fetch("https://dummy-host/validate-session-auth", {
