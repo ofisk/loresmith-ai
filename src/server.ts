@@ -299,6 +299,49 @@ app.get("/pdf/files", async (c) => {
   }
 });
 
+// PDF Update Metadata Route
+app.post("/pdf/update-metadata", async (c) => {
+  try {
+    const { sessionId, fileKey, metadata } = await c.req.json();
+    
+    if (!sessionId || !fileKey || !metadata) {
+      return c.json({ error: "sessionId, fileKey, and metadata are required" }, 400);
+    }
+
+    // Check if session is authenticated
+    const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
+    const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
+    
+    const authCheckResponse = await sessionTracker.fetch("https://dummy-host/is-session-authenticated", {
+      method: "GET"
+    });
+    
+    const authCheck = await authCheckResponse.json() as { authenticated: boolean };
+    if (!authCheck.authenticated) {
+      return c.json({ error: "Session not authenticated" }, 401);
+    }
+
+    // Update file metadata in SessionFileTracker
+    await sessionTracker.fetch("https://dummy-host/update-metadata", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileKey,
+        metadata
+      })
+    });
+
+    return c.json({
+      success: true,
+      fileKey
+    });
+
+  } catch (error) {
+    console.error("Error updating metadata:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
 // PDF Stats Route
 app.get("/pdf/stats", async (c) => {
   try {

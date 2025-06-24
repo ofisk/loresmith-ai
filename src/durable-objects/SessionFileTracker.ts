@@ -38,6 +38,17 @@ interface ValidateAuthRequest {
   expectedKey?: string;
 }
 
+interface UpdateMetadataRequest {
+  fileKey: string;
+  metadata: {
+    description?: string;
+    tags?: string[];
+    originalName?: string;
+    fileSize?: number;
+    uploadedAt?: string;
+  };
+}
+
 export class SessionFileTracker extends DurableObject {
   private sessionData: SessionData = {
     isAuthenticated: false,
@@ -68,6 +79,8 @@ export class SessionFileTracker extends DurableObject {
           return await this.isSessionAuthenticated(request);
         case "/get-session-auth-info":
           return await this.getSessionAuthInfo(request);
+        case "/update-metadata":
+          return await this.updateMetadata(request);
         default:
           return new Response("Not found", { status: 404 });
       }
@@ -217,6 +230,34 @@ export class SessionFileTracker extends DurableObject {
       authenticatedAt: this.sessionData.authenticatedAt,
       fileCount: this.sessionData.files.size,
     }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  private async updateMetadata(request: Request): Promise<Response> {
+    const { fileKey, metadata } = await request.json() as UpdateMetadataRequest;
+
+    if (!this.sessionData.isAuthenticated) {
+      return new Response("Session not authenticated", { status: 401 });
+    }
+
+    const file = this.sessionData.files.get(fileKey);
+    if (!file) {
+      return new Response("File not found", { status: 404 });
+    }
+
+    // Update file metadata
+    file.metadata = {
+      ...file.metadata,
+      ...metadata,
+    };
+
+    // Update file size if provided
+    if (metadata.fileSize) {
+      file.fileSize = metadata.fileSize;
+    }
+
+    return new Response(JSON.stringify({ success: true, file }), {
       headers: { "Content-Type": "application/json" },
     });
   }
