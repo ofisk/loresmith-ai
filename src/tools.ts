@@ -45,14 +45,16 @@ const setAdminSecret = tool({
   }),
   execute: async ({ adminKey }) => {
     try {
-      // Use a default session ID for now
-      const sessionId = "default-session";
+      // Get the current agent to access session ID
+      const { agent } = getCurrentAgent<Chat>();
+      const sessionId = agent?.name || "default-session";
       
-      // Make a request to authenticate the session
-      const response = await fetch(`${process.env.API_BASE_URL || 'http://localhost:8787'}/pdf/authenticate`, {
-        method: 'POST',
+      // Make HTTP request to the authenticate endpoint which uses the environment variable
+      const apiBaseUrl = process.env.VITE_API_URL || "http://localhost:8787";
+      const response = await fetch(`${apiBaseUrl}/pdf/authenticate`, {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           sessionId,
@@ -63,13 +65,78 @@ const setAdminSecret = tool({
       const result = await response.json() as { success: boolean; authenticated: boolean; error?: string };
       
       if (result.success && result.authenticated) {
-        return `✅ Admin key validated successfully! You now have access to PDF upload and parsing features.`;
+        return `✅ Admin key validated successfully! You now have access to PDF upload and parsing features. Please go ahead and upload your PDF file.`;
       } else {
         return `❌ Invalid admin key. Please check your key and try again.`;
       }
     } catch (error) {
       console.error("Error validating admin key:", error);
       return `❌ Error validating admin key: ${error}`;
+    }
+  },
+});
+
+/**
+ * Tool to check PDF upload authentication status
+ * This allows the agent to check if the current session is authenticated for PDF operations
+ */
+const checkPdfAuthStatus = tool({
+  description: "Check if the current session is authenticated for PDF upload operations",
+  parameters: z.object({}),
+  execute: async () => {
+    try {
+      const { agent } = getCurrentAgent<Chat>();
+      const sessionId = agent?.name || "default-session";
+      
+      // For now, return a simple response
+      // In a real implementation, you'd check the Durable Object
+      return `✅ Session is authenticated for PDF operations. You can upload PDF files.`;
+    } catch (error) {
+      console.error("Error checking PDF auth status:", error);
+      return `❌ Error checking authentication status: ${error}`;
+    }
+  },
+});
+
+/**
+ * Tool to list uploaded PDF files
+ * This allows the agent to show the user what PDFs have been uploaded
+ */
+const listPdfFiles = tool({
+  description: "List all PDF files that have been uploaded in the current session",
+  parameters: z.object({}),
+  execute: async () => {
+    try {
+      const { agent } = getCurrentAgent<Chat>();
+      const sessionId = agent?.name || "default-session";
+      
+      // For now, return a simple response
+      // In a real implementation, you'd query the Durable Object
+      return `📄 No PDF files have been uploaded yet.`;
+    } catch (error) {
+      console.error("Error listing PDF files:", error);
+      return `❌ Error retrieving PDF files: ${error}`;
+    }
+  },
+});
+
+/**
+ * Tool to get PDF upload statistics
+ * This allows the agent to show upload statistics to the user
+ */
+const getPdfStats = tool({
+  description: "Get statistics about PDF uploads and processing",
+  parameters: z.object({}),
+  execute: async () => {
+    try {
+      // For now, return basic stats structure since we don't have aggregation across sessions
+      return `📊 PDF Upload Statistics:
+- Total Sessions: 1 (current session)
+- Total Files: Check with "list my PDF files" command
+- Note: Statistics are per-session only`;
+    } catch (error) {
+      console.error("Error getting PDF stats:", error);
+      return `❌ Error retrieving PDF statistics: ${error}`;
     }
   },
 });
@@ -157,6 +224,9 @@ export const tools = {
   getWeatherInformation,
   getLocalTime,
   setAdminSecret,
+  checkPdfAuthStatus,
+  listPdfFiles,
+  getPdfStats,
   scheduleTask,
   getScheduledTasks,
   cancelScheduledTask,

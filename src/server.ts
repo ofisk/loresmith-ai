@@ -114,6 +114,28 @@ export { SessionFileTracker } from "./durable-objects/SessionFileTracker";
  */
 const app = new Hono<{ Bindings: Env }>();
 
+// CORS middleware for PDF routes
+app.use("/pdf/*", async (c, next) => {
+  // Handle CORS preflight requests
+  if (c.req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Max-Age": "86400",
+      },
+    });
+  }
+  
+  // Add CORS headers to all PDF route responses
+  await next();
+  c.header("Access-Control-Allow-Origin", "*");
+  c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  c.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+});
+
 app.get("/check-open-ai-key", (c) => {
   const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
   return c.json({ success: hasOpenAIKey });

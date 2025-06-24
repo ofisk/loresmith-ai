@@ -12,7 +12,7 @@ import { Toggle } from "@/components/toggle/Toggle";
 import { Textarea } from "@/components/textarea/Textarea";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
-import { PdfUploadSection } from "@/components/pdf-upload/PdfUploadSection";
+import { PdfUploadAgent } from "@/components/pdf-upload/PdfUploadAgent";
 
 // Icon imports
 import {
@@ -363,7 +363,11 @@ export default function Chat() {
 
         {/* PDF Upload Section */}
         <div className="px-4 py-2 border-t border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900">
-          <PdfUploadSection sessionId={sessionId} />
+          <PdfUploadAgent 
+            sessionId={sessionId} 
+            messages={agentMessages}
+            append={append}
+          />
         </div>
 
         {/* Input Area */}
