@@ -23,5 +23,5 @@ export interface AuthResponse {
 export interface ToolResult {
   code: number;
   message: string;
-  data?: any;
+  data?: unknown;
 }

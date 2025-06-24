@@ -226,16 +226,15 @@ app.post("/pdf/authenticate", async (c) => {
         authenticated: true,
         authenticatedAt: authResult.authenticatedAt,
       });
-    } else {
-      return c.json(
-        {
-          success: false,
-          authenticated: false,
-          error: "Invalid admin key",
-        },
-        401
-      );
     }
+    return c.json(
+      {
+        success: false,
+        authenticated: false,
+        error: "Invalid admin key",
+      },
+      401
+    );
   } catch (error) {
     console.error("Error authenticating session:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -415,7 +414,7 @@ app.get("/pdf/files", async (c) => {
       }
     );
 
-    const files = (await filesResponse.json()) as { files: any[] };
+    const files = (await filesResponse.json()) as { files: unknown[] };
 
     return c.json(files);
   } catch (error) {

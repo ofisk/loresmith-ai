@@ -72,25 +72,36 @@ export const PdfUpload = ({
       </div>
 
       {/* File Upload Area */}
-      <div
+      <button
+        type="button"
         className={cn(
-          "border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer",
-          {
-            "border-ob-border hover:border-ob-border-active": !selectedFile,
-            "border-ob-primary": selectedFile,
-            "border-ob-destructive": !isValid,
-          }
+          "border-2 border-dashed border-ob-base-200 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer transition hover:border-ob-accent-500 focus:border-ob-accent-500 outline-none",
+          loading && "opacity-50 pointer-events-none",
+          className
         )}
+        aria-label="Upload PDF file"
         onClick={() => fileInputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            fileInputRef.current?.click();
+          }
+        }}
+        onKeyUp={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            fileInputRef.current?.click();
+          }
+        }}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
+        tabIndex={0}
       >
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf"
-          onChange={handleFileSelect}
+          accept="application/pdf"
           className="hidden"
+          id="pdf-upload-input"
+          onChange={handleFileSelect}
         />
 
         {selectedFile ? (
@@ -126,7 +137,7 @@ export const PdfUpload = ({
             <div className="text-ob-base-200 text-sm">PDF files only</div>
           </div>
         )}
-      </div>
+      </button>
 
       {!isValid && (
         <div className="text-ob-destructive text-sm">
@@ -136,27 +147,35 @@ export const PdfUpload = ({
 
       {/* Description Input */}
       <div className="space-y-2">
-        <label className="text-ob-base-300 text-sm font-medium">
+        <label
+          htmlFor="pdf-description"
+          className="text-ob-base-300 text-sm font-medium"
+        >
           Description (optional)
         </label>
         <Input
+          id="pdf-description"
           placeholder="Enter a description for this PDF..."
           value={description}
           onValueChange={(value) => setDescription(value)}
-          size="base"
+          disabled={loading}
         />
       </div>
 
       {/* Tags Input */}
       <div className="space-y-2">
-        <label className="text-ob-base-300 text-sm font-medium">
+        <label
+          htmlFor="pdf-tags"
+          className="text-ob-base-300 text-sm font-medium"
+        >
           Tags (optional)
         </label>
         <Input
+          id="pdf-tags"
           placeholder="Enter tags separated by commas..."
           value={tags}
           onValueChange={(value) => setTags(value)}
-          size="base"
+          disabled={loading}
         />
         <div className="text-ob-base-200 text-xs">
           Example: research, important, draft

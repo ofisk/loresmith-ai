@@ -77,13 +77,12 @@ const setAdminSecret = tool({
             "Admin key validated successfully! You now have access to PDF upload and parsing features.",
           data: { authenticated: true },
         };
-      } else {
-        return {
-          code: AUTH_CODES.INVALID_KEY,
-          message: "Invalid admin key. Please check your key and try again.",
-          data: { authenticated: false },
-        };
       }
+      return {
+        code: AUTH_CODES.INVALID_KEY,
+        message: "Invalid admin key. Please check your key and try again.",
+        data: { authenticated: false },
+      };
     } catch (error) {
       console.error("Error validating admin key:", error);
       return {
@@ -149,14 +148,13 @@ const checkPdfAuthStatus = tool({
             "Session is authenticated for PDF operations. You can upload PDF files.",
           data: { authenticated: true },
         };
-      } else {
-        return {
-          code: AUTH_CODES.SESSION_NOT_AUTHENTICATED,
-          message:
-            "Session is not authenticated for PDF operations. Please provide your admin key to enable PDF upload functionality.",
-          data: { authenticated: false },
-        };
       }
+      return {
+        code: AUTH_CODES.SESSION_NOT_AUTHENTICATED,
+        message:
+          "Session is not authenticated for PDF operations. Please provide your admin key to enable PDF upload functionality.",
+        data: { authenticated: false },
+      };
     } catch (error) {
       console.error("Error checking PDF auth status:", error);
       return {
@@ -193,9 +191,6 @@ const uploadPdfFile = tool({
     fileContent,
   }): Promise<ToolResult> => {
     try {
-      const { agent } = getCurrentAgent<Chat>();
-      const sessionId = agent?.name || "default-session";
-
       // For now, return a success message indicating the file was processed
       // In a full implementation, this would directly access the Durable Object
       // and handle the file upload to R2 storage
@@ -258,7 +253,7 @@ const listPdfFiles = tool({
         };
       }
 
-      const result = (await response.json()) as { files: any[] };
+      const result = (await response.json()) as { files: unknown[] };
 
       if (!result.files || result.files.length === 0) {
         return {
@@ -270,10 +265,18 @@ const listPdfFiles = tool({
       }
 
       const fileList = result.files
-        .map(
-          (file: any) =>
-            `- ${file.fileName} (${file.status})${file.metadata?.description ? ` - ${file.metadata.description}` : ""}`
-        )
+        .map((file: unknown) => {
+          if (
+            typeof file === "object" &&
+            file !== null &&
+            "fileName" in file &&
+            "status" in file
+          ) {
+            // @ts-expect-error: file is unknown but we check properties
+            return `- ${file.fileName} (${file.status})${file.metadata?.description ? ` - ${file.metadata.description}` : ""}`;
+          }
+          return "- Unknown file format";
+        })
         .join("\n");
 
       return {

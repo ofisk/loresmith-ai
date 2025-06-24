@@ -1,15 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/button/Button";
 import { Input } from "@/components/input/Input";
 import { Card } from "@/components/card/Card";
 import { PdfUpload } from "./PdfUpload";
 import { cn } from "@/lib/utils";
+import type { Message, CreateMessage } from "@ai-sdk/react";
 
 interface PdfUploadAgentProps {
   sessionId: string;
   className?: string;
-  messages: { role: string; content: string }[];
-  append: (message: { role: string; content: string }) => Promise<void>;
+  messages: Message[];
+  append: (message: CreateMessage) => Promise<string | null | undefined>;
 }
 
 export const PdfUploadAgent = ({
@@ -28,7 +29,7 @@ export const PdfUploadAgent = ({
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   // Check authentication status by making direct API call
-  const checkAuthStatus = async () => {
+  const checkAuthStatus = useCallback(async () => {
     try {
       setCheckingAuth(true);
       setAuthError(null);
@@ -67,11 +68,10 @@ export const PdfUploadAgent = ({
     } finally {
       setCheckingAuth(false);
     }
-  };
+  }, [sessionId]);
 
   // Check auth status on mount
   useEffect(() => {
-    // Automatically check authentication status when component mounts
     checkAuthStatus();
   }, [checkAuthStatus]);
 

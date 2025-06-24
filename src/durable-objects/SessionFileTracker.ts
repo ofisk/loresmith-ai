@@ -1,12 +1,12 @@
 import { DurableObject } from "cloudflare:workers";
 
-interface FileMetadata {
+export interface FileMetadata {
   fileKey: string;
   fileName: string;
   fileSize: number;
   status: "uploading" | "uploaded" | "parsing" | "parsed" | "error";
   uploadedAt: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 interface SessionData {
@@ -20,7 +20,7 @@ interface AddFileRequest {
   fileKey: string;
   fileName: string;
   fileSize: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 interface UpdateStatusRequest {
@@ -213,18 +213,17 @@ export class SessionFileTracker extends DurableObject {
           headers: { "Content-Type": "application/json" },
         }
       );
-    } else {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          authenticated: false,
-          error: "Invalid admin key",
-        }),
-        {
-          headers: { "Content-Type": "application/json" },
-        }
-      );
     }
+    return new Response(
+      JSON.stringify({
+        success: false,
+        authenticated: false,
+        error: "Invalid admin key",
+      }),
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 
   private async isSessionAuthenticated(request: Request): Promise<Response> {
