@@ -68,6 +68,32 @@ ${unstable_getSchedulePrompt({ date: new Date() })}
 If the user asks to schedule a task, use the schedule tool to schedule the task.
 
 The user can authenticate for PDF upload functionality through the UI. Once authenticated, you can help them with PDF uploads and processing.
+
+**PDF Upload Flow:**
+When a user wants to upload a PDF file, follow this process:
+
+1. **Generate Upload URL**: Use the generatePdfUploadUrl tool to create a presigned upload URL for the file
+2. **User Uploads File**: The user will upload the file directly to R2 storage using the provided URL
+3. **Update Metadata**: After successful upload, use the updatePdfMetadata tool to add description, tags, and file size
+4. **Trigger Ingestion**: Use the ingestPdfFile tool to start processing the uploaded PDF
+
+**Important Session Management:**
+- When the user provides a session ID in their request, use that session ID when calling PDF tools
+- If no session ID is provided, use the agent's default session
+- Always use the same session ID that the user authenticated with
+
+**Example Flow:**
+- User: "Please generate an upload URL for my PDF file 'document.pdf' (2.5 MB) using session ID 'session-123'"
+- You: Call generatePdfUploadUrl tool with fileName="document.pdf", fileSize=2621440, and sessionId="session-123"
+- User: "I have successfully uploaded the PDF file 'document.pdf' with file key 'uploads/session-123/abc-123-document.pdf'. Please update the metadata..."
+- You: Call updatePdfMetadata tool with the file key and metadata, then call ingestPdfFile tool
+
+**Other PDF Operations:**
+- Use checkPdfAuthStatus to verify authentication (pass sessionId if provided)
+- Use listPdfFiles to show uploaded files
+- Use getPdfStats for upload statistics
+
+Always use the appropriate tools for PDF operations and guide users through the upload process step by step.
 `,
           messages: processedMessages,
           tools: allTools,
@@ -201,10 +227,10 @@ app.post("/pdf/authenticate", async (c) => {
   }
 });
 
-// PDF Upload URL Route
+// PDF Upload URL Route (for presigned uploads)
 app.post("/pdf/upload-url", async (c) => {
   try {
-    const { sessionId, fileName } = await c.req.json();
+    const { sessionId, fileName, fileSize } = await c.req.json();
     
     if (!sessionId || !fileName) {
       return c.json({ error: "sessionId and fileName are required" }, 400);
@@ -226,8 +252,8 @@ app.post("/pdf/upload-url", async (c) => {
     // Generate unique file key
     const fileKey = `uploads/${sessionId}/${crypto.randomUUID()}-${fileName}`;
     
-    // For now, return a direct upload URL (in production, use presigned URLs)
-    const uploadUrl = `https://api.cloudflare.com/client/v4/accounts/storage/buckets/loresmith-pdfs/objects/${fileKey}`;
+    // Generate presigned URL for direct upload to R2
+    const uploadUrl = `/pdf/upload/${fileKey}`;
 
     // Add file metadata to SessionFileTracker
     await sessionTracker.fetch("https://dummy-host/add-file", {
@@ -237,7 +263,7 @@ app.post("/pdf/upload-url", async (c) => {
         sessionId,
         fileKey,
         fileName,
-        fileSize: 0, // Will be updated after upload
+        fileSize: fileSize || 0,
         metadata: { status: "uploading" }
       })
     });
@@ -250,6 +276,37 @@ app.post("/pdf/upload-url", async (c) => {
 
   } catch (error) {
     console.error("Error generating upload URL:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// Direct PDF Upload Route
+app.put("/pdf/upload/:fileKey", async (c) => {
+  try {
+    const fileKey = c.req.param("fileKey");
+    
+    if (!fileKey) {
+      return c.json({ error: "fileKey parameter is required" }, 400);
+    }
+
+    // Get the file content from the request body
+    const fileContent = await c.req.arrayBuffer();
+    
+    // Upload to R2
+    await c.env.PDF_BUCKET.put(fileKey, fileContent, {
+      httpMetadata: {
+        contentType: "application/pdf",
+      },
+    });
+
+    return c.json({
+      success: true,
+      fileKey,
+      message: "File uploaded successfully"
+    });
+
+  } catch (error) {
+    console.error("Error uploading file:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 });

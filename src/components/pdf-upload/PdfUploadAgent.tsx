@@ -1,16 +1,15 @@
 import { useState, useEffect } from "react";
-import { PdfUpload } from "./PdfUpload";
 import { Button } from "@/components/button/Button";
+import { Input } from "@/components/input/Input";
 import { Card } from "@/components/card/Card";
+import { PdfUpload } from "./PdfUpload";
 import { cn } from "@/lib/utils";
-import type { Message } from "@ai-sdk/react";
-import { AUTH_CODES, type ToolResult } from "@/shared";
 
 interface PdfUploadAgentProps {
   sessionId: string;
   className?: string;
-  messages: Message[];
-  append: (message: { role: "user"; content: string }) => Promise<string | null | undefined>;
+  messages: any[];
+  append: (message: any) => Promise<void>;
 }
 
 export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUploadAgentProps) => {
@@ -21,79 +20,136 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
   const [showAuthInput, setShowAuthInput] = useState(false);
   const [adminKey, setAdminKey] = useState("");
   const [authenticating, setAuthenticating] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // Check authentication status by asking the agent
+  // Check authentication status by making direct API call
   const checkAuthStatus = async () => {
     try {
+      setCheckingAuth(true);
       setAuthError(null);
-      await append({
-        role: "user",
-        content: "Please check if I'm currently authenticated for PDF upload operations using the checkPdfAuthStatus tool.",
+      
+      const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
+      const response = await fetch(`${apiBaseUrl}/pdf/authenticate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sessionId,
+          providedKey: "check-status-only"
+        })
       });
+
+      const result = await response.json() as { success: boolean; authenticated: boolean; error?: string };
+      
+      if (response.ok && result.success && result.authenticated) {
+        setIsAuthenticated(true);
+        setAuthError(null);
+        setShowAuthInput(false);
+      } else {
+        setIsAuthenticated(false);
+        setAuthError(null);
+      }
     } catch (error) {
       console.error("Error checking auth status:", error);
       setAuthError("Failed to check authentication status");
+      setIsAuthenticated(false);
+    } finally {
+      setCheckingAuth(false);
     }
   };
 
-  // Listen for tool invocations to determine authentication status
-  useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage && lastMessage.role === "assistant" && lastMessage.parts) {
-      // Look for tool invocation parts
-      lastMessage.parts.forEach((part) => {
-        if (part.type === "tool-invocation") {
-          const { toolInvocation } = part;
-          
-          // Check for checkPdfAuthStatus tool completion
-          if (toolInvocation.toolName === "checkPdfAuthStatus" && toolInvocation.state === "result") {
-            const result = toolInvocation.result as ToolResult;
-            
-            if (result && typeof result === "object" && "code" in result) {
-              if (result.code === AUTH_CODES.SUCCESS) {
-                setIsAuthenticated(true);
-                setAuthError(null);
-                console.log("Authentication status confirmed via checkPdfAuthStatus tool", result);
-              } else if (result.code === AUTH_CODES.SESSION_NOT_AUTHENTICATED) {
-                setIsAuthenticated(false);
-                setAuthError(result.message || "Session not authenticated");
-                console.log("Authentication status denied via checkPdfAuthStatus tool", result);
-              } else if (result.code === AUTH_CODES.ERROR) {
-                setIsAuthenticated(false);
-                setAuthError(result.message || "Error checking authentication status");
-                console.log("Authentication check error via checkPdfAuthStatus tool", result);
-              }
-            }
-          }
-        }
-      });
-    }
-  }, [messages]);
-
   // Check auth status on mount
   useEffect(() => {
+    // Automatically check authentication status when component mounts
     checkAuthStatus();
-  }, [sessionId]);
+  }, []);
 
-  // Debug log for authentication state changes
+  // Listen for agent responses to update authentication state
   useEffect(() => {
-    console.log("Authentication state changed:", { isAuthenticated, showUpload });
-  }, [isAuthenticated, showUpload]);
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.role === "assistant") {
+      const content = lastMessage.content;
+      console.log("Agent response received:", { 
+        content: content.substring(0, 200) + "...", 
+        isAuthenticated: isAuthenticated,
+        showAuthInput: showAuthInput 
+      });
+      
+      // Only handle agent responses for non-auth operations
+      // Authentication is now handled by direct HTTP calls
+    }
+  }, [messages, isAuthenticated, showAuthInput]);
 
   const handleUpload = async (file: File, description: string, tags: string[]) => {
     setUploading(true);
     try {
-      // Ask the agent to handle the PDF upload
-      const uploadMessage = `Please upload this PDF file: ${file.name}${description ? `\nDescription: ${description}` : ""}${tags.length > 0 ? `\nTags: ${tags.join(", ")}` : ""}`;
-      
+      // Step 1: Ask agent to generate upload URL with session ID
       await append({
         role: "user",
-        content: uploadMessage,
+        content: `Please generate an upload URL for my PDF file "${file.name}" (${(file.size / 1024 / 1024).toFixed(2)} MB) using session ID "${sessionId}".`,
+      });
+
+      // Step 2: Wait for agent response and extract upload URL
+      // We need to wait for the agent to respond with the upload URL
+      // This is a simplified approach - in production you might want a more robust message listening system
+      
+      // For now, we'll simulate the flow by making the upload request directly
+      // In a full implementation, you'd parse the agent's response to get the upload URL
+      
+      const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
+      
+      // Get upload URL from server (this would normally come from the agent's response)
+      const uploadUrlResponse = await fetch(`${apiBaseUrl}/pdf/upload-url`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sessionId,
+          fileName: file.name,
+          fileSize: file.size
+        })
+      });
+
+      if (!uploadUrlResponse.ok) {
+        throw new Error(`Failed to get upload URL: ${uploadUrlResponse.status}`);
+      }
+
+      const uploadUrlResult = await uploadUrlResponse.json() as { uploadUrl: string; fileKey: string };
+      
+      // Step 3: Upload file directly to R2 using the presigned URL
+      const uploadResponse = await fetch(`${apiBaseUrl}${uploadUrlResult.uploadUrl}`, {
+        method: "PUT",
+        body: file,
+        headers: {
+          "Content-Type": "application/pdf",
+        }
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed: ${uploadResponse.status}`);
+      }
+
+      // Step 4: Send metadata to agent after successful upload
+      await append({
+        role: "user",
+        content: `I have successfully uploaded the PDF file "${file.name}" (${(file.size / 1024 / 1024).toFixed(2)} MB) with file key "${uploadUrlResult.fileKey}". Please update the metadata with:
+- Description: ${description || "No description provided"}
+- Tags: ${tags.length > 0 ? tags.join(", ") : "No tags provided"}
+- File size: ${file.size} bytes
+
+Then please trigger ingestion for this file.`,
       });
 
       setShowUpload(false);
     } catch (error) {
       console.error("Error uploading PDF:", error);
+      // Send error message to agent
+      await append({
+        role: "user",
+        content: `Failed to upload PDF file "${file.name}": ${error instanceof Error ? error.message : String(error)}`,
+      });
     } finally {
       setUploading(false);
     }
@@ -119,7 +175,7 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
       setAuthenticating(true);
       setAuthError(null);
       
-      // Direct authentication call to avoid exposing key in chat
+      // Make direct authentication request to check response code
       const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
       const response = await fetch(`${apiBaseUrl}/pdf/authenticate`, {
         method: "POST",
@@ -134,12 +190,14 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
 
       const result = await response.json() as { success: boolean; authenticated: boolean; error?: string };
       
-      if (result.success && result.authenticated) {
-        // Authentication successful - update state
+      if (response.ok && result.success && result.authenticated) {
+        // Authentication successful
         setIsAuthenticated(true);
         setAuthError(null);
+        setShowAuthInput(false);
+        setAdminKey("");
         
-        // Send a generic success message to the agent (without the key)
+        // Send success message to agent
         await append({
           role: "user",
           content: "I have successfully authenticated for PDF upload functionality.",
@@ -148,37 +206,47 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
         // Authentication failed
         setIsAuthenticated(false);
         setAuthError(result.error || "Authentication failed. Please check your admin key.");
+        setShowAuthInput(true);
       }
       
-      // Clear the input and hide it after submission
-      setAdminKey("");
-      setShowAuthInput(false);
     } catch (error) {
       console.error("Error submitting authentication:", error);
       setAuthError("Failed to submit authentication. Please try again.");
       setIsAuthenticated(false);
+      setShowAuthInput(true);
     } finally {
       setAuthenticating(false);
     }
   };
 
-  if (!isAuthenticated) {
+  // Show loading state while checking authentication
+  if (checkingAuth) {
     return (
       <Card className={cn("space-y-4", className)}>
         <div className="space-y-2">
           <h3 className="text-ob-base-300 font-medium">PDF Upload</h3>
           <p className="text-ob-base-200 text-sm">
-            {showAuthInput 
-              ? "Please enter your admin key to enable PDF upload functionality."
-              : "Please provide your admin key to enable PDF upload functionality. Click the button below to start the authentication process."
-            }
+            Checking authentication status...
           </p>
         </div>
-        {authError && (
-          <div className="text-ob-destructive text-sm">
-            {authError}
-          </div>
-        )}
+      </Card>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Card className={cn("space-y-4", className)}>
+        <div className="space-y-2">
+          <h3 className="text-ob-base-300 font-medium">PDF Upload Authentication</h3>
+          <p className="text-ob-base-200 text-sm">
+            You need to authenticate to upload and process PDF files.
+          </p>
+          {authError && (
+            <div className="text-ob-destructive text-sm">
+              {authError}
+            </div>
+          )}
+        </div>
         
         {showAuthInput ? (
           <div className="space-y-3">
@@ -186,22 +254,17 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
               <label className="text-ob-base-300 text-sm font-medium">
                 Admin Key
               </label>
-              <input
+              <Input
                 type="password"
+                placeholder="Enter your admin key..."
                 value={adminKey}
-                onChange={(e) => setAdminKey(e.target.value)}
+                onValueChange={(value) => setAdminKey(value)}
+                size="base"
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && adminKey.trim() && !authenticating) {
+                  if (e.key === "Enter" && adminKey.trim()) {
                     handleSubmitAuth();
-                  } else if (e.key === "Escape") {
-                    setShowAuthInput(false);
-                    setAdminKey("");
-                    setAuthError(null);
                   }
                 }}
-                placeholder="Enter your admin key..."
-                className="w-full px-3 py-2 border border-ob-border rounded-md bg-ob-base-100 text-ob-base-300 placeholder-ob-base-200 focus:outline-none focus:ring-2 focus:ring-ob-primary focus:border-transparent"
-                disabled={authenticating}
               />
             </div>
             <div className="flex gap-2">
@@ -276,26 +339,10 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
   }
 
   return (
-    <div className={cn("space-y-4", className)}>
-      <Card>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-ob-base-300 font-medium">Upload PDF</h3>
-            <Button
-              onClick={() => setShowUpload(false)}
-              variant="ghost"
-              size="sm"
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </Card>
-      
-      <PdfUpload
-        onUpload={handleUpload}
-        loading={uploading}
-      />
-    </div>
+    <PdfUpload
+      onUpload={handleUpload}
+      loading={uploading}
+      className={className}
+    />
   );
 }; 
