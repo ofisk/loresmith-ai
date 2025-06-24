@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/button/Button";
 import { Input } from "@/components/input/Input";
 import { Card } from "@/components/card/Card";
@@ -27,6 +27,7 @@ export const PdfUploadAgent = ({
   const [adminKey, setAdminKey] = useState("");
   const [authenticating, setAuthenticating] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const lastProcessedMessageId = useRef<string | null>(null);
 
   // Check authentication status by making direct API call
   const checkAuthStatus = useCallback(async () => {
@@ -79,14 +80,19 @@ export const PdfUploadAgent = ({
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
     if (lastMessage?.role === "assistant") {
-      const content = lastMessage.content;
-      console.log("Agent response received:", {
-        content: `${content.substring(0, 200)}...`,
-        isAuthenticated: isAuthenticated,
-        showAuthInput: showAuthInput,
-      });
-      // Only handle agent responses for non-auth operations
-      // Authentication is now handled by direct HTTP calls
+      // Only log once per new message, not on every content update during streaming
+      const messageId = lastMessage.id || lastMessage.content;
+      if (messageId !== lastProcessedMessageId.current) {
+        lastProcessedMessageId.current = messageId;
+        const content = lastMessage.content;
+        console.log("Agent response received:", {
+          content: `${content.substring(0, 200)}...`,
+          isAuthenticated: isAuthenticated,
+          showAuthInput: showAuthInput,
+        });
+        // Only handle agent responses for non-auth operations
+        // Authentication is now handled by direct HTTP calls
+      }
     }
   }, [messages, isAuthenticated, showAuthInput]);
 
