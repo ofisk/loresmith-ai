@@ -67,10 +67,7 @@ ${unstable_getSchedulePrompt({ date: new Date() })}
 
 If the user asks to schedule a task, use the schedule tool to schedule the task.
 
-🔐 IMPORTANT: When a user starts a session, prompt them with:
-"Please paste your admin key to enable upload and parsing features."
-
-If they provide an admin key, immediately call the setAdminSecret tool to validate it.
+The user can authenticate for PDF upload functionality through the UI. Once authenticated, you can help them with PDF uploads and processing.
 `,
           messages: processedMessages,
           tools: allTools,

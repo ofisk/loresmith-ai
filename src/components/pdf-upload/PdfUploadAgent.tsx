@@ -18,6 +18,9 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
   const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [showAuthInput, setShowAuthInput] = useState(false);
+  const [adminKey, setAdminKey] = useState("");
+  const [authenticating, setAuthenticating] = useState(false);
 
   // Check authentication status by asking the agent
   const checkAuthStatus = async () => {
@@ -41,28 +44,6 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
       lastMessage.parts.forEach((part) => {
         if (part.type === "tool-invocation") {
           const { toolInvocation } = part;
-          
-          // Check for setAdminSecret tool completion
-          if (toolInvocation.toolName === "setAdminSecret" && toolInvocation.state === "result") {
-            const result = toolInvocation.result as ToolResult;
-            
-            // Check if the result is a structured response
-            if (result && typeof result === "object" && "code" in result) {
-              if (result.code === AUTH_CODES.SUCCESS) {
-                setIsAuthenticated(true);
-                setAuthError(null);
-                console.log("Authentication successful via setAdminSecret tool", result);
-              } else if (result.code === AUTH_CODES.INVALID_KEY) {
-                setIsAuthenticated(false);
-                setAuthError(result.message || "Authentication failed. Please check your admin key.");
-                console.log("Authentication failed via setAdminSecret tool", result);
-              } else if (result.code === AUTH_CODES.ERROR) {
-                setIsAuthenticated(false);
-                setAuthError(result.message || "Authentication error occurred.");
-                console.log("Authentication error via setAdminSecret tool", result);
-              }
-            }
-          }
           
           // Check for checkPdfAuthStatus tool completion
           if (toolInvocation.toolName === "checkPdfAuthStatus" && toolInvocation.state === "result") {
@@ -121,13 +102,63 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
   const handleAuthenticate = async () => {
     try {
       setAuthError(null);
-      await append({
-        role: "user",
-        content: "I need to authenticate for PDF upload functionality. Please prompt me to provide my admin key so you can validate it using the setAdminSecret tool.",
-      });
+      setShowAuthInput(true);
     } catch (error) {
-      console.error("Error requesting authentication:", error);
-      setAuthError("Failed to request authentication");
+      console.error("Error starting authentication:", error);
+      setAuthError("Failed to start authentication");
+    }
+  };
+
+  const handleSubmitAuth = async () => {
+    if (!adminKey.trim()) {
+      setAuthError("Please enter your admin key");
+      return;
+    }
+
+    try {
+      setAuthenticating(true);
+      setAuthError(null);
+      
+      // Direct authentication call to avoid exposing key in chat
+      const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
+      const response = await fetch(`${apiBaseUrl}/pdf/authenticate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sessionId,
+          providedKey: adminKey
+        })
+      });
+
+      const result = await response.json() as { success: boolean; authenticated: boolean; error?: string };
+      
+      if (result.success && result.authenticated) {
+        // Authentication successful - update state
+        setIsAuthenticated(true);
+        setAuthError(null);
+        
+        // Send a generic success message to the agent (without the key)
+        await append({
+          role: "user",
+          content: "I have successfully authenticated for PDF upload functionality.",
+        });
+      } else {
+        // Authentication failed
+        setIsAuthenticated(false);
+        setAuthError(result.error || "Authentication failed. Please check your admin key.");
+      }
+      
+      // Clear the input and hide it after submission
+      setAdminKey("");
+      setShowAuthInput(false);
+    } catch (error) {
+      console.error("Error submitting authentication:", error);
+      setAuthError("Failed to submit authentication. Please try again.");
+      setIsAuthenticated(false);
+    } finally {
+      setAuthenticating(false);
     }
   };
 
@@ -137,7 +168,10 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
         <div className="space-y-2">
           <h3 className="text-ob-base-300 font-medium">PDF Upload</h3>
           <p className="text-ob-base-200 text-sm">
-            Please provide your admin key to enable PDF upload functionality. Click the button below to start the authentication process.
+            {showAuthInput 
+              ? "Please enter your admin key to enable PDF upload functionality."
+              : "Please provide your admin key to enable PDF upload functionality. Click the button below to start the authentication process."
+            }
           </p>
         </div>
         {authError && (
@@ -145,13 +179,64 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
             {authError}
           </div>
         )}
-        <Button
-          onClick={handleAuthenticate}
-          variant="primary"
-          size="base"
-        >
-          Start Authentication
-        </Button>
+        
+        {showAuthInput ? (
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <label className="text-ob-base-300 text-sm font-medium">
+                Admin Key
+              </label>
+              <input
+                type="password"
+                value={adminKey}
+                onChange={(e) => setAdminKey(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && adminKey.trim() && !authenticating) {
+                    handleSubmitAuth();
+                  } else if (e.key === "Escape") {
+                    setShowAuthInput(false);
+                    setAdminKey("");
+                    setAuthError(null);
+                  }
+                }}
+                placeholder="Enter your admin key..."
+                className="w-full px-3 py-2 border border-ob-border rounded-md bg-ob-base-100 text-ob-base-300 placeholder-ob-base-200 focus:outline-none focus:ring-2 focus:ring-ob-primary focus:border-transparent"
+                disabled={authenticating}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSubmitAuth}
+                variant="primary"
+                size="base"
+                loading={authenticating}
+                disabled={!adminKey.trim() || authenticating}
+              >
+                {authenticating ? "Authenticating..." : "Authenticate"}
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowAuthInput(false);
+                  setAdminKey("");
+                  setAuthError(null);
+                }}
+                variant="secondary"
+                size="base"
+                disabled={authenticating}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            onClick={handleAuthenticate}
+            variant="primary"
+            size="base"
+          >
+            Start Authentication
+          </Button>
+        )}
       </Card>
     );
   }

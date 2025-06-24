@@ -51,7 +51,7 @@ const setAdminSecret = tool({
       const sessionId = agent?.name || "default-session";
       
       // Make HTTP request to the authenticate endpoint which uses the environment variable
-      const apiBaseUrl = process.env.VITE_API_URL || "http://localhost:8787";
+      const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
       const response = await fetch(`${apiBaseUrl}/pdf/authenticate`, {
         method: "POST",
         headers: {
@@ -102,7 +102,7 @@ const checkPdfAuthStatus = tool({
       const sessionId = agent?.name || "default-session";
       
       // Make HTTP request to check authentication status
-      const apiBaseUrl = process.env.VITE_API_URL || "http://localhost:8787";
+      const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
       const response = await fetch(`${apiBaseUrl}/pdf/authenticate`, {
         method: "POST",
         headers: {
