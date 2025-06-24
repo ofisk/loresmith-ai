@@ -10,7 +10,11 @@ interface PdfUploadProps {
   className?: string;
 }
 
-export const PdfUpload = ({ onUpload, loading = false, className }: PdfUploadProps) => {
+export const PdfUpload = ({
+  onUpload,
+  loading = false,
+  className,
+}: PdfUploadProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
@@ -34,9 +38,9 @@ export const PdfUpload = ({ onUpload, loading = false, className }: PdfUploadPro
     if (selectedFile) {
       const tagsArray = tags
         .split(",")
-        .map(tag => tag.trim())
-        .filter(tag => tag.length > 0);
-      
+        .map((tag) => tag.trim())
+        .filter((tag) => tag.length > 0);
+
       onUpload(selectedFile, description, tagsArray);
     }
   };
@@ -88,7 +92,7 @@ export const PdfUpload = ({ onUpload, loading = false, className }: PdfUploadPro
           onChange={handleFileSelect}
           className="hidden"
         />
-        
+
         {selectedFile ? (
           <div className="space-y-2">
             <div className="text-ob-primary font-medium">
@@ -119,9 +123,7 @@ export const PdfUpload = ({ onUpload, loading = false, className }: PdfUploadPro
             <div className="text-ob-base-300 font-medium">
               Click to select or drag and drop
             </div>
-            <div className="text-ob-base-200 text-sm">
-              PDF files only
-            </div>
+            <div className="text-ob-base-200 text-sm">PDF files only</div>
           </div>
         )}
       </div>
@@ -174,4 +176,4 @@ export const PdfUpload = ({ onUpload, loading = false, className }: PdfUploadPro
       </Button>
     </Card>
   );
-}; 
+};

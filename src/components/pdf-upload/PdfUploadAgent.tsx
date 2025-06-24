@@ -8,11 +8,16 @@ import { cn } from "@/lib/utils";
 interface PdfUploadAgentProps {
   sessionId: string;
   className?: string;
-  messages: any[];
-  append: (message: any) => Promise<void>;
+  messages: { role: string; content: string }[];
+  append: (message: { role: string; content: string }) => Promise<void>;
 }
 
-export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUploadAgentProps) => {
+export const PdfUploadAgent = ({
+  sessionId,
+  className,
+  messages,
+  append,
+}: PdfUploadAgentProps) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -27,8 +32,9 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
     try {
       setCheckingAuth(true);
       setAuthError(null);
-      
-      const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
+
+      const apiBaseUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8787";
       const response = await fetch(`${apiBaseUrl}/pdf/authenticate`, {
         method: "POST",
         headers: {
@@ -36,12 +42,16 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
         },
         body: JSON.stringify({
           sessionId,
-          providedKey: "check-status-only"
-        })
+          providedKey: "check-status-only",
+        }),
       });
 
-      const result = await response.json() as { success: boolean; authenticated: boolean; error?: string };
-      
+      const result = (await response.json()) as {
+        success: boolean;
+        authenticated: boolean;
+        error?: string;
+      };
+
       if (response.ok && result.success && result.authenticated) {
         setIsAuthenticated(true);
         setAuthError(null);
@@ -63,25 +73,28 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
   useEffect(() => {
     // Automatically check authentication status when component mounts
     checkAuthStatus();
-  }, []);
+  }, [checkAuthStatus]);
 
   // Listen for agent responses to update authentication state
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
     if (lastMessage?.role === "assistant") {
       const content = lastMessage.content;
-      console.log("Agent response received:", { 
-        content: content.substring(0, 200) + "...", 
+      console.log("Agent response received:", {
+        content: `${content.substring(0, 200)}...`,
         isAuthenticated: isAuthenticated,
-        showAuthInput: showAuthInput 
+        showAuthInput: showAuthInput,
       });
-      
       // Only handle agent responses for non-auth operations
       // Authentication is now handled by direct HTTP calls
     }
   }, [messages, isAuthenticated, showAuthInput]);
 
-  const handleUpload = async (file: File, description: string, tags: string[]) => {
+  const handleUpload = async (
+    file: File,
+    description: string,
+    tags: string[]
+  ) => {
     setUploading(true);
     try {
       // Step 1: Ask agent to generate upload URL with session ID
@@ -93,9 +106,10 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
       // Step 2: Wait for agent response and extract upload URL
       // For now, we'll make a direct API call to get the upload URL
       // In a full implementation, you'd parse the agent's response to get the upload URL
-      
-      const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
-      
+
+      const apiBaseUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8787";
+
       // Get upload URL from server (this would normally come from the agent's response)
       const uploadUrlResponse = await fetch(`${apiBaseUrl}/pdf/upload-url`, {
         method: "POST",
@@ -105,28 +119,39 @@ export const PdfUploadAgent = ({ sessionId, className, messages, append }: PdfUp
         body: JSON.stringify({
           sessionId,
           fileName: file.name,
-          fileSize: file.size
-        })
+          fileSize: file.size,
+        }),
       });
 
       if (!uploadUrlResponse.ok) {
-        throw new Error(`Failed to get upload URL: ${uploadUrlResponse.status}`);
+        throw new Error(
+          `Failed to get upload URL: ${uploadUrlResponse.status}`
+        );
       }
 
-      const uploadUrlResult = await uploadUrlResponse.json() as { uploadUrl: string; fileKey: string };
-      
+      const uploadUrlResult = (await uploadUrlResponse.json()) as {
+        uploadUrl: string;
+        fileKey: string;
+      };
+
       console.log("Upload URL result:", uploadUrlResult);
       console.log("API Base URL:", apiBaseUrl);
-      console.log("Full upload URL:", `${apiBaseUrl}${uploadUrlResult.uploadUrl}`);
-      
+      console.log(
+        "Full upload URL:",
+        `${apiBaseUrl}${uploadUrlResult.uploadUrl}`
+      );
+
       // Step 3: Upload file directly to R2 using the presigned URL
-      const uploadResponse = await fetch(`${apiBaseUrl}${uploadUrlResult.uploadUrl}`, {
-        method: "PUT",
-        body: file,
-        headers: {
-          "Content-Type": "application/pdf",
+      const uploadResponse = await fetch(
+        `${apiBaseUrl}${uploadUrlResult.uploadUrl}`,
+        {
+          method: "PUT",
+          body: file,
+          headers: {
+            "Content-Type": "application/pdf",
+          },
         }
-      });
+      );
 
       if (!uploadResponse.ok) {
         throw new Error(`Upload failed: ${uploadResponse.status}`);
@@ -175,9 +200,10 @@ Then please trigger ingestion for this file.`,
     try {
       setAuthenticating(true);
       setAuthError(null);
-      
+
       // Make direct authentication request to check response code
-      const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
+      const apiBaseUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8787";
       const response = await fetch(`${apiBaseUrl}/pdf/authenticate`, {
         method: "POST",
         headers: {
@@ -185,31 +211,37 @@ Then please trigger ingestion for this file.`,
         },
         body: JSON.stringify({
           sessionId,
-          providedKey: adminKey
-        })
+          providedKey: adminKey,
+        }),
       });
 
-      const result = await response.json() as { success: boolean; authenticated: boolean; error?: string };
-      
+      const result = (await response.json()) as {
+        success: boolean;
+        authenticated: boolean;
+        error?: string;
+      };
+
       if (response.ok && result.success && result.authenticated) {
         // Authentication successful
         setIsAuthenticated(true);
         setAuthError(null);
         setShowAuthInput(false);
         setAdminKey("");
-        
+
         // Send success message to agent
         await append({
           role: "user",
-          content: "I have successfully authenticated for PDF upload functionality.",
+          content:
+            "I have successfully authenticated for PDF upload functionality.",
         });
       } else {
         // Authentication failed
         setIsAuthenticated(false);
-        setAuthError(result.error || "Authentication failed. Please check your admin key.");
+        setAuthError(
+          result.error || "Authentication failed. Please check your admin key."
+        );
         setShowAuthInput(true);
       }
-      
     } catch (error) {
       console.error("Error submitting authentication:", error);
       setAuthError("Failed to submit authentication. Please try again.");
@@ -238,33 +270,35 @@ Then please trigger ingestion for this file.`,
     return (
       <Card className={cn("space-y-4", className)}>
         <div className="space-y-2">
-          <h3 className="text-ob-base-300 font-medium">PDF Upload Authentication</h3>
+          <h3 className="text-ob-base-300 font-medium">
+            PDF Upload Authentication
+          </h3>
           <p className="text-ob-base-200 text-sm">
             You need to authenticate to upload and process PDF files.
           </p>
           {authError && (
-            <div className="text-ob-destructive text-sm">
-              {authError}
-            </div>
+            <div className="text-ob-destructive text-sm">{authError}</div>
           )}
         </div>
-        
+
         {showAuthInput ? (
           <div className="space-y-3">
             <div className="space-y-2">
-              <label className="text-ob-base-300 text-sm font-medium">
+              <label
+                htmlFor="admin-key"
+                className="text-ob-base-300 text-sm font-medium"
+              >
                 Admin Key
               </label>
               <Input
+                id="admin-key"
                 type="password"
-                placeholder="Enter your admin key..."
+                placeholder="Enter admin key..."
                 value={adminKey}
                 onValueChange={(value) => setAdminKey(value)}
-                size="base"
+                disabled={authenticating}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && adminKey.trim()) {
-                    handleSubmitAuth();
-                  }
+                  if (e.key === "Enter") handleSubmitAuth();
                 }}
               />
             </div>
@@ -293,11 +327,7 @@ Then please trigger ingestion for this file.`,
             </div>
           </div>
         ) : (
-          <Button
-            onClick={handleAuthenticate}
-            variant="primary"
-            size="base"
-          >
+          <Button onClick={handleAuthenticate} variant="primary" size="base">
             Start Authentication
           </Button>
         )}
@@ -311,7 +341,8 @@ Then please trigger ingestion for this file.`,
         <div className="space-y-2">
           <h3 className="text-ob-base-300 font-medium">PDF Upload</h3>
           <p className="text-ob-base-200 text-sm">
-            ✅ You are authenticated! You can now upload PDF files for processing and analysis.
+            ✅ You are authenticated! You can now upload PDF files for
+            processing and analysis.
           </p>
         </div>
         <div className="flex gap-2">
@@ -346,4 +377,4 @@ Then please trigger ingestion for this file.`,
       className={className}
     />
   );
-}; 
+};

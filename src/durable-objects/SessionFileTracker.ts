@@ -4,7 +4,7 @@ interface FileMetadata {
   fileKey: string;
   fileName: string;
   fileSize: number;
-  status: 'uploading' | 'uploaded' | 'parsing' | 'parsed' | 'error';
+  status: "uploading" | "uploaded" | "parsing" | "parsed" | "error";
   uploadedAt: string;
   metadata?: Record<string, any>;
 }
@@ -25,7 +25,7 @@ interface AddFileRequest {
 
 interface UpdateStatusRequest {
   fileKey: string;
-  status: 'uploading' | 'uploaded' | 'parsing' | 'parsed' | 'error';
+  status: "uploading" | "uploaded" | "parsing" | "parsed" | "error";
 }
 
 interface RemoveFileRequest {
@@ -91,7 +91,8 @@ export class SessionFileTracker extends DurableObject {
   }
 
   private async addFile(request: Request): Promise<Response> {
-    const { fileKey, fileName, fileSize, metadata } = await request.json() as AddFileRequest;
+    const { fileKey, fileName, fileSize, metadata } =
+      (await request.json()) as AddFileRequest;
 
     // Check if this session is already authenticated
     if (!this.sessionData.isAuthenticated) {
@@ -102,7 +103,7 @@ export class SessionFileTracker extends DurableObject {
       fileKey,
       fileName,
       fileSize,
-      status: 'uploading',
+      status: "uploading",
       uploadedAt: new Date().toISOString(),
       metadata,
     };
@@ -130,7 +131,7 @@ export class SessionFileTracker extends DurableObject {
   }
 
   private async updateStatus(request: Request): Promise<Response> {
-    const { fileKey, status } = await request.json() as UpdateStatusRequest;
+    const { fileKey, status } = (await request.json()) as UpdateStatusRequest;
 
     if (!this.sessionData.isAuthenticated) {
       return new Response("Session not authenticated", { status: 401 });
@@ -149,7 +150,7 @@ export class SessionFileTracker extends DurableObject {
   }
 
   private async removeFile(request: Request): Promise<Response> {
-    const { fileKey } = await request.json() as RemoveFileRequest;
+    const { fileKey } = (await request.json()) as RemoveFileRequest;
 
     if (!this.sessionData.isAuthenticated) {
       return new Response("Session not authenticated", { status: 401 });
@@ -178,18 +179,22 @@ export class SessionFileTracker extends DurableObject {
   }
 
   private async validateSessionAuth(request: Request): Promise<Response> {
-    const { providedKey, expectedKey } = await request.json() as ValidateAuthRequest;
+    const { providedKey, expectedKey } =
+      (await request.json()) as ValidateAuthRequest;
 
     // If session is already authenticated, return success without checking the key again
     if (this.sessionData.isAuthenticated) {
-      return new Response(JSON.stringify({ 
-        success: true, 
-        authenticated: true,
-        authenticatedAt: this.sessionData.authenticatedAt,
-        message: "Session already authenticated"
-      }), {
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          authenticated: true,
+          authenticatedAt: this.sessionData.authenticatedAt,
+          message: "Session already authenticated",
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
     }
 
     const keyToCheck = expectedKey || this.EXPECTED_ADMIN_KEY;
@@ -198,44 +203,57 @@ export class SessionFileTracker extends DurableObject {
       this.sessionData.isAuthenticated = true;
       this.sessionData.authenticatedAt = new Date().toISOString();
 
-      return new Response(JSON.stringify({ 
-        success: true, 
-        authenticated: true,
-        authenticatedAt: this.sessionData.authenticatedAt
-      }), {
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          authenticated: true,
+          authenticatedAt: this.sessionData.authenticatedAt,
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
     } else {
-      return new Response(JSON.stringify({ 
-        success: false, 
-        authenticated: false,
-        error: "Invalid admin key"
-      }), {
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          success: false,
+          authenticated: false,
+          error: "Invalid admin key",
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
     }
   }
 
   private async isSessionAuthenticated(request: Request): Promise<Response> {
-    return new Response(JSON.stringify({ 
-      authenticated: this.sessionData.isAuthenticated 
-    }), {
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        authenticated: this.sessionData.isAuthenticated,
+      }),
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 
   private async getSessionAuthInfo(request: Request): Promise<Response> {
-    return new Response(JSON.stringify({
-      isAuthenticated: this.sessionData.isAuthenticated,
-      authenticatedAt: this.sessionData.authenticatedAt,
-      fileCount: this.sessionData.files.size,
-    }), {
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        isAuthenticated: this.sessionData.isAuthenticated,
+        authenticatedAt: this.sessionData.authenticatedAt,
+        fileCount: this.sessionData.files.size,
+      }),
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 
   private async updateMetadata(request: Request): Promise<Response> {
-    const { fileKey, metadata } = await request.json() as UpdateMetadataRequest;
+    const { fileKey, metadata } =
+      (await request.json()) as UpdateMetadataRequest;
 
     if (!this.sessionData.isAuthenticated) {
       return new Response("Session not authenticated", { status: 401 });
@@ -261,4 +279,4 @@ export class SessionFileTracker extends DurableObject {
       headers: { "Content-Type": "application/json" },
     });
   }
-} 
+}

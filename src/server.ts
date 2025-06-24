@@ -151,7 +151,7 @@ app.use("/pdf/*", async (c, next) => {
       },
     });
   }
-  
+
   // Add CORS headers to all PDF route responses
   await next();
   c.header("Access-Control-Allow-Origin", "*");
@@ -168,7 +168,7 @@ app.get("/check-open-ai-key", (c) => {
 app.post("/pdf/authenticate", async (c) => {
   try {
     const { sessionId, providedKey } = await c.req.json();
-    
+
     if (!sessionId) {
       return c.json({ error: "sessionId is required" }, 400);
     }
@@ -176,51 +176,66 @@ app.post("/pdf/authenticate", async (c) => {
     // Get the SessionFileTracker Durable Object for this session
     const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
     const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
-    
+
     // Check if this is a status check request
     if (providedKey === "check-status-only") {
-      const authCheckResponse = await sessionTracker.fetch("https://dummy-host/is-session-authenticated", {
-        method: "GET"
-      });
-      
-      const authCheck = await authCheckResponse.json() as { authenticated: boolean };
-      
-      return c.json({ 
-        success: true, 
-        authenticated: authCheck.authenticated
+      const authCheckResponse = await sessionTracker.fetch(
+        "https://dummy-host/is-session-authenticated",
+        {
+          method: "GET",
+        }
+      );
+
+      const authCheck = (await authCheckResponse.json()) as {
+        authenticated: boolean;
+      };
+
+      return c.json({
+        success: true,
+        authenticated: authCheck.authenticated,
       });
     }
-    
+
     // Regular authentication flow
     if (!providedKey) {
       return c.json({ error: "providedKey is required" }, 400);
     }
 
     const expectedKey = c.env.ADMIN_SECRET; // Use the environment variable from Cloudflare
-    
-    // Send validation request to the Durable Object
-    const authResponse = await sessionTracker.fetch("https://dummy-host/validate-session-auth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId, providedKey, expectedKey })
-    });
 
-    const authResult = await authResponse.json() as { success: boolean; authenticated: boolean; authenticatedAt?: string; error?: string };
-    
+    // Send validation request to the Durable Object
+    const authResponse = await sessionTracker.fetch(
+      "https://dummy-host/validate-session-auth",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, providedKey, expectedKey }),
+      }
+    );
+
+    const authResult = (await authResponse.json()) as {
+      success: boolean;
+      authenticated: boolean;
+      authenticatedAt?: string;
+      error?: string;
+    };
+
     if (authResult.success && authResult.authenticated) {
-      return c.json({ 
-        success: true, 
+      return c.json({
+        success: true,
         authenticated: true,
-        authenticatedAt: authResult.authenticatedAt
+        authenticatedAt: authResult.authenticatedAt,
       });
     } else {
-      return c.json({ 
-        success: false, 
-        authenticated: false,
-        error: "Invalid admin key"
-      }, 401);
+      return c.json(
+        {
+          success: false,
+          authenticated: false,
+          error: "Invalid admin key",
+        },
+        401
+      );
     }
-
   } catch (error) {
     console.error("Error authenticating session:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -231,7 +246,7 @@ app.post("/pdf/authenticate", async (c) => {
 app.post("/pdf/upload-url", async (c) => {
   try {
     const { sessionId, fileName, fileSize } = await c.req.json();
-    
+
     if (!sessionId || !fileName) {
       return c.json({ error: "sessionId and fileName are required" }, 400);
     }
@@ -239,24 +254,27 @@ app.post("/pdf/upload-url", async (c) => {
     // Check if session is authenticated
     const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
     const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
-    
-    const authCheckResponse = await sessionTracker.fetch("https://dummy-host/is-session-authenticated", {
-      method: "GET"
-    });
-    
-    const authCheck = await authCheckResponse.json() as { authenticated: boolean };
+
+    const authCheckResponse = await sessionTracker.fetch(
+      "https://dummy-host/is-session-authenticated",
+      {
+        method: "GET",
+      }
+    );
+
+    const authCheck = (await authCheckResponse.json()) as {
+      authenticated: boolean;
+    };
     if (!authCheck.authenticated) {
       return c.json({ error: "Session not authenticated" }, 401);
     }
 
     // Generate unique file key
     const fileKey = `uploads/${sessionId}/${crypto.randomUUID()}-${fileName}`;
-    
+
     // Generate direct upload URL to R2 bucket
     // This creates a URL that uploads directly to R2, bypassing the worker
     const uploadUrl = `/pdf/upload/${fileKey}`;
-    
-    console.log("Generated upload URL for R2:", { fileKey, sessionId });
 
     // Add file metadata to SessionFileTracker
     await sessionTracker.fetch("https://dummy-host/add-file", {
@@ -267,16 +285,15 @@ app.post("/pdf/upload-url", async (c) => {
         fileKey,
         fileName,
         fileSize: fileSize || 0,
-        metadata: { status: "uploading" }
-      })
+        metadata: { status: "uploading" },
+      }),
     });
 
     return c.json({
       uploadUrl,
       fileKey,
-      sessionId
+      sessionId,
     });
-
   } catch (error) {
     console.error("Error generating upload URL:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -288,61 +305,32 @@ app.put("/pdf/upload/*", async (c) => {
   try {
     const pathname = new URL(c.req.url).pathname;
     const fileKey = pathname.replace("/pdf/upload/", "");
-    
-    console.log("=== PDF UPLOAD DEBUG ===");
-    console.log("Upload endpoint hit with fileKey:", fileKey);
-    console.log("Request URL:", c.req.url);
-    console.log("Request method:", c.req.method);
-    console.log("Pathname:", pathname);
-    console.log("Headers: Content-Type =", c.req.header("Content-Type"));
-    console.log("Headers: Content-Length =", c.req.header("Content-Length"));
-    
+
     if (!fileKey) {
-      console.log("ERROR: No fileKey extracted");
       return c.json({ error: "fileKey parameter is required" }, 400);
     }
 
     // Get the file content from the request body
-    console.log("Reading file content...");
     const fileContent = await c.req.arrayBuffer();
-    
-    console.log("File content received, size:", fileContent.byteLength);
-    console.log("File content type:", typeof fileContent);
-    
+
     if (fileContent.byteLength === 0) {
-      console.log("ERROR: File content is empty");
       return c.json({ error: "File content is empty" }, 400);
     }
-    
+
     // Upload to R2
-    console.log("Attempting to upload to R2 bucket...");
-    console.log("R2 bucket binding available:", !!c.env.PDF_BUCKET);
-    
-    try {
-      await c.env.PDF_BUCKET.put(fileKey, fileContent, {
-        httpMetadata: {
-          contentType: "application/pdf",
-        },
-      });
-      console.log("✅ File successfully uploaded to R2:", fileKey);
-    } catch (r2Error) {
-      console.error("❌ R2 upload failed:", r2Error);
-      throw r2Error;
-    }
+    await c.env.PDF_BUCKET.put(fileKey, fileContent, {
+      httpMetadata: {
+        contentType: "application/pdf",
+      },
+    });
 
     return c.json({
       success: true,
       fileKey,
-      message: "File uploaded successfully"
+      message: "File uploaded successfully",
     });
-
   } catch (error) {
-    console.error("❌ Error uploading file:", error);
-    console.error("Error details:", {
-      name: error instanceof Error ? error.name : 'Unknown',
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : 'No stack trace'
-    });
+    console.error("Error uploading file:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 });
@@ -351,7 +339,7 @@ app.put("/pdf/upload/*", async (c) => {
 app.post("/pdf/ingest", async (c) => {
   try {
     const { sessionId, fileKey } = await c.req.json();
-    
+
     if (!sessionId || !fileKey) {
       return c.json({ error: "sessionId and fileKey are required" }, 400);
     }
@@ -359,12 +347,17 @@ app.post("/pdf/ingest", async (c) => {
     // Check if session is authenticated
     const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
     const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
-    
-    const authCheckResponse = await sessionTracker.fetch("https://dummy-host/is-session-authenticated", {
-      method: "GET"
-    });
-    
-    const authCheck = await authCheckResponse.json() as { authenticated: boolean };
+
+    const authCheckResponse = await sessionTracker.fetch(
+      "https://dummy-host/is-session-authenticated",
+      {
+        method: "GET",
+      }
+    );
+
+    const authCheck = (await authCheckResponse.json()) as {
+      authenticated: boolean;
+    };
     if (!authCheck.authenticated) {
       return c.json({ error: "Session not authenticated" }, 401);
     }
@@ -375,12 +368,12 @@ app.post("/pdf/ingest", async (c) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         fileKey,
-        status: "parsing"
-      })
+        status: "parsing",
+      }),
     });
 
     // Simulate parsing process
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Update status to parsed
     await sessionTracker.fetch("https://dummy-host/update-status", {
@@ -388,16 +381,15 @@ app.post("/pdf/ingest", async (c) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         fileKey,
-        status: "parsed"
-      })
+        status: "parsed",
+      }),
     });
 
     return c.json({
       success: true,
       fileKey,
-      status: "parsed"
+      status: "parsed",
     });
-
   } catch (error) {
     console.error("Error ingesting PDF:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -408,22 +400,24 @@ app.post("/pdf/ingest", async (c) => {
 app.get("/pdf/files", async (c) => {
   try {
     const sessionId = c.req.query("sessionId");
-    
+
     if (!sessionId) {
       return c.json({ error: "sessionId query parameter is required" }, 400);
     }
 
     const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
     const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
-    
-    const filesResponse = await sessionTracker.fetch(`https://dummy-host/get-files?sessionId=${sessionId}`, {
-      method: "GET"
-    });
-    
-    const files = await filesResponse.json() as { files: any[] };
-    
-    return c.json(files);
 
+    const filesResponse = await sessionTracker.fetch(
+      `https://dummy-host/get-files?sessionId=${sessionId}`,
+      {
+        method: "GET",
+      }
+    );
+
+    const files = (await filesResponse.json()) as { files: any[] };
+
+    return c.json(files);
   } catch (error) {
     console.error("Error getting files:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -434,20 +428,28 @@ app.get("/pdf/files", async (c) => {
 app.post("/pdf/update-metadata", async (c) => {
   try {
     const { sessionId, fileKey, metadata } = await c.req.json();
-    
+
     if (!sessionId || !fileKey || !metadata) {
-      return c.json({ error: "sessionId, fileKey, and metadata are required" }, 400);
+      return c.json(
+        { error: "sessionId, fileKey, and metadata are required" },
+        400
+      );
     }
 
     // Check if session is authenticated
     const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
     const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
-    
-    const authCheckResponse = await sessionTracker.fetch("https://dummy-host/is-session-authenticated", {
-      method: "GET"
-    });
-    
-    const authCheck = await authCheckResponse.json() as { authenticated: boolean };
+
+    const authCheckResponse = await sessionTracker.fetch(
+      "https://dummy-host/is-session-authenticated",
+      {
+        method: "GET",
+      }
+    );
+
+    const authCheck = (await authCheckResponse.json()) as {
+      authenticated: boolean;
+    };
     if (!authCheck.authenticated) {
       return c.json({ error: "Session not authenticated" }, 401);
     }
@@ -458,15 +460,14 @@ app.post("/pdf/update-metadata", async (c) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         fileKey,
-        metadata
-      })
+        metadata,
+      }),
     });
 
     return c.json({
       success: true,
-      fileKey
+      fileKey,
     });
-
   } catch (error) {
     console.error("Error updating metadata:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -486,10 +487,9 @@ app.get("/pdf/stats", async (c) => {
         uploaded: 0,
         parsing: 0,
         parsed: 0,
-        error: 0
-      }
+        error: 0,
+      },
     });
-
   } catch (error) {
     console.error("Error getting stats:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -497,12 +497,6 @@ app.get("/pdf/stats", async (c) => {
 });
 
 app.all("*", async (c) => {
-  console.log("Catch-all route hit:", {
-    method: c.req.method,
-    url: c.req.url,
-    pathname: new URL(c.req.url).pathname
-  });
-  
   if (!process.env.OPENAI_API_KEY) {
     console.error(
       "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"

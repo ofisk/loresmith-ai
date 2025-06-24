@@ -30,8 +30,8 @@
     {
       "binding": "PDF_BUCKET",
       "bucket_name": "loresmith-pdfs",
-      "preview_bucket_name": "loresmith-pdfs"
-    }
+      "preview_bucket_name": "loresmith-pdfs",
+    },
   ],
   "migrations": [
     {

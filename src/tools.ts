@@ -41,17 +41,18 @@ const getLocalTime = tool({
  */
 const setAdminSecret = tool({
   description: "Validate and store the admin key for PDF upload functionality",
-  parameters: z.object({ 
-    adminKey: z.string().describe("The admin key provided by the user") 
+  parameters: z.object({
+    adminKey: z.string().describe("The admin key provided by the user"),
   }),
   execute: async ({ adminKey }): Promise<ToolResult> => {
     try {
       // Get the current agent to access session ID
       const { agent } = getCurrentAgent<Chat>();
       const sessionId = agent?.name || "default-session";
-      
+
       // Make HTTP request to the authenticate endpoint which uses the environment variable
-      const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
+      const apiBaseUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8787";
       const response = await fetch(`${apiBaseUrl}/pdf/authenticate`, {
         method: "POST",
         headers: {
@@ -59,23 +60,28 @@ const setAdminSecret = tool({
         },
         body: JSON.stringify({
           sessionId,
-          providedKey: adminKey
-        })
+          providedKey: adminKey,
+        }),
       });
 
-      const result = await response.json() as { success: boolean; authenticated: boolean; error?: string };
-      
+      const result = (await response.json()) as {
+        success: boolean;
+        authenticated: boolean;
+        error?: string;
+      };
+
       if (result.success && result.authenticated) {
         return {
           code: AUTH_CODES.SUCCESS,
-          message: "Admin key validated successfully! You now have access to PDF upload and parsing features.",
-          data: { authenticated: true }
+          message:
+            "Admin key validated successfully! You now have access to PDF upload and parsing features.",
+          data: { authenticated: true },
         };
       } else {
         return {
           code: AUTH_CODES.INVALID_KEY,
           message: "Invalid admin key. Please check your key and try again.",
-          data: { authenticated: false }
+          data: { authenticated: false },
         };
       }
     } catch (error) {
@@ -83,7 +89,7 @@ const setAdminSecret = tool({
       return {
         code: AUTH_CODES.ERROR,
         message: `Error validating admin key: ${error}`,
-        data: { authenticated: false }
+        data: { authenticated: false },
       };
     }
   },
@@ -94,19 +100,26 @@ const setAdminSecret = tool({
  * This allows the agent to check if the current session is authenticated for PDF operations
  */
 const checkPdfAuthStatus = tool({
-  description: "Check if the current session is authenticated for PDF upload operations",
+  description:
+    "Check if the current session is authenticated for PDF upload operations",
   parameters: z.object({
-    sessionId: z.string().optional().describe("The session ID to check authentication for (optional, will use agent session if not provided)")
+    sessionId: z
+      .string()
+      .optional()
+      .describe(
+        "The session ID to check authentication for (optional, will use agent session if not provided)"
+      ),
   }),
   execute: async ({ sessionId }): Promise<ToolResult> => {
     try {
       const { agent } = getCurrentAgent<Chat>();
       const effectiveSessionId = sessionId || agent?.name || "default-session";
-      
+
       console.log("Checking auth status for session:", effectiveSessionId);
-      
+
       // Make HTTP request to check authentication status
-      const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
+      const apiBaseUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8787";
       const response = await fetch(`${apiBaseUrl}/pdf/authenticate`, {
         method: "POST",
         headers: {
@@ -114,25 +127,34 @@ const checkPdfAuthStatus = tool({
         },
         body: JSON.stringify({
           sessionId: effectiveSessionId,
-          providedKey: "check-status-only" // Special value to indicate status check
-        })
+          providedKey: "check-status-only", // Special value to indicate status check
+        }),
       });
 
-      const result = await response.json() as { success: boolean; authenticated: boolean; error?: string };
-      
-      console.log("Auth check result:", { sessionId: effectiveSessionId, result });
-      
+      const result = (await response.json()) as {
+        success: boolean;
+        authenticated: boolean;
+        error?: string;
+      };
+
+      console.log("Auth check result:", {
+        sessionId: effectiveSessionId,
+        result,
+      });
+
       if (result.success && result.authenticated) {
         return {
           code: AUTH_CODES.SUCCESS,
-          message: "Session is authenticated for PDF operations. You can upload PDF files.",
-          data: { authenticated: true }
+          message:
+            "Session is authenticated for PDF operations. You can upload PDF files.",
+          data: { authenticated: true },
         };
       } else {
         return {
           code: AUTH_CODES.SESSION_NOT_AUTHENTICATED,
-          message: "Session is not authenticated for PDF operations. Please provide your admin key to enable PDF upload functionality.",
-          data: { authenticated: false }
+          message:
+            "Session is not authenticated for PDF operations. Please provide your admin key to enable PDF upload functionality.",
+          data: { authenticated: false },
         };
       }
     } catch (error) {
@@ -140,7 +162,7 @@ const checkPdfAuthStatus = tool({
       return {
         code: AUTH_CODES.ERROR,
         message: `Error checking authentication status: ${error}`,
-        data: { authenticated: false }
+        data: { authenticated: false },
       };
     }
   },
@@ -154,38 +176,49 @@ const uploadPdfFile = tool({
   description: "Upload a PDF file with optional description and tags",
   parameters: z.object({
     fileName: z.string().describe("The name of the PDF file to upload"),
-    description: z.string().optional().describe("Optional description for the PDF file"),
-    tags: z.array(z.string()).optional().describe("Optional tags for categorizing the PDF file"),
-    fileContent: z.string().describe("Base64 encoded content of the PDF file")
+    description: z
+      .string()
+      .optional()
+      .describe("Optional description for the PDF file"),
+    tags: z
+      .array(z.string())
+      .optional()
+      .describe("Optional tags for categorizing the PDF file"),
+    fileContent: z.string().describe("Base64 encoded content of the PDF file"),
   }),
-  execute: async ({ fileName, description, tags, fileContent }): Promise<ToolResult> => {
+  execute: async ({
+    fileName,
+    description,
+    tags,
+    fileContent,
+  }): Promise<ToolResult> => {
     try {
       const { agent } = getCurrentAgent<Chat>();
       const sessionId = agent?.name || "default-session";
-      
+
       // For now, return a success message indicating the file was processed
       // In a full implementation, this would directly access the Durable Object
       // and handle the file upload to R2 storage
-      
+
       const fileSize = Math.round((fileContent.length * 3) / 4); // Approximate base64 size
-      
+
       return {
         code: AUTH_CODES.SUCCESS,
         message: `PDF file "${fileName}" (${(fileSize / 1024 / 1024).toFixed(2)} MB) has been received and will be processed. The file contains ${fileContent.length} characters of base64 encoded data.`,
-        data: { 
+        data: {
           fileName,
           fileSize,
           description,
           tags,
-          status: "processing"
-        }
+          status: "processing",
+        },
       };
     } catch (error) {
       console.error("Error uploading PDF file:", error);
       return {
         code: AUTH_CODES.ERROR,
         message: `Error uploading PDF file: ${error instanceof Error ? error.message : String(error)}`,
-        data: { error: error instanceof Error ? error.message : String(error) }
+        data: { error: error instanceof Error ? error.message : String(error) },
       };
     }
   },
@@ -196,55 +229,64 @@ const uploadPdfFile = tool({
  * This allows the agent to show the user what PDFs have been uploaded
  */
 const listPdfFiles = tool({
-  description: "List all PDF files that have been uploaded in the current session",
+  description:
+    "List all PDF files that have been uploaded in the current session",
   parameters: z.object({}),
   execute: async (): Promise<ToolResult> => {
     try {
       const { agent } = getCurrentAgent<Chat>();
       const sessionId = agent?.name || "default-session";
-      
+
       // Make HTTP request to get files from server
-      const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
-      const response = await fetch(`${apiBaseUrl}/pdf/files?sessionId=${sessionId}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
+      const apiBaseUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8787";
+      const response = await fetch(
+        `${apiBaseUrl}/pdf/files?sessionId=${sessionId}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
         }
-      });
+      );
 
       if (!response.ok) {
         return {
           code: AUTH_CODES.ERROR,
           message: `Failed to retrieve files: ${response.status}`,
-          data: { error: `HTTP ${response.status}` }
+          data: { error: `HTTP ${response.status}` },
         };
       }
 
-      const result = await response.json() as { files: any[] };
-      
+      const result = (await response.json()) as { files: any[] };
+
       if (!result.files || result.files.length === 0) {
         return {
           code: AUTH_CODES.SUCCESS,
-          message: "📄 No PDF files have been uploaded yet in this session. Use the generatePdfUploadUrl tool to upload your first PDF.",
-          data: { files: [] }
+          message:
+            "📄 No PDF files have been uploaded yet in this session. Use the generatePdfUploadUrl tool to upload your first PDF.",
+          data: { files: [] },
         };
       }
 
-      const fileList = result.files.map((file: any) => 
-        `- ${file.fileName} (${file.status})${file.metadata?.description ? ` - ${file.metadata.description}` : ''}`
-      ).join('\n');
+      const fileList = result.files
+        .map(
+          (file: any) =>
+            `- ${file.fileName} (${file.status})${file.metadata?.description ? ` - ${file.metadata.description}` : ""}`
+        )
+        .join("\n");
 
       return {
         code: AUTH_CODES.SUCCESS,
         message: `📄 Uploaded PDF files:\n${fileList}`,
-        data: { files: result.files }
+        data: { files: result.files },
       };
     } catch (error) {
       console.error("Error listing PDF files:", error);
       return {
         code: AUTH_CODES.ERROR,
         message: `❌ Error retrieving PDF files: ${error instanceof Error ? error.message : String(error)}`,
-        data: { error: error instanceof Error ? error.message : String(error) }
+        data: { error: error instanceof Error ? error.message : String(error) },
       };
     }
   },
@@ -355,17 +397,23 @@ const generatePdfUploadUrl = tool({
   parameters: z.object({
     fileName: z.string().describe("The name of the PDF file to upload"),
     fileSize: z.number().describe("The size of the file in bytes"),
-    sessionId: z.string().optional().describe("The session ID to use for the upload (optional, will use agent session if not provided)")
+    sessionId: z
+      .string()
+      .optional()
+      .describe(
+        "The session ID to use for the upload (optional, will use agent session if not provided)"
+      ),
   }),
   execute: async ({ fileName, fileSize, sessionId }): Promise<ToolResult> => {
     try {
       const { agent } = getCurrentAgent<Chat>();
       const effectiveSessionId = sessionId || agent?.name || "default-session";
-      
+
       console.log("Generating upload URL for session:", effectiveSessionId);
-      
+
       // Make HTTP request to get presigned URL from server
-      const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
+      const apiBaseUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8787";
       const response = await fetch(`${apiBaseUrl}/pdf/upload-url`, {
         method: "POST",
         headers: {
@@ -374,37 +422,41 @@ const generatePdfUploadUrl = tool({
         body: JSON.stringify({
           sessionId: effectiveSessionId,
           fileName,
-          fileSize
-        })
+          fileSize,
+        }),
       });
 
       if (!response.ok) {
         return {
           code: AUTH_CODES.ERROR,
           message: `Failed to generate upload URL: ${response.status}`,
-          data: { error: `HTTP ${response.status}` }
+          data: { error: `HTTP ${response.status}` },
         };
       }
 
-      const result = await response.json() as { uploadUrl: string; fileKey: string; sessionId: string };
-      
+      const result = (await response.json()) as {
+        uploadUrl: string;
+        fileKey: string;
+        sessionId: string;
+      };
+
       return {
         code: AUTH_CODES.SUCCESS,
         message: `Upload URL generated successfully for "${fileName}"`,
-        data: { 
+        data: {
           uploadUrl: result.uploadUrl,
           fileKey: result.fileKey,
           sessionId: result.sessionId,
           fileName,
-          fileSize
-        }
+          fileSize,
+        },
       };
     } catch (error) {
       console.error("Error generating upload URL:", error);
       return {
         code: AUTH_CODES.ERROR,
         message: `Error generating upload URL: ${error instanceof Error ? error.message : String(error)}`,
-        data: { error: error instanceof Error ? error.message : String(error) }
+        data: { error: error instanceof Error ? error.message : String(error) },
       };
     }
   },
@@ -418,17 +470,31 @@ const updatePdfMetadata = tool({
   description: "Update metadata for an uploaded PDF file",
   parameters: z.object({
     fileKey: z.string().describe("The file key of the uploaded PDF"),
-    description: z.string().optional().describe("Optional description for the PDF file"),
-    tags: z.array(z.string()).optional().describe("Optional tags for categorizing the PDF file"),
-    fileSize: z.number().describe("The actual size of the uploaded file in bytes")
+    description: z
+      .string()
+      .optional()
+      .describe("Optional description for the PDF file"),
+    tags: z
+      .array(z.string())
+      .optional()
+      .describe("Optional tags for categorizing the PDF file"),
+    fileSize: z
+      .number()
+      .describe("The actual size of the uploaded file in bytes"),
   }),
-  execute: async ({ fileKey, description, tags, fileSize }): Promise<ToolResult> => {
+  execute: async ({
+    fileKey,
+    description,
+    tags,
+    fileSize,
+  }): Promise<ToolResult> => {
     try {
       const { agent } = getCurrentAgent<Chat>();
       const sessionId = agent?.name || "default-session";
-      
+
       // Make HTTP request to update metadata
-      const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
+      const apiBaseUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8787";
       const response = await fetch(`${apiBaseUrl}/pdf/update-metadata`, {
         method: "POST",
         headers: {
@@ -440,35 +506,35 @@ const updatePdfMetadata = tool({
           metadata: {
             description,
             tags,
-            fileSize
-          }
-        })
+            fileSize,
+          },
+        }),
       });
 
       if (!response.ok) {
         return {
           code: AUTH_CODES.ERROR,
           message: `Failed to update metadata: ${response.status}`,
-          data: { error: `HTTP ${response.status}` }
+          data: { error: `HTTP ${response.status}` },
         };
       }
 
       return {
         code: AUTH_CODES.SUCCESS,
         message: `Metadata updated successfully for file "${fileKey}"`,
-        data: { 
+        data: {
           fileKey,
           description,
           tags,
-          fileSize
-        }
+          fileSize,
+        },
       };
     } catch (error) {
       console.error("Error updating metadata:", error);
       return {
         code: AUTH_CODES.ERROR,
         message: `Error updating metadata: ${error instanceof Error ? error.message : String(error)}`,
-        data: { error: error instanceof Error ? error.message : String(error) }
+        data: { error: error instanceof Error ? error.message : String(error) },
       };
     }
   },
@@ -481,15 +547,16 @@ const updatePdfMetadata = tool({
 const ingestPdfFile = tool({
   description: "Trigger ingestion and processing of an uploaded PDF file",
   parameters: z.object({
-    fileKey: z.string().describe("The file key of the uploaded PDF to ingest")
+    fileKey: z.string().describe("The file key of the uploaded PDF to ingest"),
   }),
   execute: async ({ fileKey }): Promise<ToolResult> => {
     try {
       const { agent } = getCurrentAgent<Chat>();
       const sessionId = agent?.name || "default-session";
-      
+
       // Make HTTP request to trigger ingestion
-      const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
+      const apiBaseUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8787";
       const response = await fetch(`${apiBaseUrl}/pdf/ingest`, {
         method: "POST",
         headers: {
@@ -497,34 +564,38 @@ const ingestPdfFile = tool({
         },
         body: JSON.stringify({
           sessionId,
-          fileKey
-        })
+          fileKey,
+        }),
       });
 
       if (!response.ok) {
         return {
           code: AUTH_CODES.ERROR,
           message: `Failed to trigger ingestion: ${response.status}`,
-          data: { error: `HTTP ${response.status}` }
+          data: { error: `HTTP ${response.status}` },
         };
       }
 
-      const result = await response.json() as { success: boolean; fileKey: string; status: string };
-      
+      const result = (await response.json()) as {
+        success: boolean;
+        fileKey: string;
+        status: string;
+      };
+
       return {
         code: AUTH_CODES.SUCCESS,
         message: `PDF ingestion started successfully for "${fileKey}". Status: ${result.status}`,
-        data: { 
+        data: {
           fileKey,
-          status: result.status
-        }
+          status: result.status,
+        },
       };
     } catch (error) {
       console.error("Error triggering ingestion:", error);
       return {
         code: AUTH_CODES.ERROR,
         message: `Error triggering ingestion: ${error instanceof Error ? error.message : String(error)}`,
-        data: { error: error instanceof Error ? error.message : String(error) }
+        data: { error: error instanceof Error ? error.message : String(error) },
       };
     }
   },
