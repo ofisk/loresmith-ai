@@ -289,28 +289,46 @@ app.put("/pdf/upload/*", async (c) => {
     const pathname = new URL(c.req.url).pathname;
     const fileKey = pathname.replace("/pdf/upload/", "");
     
+    console.log("=== PDF UPLOAD DEBUG ===");
     console.log("Upload endpoint hit with fileKey:", fileKey);
     console.log("Request URL:", c.req.url);
     console.log("Request method:", c.req.method);
     console.log("Pathname:", pathname);
+    console.log("Headers: Content-Type =", c.req.header("Content-Type"));
+    console.log("Headers: Content-Length =", c.req.header("Content-Length"));
     
     if (!fileKey) {
+      console.log("ERROR: No fileKey extracted");
       return c.json({ error: "fileKey parameter is required" }, 400);
     }
 
     // Get the file content from the request body
+    console.log("Reading file content...");
     const fileContent = await c.req.arrayBuffer();
     
     console.log("File content received, size:", fileContent.byteLength);
+    console.log("File content type:", typeof fileContent);
+    
+    if (fileContent.byteLength === 0) {
+      console.log("ERROR: File content is empty");
+      return c.json({ error: "File content is empty" }, 400);
+    }
     
     // Upload to R2
-    await c.env.PDF_BUCKET.put(fileKey, fileContent, {
-      httpMetadata: {
-        contentType: "application/pdf",
-      },
-    });
-
-    console.log("File successfully uploaded to R2:", fileKey);
+    console.log("Attempting to upload to R2 bucket...");
+    console.log("R2 bucket binding available:", !!c.env.PDF_BUCKET);
+    
+    try {
+      await c.env.PDF_BUCKET.put(fileKey, fileContent, {
+        httpMetadata: {
+          contentType: "application/pdf",
+        },
+      });
+      console.log("✅ File successfully uploaded to R2:", fileKey);
+    } catch (r2Error) {
+      console.error("❌ R2 upload failed:", r2Error);
+      throw r2Error;
+    }
 
     return c.json({
       success: true,
@@ -319,7 +337,12 @@ app.put("/pdf/upload/*", async (c) => {
     });
 
   } catch (error) {
-    console.error("Error uploading file:", error);
+    console.error("❌ Error uploading file:", error);
+    console.error("Error details:", {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : 'No stack trace'
+    });
     return c.json({ error: "Internal server error" }, 500);
   }
 });
