@@ -142,3 +142,6 @@ dist
 .wrangler
 .dev.vars
 
+# Uploaded files
+uploads/
+

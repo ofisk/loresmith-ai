@@ -20,12 +20,27 @@
         "name": "Chat",
         "class_name": "Chat",
       },
+      {
+        "name": "SessionFileTracker",
+        "class_name": "SessionFileTracker",
+      },
     ],
   },
+  "r2_buckets": [
+    {
+      "binding": "PDF_BUCKET",
+      "bucket_name": "loresmith-pdfs",
+      "preview_bucket_name": "loresmith-pdfs",
+    },
+  ],
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": ["Chat"],
+    },
+    {
+      "tag": "v2",
+      "new_classes": ["SessionFileTracker"],
     },
   ],
   "observability": {
