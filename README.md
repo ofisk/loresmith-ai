@@ -30,10 +30,6 @@ Features:
 ### Installation
 
 1. **Clone the repository**:
-```bash
-git clone <repository-url>
-cd loresmith-ai
-```
 
 2. **Install dependencies**:
 ```bash
