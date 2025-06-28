@@ -6,7 +6,7 @@ Tech stack: React frontend, Node.js backend, OpenAI GPT-4 via API, deployment vi
 
 Features:
 
-- Conversational 
+- Conversational
 - Supports PDF campaign upload (current limit: 200MB)
 - Supports character management via (DND Beyond)[https://www.dndbeyond.com/]
 - Maintains character state and helps plan character journeys
@@ -14,6 +14,7 @@ Features:
 ## Architecture
 
 ### Core Components
+
 - **Cloudflare Workers**: Serverless backend with global edge deployment
 - **Durable Objects**: Persistent state management for chat sessions
 - **R2 Storage**: Scalable object storage for PDF files
@@ -23,6 +24,7 @@ Features:
 ## Quick Start
 
 ### Prerequisites
+
 - Cloudflare account
 - OpenAI API key
 - Node.js 22+ and npm
@@ -32,23 +34,27 @@ Features:
 1. **Clone the repository**:
 
 2. **Install dependencies**:
+
 ```bash
 npm install
 ```
 
 3. **Set up environment variables**:
-Create a `.dev.vars` file:
+   Create a `.dev.vars` file:
+
 ```env
 OPENAI_API_KEY=your_openai_api_key
 ADMIN_SECRET=your_admin_secret_for_pdf_uploads
 ```
 
 4. **Run locally**:
+
 ```bash
 npm start
 ```
 
 5. **Deploy to Cloudflare**:
+
 ```bash
 npm run deploy
 ```
@@ -56,10 +62,12 @@ npm run deploy
 ## Configuration
 
 ### Environment Variables
+
 - `OPENAI_API_KEY`: Your OpenAI API key for AI chat functionality
 - `ADMIN_SECRET`: Secret key for PDF upload authentication
 
 ### Cloudflare Resources
+
 - **R2 Bucket**: `loresmith-pdfs` for file storage
 - **Durable Objects**: `Chat` and `SessionFileTracker` for state management
 - **Workers**: Main application deployment
@@ -67,6 +75,7 @@ npm run deploy
 ## Development
 
 ### Project Structure
+
 ```
 src/
 ├── app.tsx                # Main React application
@@ -83,12 +92,11 @@ src/
 ```
 
 ### MCP Server Integration
+
 To connect an MCP server, uncomment and configure the MCP connection in `src/server.ts`:
 
 ```typescript
-const mcpConnection = await this.mcp.connect(
-  "https://your-mcp-server/sse"
-);
+const mcpConnection = await this.mcp.connect("https://your-mcp-server/sse");
 ```
 
 ## Contributing
@@ -98,4 +106,3 @@ const mcpConnection = await this.mcp.connect(
 3. Make your changes
 4. Add tests if applicable
 5. Submit a pull request
-
