@@ -25,8 +25,6 @@ const AvatarComponent = ({
   toggled,
   username,
 }: AvatarProps) => {
-  const firstInitial = username.charAt(0).toUpperCase();
-
   return (
     <Slot
       as={as ?? "div"}
@@ -57,7 +55,9 @@ const AvatarComponent = ({
           alt={username}
         />
       ) : (
-        <p className="text-100 font-bold">{firstInitial}</p>
+        <p className="text-xs font-semibold break-words leading-none px-1 text-center min-w-0">
+          {username}
+        </p>
       )}
     </Slot>
   );
