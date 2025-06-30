@@ -4,6 +4,18 @@
   "description": "",
   "type": "module",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ofisk/loresmith-ai"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,json,css,md}": [
+      "prettier --write"
+    ]
+  },
   "scripts": {
     "start": "vite dev",
     "build": "vite build",
@@ -11,7 +23,8 @@
     "test": "vitest",
     "types": "wrangler types",
     "format": "prettier --write .",
-    "check": "prettier . --check && biome lint && tsc"
+    "check": "prettier . --check && biome lint && tsc",
+    "prepare": "husky"
   },
   "keywords": [
     "cloudflare",
@@ -30,6 +43,8 @@
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
     "@vitejs/plugin-react": "^4.4.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.2",
     "prettier": "^3.5.3",
     "tailwindcss": "^4.1.6",
     "typescript": "^5.8.3",
