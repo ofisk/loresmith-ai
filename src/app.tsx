@@ -1,27 +1,27 @@
-import { useEffect, useState, useRef, useCallback, use } from "react";
-import { useAgent } from "agents/react";
-import { useAgentChat } from "agents/ai-react";
 import type { Message } from "@ai-sdk/react";
+import { useAgentChat } from "agents/ai-react";
+import { useAgent } from "agents/react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import type { tools } from "./tools";
 
+import { Avatar } from "@/components/avatar/Avatar";
 // Component imports
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
-import { Avatar } from "@/components/avatar/Avatar";
-import { Toggle } from "@/components/toggle/Toggle";
-import { Textarea } from "@/components/textarea/Textarea";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
-import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import { PdfUploadAgent } from "@/components/pdf-upload/PdfUploadAgent";
+import { Textarea } from "@/components/textarea/Textarea";
+import { Toggle } from "@/components/toggle/Toggle";
+import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 
 // Icon imports
 import {
   Bug,
   Moon,
-  Sun,
-  Trash,
   PaperPlaneTilt,
   Stop,
+  Sun,
+  Trash,
 } from "@phosphor-icons/react";
 
 import loresmith from "@/assets/loresmith.png";
@@ -42,17 +42,17 @@ function generateSessionId(): string {
 }
 
 /**
- * Get or create a session ID, persisting it in sessionStorage
- * This ensures the same session ID is used for the duration of the browser session
+ * Get or create a session ID, persisting it in localStorage
+ * This ensures the same session ID is used across browser sessions
  */
 function getSessionId(): string {
-  const existingSessionId = sessionStorage.getItem("chat-session-id");
+  const existingSessionId = localStorage.getItem("chat-session-id");
   if (existingSessionId) {
     return existingSessionId;
   }
 
   const newSessionId = generateSessionId();
-  sessionStorage.setItem("chat-session-id", newSessionId);
+  localStorage.setItem("chat-session-id", newSessionId);
   return newSessionId;
 }
 
@@ -133,7 +133,7 @@ export default function Chat() {
     // Optionally create a new session ID when clearing history
     // This creates a completely fresh chat session
     const newSessionId = generateSessionId();
-    sessionStorage.setItem("chat-session-id", newSessionId);
+    localStorage.setItem("chat-session-id", newSessionId);
     // Reload the page to reinitialize with the new session ID
     window.location.reload();
   };

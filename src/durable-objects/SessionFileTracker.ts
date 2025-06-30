@@ -1,11 +1,13 @@
 import { DurableObject } from "cloudflare:workers";
 
 export interface FileMetadata {
+  id: string;
   fileKey: string;
   fileName: string;
   fileSize: number;
   status: "uploading" | "uploaded" | "parsing" | "parsed" | "error";
-  uploadedAt: string;
+  createdAt: string;
+  updatedAt: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -43,9 +45,10 @@ interface UpdateMetadataRequest {
   metadata: {
     description?: string;
     tags?: string[];
+    fileName?: string;
     originalName?: string;
     fileSize?: number;
-    uploadedAt?: string;
+    createdAt?: string;
   };
 }
 
@@ -55,11 +58,15 @@ export class SessionFileTracker extends DurableObject {
     files: new Map(),
   };
 
-  private readonly EXPECTED_ADMIN_KEY = "dev-admin-key-2024"; // In production, this should be a secret
-
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
+
+    console.log("Durable Object: fetch called with path:", path);
+    console.log(
+      "Durable Object: current isAuthenticated =",
+      this.sessionData.isAuthenticated
+    );
 
     try {
       switch (path) {
@@ -94,21 +101,38 @@ export class SessionFileTracker extends DurableObject {
     const { fileKey, fileName, fileSize, metadata } =
       (await request.json()) as AddFileRequest;
 
+    console.log("Durable Object: addFile called");
+    console.log(
+      "Durable Object: current isAuthenticated =",
+      this.sessionData.isAuthenticated
+    );
+    console.log("Durable Object: fileKey =", fileKey);
+    console.log("Durable Object: fileName =", fileName);
+
     // Check if this session is already authenticated
     if (!this.sessionData.isAuthenticated) {
+      console.log(
+        "Durable Object: Session not authenticated for addFile, returning 401"
+      );
       return new Response("Session not authenticated", { status: 401 });
     }
 
+    console.log("Durable Object: Session authenticated, adding file");
+
     const fileData: FileMetadata = {
+      id: crypto.randomUUID(),
       fileKey,
       fileName,
       fileSize,
       status: "uploading",
-      uploadedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       metadata,
     };
 
     this.sessionData.files.set(fileKey, fileData);
+
+    console.log("Durable Object: File added successfully");
 
     return new Response(JSON.stringify({ success: true, fileData }), {
       headers: { "Content-Type": "application/json" },
@@ -143,6 +167,7 @@ export class SessionFileTracker extends DurableObject {
     }
 
     file.status = status;
+    file.updatedAt = new Date().toISOString();
 
     return new Response(JSON.stringify({ success: true, file }), {
       headers: { "Content-Type": "application/json" },
@@ -198,10 +223,23 @@ export class SessionFileTracker extends DurableObject {
     }
 
     // Use the expectedKey passed from the server (which comes from environment variable)
-    // Fall back to hardcoded key only for development/testing
-    const keyToCheck = expectedKey || this.EXPECTED_ADMIN_KEY;
+    if (!expectedKey) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          authenticated: false,
+          error: "No expected key provided",
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
 
-    if (providedKey === keyToCheck) {
+    console.log("Durable Object: providedKey =", providedKey);
+    console.log("Durable Object: expectedKey =", expectedKey);
+
+    if (providedKey === expectedKey) {
       this.sessionData.isAuthenticated = true;
       this.sessionData.authenticatedAt = new Date().toISOString();
 
@@ -272,10 +310,18 @@ export class SessionFileTracker extends DurableObject {
       ...metadata,
     };
 
+    // Update fileName if provided (this allows users to edit the display name)
+    if (metadata.fileName) {
+      file.fileName = metadata.fileName;
+    }
+
     // Update file size if provided
     if (metadata.fileSize) {
       file.fileSize = metadata.fileSize;
     }
+
+    // Update the updatedAt timestamp
+    file.updatedAt = new Date().toISOString();
 
     return new Response(JSON.stringify({ success: true, file }), {
       headers: { "Content-Type": "application/json" },

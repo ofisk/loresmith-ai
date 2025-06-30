@@ -1,19 +1,19 @@
-import { routeAgentRequest, type Schedule } from "agents";
+import { type Schedule, routeAgentRequest } from "agents";
 
 import { unstable_getSchedulePrompt } from "agents/schedule";
 
+import { openai } from "@ai-sdk/openai";
 import { AIChatAgent } from "agents/ai-chat-agent";
 import {
+  type StreamTextOnFinishCallback,
+  type ToolSet,
   createDataStreamResponse,
   generateId,
   streamText,
-  type StreamTextOnFinishCallback,
-  type ToolSet,
 } from "ai";
-import { openai } from "@ai-sdk/openai";
 import { Hono } from "hono";
+import { executions, tools } from "./tools";
 import { processToolCalls } from "./utils";
-import { tools, executions } from "./tools";
 
 const model = openai("gpt-4o-mini");
 
@@ -163,30 +163,31 @@ app.post("/pdf/authenticate", async (c) => {
   try {
     const { sessionId, providedKey } = await c.req.json();
 
-    if (!sessionId) {
-      return c.json({ error: "sessionId is required" }, 400);
+    if (!sessionId || !providedKey) {
+      return c.json({ error: "sessionId and providedKey are required" }, 400);
     }
 
     // Get the SessionFileTracker Durable Object for this session
     const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
     const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
 
-    // Check if this is a status check request
-    if (providedKey === "check-status-only") {
-      const authCheckResponse = await sessionTracker.fetch(
-        "https://dummy-host/is-session-authenticated",
-        {
-          method: "GET",
-        }
-      );
+    // Check if already authenticated first
+    const authCheckResponse = await sessionTracker.fetch(
+      "https://dummy-host/is-session-authenticated",
+      {
+        method: "GET",
+      }
+    );
 
-      const authCheck = (await authCheckResponse.json()) as {
-        authenticated: boolean;
-      };
+    const authCheck = (await authCheckResponse.json()) as {
+      authenticated: boolean;
+    };
 
+    if (authCheck.authenticated) {
       return c.json({
         success: true,
-        authenticated: authCheck.authenticated,
+        authenticated: true,
+        message: "Session already authenticated",
       });
     }
 
@@ -195,6 +196,8 @@ app.post("/pdf/authenticate", async (c) => {
       return c.json({ error: "providedKey is required" }, 400);
     }
 
+    console.log("Admin secret:", c.env.ADMIN_SECRET);
+    console.log("Provided key:", providedKey);
     const expectedKey = c.env.ADMIN_SECRET; // Use the environment variable from Cloudflare
 
     // Send validation request to the Durable Object
@@ -235,16 +238,16 @@ app.post("/pdf/authenticate", async (c) => {
   }
 });
 
-// PDF Upload URL Route (for presigned uploads)
-app.post("/pdf/upload-url", async (c) => {
+// PDF Session Authentication Status Check Route
+app.get("/pdf/is-session-authenticated", async (c) => {
   try {
-    const { sessionId, fileName, fileSize } = await c.req.json();
+    const sessionId = c.req.query("sessionId");
 
-    if (!sessionId || !fileName) {
-      return c.json({ error: "sessionId and fileName are required" }, 400);
+    if (!sessionId) {
+      return c.json({ error: "sessionId parameter is required" }, 400);
     }
 
-    // Check if session is authenticated
+    // Get the SessionFileTracker Durable Object for this session
     const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
     const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
 
@@ -258,9 +261,63 @@ app.post("/pdf/upload-url", async (c) => {
     const authCheck = (await authCheckResponse.json()) as {
       authenticated: boolean;
     };
+
+    return c.json({
+      authenticated: authCheck.authenticated,
+    });
+  } catch (error) {
+    console.error("Error checking session authentication status:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// PDF Upload URL Route (for presigned uploads)
+app.post("/pdf/upload-url", async (c) => {
+  try {
+    const { sessionId, fileName, fileSize } = await c.req.json();
+
+    console.log("Upload URL request received for sessionId:", sessionId);
+    console.log("FileName:", fileName);
+    console.log("FileSize:", fileSize);
+
+    if (!sessionId || !fileName) {
+      console.log("Missing sessionId or fileName");
+      return c.json({ error: "sessionId and fileName are required" }, 400);
+    }
+
+    // Check if session is authenticated
+    const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
+    const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
+
+    console.log(
+      "Created session tracker for upload URL, sessionId:",
+      sessionId
+    );
+
+    const authCheckResponse = await sessionTracker.fetch(
+      "https://dummy-host/is-session-authenticated",
+      {
+        method: "GET",
+      }
+    );
+
+    console.log(
+      "Auth check response status for upload URL:",
+      authCheckResponse.status
+    );
+
+    const authCheck = (await authCheckResponse.json()) as {
+      authenticated: boolean;
+    };
+
+    console.log("Auth check result for upload URL:", authCheck);
+
     if (!authCheck.authenticated) {
+      console.log("Session not authenticated for upload URL, returning 401");
       return c.json({ error: "Session not authenticated" }, 401);
     }
+
+    console.log("Session authenticated, generating upload URL");
 
     // Generate unique file key
     const fileKey = `uploads/${sessionId}/${crypto.randomUUID()}-${fileName}`;
@@ -269,18 +326,26 @@ app.post("/pdf/upload-url", async (c) => {
     // This creates a URL that uploads directly to R2, bypassing the worker
     const uploadUrl = `/pdf/upload/${fileKey}`;
 
+    console.log("Generated fileKey:", fileKey);
+    console.log("Generated uploadUrl:", uploadUrl);
+
     // Add file metadata to SessionFileTracker
-    await sessionTracker.fetch("https://dummy-host/add-file", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId,
-        fileKey,
-        fileName,
-        fileSize: fileSize || 0,
-        metadata: { status: "uploading" },
-      }),
-    });
+    const addFileResponse = await sessionTracker.fetch(
+      "https://dummy-host/add-file",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          fileKey,
+          fileName,
+          fileSize: fileSize || 0,
+          metadata: { status: "uploading" },
+        }),
+      }
+    );
+
+    console.log("Add file response status:", addFileResponse.status);
 
     return c.json({
       uploadUrl,

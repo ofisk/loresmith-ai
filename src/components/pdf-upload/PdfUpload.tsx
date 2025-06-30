@@ -1,11 +1,16 @@
-import { useState, useRef } from "react";
 import { Button } from "@/components/button/Button";
-import { Input } from "@/components/input/Input";
 import { Card } from "@/components/card/Card";
+import { Input } from "@/components/input/Input";
 import { cn } from "@/lib/utils";
+import { useRef, useState } from "react";
 
 interface PdfUploadProps {
-  onUpload: (file: File, description: string, tags: string[]) => void;
+  onUpload: (
+    file: File,
+    filename: string,
+    description: string,
+    tags: string[]
+  ) => void;
   loading?: boolean;
   className?: string;
 }
@@ -16,6 +21,7 @@ export const PdfUpload = ({
   className,
 }: PdfUploadProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filename, setFilename] = useState("");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
   const [isValid, setIsValid] = useState(true);
@@ -26,9 +32,11 @@ export const PdfUpload = ({
     if (file) {
       if (file.type === "application/pdf") {
         setSelectedFile(file);
+        setFilename(file.name);
         setIsValid(true);
       } else {
         setSelectedFile(null);
+        setFilename("");
         setIsValid(false);
       }
     }
@@ -41,7 +49,7 @@ export const PdfUpload = ({
         .map((tag) => tag.trim())
         .filter((tag) => tag.length > 0);
 
-      onUpload(selectedFile, description, tagsArray);
+      onUpload(selectedFile, filename, description, tagsArray);
     }
   };
 
@@ -50,8 +58,11 @@ export const PdfUpload = ({
     const file = event.dataTransfer.files[0];
     if (file && file.type === "application/pdf") {
       setSelectedFile(file);
+      setFilename(file.name);
       setIsValid(true);
     } else {
+      setSelectedFile(null);
+      setFilename("");
       setIsValid(false);
     }
   };
@@ -137,11 +148,28 @@ export const PdfUpload = ({
         </div>
       )}
 
+      {/* Filename Input */}
+      <div className="space-y-3">
+        <label
+          htmlFor="pdf-filename"
+          className="text-ob-base-300 text-sm font-medium mb-2 block"
+        >
+          Filename
+        </label>
+        <Input
+          id="pdf-filename"
+          placeholder="Enter a filename for this PDF..."
+          value={filename}
+          onValueChange={(value) => setFilename(value)}
+          disabled={loading || !selectedFile}
+        />
+      </div>
+
       {/* Description Input */}
-      <div className="space-y-2">
+      <div className="space-y-3">
         <label
           htmlFor="pdf-description"
-          className="text-ob-base-300 text-sm font-medium"
+          className="text-ob-base-300 text-sm font-medium mb-2 block"
         >
           Description (optional)
         </label>
@@ -155,10 +183,10 @@ export const PdfUpload = ({
       </div>
 
       {/* Tags Input */}
-      <div className="space-y-2">
+      <div className="space-y-3">
         <label
           htmlFor="pdf-tags"
-          className="text-ob-base-300 text-sm font-medium"
+          className="text-ob-base-300 text-sm font-medium mb-2 block"
         >
           Tags (optional)
         </label>

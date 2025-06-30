@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/button/Button";
-import { Input } from "@/components/input/Input";
 import { Card } from "@/components/card/Card";
-import { PdfUpload } from "./PdfUpload";
+import { Input } from "@/components/input/Input";
 import { cn } from "@/lib/utils";
-import type { Message, CreateMessage } from "@ai-sdk/react";
+import type { CreateMessage, Message } from "@ai-sdk/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { PdfUpload } from "./PdfUpload";
 
 interface PdfUploadAgentProps {
   sessionId: string;
@@ -39,34 +39,51 @@ export const PdfUploadAgent = ({
 
       const apiBaseUrl =
         import.meta.env.VITE_API_URL || "http://localhost:8787";
-      const response = await fetch(`${apiBaseUrl}/pdf/authenticate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          sessionId,
-          providedKey: "check-status-only",
-        }),
-      });
 
-      const result = (await response.json()) as {
-        success: boolean;
-        authenticated: boolean;
-        error?: string;
-      };
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-      if (response.ok && result.success && result.authenticated) {
-        setIsAuthenticated(true);
-        setAuthError(null);
-        setShowAuthInput(false);
+      // Use the is-session-authenticated endpoint for status checking
+      const response = await fetch(
+        `${apiBaseUrl}/pdf/is-session-authenticated?sessionId=${sessionId}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          signal: controller.signal,
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const result = (await response.json()) as {
+          authenticated: boolean;
+        };
+
+        if (result.authenticated) {
+          setIsAuthenticated(true);
+          setAuthError(null);
+          setShowAuthInput(false);
+        } else {
+          setIsAuthenticated(false);
+          setAuthError(null);
+        }
       } else {
+        const errorText = await response.text();
+        console.error("Auth check failed:", response.status, errorText);
         setIsAuthenticated(false);
         setAuthError(null);
       }
     } catch (error) {
       console.error("Error checking auth status:", error);
-      setAuthError("Failed to check authentication status");
+      if (error instanceof Error && error.name === "AbortError") {
+        setAuthError("Authentication check timed out");
+      } else {
+        setAuthError("Failed to check authentication status");
+      }
       setIsAuthenticated(false);
     } finally {
       setCheckingAuth(false);
@@ -100,23 +117,46 @@ export const PdfUploadAgent = ({
 
   const handleUpload = async (
     file: File,
+    filename: string,
     description: string,
     tags: string[]
   ) => {
     setUploading(true);
     try {
+      // Step 0: Check authentication status before proceeding
+      const apiBaseUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8787";
+      const authStatusResponse = await fetch(
+        `${apiBaseUrl}/pdf/is-session-authenticated?sessionId=${sessionId}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      const authStatus = (await authStatusResponse.json()) as {
+        authenticated: boolean;
+      };
+      if (!authStatus.authenticated) {
+        setUploading(false);
+        setIsAuthenticated(false);
+        setAuthError(
+          "Session is not authenticated. Please re-authenticate before uploading."
+        );
+        setShowAuthInput(true);
+        return;
+      }
+
       // Step 1: Ask agent to generate upload URL with session ID
       await append({
         role: "user",
-        content: `Please generate an upload URL for my PDF file "${file.name}" (${(file.size / 1024 / 1024).toFixed(2)} MB) using session ID "${sessionId}".`,
+        content: `Please generate an upload URL for my PDF file "${filename}" (${(file.size / 1024 / 1024).toFixed(2)} MB) using session ID "${sessionId}".`,
       });
 
       // Step 2: Wait for agent response and extract upload URL
       // For now, we'll make a direct API call to get the upload URL
       // In a full implementation, you'd parse the agent's response to get the upload URL
-
-      const apiBaseUrl =
-        import.meta.env.VITE_API_URL || "http://localhost:8787";
 
       // Get upload URL from server (this would normally come from the agent's response)
       const uploadUrlResponse = await fetch(`${apiBaseUrl}/pdf/upload-url`, {
@@ -126,12 +166,21 @@ export const PdfUploadAgent = ({
         },
         body: JSON.stringify({
           sessionId,
-          fileName: file.name,
+          fileName: filename,
           fileSize: file.size,
         }),
       });
 
+      console.log("Upload URL request sent with sessionId:", sessionId);
+      console.log("Upload URL response status:", uploadUrlResponse.status);
+
       if (!uploadUrlResponse.ok) {
+        const errorText = await uploadUrlResponse.text();
+        console.error(
+          "Upload URL request failed:",
+          uploadUrlResponse.status,
+          errorText
+        );
         throw new Error(
           `Failed to get upload URL: ${uploadUrlResponse.status}`
         );
@@ -168,7 +217,7 @@ export const PdfUploadAgent = ({
       // Step 4: Send metadata to agent after successful upload
       await append({
         role: "user",
-        content: `I have successfully uploaded the PDF file "${file.name}" (${(file.size / 1024 / 1024).toFixed(2)} MB) with file key "${uploadUrlResult.fileKey}". Please update the metadata with:
+        content: `I have successfully uploaded the PDF file "${filename}" (${(file.size / 1024 / 1024).toFixed(2)} MB) with file key "${uploadUrlResult.fileKey}". Please update the metadata with:
 - Description: ${description || "No description provided"}
 - Tags: ${tags.length > 0 ? tags.join(", ") : "No tags provided"}
 - File size: ${file.size} bytes
@@ -182,7 +231,7 @@ Then please trigger ingestion for this file.`,
       // Send error message to agent
       await append({
         role: "user",
-        content: `Failed to upload PDF file "${file.name}": ${error instanceof Error ? error.message : String(error)}`,
+        content: `Failed to upload PDF file "${filename}": ${error instanceof Error ? error.message : String(error)}`,
       });
     } finally {
       setUploading(false);
@@ -304,10 +353,10 @@ Then please trigger ingestion for this file.`,
 
             {showAuthInput ? (
               <div className="space-y-3">
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <label
                     htmlFor="admin-key"
-                    className="text-ob-base-300 text-sm font-medium"
+                    className="text-ob-base-300 text-sm font-medium mb-2 block"
                   >
                     Admin Key
                   </label>
