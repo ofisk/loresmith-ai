@@ -1,6 +1,4 @@
-@import "tailwindcss/base";
-@import "tailwindcss/components";
-@import "tailwindcss/utilities";
+@import "tailwindcss";
 
 /* Markdown Table Styling */
 .markdown-body table {
@@ -142,12 +140,12 @@
   --color-ob-btn-primary-border: var(--color-neutral-100);
   --color-ob-btn-primary-border-hover: var(--color-white);
 
-  --color-ob-btn-secondary-bg: var(--color-neutral-900);
-  --color-ob-btn-secondary-bg-hover: var(--color-neutral-850);
-  --color-ob-btn-secondary-border: var(--color-neutral-800);
-  --color-ob-btn-secondary-border-hover: var(--color-neutral-750);
+  --color-ob-btn-secondary-bg: var(--color-neutral-800);
+  --color-ob-btn-secondary-bg-hover: var(--color-neutral-750);
+  --color-ob-btn-secondary-border: var(--color-neutral-700);
+  --color-ob-btn-secondary-border-hover: var(--color-neutral-600);
 
-  --color-ob-btn-ghost-bg-hover: var(--color-neutral-850);
+  --color-ob-btn-ghost-bg-hover: var(--color-neutral-800);
 
   --color-ob-btn-destructive-bg: var(--color-red-800);
   --color-ob-btn-destructive-bg-hover: var(--color-red-750);
@@ -178,7 +176,7 @@
 .btn.btn-secondary {
   border-color: var(--color-ob-btn-secondary-border);
   background-color: var(--color-ob-btn-secondary-bg);
-  color: var(--color-ob-base-300);
+  color: var(--text-color-ob-base-300);
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 .btn.btn-secondary:not(:disabled):hover {
@@ -192,15 +190,17 @@
 
 /* Button ghost styles */
 .btn.btn-ghost {
-  color: var(--color-ob-base-300);
+  color: var(--text-color-ob-base-300);
   border-color: transparent;
   background: transparent;
 }
 .btn.btn-ghost:not(:disabled):hover {
   background: var(--color-ob-btn-ghost-bg-hover);
+  color: var(--text-color-ob-base-300);
 }
 .btn.btn-ghost.toggle:not(:disabled) {
   background: var(--color-ob-btn-ghost-bg-hover);
+  color: var(--text-color-ob-base-300);
 }
 
 /* Button destructive styles */

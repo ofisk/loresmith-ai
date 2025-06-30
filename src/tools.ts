@@ -5,9 +5,9 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-import type { Chat } from "./server";
 import { getCurrentAgent } from "agents";
 import { unstable_scheduleSchema } from "agents/schedule";
+import type { Chat } from "./server";
 import { AUTH_CODES, type ToolResult } from "./shared";
 
 /**
@@ -104,36 +104,31 @@ const checkPdfAuthStatus = tool({
   parameters: z.object({
     sessionId: z
       .string()
-      .optional()
       .describe(
         "The session ID to check authentication for (optional, will use agent session if not provided)"
       ),
   }),
   execute: async ({ sessionId }): Promise<ToolResult> => {
     try {
-      const { agent } = getCurrentAgent<Chat>();
-      const effectiveSessionId = sessionId || agent?.name || "default-session";
+      const effectiveSessionId = sessionId;
 
-      console.log("Checking auth status for session:", effectiveSessionId);
+      console.log("Checking auth status for session:", sessionId);
 
       // Make HTTP request to check authentication status
       const apiBaseUrl =
         import.meta.env.VITE_API_URL || "http://localhost:8787";
-      const response = await fetch(`${apiBaseUrl}/pdf/authenticate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          sessionId: effectiveSessionId,
-          providedKey: "check-status-only", // Special value to indicate status check
-        }),
-      });
+      const response = await fetch(
+        `${apiBaseUrl}/pdf/is-session-authenticated?sessionId=${sessionId}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       const result = (await response.json()) as {
-        success: boolean;
         authenticated: boolean;
-        error?: string;
       };
 
       console.log("Auth check result:", {
@@ -141,7 +136,7 @@ const checkPdfAuthStatus = tool({
         result,
       });
 
-      if (result.success && result.authenticated) {
+      if (result.authenticated) {
         return {
           code: AUTH_CODES.SUCCESS,
           message:
