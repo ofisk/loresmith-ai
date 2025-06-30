@@ -179,9 +179,15 @@ export const PdfUpload = ({
         onClick={handleUpload}
         disabled={isUploadDisabled}
         loading={loading}
-        variant="primary"
+        variant={selectedFile ? "primary" : "secondary"}
         size="base"
-        className="w-full"
+        className={cn(
+          "w-full",
+          selectedFile &&
+            "bg-[#F48120] hover:bg-[#F48120]/90 text-white border-[#F48120]",
+          !selectedFile &&
+            "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 cursor-not-allowed"
+        )}
       >
         {loading ? "Uploading..." : "Upload PDF"}
       </Button>

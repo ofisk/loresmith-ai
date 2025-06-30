@@ -272,16 +272,16 @@ export default function Chat() {
                 >
                   <div
                     className={`flex gap-2 max-w-[85%] ${
-                      isUser ? "flex-row-reverse" : "flex-row"
+                      isUser ? "flex-row-reverse" : "flex-col"
                     }`}
                   >
                     {showAvatar && !isUser ? (
-                      <Avatar username={"AI"} />
+                      <Avatar username={"LS"} />
                     ) : (
                       !isUser && <div className="w-8" />
                     )}
 
-                    <div>
+                    <div className="flex-1">
                       <div>
                         {m.parts?.map((part, i) => {
                           if (part.type === "text") {
