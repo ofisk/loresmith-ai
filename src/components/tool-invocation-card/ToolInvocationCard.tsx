@@ -4,6 +4,12 @@ import { Tooltip } from "@/components/tooltip/Tooltip";
 import { APPROVAL } from "@/shared";
 import { CaretDown, Robot } from "@phosphor-icons/react";
 import { useState } from "react";
+import { 
+  CreateCampaignForm, 
+  CampaignResourceList, 
+  AddResourceForm, 
+  CampaignDetails 
+} from "@/components/campaign";
 
 interface ToolInvocation {
   toolName: string;
@@ -30,6 +36,93 @@ export function ToolInvocationCard({
   addToolResult,
 }: ToolInvocationCardProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+
+  // Render campaign UI components for campaign tools
+  const renderCampaignUI = () => {
+    if (!needsConfirmation || toolInvocation.state !== "call") {
+      return null;
+    }
+
+    switch (toolInvocation.toolName) {
+      case "createCampaign":
+        const { name: prepopulatedName } = toolInvocation.args as { name?: string };
+        return (
+          <div className="mt-4">
+            <CreateCampaignForm
+              defaultName={prepopulatedName}
+              onCampaignCreated={(campaign) => {
+                addToolResult({
+                  toolCallId,
+                  result: `Campaign created successfully: ${campaign.name} (ID: ${campaign.campaignId})`,
+                });
+              }}
+            />
+          </div>
+        );
+
+      case "listCampaignResources":
+        const { campaignId } = toolInvocation.args as { campaignId: string };
+        return (
+          <div className="mt-4">
+            <CampaignResourceList
+              campaignId={campaignId}
+              onResourceRemoved={(resourceId) => {
+                addToolResult({
+                  toolCallId,
+                  result: `Resource ${resourceId} removed from campaign ${campaignId}`,
+                });
+              }}
+            />
+          </div>
+        );
+
+      case "addResourceToCampaign":
+        const { campaignId: addCampaignId, resourceType, resourceId, resourceName } = toolInvocation.args as {
+          campaignId: string;
+          resourceType: string;
+          resourceId: string;
+          resourceName?: string;
+        };
+        return (
+          <div className="mt-4">
+            <AddResourceForm
+              campaignId={addCampaignId}
+              onResourceAdded={(resource) => {
+                addToolResult({
+                  toolCallId,
+                  result: `Resource added successfully to campaign ${addCampaignId}`,
+                });
+              }}
+            />
+          </div>
+        );
+
+      case "showCampaignDetails":
+        const { campaignId: detailsCampaignId } = toolInvocation.args as { campaignId: string };
+        return (
+          <div className="mt-4">
+            <CampaignDetails campaignId={detailsCampaignId} />
+            <div className="flex gap-2 mt-4">
+              <Button
+                variant="destructive"
+                size="base"
+                onClick={() => {
+                  addToolResult({
+                    toolCallId,
+                    result: JSON.stringify({ action: "deleteCampaign", campaignId: detailsCampaignId }),
+                  });
+                }}
+              >
+                Delete Campaign
+              </Button>
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   return (
     <Card
@@ -60,22 +153,26 @@ export function ToolInvocationCard({
       </button>
 
       <div
-        className={`transition-all duration-200 ${isExpanded ? "max-h-[200px] opacity-100 mt-3" : "max-h-0 opacity-0 overflow-hidden"}`}
+        className={`transition-all duration-200 ${isExpanded ? "max-h-none opacity-100 mt-3" : "max-h-0 opacity-0 overflow-hidden"}`}
       >
-        <div
-          className="overflow-y-auto"
-          style={{ maxHeight: isExpanded ? "180px" : "0px" }}
-        >
-          <div className="mb-3">
-            <h5 className="text-xs font-medium mb-1 text-muted-foreground">
-              Arguments:
-            </h5>
-            <pre className="bg-background/80 p-2 rounded-md text-xs overflow-auto whitespace-pre-wrap break-words max-w-[450px]">
-              {JSON.stringify(toolInvocation.args, null, 2)}
-            </pre>
-          </div>
+        <div className="overflow-y-auto">
+          {/* Show campaign UI for campaign tools */}
+          {renderCampaignUI()}
 
-          {needsConfirmation && toolInvocation.state === "call" && (
+          {/* Show arguments for non-campaign tools or when no UI is rendered */}
+          {!renderCampaignUI() && (
+            <div className="mb-3">
+              <h5 className="text-xs font-medium mb-1 text-muted-foreground">
+                Arguments:
+              </h5>
+              <pre className="bg-background/80 p-2 rounded-md text-xs overflow-auto whitespace-pre-wrap break-words max-w-[450px]">
+                {JSON.stringify(toolInvocation.args, null, 2)}
+              </pre>
+            </div>
+          )}
+
+          {/* Show approval buttons for campaign tools */}
+          {needsConfirmation && toolInvocation.state === "call" && !renderCampaignUI() && (
             <div className="flex gap-2 justify-end">
               <Button
                 variant="primary"

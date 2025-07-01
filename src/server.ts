@@ -13,9 +13,13 @@ import {
 } from "ai";
 import { Hono } from "hono";
 import { executions, tools } from "./tools";
+import type { CampaignData } from "./types/campaign";
 import { processToolCalls } from "./utils";
+import campaignAgent from "./agents/campaign";
 
 const model = openai("gpt-4o-mini");
+
+console.log("Server file loaded and running");
 
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
@@ -76,11 +80,49 @@ When a user wants to upload a PDF file, follow this process:
 - If no session ID is provided, use the agent's default session
 - Always use the same session ID that the user authenticated with
 
+**Campaign Listing Flow:**
+- If the user asks to see all campaigns, call the listCampaigns tool.
+- If campaigns exist, display the list to the user.
+- If no campaigns exist, prompt the user to create a new campaign and show the campaign creation UI.
+- Never ask for a campaign ID if the user just wants to see all campaigns.
+
+**Example:**
+- User: "Do I have any campaigns?" or "List all my campaigns."
+- You: Call listCampaigns tool.
+- If result is not empty: "Here are your campaigns: [list]."
+- If result is empty: "You don't have any campaigns yet. Please create one to get started." (Show campaign creation UI)
+
+**Campaign Creation Flow:**
+- When the user wants to create a new campaign:
+  - First, invoke the createCampaign tool (with a name if provided, or let the user fill it in).
+  - Wait for the campaign to be created and get the campaignId from the result.
+  - The createCampaign tool returns an object with a "campaign" field, which contains a "campaignId" (e.g., { campaign: { campaignId: "abc123", ... } }).
+  - After calling createCampaign, always extract the campaignId from the result and use it as the argument for listCampaignResources (e.g., { campaignId: "abc123" }).
+  - Never call listCampaignResources with an empty or missing campaignId.
+
+**Example createCampaign result:**
+    {
+      "campaign": {
+        "campaignId": "abc123",
+        "name": "Historica Arcanum"
+      }
+    }
+
 **Example Flow:**
-- User: "Please generate an upload URL for my PDF file 'document.pdf' (2.5 MB) using session ID 'session-123'"
-- You: Call generatePdfUploadUrl tool with fileName="document.pdf", fileSize=2621440, and sessionId="session-123"
-- User: "I have successfully uploaded the PDF file 'document.pdf' with file key 'uploads/session-123/abc-123-document.pdf'. Please update the metadata..."
-- You: Call updatePdfMetadata tool with the file key and metadata, then call ingestPdfFile tool
+- User: "Create a new campaign called Historica Arcanum."
+- You: Call createCampaign tool with name="Historica Arcanum"
+- You: After creation, call listCampaignResources tool with campaignId set to the new campaign's ID
+
+**Campaign Resource Listing Flow:**
+- If the user asks to list resources for a campaign, always require a campaignId.
+- If the campaignId is not provided, prompt the user to select or create a campaign first.
+- Never call listCampaignResources with an empty or missing campaignId.
+
+**Example:**
+- User: "Show me the resources for my campaign."
+- You: "Which campaign? Please select or create a campaign first."
+- (After campaign is selected or created)
+- You: Call listCampaignResources tool with campaignId set to the selected campaign's ID.
 
 **Other PDF Operations:**
 - Use checkPdfAuthStatus to verify authentication (pass sessionId if provided)
@@ -568,6 +610,33 @@ app.get("/pdf/stats", async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Mount campaign agent routes
+app.route("/", campaignAgent);
 
 app.all("*", async (c) => {
   if (!process.env.OPENAI_API_KEY) {

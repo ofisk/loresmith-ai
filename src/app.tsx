@@ -2,6 +2,7 @@ import type { Message } from "@ai-sdk/react";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
+import { Toaster } from "react-hot-toast";
 import type { tools } from "./tools";
 
 import { Avatar } from "@/components/avatar/Avatar";
@@ -29,7 +30,11 @@ import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
 
 // List of tools that require human confirmation
 // NOTE: this should match the keys in the executions object in tools.ts
-const toolsRequiringConfirmation: (keyof typeof tools)[] = [];
+const toolsRequiringConfirmation: (keyof typeof tools)[] = [
+  "createCampaign",
+  "addResourceToCampaign",
+  // Only include tools that truly require confirmation
+];
 
 /**
  * Generate a unique session ID for this browser session
@@ -158,6 +163,7 @@ export default function Chat() {
 
   return (
     <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
+      <Toaster position="top-right" />
       <HasOpenAIKey />
       <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-lg flex flex-col shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
         <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">

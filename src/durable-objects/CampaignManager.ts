@@ -17,6 +17,19 @@ export interface CampaignData {
   resources: CampaignResource[];
 }
 
+import type {
+  AddResourceRequest,
+  CampaignData,
+  CampaignResource,
+  CreateCampaignRequest,
+  ResourceType,
+  Campaign,
+  AddResourceResponse,
+  RemoveResourceResponse,
+  ListCampaignsResponse,
+  CreateCampaignResponse,
+} from "../types/campaign";
+
 export class CampaignManager extends DurableObject {
   private campaign: CampaignData | null = null;
 
@@ -61,7 +74,7 @@ export class CampaignManager extends DurableObject {
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
-    const { name } = body as { name: string };
+    const { name } = body as CreateCampaignRequest;
     const campaignId = crypto.randomUUID();
     const now = new Date().toISOString();
     this.campaign = {
@@ -88,14 +101,17 @@ export class CampaignManager extends DurableObject {
       typeof resource !== "object" ||
       !("type" in resource) ||
       !("id" in resource) ||
+      !("name" in resource) ||
       typeof (resource as Record<string, unknown>).type !== "string" ||
-      typeof (resource as Record<string, unknown>).id !== "string"
+      typeof (resource as Record<string, unknown>).id !== "string" ||
+      !(
+        typeof (resource as { name?: unknown }).name === "string" &&
+        (resource as { name: string }).name.trim()
+      )
     ) {
       return new Response(
-        JSON.stringify({
-          error: "Invalid resource: type and id are required.",
-        }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Resource name is required" }),
+        { status: 400 }
       );
     }
     this.campaign.resources.push(resource as CampaignResource);
@@ -148,7 +164,7 @@ export class CampaignManager extends DurableObject {
 
     // Check if the resource exists before attempting to remove it
     const resourceExists = this.campaign.resources.some(
-      (r) => r && r.id === resourceId
+      r => r && r.id === resourceId
     );
     if (!resourceExists) {
       return new Response(
@@ -163,7 +179,7 @@ export class CampaignManager extends DurableObject {
     }
 
     this.campaign.resources = this.campaign.resources.filter(
-      (r) => r && r.id !== resourceId
+      r => r && r.id !== resourceId
     );
     this.campaign.updatedAt = new Date().toISOString();
     console.debug(

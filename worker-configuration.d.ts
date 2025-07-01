@@ -10,6 +10,7 @@ declare namespace Cloudflare {
 		Chat: DurableObjectNamespace<import("./src/server").Chat>;
 		SessionFileTracker: DurableObjectNamespace<import("./src/server").SessionFileTracker>;
 		PDF_BUCKET: R2Bucket;
+		CAMPAIGNS_KV: KVNamespace;
 	}
 }
 interface Env extends Cloudflare.Env {}

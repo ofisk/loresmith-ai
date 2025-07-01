@@ -575,6 +575,151 @@ const ingestPdfFile = tool({
 });
 
 /**
+ * Campaign management tools
+ * These tools allow the AI to manage campaigns and their resources
+ */
+const createCampaign = tool({
+  description: "Create a new campaign to organize resources and content",
+  parameters: z.object({
+    name: z.string().describe("The name of the campaign to create"),
+  }),
+  // No execute function - requires UI confirmation
+});
+
+const listCampaignResources = tool({
+  description: "List all resources in a specific campaign",
+  parameters: z.object({
+    campaignId: z.string().describe("The ID of the campaign to list resources for"),
+  }),
+  execute: async ({ campaignId }) => {
+    const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
+    const response = await fetch(`${apiBaseUrl}/api/campaigns/${campaignId}`);
+    if (!response.ok) {
+      return { error: "Campaign not found" };
+    }
+    const data = (await response.json()) as { campaign: { resources: unknown[] } };
+    return data.campaign.resources || [];
+  },
+});
+
+const addResourceToCampaign = tool({
+  description: "Add a resource to a campaign",
+  parameters: z.object({
+    campaignId: z.string().describe("The ID of the campaign to add the resource to"),
+    resourceType: z.enum(["pdf", "character", "note", "image"]).describe("The type of resource to add"),
+    resourceId: z.string().describe("The ID or URL of the resource"),
+    resourceName: z.string().optional().describe("Optional friendly name for the resource"),
+  }),
+  // No execute function - requires UI confirmation
+});
+
+const showCampaignDetails = tool({
+  description: "Show detailed information about a campaign including metadata and resource statistics",
+  parameters: z.object({
+    campaignId: z.string().describe("The ID of the campaign to show details for"),
+  }),
+  // No execute function - requires UI confirmation
+});
+
+const listCampaigns = tool({
+  description: "List all campaigns for the current user",
+  parameters: z.object({}),
+  execute: async () => {
+    console.log("Listing campaigns");
+    const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
+    const response = await fetch(`${apiBaseUrl}/api/campaigns`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) {
+      return { error: `Failed to retrieve campaigns: ${response.status}` };
+    }
+    const result = (await response.json()) as { campaigns: unknown[] };
+    return result.campaigns || [];
+  },
+});
+
+const deleteCampaign = tool({
+  description: "Delete a campaign by its ID",
+  parameters: z.object({
+    campaignId: z.string().describe("The ID of the campaign to delete"),
+  }),
+  execute: async ({ campaignId }): Promise<ToolResult> => {
+    try {
+      const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
+      const response = await fetch(`${apiBaseUrl}/api/campaigns/${campaignId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      if (!response.ok) {
+        return {
+          code: AUTH_CODES.ERROR,
+          message: `Failed to delete campaign: ${response.status}`,
+          data: { error: `HTTP ${response.status}` },
+        };
+      }
+      return {
+        code: AUTH_CODES.SUCCESS,
+        message: `Campaign ${campaignId} deleted successfully.`,
+        data: { campaignId },
+      };
+    } catch (error) {
+      return {
+        code: AUTH_CODES.ERROR,
+        message: `Error deleting campaign: ${error instanceof Error ? error.message : String(error)}`,
+        data: { error: error instanceof Error ? error.message : String(error) },
+      };
+    }
+  },
+});
+
+const deleteCampaigns = tool({
+  description: "Delete multiple campaigns by their IDs",
+  parameters: z.object({
+    campaignIds: z.array(z.string()).describe("The IDs of the campaigns to delete"),
+  }),
+  execute: async ({ campaignIds }): Promise<ToolResult> => {
+    const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
+    const results = [];
+    for (const campaignId of campaignIds) {
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/campaigns/${campaignId}`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+        if (!response.ok) {
+          results.push({ campaignId, success: false, error: `HTTP ${response.status}` });
+        } else {
+          results.push({ campaignId, success: true });
+        }
+      } catch (error) {
+        results.push({ campaignId, success: false, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    const failed = results.filter(r => !r.success);
+    if (failed.length === 0) {
+      return {
+        code: AUTH_CODES.SUCCESS,
+        message: `All campaigns deleted successfully.`,
+        data: { results },
+      };
+    } else {
+      return {
+        code: AUTH_CODES.ERROR,
+        message: `Some campaigns could not be deleted: ${failed.map(f => f.campaignId).join(", ")}`,
+        data: { results },
+      };
+    }
+  },
+});
+
+/**
  * Export all available tools
  * These will be provided to the AI model to describe available capabilities
  */
@@ -590,6 +735,13 @@ export const tools = {
   generatePdfUploadUrl,
   updatePdfMetadata,
   ingestPdfFile,
+  createCampaign,
+  listCampaigns,
+  listCampaignResources,
+  addResourceToCampaign,
+  showCampaignDetails,
+  deleteCampaign,
+  deleteCampaigns,
 };
 
 /**
