@@ -292,8 +292,24 @@ export class SessionFileTracker extends DurableObject {
   }
 
   private async updateMetadata(request: Request): Promise<Response> {
-    const { fileKey, metadata } =
-      (await request.json()) as UpdateMetadataRequest;
+    const body = await request.json();
+    if (
+      !body ||
+      typeof body !== "object" ||
+      !("fileKey" in body) ||
+      !("metadata" in body) ||
+      typeof (body as Record<string, unknown>).fileKey !== "string" ||
+      typeof (body as Record<string, unknown>).metadata !== "object" ||
+      (body as Record<string, unknown>).metadata === null
+    ) {
+      return new Response(
+        JSON.stringify({
+          error: "Invalid request: fileKey and metadata are required.",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    const { fileKey, metadata } = body as UpdateMetadataRequest;
 
     if (!this.sessionData.isAuthenticated) {
       return new Response("Session not authenticated", { status: 401 });
@@ -315,9 +331,14 @@ export class SessionFileTracker extends DurableObject {
       file.fileName = metadata.fileName;
     }
 
-    // Update file size if provided
-    if (metadata.fileSize) {
-      file.fileSize = metadata.fileSize;
+    // Update fileName if provided (this allows users to edit the display name)
+    if (
+      metadata &&
+      typeof metadata === "object" &&
+      "fileName" in metadata &&
+      metadata.fileName
+    ) {
+      file.fileName = metadata.fileName;
     }
 
     // Update the updatedAt timestamp
