@@ -1,19 +1,4 @@
 import type { Message } from "@ai-sdk/react";
-import { useAgentChat } from "agents/ai-react";
-import { useAgent } from "agents/react";
-import { use, useCallback, useEffect, useRef, useState } from "react";
-import type { tools } from "./tools";
-
-import { Avatar } from "@/components/avatar/Avatar";
-// Component imports
-import { Button } from "@/components/button/Button";
-import { Card } from "@/components/card/Card";
-import { MemoizedMarkdown } from "@/components/memoized-markdown";
-import { PdfUploadAgent } from "@/components/pdf-upload/PdfUploadAgent";
-import { Textarea } from "@/components/textarea/Textarea";
-import { Toggle } from "@/components/toggle/Toggle";
-import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
-
 // Icon imports
 import {
   Bug,
@@ -23,13 +8,30 @@ import {
   Sun,
   Trash,
 } from "@phosphor-icons/react";
-
-import loresmith from "@/assets/loresmith.png";
 import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
+import { useAgentChat } from "agents/ai-react";
+import { useAgent } from "agents/react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
+import { Toaster } from "react-hot-toast";
+import loresmith from "@/assets/loresmith.png";
+import { Avatar } from "@/components/avatar/Avatar";
+// Component imports
+import { Button } from "@/components/button/Button";
+import { Card } from "@/components/card/Card";
+import { MemoizedMarkdown } from "@/components/memoized-markdown";
+import { PdfUploadAgent } from "@/components/pdf-upload/PdfUploadAgent";
+import { Textarea } from "@/components/textarea/Textarea";
+import { Toggle } from "@/components/toggle/Toggle";
+import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
+import type { tools } from "./tools";
 
 // List of tools that require human confirmation
 // NOTE: this should match the keys in the executions object in tools.ts
-const toolsRequiringConfirmation: (keyof typeof tools)[] = [];
+const toolsRequiringConfirmation: (keyof typeof tools)[] = [
+  "createCampaign",
+  "addResourceToCampaign",
+  // Only include tools that truly require confirmation
+];
 
 /**
  * Generate a unique session ID for this browser session
@@ -197,6 +199,7 @@ export default function Chat() {
 
   return (
     <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
+      <Toaster position="top-right" />
       <HasOpenAIKey />
       <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-lg flex flex-col shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
         <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">

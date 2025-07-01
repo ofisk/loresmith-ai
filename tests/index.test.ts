@@ -43,8 +43,8 @@ beforeAll(() => {
     let createdCampaign: unknown = null;
     env.CampaignManager = {
       idFromName: (name: string) => name,
-      get: (id: unknown) => ({
-        fetch: async (url: string, options?: unknown) => {
+      get: (_id: unknown) => ({
+        fetch: async (_url: string, options?: unknown) => {
           const opts = options as Record<string, unknown>;
           if (options && opts.method === "POST") {
             // Simulate campaign creation
@@ -121,11 +121,11 @@ describe("CampaignManager Durable Object", () => {
 });
 
 describe("Campaign API endpoints", () => {
-  it("GET /api/campaigns returns campaigns for the user", async () => {
+  it("GET /campaigns returns campaigns for the user", async () => {
     const testJWT = await generateTestJWT("test-user-123");
 
     // First, create a campaign via the DO mock
-    const createRequest = new Request("http://localhost/api/campaigns", {
+    const createRequest = new Request("http://localhost/campaigns", {
       method: "POST",
       body: JSON.stringify({ name: "Test Campaign" }),
       headers: {
@@ -138,7 +138,7 @@ describe("Campaign API endpoints", () => {
     await waitOnExecutionContext(ctx1);
 
     // Now, list campaigns
-    const listRequest = new Request("http://localhost/api/campaigns", {
+    const listRequest = new Request("http://localhost/campaigns", {
       headers: {
         Authorization: `Bearer ${testJWT}`,
       },
@@ -153,10 +153,10 @@ describe("Campaign API endpoints", () => {
     expect((campaigns[0] as { name: string }).name).toBe("Test Campaign");
   });
 
-  it("POST /api/campaigns creates a new campaign", async () => {
+  it("POST /campaigns creates a new campaign", async () => {
     const testJWT = await generateTestJWT("test-user-456");
 
-    const request = new Request("http://localhost/api/campaigns", {
+    const request = new Request("http://localhost/campaigns", {
       method: "POST",
       body: JSON.stringify({ name: "Another Campaign" }),
       headers: {

@@ -6,10 +6,12 @@ Tech stack: React frontend, Node.js backend, OpenAI GPT-4 via API, deployment vi
 
 Features:
 
-- Conversational
-- Supports PDF campaign upload (current limit: 200MB)
-- Supports character management via (DND Beyond)[https://www.dndbeyond.com/]
+- Conversational AI chat with campaign management
+- Campaign creation and management with resource mapping
+- PDF campaign upload and processing (current limit: 200MB)
+- Supports character management via [DND Beyond](https://www.dndbeyond.com/)
 - Maintains character state and helps plan character journeys
+- RAG (Retrieval-Augmented Generation) for campaign content
 
 ## Architecture
 
@@ -83,13 +85,43 @@ src/
 ├── tools.ts               # AI tool definitions
 ├── utils.ts               # Utility functions
 ├── shared.ts              # Shared types and constants
+├── agents/                # Agent implementations
+│   └── campaign.ts        # Campaign management agent
 ├── components/            # React components
+│   ├── campaign/          # Campaign management UI
 │   ├── pdf-upload/        # PDF upload functionality
 │   ├── button/            # UI components
 │   └── ...
 ├── durable-objects/       # Durable Object implementations
+├── hooks/                 # React hooks
+├── types/                 # TypeScript type definitions
 └── styles.css             # Global styles
+
+tests/
+├── campaign/              # Campaign functionality tests
+├── pdf/                   # PDF upload tests
+├── tools/                 # Tool definition tests
+└── chat/                  # Chat functionality tests
 ```
+
+### Campaign Management
+
+The application includes comprehensive campaign management functionality:
+
+- **Campaign Creation**: Create new campaigns with custom names
+- **Resource Management**: Add and remove resources (PDFs, documents, images, etc.) from campaigns
+- **Campaign Indexing**: Trigger RAG indexing for campaign content
+- **Campaign Listing**: View all campaigns and their resources
+
+Campaign routes are handled by the dedicated campaign agent (`src/agents/campaign.ts`):
+
+- `GET /campaigns` - List all campaigns
+- `POST /campaigns` - Create a new campaign
+- `GET /campaigns/:id` - Get campaign details
+- `POST /campaigns/:id/resource` - Add resource to campaign
+- `DELETE /campaigns/:id/resource/:resourceId` - Remove resource from campaign
+- `DELETE /campaigns/:id` - Delete campaign
+- `POST /campaign/:id/index` - Trigger campaign indexing
 
 ### MCP Server Integration
 
@@ -98,6 +130,40 @@ To connect an MCP server, uncomment and configure the MCP connection in `src/ser
 ```typescript
 const mcpConnection = await this.mcp.connect("https://your-mcp-server/sse");
 ```
+
+## Testing
+
+The project includes comprehensive test coverage for all major functionality:
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run specific test suites
+npm test tests/campaign/     # Campaign functionality tests
+npm test tests/pdf/          # PDF upload tests
+npm test tests/tools/        # Tool definition tests
+npm test tests/chat/         # Chat functionality tests
+```
+
+### Test Structure
+
+- **Campaign Tests**: API endpoints, hooks, tools, and durable objects for campaign management
+- **PDF Tests**: Upload functionality, authentication, and file processing
+- **Tool Tests**: AI tool definitions and execution logic
+- **Chat Tests**: Chat functionality and message handling
+
+### Test-Driven Development
+
+The project follows TDD principles with comprehensive test coverage for:
+
+- API endpoint validation and error handling
+- React hooks for data fetching and state management
+- AI tool definitions and execution
+- Durable Object operations and KV storage
+- Component rendering and user interactions
 
 ## Contributing
 

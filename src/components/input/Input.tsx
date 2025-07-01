@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils";
 import { useMemo, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 
 export const inputClasses = cn(
   "bg-ob-btn-secondary-bg text-ob-base-300 border-ob-border focus:border-ob-border-active placeholder:text-ob-base-100 add-disable border border-1 transition-colors focus:outline-none"
@@ -59,8 +59,8 @@ export const Input = ({
   };
 
   return preText ? (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: todo
-    <div
+    <button
+      type="button"
       className={cn(
         "has-[:disabled]:ob-disable has-[:enabled]:active:border-ob-border-active has-[:focus]:border-ob-border-active flex cursor-text",
         inputClasses,
@@ -93,7 +93,7 @@ export const Input = ({
       <span className="text-ob-base-200 mr-0.5 flex items-center gap-2 transition-colors select-none">
         {postText}
       </span>
-    </div>
+    </button>
   ) : (
     <input
       className={cn(

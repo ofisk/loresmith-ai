@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { AUTH_CODES, type ToolResult } from "../shared";
+import { API_CONFIG, AUTH_CODES, type ToolResult } from "../constants";
 
 // Campaign-related tool definitions
 
@@ -16,17 +16,17 @@ const listCampaigns = tool({
   execute: async ({ jwt }): Promise<ToolResult> => {
     console.log("[Tool] listCampaigns received JWT:", jwt);
     try {
-      const apiBaseUrl =
-        import.meta.env.VITE_API_URL || "http://localhost:8787";
       console.log("[listCampaigns] Using JWT:", jwt);
-      console.log("apiBaseUrl", apiBaseUrl);
-      const response = await fetch(`${apiBaseUrl}/campaigns`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-        },
-      });
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          },
+        }
+      );
       console.log("[listCampaigns] Response status:", response.status);
       if (!response.ok) {
         console.log(JSON.stringify(response));
@@ -87,17 +87,18 @@ const createCampaign = tool({
   execute: async ({ name, jwt }): Promise<ToolResult> => {
     console.log("[Tool] createCampaign received JWT:", jwt);
     try {
-      const apiBaseUrl =
-        import.meta.env.VITE_API_URL || "http://localhost:8787";
       console.log("[createCampaign] Using JWT:", jwt);
-      const response = await fetch(`${apiBaseUrl}/campaigns`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-        },
-        body: JSON.stringify({ name }),
-      });
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          },
+          body: JSON.stringify({ name }),
+        }
+      );
       console.log("[createCampaign] Response status:", response.status);
       if (!response.ok) {
         return {
@@ -130,7 +131,211 @@ const createCampaign = tool({
   },
 });
 
+const listCampaignResources = tool({
+  description: "List all resources in a campaign",
+  parameters: z.object({
+    campaignId: z
+      .string()
+      .describe("The ID of the campaign to list resources for"),
+    jwt: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("JWT token for authentication"),
+  }),
+  execute: async ({ campaignId, jwt }): Promise<ToolResult> => {
+    console.log("[Tool] listCampaignResources received JWT:", jwt);
+    try {
+      console.log("[listCampaignResources] Using JWT:", jwt);
+      const response = await fetch(
+        API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(campaignId)
+        ),
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          },
+        }
+      );
+      console.log("[listCampaignResources] Response status:", response.status);
+      if (!response.ok) {
+        return {
+          code: AUTH_CODES.ERROR,
+          message: `Failed to fetch campaign resources: ${response.status}`,
+          data: { error: `HTTP ${response.status}` },
+        };
+      }
+      const result = (await response.json()) as {
+        resources: Array<{
+          type: string;
+          id: string;
+          name?: string;
+        }>;
+      };
+      return {
+        code: AUTH_CODES.SUCCESS,
+        message: `Found ${result.resources.length} resource(s) in campaign ${campaignId}`,
+        data: { resources: result.resources },
+      };
+    } catch (error) {
+      console.error("Error listing campaign resources:", error);
+      return {
+        code: AUTH_CODES.ERROR,
+        message: `Error listing campaign resources: ${error instanceof Error ? error.message : String(error)}`,
+        data: { error: error instanceof Error ? error.message : String(error) },
+      };
+    }
+  },
+});
+
+const addResourceToCampaign = tool({
+  description: "Add a resource to a campaign",
+  parameters: z.object({
+    campaignId: z
+      .string()
+      .describe("The ID of the campaign to add the resource to"),
+    resourceType: z
+      .enum(["pdf", "character", "note", "image"])
+      .describe("The type of resource to add"),
+    resourceId: z.string().describe("The ID of the resource to add"),
+    resourceName: z
+      .string()
+      .optional()
+      .describe("The name of the resource (optional)"),
+    jwt: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("JWT token for authentication"),
+  }),
+  execute: async ({
+    campaignId,
+    resourceType,
+    resourceId,
+    resourceName,
+    jwt,
+  }): Promise<ToolResult> => {
+    console.log("[Tool] addResourceToCampaign received JWT:", jwt);
+    try {
+      console.log("[addResourceToCampaign] Using JWT:", jwt);
+      const response = await fetch(
+        API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(campaignId)
+        ),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          },
+          body: JSON.stringify({
+            type: resourceType,
+            id: resourceId,
+            name: resourceName,
+          }),
+        }
+      );
+      console.log("[addResourceToCampaign] Response status:", response.status);
+      if (!response.ok) {
+        return {
+          code: AUTH_CODES.ERROR,
+          message: `Failed to add resource to campaign: ${response.status}`,
+          data: { error: `HTTP ${response.status}` },
+        };
+      }
+      const result = (await response.json()) as {
+        resources: Array<{
+          type: string;
+          id: string;
+          name?: string;
+        }>;
+      };
+      return {
+        code: AUTH_CODES.SUCCESS,
+        message: `Resource ${resourceId} added successfully to campaign ${campaignId}`,
+        data: { resources: result.resources },
+      };
+    } catch (error) {
+      console.error("Error adding resource to campaign:", error);
+      return {
+        code: AUTH_CODES.ERROR,
+        message: `Error adding resource to campaign: ${error instanceof Error ? error.message : String(error)}`,
+        data: { error: error instanceof Error ? error.message : String(error) },
+      };
+    }
+  },
+});
+
+const showCampaignDetails = tool({
+  description:
+    "Show detailed information about a campaign including metadata and resources",
+  parameters: z.object({
+    campaignId: z
+      .string()
+      .describe("The ID of the campaign to show details for"),
+    jwt: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("JWT token for authentication"),
+  }),
+  execute: async ({ campaignId, jwt }): Promise<ToolResult> => {
+    console.log("[Tool] showCampaignDetails received JWT:", jwt);
+    try {
+      console.log("[showCampaignDetails] Using JWT:", jwt);
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.DETAILS(campaignId)),
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          },
+        }
+      );
+      console.log("[showCampaignDetails] Response status:", response.status);
+      if (!response.ok) {
+        return {
+          code: AUTH_CODES.ERROR,
+          message: `Failed to fetch campaign details: ${response.status}`,
+          data: { error: `HTTP ${response.status}` },
+        };
+      }
+      const result = (await response.json()) as {
+        campaign: {
+          campaignId: string;
+          name: string;
+          createdAt: string;
+          updatedAt: string;
+          resources: Array<{
+            type: string;
+            id: string;
+            name?: string;
+          }>;
+        };
+      };
+      return {
+        code: AUTH_CODES.SUCCESS,
+        message: `Campaign "${result.campaign.name}" details: ${result.campaign.resources.length} resources`,
+        data: { campaign: result.campaign },
+      };
+    } catch (error) {
+      console.error("Error fetching campaign details:", error);
+      return {
+        code: AUTH_CODES.ERROR,
+        message: `Error fetching campaign details: ${error instanceof Error ? error.message : String(error)}`,
+        data: { error: error instanceof Error ? error.message : String(error) },
+      };
+    }
+  },
+});
+
 export const campaignTools = {
   listCampaigns,
   createCampaign,
+  listCampaignResources,
+  addResourceToCampaign,
+  showCampaignDetails,
 };
