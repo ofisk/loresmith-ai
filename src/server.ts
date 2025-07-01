@@ -320,7 +320,7 @@ app.post("/pdf/upload-url", async (c) => {
     console.log("Session authenticated, generating upload URL");
 
     // Generate unique file key
-    const fileKey = `uploads/${sessionId}/${crypto.randomUUID()}-${fileName}`;
+    const fileKey = `uploads/${sessionId}/${fileName}`;
 
     // Generate direct upload URL to R2 bucket
     // This creates a URL that uploads directly to R2, bypassing the worker
