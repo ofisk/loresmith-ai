@@ -1,12 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
 
-export interface Campaign {
-  campaignId: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface Resource {
   id: string;
   campaignId: string;
@@ -14,8 +7,9 @@ export interface Resource {
   name?: string;
 }
 
+import type { CampaignData } from "../types/campaign";
+
 export class CampaignManager extends DurableObject {
-  // TODO: Use DurableObjectState for ctx
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env);
     this.ensureTables();
@@ -42,7 +36,7 @@ export class CampaignManager extends DurableObject {
   }
 
   // List all campaigns for this user
-  async listCampaigns(): Promise<Campaign[]> {
+  async listCampaigns(): Promise<CampaignData[]> {
     try {
       const cursor = await this.ctx.storage.sql.exec(
         "SELECT * FROM campaigns ORDER BY createdAt DESC"
@@ -51,7 +45,8 @@ export class CampaignManager extends DurableObject {
         cursor &&
         Array.isArray((cursor as unknown as { results?: unknown[] }).results)
       ) {
-        const results = (cursor as unknown as { results: Campaign[] }).results;
+        const results = (cursor as unknown as { results: CampaignData[] })
+          .results;
         console.log("[DO] listCampaigns found:", results.length, "campaigns");
         return results;
       }
@@ -64,7 +59,7 @@ export class CampaignManager extends DurableObject {
   }
 
   // Create a new campaign
-  async createCampaign(name: string): Promise<Campaign> {
+  async createCampaign(name: string): Promise<CampaignData> {
     try {
       const campaignId = crypto.randomUUID();
       const now = new Date().toISOString();
@@ -73,7 +68,13 @@ export class CampaignManager extends DurableObject {
         [campaignId, name, now, now]
       );
       console.log("[DO] Created campaign:", { campaignId, name });
-      return { campaignId, name, createdAt: now, updatedAt: now };
+      return {
+        campaignId,
+        name,
+        createdAt: now,
+        updatedAt: now,
+        resources: [],
+      };
     } catch (error) {
       console.error("[DO] Error in createCampaign:", error);
       throw error;
@@ -112,4 +113,147 @@ export class CampaignManager extends DurableObject {
       return new Response("Internal server error", { status: 500 });
     }
   }
+
+  // TODO: Implement these methods
+  /*private async createCampaignHandler(request: Request): Promise<Response> {
+    const body = await request.json();
+    if (
+      !body ||
+      typeof body !== "object" ||
+      !("name" in body) ||
+      typeof (body as Record<string, unknown>).name !== "string"
+    ) {
+      return new Response(
+        JSON.stringify({ error: "Invalid request: name is required." }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    const { name } = body as CreateCampaignRequest;
+    const campaignId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    this.campaign = {
+      campaignId,
+      name,
+      createdAt: now,
+      updatedAt: now,
+      resources: [],
+    };
+    console.debug(`[CampaignManager] Created campaign ${campaignId}`);
+    return new Response(
+      JSON.stringify({ success: true, campaign: this.campaign }),
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
+  private async addResource(request: Request): Promise<Response> {
+    if (!this.campaign) return new Response("No campaign", { status: 404 });
+    const resource = await request.json();
+    if (
+      !resource ||
+      typeof resource !== "object" ||
+      !("type" in resource) ||
+      !("id" in resource) ||
+      !("name" in resource) ||
+      typeof (resource as Record<string, unknown>).type !== "string" ||
+      typeof (resource as Record<string, unknown>).id !== "string" ||
+      !(
+        typeof (resource as { name?: unknown }).name === "string" &&
+        (resource as { name: string }).name.trim()
+      )
+    ) {
+      return new Response(
+        JSON.stringify({ error: "Resource name is required" }),
+        { status: 400 }
+      );
+    }
+    this.campaign.resources.push(resource as CampaignResource);
+    this.campaign.updatedAt = new Date().toISOString();
+    console.debug(
+      `[CampaignManager] Added resource to ${this.campaign.campaignId}:`,
+      resource
+    );
+    return new Response(
+      JSON.stringify({ success: true, resources: this.campaign.resources }),
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
+  private async removeResource(request: Request): Promise<Response> {
+    if (!this.campaign) {
+      return new Response("No campaign", { status: 404 });
+    }
+    const url = new URL(request.url);
+    const parts = url.pathname.split("/");
+    const resourceId = parts[parts.length - 1];
+
+    // Additional null safety checks
+    if (!resourceId || typeof resourceId !== "string") {
+      return new Response(
+        JSON.stringify({
+          error: "Invalid resource ID provided.",
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Ensure resources array exists and is an array
+    if (!this.campaign.resources || !Array.isArray(this.campaign.resources)) {
+      return new Response(
+        JSON.stringify({
+          error: "Campaign resources are not properly initialized.",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Check if the resource exists before attempting to remove it
+    const resourceExists = this.campaign.resources.some(
+      (r) => r && r.id === resourceId
+    );
+    if (!resourceExists) {
+      return new Response(
+        JSON.stringify({
+          error: `Resource with ID '${resourceId}' not found in campaign.`,
+        }),
+        {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    this.campaign.resources = this.campaign.resources.filter(
+      (r) => r && r.id !== resourceId
+    );
+    this.campaign.updatedAt = new Date().toISOString();
+    console.debug(
+      `[CampaignManager] Removed resource ${resourceId} from ${this.campaign.campaignId}`
+    );
+    return new Response(
+      JSON.stringify({ success: true, resources: this.campaign.resources }),
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
+  private async listResources(_request: Request): Promise<Response> {
+    if (!this.campaign) return new Response("No campaign", { status: 404 });
+    return new Response(
+      JSON.stringify({ resources: this.campaign.resources }),
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }*/
 }

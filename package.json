@@ -23,7 +23,7 @@
     "test": "vitest",
     "types": "wrangler types",
     "format": "prettier --write .",
-    "check": "prettier . --check && biome lint && tsc",
+    "check": "prettier . --check && npx @biomejs/biome lint src tests && tsc",
     "prepare": "husky"
   },
   "keywords": [
@@ -34,7 +34,6 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
     "@cloudflare/vite-plugin": "1.1.1",
     "@cloudflare/vitest-pool-workers": "^0.8.27",
     "@cloudflare/workers-types": "^4.20250513.0",
@@ -76,6 +75,7 @@
     "marked": "^15.0.11",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-hot-toast": "^2.5.2",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.3.0",

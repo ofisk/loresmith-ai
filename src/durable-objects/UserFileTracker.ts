@@ -188,7 +188,7 @@ export class UserFileTracker extends DurableObject {
     });
   }
 
-  private async deleteSession(request: Request): Promise<Response> {
+  private async deleteSession(_request: Request): Promise<Response> {
     if (!this.userData.isAuthenticated) {
       return new Response("Session not authenticated", { status: 401 });
     }
@@ -267,7 +267,7 @@ export class UserFileTracker extends DurableObject {
     );
   }
 
-  private async isSessionAuthenticated(request: Request): Promise<Response> {
+  private async isSessionAuthenticated(_request: Request): Promise<Response> {
     return new Response(
       JSON.stringify({
         authenticated: this.userData.isAuthenticated,
@@ -278,7 +278,7 @@ export class UserFileTracker extends DurableObject {
     );
   }
 
-  private async getSessionAuthInfo(request: Request): Promise<Response> {
+  private async getSessionAuthInfo(_request: Request): Promise<Response> {
     return new Response(
       JSON.stringify({
         isAuthenticated: this.userData.isAuthenticated,

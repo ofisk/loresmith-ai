@@ -1,11 +1,11 @@
 // via https://github.com/vercel/ai/blob/main/examples/next-openai/app/api/use-chat-human-in-the-loop/utils.ts
 
-import { type Message, formatDataStreamPart } from "@ai-sdk/ui-utils";
+import { formatDataStreamPart, type Message } from "@ai-sdk/ui-utils";
 import {
+  convertToCoreMessages,
   type DataStreamWriter,
   type ToolExecutionOptions,
   type ToolSet,
-  convertToCoreMessages,
 } from "ai";
 import type { z } from "zod";
 import { APPROVAL } from "./shared";
@@ -30,7 +30,6 @@ function isValidToolName<K extends PropertyKey, T extends object>(
 export async function processToolCalls<
   Tools extends ToolSet,
   ExecutableTools extends {
-    // biome-ignore lint/complexity/noBannedTypes: it's fine
     [Tool in keyof Tools as Tools[Tool] extends { execute: Function }
       ? never
       : Tool]: Tools[Tool];

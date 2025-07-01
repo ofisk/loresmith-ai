@@ -1,41 +1,41 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { API_CONFIG } from "../shared";
+import type { Campaign } from "../types/campaign";
 
-export interface Campaign {
-  campaignId: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-  // Add other fields as needed
-}
-
-interface UseCampaignsResult {
-  campaigns: Campaign[];
-  loading: boolean;
-  error: string | null;
-}
-
-export function useCampaigns(): UseCampaignsResult {
+export function useCampaigns() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setLoading(true);
-    fetch("/api/campaigns")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch campaigns");
-        return res.json();
-      })
-      .then((data) => {
-        const { campaigns } = data as { campaigns?: Campaign[] };
-        setCampaigns(campaigns || []);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message || "Unknown error");
-        setLoading(false);
-      });
+  const fetchCampaigns = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE)
+      );
+      if (!response.ok) {
+        throw new Error(`Failed to fetch campaigns: ${response.status}`);
+      }
+      const data = (await response.json()) as { campaigns: Campaign[] };
+      setCampaigns(data.campaigns || []);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch campaigns"
+      );
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return { campaigns, loading, error };
+  useEffect(() => {
+    fetchCampaigns();
+  }, [fetchCampaigns]);
+
+  return {
+    campaigns,
+    loading,
+    error,
+    refetch: fetchCampaigns,
+  };
 }
