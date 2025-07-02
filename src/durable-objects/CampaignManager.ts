@@ -114,7 +114,7 @@ export class CampaignManager extends DurableObject {
 
   private async removeResource(request: Request): Promise<Response> {
     if (!this.campaign) {
-        return new Response("No campaign", { status: 404 });
+      return new Response("No campaign", { status: 404 });
     }
     const url = new URL(request.url);
     const parts = url.pathname.split("/");
@@ -148,7 +148,7 @@ export class CampaignManager extends DurableObject {
 
     // Check if the resource exists before attempting to remove it
     const resourceExists = this.campaign.resources.some(
-      r => r && r.id === resourceId
+      (r) => r && r.id === resourceId
     );
     if (!resourceExists) {
       return new Response(
@@ -163,7 +163,7 @@ export class CampaignManager extends DurableObject {
     }
 
     this.campaign.resources = this.campaign.resources.filter(
-      r => r && r.id !== resourceId
+      (r) => r && r.id !== resourceId
     );
     this.campaign.updatedAt = new Date().toISOString();
     console.debug(

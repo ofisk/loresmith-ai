@@ -1,7 +1,7 @@
-import { useEffect } from "react";
 import { Button } from "@/components/button/Button";
-import { PdfUpload } from "./PdfUpload";
 import { cn } from "@/lib/utils";
+import { useEffect } from "react";
+import { PdfUpload } from "./PdfUpload";
 
 // Add animation styles
 const modalAnimation = `
