@@ -1,10 +1,10 @@
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
-import { Input } from "@/components/input/Input";
+import { UploadDialog } from "./UploadDialog";
 import { cn } from "@/lib/utils";
 import type { CreateMessage, Message } from "@ai-sdk/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PdfUpload } from "./PdfUpload";
+import { UploadAuth } from "./UploadAuth";
 
 interface PdfUploadAgentProps {
   sessionId: string;
@@ -325,137 +325,29 @@ Then please trigger ingestion for this file.`,
 
   if (!isAuthenticated) {
     return (
-      <Card className={cn("space-y-4", className)}>
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <h3 className="text-ob-base-300 font-medium">
-              PDF Upload Authentication
-            </h3>
-            <p className="text-ob-base-200 text-sm">
-              You need to authenticate to upload and process PDF files.
-            </p>
-          </div>
-          <Button
-            onClick={() => setIsAuthPanelExpanded(!isAuthPanelExpanded)}
-            variant="ghost"
-            size="sm"
-            className="text-ob-base-200 hover:text-ob-base-300"
-          >
-            {isAuthPanelExpanded ? "−" : "+"}
-          </Button>
-        </div>
-
-        {isAuthPanelExpanded && (
-          <>
-            {authError && (
-              <div className="text-ob-destructive text-sm">{authError}</div>
-            )}
-
-            {showAuthInput ? (
-              <div className="space-y-3">
-                <div className="space-y-3">
-                  <label
-                    htmlFor="admin-key"
-                    className="text-ob-base-300 text-sm font-medium mb-2 block"
-                  >
-                    Admin Key
-                  </label>
-                  <Input
-                    id="admin-key"
-                    type="password"
-                    placeholder="Enter admin key..."
-                    value={adminKey}
-                    onValueChange={(value) => setAdminKey(value)}
-                    disabled={authenticating}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleSubmitAuth();
-                    }}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleSubmitAuth}
-                    variant="primary"
-                    size="base"
-                    loading={authenticating}
-                    disabled={!adminKey.trim() || authenticating}
-                  >
-                    {authenticating ? "Authenticating..." : "Authenticate"}
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setShowAuthInput(false);
-                      setAdminKey("");
-                      setAuthError(null);
-                    }}
-                    variant="secondary"
-                    size="base"
-                    disabled={authenticating}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button
-                onClick={handleAuthenticate}
-                variant="primary"
-                size="base"
-              >
-                Start Authentication
-              </Button>
-            )}
-          </>
-        )}
-      </Card>
+      <UploadAuth
+        adminKey={adminKey}
+        setAdminKey={setAdminKey}
+        authenticating={authenticating}
+        handleSubmitAuth={handleSubmitAuth}
+        showAuthInput={showAuthInput}
+        setShowAuthInput={setShowAuthInput}
+        setAuthPanelExpanded={setIsAuthPanelExpanded}
+        isAuthPanelExpanded={isAuthPanelExpanded}
+        authError={authError}
+        handleAuthenticate={handleAuthenticate}
+      />
     );
   }
 
-  if (!showUpload) {
+  if (showUpload) {
     return (
-      <Card className={cn("space-y-4", className)}>
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <h3 className="text-ob-base-300 font-medium">PDF Upload</h3>
-            <p className="text-ob-base-200 text-sm">
-              ✅ You are authenticated! You can now upload PDF files for
-              processing and analysis.
-            </p>
-          </div>
-          <Button
-            onClick={() => setIsUploadPanelExpanded(!isUploadPanelExpanded)}
-            variant="ghost"
-            size="sm"
-            className="text-ob-base-200 hover:text-ob-base-300"
-          >
-            {isUploadPanelExpanded ? "−" : "+"}
-          </Button>
-        </div>
-
-        {isUploadPanelExpanded && (
-          <div className="flex gap-2">
-            <Button
-              onClick={() => setShowUpload(true)}
-              variant="primary"
-              size="base"
-            >
-              Upload PDF
-            </Button>
-            <Button
-              onClick={() => {
-                append({
-                  role: "user",
-                  content: "Please list my uploaded PDF files.",
-                });
-              }}
-              variant="secondary"
-              size="base"
-            >
-              List Files
-            </Button>
-          </div>
-        )}
-      </Card>
+      <UploadDialog
+        onUpload={handleUpload}
+        loading={uploading}
+        className={className}
+        onBack={() => setShowUpload(false)}
+      />
     );
   }
 
@@ -463,9 +355,9 @@ Then please trigger ingestion for this file.`,
     <Card className={cn("space-y-4", className)}>
       <div className="flex items-center justify-between">
         <div className="space-y-2">
-          <h3 className="text-ob-base-300 font-medium">Upload PDF</h3>
+          <h3 className="text-ob-base-300 font-medium">PDF Upload</h3>
           <p className="text-ob-base-200 text-sm">
-            Upload a PDF file for processing and analysis
+            You can now upload your campaign PDFs.
           </p>
         </div>
         <Button
@@ -479,23 +371,27 @@ Then please trigger ingestion for this file.`,
       </div>
 
       {isUploadPanelExpanded && (
-        <>
-          <PdfUpload
-            onUpload={handleUpload}
-            loading={uploading}
-            className="border-0 p-0 shadow-none"
-          />
-          <div className="flex gap-2 pt-2">
-            <Button
-              onClick={() => setShowUpload(false)}
-              variant="secondary"
-              size="base"
-              disabled={uploading}
-            >
-              Back to Options
-            </Button>
-          </div>
-        </>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setShowUpload(true)}
+            variant="primary"
+            size="base"
+          >
+            Upload PDF
+          </Button>
+          <Button
+            onClick={() => {
+              append({
+                role: "user",
+                content: "Please list my uploaded PDF files.",
+              });
+            }}
+            variant="secondary"
+            size="base"
+          >
+            List Files
+          </Button>
+        </div>
       )}
     </Card>
   );
