@@ -1,10 +1,10 @@
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
-import { UploadDialog } from "./UploadDialog";
 import { cn } from "@/lib/utils";
 import type { CreateMessage, Message } from "@ai-sdk/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { UploadAuth } from "./UploadAuth";
+import { UploadDialog } from "./UploadDialog";
 
 interface PdfUploadAgentProps {
   sessionId: string;
