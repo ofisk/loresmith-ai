@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { Button } from "@/components/button/Button";
 import { PdfUpload } from "./PdfUpload";
 import { cn } from "@/lib/utils";
@@ -16,7 +16,12 @@ const modalAnimation = `
 `;
 
 interface UploadDialogProps {
-  onUpload: (...args: any[]) => void;
+  onUpload: (
+    file: File,
+    filename: string,
+    description: string,
+    tags: string[]
+  ) => void;
   loading: boolean;
   className?: string;
   onBack: () => void;
@@ -28,9 +33,6 @@ export const UploadDialog = ({
   className,
   onBack,
 }: UploadDialogProps) => {
-  const [isUploadPanelExpanded, setIsUploadPanelExpanded] =
-    React.useState(true);
-
   // Prevent background scroll when modal is open
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
@@ -47,14 +49,13 @@ export const UploadDialog = ({
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 animate-[modal-fade-in_0.2s_ease]"
         style={{ animationFillMode: "forwards" }}
       >
-        <div
+        <dialog
           className={cn(
             "relative bg-white dark:bg-neutral-900 rounded-xl shadow-2xl w-full max-w-md mx-auto p-6 animate-[modal-scale-in_0.25s_ease]",
             className
           )}
           style={{ animationFillMode: "forwards" }}
-          role="dialog"
-          aria-modal="true"
+          open
         >
           {/* Close button */}
           <button
@@ -73,26 +74,22 @@ export const UploadDialog = ({
               </p>
             </div>
           </div>
-          {isUploadPanelExpanded && (
-            <>
-              <PdfUpload
-                onUpload={onUpload}
-                loading={loading}
-                className="border-0 p-0 shadow-none"
-              />
-              <div className="flex gap-2 pt-2">
-                <Button
-                  onClick={onBack}
-                  variant="secondary"
-                  size="base"
-                  disabled={loading}
-                >
-                  Back to Options
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
+          <PdfUpload
+            onUpload={onUpload}
+            loading={loading}
+            className="border-0 p-0 shadow-none"
+          />
+          <div className="flex gap-2 pt-2">
+            <Button
+              onClick={onBack}
+              variant="secondary"
+              size="base"
+              disabled={loading}
+            >
+              Back to Options
+            </Button>
+          </div>
+        </dialog>
       </div>
     </>
   );
