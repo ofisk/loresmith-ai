@@ -466,6 +466,21 @@ app.get("/pdf/files", async (c) => {
     const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
     const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
 
+    // Check if session is authenticated
+    const authCheckResponse = await sessionTracker.fetch(
+      "https://dummy-host/is-session-authenticated",
+      {
+        method: "GET",
+      }
+    );
+
+    const authCheck = (await authCheckResponse.json()) as {
+      authenticated: boolean;
+    };
+    if (!authCheck.authenticated) {
+      return c.json({ error: "Session not authenticated" }, 401);
+    }
+
     const filesResponse = await sessionTracker.fetch(
       `https://dummy-host/get-files?sessionId=${sessionId}`,
       {
