@@ -29,9 +29,7 @@ import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
 
 // List of tools that require human confirmation
 // NOTE: this should match the keys in the executions object in tools.ts
-const toolsRequiringConfirmation: (keyof typeof tools)[] = [
-  "getWeatherInformation",
-];
+const toolsRequiringConfirmation: (keyof typeof tools)[] = [];
 
 /**
  * Generate a unique session ID for this browser session
