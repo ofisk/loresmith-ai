@@ -1,10 +1,10 @@
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { Input } from "@/components/input/Input";
+import { PdfUpload } from "@/components/pdf-upload/PdfUpload";
 import { cn } from "@/lib/utils";
 import type { CreateMessage, Message } from "@ai-sdk/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PdfUpload } from "./PdfUpload";
 
 interface PdfUploadAgentProps {
   sessionId: string;
@@ -365,9 +365,9 @@ Then please trigger ingestion for this file.`,
                     type="password"
                     placeholder="Enter admin key..."
                     value={adminKey}
-                    onValueChange={(value) => setAdminKey(value)}
+                    onValueChange={(value: string) => setAdminKey(value)}
                     disabled={authenticating}
-                    onKeyDown={(e) => {
+                    onKeyDown={(e: React.KeyboardEvent) => {
                       if (e.key === "Enter") handleSubmitAuth();
                     }}
                   />
