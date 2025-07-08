@@ -158,8 +158,16 @@ app.get("/check-open-ai-key", (c) => {
   return c.json({ success: hasOpenAIKey });
 });
 
+const bypassPdfAuth = process.env.BYPASS_PDF_AUTH === "true";
 // PDF Authentication Route
 app.post("/pdf/authenticate", async (c) => {
+  if (bypassPdfAuth) {
+    return c.json({
+      success: true,
+      authenticated: true,
+      message: "Bypass PDF auth enabled",
+    });
+  }
   try {
     const { sessionId, providedKey } = await c.req.json();
 
@@ -240,6 +248,9 @@ app.post("/pdf/authenticate", async (c) => {
 
 // PDF Session Authentication Status Check Route
 app.get("/pdf/is-session-authenticated", async (c) => {
+  if (bypassPdfAuth) {
+    return c.json({ authenticated: true });
+  }
   try {
     const sessionId = c.req.query("sessionId");
 

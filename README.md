@@ -99,6 +99,16 @@ To connect an MCP server, uncomment and configure the MCP connection in `src/ser
 const mcpConnection = await this.mcp.connect("https://your-mcp-server/sse");
 ```
 
+## Local Development: PDF Authentication Bypass
+
+For developer convenience, you can bypass PDF admin key authentication in your local environment by setting the following environment variable:
+
+```
+BYPASS_PDF_AUTH=true
+```
+
+When this variable is set, all PDF authentication checks will be bypassed and any session will be treated as authenticated. This is useful for local development and testing. **Do not use this in production!**
+
 ## Contributing
 
 1. Fork the repository

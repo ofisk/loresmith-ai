@@ -20,7 +20,6 @@ export const PdfUploadAgent = ({
   append,
 }: PdfUploadAgentProps) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [showAuthInput, setShowAuthInput] = useState(false);
@@ -30,6 +29,9 @@ export const PdfUploadAgent = ({
   const [isAuthPanelExpanded, setIsAuthPanelExpanded] = useState(true);
   const [isUploadPanelExpanded, setIsUploadPanelExpanded] = useState(true);
   const lastProcessedMessageId = useRef<string | null>(null);
+
+  const bypassPdfAuth = import.meta.env.VITE_BYPASS_PDF_AUTH === "true";
+  const effectiveIsAuthenticated = isAuthenticated || bypassPdfAuth;
 
   // Check authentication status by making direct API call
   const checkAuthStatus = useCallback(async () => {
@@ -224,8 +226,6 @@ export const PdfUploadAgent = ({
 
 Then please trigger ingestion for this file.`,
       });
-
-      setShowUpload(false);
     } catch (error) {
       console.error("Error uploading PDF:", error);
       // Send error message to agent
@@ -323,7 +323,8 @@ Then please trigger ingestion for this file.`,
     );
   }
 
-  if (!isAuthenticated) {
+  if (!effectiveIsAuthenticated) {
+    // Show authentication UI
     return (
       <Card className={cn("space-y-4", className)}>
         <div className="flex items-center justify-between">
@@ -411,62 +412,18 @@ Then please trigger ingestion for this file.`,
     );
   }
 
-  if (!showUpload) {
-    return (
-      <Card className={cn("space-y-4", className)}>
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <h3 className="text-ob-base-300 font-medium">PDF Upload</h3>
-            <p className="text-ob-base-200 text-sm">
-              ✅ You are authenticated! You can now upload PDF files for
-              processing and analysis.
-            </p>
-          </div>
-          <Button
-            onClick={() => setIsUploadPanelExpanded(!isUploadPanelExpanded)}
-            variant="ghost"
-            size="sm"
-            className="text-ob-base-200 hover:text-ob-base-300"
-          >
-            {isUploadPanelExpanded ? "−" : "+"}
-          </Button>
-        </div>
-
-        {isUploadPanelExpanded && (
-          <div className="flex gap-2">
-            <Button
-              onClick={() => setShowUpload(true)}
-              variant="primary"
-              size="base"
-            >
-              Upload PDF
-            </Button>
-            <Button
-              onClick={() => {
-                append({
-                  role: "user",
-                  content: "Please list my uploaded PDF files.",
-                });
-              }}
-              variant="secondary"
-              size="base"
-            >
-              List Files
-            </Button>
-          </div>
-        )}
-      </Card>
-    );
-  }
-
+  // Show upload UI (with optional bypass message)
   return (
     <Card className={cn("space-y-4", className)}>
       <div className="flex items-center justify-between">
         <div className="space-y-2">
-          <h3 className="text-ob-base-300 font-medium">Upload PDF</h3>
-          <p className="text-ob-base-200 text-sm">
-            Upload a PDF file for processing and analysis
-          </p>
+          <h3 className="text-ob-base-300 font-medium">PDF Upload</h3>
+          {bypassPdfAuth && (
+            <p className="text-ob-base-200 text-sm">
+              PDF authentication is bypassed for local development. You can
+              upload PDF files directly.
+            </p>
+          )}
         </div>
         <Button
           onClick={() => setIsUploadPanelExpanded(!isUploadPanelExpanded)}
@@ -479,23 +436,11 @@ Then please trigger ingestion for this file.`,
       </div>
 
       {isUploadPanelExpanded && (
-        <>
-          <PdfUpload
-            onUpload={handleUpload}
-            loading={uploading}
-            className="border-0 p-0 shadow-none"
-          />
-          <div className="flex gap-2 pt-2">
-            <Button
-              onClick={() => setShowUpload(false)}
-              variant="secondary"
-              size="base"
-              disabled={uploading}
-            >
-              Back to Options
-            </Button>
-          </div>
-        </>
+        <PdfUpload
+          onUpload={handleUpload}
+          loading={uploading}
+          className="border-0 p-0 shadow-none"
+        />
       )}
     </Card>
   );
