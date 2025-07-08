@@ -1,6 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import app from "../../src/server";
-import { createSessionFileTrackerStub, type Env } from "./testUtils";
+import {
+  type Env,
+  createSessionFileTrackerStub,
+  ensurePdfAuthOverrideDisabled,
+} from "./testUtils";
+
+// Ensure PDF auth override is disabled for all tests
+ensurePdfAuthOverrideDisabled();
 
 // Define response types
 type UploadUrlResponse = {

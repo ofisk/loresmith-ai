@@ -1,4 +1,22 @@
-import { vi } from "vitest";
+import { beforeEach, vi } from "vitest";
+
+// Type for Vite's import.meta.env
+interface ViteEnv {
+  VITE_BYPASS_PDF_AUTH?: string;
+  [key: string]: string | undefined;
+}
+
+// Ensure PDF auth override is always disabled in tests
+beforeEach(() => {
+  // Force PDF auth override to false to ensure auth code is always tested
+  process.env.VITE_BYPASS_PDF_AUTH = "false";
+  // Also set it on import.meta.env for Vite
+  if (typeof import.meta !== "undefined") {
+    const viteEnv = (import.meta as { env?: ViteEnv }).env || {};
+    viteEnv.VITE_BYPASS_PDF_AUTH = "false";
+    (import.meta as unknown as { env: ViteEnv }).env = viteEnv;
+  }
+});
 
 // Define proper types for the environment and stubs
 type SessionFileTrackerStub = {
@@ -154,6 +172,19 @@ export function createSessionFileTrackerStub(
       return { status: 404, json: async () => ({}) };
     }),
   };
+}
+
+/**
+ * Helper function to ensure PDF auth override is disabled in tests
+ * This should be called at the beginning of each test file
+ */
+export function ensurePdfAuthOverrideDisabled(): void {
+  process.env.VITE_BYPASS_PDF_AUTH = "false";
+  if (typeof import.meta !== "undefined") {
+    const viteEnv = (import.meta as { env?: ViteEnv }).env || {};
+    viteEnv.VITE_BYPASS_PDF_AUTH = "false";
+    (import.meta as unknown as { env: ViteEnv }).env = viteEnv;
+  }
 }
 
 /**

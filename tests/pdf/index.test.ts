@@ -10,6 +10,10 @@
  * and ensures all PDF functionality is properly tested.
  */
 
+// Ensure PDF auth override is disabled for all tests
+import { ensurePdfAuthOverrideDisabled } from "./testUtils";
+ensurePdfAuthOverrideDisabled();
+
 // Import all PDF test files
 import "./upload.test";
 import "./management.test";
