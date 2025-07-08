@@ -67,6 +67,13 @@ export default function Chat() {
   // Get session ID for this browser session
   const sessionId = getSessionId();
 
+  // Get stored JWT for PDF operations
+  const getStoredJwt = (): string | null => {
+    const jwt = localStorage.getItem("pdf_auth_jwt");
+    console.log("[App] getStoredJwt() returns:", jwt);
+    return jwt;
+  };
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
@@ -104,7 +111,6 @@ export default function Chat() {
     messages: agentMessages,
     input: agentInput,
     handleInputChange: handleAgentInputChange,
-    handleSubmit: handleAgentSubmit,
     addToolResult,
     clearHistory,
     isLoading,
@@ -118,9 +124,12 @@ export default function Chat() {
 
   // Function to handle suggested prompts
   const handleSuggestionSubmit = (suggestion: string) => {
+    const jwt = getStoredJwt();
+    console.log("[App] handleSuggestionSubmit sending JWT:", jwt);
     append({
       role: "user",
       content: suggestion,
+      data: jwt ? { jwt } : undefined,
     });
     setInput("");
   };
@@ -154,6 +163,36 @@ export default function Chat() {
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  // Enhanced form submission handler that includes JWT
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const jwt = getStoredJwt();
+    console.log("[App] handleFormSubmit sending JWT:", jwt);
+    append({
+      role: "user",
+      content: agentInput,
+      data: jwt ? { jwt } : undefined,
+    });
+    setInput("");
+    setTextareaHeight("auto"); // Reset height after submission
+  };
+
+  // Enhanced key down handler that includes JWT
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      const jwt = getStoredJwt();
+      console.log("[App] handleKeyDown sending JWT:", jwt);
+      append({
+        role: "user",
+        content: agentInput,
+        data: jwt ? { jwt } : undefined,
+      });
+      setInput("");
+      setTextareaHeight("auto"); // Reset height on Enter submission
+    }
   };
 
   return (
@@ -361,26 +400,12 @@ export default function Chat() {
 
         {/* PDF Upload Section */}
         <div className="px-4 py-2 border-t border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900">
-          <PdfUploadAgent
-            sessionId={sessionId}
-            messages={agentMessages}
-            append={append}
-          />
+          <PdfUploadAgent messages={agentMessages} append={append} />
         </div>
 
         {/* Input Area */}
         <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleAgentSubmit(e, {
-              data: {
-                annotations: {
-                  hello: "world",
-                },
-              },
-            });
-            setTextareaHeight("auto"); // Reset height after submission
-          }}
+          onSubmit={handleFormSubmit}
           className="p-3 bg-neutral-50 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
         >
           <div className="flex items-center gap-2">
@@ -401,17 +426,7 @@ export default function Chat() {
                   e.target.style.height = `${e.target.scrollHeight}px`;
                   setTextareaHeight(`${e.target.scrollHeight}px`);
                 }}
-                onKeyDown={(e) => {
-                  if (
-                    e.key === "Enter" &&
-                    !e.shiftKey &&
-                    !e.nativeEvent.isComposing
-                  ) {
-                    e.preventDefault();
-                    handleAgentSubmit(e as unknown as React.FormEvent);
-                    setTextareaHeight("auto"); // Reset height on Enter submission
-                  }
-                }}
+                onKeyDown={handleKeyDown}
                 rows={2}
                 style={{ height: textareaHeight }}
               />

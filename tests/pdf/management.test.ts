@@ -1,13 +1,6 @@
+import { SignJWT } from "jose";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import app from "../../src/server";
-import {
-  type Env,
-  createSessionFileTrackerStub,
-  ensurePdfAuthOverrideDisabled,
-} from "./testUtils";
-
-// Ensure PDF auth override is disabled for all tests
-ensurePdfAuthOverrideDisabled();
 
 // Define response types
 type FileListResponse = {
@@ -28,6 +21,28 @@ type IngestionResponse = {
   status: string;
 };
 
+// Create a valid JWT for testing
+const TEST_ADMIN_SECRET = "test-admin-secret";
+const TEST_JWT_SECRET = new TextEncoder().encode(TEST_ADMIN_SECRET);
+
+async function createTestJwt(username = "test-user"): Promise<string> {
+  return await new SignJWT({ type: "pdf-auth", username })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("1h")
+    .sign(TEST_JWT_SECRET);
+}
+
+const DUMMY_ENV = {
+  ADMIN_SECRET: TEST_ADMIN_SECRET,
+  OPENAI_API_KEY: "dummy-openai-key",
+  VITE_API_URL: "http://localhost:8787",
+  CORS_ALLOWED_ORIGINS: "*",
+  PDF_BUCKET: undefined as unknown,
+  Chat: undefined as unknown,
+  SessionFileTracker: undefined as unknown,
+};
+
 /**
  * PDF Management Test Suite
  *
@@ -46,33 +61,35 @@ type IngestionResponse = {
 
 describe("PDF File Listing", () => {
   let env: Env;
-  let sessionTrackerStub: ReturnType<typeof createSessionFileTrackerStub>;
+  let testJwt: string;
 
-  beforeEach(() => {
-    sessionTrackerStub = createSessionFileTrackerStub(true, [
-      {
-        fileName: "test1.pdf",
-        status: "uploaded",
-        metadata: { description: "Test file 1" },
-      },
-      {
-        fileName: "test2.pdf",
-        status: "processing",
-        metadata: { description: "Test file 2" },
-      },
-    ]);
+  beforeEach(async () => {
+    testJwt = await createTestJwt();
     env = {
-      SessionFileTracker: {
-        idFromName: vi.fn(() => "stub-id"),
-        get: vi.fn(() => sessionTrackerStub),
-      },
-    };
+      ...DUMMY_ENV,
+      PDF_BUCKET: {
+        list: vi.fn().mockResolvedValue({
+          objects: [
+            {
+              key: "uploads/test-user/test1.pdf",
+              size: 1024,
+              uploaded: new Date(),
+            },
+            {
+              key: "uploads/test-user/test2.pdf",
+              size: 2048,
+              uploaded: new Date(),
+            },
+          ],
+        }),
+      } as unknown,
+    } as Env;
   });
 
   /**
    * Test Case: List Files Successfully
    *
-   * Scenario: User requests list of uploaded files for authenticated session
+   * Scenario: User requests list of uploaded files with valid JWT
    *
    * Expected Behavior:
    * - Returns HTTP 200 status
@@ -82,13 +99,13 @@ describe("PDF File Listing", () => {
    * This validates that users can retrieve their uploaded file list.
    */
   it("returns list of uploaded files", async () => {
-    const req = new Request(
-      "http://localhost/pdf/files?sessionId=test-session",
-      {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    const req = new Request("http://localhost/pdf/files", {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${testJwt}`,
+      },
+    });
 
     const res = await app.request(req, undefined, env);
     expect(res.status).toBe(200);
@@ -112,16 +129,15 @@ describe("PDF File Listing", () => {
    * This validates the endpoint handles the case of no uploaded files.
    */
   it("returns empty array when no files uploaded", async () => {
-    sessionTrackerStub = createSessionFileTrackerStub(true, []);
-    env.SessionFileTracker.get = vi.fn(() => sessionTrackerStub);
+    env.PDF_BUCKET.list = vi.fn().mockResolvedValue({ objects: [] });
 
-    const req = new Request(
-      "http://localhost/pdf/files?sessionId=test-session",
-      {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    const req = new Request("http://localhost/pdf/files", {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${testJwt}`,
+      },
+    });
 
     const res = await app.request(req, undefined, env);
     expect(res.status).toBe(200);
@@ -131,27 +147,21 @@ describe("PDF File Listing", () => {
   });
 
   /**
-   * Test Case: Unauthenticated Session
+   * Test Case: Unauthenticated Request
    *
-   * Scenario: User requests files but session is not authenticated
+   * Scenario: User requests files without JWT authentication
    *
    * Expected Behavior:
    * - Returns HTTP 401 status
-   * - Returns error message about unauthenticated session
+   * - Returns error message about missing authorization
    *
    * This validates that file listing requires authentication.
    */
-  it("returns 401 if session is not authenticated", async () => {
-    sessionTrackerStub = createSessionFileTrackerStub(false, []);
-    env.SessionFileTracker.get = vi.fn(() => sessionTrackerStub);
-
-    const req = new Request(
-      "http://localhost/pdf/files?sessionId=test-session",
-      {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+  it("returns 401 if not authenticated", async () => {
+    const req = new Request("http://localhost/pdf/files", {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
 
     const res = await app.request(req, undefined, env);
     expect(res.status).toBe(401);
@@ -177,16 +187,16 @@ describe("PDF Metadata Management", () => {
 
 describe("PDF Ingestion", () => {
   let env: Env;
-  let sessionTrackerStub: ReturnType<typeof createSessionFileTrackerStub>;
+  let testJwt: string;
 
-  beforeEach(() => {
-    sessionTrackerStub = createSessionFileTrackerStub(true, []);
+  beforeEach(async () => {
+    testJwt = await createTestJwt();
     env = {
-      SessionFileTracker: {
-        idFromName: vi.fn(() => "stub-id"),
-        get: vi.fn(() => sessionTrackerStub),
-      },
-    };
+      ...DUMMY_ENV,
+      PDF_BUCKET: {
+        list: vi.fn().mockResolvedValue({ objects: [] }),
+      } as unknown,
+    } as Env;
   });
 
   /**
@@ -203,12 +213,14 @@ describe("PDF Ingestion", () => {
    */
   it("triggers ingestion successfully", async () => {
     const requestBody = {
-      sessionId: "test-session",
-      fileKey: "uploads/test-session/test.pdf",
+      fileKey: "uploads/test-user/test.pdf",
     };
     const req = new Request("http://localhost/pdf/ingest", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${testJwt}`,
+      },
       body: JSON.stringify(requestBody),
     });
 
@@ -216,7 +228,7 @@ describe("PDF Ingestion", () => {
     expect(res.status).toBe(200);
     const json = (await res.json()) as IngestionResponse;
     expect(json).toHaveProperty("success", true);
-    expect(json).toHaveProperty("fileKey", "uploads/test-session/test.pdf");
+    expect(json).toHaveProperty("fileKey", "uploads/test-user/test.pdf");
     expect(json).toHaveProperty("status");
   });
 
@@ -242,14 +254,16 @@ describe("PDF Ingestion", () => {
    *
    * This validates input validation for the ingestion endpoint.
    */
-  it("returns 400 if sessionId or fileKey is missing", async () => {
+  it("returns 400 if fileKey is missing", async () => {
     const requestBody = {
-      sessionId: "test-session",
       // Missing fileKey
     };
     const req = new Request("http://localhost/pdf/ingest", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${testJwt}`,
+      },
       body: JSON.stringify(requestBody),
     });
 
@@ -260,23 +274,19 @@ describe("PDF Ingestion", () => {
   });
 
   /**
-   * Test Case: Unauthenticated Session for Ingestion
+   * Test Case: Unauthenticated Request for Ingestion
    *
    * Scenario: User attempts to trigger ingestion without authentication
    *
    * Expected Behavior:
    * - Returns HTTP 401 status
-   * - Returns error message about unauthenticated session
+   * - Returns error message about missing authorization
    *
    * This validates that ingestion requires authentication.
    */
-  it("returns 401 if session is not authenticated", async () => {
-    sessionTrackerStub = createSessionFileTrackerStub(false, []);
-    env.SessionFileTracker.get = vi.fn(() => sessionTrackerStub);
-
+  it("returns 401 if not authenticated", async () => {
     const requestBody = {
-      sessionId: "test-session",
-      fileKey: "uploads/test-session/test.pdf",
+      fileKey: "uploads/test-user/test.pdf",
     };
     const req = new Request("http://localhost/pdf/ingest", {
       method: "POST",
