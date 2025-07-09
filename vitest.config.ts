@@ -12,5 +12,6 @@ export default defineWorkersConfig({
         wrangler: { configPath: "./wrangler.jsonc" },
       },
     },
+    environmentMatchGlobs: [["tests/hooks/**/*.test.tsx", "jsdom"]],
   },
 });

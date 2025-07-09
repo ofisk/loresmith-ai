@@ -1,189 +1,115 @@
 import { DurableObject } from "cloudflare:workers";
 
-//TODO: Expand on image? Could we use multiple forms of media / collections of media?
-export type ResourceType = "pdf" | "character" | "note" | "image";
-
-export interface CampaignResource {
-  type: ResourceType;
-  id: string;
-  name?: string;
-}
-
-export interface CampaignData {
+export interface Campaign {
   campaignId: string;
   name: string;
   createdAt: string;
   updatedAt: string;
-  resources: CampaignResource[];
+}
+
+export interface Resource {
+  id: string;
+  campaignId: string;
+  type: string;
+  name?: string;
 }
 
 export class CampaignManager extends DurableObject {
-  private campaign: CampaignData | null = null;
+  // TODO: Use DurableObjectState for ctx
+  constructor(ctx: DurableObjectState, env: unknown) {
+    super(ctx, env);
+    this.ensureTables();
+  }
 
+  async ensureTables() {
+    await this.ctx.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS campaigns (
+        campaignId TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+      );
+    `);
+    await this.ctx.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS resources (
+        id TEXT PRIMARY KEY,
+        campaignId TEXT NOT NULL,
+        type TEXT NOT NULL,
+        name TEXT,
+        FOREIGN KEY (campaignId) REFERENCES campaigns(campaignId)
+      );
+    `);
+  }
+
+  // List all campaigns for this user
+  async listCampaigns(): Promise<Campaign[]> {
+    try {
+      const cursor = await this.ctx.storage.sql.exec(
+        "SELECT * FROM campaigns ORDER BY createdAt DESC"
+      );
+      if (
+        cursor &&
+        Array.isArray((cursor as unknown as { results?: unknown[] }).results)
+      ) {
+        const results = (cursor as unknown as { results: Campaign[] }).results;
+        console.log("[DO] listCampaigns found:", results.length, "campaigns");
+        return results;
+      }
+      console.log("[DO] listCampaigns found no campaigns");
+      return [];
+    } catch (error) {
+      console.error("[DO] Error in listCampaigns:", error);
+      return [];
+    }
+  }
+
+  // Create a new campaign
+  async createCampaign(name: string): Promise<Campaign> {
+    try {
+      const campaignId = crypto.randomUUID();
+      const now = new Date().toISOString();
+      await this.ctx.storage.sql.exec(
+        "INSERT INTO campaigns (campaignId, name, createdAt, updatedAt) VALUES (?, ?, ?, ?)",
+        [campaignId, name, now, now]
+      );
+      console.log("[DO] Created campaign:", { campaignId, name });
+      return { campaignId, name, createdAt: now, updatedAt: now };
+    } catch (error) {
+      console.error("[DO] Error in createCampaign:", error);
+      throw error;
+    }
+  }
+
+  // HTTP fetch handler for debugging (optional)
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const path = url.pathname;
-    const method = request.method.toUpperCase();
-
-    // Logging for all requests
-    console.debug(`[CampaignManager] ${method} ${path}`);
-
+    console.log("[DO] fetch called:", url.pathname, request.method);
     try {
-      if (path.endsWith("/create") && method === "POST") {
-        return await this.createCampaign(request);
+      if (url.pathname === "/list") {
+        const campaigns = await this.listCampaigns();
+        return Response.json({ campaigns });
       }
-      if (path.match(/\/resource$/) && method === "POST") {
-        return await this.addResource(request);
+      if (url.pathname === "/create" && request.method === "POST") {
+        const body: { name: string } = await request.json();
+        const campaign = await this.createCampaign(body.name);
+        return Response.json({ campaign });
       }
-      if (path.match(/\/resource\/[\w-]+$/) && method === "DELETE") {
-        return await this.removeResource(request);
-      }
-      if (path.match(/\/resources$/) && method === "GET") {
-        return await this.listResources(request);
+      // Main handler for /campaigns
+      if (url.pathname === "/campaigns") {
+        if (request.method === "GET") {
+          const campaigns = await this.listCampaigns();
+          return Response.json({ campaigns });
+        }
+        if (request.method === "POST") {
+          const body: { name: string } = await request.json();
+          const campaign = await this.createCampaign(body.name);
+          return Response.json({ campaign });
+        }
       }
       return new Response("Not found", { status: 404 });
-    } catch (err) {
-      console.error("[CampaignManager] Error:", err);
+    } catch (error) {
+      console.error("[DO] Error in fetch handler:", error);
       return new Response("Internal server error", { status: 500 });
     }
-  }
-
-  private async createCampaign(request: Request): Promise<Response> {
-    const body = await request.json();
-    if (
-      !body ||
-      typeof body !== "object" ||
-      !("name" in body) ||
-      typeof (body as Record<string, unknown>).name !== "string"
-    ) {
-      return new Response(
-        JSON.stringify({ error: "Invalid request: name is required." }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-    const { name } = body as { name: string };
-    const campaignId = crypto.randomUUID();
-    const now = new Date().toISOString();
-    this.campaign = {
-      campaignId,
-      name,
-      createdAt: now,
-      updatedAt: now,
-      resources: [],
-    };
-    console.debug(`[CampaignManager] Created campaign ${campaignId}`);
-    return new Response(
-      JSON.stringify({ success: true, campaign: this.campaign }),
-      {
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-  }
-
-  private async addResource(request: Request): Promise<Response> {
-    if (!this.campaign) return new Response("No campaign", { status: 404 });
-    const resource = await request.json();
-    if (
-      !resource ||
-      typeof resource !== "object" ||
-      !("type" in resource) ||
-      !("id" in resource) ||
-      typeof (resource as Record<string, unknown>).type !== "string" ||
-      typeof (resource as Record<string, unknown>).id !== "string"
-    ) {
-      return new Response(
-        JSON.stringify({
-          error: "Invalid resource: type and id are required.",
-        }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-    this.campaign.resources.push(resource as CampaignResource);
-    this.campaign.updatedAt = new Date().toISOString();
-    console.debug(
-      `[CampaignManager] Added resource to ${this.campaign.campaignId}:`,
-      resource
-    );
-    return new Response(
-      JSON.stringify({ success: true, resources: this.campaign.resources }),
-      {
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-  }
-
-  private async removeResource(request: Request): Promise<Response> {
-    if (!this.campaign) {
-      return new Response("No campaign", { status: 404 });
-    }
-    const url = new URL(request.url);
-    const parts = url.pathname.split("/");
-    const resourceId = parts[parts.length - 1];
-
-    // Additional null safety checks
-    if (!resourceId || typeof resourceId !== "string") {
-      return new Response(
-        JSON.stringify({
-          error: "Invalid resource ID provided.",
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // Ensure resources array exists and is an array
-    if (!this.campaign.resources || !Array.isArray(this.campaign.resources)) {
-      return new Response(
-        JSON.stringify({
-          error: "Campaign resources are not properly initialized.",
-        }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // Check if the resource exists before attempting to remove it
-    const resourceExists = this.campaign.resources.some(
-      (r) => r && r.id === resourceId
-    );
-    if (!resourceExists) {
-      return new Response(
-        JSON.stringify({
-          error: `Resource with ID '${resourceId}' not found in campaign.`,
-        }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    this.campaign.resources = this.campaign.resources.filter(
-      (r) => r && r.id !== resourceId
-    );
-    this.campaign.updatedAt = new Date().toISOString();
-    console.debug(
-      `[CampaignManager] Removed resource ${resourceId} from ${this.campaign.campaignId}`
-    );
-    return new Response(
-      JSON.stringify({ success: true, resources: this.campaign.resources }),
-      {
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-  }
-
-  private async listResources(request: Request): Promise<Response> {
-    if (!this.campaign) return new Response("No campaign", { status: 404 });
-    return new Response(
-      JSON.stringify({ resources: this.campaign.resources }),
-      {
-        headers: { "Content-Type": "application/json" },
-      }
-    );
   }
 }

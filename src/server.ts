@@ -12,17 +12,10 @@ import {
   streamText,
 } from "ai";
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { type JWTPayload, SignJWT, jwtVerify } from "jose";
 import { executions, tools } from "./tools";
 import { processToolCalls } from "./utils";
-
-// Types for better type safety
-interface Env {
-  ADMIN_SECRET?: string;
-  PDF_BUCKET: R2Bucket;
-  Chat: DurableObjectNamespace;
-  SessionFileTracker: DurableObjectNamespace;
-}
 
 interface PdfAuthPayload extends JWTPayload {
   type: "pdf-auth";
@@ -33,6 +26,14 @@ interface MessageData {
   jwt?: string;
 }
 
+interface Env {
+  ADMIN_SECRET?: string;
+  PDF_BUCKET: R2Bucket;
+  Chat: DurableObjectNamespace;
+  SessionFileTracker: DurableObjectNamespace;
+  CampaignManager: DurableObjectNamespace;
+}
+
 // Helper to get the JWT secret key from env
 function getJwtSecret(env: Env): Uint8Array {
   const secret = env.ADMIN_SECRET || process.env.ADMIN_SECRET;
@@ -40,10 +41,14 @@ function getJwtSecret(env: Env): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
+// Helper to safely attach pdfAuth to context
+function setPdfAuth(c: Context, payload: PdfAuthPayload) {
+  (c as unknown as { pdfAuth: PdfAuthPayload }).pdfAuth = payload;
+}
+
 // Middleware to require JWT for mutating PDF endpoints
 async function requirePdfJwt(
-  // biome-ignore lint/suspicious/noExplicitAny: needed for framework compatibility
-  c: any,
+  c: Context,
   next: () => Promise<void>
 ): Promise<Response | undefined> {
   const authHeader = c.req.header("Authorization");
@@ -57,10 +62,28 @@ async function requirePdfJwt(
       return c.json({ error: "Invalid token" }, 401);
     }
     // Attach user info to context
-    c.pdfAuth = payload as PdfAuthPayload;
+    setPdfAuth(c, payload as PdfAuthPayload);
     await next();
   } catch (err) {
     return c.json({ error: "Invalid or expired token" }, 401);
+  }
+}
+
+// Helper to extract userId (username) from JWT in Authorization header
+async function getUserIdFromJwt(c: Context): Promise<string | null> {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return null;
+  }
+  const token = authHeader.slice(7);
+  try {
+    const { payload } = await jwtVerify(token, getJwtSecret(c.env));
+    if (!payload || payload.type !== "pdf-auth" || !payload.username) {
+      return null;
+    }
+    return payload.username as string;
+  } catch (err) {
+    return null;
   }
 }
 
@@ -122,7 +145,7 @@ export class Chat extends AIChatAgent<Env> {
           executions,
         });
 
-        // Create enhanced tools that automatically include JWT for PDF operations
+        // Create enhanced tools that automatically include JWT for PDF and campaign operations
         const enhancedTools = Object.fromEntries(
           Object.entries(allTools).map(([toolName, tool]) => {
             if (
@@ -130,7 +153,9 @@ export class Chat extends AIChatAgent<Env> {
               toolName === "generatePdfUploadUrl" ||
               toolName === "updatePdfMetadata" ||
               toolName === "ingestPdfFile" ||
-              toolName === "getPdfStats" // Add getPdfStats to always receive JWT
+              toolName === "getPdfStats" || // Add getPdfStats to always receive JWT
+              toolName === "listCampaigns" ||
+              toolName === "createCampaign"
             ) {
               return [
                 toolName,
@@ -138,7 +163,7 @@ export class Chat extends AIChatAgent<Env> {
                   ...tool,
                   // biome-ignore lint/suspicious/noExplicitAny: needed for tool interface
                   execute: async (args: any, context: any) => {
-                    // For PDF tools, ensure JWT is always included
+                    // For PDF and campaign tools, ensure JWT is always included
                     const enhancedArgs = { ...args, jwt: clientJwt };
                     console.log(
                       `[Agent] Calling tool ${toolName} with args:`,
@@ -172,23 +197,36 @@ When a user wants to upload a PDF file, follow this process:
 3. **Update Metadata**: After successful upload, use the updatePdfMetadata tool to add description, tags, and file size
 4. **Trigger Ingestion**: Use the ingestPdfFile tool to start processing the uploaded PDF
 
-**Important User Management:**
-- PDF operations are now user-based using JWT authentication
-- Users authenticate with username and admin key to get a JWT token
-- All PDF operations use the authenticated user's context
+**Campaign Management Flow:**
+When a user wants to manage campaigns, follow this process:
 
-**Example Flow:**
+1. **List Campaigns**: Use the listCampaigns tool to see all existing campaigns for the user
+2. **Create Campaign**: Use the createCampaign tool to create a new campaign with a name
+3. **Campaign Operations**: All campaign operations are user-based using JWT authentication
+
+**Important User Management:**
+- PDF and campaign operations are now user-based using JWT authentication
+- Users authenticate with username and admin key to get a JWT token
+- All operations use the authenticated user's context
+
+**Example Campaign Flow:**
+- User: "Show me my campaigns"
+- You: Call listCampaigns tool to fetch and display all campaigns
+- User: "Create a new campaign called 'Lost Mine of Phandelver'"
+- You: Call createCampaign tool with name="Lost Mine of Phandelver"
+
+**Example PDF Flow:**
 - User: "Please generate an upload URL for my PDF file 'document.pdf' (2.5 MB)"
 - You: Call generatePdfUploadUrl tool with fileName="document.pdf", fileSize=2621440
 - User: "I have successfully uploaded the PDF file 'document.pdf' with file key 'uploads/username/abc-123-document.pdf'. Please update the metadata..."
 - You: Call updatePdfMetadata tool with the file key and metadata, then call ingestPdfFile tool
 
-**Other PDF Operations:**
+**Other Operations:**
 - Use checkPdfAuthStatus to verify authentication (pass sessionId if provided)
 - Use listPdfFiles to show uploaded files
 - Use getPdfStats for upload statistics
 
-Always use the appropriate tools for PDF operations and guide users through the upload process step by step.
+Always use the appropriate tools for operations and guide users through the process step by step.
 `,
           messages: processedMessages,
           tools: enhancedTools,
@@ -289,7 +327,7 @@ app.post("/pdf/upload-url", requirePdfJwt, async (c) => {
   try {
     const { fileName, fileSize } = await c.req.json();
     // biome-ignore lint/suspicious/noExplicitAny: needed for framework compatibility
-    const pdfAuth = (c as any).pdfAuth as PdfAuthPayload;
+    const pdfAuth = (c as any).pdfAuth;
 
     console.log("Upload URL request received for user:", pdfAuth.username);
     console.log("FileName:", fileName);
@@ -361,7 +399,7 @@ app.post("/pdf/ingest", requirePdfJwt, async (c) => {
   try {
     const { fileKey } = await c.req.json();
     // biome-ignore lint/suspicious/noExplicitAny: needed for framework compatibility
-    const pdfAuth = (c as any).pdfAuth as PdfAuthPayload;
+    const pdfAuth = (c as any).pdfAuth;
 
     if (!fileKey) {
       return c.json({ error: "fileKey is required" }, 400);
@@ -391,7 +429,7 @@ app.post("/pdf/ingest", requirePdfJwt, async (c) => {
 app.get("/pdf/files", requirePdfJwt, async (c) => {
   try {
     // biome-ignore lint/suspicious/noExplicitAny: needed for framework compatibility
-    const pdfAuth = (c as any).pdfAuth as PdfAuthPayload;
+    const pdfAuth = (c as any).pdfAuth;
 
     // List files from R2 bucket for this user
     const prefix = `uploads/${pdfAuth.username}/`;
@@ -417,7 +455,7 @@ app.post("/pdf/update-metadata", requirePdfJwt, async (c) => {
   try {
     const { fileKey, metadata } = await c.req.json();
     // biome-ignore lint/suspicious/noExplicitAny: needed for framework compatibility
-    const pdfAuth = (c as any).pdfAuth as PdfAuthPayload;
+    const pdfAuth = (c as any).pdfAuth;
 
     if (!fileKey || !metadata) {
       return c.json({ error: "fileKey and metadata are required" }, 400);
@@ -451,7 +489,7 @@ app.post("/pdf/update-metadata", requirePdfJwt, async (c) => {
 app.get("/pdf/stats", requirePdfJwt, async (c) => {
   try {
     // biome-ignore lint/suspicious/noExplicitAny: needed for framework compatibility
-    const pdfAuth = (c as any).pdfAuth as PdfAuthPayload;
+    const pdfAuth = (c as any).pdfAuth;
 
     // Get stats for this user's files
     const prefix = `uploads/${pdfAuth.username}/`;
@@ -473,6 +511,69 @@ app.get("/pdf/stats", requirePdfJwt, async (c) => {
     });
   } catch (error) {
     console.error("Error getting stats:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// Add campaign endpoints
+app.get("/api/campaigns", async (c) => {
+  console.log("GET /api/campaigns");
+  try {
+    const userId = await getUserIdFromJwt(c);
+    if (!userId) {
+      return c.json({ error: "Missing or invalid Authorization token" }, 401);
+    }
+    console.log("[API] GET /api/campaigns for userId:", userId);
+    const id = c.env.CampaignManager.idFromName(userId);
+    const stub = c.env.CampaignManager.get(id);
+    const resp = await stub.fetch("https://dummy/campaigns");
+    console.log("[API] DO fetch status:", resp.status);
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error("[API] Error from DO:", resp.status, text);
+      return c.json(
+        { error: `Failed to fetch campaigns: ${resp.status}` },
+        500
+      );
+    }
+    const data = (await resp.json()) as { campaigns?: unknown[] };
+    console.log("[API] Campaigns response:", data);
+    return c.json({ campaigns: data.campaigns || [] });
+  } catch (error) {
+    console.error("[API] Exception in GET /api/campaigns:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+app.post("/api/campaigns", async (c) => {
+  try {
+    const userId = await getUserIdFromJwt(c);
+    if (!userId) {
+      return c.json({ error: "Missing or invalid Authorization token" }, 401);
+    }
+    console.log("[API] POST /api/campaigns for userId:", userId);
+    const id = c.env.CampaignManager.idFromName(userId);
+    const stub = c.env.CampaignManager.get(id);
+    const body = await c.req.json();
+    console.log("[API] Creating campaign with body:", body);
+    const resp = await stub.fetch("https://dummy/campaigns", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    console.log("[API] DO fetch status:", resp.status);
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error("[API] Error from DO:", resp.status, text);
+      return c.json(
+        { error: `Failed to create campaign: ${resp.status}` },
+        500
+      );
+    }
+    const data = (await resp.json()) as { campaign?: unknown };
+    console.log("[API] Created campaign response:", data);
+    return c.json({ campaign: data.campaign });
+  } catch (error) {
+    console.error("[API] Exception in POST /api/campaigns:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 });
