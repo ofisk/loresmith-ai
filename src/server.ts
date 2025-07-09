@@ -12,8 +12,57 @@ import {
   streamText,
 } from "ai";
 import { Hono } from "hono";
+import { type JWTPayload, SignJWT, jwtVerify } from "jose";
 import { executions, tools } from "./tools";
 import { processToolCalls } from "./utils";
+
+// Types for better type safety
+interface Env {
+  ADMIN_SECRET?: string;
+  PDF_BUCKET: R2Bucket;
+  Chat: DurableObjectNamespace;
+  SessionFileTracker: DurableObjectNamespace;
+}
+
+interface PdfAuthPayload extends JWTPayload {
+  type: "pdf-auth";
+  username: string;
+}
+
+interface MessageData {
+  jwt?: string;
+}
+
+// Helper to get the JWT secret key from env
+function getJwtSecret(env: Env): Uint8Array {
+  const secret = env.ADMIN_SECRET || process.env.ADMIN_SECRET;
+  if (!secret) throw new Error("ADMIN_SECRET not set");
+  return new TextEncoder().encode(secret);
+}
+
+// Middleware to require JWT for mutating PDF endpoints
+async function requirePdfJwt(
+  // biome-ignore lint/suspicious/noExplicitAny: needed for framework compatibility
+  c: any,
+  next: () => Promise<void>
+): Promise<Response | undefined> {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return c.json({ error: "Missing or invalid Authorization header" }, 401);
+  }
+  const token = authHeader.slice(7);
+  try {
+    const { payload } = await jwtVerify(token, getJwtSecret(c.env));
+    if (!payload || payload.type !== "pdf-auth") {
+      return c.json({ error: "Invalid token" }, 401);
+    }
+    // Attach user info to context
+    c.pdfAuth = payload as PdfAuthPayload;
+    await next();
+  } catch (err) {
+    return c.json({ error: "Invalid or expired token" }, 401);
+  }
+}
 
 const model = openai("gpt-4o-mini");
 
@@ -43,6 +92,27 @@ export class Chat extends AIChatAgent<Env> {
     // Create a streaming response that handles both text and tool outputs
     const dataStreamResponse = createDataStreamResponse({
       execute: async (dataStream) => {
+        // Extract JWT from the last user message if available
+        const lastUserMessage = this.messages
+          .slice()
+          .reverse()
+          .find((msg) => msg.role === "user");
+
+        console.log("[Agent] Last user message:", lastUserMessage);
+        let clientJwt: string | null = null;
+        if (
+          lastUserMessage &&
+          "data" in lastUserMessage &&
+          lastUserMessage.data
+        ) {
+          console.log("[Agent] lastUserMessage.data:", lastUserMessage.data);
+          const messageData = lastUserMessage.data as MessageData;
+          clientJwt = messageData.jwt || null;
+          console.log("[Agent] Extracted JWT from user message:", clientJwt);
+        } else {
+          console.log("[Agent] No JWT found in user message data.");
+        }
+
         // Process any pending tool calls from previous messages
         // This handles human-in-the-loop confirmations for tools
         const processedMessages = await processToolCalls({
@@ -51,6 +121,37 @@ export class Chat extends AIChatAgent<Env> {
           tools: allTools,
           executions,
         });
+
+        // Create enhanced tools that automatically include JWT for PDF operations
+        const enhancedTools = Object.fromEntries(
+          Object.entries(allTools).map(([toolName, tool]) => {
+            if (
+              toolName === "listPdfFiles" ||
+              toolName === "generatePdfUploadUrl" ||
+              toolName === "updatePdfMetadata" ||
+              toolName === "ingestPdfFile" ||
+              toolName === "getPdfStats" // Add getPdfStats to always receive JWT
+            ) {
+              return [
+                toolName,
+                {
+                  ...tool,
+                  // biome-ignore lint/suspicious/noExplicitAny: needed for tool interface
+                  execute: async (args: any, context: any) => {
+                    // For PDF tools, ensure JWT is always included
+                    const enhancedArgs = { ...args, jwt: clientJwt };
+                    console.log(
+                      `[Agent] Calling tool ${toolName} with args:`,
+                      enhancedArgs
+                    );
+                    return tool.execute(enhancedArgs, context);
+                  },
+                },
+              ];
+            }
+            return [toolName, tool];
+          })
+        );
 
         // Stream the AI response using GPT-4
         const result = streamText({
@@ -71,15 +172,15 @@ When a user wants to upload a PDF file, follow this process:
 3. **Update Metadata**: After successful upload, use the updatePdfMetadata tool to add description, tags, and file size
 4. **Trigger Ingestion**: Use the ingestPdfFile tool to start processing the uploaded PDF
 
-**Important Session Management:**
-- When the user provides a session ID in their request, use that session ID when calling PDF tools
-- If no session ID is provided, use the agent's default session
-- Always use the same session ID that the user authenticated with
+**Important User Management:**
+- PDF operations are now user-based using JWT authentication
+- Users authenticate with username and admin key to get a JWT token
+- All PDF operations use the authenticated user's context
 
 **Example Flow:**
-- User: "Please generate an upload URL for my PDF file 'document.pdf' (2.5 MB) using session ID 'session-123'"
-- You: Call generatePdfUploadUrl tool with fileName="document.pdf", fileSize=2621440, and sessionId="session-123"
-- User: "I have successfully uploaded the PDF file 'document.pdf' with file key 'uploads/session-123/abc-123-document.pdf'. Please update the metadata..."
+- User: "Please generate an upload URL for my PDF file 'document.pdf' (2.5 MB)"
+- You: Call generatePdfUploadUrl tool with fileName="document.pdf", fileSize=2621440
+- User: "I have successfully uploaded the PDF file 'document.pdf' with file key 'uploads/username/abc-123-document.pdf'. Please update the metadata..."
 - You: Call updatePdfMetadata tool with the file key and metadata, then call ingestPdfFile tool
 
 **Other PDF Operations:**
@@ -90,7 +191,7 @@ When a user wants to upload a PDF file, follow this process:
 Always use the appropriate tools for PDF operations and guide users through the upload process step by step.
 `,
           messages: processedMessages,
-          tools: allTools,
+          tools: enhancedTools,
           onFinish: async (args) => {
             onFinish(
               args as Parameters<StreamTextOnFinishCallback<ToolSet>>[0]
@@ -158,180 +259,49 @@ app.get("/check-open-ai-key", (c) => {
   return c.json({ success: hasOpenAIKey });
 });
 
-const bypassPdfAuth = process.env.BYPASS_PDF_AUTH === "true";
-// PDF Authentication Route
+// PDF Authentication Route (returns JWT)
 app.post("/pdf/authenticate", async (c) => {
-  if (bypassPdfAuth) {
-    return c.json({
-      success: true,
-      authenticated: true,
-      message: "Bypass PDF auth enabled",
-    });
+  const { providedKey, username } = await c.req.json();
+  const expectedKey = c.env.ADMIN_SECRET || process.env.ADMIN_SECRET;
+  if (
+    !providedKey ||
+    !expectedKey ||
+    !username ||
+    typeof username !== "string" ||
+    username.trim() === ""
+  ) {
+    return c.json({ error: "Missing admin key or username" }, 400);
   }
-  try {
-    const { sessionId, providedKey } = await c.req.json();
-
-    if (!sessionId || !providedKey) {
-      return c.json({ error: "sessionId and providedKey are required" }, 400);
-    }
-
-    // Get the SessionFileTracker Durable Object for this session
-    const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
-    const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
-
-    // Check if already authenticated first
-    const authCheckResponse = await sessionTracker.fetch(
-      "https://dummy-host/is-session-authenticated",
-      {
-        method: "GET",
-      }
-    );
-
-    const authCheck = (await authCheckResponse.json()) as {
-      authenticated: boolean;
-    };
-
-    if (authCheck.authenticated) {
-      return c.json({
-        success: true,
-        authenticated: true,
-        message: "Session already authenticated",
-      });
-    }
-
-    // Regular authentication flow
-    if (!providedKey) {
-      return c.json({ error: "providedKey is required" }, 400);
-    }
-
-    console.log("Admin secret:", c.env.ADMIN_SECRET);
-    console.log("Provided key:", providedKey);
-    const expectedKey = c.env.ADMIN_SECRET; // Use the environment variable from Cloudflare
-
-    // Send validation request to the Durable Object
-    const authResponse = await sessionTracker.fetch(
-      "https://dummy-host/validate-session-auth",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, providedKey, expectedKey }),
-      }
-    );
-
-    const authResult = (await authResponse.json()) as {
-      success: boolean;
-      authenticated: boolean;
-      authenticatedAt?: string;
-      error?: string;
-    };
-
-    if (authResult.success && authResult.authenticated) {
-      return c.json({
-        success: true,
-        authenticated: true,
-        authenticatedAt: authResult.authenticatedAt,
-      });
-    }
-    return c.json(
-      {
-        success: false,
-        authenticated: false,
-        error: "Invalid admin key",
-      },
-      401
-    );
-  } catch (error) {
-    console.error("Error authenticating session:", error);
-    return c.json({ error: "Internal server error" }, 500);
+  if (providedKey !== expectedKey) {
+    return c.json({ error: "Invalid admin key" }, 401);
   }
-});
-
-// PDF Session Authentication Status Check Route
-app.get("/pdf/is-session-authenticated", async (c) => {
-  if (bypassPdfAuth) {
-    return c.json({ authenticated: true });
-  }
-  try {
-    const sessionId = c.req.query("sessionId");
-
-    if (!sessionId) {
-      return c.json({ error: "sessionId parameter is required" }, 400);
-    }
-
-    // Get the SessionFileTracker Durable Object for this session
-    const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
-    const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
-
-    const authCheckResponse = await sessionTracker.fetch(
-      "https://dummy-host/is-session-authenticated",
-      {
-        method: "GET",
-      }
-    );
-
-    const authCheck = (await authCheckResponse.json()) as {
-      authenticated: boolean;
-    };
-
-    return c.json({
-      authenticated: authCheck.authenticated,
-    });
-  } catch (error) {
-    console.error("Error checking session authentication status:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
+  // Issue JWT with username
+  const jwt = await new SignJWT({ type: "pdf-auth", username })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("1d")
+    .sign(getJwtSecret(c.env));
+  return c.json({ token: jwt });
 });
 
 // PDF Upload URL Route (for presigned uploads)
-app.post("/pdf/upload-url", async (c) => {
+app.post("/pdf/upload-url", requirePdfJwt, async (c) => {
   try {
-    const { sessionId, fileName, fileSize } = await c.req.json();
+    const { fileName, fileSize } = await c.req.json();
+    // biome-ignore lint/suspicious/noExplicitAny: needed for framework compatibility
+    const pdfAuth = (c as any).pdfAuth as PdfAuthPayload;
 
-    console.log("Upload URL request received for sessionId:", sessionId);
+    console.log("Upload URL request received for user:", pdfAuth.username);
     console.log("FileName:", fileName);
     console.log("FileSize:", fileSize);
 
-    if (!sessionId || !fileName) {
-      console.log("Missing sessionId or fileName");
-      return c.json({ error: "sessionId and fileName are required" }, 400);
+    if (!fileName) {
+      console.log("Missing fileName");
+      return c.json({ error: "fileName is required" }, 400);
     }
 
-    // Check if session is authenticated
-    const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
-    const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
-
-    console.log(
-      "Created session tracker for upload URL, sessionId:",
-      sessionId
-    );
-
-    const authCheckResponse = await sessionTracker.fetch(
-      "https://dummy-host/is-session-authenticated",
-      {
-        method: "GET",
-      }
-    );
-
-    console.log(
-      "Auth check response status for upload URL:",
-      authCheckResponse.status
-    );
-
-    const authCheck = (await authCheckResponse.json()) as {
-      authenticated: boolean;
-    };
-
-    console.log("Auth check result for upload URL:", authCheck);
-
-    if (!authCheck.authenticated) {
-      console.log("Session not authenticated for upload URL, returning 401");
-      return c.json({ error: "Session not authenticated" }, 401);
-    }
-
-    console.log("Session authenticated, generating upload URL");
-
-    // Generate unique file key
-    const fileKey = `uploads/${sessionId}/${fileName}`;
+    // Generate unique file key using username from JWT
+    const fileKey = `uploads/${pdfAuth.username}/${fileName}`;
 
     // Generate direct upload URL to R2 bucket
     // This creates a URL that uploads directly to R2, bypassing the worker
@@ -340,28 +310,10 @@ app.post("/pdf/upload-url", async (c) => {
     console.log("Generated fileKey:", fileKey);
     console.log("Generated uploadUrl:", uploadUrl);
 
-    // Add file metadata to SessionFileTracker
-    const addFileResponse = await sessionTracker.fetch(
-      "https://dummy-host/add-file",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId,
-          fileKey,
-          fileName,
-          fileSize: fileSize || 0,
-          metadata: { status: "uploading" },
-        }),
-      }
-    );
-
-    console.log("Add file response status:", addFileResponse.status);
-
     return c.json({
       uploadUrl,
       fileKey,
-      sessionId,
+      username: pdfAuth.username,
     });
   } catch (error) {
     console.error("Error generating upload URL:", error);
@@ -370,7 +322,7 @@ app.post("/pdf/upload-url", async (c) => {
 });
 
 // Direct PDF Upload Route
-app.put("/pdf/upload/*", async (c) => {
+app.put("/pdf/upload/*", requirePdfJwt, async (c) => {
   try {
     const pathname = new URL(c.req.url).pathname;
     const fileKey = pathname.replace("/pdf/upload/", "");
@@ -405,59 +357,29 @@ app.put("/pdf/upload/*", async (c) => {
 });
 
 // PDF Ingest Route
-app.post("/pdf/ingest", async (c) => {
+app.post("/pdf/ingest", requirePdfJwt, async (c) => {
   try {
-    const { sessionId, fileKey } = await c.req.json();
+    const { fileKey } = await c.req.json();
+    // biome-ignore lint/suspicious/noExplicitAny: needed for framework compatibility
+    const pdfAuth = (c as any).pdfAuth as PdfAuthPayload;
 
-    if (!sessionId || !fileKey) {
-      return c.json({ error: "sessionId and fileKey are required" }, 400);
+    if (!fileKey) {
+      return c.json({ error: "fileKey is required" }, 400);
     }
 
-    // Check if session is authenticated
-    const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
-    const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
-
-    const authCheckResponse = await sessionTracker.fetch(
-      "https://dummy-host/is-session-authenticated",
-      {
-        method: "GET",
-      }
-    );
-
-    const authCheck = (await authCheckResponse.json()) as {
-      authenticated: boolean;
-    };
-    if (!authCheck.authenticated) {
-      return c.json({ error: "Session not authenticated" }, 401);
+    // Verify the fileKey belongs to the authenticated user
+    if (!fileKey.startsWith(`uploads/${pdfAuth.username}/`)) {
+      return c.json({ error: "Access denied to this file" }, 403);
     }
-
-    // Update status to parsing
-    await sessionTracker.fetch("https://dummy-host/update-status", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fileKey,
-        status: "parsing",
-      }),
-    });
 
     // Simulate parsing process
     await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    // Update status to parsed
-    await sessionTracker.fetch("https://dummy-host/update-status", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fileKey,
-        status: "parsed",
-      }),
-    });
 
     return c.json({
       success: true,
       fileKey,
       status: "parsed",
+      username: pdfAuth.username,
     });
   } catch (error) {
     console.error("Error ingesting PDF:", error);
@@ -466,42 +388,24 @@ app.post("/pdf/ingest", async (c) => {
 });
 
 // Get Files Route
-app.get("/pdf/files", async (c) => {
+app.get("/pdf/files", requirePdfJwt, async (c) => {
   try {
-    const sessionId = c.req.query("sessionId");
+    // biome-ignore lint/suspicious/noExplicitAny: needed for framework compatibility
+    const pdfAuth = (c as any).pdfAuth as PdfAuthPayload;
 
-    if (!sessionId) {
-      return c.json({ error: "sessionId query parameter is required" }, 400);
-    }
+    // List files from R2 bucket for this user
+    const prefix = `uploads/${pdfAuth.username}/`;
+    const objects = await c.env.PDF_BUCKET.list({ prefix });
 
-    const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
-    const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
+    const files = objects.objects.map((obj) => ({
+      fileKey: obj.key,
+      fileName: obj.key.replace(prefix, ""),
+      fileSize: obj.size,
+      uploaded: obj.uploaded,
+      status: "uploaded", // All files in R2 are considered uploaded
+    }));
 
-    // Check if session is authenticated
-    const authCheckResponse = await sessionTracker.fetch(
-      "https://dummy-host/is-session-authenticated",
-      {
-        method: "GET",
-      }
-    );
-
-    const authCheck = (await authCheckResponse.json()) as {
-      authenticated: boolean;
-    };
-    if (!authCheck.authenticated) {
-      return c.json({ error: "Session not authenticated" }, 401);
-    }
-
-    const filesResponse = await sessionTracker.fetch(
-      `https://dummy-host/get-files?sessionId=${sessionId}`,
-      {
-        method: "GET",
-      }
-    );
-
-    const files = (await filesResponse.json()) as { files: unknown[] };
-
-    return c.json(files);
+    return c.json({ files });
   } catch (error) {
     console.error("Error getting files:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -509,48 +413,33 @@ app.get("/pdf/files", async (c) => {
 });
 
 // PDF Update Metadata Route
-app.post("/pdf/update-metadata", async (c) => {
+app.post("/pdf/update-metadata", requirePdfJwt, async (c) => {
   try {
-    const { sessionId, fileKey, metadata } = await c.req.json();
+    const { fileKey, metadata } = await c.req.json();
+    // biome-ignore lint/suspicious/noExplicitAny: needed for framework compatibility
+    const pdfAuth = (c as any).pdfAuth as PdfAuthPayload;
 
-    if (!sessionId || !fileKey || !metadata) {
-      return c.json(
-        { error: "sessionId, fileKey, and metadata are required" },
-        400
-      );
+    if (!fileKey || !metadata) {
+      return c.json({ error: "fileKey and metadata are required" }, 400);
     }
 
-    // Check if session is authenticated
-    const sessionIdObj = c.env.SessionFileTracker.idFromName(sessionId);
-    const sessionTracker = c.env.SessionFileTracker.get(sessionIdObj);
-
-    const authCheckResponse = await sessionTracker.fetch(
-      "https://dummy-host/is-session-authenticated",
-      {
-        method: "GET",
-      }
-    );
-
-    const authCheck = (await authCheckResponse.json()) as {
-      authenticated: boolean;
-    };
-    if (!authCheck.authenticated) {
-      return c.json({ error: "Session not authenticated" }, 401);
+    // Verify the fileKey belongs to the authenticated user
+    if (!fileKey.startsWith(`uploads/${pdfAuth.username}/`)) {
+      return c.json({ error: "Access denied to this file" }, 403);
     }
 
-    // Update file metadata in SessionFileTracker
-    await sessionTracker.fetch("https://dummy-host/update-metadata", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fileKey,
-        metadata,
-      }),
+    // Store metadata in R2 bucket as a separate object
+    const metadataKey = `${fileKey}.metadata`;
+    await c.env.PDF_BUCKET.put(metadataKey, JSON.stringify(metadata), {
+      httpMetadata: {
+        contentType: "application/json",
+      },
     });
 
     return c.json({
       success: true,
       fileKey,
+      username: pdfAuth.username,
     });
   } catch (error) {
     console.error("Error updating metadata:", error);
@@ -559,20 +448,28 @@ app.post("/pdf/update-metadata", async (c) => {
 });
 
 // PDF Stats Route
-app.get("/pdf/stats", async (c) => {
+app.get("/pdf/stats", requirePdfJwt, async (c) => {
   try {
-    // This would require aggregating data from all sessions
-    // For now, return basic stats structure
+    // biome-ignore lint/suspicious/noExplicitAny: needed for framework compatibility
+    const pdfAuth = (c as any).pdfAuth as PdfAuthPayload;
+
+    // Get stats for this user's files
+    const prefix = `uploads/${pdfAuth.username}/`;
+    const objects = await c.env.PDF_BUCKET.list({ prefix });
+
+    const totalFiles = objects.objects.length;
+    const filesByStatus = {
+      uploading: 0,
+      uploaded: totalFiles,
+      parsing: 0,
+      parsed: 0,
+      error: 0,
+    };
+
     return c.json({
-      totalSessions: 0,
-      totalFiles: 0,
-      filesByStatus: {
-        uploading: 0,
-        uploaded: 0,
-        parsing: 0,
-        parsed: 0,
-        error: 0,
-      },
+      username: pdfAuth.username,
+      totalFiles,
+      filesByStatus,
     });
   } catch (error) {
     console.error("Error getting stats:", error);

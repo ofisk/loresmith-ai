@@ -4,17 +4,29 @@ import { Input } from "@/components/input/Input";
 import { PdfUpload } from "@/components/pdf-upload/PdfUpload";
 import { cn } from "@/lib/utils";
 import type { CreateMessage, Message } from "@ai-sdk/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface PdfUploadAgentProps {
-  sessionId: string;
   className?: string;
   messages: Message[];
   append: (message: CreateMessage) => Promise<string | null | undefined>;
 }
 
+const JWT_STORAGE_KEY = "pdf_auth_jwt";
+
+function getStoredJwt(): string | null {
+  return localStorage.getItem(JWT_STORAGE_KEY);
+}
+
+function storeJwt(token: string) {
+  localStorage.setItem(JWT_STORAGE_KEY, token);
+}
+
+function clearJwt() {
+  localStorage.removeItem(JWT_STORAGE_KEY);
+}
+
 export const PdfUploadAgent = ({
-  sessionId,
   className,
   messages,
   append,
@@ -27,75 +39,36 @@ export const PdfUploadAgent = ({
   const [authenticating, setAuthenticating] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isAuthPanelExpanded, setIsAuthPanelExpanded] = useState(true);
-  const [isUploadPanelExpanded, setIsUploadPanelExpanded] = useState(true);
+  const [isUploadPanelExpanded, setIsUploadPanelExpanded] = useState(false);
   const lastProcessedMessageId = useRef<string | null>(null);
+  const [username, setUsername] = useState("");
+  const [jwtUsername, setJwtUsername] = useState<string | null>(null);
 
-  const bypassPdfAuth = import.meta.env.VITE_BYPASS_PDF_AUTH === "true";
-  const effectiveIsAuthenticated = isAuthenticated || bypassPdfAuth;
+  const effectiveIsAuthenticated = isAuthenticated;
 
-  // Check authentication status by making direct API call
-  const checkAuthStatus = useCallback(async () => {
-    try {
-      setCheckingAuth(true);
-      setAuthError(null);
-
-      const apiBaseUrl =
-        import.meta.env.VITE_API_URL || "http://localhost:8787";
-
-      // Add timeout to prevent hanging
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-      // Use the is-session-authenticated endpoint for status checking
-      const response = await fetch(
-        `${apiBaseUrl}/pdf/is-session-authenticated?sessionId=${sessionId}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          signal: controller.signal,
-        }
-      );
-
-      clearTimeout(timeoutId);
-
-      if (response.ok) {
-        const result = (await response.json()) as {
-          authenticated: boolean;
-        };
-
-        if (result.authenticated) {
-          setIsAuthenticated(true);
-          setAuthError(null);
-          setShowAuthInput(false);
-        } else {
-          setIsAuthenticated(false);
-          setAuthError(null);
-        }
-      } else {
-        const errorText = await response.text();
-        console.error("Auth check failed:", response.status, errorText);
-        setIsAuthenticated(false);
-        setAuthError(null);
-      }
-    } catch (error) {
-      console.error("Error checking auth status:", error);
-      if (error instanceof Error && error.name === "AbortError") {
-        setAuthError("Authentication check timed out");
-      } else {
-        setAuthError("Failed to check authentication status");
-      }
-      setIsAuthenticated(false);
-    } finally {
-      setCheckingAuth(false);
-    }
-  }, [sessionId]);
-
-  // Check auth status on mount
+  // On mount, check for JWT
   useEffect(() => {
-    checkAuthStatus();
-  }, [checkAuthStatus]);
+    const jwt = getStoredJwt();
+    if (!jwt) {
+      setIsAuthenticated(false);
+      setJwtUsername(null);
+      setCheckingAuth(false);
+      return;
+    }
+    // Decode JWT to get username
+    try {
+      const payload = JSON.parse(atob(jwt.split(".")[1]));
+      if (payload?.username) {
+        setJwtUsername(payload.username);
+      } else {
+        setJwtUsername(null);
+      }
+    } catch {
+      setJwtUsername(null);
+    }
+    setIsAuthenticated(true);
+    setCheckingAuth(false);
+  }, []);
 
   // Listen for agent responses to update authentication state
   useEffect(() => {
@@ -125,81 +98,53 @@ export const PdfUploadAgent = ({
   ) => {
     setUploading(true);
     try {
-      // Step 0: Check authentication status before proceeding
       const apiBaseUrl =
         import.meta.env.VITE_API_URL || "http://localhost:8787";
-      const authStatusResponse = await fetch(
-        `${apiBaseUrl}/pdf/is-session-authenticated?sessionId=${sessionId}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-      const authStatus = (await authStatusResponse.json()) as {
-        authenticated: boolean;
-      };
-      if (!authStatus.authenticated) {
+      const jwt = getStoredJwt();
+      if (!jwt) {
         setUploading(false);
         setIsAuthenticated(false);
-        setAuthError(
-          "Session is not authenticated. Please re-authenticate before uploading."
-        );
+        setAuthError("Not authenticated. Please re-authenticate.");
         setShowAuthInput(true);
         return;
       }
-
-      // Step 1: Ask agent to generate upload URL with session ID
+      // Step 1: Ask agent to generate upload URL
+      console.log("[Client] Calling append for upload with JWT:", jwt);
       await append({
         role: "user",
-        content: `Please generate an upload URL for my PDF file "${filename}" (${(file.size / 1024 / 1024).toFixed(2)} MB) using session ID "${sessionId}".`,
+        content: `Please generate an upload URL for my PDF file "${filename}" (${(file.size / 1024 / 1024).toFixed(2)} MB).`,
+        data: { jwt },
       });
-
-      // Step 2: Wait for agent response and extract upload URL
-      // For now, we'll make a direct API call to get the upload URL
-      // In a full implementation, you'd parse the agent's response to get the upload URL
-
-      // Get upload URL from server (this would normally come from the agent's response)
+      // Step 2: Get upload URL from server (send JWT)
       const uploadUrlResponse = await fetch(`${apiBaseUrl}/pdf/upload-url`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${jwt}`,
         },
         body: JSON.stringify({
-          sessionId,
           fileName: filename,
           fileSize: file.size,
         }),
       });
-
-      console.log("Upload URL request sent with sessionId:", sessionId);
-      console.log("Upload URL response status:", uploadUrlResponse.status);
-
       if (!uploadUrlResponse.ok) {
+        if (uploadUrlResponse.status === 401) {
+          clearJwt();
+          setIsAuthenticated(false);
+          setAuthError("Session expired or invalid. Please re-authenticate.");
+          setShowAuthInput(true);
+          setUploading(false);
+          return;
+        }
         const errorText = await uploadUrlResponse.text();
-        console.error(
-          "Upload URL request failed:",
-          uploadUrlResponse.status,
-          errorText
-        );
         throw new Error(
-          `Failed to get upload URL: ${uploadUrlResponse.status}`
+          `Failed to get upload URL: ${uploadUrlResponse.status} ${errorText}`
         );
       }
-
       const uploadUrlResult = (await uploadUrlResponse.json()) as {
         uploadUrl: string;
         fileKey: string;
       };
-
-      console.log("Upload URL result:", uploadUrlResult);
-      console.log("API Base URL:", apiBaseUrl);
-      console.log(
-        "Full upload URL:",
-        `${apiBaseUrl}${uploadUrlResult.uploadUrl}`
-      );
-
       // Step 3: Upload file directly to R2 using the presigned URL
       const uploadResponse = await fetch(
         `${apiBaseUrl}${uploadUrlResult.uploadUrl}`,
@@ -208,30 +153,26 @@ export const PdfUploadAgent = ({
           body: file,
           headers: {
             "Content-Type": "application/pdf",
+            Authorization: `Bearer ${jwt}`,
           },
         }
       );
-
       if (!uploadResponse.ok) {
         throw new Error(`Upload failed: ${uploadResponse.status}`);
       }
-
       // Step 4: Send metadata to agent after successful upload
+      console.log("[Client] Calling append for metadata/ingest with JWT:", jwt);
       await append({
         role: "user",
-        content: `I have successfully uploaded the PDF file "${filename}" (${(file.size / 1024 / 1024).toFixed(2)} MB) with file key "${uploadUrlResult.fileKey}". Please update the metadata with:
-- Description: ${description || "No description provided"}
-- Tags: ${tags.length > 0 ? tags.join(", ") : "No tags provided"}
-- File size: ${file.size} bytes
-
-Then please trigger ingestion for this file.`,
+        content: `I have successfully uploaded the PDF file "${filename}" (${(file.size / 1024 / 1024).toFixed(2)} MB) with file key "${uploadUrlResult.fileKey}". Please update the metadata with:\n- Description: ${description || "No description provided"}\n- Tags: ${tags.length > 0 ? tags.join(", ") : "No tags provided"}\n- File size: ${file.size} bytes\n\nThen please trigger ingestion for this file.`,
+        data: { jwt },
       });
     } catch (error) {
       console.error("Error uploading PDF:", error);
-      // Send error message to agent
       await append({
         role: "user",
         content: `Failed to upload PDF file "${filename}": ${error instanceof Error ? error.message : String(error)}`,
+        data: { jwt: getStoredJwt() },
       });
     } finally {
       setUploading(false);
@@ -253,12 +194,13 @@ Then please trigger ingestion for this file.`,
       setAuthError("Please enter your admin key");
       return;
     }
-
+    if (!username.trim()) {
+      setAuthError("Please enter your username");
+      return;
+    }
     try {
       setAuthenticating(true);
       setAuthError(null);
-
-      // Make direct authentication request to check response code
       const apiBaseUrl =
         import.meta.env.VITE_API_URL || "http://localhost:8787";
       const response = await fetch(`${apiBaseUrl}/pdf/authenticate`, {
@@ -267,32 +209,39 @@ Then please trigger ingestion for this file.`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          sessionId,
           providedKey: adminKey,
+          username: username.trim(),
         }),
       });
-
       const result = (await response.json()) as {
-        success: boolean;
-        authenticated: boolean;
+        token?: string;
         error?: string;
       };
-
-      if (response.ok && result.success && result.authenticated) {
-        // Authentication successful
+      if (response.ok && result.token) {
+        storeJwt(result.token);
+        // Decode JWT to get username
+        try {
+          const payload = JSON.parse(atob(result.token.split(".")[1]));
+          if (payload?.username) {
+            setJwtUsername(payload.username);
+          } else {
+            setJwtUsername(null);
+          }
+        } catch {
+          setJwtUsername(null);
+        }
         setIsAuthenticated(true);
         setAuthError(null);
         setShowAuthInput(false);
         setAdminKey("");
-
-        // Send success message to agent
+        setUsername("");
         await append({
           role: "user",
           content:
             "I have successfully authenticated for PDF upload functionality.",
+          data: { jwt: result.token },
         });
       } else {
-        // Authentication failed
         setIsAuthenticated(false);
         setAuthError(
           result.error || "Authentication failed. Please check your admin key."
@@ -356,6 +305,23 @@ Then please trigger ingestion for this file.`,
               <div className="space-y-3">
                 <div className="space-y-3">
                   <label
+                    htmlFor="username"
+                    className="text-ob-base-300 text-sm font-medium mb-2 block"
+                  >
+                    Username
+                  </label>
+                  <Input
+                    id="username"
+                    type="text"
+                    placeholder="Enter your username..."
+                    value={username}
+                    onValueChange={(value: string) => setUsername(value)}
+                    disabled={authenticating}
+                    onKeyDown={(e: React.KeyboardEvent) => {
+                      if (e.key === "Enter") handleSubmitAuth();
+                    }}
+                  />
+                  <label
                     htmlFor="admin-key"
                     className="text-ob-base-300 text-sm font-medium mb-2 block"
                   >
@@ -379,7 +345,9 @@ Then please trigger ingestion for this file.`,
                     variant="primary"
                     size="base"
                     loading={authenticating}
-                    disabled={!adminKey.trim() || authenticating}
+                    disabled={
+                      !adminKey.trim() || !username.trim() || authenticating
+                    }
                   >
                     {authenticating ? "Authenticating..." : "Authenticate"}
                   </Button>
@@ -387,6 +355,7 @@ Then please trigger ingestion for this file.`,
                     onClick={() => {
                       setShowAuthInput(false);
                       setAdminKey("");
+                      setUsername("");
                       setAuthError(null);
                     }}
                     variant="secondary"
@@ -412,17 +381,17 @@ Then please trigger ingestion for this file.`,
     );
   }
 
-  // Show upload UI (with optional bypass message)
+  // Show upload UI
   return (
     <Card className={cn("space-y-4", className)}>
       <div className="flex items-center justify-between">
         <div className="space-y-2">
           <h3 className="text-ob-base-300 font-medium">PDF Upload</h3>
-          {bypassPdfAuth && (
-            <p className="text-ob-base-200 text-sm">
-              PDF authentication is bypassed for local development. You can
-              upload PDF files directly.
-            </p>
+          {jwtUsername && (
+            <div className="text-ob-base-200 text-xs">
+              Authenticated as:{" "}
+              <span className="font-semibold">{jwtUsername}</span>
+            </div>
           )}
         </div>
         <Button

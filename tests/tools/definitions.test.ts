@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { tools } from "../../src/tools";
 
 /**
@@ -77,28 +77,6 @@ describe("PDF Tools Structure", () => {
       "PDF"
     );
     expect(uploadUrlTool).toHaveProperty("execute");
-  });
-
-  /**
-   * Test Case: PDF Authentication Tool
-   *
-   * Scenario: Verify PDF authentication status tool
-   *
-   * Expected Behavior:
-   * - Tool exists and has correct description
-   * - Tool has sessionId parameter
-   * - Tool has execute function
-   *
-   * This validates the PDF authentication status tool.
-   */
-  it("has PDF authentication status tool", () => {
-    const authTool = (tools as Record<string, unknown>).checkPdfAuthStatus;
-    expect(authTool).toBeDefined();
-    expect((authTool as { description: string }).description).toContain(
-      "authenticated"
-    );
-    expect((authTool as { description: string }).description).toContain("PDF");
-    expect(authTool).toHaveProperty("execute");
   });
 
   /**
@@ -191,9 +169,6 @@ describe("Tool Export and Naming", () => {
 
     // Check for specific tools that should exist
     const expectedTools = [
-      "setAdminSecret",
-      "checkPdfAuthStatus",
-      "uploadPdfFile",
       "listPdfFiles",
       "getPdfStats",
       "scheduleTask",

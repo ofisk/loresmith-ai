@@ -4,7 +4,7 @@
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "loresmith-3d",
+  "name": "loresmith",
   "main": "src/server.ts",
   "compatibility_date": "2025-05-07",
   "compatibility_flags": [
