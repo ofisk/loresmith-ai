@@ -9,6 +9,8 @@ import { getCurrentAgent } from "agents";
 import { unstable_scheduleSchema } from "agents/schedule";
 import type { Chat } from "../server";
 
+// Campaign-related tools
+import { campaignTools as importedCampaignTools } from "./campaignTools";
 // PDF-related tools have been moved to ./tools/pdfTools.ts
 import { pdfTools as importedPdfTools } from "./pdfTools";
 
@@ -96,6 +98,7 @@ export const tools = {
   getScheduledTasks,
   cancelScheduledTask,
   ...importedPdfTools,
+  ...importedCampaignTools,
 };
 
 /**

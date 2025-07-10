@@ -247,7 +247,7 @@ export default function Chat() {
           </Button>
         </div>
 
-        {/* Messages */}
+        {/* Main Content Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 max-h-[calc(100vh-10rem)]">
           {agentMessages.length === 0 && (
             <div className="h-full flex items-center justify-center">
@@ -398,6 +398,7 @@ export default function Chat() {
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Chat-specific sections */}
         {/* PDF Upload Section */}
         <div className="px-4 py-2 border-t border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900">
           <PdfUploadAgent messages={agentMessages} append={append} />
