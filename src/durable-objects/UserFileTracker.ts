@@ -11,14 +11,14 @@ export interface FileMetadata {
   metadata?: Record<string, unknown>;
 }
 
-interface SessionData {
+interface UserData {
   isAuthenticated: boolean;
   authenticatedAt?: string;
   files: Map<string, FileMetadata>;
 }
 
 interface AddFileRequest {
-  sessionId?: string;
+  username?: string;
   fileKey: string;
   fileName: string;
   fileSize: number;
@@ -35,7 +35,7 @@ interface RemoveFileRequest {
 }
 
 interface ValidateAuthRequest {
-  sessionId?: string;
+  username?: string;
   providedKey: string;
   expectedKey?: string;
 }
@@ -52,8 +52,8 @@ interface UpdateMetadataRequest {
   };
 }
 
-export class SessionFileTracker extends DurableObject {
-  private sessionData: SessionData = {
+export class UserFileTracker extends DurableObject {
+  private userData: UserData = {
     isAuthenticated: false,
     files: new Map(),
   };
@@ -65,7 +65,7 @@ export class SessionFileTracker extends DurableObject {
     console.log("Durable Object: fetch called with path:", path);
     console.log(
       "Durable Object: current isAuthenticated =",
-      this.sessionData.isAuthenticated
+      this.userData.isAuthenticated
     );
 
     try {
@@ -92,7 +92,7 @@ export class SessionFileTracker extends DurableObject {
           return new Response("Not found", { status: 404 });
       }
     } catch (error) {
-      console.error("SessionFileTracker error:", error);
+      console.error("UserFileTracker error:", error);
       return new Response("Internal server error", { status: 500 });
     }
   }
@@ -104,13 +104,13 @@ export class SessionFileTracker extends DurableObject {
     console.log("Durable Object: addFile called");
     console.log(
       "Durable Object: current isAuthenticated =",
-      this.sessionData.isAuthenticated
+      this.userData.isAuthenticated
     );
     console.log("Durable Object: fileKey =", fileKey);
     console.log("Durable Object: fileName =", fileName);
 
     // Check if this session is already authenticated
-    if (!this.sessionData.isAuthenticated) {
+    if (!this.userData.isAuthenticated) {
       console.log(
         "Durable Object: Session not authenticated for addFile, returning 401"
       );
@@ -130,7 +130,7 @@ export class SessionFileTracker extends DurableObject {
       metadata,
     };
 
-    this.sessionData.files.set(fileKey, fileData);
+    this.userData.files.set(fileKey, fileData);
 
     console.log("Durable Object: File added successfully");
 
@@ -141,13 +141,13 @@ export class SessionFileTracker extends DurableObject {
 
   private async getFiles(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const sessionId = url.searchParams.get("sessionId");
+    const username = url.searchParams.get("username");
 
-    if (!sessionId) {
-      return new Response("sessionId parameter required", { status: 400 });
+    if (!username) {
+      return new Response("username parameter required", { status: 400 });
     }
 
-    const files = Array.from(this.sessionData.files.values());
+    const files = Array.from(this.userData.files.values());
 
     return new Response(JSON.stringify({ files }), {
       headers: { "Content-Type": "application/json" },
@@ -157,11 +157,11 @@ export class SessionFileTracker extends DurableObject {
   private async updateStatus(request: Request): Promise<Response> {
     const { fileKey, status } = (await request.json()) as UpdateStatusRequest;
 
-    if (!this.sessionData.isAuthenticated) {
+    if (!this.userData.isAuthenticated) {
       return new Response("Session not authenticated", { status: 401 });
     }
 
-    const file = this.sessionData.files.get(fileKey);
+    const file = this.userData.files.get(fileKey);
     if (!file) {
       return new Response("File not found", { status: 404 });
     }
@@ -177,11 +177,11 @@ export class SessionFileTracker extends DurableObject {
   private async removeFile(request: Request): Promise<Response> {
     const { fileKey } = (await request.json()) as RemoveFileRequest;
 
-    if (!this.sessionData.isAuthenticated) {
+    if (!this.userData.isAuthenticated) {
       return new Response("Session not authenticated", { status: 401 });
     }
 
-    const deleted = this.sessionData.files.delete(fileKey);
+    const deleted = this.userData.files.delete(fileKey);
 
     return new Response(JSON.stringify({ success: deleted }), {
       headers: { "Content-Type": "application/json" },
@@ -189,11 +189,11 @@ export class SessionFileTracker extends DurableObject {
   }
 
   private async deleteSession(request: Request): Promise<Response> {
-    if (!this.sessionData.isAuthenticated) {
+    if (!this.userData.isAuthenticated) {
       return new Response("Session not authenticated", { status: 401 });
     }
 
-    this.sessionData = {
+    this.userData = {
       isAuthenticated: false,
       files: new Map(),
     };
@@ -208,12 +208,12 @@ export class SessionFileTracker extends DurableObject {
       (await request.json()) as ValidateAuthRequest;
 
     // If session is already authenticated, return success without checking the key again
-    if (this.sessionData.isAuthenticated) {
+    if (this.userData.isAuthenticated) {
       return new Response(
         JSON.stringify({
           success: true,
           authenticated: true,
-          authenticatedAt: this.sessionData.authenticatedAt,
+          authenticatedAt: this.userData.authenticatedAt,
           message: "Session already authenticated",
         }),
         {
@@ -240,14 +240,14 @@ export class SessionFileTracker extends DurableObject {
     console.log("Durable Object: expectedKey =", expectedKey);
 
     if (providedKey === expectedKey) {
-      this.sessionData.isAuthenticated = true;
-      this.sessionData.authenticatedAt = new Date().toISOString();
+      this.userData.isAuthenticated = true;
+      this.userData.authenticatedAt = new Date().toISOString();
 
       return new Response(
         JSON.stringify({
           success: true,
           authenticated: true,
-          authenticatedAt: this.sessionData.authenticatedAt,
+          authenticatedAt: this.userData.authenticatedAt,
         }),
         {
           headers: { "Content-Type": "application/json" },
@@ -270,7 +270,7 @@ export class SessionFileTracker extends DurableObject {
   private async isSessionAuthenticated(request: Request): Promise<Response> {
     return new Response(
       JSON.stringify({
-        authenticated: this.sessionData.isAuthenticated,
+        authenticated: this.userData.isAuthenticated,
       }),
       {
         headers: { "Content-Type": "application/json" },
@@ -281,9 +281,9 @@ export class SessionFileTracker extends DurableObject {
   private async getSessionAuthInfo(request: Request): Promise<Response> {
     return new Response(
       JSON.stringify({
-        isAuthenticated: this.sessionData.isAuthenticated,
-        authenticatedAt: this.sessionData.authenticatedAt,
-        fileCount: this.sessionData.files.size,
+        isAuthenticated: this.userData.isAuthenticated,
+        authenticatedAt: this.userData.authenticatedAt,
+        fileCount: this.userData.files.size,
       }),
       {
         headers: { "Content-Type": "application/json" },
@@ -311,11 +311,11 @@ export class SessionFileTracker extends DurableObject {
     }
     const { fileKey, metadata } = body as UpdateMetadataRequest;
 
-    if (!this.sessionData.isAuthenticated) {
+    if (!this.userData.isAuthenticated) {
       return new Response("Session not authenticated", { status: 401 });
     }
 
-    const file = this.sessionData.files.get(fileKey);
+    const file = this.userData.files.get(fileKey);
     if (!file) {
       return new Response("File not found", { status: 404 });
     }

@@ -40,7 +40,7 @@ const DUMMY_ENV = {
   CORS_ALLOWED_ORIGINS: "*",
   PDF_BUCKET: undefined as unknown,
   Chat: undefined as unknown,
-  SessionFileTracker: undefined as unknown,
+  UserFileTracker: undefined as unknown,
 };
 
 /**

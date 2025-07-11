@@ -30,7 +30,7 @@ interface Env {
   ADMIN_SECRET?: string;
   PDF_BUCKET: R2Bucket;
   Chat: DurableObjectNamespace;
-  SessionFileTracker: DurableObjectNamespace;
+  UserFileTracker: DurableObjectNamespace;
   CampaignManager: DurableObjectNamespace;
 }
 
@@ -262,8 +262,8 @@ Always use the appropriate tools for operations and guide users through the proc
   }
 }
 
-// Export the SessionFileTracker Durable Object
-export { SessionFileTracker } from "./durable-objects/SessionFileTracker";
+// Export the UserFileTracker Durable Object
+export { UserFileTracker } from "./durable-objects/UserFileTracker";
 
 /**
  * Worker entry point that routes incoming requests to the appropriate handler
