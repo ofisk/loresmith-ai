@@ -1,8 +1,8 @@
+import { IconContext } from "@phosphor-icons/react";
+import { useRef } from "react";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { useMenuNavigation } from "@/hooks/useMenuNavigation";
 import { cn } from "@/lib/utils";
-import { IconContext } from "@phosphor-icons/react";
-import { useRef } from "react";
 
 type MenuOptionProps = {
   icon: React.ReactNode;

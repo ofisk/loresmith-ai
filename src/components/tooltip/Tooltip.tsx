@@ -1,6 +1,6 @@
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useTooltip } from "@/providers/TooltipProvider";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 export type TooltipProps = {
   children: React.ReactNode;
@@ -56,7 +56,8 @@ export const Tooltip = ({ children, className, content, id }: TooltipProps) => {
   }, [isVisible]);
 
   return (
-    <div
+    <button
+      type="button"
       aria-describedby={isVisible ? tooltipId : undefined}
       className={cn("relative inline-block", className)}
       onMouseEnter={() =>
@@ -102,6 +103,6 @@ export const Tooltip = ({ children, className, content, id }: TooltipProps) => {
           {content}
         </span>
       )}
-    </div>
+    </button>
   );
 };

@@ -61,7 +61,7 @@ describe("PDF Tools Structure", () => {
    *
    * Expected Behavior:
    * - Tool exists and has correct description
-   * - Tool has required parameters (fileName, fileSize, sessionId)
+   * - Tool has required parameters (fileName, fileSize, jwt)
    * - Tool has execute function
    *
    * This validates the PDF upload URL generation tool.
