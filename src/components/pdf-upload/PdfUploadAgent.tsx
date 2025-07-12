@@ -1,10 +1,11 @@
+import type { CreateMessage, Message } from "@ai-sdk/react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { Input } from "@/components/input/Input";
-import { PdfUpload } from "@/components/pdf-upload/PdfUpload";
 import { cn } from "@/lib/utils";
-import type { CreateMessage, Message } from "@ai-sdk/react";
-import { useEffect, useRef, useState } from "react";
+import { API_CONFIG } from "../../constants";
+import { PdfUpload } from "./PdfUpload";
 
 interface PdfUploadAgentProps {
   className?: string;
@@ -98,8 +99,6 @@ export const PdfUploadAgent = ({
   ) => {
     setUploading(true);
     try {
-      const apiBaseUrl =
-        import.meta.env.VITE_API_URL || "http://localhost:8787";
       const jwt = getStoredJwt();
       if (!jwt) {
         setUploading(false);
@@ -116,17 +115,20 @@ export const PdfUploadAgent = ({
         data: { jwt },
       });
       // Step 2: Get upload URL from server (send JWT)
-      const uploadUrlResponse = await fetch(`${apiBaseUrl}/pdf/upload-url`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${jwt}`,
-        },
-        body: JSON.stringify({
-          fileName: filename,
-          fileSize: file.size,
-        }),
-      });
+      const uploadUrlResponse = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.UPLOAD_URL),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${jwt}`,
+          },
+          body: JSON.stringify({
+            fileName: filename,
+            fileSize: file.size,
+          }),
+        }
+      );
       if (!uploadUrlResponse.ok) {
         if (uploadUrlResponse.status === 401) {
           clearJwt();
@@ -147,7 +149,7 @@ export const PdfUploadAgent = ({
       };
       // Step 3: Upload file directly to R2 using the presigned URL
       const uploadResponse = await fetch(
-        `${apiBaseUrl}${uploadUrlResult.uploadUrl}`,
+        `${API_CONFIG.getApiBaseUrl()}${uploadUrlResult.uploadUrl}`,
         {
           method: "PUT",
           body: file,
@@ -201,18 +203,19 @@ export const PdfUploadAgent = ({
     try {
       setAuthenticating(true);
       setAuthError(null);
-      const apiBaseUrl =
-        import.meta.env.VITE_API_URL || "http://localhost:8787";
-      const response = await fetch(`${apiBaseUrl}/pdf/authenticate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          providedKey: adminKey,
-          username: username.trim(),
-        }),
-      });
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.AUTHENTICATE),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            providedKey: adminKey,
+            username: username.trim(),
+          }),
+        }
+      );
       const result = (await response.json()) as {
         token?: string;
         error?: string;
@@ -279,10 +282,12 @@ export const PdfUploadAgent = ({
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <h3 className="text-ob-base-300 font-medium">
-              PDF Upload Authentication
+              Loresmith Authentication
             </h3>
             <p className="text-ob-base-200 text-sm">
-              You need to authenticate to upload and process PDF files.
+              Utter the secret words, adventurer, and the gates shall open.
+              Speak your name as well, that we may recover the tomes of your
+              past journeys.
             </p>
           </div>
           <Button

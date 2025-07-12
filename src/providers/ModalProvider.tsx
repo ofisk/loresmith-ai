@@ -1,5 +1,5 @@
+import { createContext, type ReactNode, useContext, useState } from "react";
 import { Modal } from "@/components/modal/Modal";
-import { type ReactNode, createContext, useContext, useState } from "react";
 
 type ModalContextType = {
   isOpen: boolean;

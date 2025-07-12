@@ -2,17 +2,28 @@
  * Tool definitions for the AI chat agent
  * Tools can either require human confirmation or execute automatically
  */
-import { tool } from "ai";
-import { z } from "zod";
 
 import { getCurrentAgent } from "agents";
 import { unstable_scheduleSchema } from "agents/schedule";
+import { tool } from "ai";
+import { z } from "zod";
 import type { Chat } from "../server";
 
 // Campaign-related tools
 import { campaignTools as importedCampaignTools } from "./campaignTools";
 // PDF-related tools have been moved to ./tools/pdfTools.ts
 import { pdfTools as importedPdfTools } from "./pdfTools";
+
+console.log("DEBUG importedCampaignTools:", importedCampaignTools);
+console.log("DEBUG createCampaign tool:", importedCampaignTools.createCampaign);
+console.log(
+  "DEBUG createCampaign.description:",
+  importedCampaignTools.createCampaign.description
+);
+console.log(
+  "DEBUG createCampaign.parameters:",
+  importedCampaignTools.createCampaign.parameters
+);
 
 const scheduleTask = tool({
   description: "A tool to schedule a task to be executed at a later time",
@@ -107,6 +118,45 @@ export const tools = {
  * Each function here corresponds to a tool above that doesn't have an execute function
  * NOTE: keys below should match toolsRequiringConfirmation in app.tsx
  */
+// Import the proper type for tool execution
+import type { ToolExecutionOptions } from "ai";
+
 export const executions = {
-  // ... existing code ...
+  createCampaign: async (params: { name: string; jwt?: string }) => {
+    const { campaignTools } = await import("./campaignTools");
+    return campaignTools.createCampaign.execute(
+      params,
+      {} as ToolExecutionOptions
+    );
+  },
+  listCampaignResources: async (params: {
+    campaignId: string;
+    jwt?: string;
+  }) => {
+    const { campaignTools } = await import("./campaignTools");
+    return campaignTools.listCampaignResources.execute(
+      params,
+      {} as ToolExecutionOptions
+    );
+  },
+  addResourceToCampaign: async (params: {
+    campaignId: string;
+    resourceType: "pdf" | "character" | "note" | "image";
+    resourceId: string;
+    resourceName?: string;
+    jwt?: string;
+  }) => {
+    const { campaignTools } = await import("./campaignTools");
+    return campaignTools.addResourceToCampaign.execute(
+      params,
+      {} as ToolExecutionOptions
+    );
+  },
+  showCampaignDetails: async (params: { campaignId: string; jwt?: string }) => {
+    const { campaignTools } = await import("./campaignTools");
+    return campaignTools.showCampaignDetails.execute(
+      params,
+      {} as ToolExecutionOptions
+    );
+  },
 };

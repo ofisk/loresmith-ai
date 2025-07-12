@@ -1,0 +1,32 @@
+# Generated type definitions
+worker-configuration.d.ts
+
+# Build output
+dist/
+build/
+.wrangler/
+
+# Node modules
+node_modules/
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
+
+# Environment files
+.env*
+!.env.example
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db 
+
+# Temporary files
+*.tmp
+*.temp 

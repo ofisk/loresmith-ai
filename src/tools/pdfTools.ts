@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { AUTH_CODES, type ToolResult } from "../shared";
+import { API_CONFIG, AUTH_CODES, type ToolResult } from "../constants";
 
 // PDF-related tool definitions
 
@@ -55,8 +55,6 @@ const listPdfFiles = tool({
   execute: async ({ jwt }): Promise<ToolResult> => {
     console.log("[Tool] listPdfFiles received JWT:", jwt);
     try {
-      const apiBaseUrl =
-        import.meta.env.VITE_API_URL || "http://localhost:8787";
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
@@ -64,10 +62,13 @@ const listPdfFiles = tool({
         headers.Authorization = `Bearer ${jwt}`;
       }
       console.log("[listPdfFiles] Using JWT:", jwt);
-      const response = await fetch(`${apiBaseUrl}/pdf/files`, {
-        method: "GET",
-        headers,
-      });
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.FILES),
+        {
+          method: "GET",
+          headers,
+        }
+      );
       console.log("[listPdfFiles] Response status:", response.status);
       if (!response.ok) {
         return {
@@ -127,15 +128,16 @@ const getPdfStats = tool({
   }),
   execute: async ({ jwt }): Promise<ToolResult> => {
     try {
-      const apiBaseUrl =
-        import.meta.env.VITE_API_URL || "http://localhost:8787";
-      const response = await fetch(`${apiBaseUrl}/pdf/stats`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-        },
-      });
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.STATS),
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          },
+        }
+      );
       if (!response.ok) {
         return {
           code: AUTH_CODES.ERROR,
@@ -178,17 +180,18 @@ const generatePdfUploadUrl = tool({
   execute: async ({ fileName, fileSize, jwt }): Promise<ToolResult> => {
     console.log("[Tool] generatePdfUploadUrl received JWT:", jwt);
     try {
-      const apiBaseUrl =
-        import.meta.env.VITE_API_URL || "http://localhost:8787";
       console.log("[generatePdfUploadUrl] Using JWT:", jwt);
-      const response = await fetch(`${apiBaseUrl}/pdf/upload-url`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-        },
-        body: JSON.stringify({ fileName, fileSize }),
-      });
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.UPLOAD_URL),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          },
+          body: JSON.stringify({ fileName, fileSize }),
+        }
+      );
       console.log("[generatePdfUploadUrl] Response status:", response.status);
       if (!response.ok) {
         return {
@@ -254,20 +257,21 @@ const updatePdfMetadata = tool({
   }): Promise<ToolResult> => {
     console.log("[Tool] updatePdfMetadata received JWT:", jwt);
     try {
-      const apiBaseUrl =
-        import.meta.env.VITE_API_URL || "http://localhost:8787";
       console.log("[updatePdfMetadata] Using JWT:", jwt);
-      const response = await fetch(`${apiBaseUrl}/pdf/update-metadata`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-        },
-        body: JSON.stringify({
-          fileKey,
-          metadata: { description, tags, fileSize },
-        }),
-      });
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.UPDATE_METADATA),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          },
+          body: JSON.stringify({
+            fileKey,
+            metadata: { description, tags, fileSize },
+          }),
+        }
+      );
       console.log("[updatePdfMetadata] Response status:", response.status);
       if (!response.ok) {
         return {
@@ -305,17 +309,18 @@ const ingestPdfFile = tool({
   execute: async ({ fileKey, jwt }): Promise<ToolResult> => {
     console.log("[Tool] ingestPdfFile received JWT:", jwt);
     try {
-      const apiBaseUrl =
-        import.meta.env.VITE_API_URL || "http://localhost:8787";
       console.log("[ingestPdfFile] Using JWT:", jwt);
-      const response = await fetch(`${apiBaseUrl}/pdf/ingest`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-        },
-        body: JSON.stringify({ fileKey }),
-      });
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.INGEST),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          },
+          body: JSON.stringify({ fileKey }),
+        }
+      );
       console.log("[ingestPdfFile] Response status:", response.status);
       if (!response.ok) {
         return {

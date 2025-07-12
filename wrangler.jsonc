@@ -33,6 +33,13 @@
       "preview_bucket_name": "loresmith-pdfs",
     },
   ],
+  "kv_namespaces": [
+    {
+      "binding": "CAMPAIGNS_KV",
+      "id": "loresmith-campaigns-kv",
+      "preview_id": "loresmith-campaigns-kv-preview",
+    },
+  ],
   "migrations": [
     {
       "tag": "v1",
