@@ -6,6 +6,7 @@ import { Input } from "@/components/input/Input";
 import { cn } from "@/lib/utils";
 import { API_CONFIG } from "../../constants";
 import { PdfUpload } from "./PdfUpload";
+import { PdfList } from "./PdfList";
 
 interface PdfUploadAgentProps {
   className?: string;
@@ -41,6 +42,7 @@ export const PdfUploadAgent = ({
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isAuthPanelExpanded, setIsAuthPanelExpanded] = useState(true);
   const [isUploadPanelExpanded, setIsUploadPanelExpanded] = useState(false);
+  const [isPdfListExpanded, setIsPdfListExpanded] = useState(false);
   const lastProcessedMessageId = useRef<string | null>(null);
   const [username, setUsername] = useState("");
   const [jwtUsername, setJwtUsername] = useState<string | null>(null);
@@ -266,7 +268,7 @@ export const PdfUploadAgent = ({
     return (
       <Card className={cn("space-y-4", className)}>
         <div className="space-y-2">
-          <h3 className="text-ob-base-300 font-medium">PDF Upload</h3>
+          <h3 className="text-ob-base-300 font-medium">Add Resources</h3>
           <p className="text-ob-base-200 text-sm">
             Checking authentication status...
           </p>
@@ -391,7 +393,7 @@ export const PdfUploadAgent = ({
     <Card className={cn("space-y-4", className)}>
       <div className="flex items-center justify-between">
         <div className="space-y-2">
-          <h3 className="text-ob-base-300 font-medium">PDF Upload</h3>
+          <h3 className="text-ob-base-300 font-medium">Add Resources</h3>
           {jwtUsername && (
             <div className="text-ob-base-200 text-xs">
               Authenticated as:{" "}
@@ -415,6 +417,28 @@ export const PdfUploadAgent = ({
           loading={uploading}
           className="border-0 p-0 shadow-none"
         />
+      )}
+
+      {/* PDF List Section */}
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <h3 className="text-ob-base-300 font-medium">Show Resources</h3>
+          <p className="text-ob-base-200 text-sm">
+            View and manage your uploaded PDF files
+          </p>
+        </div>
+        <Button
+          onClick={() => setIsPdfListExpanded(!isPdfListExpanded)}
+          variant="ghost"
+          size="sm"
+          className="text-ob-base-200 hover:text-ob-base-300"
+        >
+          {isPdfListExpanded ? "−" : "+"}
+        </Button>
+      </div>
+
+      {isPdfListExpanded && (
+        <PdfList jwt={getStoredJwt()} className="border-0 p-0 shadow-none" />
       )}
     </Card>
   );

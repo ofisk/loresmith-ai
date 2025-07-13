@@ -1,5 +1,5 @@
 import type React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { API_CONFIG } from "../../shared";
 import type {
@@ -19,7 +19,10 @@ export function AddResourceModal({
   onClose,
   onAddResource,
   campaignId,
+  pdf,
+  campaigns = [],
 }: AddResourceModalProps) {
+  const [selectedCampaignId, setSelectedCampaignId] = useState(campaignId);
   const [resourceType, setResourceType] = useState<ResourceType>("pdf");
   const [resourceName, setResourceName] = useState("");
   const [resourceId, setResourceId] = useState("");
@@ -33,8 +36,18 @@ export function AddResourceModal({
     { value: "image", label: "🖼️ Image" },
   ];
 
+  const campaignOptions = campaigns.map((campaign) => ({
+    value: campaign.campaignId,
+    label: `${campaign.name} (${campaign.campaignId.slice(0, 3)}...)`,
+  }));
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!selectedCampaignId.trim()) {
+      setError("Please select a campaign");
+      return;
+    }
 
     if (!resourceId.trim()) {
       setError("Resource ID is required");
@@ -47,7 +60,7 @@ export function AddResourceModal({
 
       const response = await fetch(
         API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(campaignId)
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(selectedCampaignId)
         ),
         {
           method: "POST",
@@ -94,6 +107,7 @@ export function AddResourceModal({
   };
 
   const resetForm = () => {
+    setSelectedCampaignId(campaignId);
     setResourceType("pdf");
     setResourceName("");
     setResourceId("");
@@ -106,6 +120,19 @@ export function AddResourceModal({
       onClose();
     }
   };
+
+  // For the Input fields, ensure their state is only set from props on mount or when pdf changes
+  useEffect(() => {
+    if (pdf) {
+      setResourceType("pdf");
+      setResourceName(pdf.fileName);
+      setResourceId(pdf.fileKey);
+    } else {
+      setResourceType("pdf");
+      setResourceName("");
+      setResourceId("");
+    }
+  }, [pdf]);
 
   const getResourceTypeDescription = (type: ResourceType) => {
     switch (type) {
@@ -128,10 +155,36 @@ export function AddResourceModal({
         <h2 className="text-xl font-semibold mb-6">Add Resource</h2>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-4">
+            {campaigns.length > 0 && (
+              <div>
+                <Label htmlFor="campaign" title="Campaign" />
+                <select
+                  id="campaign"
+                  className="btn btn-secondary interactive relative appearance-none truncate bg-no-repeat focus:outline-none add-size-base !pr-9 add-focus"
+                  style={{
+                    backgroundImage: "url(/assets/caret.svg)",
+                    backgroundPosition: "calc(100% - 10px) calc(50%)",
+                    backgroundSize: "16px",
+                  }}
+                  value={selectedCampaignId}
+                  onChange={(e) => setSelectedCampaignId(e.target.value)}
+                  disabled={isSubmitting}
+                >
+                  <option value="">Select a campaign...</option>
+                  {campaignOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Select the campaign to add this resource to
+                </p>
+              </div>
+            )}
+
             <div>
-              <Label htmlFor="resourceType" title="Resource Type">
-                Resource Type
-              </Label>
+              <Label htmlFor="resourceType" title="Resource Type" />
               <Select
                 value={resourceType}
                 setValue={(value) => setResourceType(value as ResourceType)}
@@ -143,9 +196,7 @@ export function AddResourceModal({
             </div>
 
             <div>
-              <Label htmlFor="resourceName" title="Resource Name (Optional)">
-                Resource Name (Optional)
-              </Label>
+              <Label htmlFor="resourceName" title="Resource Name (Optional)" />
               <Input
                 id="resourceName"
                 type="text"
@@ -159,9 +210,7 @@ export function AddResourceModal({
             </div>
 
             <div>
-              <Label htmlFor="resourceId" title="Resource ID">
-                Resource ID
-              </Label>
+              <Label htmlFor="resourceId" title="Resource ID" />
               <Input
                 id="resourceId"
                 type="text"
@@ -169,6 +218,7 @@ export function AddResourceModal({
                 onValueChange={(value) => setResourceId(value)}
                 placeholder="Enter resource ID or URL..."
                 required
+                disabled
               />
               <p className="text-sm text-muted-foreground mt-1">
                 {resourceType === "pdf" &&
@@ -196,7 +246,14 @@ export function AddResourceModal({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || !resourceId.trim()}>
+            <Button
+              type="submit"
+              disabled={
+                isSubmitting ||
+                !resourceId.trim() ||
+                !selectedCampaignId?.trim()
+              }
+            >
               {isSubmitting ? (
                 <>
                   <Loader size={16} className="mr-2" />

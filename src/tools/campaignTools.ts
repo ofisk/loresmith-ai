@@ -191,11 +191,15 @@ const listCampaignResources = tool({
 });
 
 const addResourceToCampaign = tool({
-  description: "Add a resource to a campaign",
+  description:
+    "Add a resource to a campaign. If campaignId is not provided, will attempt to find the best matching campaign based on the resource name or type.",
   parameters: z.object({
     campaignId: z
       .string()
-      .describe("The ID of the campaign to add the resource to"),
+      .optional()
+      .describe(
+        "The ID of the campaign to add the resource to (optional - will auto-detect if not provided)"
+      ),
     resourceType: z
       .enum(["pdf", "character", "note", "image"])
       .describe("The type of resource to add"),
@@ -220,9 +224,75 @@ const addResourceToCampaign = tool({
     console.log("[Tool] addResourceToCampaign received JWT:", jwt);
     try {
       console.log("[addResourceToCampaign] Using JWT:", jwt);
+
+      let targetCampaignId = campaignId;
+
+      // If no campaignId provided, try to find the best matching campaign
+      if (!targetCampaignId) {
+        try {
+          const campaignsResponse = await fetch(
+            API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
+            {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+              },
+            }
+          );
+
+          if (campaignsResponse.ok) {
+            const campaignsResult = (await campaignsResponse.json()) as {
+              campaigns: Array<{
+                campaignId: string;
+                name: string;
+              }>;
+            };
+
+            if (
+              campaignsResult.campaigns &&
+              campaignsResult.campaigns.length > 0
+            ) {
+              // If there's only one campaign, use it
+              if (campaignsResult.campaigns.length === 1) {
+                targetCampaignId = campaignsResult.campaigns[0].campaignId;
+              } else {
+                // Try to find a campaign that matches the resource name
+                const resourceNameLower = (
+                  resourceName || resourceId
+                ).toLowerCase();
+                const matchingCampaign = campaignsResult.campaigns.find(
+                  (campaign) =>
+                    campaign.name.toLowerCase().includes(resourceNameLower) ||
+                    resourceNameLower.includes(campaign.name.toLowerCase())
+                );
+
+                if (matchingCampaign) {
+                  targetCampaignId = matchingCampaign.campaignId;
+                } else {
+                  // Use the first campaign as fallback
+                  targetCampaignId = campaignsResult.campaigns[0].campaignId;
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error finding matching campaign:", error);
+        }
+      }
+
+      if (!targetCampaignId) {
+        return {
+          code: AUTH_CODES.ERROR,
+          message:
+            "No campaign found. Please create a campaign first or specify a campaign ID.",
+          data: { error: "No campaign available" },
+        };
+      }
+
       const response = await fetch(
         API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(campaignId)
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(targetCampaignId)
         ),
         {
           method: "POST",
@@ -254,7 +324,7 @@ const addResourceToCampaign = tool({
       };
       return {
         code: AUTH_CODES.SUCCESS,
-        message: `Resource ${resourceId} added successfully to campaign ${campaignId}`,
+        message: `Resource ${resourceId} added successfully to campaign ${targetCampaignId}`,
         data: { resources: result.resources },
       };
     } catch (error) {
