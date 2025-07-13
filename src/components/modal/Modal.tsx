@@ -81,25 +81,38 @@ export const Modal = ({
 
   return (
     <div className="fixed top-0 left-0 z-50 flex h-screen w-full items-center justify-center bg-transparent p-6">
-      <div className="fade fixed top-0 left-0 h-full w-full bg-black/5 backdrop-blur-[2px]" />
-
-      <Card
-        className={cn("reveal reveal-sm relative z-50 max-w-md", className)}
-        ref={modalRef}
-        tabIndex={-1}
+      <button
+        type="button"
+        className="modal-overlay"
+        style={{ background: "rgba(0,0,0,0.7)" }}
+        onClick={onClose}
       >
-        {children}
-
-        <Button
-          aria-label="Close Modal"
-          shape="square"
-          className="absolute top-2 right-2"
-          onClick={onClose}
-          variant="ghost"
+        <div
+          className="modal-content bg-white dark:bg-neutral-900 rounded-lg shadow-lg"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          role="dialog"
+          tabIndex={-1}
         >
-          <X size={16} />
-        </Button>
-      </Card>
+          <Card
+            className={cn("reveal reveal-sm relative z-50 max-w-md", className)}
+            ref={modalRef}
+            tabIndex={-1}
+          >
+            {children}
+
+            <Button
+              aria-label="Close Modal"
+              shape="square"
+              className="absolute top-2 right-2"
+              onClick={onClose}
+              variant="ghost"
+            >
+              <X size={16} />
+            </Button>
+          </Card>
+        </div>
+      </button>
     </div>
   );
 };

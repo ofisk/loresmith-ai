@@ -66,9 +66,19 @@ export interface CampaignDetailProps {
   onAddResource: () => void;
 }
 
+export interface PdfFile {
+  fileKey: string;
+  fileName: string;
+  fileSize: number;
+  uploaded: string;
+  status: string;
+}
+
 export interface AddResourceModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddResource: (resource: CampaignResource) => void;
   campaignId: string;
+  pdf?: PdfFile;
+  campaigns?: CampaignData[];
 }

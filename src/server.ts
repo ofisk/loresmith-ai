@@ -140,7 +140,8 @@ export class Chat extends AIChatAgent<Env> {
               toolName === "ingestPdfFile" ||
               toolName === "getPdfStats" ||
               toolName === "listCampaigns" ||
-              toolName === "createCampaign"
+              toolName === "createCampaign" ||
+              toolName === "addResourceToCampaign"
             ) {
               return [
                 toolName,
