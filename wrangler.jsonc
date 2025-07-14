@@ -18,6 +18,7 @@
     "bindings": [
       { "name": "Chat", "class_name": "Chat" },
       { "name": "UserFileTracker", "class_name": "UserFileTracker" },
+      { "name": "CampaignManager", "class_name": "CampaignManager" },
     ],
   },
   "r2_buckets": [
@@ -38,6 +39,10 @@
     {
       "tag": "v1",
       "new_classes": ["Chat", "UserFileTracker"],
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["CampaignManager"],
     },
   ],
   "observability": {

@@ -543,3 +543,6 @@ app.all("*", async (c) => {
 });
 
 export default app;
+
+// Export Durable Objects
+export { CampaignManager } from "./durable-objects/CampaignManager";
