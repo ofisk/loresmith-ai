@@ -12,10 +12,24 @@ export const AUTH_CODES = {
   ERROR: 500,
 } as const;
 
+// Helper function to get API URL that works in both Vite and Worker contexts
+function getApiUrl(): string {
+  // Try Vite environment first (for frontend)
+  if (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  // Fallback to process.env (for Worker context)
+  if (typeof process !== "undefined" && process.env?.VITE_API_URL) {
+    return process.env.VITE_API_URL;
+  }
+  // Default fallback
+  return "http://localhost:8787";
+}
+
 // API Configuration - centralized base URL and endpoints
 export const API_CONFIG = {
   // Use environment variable for API URL, fallback to localhost for development
-  BASE_URL: import.meta.env.VITE_API_URL || "http://localhost:8787",
+  BASE_URL: getApiUrl(),
 
   // API endpoints without /api/ prefix
   ENDPOINTS: {
@@ -38,7 +52,7 @@ export const API_CONFIG = {
 
   // Helper function to get the base URL
   getApiBaseUrl: (): string => {
-    return import.meta.env.VITE_API_URL || "http://localhost:8787";
+    return getApiUrl();
   },
 
   // Helper function to build full API URLs
