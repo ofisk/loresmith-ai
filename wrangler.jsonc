@@ -38,7 +38,7 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_classes": ["Chat", "UserFileTracker"],
+      "new_sqlite_classes": ["Chat", "UserFileTracker"],
     },
     {
       "tag": "v2",
