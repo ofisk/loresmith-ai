@@ -42,20 +42,46 @@ npm install
 ```
 
 3. **Set up environment variables**:
-   Create a `.dev.vars` file:
+   Create a `.dev.vars` file (you can copy the example file and fill it out):
+
+```bash
+cp .dev.vars.example .dev.vars
+```
+
+Then edit `.dev.vars` and provide your credentials:
 
 ```env
 OPENAI_API_KEY=your_openai_api_key
 ADMIN_SECRET=your_admin_secret_for_pdf_uploads
 ```
 
-4. **Run locally**:
+### Running the Application Locally
+
+This project consists of a React client and a Cloudflare Worker server. You need to start both for full functionality during development.
+
+#### 1. Start the Cloudflare Worker server
+
+The backend server runs as a Cloudflare Worker. Start it using [Wrangler](https://developers.cloudflare.com/workers/wrangler/):
+
+```bash
+wrangler dev
+```
+
+This will start the server locally and provide you with a local endpoint for API requests.
+
+#### 2. Start the React client
+
+In a separate terminal, start the client development server:
 
 ```bash
 npm start
 ```
 
-5. **Deploy to Cloudflare**:
+This will launch the React frontend, typically at [http://localhost:3000](http://localhost:3000).
+
+#### 3. Deploy to Cloudflare
+
+To deploy both the client and server to Cloudflare:
 
 ```bash
 npm run deploy

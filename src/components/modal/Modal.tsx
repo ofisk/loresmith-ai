@@ -11,6 +11,7 @@ type ModalProps = {
   clickOutsideToClose?: boolean;
   isOpen: boolean;
   onClose: () => void;
+  cardStyle?: React.CSSProperties;
 };
 
 export const Modal = ({
@@ -19,6 +20,7 @@ export const Modal = ({
   clickOutsideToClose = false,
   isOpen,
   onClose,
+  cardStyle,
 }: ModalProps) => {
   const clickOutsideRef = useClickOutside(onClose);
   const defaultRef = useRef<HTMLDivElement>(null);
@@ -95,7 +97,8 @@ export const Modal = ({
           tabIndex={-1}
         >
           <Card
-            className={cn("reveal reveal-sm relative z-50 max-w-md", className)}
+            className={cn("reveal reveal-sm relative z-50", className)}
+            style={cardStyle}
             ref={modalRef}
             tabIndex={-1}
           >
