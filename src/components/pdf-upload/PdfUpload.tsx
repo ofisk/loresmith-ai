@@ -13,12 +13,14 @@ interface PdfUploadProps {
   ) => void;
   loading?: boolean;
   className?: string;
+  jwtUsername?: string | null;
 }
 
 export const PdfUpload = ({
   onUpload,
   loading = false,
   className,
+  jwtUsername,
 }: PdfUploadProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filename, setFilename] = useState("");
@@ -75,6 +77,14 @@ export const PdfUpload = ({
 
   return (
     <Card className={cn("space-y-4", className)}>
+      <div className="mx-auto max-w-md w-full">
+        {jwtUsername && (
+          <div className="text-ob-base-200 text-xs mb-4 mt-2 text-left">
+            Authenticated as{" "}
+            <span className="font-semibold">{jwtUsername}</span>
+          </div>
+        )}
+      </div>
       <div style={{ marginTop: 75 }}>
         {/* File Upload Area */}
         <div className="flex justify-center" style={{ marginBottom: 50 }}>

@@ -65,8 +65,7 @@ export const PdfUploadAgent = ({
   const [authenticating, setAuthenticating] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isAuthPanelExpanded, setIsAuthPanelExpanded] = useState(true);
-  const [isUploadPanelExpanded, setIsUploadPanelExpanded] = useState(false);
-  const [isPdfListExpanded, setIsPdfListExpanded] = useState(false);
+
   const lastProcessedMessageId = useRef<string | null>(null);
   const [username, setUsername] = useState("");
   const [jwtUsername, setJwtUsername] = useState<string | null>(null);
@@ -486,6 +485,7 @@ export const PdfUploadAgent = ({
           onUpload={handleUpload}
           loading={uploading}
           className="border-0 p-0 shadow-none"
+          jwtUsername={jwtUsername}
         />
       </Modal>
       <Modal
