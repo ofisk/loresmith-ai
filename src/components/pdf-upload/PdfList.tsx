@@ -104,7 +104,7 @@ export function PdfList() {
                         key={tag}
                         className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded"
                       >
-                        {tag}
+                        {tag.length > 10 ? `${tag.slice(0, 10)}...` : tag}
                       </span>
                     ))}
                   </div>
