@@ -223,9 +223,9 @@ export const PdfUpload = ({
             disabled={isUploadDisabled}
             loading={loading}
             variant={selectedFile ? "primary" : "secondary"}
-            size="base"
+            size="sm"
             className={cn(
-              "w-48",
+              "w-48 text-sm py-2",
               selectedFile &&
                 "bg-[#F48120] hover:bg-[#F48120]/90 text-white border-[#F48120]",
               !selectedFile &&

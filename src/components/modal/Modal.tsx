@@ -83,11 +83,12 @@ export const Modal = ({
 
   return (
     <div className="fixed top-0 left-0 z-50 flex h-screen w-full items-center justify-center bg-transparent p-6">
-      <button
-        type="button"
+      <div
         className="modal-overlay"
         style={{ background: "rgba(0,0,0,0.7)" }}
         onClick={onClose}
+        tabIndex={-1}
+        role="presentation"
       >
         <div
           className="modal-content bg-white dark:bg-neutral-900 rounded-lg shadow-lg"
@@ -115,7 +116,7 @@ export const Modal = ({
             </Button>
           </Card>
         </div>
-      </button>
+      </div>
     </div>
   );
 };
