@@ -66,6 +66,12 @@ export interface CampaignDetailProps {
   onAddResource: () => void;
 }
 
+export interface CreateCampaignFormProps {
+  onSuccess: (campaign: Campaign) => void;
+  onCancel: () => void;
+  defaultName?: string;
+}
+
 export interface PdfFile {
   fileKey: string;
   fileName: string;

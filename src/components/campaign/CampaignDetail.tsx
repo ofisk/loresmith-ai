@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import toast from "react-hot-toast";
-import type {
-  Campaign,
-  CampaignDetailProps,
-  CampaignResource,
-  CreateCampaignResponse,
-} from "../../types/campaign";
+import { authenticatedFetchWithExpiration } from "../../lib/auth";
+import { USER_MESSAGES } from "../../constants";
 import { Button } from "../button/Button";
 import { Card } from "../card/Card";
 import { Loader } from "../loader/Loader";
+import { toast } from "react-hot-toast";
+import type {
+  Campaign,
+  CreateCampaignResponse,
+  CampaignDetailProps,
+} from "../../types/campaign";
 
 export function CampaignDetail({
   campaignId,
@@ -25,7 +26,14 @@ export function CampaignDetail({
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/campaigns/${campaignId}`);
+      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
+        `/api/campaigns/${campaignId}`
+      );
+
+      if (jwtExpired) {
+        throw new Error("Authentication required. Please log in.");
+      }
+
       if (!response.ok) {
         throw new Error("Failed to fetch campaign");
       }
@@ -33,7 +41,11 @@ export function CampaignDetail({
       const data = (await response.json()) as CreateCampaignResponse;
       setCampaign(data.campaign);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch campaign");
+      setError(
+        err instanceof Error
+          ? err.message
+          : USER_MESSAGES.HOOK_FAILED_TO_FETCH_CAMPAIGN
+      );
     } finally {
       setLoading(false);
     }
@@ -43,16 +55,22 @@ export function CampaignDetail({
     fetchCampaign();
   }, [fetchCampaign]);
 
-  const removeResource = async (resourceId: string) => {
+  const handleRemoveResource = async (resourceId: string) => {
+    if (!campaign) return;
+
     try {
       setRemovingResource(resourceId);
 
-      const response = await fetch(
-        `/api/campaigns/${campaignId}/resource/${resourceId}`,
+      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
+        `/api/campaigns/${campaignId}/resources/${resourceId}`,
         {
           method: "DELETE",
         }
       );
+
+      if (jwtExpired) {
+        throw new Error("Authentication required. Please log in.");
+      }
 
       if (!response.ok) {
         throw new Error("Failed to remove resource");
@@ -62,98 +80,32 @@ export function CampaignDetail({
       await fetchCampaign();
       toast.success("Resource removed successfully");
     } catch (err) {
-      console.error("Failed to remove resource:", err);
-      toast.error("Failed to remove resource");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to remove resource"
+      );
     } finally {
       setRemovingResource(null);
     }
   };
 
-  const triggerIndexing = async () => {
-    try {
-      const response = await fetch(`/campaign/${campaignId}/index`, {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to trigger indexing");
-      }
-
-      const data = (await response.json()) as { resourceCount: number };
-      toast.success(
-        `Indexing triggered successfully! Processing ${data.resourceCount} resources.`
-      );
-    } catch (err) {
-      console.error("Failed to trigger indexing:", err);
-      toast.error("Failed to trigger indexing");
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  const getResourceIcon = (type: CampaignResource["type"]) => {
-    switch (type) {
-      case "pdf":
-        return "📄";
-      case "character":
-        return "👤";
-      case "note":
-        return "📝";
-      case "image":
-        return "🖼️";
-      default:
-        return "📎";
-    }
-  };
-
-  const getResourceTypeLabel = (type: CampaignResource["type"]) => {
-    switch (type) {
-      case "pdf":
-        return "PDF";
-      case "character":
-        return "Character";
-      case "note":
-        return "Note";
-      case "image":
-        return "Image";
-      default:
-        return "Resource";
-    }
-  };
-
   if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-[400px]">
-        <Loader />
-      </div>
-    );
+    return <Loader />;
   }
 
   if (error) {
     return (
-      <div className="text-center p-6">
+      <div className="text-center py-8">
         <p className="text-red-600 mb-4">{error}</p>
-        <div className="space-x-2">
-          <Button onClick={onBack} variant="secondary">
-            Go Back
-          </Button>
-          <Button onClick={fetchCampaign} variant="secondary">
-            Retry
-          </Button>
-        </div>
+        <Button onClick={onBack}>Go Back</Button>
       </div>
     );
   }
 
   if (!campaign) {
     return (
-      <div className="text-center p-6">
-        <p className="text-red-600 mb-4">Campaign not found</p>
-        <Button onClick={onBack} variant="secondary">
-          Go Back
-        </Button>
+      <div className="text-center py-8">
+        <p className="text-gray-600 mb-4">Campaign not found</p>
+        <Button onClick={onBack}>Go Back</Button>
       </div>
     );
   }
@@ -161,125 +113,50 @@ export function CampaignDetail({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Button onClick={onBack} variant="ghost" size="sm">
-            ← Back
-          </Button>
-          <h1 className="text-3xl font-bold">{campaign.name}</h1>
+        <div>
+          <h1 className="text-2xl font-bold">{campaign.name}</h1>
+          <p className="text-gray-600">
+            Created: {new Date(campaign.createdAt).toLocaleDateString()}
+          </p>
         </div>
-        <div className="flex space-x-2">
-          <Button onClick={triggerIndexing} variant="secondary">
-            Index Campaign
-          </Button>
+        <div className="flex gap-2">
           <Button onClick={onAddResource}>Add Resource</Button>
+          <Button onClick={onBack} variant="secondary">
+            Back to Campaigns
+          </Button>
         </div>
       </div>
 
-      <Card className="p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold mb-2">Campaign Info</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Created:</span>
-                  <span>{formatDate(campaign.createdAt)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Last Updated:</span>
-                  <span>{formatDate(campaign.updatedAt)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    Total Resources:
-                  </span>
-                  <span className="font-medium">
-                    {campaign.resources.length}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold mb-2">Resource Breakdown</h3>
-              <div className="space-y-1 text-sm">
-                {["pdf", "character", "note", "image"].map((type) => {
-                  const count = campaign.resources.filter(
-                    (r) => r.type === type
-                  ).length;
-                  if (count === 0) return null;
-
-                  return (
-                    <div key={type} className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        {getResourceIcon(type as CampaignResource["type"])}{" "}
-                        {getResourceTypeLabel(type as CampaignResource["type"])}
-                        s:
-                      </span>
-                      <span>{count}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Resources</h2>
-
-        {campaign.resources.length === 0 ? (
-          <Card className="p-8 text-center">
-            <p className="text-muted-foreground mb-4">
-              No resources added to this campaign yet.
-            </p>
-            <Button onClick={onAddResource}>Add Your First Resource</Button>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <Card>
+        <h2 className="text-lg font-semibold mb-4">Resources</h2>
+        {campaign.resources && campaign.resources.length > 0 ? (
+          <div className="space-y-3">
             {campaign.resources.map((resource) => (
-              <Card key={resource.id} className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <span className="text-lg">
-                        {getResourceIcon(resource.type)}
-                      </span>
-                      <span className="text-xs bg-muted px-2 py-1 rounded">
-                        {getResourceTypeLabel(resource.type)}
-                      </span>
-                    </div>
-                    <h4 className="font-medium truncate">
-                      {resource.name ||
-                        `Unnamed ${getResourceTypeLabel(resource.type)}`}
-                    </h4>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      ID: {resource.id.slice(0, 8)}...
-                    </p>
-                  </div>
-
-                  <Button
-                    onClick={() => removeResource(resource.id)}
-                    variant="ghost"
-                    size="sm"
-                    disabled={removingResource === resource.id}
-                    className="ml-2 flex-shrink-0"
-                  >
-                    {removingResource === resource.id ? (
-                      <Loader size={16} />
-                    ) : (
-                      "×"
-                    )}
-                  </Button>
+              <div
+                key={resource.id}
+                className="flex items-center justify-between p-3 border rounded-lg"
+              >
+                <div>
+                  <h3 className="font-medium">{resource.name}</h3>
+                  <p className="text-sm text-gray-600">{resource.type}</p>
                 </div>
-              </Card>
+                <Button
+                  onClick={() => handleRemoveResource(resource.id)}
+                  disabled={removingResource === resource.id}
+                  variant="destructive"
+                  size="sm"
+                >
+                  {removingResource === resource.id ? "Removing..." : "Remove"}
+                </Button>
+              </div>
             ))}
           </div>
+        ) : (
+          <p className="text-gray-500 text-center py-4">
+            No resources added yet. Click "Add Resource" to get started.
+          </p>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

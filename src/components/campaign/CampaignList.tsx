@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { authenticatedFetchWithExpiration } from "../../lib/auth";
 import { API_CONFIG } from "../../shared";
-import type { Campaign } from "../../types/campaign";
-
-interface CampaignListProps {
-  onViewCampaign: (campaignId: string) => void;
-  onCreateCampaign: () => void;
-}
+import { USER_MESSAGES } from "../../constants";
+import type { Campaign, CampaignListProps } from "../../types/campaign";
 
 export function CampaignList({
   onViewCampaign,
@@ -19,17 +16,26 @@ export function CampaignList({
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(
+
+      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
         API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE)
       );
+
+      if (jwtExpired) {
+        throw new Error("Authentication required. Please log in.");
+      }
+
       if (!response.ok) {
         throw new Error(`Failed to fetch campaigns: ${response.status}`);
       }
+
       const data = (await response.json()) as { campaigns: Campaign[] };
       setCampaigns(data.campaigns || []);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to fetch campaigns"
+        err instanceof Error
+          ? err.message
+          : USER_MESSAGES.HOOK_FAILED_TO_FETCH_CAMPAIGNS
       );
     } finally {
       setLoading(false);
@@ -47,16 +53,6 @@ export function CampaignList({
     [onViewCampaign]
   );
 
-  const handleCampaignKeyDown = useCallback(
-    (event: React.KeyboardEvent, campaignId: string) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        onViewCampaign(campaignId);
-      }
-    },
-    [onViewCampaign]
-  );
-
   if (loading) {
     return <div>Loading campaigns...</div>;
   }
@@ -66,9 +62,9 @@ export function CampaignList({
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold">Campaigns</h2>
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Campaigns</h2>
         <button
           type="button"
           onClick={onCreateCampaign}
@@ -77,25 +73,24 @@ export function CampaignList({
           Create Campaign
         </button>
       </div>
+
       {campaigns.length === 0 ? (
-        <p>No campaigns found. Create your first campaign!</p>
+        <div className="text-center py-8 text-gray-500">
+          No campaigns found. Create your first campaign to get started.
+        </div>
       ) : (
-        <div className="space-y-2">
+        <div className="grid gap-4">
           {campaigns.map((campaign) => (
             <button
-              key={campaign.campaignId}
               type="button"
-              className="w-full text-left p-4 border rounded cursor-pointer hover:bg-gray-50"
+              key={campaign.campaignId}
               onClick={() => handleCampaignClick(campaign.campaignId)}
-              onKeyDown={(e) => handleCampaignKeyDown(e, campaign.campaignId)}
+              className="w-full text-left p-4 border rounded-lg cursor-pointer hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label={`View campaign: ${campaign.name}`}
             >
-              <h3 className="font-semibold">{campaign.name}</h3>
-              <p className="text-sm text-gray-600">
+              <h3 className="font-medium">{campaign.name}</h3>
+              <p className="text-sm text-gray-500">
                 Created: {new Date(campaign.createdAt).toLocaleDateString()}
-              </p>
-              <p className="text-sm text-gray-600">
-                Resources: {campaign.resources.length}
               </p>
             </button>
           ))}

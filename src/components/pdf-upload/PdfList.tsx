@@ -1,193 +1,116 @@
-import { useEffect, useState, useCallback } from "react";
-import { Button } from "@/components/button/Button";
-import { Card } from "@/components/card/Card";
-import { cn } from "@/lib/utils";
+import { useCallback, useEffect, useState } from "react";
+import { authenticatedFetchWithExpiration } from "../../lib/auth";
 import { API_CONFIG } from "../../shared";
-import { AddResourceModal } from "../campaign/AddResourceModal";
-import { useCampaigns } from "../../hooks/useCampaigns";
-import type { PdfFile } from "../../types/campaign";
+import { USER_MESSAGES, ERROR_MESSAGES } from "../../constants";
 
-interface PdfListProps {
-  className?: string;
-  jwt: string | null;
+interface PdfFile {
+  fileKey: string;
+  fileName: string;
+  fileSize: number;
+  uploaded: string;
+  status: string;
+  metadata?: {
+    description?: string;
+    tags?: string[];
+  };
 }
 
-export function PdfList({ className, jwt }: PdfListProps) {
+export function PdfList() {
   const [files, setFiles] = useState<PdfFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedPdf, setSelectedPdf] = useState<PdfFile | null>(null);
-  const { campaigns, loading: campaignsLoading } = useCampaigns();
 
   const fetchFiles = useCallback(async () => {
-    if (!jwt) {
-      setFiles([]);
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.FILES),
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${jwt}`,
-          },
-        }
+
+      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.FILES)
       );
+
+      if (jwtExpired) {
+        throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
+      }
 
       if (!response.ok) {
         throw new Error(`Failed to fetch files: ${response.status}`);
       }
 
       const data = (await response.json()) as { files: PdfFile[] };
-      // Filter out .metadata files which are internal files
-      const filteredFiles = (data.files || []).filter(
-        (file) => !file.fileName.endsWith(".metadata")
-      );
-      setFiles(filteredFiles);
+      setFiles(data.files || []);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to fetch PDF files"
+        err instanceof Error
+          ? err.message
+          : USER_MESSAGES.FAILED_TO_RETRIEVE_FILES
       );
     } finally {
       setLoading(false);
     }
-  }, [jwt]);
+  }, []);
 
   useEffect(() => {
     fetchFiles();
   }, [fetchFiles]);
 
-  const handleAddToCampaign = (pdf: PdfFile) => {
-    setSelectedPdf(pdf);
-    setIsModalOpen(true);
-  };
-
-  const handleModalClose = () => {
-    setIsModalOpen(false);
-    setSelectedPdf(null);
-  };
-
-  const handleResourceAdded = () => {
-    // Refresh the files list after adding a resource
-    fetchFiles();
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
-  };
-
-  if (!jwt) {
-    return (
-      <Card className={cn("space-y-4", className)}>
-        <div className="space-y-2">
-          <h3 className="text-ob-base-300 font-medium">Show Resources</h3>
-          <p className="text-ob-base-200 text-sm">
-            Please authenticate to view your uploaded resources.
-          </p>
-        </div>
-      </Card>
-    );
-  }
-
   if (loading) {
-    return (
-      <Card className={cn("space-y-4", className)}>
-        <div className="space-y-2">
-          <h3 className="text-ob-base-300 font-medium">Show Resources</h3>
-          <p className="text-ob-base-200 text-sm">Loading resources...</p>
-        </div>
-      </Card>
-    );
+    return <div>Loading PDF files...</div>;
   }
 
   if (error) {
+    return <div>Error: {error}</div>;
+  }
+
+  if (files.length === 0) {
     return (
-      <Card className={cn("space-y-4", className)}>
-        <div className="space-y-2">
-          <h3 className="text-ob-base-300 font-medium">Show Resources</h3>
-          <p className="text-ob-destructive text-sm">Error: {error}</p>
-          <Button onClick={fetchFiles} variant="secondary" size="sm">
-            Retry
-          </Button>
-        </div>
-      </Card>
+      <div className="text-center py-8 text-gray-500">
+        No PDF files uploaded yet.
+      </div>
     );
   }
 
   return (
-    <>
-      <Card className={cn("space-y-4", className)}>
-        <div className="space-y-2">
-          <h3 className="text-ob-base-300 font-medium">Show Resources</h3>
-          <p className="text-ob-base-200 text-sm">
-            {files.length === 0
-              ? "No PDF files uploaded yet."
-              : `${files.length} PDF file${files.length === 1 ? "" : "s"} uploaded`}
-          </p>
-        </div>
-
-        {files.length > 0 && (
-          <div className="space-y-2">
-            {files.map((file) => (
-              <div
-                key={file.fileKey}
-                className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-md"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">📄</span>
-                  <div>
-                    <div className="font-medium text-ob-base-300">
-                      {file.fileName}
-                    </div>
-                    <div className="text-sm text-ob-base-200">
-                      {formatFileSize(file.fileSize)} • {file.status} •{" "}
-                      {new Date(file.uploaded).toLocaleDateString()}
-                    </div>
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold">Uploaded PDF Files</h3>
+      <div className="space-y-3">
+        {files.map((file) => (
+          <div
+            key={file.fileKey}
+            className="p-4 border rounded-lg bg-white shadow-sm"
+          >
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <h4 className="font-medium text-gray-900">{file.fileName}</h4>
+                <p className="text-sm text-gray-500">
+                  Size: {(file.fileSize / 1024 / 1024).toFixed(2)} MB
+                </p>
+                <p className="text-sm text-gray-500">Status: {file.status}</p>
+                <p className="text-sm text-gray-500">
+                  Uploaded: {new Date(file.uploaded).toLocaleDateString()}
+                </p>
+                {file.metadata?.description && (
+                  <p className="text-sm text-gray-600 mt-2">
+                    {file.metadata.description}
+                  </p>
+                )}
+                {file.metadata?.tags && file.metadata.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {file.metadata.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded"
+                      >
+                        {tag}
+                      </span>
+                    ))}
                   </div>
-                </div>
-                <Button
-                  onClick={() => handleAddToCampaign(file)}
-                  variant="secondary"
-                  size="sm"
-                  disabled={campaignsLoading || campaigns.length === 0}
-                >
-                  Add to Campaign
-                </Button>
+                )}
               </div>
-            ))}
+            </div>
           </div>
-        )}
-
-        {files.length > 0 && campaigns.length === 0 && !campaignsLoading && (
-          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-            <p className="text-sm text-yellow-800">
-              No campaigns available. Create a campaign first to add PDFs.
-            </p>
-          </div>
-        )}
-      </Card>
-
-      {selectedPdf && (
-        <AddResourceModal
-          isOpen={isModalOpen}
-          onClose={handleModalClose}
-          onAddResource={handleResourceAdded}
-          campaignId=""
-          pdf={selectedPdf}
-          campaigns={campaigns}
-        />
-      )}
-    </>
+        ))}
+      </div>
+    </div>
   );
 }

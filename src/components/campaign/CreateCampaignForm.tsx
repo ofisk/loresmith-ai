@@ -1,12 +1,8 @@
 import { useState } from "react";
+import { authenticatedFetchWithExpiration } from "../../lib/auth";
 import { API_CONFIG } from "../../shared";
-import type { Campaign } from "../../types/campaign";
-
-interface CreateCampaignFormProps {
-  onSuccess: (campaign: Campaign) => void;
-  onCancel: () => void;
-  defaultName?: string;
-}
+import { USER_MESSAGES } from "../../constants";
+import type { Campaign, CreateCampaignFormProps } from "../../types/campaign";
 
 export function CreateCampaignForm({
   onSuccess,
@@ -27,16 +23,18 @@ export function CreateCampaignForm({
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(
+
+      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
         API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({ name: name.trim() }),
         }
       );
+
+      if (jwtExpired) {
+        throw new Error("Authentication required. Please log in.");
+      }
 
       if (!response.ok) {
         throw new Error(`Failed to create campaign: ${response.status}`);
@@ -46,7 +44,9 @@ export function CreateCampaignForm({
       onSuccess(data.campaign);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to create campaign"
+        err instanceof Error
+          ? err.message
+          : USER_MESSAGES.HOOK_FAILED_TO_CREATE_CAMPAIGN
       );
     } finally {
       setLoading(false);
@@ -56,16 +56,19 @@ export function CreateCampaignForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="name" className="block text-sm font-medium mb-2">
+        <label
+          htmlFor="campaign-name"
+          className="block text-sm font-medium mb-2"
+        >
           Campaign Name
         </label>
         <input
+          id="campaign-name"
           type="text"
-          id="name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Enter campaign name..."
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Enter campaign name"
           disabled={loading}
         />
       </div>
