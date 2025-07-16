@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { authenticatedFetchWithExpiration } from "../../lib/auth";
+import { getStoredJwt } from "../../lib/auth";
 import { API_CONFIG } from "../../shared";
 import { USER_MESSAGES, ERROR_MESSAGES } from "../../constants";
 
@@ -25,8 +26,10 @@ export function PdfList() {
       setLoading(true);
       setError(null);
 
+      const jwt = getStoredJwt();
       const { response, jwtExpired } = await authenticatedFetchWithExpiration(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.FILES)
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.FILES),
+        { jwt }
       );
 
       if (jwtExpired) {
