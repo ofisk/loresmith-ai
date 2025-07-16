@@ -13,5 +13,15 @@ export default defineWorkersConfig({
       },
     },
     environmentMatchGlobs: [["tests/hooks/**/*.test.tsx", "jsdom"]],
+    // Add compatibility settings for ESM/CJS issues
+    setupFiles: [],
+    globals: true,
+  },
+  // Add Vite configuration for better ESM/CJS compatibility
+  optimizeDeps: {
+    exclude: ["ajv"],
+  },
+  ssr: {
+    noExternal: ["ajv"],
   },
 });

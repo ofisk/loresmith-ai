@@ -4,9 +4,11 @@ import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { Input } from "@/components/input/Input";
 import { cn } from "@/lib/utils";
-import { API_CONFIG } from "../../constants";
-import { PdfUpload } from "./PdfUpload";
+import { API_CONFIG, USER_MESSAGES } from "../../constants";
 import { PdfList } from "./PdfList";
+import { PdfUpload } from "./PdfUpload";
+import { authenticatedFetchWithExpiration } from "../../lib/auth";
+import { useJwtExpiration } from "../../hooks/useJwtExpiration";
 
 interface PdfUploadAgentProps {
   className?: string;
@@ -28,6 +30,27 @@ function clearJwt() {
   localStorage.removeItem(JWT_STORAGE_KEY);
 }
 
+// Helper function to handle JWT expiration consistently
+function handleJwtExpiration(
+  clearJwt: () => void,
+  setIsAuthenticated: (value: boolean) => void,
+  setJwtUsername: (value: string | null) => void,
+  setAuthError: (value: string | null) => void,
+  setShowAuthInput: (value: boolean) => void,
+  setUploading?: (value: boolean) => void,
+  setCheckingAuth?: (value: boolean) => void
+) {
+  clearJwt();
+  setIsAuthenticated(false);
+  setJwtUsername(null);
+  setAuthError(USER_MESSAGES.SESSION_EXPIRED);
+  setShowAuthInput(true);
+
+  // Optional cleanup functions
+  if (setUploading) setUploading(false);
+  if (setCheckingAuth) setCheckingAuth(false);
+}
+
 export const PdfUploadAgent = ({
   className,
   messages,
@@ -47,7 +70,21 @@ export const PdfUploadAgent = ({
   const [username, setUsername] = useState("");
   const [jwtUsername, setJwtUsername] = useState<string | null>(null);
 
-  const effectiveIsAuthenticated = isAuthenticated;
+  // Use JWT expiration hook
+  const { isExpired, clearExpiration } = useJwtExpiration({
+    onExpiration: () => {
+      handleJwtExpiration(
+        clearJwt,
+        setIsAuthenticated,
+        setJwtUsername,
+        setAuthError,
+        setShowAuthInput
+      );
+    },
+    checkOnMount: true,
+  });
+
+  const effectiveIsAuthenticated = isAuthenticated && !isExpired;
 
   // On mount, check for JWT
   useEffect(() => {
@@ -58,20 +95,44 @@ export const PdfUploadAgent = ({
       setCheckingAuth(false);
       return;
     }
-    // Decode JWT to get username
+
+    // Check if JWT is expired
     try {
       const payload = JSON.parse(atob(jwt.split(".")[1]));
+      const currentTime = Math.floor(Date.now() / 1000);
+      if (payload?.exp && payload.exp < currentTime) {
+        // JWT is expired, clear it and show auth
+        handleJwtExpiration(
+          clearJwt,
+          setIsAuthenticated,
+          setJwtUsername,
+          setAuthError,
+          setShowAuthInput,
+          undefined,
+          setCheckingAuth
+        );
+        return;
+      }
+
       if (payload?.username) {
         setJwtUsername(payload.username);
       } else {
         setJwtUsername(null);
       }
     } catch {
+      // Invalid JWT, clear it
+      clearJwt();
       setJwtUsername(null);
+      setIsAuthenticated(false);
+      setCheckingAuth(false);
+      return;
     }
+
     setIsAuthenticated(true);
+    // Clear any expiration state since we have a valid JWT
+    clearExpiration();
     setCheckingAuth(false);
-  }, []);
+  }, [clearExpiration]);
 
   // Listen for agent responses to update authentication state
   useEffect(() => {
@@ -117,29 +178,32 @@ export const PdfUploadAgent = ({
         data: { jwt },
       });
       // Step 2: Get upload URL from server (send JWT)
-      const uploadUrlResponse = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.UPLOAD_URL),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${jwt}`,
-          },
-          body: JSON.stringify({
-            fileName: filename,
-            fileSize: file.size,
-          }),
-        }
-      );
+      const { response: uploadUrlResponse, jwtExpired } =
+        await authenticatedFetchWithExpiration(
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.UPLOAD_URL),
+          {
+            method: "POST",
+            jwt,
+            body: JSON.stringify({
+              fileName: filename,
+              fileSize: file.size,
+            }),
+          }
+        );
+
+      if (jwtExpired) {
+        handleJwtExpiration(
+          clearJwt,
+          setIsAuthenticated,
+          setJwtUsername,
+          setAuthError,
+          setShowAuthInput,
+          setUploading
+        );
+        return;
+      }
+
       if (!uploadUrlResponse.ok) {
-        if (uploadUrlResponse.status === 401) {
-          clearJwt();
-          setIsAuthenticated(false);
-          setAuthError("Session expired or invalid. Please re-authenticate.");
-          setShowAuthInput(true);
-          setUploading(false);
-          return;
-        }
         const errorText = await uploadUrlResponse.text();
         throw new Error(
           `Failed to get upload URL: ${uploadUrlResponse.status} ${errorText}`
@@ -240,6 +304,8 @@ export const PdfUploadAgent = ({
         setShowAuthInput(false);
         setAdminKey("");
         setUsername("");
+        // Clear any expiration state since we now have a valid JWT
+        clearExpiration();
         await append({
           role: "user",
           content:
@@ -437,9 +503,7 @@ export const PdfUploadAgent = ({
         </Button>
       </div>
 
-      {isPdfListExpanded && (
-        <PdfList jwt={getStoredJwt()} className="border-0 p-0 shadow-none" />
-      )}
+      {isPdfListExpanded && <PdfList />}
     </Card>
   );
 };

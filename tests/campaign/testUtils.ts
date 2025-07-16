@@ -23,6 +23,7 @@ export type Env = {
     get: ReturnType<typeof vi.fn>;
   };
   CAMPAIGNS_KV?: CampaignsKVStub;
+  ADMIN_SECRET?: string;
 };
 
 /**
@@ -212,12 +213,20 @@ export function createCampaignsKVStub(
       }
       delete campaigns[key];
     }),
-    list: vi.fn(async (_options?: any) => {
+    list: vi.fn(async (options?: any) => {
       if (!operationSuccess) {
         throw new Error("KV operation failed");
       }
+
+      let keys = Object.keys(campaigns);
+
+      // Filter by prefix if provided
+      if (options?.prefix) {
+        keys = keys.filter((key) => key.startsWith(options.prefix));
+      }
+
       return {
-        keys: Object.keys(campaigns).map((key) => ({ name: key })),
+        keys: keys.map((key) => ({ name: key })),
         list_complete: true,
         cursor: "",
       };
@@ -256,5 +265,6 @@ export function createTestEnv(
       ),
     },
     CAMPAIGNS_KV: createCampaignsKVStub(kvData, operationSuccess),
+    ADMIN_SECRET: "test-admin-secret",
   };
 }

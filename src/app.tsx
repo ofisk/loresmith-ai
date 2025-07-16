@@ -12,7 +12,7 @@ import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
-import { Toaster } from "react-hot-toast";
+import { Toaster, toast } from "react-hot-toast";
 import loresmith from "@/assets/loresmith.png";
 import { Avatar } from "@/components/avatar/Avatar";
 // Component imports
@@ -24,13 +24,29 @@ import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import type { tools } from "./tools";
+import type { campaignTools } from "./tools/campaignTools";
+import type { pdfTools } from "./tools/pdfTools";
+import { useJwtExpiration } from "./hooks/useJwtExpiration";
+import { USER_MESSAGES } from "./constants";
 
 // List of tools that require human confirmation
 // NOTE: this should match the keys in the executions object in tools.ts
-const toolsRequiringConfirmation: (keyof typeof tools)[] = [
+const toolsRequiringConfirmation: (
+  | keyof typeof tools
+  | keyof typeof campaignTools
+  | keyof typeof pdfTools
+)[] = [
+  // Campaign tools that require confirmation
   "createCampaign",
-  "addResourceToCampaign",
-  // Only include tools that truly require confirmation
+
+  // Resource/PDF tools that require confirmation
+  "uploadPdfFile",
+  "updatePdfMetadata",
+  "ingestPdfFile",
+
+  // General tools that require confirmation
+  "scheduleTask",
+  "cancelScheduledTask",
 ];
 
 /**
@@ -75,6 +91,14 @@ export default function Chat() {
     console.log("[App] getStoredJwt() returns:", jwt);
     return jwt;
   };
+
+  // Handle JWT expiration globally
+  useJwtExpiration({
+    onExpiration: () => {
+      // Show a toast notification when JWT expires
+      toast.error(USER_MESSAGES.SESSION_EXPIRED);
+    },
+  });
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

@@ -1,28 +1,18 @@
-import { openai } from "@ai-sdk/openai";
 import { routeAgentRequest, type Schedule } from "agents";
 import { AIChatAgent } from "agents/ai-chat-agent";
-import { unstable_getSchedulePrompt } from "agents/schedule";
-import {
-  createDataStreamResponse,
-  generateId,
-  type StreamTextOnFinishCallback,
-  streamText,
-  type ToolSet,
-} from "ai";
+import { generateId, type StreamTextOnFinishCallback, type ToolSet } from "ai";
 import type { Context } from "hono";
 import { Hono } from "hono";
 import { type JWTPayload, jwtVerify, SignJWT } from "jose";
 import campaignAgent from "./agents/campaign";
-import { executions, tools } from "./tools";
-import { processToolCalls } from "./utils";
+import { CampaignsAgent } from "./agents/campaigns-agent";
+import { ResourceAgent } from "./agents/resource-agent";
+import { GeneralAgent } from "./agents/general-agent";
+import { openai } from "@ai-sdk/openai";
 
 interface PdfAuthPayload extends JWTPayload {
   type: "pdf-auth";
   username: string;
-}
-
-interface MessageData {
-  jwt?: string;
 }
 
 interface Env {
@@ -70,204 +60,145 @@ async function requirePdfJwt(
   }
 }
 
-const model = openai("gpt-4o-mini");
-
 console.log("Server file loaded and running");
 
 /**
- * Chat Agent implementation that handles real-time AI chat interactions
+ * Chat Agent implementation that routes to specialized agents based on user intent
  */
 export class Chat extends AIChatAgent<Env> {
+  private campaignsAgent: CampaignsAgent;
+  private resourceAgent: ResourceAgent;
+  private generalAgent: GeneralAgent;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    const model = openai("gpt-4o-mini");
+    this.campaignsAgent = new CampaignsAgent(ctx, env, model);
+    this.resourceAgent = new ResourceAgent(ctx, env, model);
+    this.generalAgent = new GeneralAgent(ctx, env, model);
+  }
+
   /**
-   * Handles incoming chat messages and manages the response stream
+   * Determines which specialized agent should handle the user's request
+   */
+  private determineAgent(
+    userMessage: string
+  ): "campaigns" | "resources" | "general" {
+    const lowerMessage = userMessage.toLowerCase();
+
+    // Campaign-related keywords
+    const campaignKeywords = [
+      "campaign",
+      "campaigns",
+      "create campaign",
+      "list campaigns",
+      "show campaigns",
+      "campaign details",
+      "add resource to campaign",
+      "campaign resource",
+      "delete campaign",
+    ];
+
+    // Resource/PDF-related keywords
+    const resourceKeywords = [
+      "pdf",
+      "upload",
+      "file",
+      "files",
+      "document",
+      "documents",
+      "list pdf",
+      "upload pdf",
+      "pdf stats",
+      "pdf metadata",
+      "ingest pdf",
+      "process pdf",
+    ];
+
+    // General/scheduling keywords
+    const generalKeywords = [
+      "schedule",
+      "task",
+      "tasks",
+      "scheduled",
+      "cancel task",
+      "list tasks",
+      "reminder",
+      "reminders",
+    ];
+
+    // Check for campaign-related intent
+    if (campaignKeywords.some((keyword) => lowerMessage.includes(keyword))) {
+      return "campaigns";
+    }
+
+    // Check for resource-related intent
+    if (resourceKeywords.some((keyword) => lowerMessage.includes(keyword))) {
+      return "resources";
+    }
+
+    // Check for general/scheduling intent
+    if (generalKeywords.some((keyword) => lowerMessage.includes(keyword))) {
+      return "general";
+    }
+
+    // Default to general agent for unknown intents
+    return "general";
+  }
+
+  /**
+   * Handles incoming chat messages and routes to appropriate specialized agent
    * @param onFinish - Callback function executed when streaming completes
    */
-
   async onChatMessage(
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
-    // const mcpConnection = await this.mcp.connect(
-    //   "https://path-to-mcp-server/sse"
-    // );
+    // Get the last user message to determine routing
+    const lastUserMessage = this.messages
+      .slice()
+      .reverse()
+      .find((msg) => msg.role === "user");
 
-    // Collect all tools, including MCP tools
-    const allTools = {
-      ...tools,
-      ...this.mcp.unstable_getAITools(),
-    };
-
-    // Create a streaming response that handles both text and tool outputs
-    const dataStreamResponse = createDataStreamResponse({
-      execute: async (dataStream) => {
-        // Extract JWT from the last user message if available
-        const lastUserMessage = this.messages
-          .slice()
-          .reverse()
-          .find((msg) => msg.role === "user");
-
-        console.log("[Agent] Last user message:", lastUserMessage);
-        let clientJwt: string | null = null;
-        if (
-          lastUserMessage &&
-          "data" in lastUserMessage &&
-          lastUserMessage.data
-        ) {
-          console.log("[Agent] lastUserMessage.data:", lastUserMessage.data);
-          const messageData = lastUserMessage.data as MessageData;
-          clientJwt = messageData.jwt || null;
-          console.log("[Agent] Extracted JWT from user message:", clientJwt);
-        } else {
-          console.log("[Agent] No JWT found in user message data.");
-        }
-
-        // Process any pending tool calls from previous messages
-        // This handles human-in-the-loop confirmations for tools
-        const processedMessages = await processToolCalls({
-          messages: this.messages,
-          dataStream,
-          tools: allTools,
-          executions,
-        });
-
-        // Create enhanced tools that automatically include JWT for PDF and campaign operations
-        const enhancedTools = Object.fromEntries(
-          Object.entries(allTools).map(([toolName, tool]) => {
-            if (
-              toolName === "listPdfFiles" ||
-              toolName === "generatePdfUploadUrl" ||
-              toolName === "updatePdfMetadata" ||
-              toolName === "ingestPdfFile" ||
-              toolName === "getPdfStats" ||
-              toolName === "listCampaigns" ||
-              toolName === "createCampaign" ||
-              toolName === "addResourceToCampaign"
-            ) {
-              return [
-                toolName,
-                {
-                  ...tool,
-                  execute: async (args: any, context: any) => {
-                    // For PDF and campaign tools, ensure JWT is always included
-                    const enhancedArgs = { ...args, jwt: clientJwt };
-                    console.log(
-                      `[Agent] Calling tool ${toolName} with args:`,
-                      enhancedArgs
-                    );
-                    return tool.execute?.(enhancedArgs, context);
-                  },
-                },
-              ];
-            }
-            return [toolName, tool];
-          })
-        );
-
-        // Stream the AI response using GPT-4
-        const result = streamText({
-          model,
-          system: `You are a helpful assistant that can do various tasks... 
-
-${unstable_getSchedulePrompt({ date: new Date() })}
-
-If the user asks to schedule a task, use the schedule tool to schedule the task.
-
-The user can authenticate for PDF upload functionality through the UI. Once authenticated, you can help them with PDF uploads and processing.
-
-**PDF Upload Flow:**
-When a user wants to upload a PDF file, follow this process:
-
-1. **Generate Upload URL**: Use the generatePdfUploadUrl tool to create a presigned upload URL for the file
-2. **User Uploads File**: The user will upload the file directly to R2 storage using the provided URL
-3. **Update Metadata**: After successful upload, use the updatePdfMetadata tool to add description, tags, and file size
-4. **Trigger Ingestion**: Use the ingestPdfFile tool to start processing the uploaded PDF
-
-**Campaign Management Flow:**
-When a user wants to manage campaigns, follow this process:
-
-**Campaign Listing Flow:**
-- If the user asks to see all campaigns, call the listCampaigns tool.
-- If campaigns exist, display the list to the user.
-- If no campaigns exist, prompt the user to create a new campaign and show the campaign creation UI.
-- Never ask for a campaign ID if the user just wants to see all campaigns.
-
-**Example:**
-- User: "Do I have any campaigns?" or "List all my campaigns."
-- You: Call listCampaigns tool.
-- If result is not empty: "Here are your campaigns: [list]."
-- If result is empty: "You don't have any campaigns yet. Please create one to get started." (Show campaign creation UI)
-
-**Campaign Creation Flow:**
-- When the user wants to create a new campaign:
-  - First, invoke the createCampaign tool (with a name if provided, or let the user fill it in).
-  - Wait for the campaign to be created and get the campaignId from the result.
-  - The createCampaign tool returns an object with a "campaign" field, which contains a "campaignId" (e.g., { campaign: { campaignId: "abc123", ... } }).
-  - After calling createCampaign, always extract the campaignId from the result and use it as the argument for listCampaignResources (e.g., { campaignId: "abc123" }).
-  - Never call listCampaignResources with an empty or missing campaignId.
-
-**Example createCampaign result:**
-    {
-      "campaign": {
-        "campaignId": "abc123",
-        "name": "Historica Arcanum"
-      }
+    if (!lastUserMessage) {
+      // No user message found, use general agent
+      return this.generalAgent.onChatMessage(onFinish, _options);
     }
 
-**Example Flow:**
-- User: "Create a new campaign called Historica Arcanum."
-- You: Call createCampaign tool with name="Historica Arcanum"
-- You: After creation, call listCampaignResources tool with campaignId set to the new campaign's ID
+    // Determine which agent should handle this request
+    const targetAgent = this.determineAgent(lastUserMessage.content);
+    console.log(
+      `[Chat] Routing to ${targetAgent} agent for message: "${lastUserMessage.content}"`
+    );
 
-**Campaign Resource Listing Flow:**
-- If the user asks to list resources for a campaign, always require a campaignId.
-- If the campaignId is not provided, prompt the user to select or create a campaign first.
-- Never call listCampaignResources with an empty or missing campaignId.
+    // Copy messages to the target agent
+    const targetAgentInstance = this.getAgentInstance(targetAgent);
+    targetAgentInstance.messages = [...this.messages];
 
-**Example:**
-- User: "Show me the resources for my campaign."
-- You: "Which campaign? Please select or create a campaign first."
-- (After campaign is selected or created)
-- You: Call listCampaignResources tool with campaignId set to the selected campaign's ID.
-
-**Other Operations:**
-- Use listPdfFiles to show uploaded files (JWT will be automatically included)
-- Use getPdfStats for upload statistics (JWT will be automatically included)
-- Use generatePdfUploadUrl to create upload URLs for new files
-- Use updatePdfMetadata to add descriptions and tags to uploaded files
-- Use ingestPdfFile to process uploaded PDFs
-
-Always use the appropriate tools for operations and guide users through the process step by step.
-`,
-          messages: processedMessages,
-          tools: enhancedTools,
-          onFinish: async (args) => {
-            (onFinish ?? (() => {}))(
-              args as Parameters<StreamTextOnFinishCallback<ToolSet>>[0]
-            );
-            // await this.mcp.closeConnection(mcpConnection.id);
-          },
-          onError: (error) => {
-            console.error("Error while streaming:", error);
-          },
-          maxSteps: 10,
-        });
-
-        // Merge the AI response stream with tool execution outputs
-        if (
-          result &&
-          typeof (
-            result as { mergeIntoDataStream?: (dataStream: unknown) => void }
-          ).mergeIntoDataStream === "function"
-        ) {
-          (
-            result as { mergeIntoDataStream: (dataStream: unknown) => void }
-          ).mergeIntoDataStream(dataStream);
-        }
-      },
+    // Route to the appropriate specialized agent
+    return targetAgentInstance.onChatMessage(onFinish, {
+      abortSignal: _options?.abortSignal,
     });
-
-    return dataStreamResponse;
   }
+
+  /**
+   * Get the appropriate agent instance based on the target type
+   */
+  private getAgentInstance(
+    targetAgent: "campaigns" | "resources" | "general"
+  ): AIChatAgent<Env> {
+    switch (targetAgent) {
+      case "campaigns":
+        return this.campaignsAgent;
+      case "resources":
+        return this.resourceAgent;
+      case "general":
+        return this.generalAgent;
+      default:
+        return this.generalAgent;
+    }
+  }
+
   async executeTask(description: string, _task: Schedule<string>) {
     await this.saveMessages([
       ...this.messages,
