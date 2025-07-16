@@ -493,7 +493,7 @@ export const PdfUploadAgent = ({
         onClose={() => setIsListModalOpen(false)}
         cardStyle={{ width: 560, height: 560 }}
       >
-        <PdfList/>
+        <PdfList />
       </Modal>
     </Card>
   );
