@@ -7,6 +7,7 @@ type CardProps = {
   ref?: React.Ref<HTMLElement>;
   tabIndex?: number;
   variant?: "primary" | "secondary" | "ghost" | "destructive";
+  style?: React.CSSProperties;
 };
 
 export const Card = ({
@@ -16,6 +17,7 @@ export const Card = ({
   ref,
   tabIndex,
   variant = "secondary",
+  style,
 }: CardProps) => {
   const Component = as ?? "div";
   return (
@@ -30,6 +32,7 @@ export const Card = ({
       )}
       ref={ref}
       tabIndex={tabIndex}
+      style={style}
     >
       {children}
     </Component>

@@ -9,6 +9,7 @@ import { PdfList } from "./PdfList";
 import { PdfUpload } from "./PdfUpload";
 import { authenticatedFetchWithExpiration } from "../../lib/auth";
 import { useJwtExpiration } from "../../hooks/useJwtExpiration";
+import { Modal } from "@/components/modal/Modal";
 
 interface PdfUploadAgentProps {
   className?: string;
@@ -64,11 +65,12 @@ export const PdfUploadAgent = ({
   const [authenticating, setAuthenticating] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isAuthPanelExpanded, setIsAuthPanelExpanded] = useState(true);
-  const [isUploadPanelExpanded, setIsUploadPanelExpanded] = useState(false);
-  const [isPdfListExpanded, setIsPdfListExpanded] = useState(false);
+
   const lastProcessedMessageId = useRef<string | null>(null);
   const [username, setUsername] = useState("");
   const [jwtUsername, setJwtUsername] = useState<string | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isListModalOpen, setIsListModalOpen] = useState(false);
 
   // Use JWT expiration hook
   const { isExpired, clearExpiration } = useJwtExpiration({
@@ -456,54 +458,43 @@ export const PdfUploadAgent = ({
 
   // Show upload UI
   return (
-    <Card className={cn("space-y-4", className)}>
-      <div className="flex items-center justify-between">
-        <div className="space-y-2">
-          <h3 className="text-ob-base-300 font-medium">Add Resources</h3>
-          {jwtUsername && (
-            <div className="text-ob-base-200 text-xs">
-              Authenticated as:{" "}
-              <span className="font-semibold">{jwtUsername}</span>
-            </div>
-          )}
-        </div>
+    <Card className={cn("space-y-4 relative", className)}>
+      <div className="flex justify-center gap-6 mb-2">
         <Button
-          onClick={() => setIsUploadPanelExpanded(!isUploadPanelExpanded)}
-          variant="ghost"
-          size="sm"
-          className="text-ob-base-200 hover:text-ob-base-300"
+          onClick={() => setIsAddModalOpen(true)}
+          variant="secondary"
+          size="base"
         >
-          {isUploadPanelExpanded ? "−" : "+"}
+          Add Resources
+        </Button>
+        <Button
+          onClick={() => setIsListModalOpen(true)}
+          variant="secondary"
+          size="base"
+        >
+          Show Resources
         </Button>
       </div>
 
-      {isUploadPanelExpanded && (
+      <Modal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        cardStyle={{ width: 560, height: 560 }}
+      >
         <PdfUpload
           onUpload={handleUpload}
           loading={uploading}
           className="border-0 p-0 shadow-none"
+          jwtUsername={jwtUsername}
         />
-      )}
-
-      {/* PDF List Section */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-2">
-          <h3 className="text-ob-base-300 font-medium">Show Resources</h3>
-          <p className="text-ob-base-200 text-sm">
-            View and manage your uploaded PDF files
-          </p>
-        </div>
-        <Button
-          onClick={() => setIsPdfListExpanded(!isPdfListExpanded)}
-          variant="ghost"
-          size="sm"
-          className="text-ob-base-200 hover:text-ob-base-300"
-        >
-          {isPdfListExpanded ? "−" : "+"}
-        </Button>
-      </div>
-
-      {isPdfListExpanded && <PdfList />}
+      </Modal>
+      <Modal
+        isOpen={isListModalOpen}
+        onClose={() => setIsListModalOpen(false)}
+        cardStyle={{ width: 560, height: 560 }}
+      >
+        <PdfList />
+      </Modal>
     </Card>
   );
 };
