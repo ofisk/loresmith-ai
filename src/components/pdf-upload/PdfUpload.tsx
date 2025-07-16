@@ -149,7 +149,9 @@ export const PdfUpload = ({
                 <div className="text-ob-base-300 font-medium">
                   Click to select or drag and drop
                 </div>
-                <div className="text-ob-base-200 text-sm">PDF files only</div>
+                <div className="text-ob-base-200 text-sm">
+                  Supported format: PDF
+                </div>
               </div>
             )}
           </button>
@@ -159,7 +161,7 @@ export const PdfUpload = ({
         <div className="mx-auto max-w-md w-full space-y-3 text-left">
           {!isValid && (
             <div className="text-ob-destructive text-sm">
-              Please select a valid PDF file
+              Please select a valid resource file (PDF)
             </div>
           )}
 
@@ -173,10 +175,10 @@ export const PdfUpload = ({
             </label>
             <Input
               id="pdf-filename"
-              placeholder="Enter a filename for this PDF..."
               value={filename}
               onValueChange={(value) => setFilename(value)}
               disabled={loading || !selectedFile}
+              className="bg-neutral-200 text-black border border-gray-400 dark:bg-neutral-800 dark:text-white dark:border-gray-600"
             />
           </div>
 
@@ -190,10 +192,10 @@ export const PdfUpload = ({
             </label>
             <Input
               id="pdf-description"
-              placeholder="Enter a description for this PDF..."
               value={description}
               onValueChange={(value) => setDescription(value)}
               disabled={loading}
+              className="bg-neutral-200 text-black border border-gray-400 dark:bg-neutral-800 dark:text-white dark:border-gray-600"
             />
           </div>
 
@@ -207,10 +209,10 @@ export const PdfUpload = ({
             </label>
             <Input
               id="pdf-tags"
-              placeholder="Enter tags separated by commas..."
               value={tags}
               onValueChange={(value) => setTags(value)}
               disabled={loading}
+              className="bg-neutral-200 text-black border border-gray-400 dark:bg-neutral-800 dark:text-white dark:border-gray-600"
             />
             <div className="text-ob-base-200 text-xs">
               Example: research, important, draft
@@ -229,8 +231,8 @@ export const PdfUpload = ({
               selectedFile &&
                 "bg-[#F48120] hover:bg-[#F48120]/90 text-white border-[#F48120]",
               !selectedFile &&
-                "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 cursor-not-allowed",
-              "mt-16"
+                "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-300 border-gray-300 dark:border-gray-700 cursor-not-allowed",
+              "mt-6"
             )}
           >
             {loading ? "Uploading..." : "Upload"}
