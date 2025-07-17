@@ -23,19 +23,14 @@ import { PdfUploadAgent } from "@/components/pdf-upload/PdfUploadAgent";
 import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
-import type { tools } from "./tools";
-import type { campaignTools } from "./tools/campaignTools";
-import type { pdfTools } from "./tools/pdfTools";
-import { useJwtExpiration } from "./hooks/useJwtExpiration";
 import { USER_MESSAGES } from "./constants";
+import { useJwtExpiration } from "./hooks/useJwtExpiration";
+
+// Tools are now handled by individual agents, no centralized import needed
 
 // List of tools that require human confirmation
-// NOTE: this should match the keys in the executions object in tools.ts
-const toolsRequiringConfirmation: (
-  | keyof typeof tools
-  | keyof typeof campaignTools
-  | keyof typeof pdfTools
-)[] = [
+// NOTE: Since we've moved to agent-based architecture, tools are handled by individual agents
+const toolsRequiringConfirmation: string[] = [
   // Campaign tools that require confirmation
   "createCampaign",
 
@@ -49,27 +44,48 @@ const toolsRequiringConfirmation: (
   "cancelScheduledTask",
 ];
 
-/**
- * Generate a unique session ID for this browser session
- * This will be used to create a unique Durable Object ID for each session
- */
-function generateSessionId(): string {
-  return `session-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+// Function to decode JWT and extract username
+function getUsernameFromJwt(jwt: string): string | null {
+  try {
+    // JWT tokens have 3 parts separated by dots
+    const parts = jwt.split(".");
+    if (parts.length !== 3) {
+      return null;
+    }
+
+    // Decode the payload (second part)
+    const payload = JSON.parse(atob(parts[1]));
+    return payload.username || null;
+  } catch (error) {
+    console.error("Error decoding JWT:", error);
+    return null;
+  }
 }
 
-/**
- * Get or create a session ID, persisting it in localStorage
- * This ensures the same session ID is used across browser sessions
- */
-function getSessionId(): string {
-  const existingSessionId = localStorage.getItem("chat-session-id");
-  if (existingSessionId) {
-    return existingSessionId;
+// Function to get stored JWT for LoreSmith operations
+function getStoredJwt(): string | null {
+  const jwt = localStorage.getItem("loresmith_jwt");
+  console.log("[App] getStoredJwt() returns:", jwt);
+  return jwt;
+}
+
+// Function to get the username for the agent
+function getAgentUsername(): string {
+  const jwt = getStoredJwt();
+  if (!jwt) {
+    throw new Error(
+      "Authentication required. Please authenticate with your admin key to use the chat."
+    );
   }
 
-  const newSessionId = generateSessionId();
-  localStorage.setItem("chat-session-id", newSessionId);
-  return newSessionId;
+  const username = getUsernameFromJwt(jwt);
+  if (!username) {
+    throw new Error(
+      "Invalid JWT token. Please re-authenticate with your admin key."
+    );
+  }
+
+  return username;
 }
 
 export default function Chat() {
@@ -80,17 +96,19 @@ export default function Chat() {
   });
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
+  const [authError, setAuthError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Get session ID for this browser session
-  const sessionId = getSessionId();
-
-  // Get stored JWT for PDF operations
-  const getStoredJwt = (): string | null => {
-    const jwt = localStorage.getItem("pdf_auth_jwt");
-    console.log("[App] getStoredJwt() returns:", jwt);
-    return jwt;
-  };
+  // Get username for the agent (from JWT)
+  let agentUsername: string;
+  try {
+    agentUsername = getAgentUsername();
+  } catch (error) {
+    setAuthError(
+      error instanceof Error ? error.message : "Authentication required"
+    );
+    agentUsername = ""; // This won't be used since we'll show the error
+  }
 
   // Handle JWT expiration globally
   useJwtExpiration({
@@ -123,6 +141,23 @@ export default function Chat() {
     scrollToBottom();
   }, [scrollToBottom]);
 
+  // Clear auth error when user successfully authenticates
+  useEffect(() => {
+    if (authError) {
+      const jwt = getStoredJwt();
+      if (jwt) {
+        try {
+          const username = getUsernameFromJwt(jwt);
+          if (username) {
+            setAuthError(null);
+          }
+        } catch (_error) {
+          // JWT is invalid, keep the error
+        }
+      }
+    }
+  }, [authError]);
+
   const toggleTheme = () => {
     const newTheme = theme === "dark" ? "light" : "dark";
     setTheme(newTheme);
@@ -130,7 +165,7 @@ export default function Chat() {
 
   const agent = useAgent({
     agent: "chat",
-    name: sessionId, // Use the session ID to create a unique Durable Object for this session
+    name: agentUsername, // Use the username from JWT to create a unique Durable Object per user
   });
 
   const {
@@ -160,14 +195,18 @@ export default function Chat() {
     setInput("");
   };
 
-  // Enhanced clear history function that creates a new session
+  // Enhanced clear history function that clears the current user's chat history
   const handleClearHistory = () => {
     clearHistory();
-    // Optionally create a new session ID when clearing history
-    // This creates a completely fresh chat session
-    const newSessionId = generateSessionId();
-    localStorage.setItem("chat-session-id", newSessionId);
-    // Reload the page to reinitialize with the new session ID
+    // For username-based agents, clearing history just clears the current session
+    // The Durable Object will persist but the current chat history will be cleared
+    console.log("[App] Cleared chat history for user:", agentUsername);
+  };
+
+  // Logout function that clears JWT and reloads the page
+  const handleLogout = () => {
+    localStorage.removeItem("loresmith_jwt");
+    console.log("[App] User logged out, JWT cleared");
     window.location.reload();
   };
 
@@ -182,7 +221,7 @@ export default function Chat() {
         part.type === "tool-invocation" &&
         part.toolInvocation.state === "call" &&
         toolsRequiringConfirmation.includes(
-          part.toolInvocation.toolName as keyof typeof tools
+          part.toolInvocation.toolName as string
         )
     )
   );
@@ -242,6 +281,11 @@ export default function Chat() {
 
           <div className="flex-1">
             <h2 className="font-semibold text-base">LoreSmith MCP Router</h2>
+            {!authError && (
+              <p className="text-xs text-muted-foreground">
+                Logged in as: {agentUsername}
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-2 mr-2">
@@ -272,216 +316,292 @@ export default function Chat() {
           >
             <Trash size={20} />
           </Button>
+
+          <Button
+            variant="ghost"
+            size="md"
+            shape="square"
+            className="rounded-full h-9 w-9"
+            onClick={handleLogout}
+            title="Logout"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <title>Logout</title>
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16,17 21,12 16,7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </Button>
         </div>
 
-        {/* Main Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 max-h-[calc(100vh-10rem)]">
-          {agentMessages.length === 0 && (
-            <div className="h-full flex items-center justify-center">
-              <Card className="p-6 max-w-md mx-auto bg-neutral-100 dark:bg-neutral-900">
-                <div className="text-left space-y-4">
-                  <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
-                    <img
-                      src={loresmith}
-                      alt="LoreSmith logo"
-                      width={48}
-                      height={48}
-                    />
-                  </div>
-                  <h3 className="font-semibold text-lg">
-                    👋 Welcome to LoreSmith MCP Router!
-                  </h3>
-                  <p className="text-muted-foreground text-sm">
-                    Speak your query, and I shall summon the most fitting agent.
-                    Try:
-                  </p>
-                  <div className="flex justify-center gap-2 pt-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="bg-neutral-100 dark:bg-neutral-600"
-                      onClick={() => handleSuggestionSubmit("Get started")}
-                    >
-                      <Lightbulb size={12} />
-                      Get started
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="bg-neutral-100 dark:bg-neutral-600"
-                      onClick={() => handleSuggestionSubmit("Show agents")}
-                    >
-                      Show agents
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            </div>
-          )}
-
-          {agentMessages.map((m: Message, index) => {
-            const isUser = m.role === "user";
-            const showAvatar =
-              index === 0 || agentMessages[index - 1]?.role !== m.role;
-
-            return (
-              <div key={m.id}>
-                {showDebug && (
-                  <pre className="text-xs text-muted-foreground overflow-scroll">
-                    {JSON.stringify(m, null, 2)}
-                  </pre>
-                )}
-                <div
-                  className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`flex gap-2 max-w-[85%] ${
-                      isUser ? "flex-row-reverse" : "flex-col"
-                    }`}
+        {/* Authentication Error */}
+        {authError && (
+          <div className="flex-1 overflow-y-auto p-4 flex items-center justify-center">
+            <Card className="p-6 max-w-md mx-auto bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+              <div className="text-center space-y-4">
+                <div className="bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-full p-3 inline-flex">
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   >
-                    {showAvatar && !isUser ? (
-                      <Avatar username={"LS"} />
-                    ) : (
-                      !isUser && <div className="w-8" />
-                    )}
+                    <title>Error</title>
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="15" y1="9" x2="9" y2="15" />
+                    <line x1="9" y1="9" x2="15" y2="15" />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-lg text-red-800 dark:text-red-200">
+                  Authentication Required
+                </h3>
+                <p className="text-red-600 dark:text-red-300 text-sm">
+                  {authError}
+                </p>
+                <div className="pt-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/70"
+                    onClick={() => window.location.reload()}
+                  >
+                    Try Again
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
 
-                    <div className="flex-1">
-                      <div>
-                        {m.parts?.map((part, i) => {
-                          if (part.type === "text") {
-                            return (
-                              // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
-                              <div key={i}>
-                                <Card
-                                  className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
-                                    isUser
-                                      ? "rounded-br-none"
-                                      : "rounded-bl-none border-assistant-border"
-                                  } ${
-                                    part.text.startsWith("scheduled message")
-                                      ? "border-accent/50"
-                                      : ""
-                                  } relative`}
-                                >
-                                  {part.text.startsWith(
-                                    "scheduled message"
-                                  ) && (
-                                    <span className="absolute -top-3 -left-2 text-base">
-                                      🕒
-                                    </span>
-                                  )}
-                                  <MemoizedMarkdown
-                                    id={`${m.id}-${i}`}
-                                    content={part.text.replace(
-                                      /^scheduled message: /,
-                                      ""
+        {/* Main Content Area */}
+        {!authError && (
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 max-h-[calc(100vh-10rem)]">
+            {agentMessages.length === 0 && (
+              <div className="h-full flex items-center justify-center">
+                <Card className="p-6 max-w-md mx-auto bg-neutral-100 dark:bg-neutral-900">
+                  <div className="text-left space-y-4">
+                    <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
+                      <img
+                        src={loresmith}
+                        alt="LoreSmith logo"
+                        width={48}
+                        height={48}
+                      />
+                    </div>
+                    <h3 className="font-semibold text-lg">
+                      👋 Welcome to LoreSmith MCP Router!
+                    </h3>
+                    <p className="text-muted-foreground text-sm">
+                      Speak your query, and I shall summon the most fitting
+                      agent. Try:
+                    </p>
+                    <div className="flex justify-center gap-2 pt-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="bg-neutral-100 dark:bg-neutral-600"
+                        onClick={() => handleSuggestionSubmit("Get started")}
+                      >
+                        <Lightbulb size={12} />
+                        Get started
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="bg-neutral-100 dark:bg-neutral-600"
+                        onClick={() => handleSuggestionSubmit("Show agents")}
+                      >
+                        Show agents
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {agentMessages.map((m: Message, index) => {
+              const isUser = m.role === "user";
+              const showAvatar =
+                index === 0 || agentMessages[index - 1]?.role !== m.role;
+
+              return (
+                <div key={m.id}>
+                  {showDebug && (
+                    <pre className="text-xs text-muted-foreground overflow-scroll">
+                      {JSON.stringify(m, null, 2)}
+                    </pre>
+                  )}
+                  <div
+                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`flex gap-2 max-w-[85%] ${
+                        isUser ? "flex-row-reverse" : "flex-col"
+                      }`}
+                    >
+                      {showAvatar && !isUser ? (
+                        <Avatar username={"LS"} />
+                      ) : (
+                        !isUser && <div className="w-8" />
+                      )}
+
+                      <div className="flex-1">
+                        <div>
+                          {m.parts?.map((part, i) => {
+                            if (part.type === "text") {
+                              return (
+                                // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
+                                <div key={i}>
+                                  <Card
+                                    className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
+                                      isUser
+                                        ? "rounded-br-none"
+                                        : "rounded-bl-none border-assistant-border"
+                                    } ${
+                                      part.text.startsWith("scheduled message")
+                                        ? "border-accent/50"
+                                        : ""
+                                    } relative`}
+                                  >
+                                    {part.text.startsWith(
+                                      "scheduled message"
+                                    ) && (
+                                      <span className="absolute -top-3 -left-2 text-base">
+                                        🕒
+                                      </span>
                                     )}
-                                  />
-                                </Card>
-                                <p
-                                  className={`text-xs text-muted-foreground mt-1 ${
-                                    isUser ? "text-right" : "text-left"
-                                  }`}
-                                >
-                                  {formatTime(
-                                    new Date(m.createdAt as unknown as string)
-                                  )}
-                                </p>
-                              </div>
-                            );
-                          }
-
-                          if (part.type === "tool-invocation") {
-                            const toolInvocation = part.toolInvocation;
-                            const toolCallId = toolInvocation.toolCallId;
-                            const needsConfirmation =
-                              toolsRequiringConfirmation.includes(
-                                toolInvocation.toolName as keyof typeof tools
+                                    <MemoizedMarkdown
+                                      id={`${m.id}-${i}`}
+                                      content={part.text.replace(
+                                        /^scheduled message: /,
+                                        ""
+                                      )}
+                                    />
+                                  </Card>
+                                  <p
+                                    className={`text-xs text-muted-foreground mt-1 ${
+                                      isUser ? "text-right" : "text-left"
+                                    }`}
+                                  >
+                                    {formatTime(
+                                      new Date(m.createdAt as unknown as string)
+                                    )}
+                                  </p>
+                                </div>
                               );
+                            }
 
-                            // Skip rendering the card in debug mode
-                            if (showDebug) return null;
+                            if (part.type === "tool-invocation") {
+                              const toolInvocation = part.toolInvocation;
+                              const toolCallId = toolInvocation.toolCallId;
+                              const needsConfirmation =
+                                toolsRequiringConfirmation.includes(
+                                  toolInvocation.toolName as string
+                                );
 
-                            return (
-                              <ToolInvocationCard
-                                // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here as the array is static
-                                key={`${toolCallId}-${i}`}
-                                toolInvocation={toolInvocation}
-                                toolCallId={toolCallId}
-                                needsConfirmation={needsConfirmation}
-                                addToolResult={addToolResult}
-                              />
-                            );
-                          }
-                          return null;
-                        })}
+                              // Skip rendering the card in debug mode
+                              if (showDebug) return null;
+
+                              return (
+                                <ToolInvocationCard
+                                  // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here as the array is static
+                                  key={`${toolCallId}-${i}`}
+                                  toolInvocation={toolInvocation}
+                                  toolCallId={toolCallId}
+                                  needsConfirmation={needsConfirmation}
+                                  addToolResult={addToolResult}
+                                />
+                              );
+                            }
+                            return null;
+                          })}
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-          <div ref={messagesEndRef} />
-        </div>
+              );
+            })}
+            <div ref={messagesEndRef} />
+          </div>
+        )}
 
         {/* Chat-specific sections */}
-        {/* PDF Upload Section */}
-        <div className="px-4 py-2 border-t border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900">
-          <PdfUploadAgent messages={agentMessages} append={append} />
-        </div>
-
-        {/* Input Area */}
-        <form
-          onSubmit={handleFormSubmit}
-          className="p-3 bg-neutral-50 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
-        >
-          <div className="flex items-center gap-2">
-            <div className="flex-1 relative">
-              <Textarea
-                disabled={pendingToolCallConfirmation}
-                placeholder={
-                  pendingToolCallConfirmation
-                    ? "Please respond to the tool confirmation above..."
-                    : "What knowledge do you seek today?"
-                }
-                className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-base ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900"
-                value={agentInput}
-                onChange={(e) => {
-                  handleAgentInputChange(e);
-                  // Auto-resize the textarea
-                  e.target.style.height = "auto";
-                  e.target.style.height = `${e.target.scrollHeight}px`;
-                  setTextareaHeight(`${e.target.scrollHeight}px`);
-                }}
-                onKeyDown={handleKeyDown}
-                rows={2}
-                style={{ height: textareaHeight }}
-              />
-              <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
-                {isLoading ? (
-                  <button
-                    type="button"
-                    onClick={stop}
-                    className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                    aria-label="Stop generation"
-                  >
-                    <Stop size={16} />
-                  </button>
-                ) : (
-                  <button
-                    type="submit"
-                    className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                    disabled={pendingToolCallConfirmation || !agentInput.trim()}
-                    aria-label="Send message"
-                  >
-                    <PaperPlaneTilt size={16} />
-                  </button>
-                )}
-              </div>
+        {!authError && (
+          <>
+            {/* PDF Upload Section */}
+            <div className="px-4 py-2 border-t border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900">
+              <PdfUploadAgent messages={agentMessages} append={append} />
             </div>
-          </div>
-        </form>
+
+            {/* Input Area */}
+            <form
+              onSubmit={handleFormSubmit}
+              className="p-3 bg-neutral-50 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
+            >
+              <div className="flex items-center gap-2">
+                <div className="flex-1 relative">
+                  <Textarea
+                    disabled={pendingToolCallConfirmation}
+                    placeholder={
+                      pendingToolCallConfirmation
+                        ? "Please respond to the tool confirmation above..."
+                        : "What knowledge do you seek today?"
+                    }
+                    className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-base ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900"
+                    value={agentInput}
+                    onChange={(e) => {
+                      handleAgentInputChange(e);
+                      // Auto-resize the textarea
+                      e.target.style.height = "auto";
+                      e.target.style.height = `${e.target.scrollHeight}px`;
+                      setTextareaHeight(`${e.target.scrollHeight}px`);
+                    }}
+                    onKeyDown={handleKeyDown}
+                    rows={2}
+                    style={{ height: textareaHeight }}
+                  />
+                  <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
+                    {isLoading ? (
+                      <button
+                        type="button"
+                        onClick={stop}
+                        className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
+                        aria-label="Stop generation"
+                      >
+                        <Stop size={16} />
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
+                        disabled={
+                          pendingToolCallConfirmation || !agentInput.trim()
+                        }
+                        aria-label="Send message"
+                      >
+                        <PaperPlaneTilt size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );

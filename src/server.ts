@@ -1,17 +1,27 @@
-import { routeAgentRequest, type Schedule } from "agents";
-import { AIChatAgent } from "agents/ai-chat-agent";
+import { openai } from "@ai-sdk/openai";
 import { generateId, type StreamTextOnFinishCallback, type ToolSet } from "ai";
 import type { Context } from "hono";
 import { Hono } from "hono";
 import { type JWTPayload, jwtVerify, SignJWT } from "jose";
 import campaignAgent from "./agents/campaign";
 import { CampaignsAgent } from "./agents/campaigns-agent";
-import { ResourceAgent } from "./agents/resource-agent";
 import { GeneralAgent } from "./agents/general-agent";
-import { openai } from "@ai-sdk/openai";
+import { ResourceAgent } from "./agents/resource-agent";
+
+// Lazy-load agents package to prevent ajv import issues
+let routeAgentRequest: any = null;
+const model = openai("gpt-4o-mini");
+
+async function getRouteAgentRequest() {
+  if (!routeAgentRequest) {
+    const agents = await import("agents");
+    routeAgentRequest = agents.routeAgentRequest;
+  }
+  return routeAgentRequest;
+}
 
 interface PdfAuthPayload extends JWTPayload {
-  type: "pdf-auth";
+  type: "loresmith-auth";
   username: string;
 }
 
@@ -49,7 +59,7 @@ async function requirePdfJwt(
   const token = authHeader.slice(7);
   try {
     const { payload } = await jwtVerify(token, getJwtSecret(c.env));
-    if (!payload || payload.type !== "pdf-auth") {
+    if (!payload || payload.type !== "loresmith-auth") {
       return c.json({ error: "Invalid token" }, 401);
     }
     // Attach user info to context
@@ -65,21 +75,50 @@ console.log("Server file loaded and running");
 /**
  * Chat Agent implementation that routes to specialized agents based on user intent
  */
-export class Chat extends AIChatAgent<Env> {
+export class Chat {
+  public messages: any[] = [];
+  public mcp: any;
   private campaignsAgent: CampaignsAgent;
   private resourceAgent: ResourceAgent;
   private generalAgent: GeneralAgent;
 
   constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env);
-    const model = openai("gpt-4o-mini");
+    // Initialize with basic properties
+    this.messages = [];
+    this.mcp = {
+      unstable_getAITools: () => ({}),
+    };
+
+    // Initialize specialized agents
     this.campaignsAgent = new CampaignsAgent(ctx, env, model);
     this.resourceAgent = new ResourceAgent(ctx, env, model);
     this.generalAgent = new GeneralAgent(ctx, env, model);
   }
 
+  async saveMessages(messages: any[]) {
+    this.messages = messages;
+  }
+
   /**
-   * Determines which specialized agent should handle the user's request
+   * Get the appropriate agent instance based on the target type
+   */
+  private getAgentInstance(
+    targetAgent: "campaigns" | "resources" | "general"
+  ): CampaignsAgent | ResourceAgent | GeneralAgent {
+    switch (targetAgent) {
+      case "campaigns":
+        return this.campaignsAgent;
+      case "resources":
+        return this.resourceAgent;
+      case "general":
+        return this.generalAgent;
+      default:
+        return this.generalAgent;
+    }
+  }
+
+  /**
+   * Determines which specialized agent should handle the users request
    */
   private determineAgent(
     userMessage: string
@@ -158,8 +197,7 @@ export class Chat extends AIChatAgent<Env> {
     const lastUserMessage = this.messages
       .slice()
       .reverse()
-      .find((msg) => msg.role === "user");
-
+      .find((msg: any) => msg.role === "user");
     if (!lastUserMessage) {
       // No user message found, use general agent
       return this.generalAgent.onChatMessage(onFinish, _options);
@@ -171,35 +209,14 @@ export class Chat extends AIChatAgent<Env> {
       `[Chat] Routing to ${targetAgent} agent for message: "${lastUserMessage.content}"`
     );
 
-    // Copy messages to the target agent
-    const targetAgentInstance = this.getAgentInstance(targetAgent);
-    targetAgentInstance.messages = [...this.messages];
-
-    // Route to the appropriate specialized agent
-    return targetAgentInstance.onChatMessage(onFinish, {
+    // Get the appropriate agent instance and route the message
+    const agentInstance = this.getAgentInstance(targetAgent);
+    return agentInstance.onChatMessage(onFinish, {
       abortSignal: _options?.abortSignal,
     });
   }
 
-  /**
-   * Get the appropriate agent instance based on the target type
-   */
-  private getAgentInstance(
-    targetAgent: "campaigns" | "resources" | "general"
-  ): AIChatAgent<Env> {
-    switch (targetAgent) {
-      case "campaigns":
-        return this.campaignsAgent;
-      case "resources":
-        return this.resourceAgent;
-      case "general":
-        return this.generalAgent;
-      default:
-        return this.generalAgent;
-    }
-  }
-
-  async executeTask(description: string, _task: Schedule<string>) {
+  async executeTask(description: string, _task: any) {
     await this.saveMessages([
       ...this.messages,
       {
@@ -245,8 +262,8 @@ app.get("/check-open-ai-key", (c) => {
   return c.json({ success: hasOpenAIKey });
 });
 
-// PDF Authentication Route (returns JWT)
-app.post("/pdf/authenticate", async (c) => {
+// LoreSmith Authentication Route (returns JWT)
+app.post("/auth/authenticate", async (c) => {
   const { providedKey, username } = await c.req.json();
   const expectedKey = c.env.ADMIN_SECRET || process.env.ADMIN_SECRET;
   if (
@@ -468,7 +485,7 @@ app.all("*", async (c) => {
     );
   }
   return (
-    (await routeAgentRequest(c.req.raw, c.env, { cors: true })) ||
+    (await getRouteAgentRequest())(c.req.raw, c.env, { cors: true }) ||
     new Response("Not found", { status: 404 })
   );
 });

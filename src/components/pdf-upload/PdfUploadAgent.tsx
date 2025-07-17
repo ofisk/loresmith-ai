@@ -3,13 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { Input } from "@/components/input/Input";
+import { Modal } from "@/components/modal/Modal";
 import { cn } from "@/lib/utils";
 import { API_CONFIG, USER_MESSAGES } from "../../constants";
+import { useJwtExpiration } from "../../hooks/useJwtExpiration";
+import { authenticatedFetchWithExpiration } from "../../lib/auth";
 import { PdfList } from "./PdfList";
 import { PdfUpload } from "./PdfUpload";
-import { authenticatedFetchWithExpiration } from "../../lib/auth";
-import { useJwtExpiration } from "../../hooks/useJwtExpiration";
-import { Modal } from "@/components/modal/Modal";
 
 interface PdfUploadAgentProps {
   className?: string;
@@ -17,7 +17,7 @@ interface PdfUploadAgentProps {
   append: (message: CreateMessage) => Promise<string | null | undefined>;
 }
 
-const JWT_STORAGE_KEY = "pdf_auth_jwt";
+const JWT_STORAGE_KEY = "loresmith_jwt";
 
 function getStoredJwt(): string | null {
   return localStorage.getItem(JWT_STORAGE_KEY);
@@ -272,7 +272,7 @@ export const PdfUploadAgent = ({
       setAuthenticating(true);
       setAuthError(null);
       const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.AUTHENTICATE),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
         {
           method: "POST",
           headers: {

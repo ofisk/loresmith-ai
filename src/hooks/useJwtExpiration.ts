@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { isJwtExpired, getStoredJwt } from "../lib/auth";
 import { USER_MESSAGES } from "../constants";
+import { getStoredJwt, isJwtExpired } from "../lib/auth";
 
 interface UseJwtExpirationOptions {
   onExpiration?: () => void;

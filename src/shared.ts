@@ -33,6 +33,9 @@ export const API_CONFIG = {
 
   // API endpoints without /api/ prefix
   ENDPOINTS: {
+    AUTH: {
+      AUTHENTICATE: "/auth/authenticate",
+    },
     CAMPAIGNS: {
       BASE: "/campaigns",
       RESOURCES: (campaignId: string) => `/campaigns/${campaignId}/resources`,
@@ -40,7 +43,6 @@ export const API_CONFIG = {
       DETAILS: (campaignId: string) => `/campaigns/${campaignId}`,
     },
     PDF: {
-      AUTHENTICATE: "/pdf/authenticate",
       UPLOAD_URL: "/pdf/upload-url",
       UPLOAD: "/pdf/upload",
       INGEST: "/pdf/ingest",

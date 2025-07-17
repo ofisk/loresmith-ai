@@ -87,6 +87,22 @@ To deploy both the client and server to Cloudflare:
 npm run deploy
 ```
 
+**Important Deployment Notes:**
+
+- **For initial deployments or when Durable Object migrations are pending**, use:
+
+  ```bash
+  npm run deploy
+  ```
+
+- **For gradual deployments (after migrations are applied)**, use:
+  ```bash
+  npm run deploy:gradual
+  ```
+
+**Durable Object Migrations:**
+If you encounter the error "migrations must be fully applied by running 'wrangler deploy'", it means there are pending Durable Object migrations. Always use `npm run deploy` (which uses `wrangler deploy`) to apply migrations before using gradual deployments.
+
 ## Configuration
 
 ### Environment Variables

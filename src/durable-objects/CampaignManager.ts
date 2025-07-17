@@ -10,11 +10,6 @@ export interface Resource {
 import type { CampaignData } from "../types/campaign";
 
 export class CampaignManager extends DurableObject {
-  constructor(ctx: DurableObjectState, env: unknown) {
-    super(ctx, env);
-    this.ensureTables();
-  }
-
   async ensureTables() {
     await this.ctx.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS campaigns (
@@ -37,6 +32,7 @@ export class CampaignManager extends DurableObject {
 
   // List all campaigns for this user
   async listCampaigns(): Promise<CampaignData[]> {
+    await this.ensureTables();
     try {
       const cursor = await this.ctx.storage.sql.exec(
         "SELECT * FROM campaigns ORDER BY createdAt DESC"
@@ -60,9 +56,15 @@ export class CampaignManager extends DurableObject {
 
   // Create a new campaign
   async createCampaign(name: string): Promise<CampaignData> {
+    await this.ensureTables();
     try {
       const campaignId = crypto.randomUUID();
       const now = new Date().toISOString();
+      console.log("[DO] Creating campaign with params:", {
+        campaignId,
+        name,
+        now,
+      });
       await this.ctx.storage.sql.exec(
         "INSERT INTO campaigns (campaignId, name, createdAt, updatedAt) VALUES (?, ?, ?, ?)",
         [campaignId, name, now, now]

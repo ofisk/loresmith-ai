@@ -19,7 +19,8 @@
   "scripts": {
     "start": "vite dev",
     "build": "vite build",
-    "deploy": "vite build && wrangler deploy",
+    "deploy": "./deploy.sh",
+    "deploy:gradual": "vite build && wrangler versions upload",
     "test": "vitest",
     "types": "wrangler types",
     "format": "prettier --write .",
