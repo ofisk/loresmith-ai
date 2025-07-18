@@ -40,6 +40,10 @@
       "tag": "v3",
       "new_sqlite_classes": [],
     },
+    {
+      "tag": "v4",
+      "new_sqlite_classes": ["CampaignManager"],
+    },
   ],
   "observability": {
     "enabled": true,
