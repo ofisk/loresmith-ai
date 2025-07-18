@@ -229,8 +229,7 @@ export class Chat {
   }
 }
 
-// Export the UserFileTracker Durable Object
-export { UserFileTracker } from "./durable-objects/UserFileTracker";
+// UserFileTracker will be exported at the end with other Durable Objects
 
 /**
  * Worker entry point that routes incoming requests to the appropriate handler
@@ -491,9 +490,8 @@ app.all("*", async (c) => {
 });
 
 // Export the fetch function for Cloudflare Workers
-export default {
-  fetch: app.fetch,
-};
+export default app.fetch;
 
 // Export Durable Objects
 export { CampaignManager } from "./durable-objects/CampaignManager";
+export { UserFileTracker } from "./durable-objects/UserFileTracker";
