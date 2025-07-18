@@ -1,11 +1,10 @@
+import { getCurrentAgent } from "agents";
 import {
   unstable_getSchedulePrompt,
   unstable_scheduleSchema,
 } from "agents/schedule";
 import { tool } from "ai";
 import { z } from "zod";
-import { getCurrentAgent } from "agents";
-import type { Chat } from "../server";
 import { BaseAgent } from "./base-agent";
 
 interface Env {
@@ -20,7 +19,7 @@ const scheduleTask = tool({
   description: "Schedule a task to be executed at a specific time",
   parameters: unstable_scheduleSchema,
   execute: async ({ when, description }) => {
-    const { agent } = getCurrentAgent<Chat>();
+    const { agent } = getCurrentAgent<BaseAgent>();
 
     function throwError(msg: string): string {
       throw new Error(msg);
@@ -50,7 +49,7 @@ const getScheduledTasks = tool({
   description: "Get all scheduled tasks",
   parameters: z.object({}),
   execute: async () => {
-    const { agent } = getCurrentAgent<Chat>();
+    const { agent } = getCurrentAgent<BaseAgent>();
     try {
       const tasks = await agent!.getSchedules();
       return `Scheduled tasks: ${JSON.stringify(tasks, null, 2)}`;
@@ -67,7 +66,7 @@ const cancelScheduledTask = tool({
     taskId: z.string().describe("The ID of the task to cancel"),
   }),
   execute: async ({ taskId }) => {
-    const { agent } = getCurrentAgent<Chat>();
+    const { agent } = getCurrentAgent<BaseAgent>();
     try {
       await agent!.cancelSchedule(taskId);
       return `Task ${taskId} has been successfully canceled.`;

@@ -1,6 +1,7 @@
 import { AIChatAgent } from "agents/ai-chat-agent";
 import {
   createDataStreamResponse,
+  generateId,
   type StreamTextOnFinishCallback,
   streamText,
   type ToolSet,
@@ -147,6 +148,21 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
     });
 
     return dataStreamResponse;
+  }
+
+  /**
+   * Execute a scheduled task
+   */
+  async executeTask(description: string, _task: any) {
+    await this.saveMessages([
+      ...this.messages,
+      {
+        id: generateId(),
+        role: "user",
+        content: `Running scheduled task: ${description}`,
+        createdAt: new Date(),
+      },
+    ]);
   }
 
   /**

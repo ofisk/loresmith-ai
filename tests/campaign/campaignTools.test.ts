@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { campaignTools } from "../../src/tools/campaignTools";
 import { AUTH_CODES, USER_MESSAGES } from "../../src/constants";
+import { campaignTools } from "../../src/tools/campaignTools";
 
 // Mock fetch globally
 global.fetch = vi.fn();
@@ -319,10 +319,10 @@ describe("Campaign Tools", () => {
       });
     });
 
-    it("should handle access denied error (403) during verification", async () => {
+    it("should handle access denied error (401) during verification", async () => {
       const mockVerifyResponse = {
         ok: false,
-        status: 403,
+        status: 401,
         json: vi.fn().mockResolvedValue({ error: "Access denied" }),
       };
       (global.fetch as any).mockResolvedValueOnce(mockVerifyResponse);
@@ -334,8 +334,8 @@ describe("Campaign Tools", () => {
 
       expect(result).toEqual({
         code: AUTH_CODES.INVALID_KEY,
-        message: expect.stringContaining("Access denied"),
-        data: { error: "HTTP 403" },
+        message: expect.stringContaining("Authentication required"),
+        data: { error: "HTTP 401" },
       });
     });
 

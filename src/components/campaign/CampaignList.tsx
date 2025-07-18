@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { USER_MESSAGES } from "../../constants";
 import { authenticatedFetchWithExpiration } from "../../lib/auth";
 import { API_CONFIG } from "../../shared";
-import { USER_MESSAGES } from "../../constants";
 import type { Campaign, CampaignListProps } from "../../types/campaign";
 
 export function CampaignList({
