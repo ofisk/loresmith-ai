@@ -3,6 +3,7 @@ import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { Input } from "@/components/input/Input";
 import { cn } from "@/lib/utils";
+import { X } from "@phosphor-icons/react";
 
 interface PdfUploadProps {
   onUpload: (
@@ -25,7 +26,8 @@ export const PdfUpload = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filename, setFilename] = useState("");
   const [description, setDescription] = useState("");
-  const [tags, setTags] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
   const [isValid, setIsValid] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -46,13 +48,24 @@ export const PdfUpload = ({
 
   const handleUpload = () => {
     if (selectedFile) {
-      const tagsArray = tags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter((tag) => tag.length > 0);
+      const tagsArray = tags;
 
       onUpload(selectedFile, filename, description, tagsArray);
     }
+  };
+
+  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && tagInput.trim()) {
+      e.preventDefault();
+      if (!tags.includes(tagInput.trim())) {
+        setTags([...tags, tagInput.trim()]);
+      }
+      setTagInput("");
+    }
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    setTags(tags.filter((t) => t !== tag));
   };
 
   const handleDrop = (event: React.DragEvent) => {
@@ -149,7 +162,9 @@ export const PdfUpload = ({
                 <div className="text-ob-base-300 font-medium">
                   Click to select or drag and drop
                 </div>
-                <div className="text-ob-base-200 text-sm">PDF files only</div>
+                <div className="text-ob-base-200 text-sm">
+                  Supported format: PDF
+                </div>
               </div>
             )}
           </button>
@@ -159,7 +174,7 @@ export const PdfUpload = ({
         <div className="mx-auto max-w-md w-full space-y-3 text-left">
           {!isValid && (
             <div className="text-ob-destructive text-sm">
-              Please select a valid PDF file
+              Please select a valid resource file (PDF)
             </div>
           )}
 
@@ -173,10 +188,10 @@ export const PdfUpload = ({
             </label>
             <Input
               id="pdf-filename"
-              placeholder="Enter a filename for this PDF..."
               value={filename}
               onValueChange={(value) => setFilename(value)}
               disabled={loading || !selectedFile}
+              className="bg-neutral-200 text-black border border-gray-400 dark:bg-neutral-800 dark:text-white dark:border-gray-600"
             />
           </div>
 
@@ -190,10 +205,10 @@ export const PdfUpload = ({
             </label>
             <Input
               id="pdf-description"
-              placeholder="Enter a description for this PDF..."
               value={description}
               onValueChange={(value) => setDescription(value)}
               disabled={loading}
+              className="bg-neutral-200 text-black border border-gray-400 dark:bg-neutral-800 dark:text-white dark:border-gray-600"
             />
           </div>
 
@@ -205,16 +220,32 @@ export const PdfUpload = ({
             >
               Tags (optional)
             </label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center px-3 py-1 rounded-full bg-gray-200 dark:bg-neutral-700 text-sm text-gray-800 dark:text-gray-100"
+                >
+                  {tag.length > 10 ? `${tag.slice(0, 10)}...` : tag}
+                  <button
+                    type="button"
+                    className="ml-2 text-gray-500 hover:text-red-500 focus:outline-none"
+                    onClick={() => handleRemoveTag(tag)}
+                    aria-label={`Remove tag ${tag}`}
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
             <Input
               id="pdf-tags"
-              placeholder="Enter tags separated by commas..."
-              value={tags}
-              onValueChange={(value) => setTags(value)}
+              value={tagInput}
+              onValueChange={setTagInput}
+              onKeyDown={handleTagInputKeyDown}
               disabled={loading}
+              className="bg-neutral-200 text-black border border-gray-400 dark:bg-neutral-800 dark:text-white dark:border-gray-600"
             />
-            <div className="text-ob-base-200 text-xs">
-              Example: research, important, draft
-            </div>
           </div>
 
           {/* Upload Button */}
@@ -223,14 +254,14 @@ export const PdfUpload = ({
             disabled={isUploadDisabled}
             loading={loading}
             variant={selectedFile ? "primary" : "secondary"}
-            size="base"
+            size="sm"
             className={cn(
-              "w-48",
+              "w-48 text-sm py-2",
               selectedFile &&
                 "bg-[#F48120] hover:bg-[#F48120]/90 text-white border-[#F48120]",
               !selectedFile &&
-                "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 cursor-not-allowed",
-              "mt-16"
+                "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-300 border-gray-300 dark:border-gray-700 cursor-not-allowed",
+              "mt-6"
             )}
           >
             {loading ? "Uploading..." : "Upload"}

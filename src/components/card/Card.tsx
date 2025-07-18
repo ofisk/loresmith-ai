@@ -23,7 +23,7 @@ export const Card = ({
   return (
     <Component
       className={cn(
-        "w-full rounded-lg p-4",
+        "w-full rounded-lg p-4 bg-white border border-gray-200 dark:bg-neutral-900 dark:border-neutral-800",
         {
           "btn-primary": variant === "primary",
           "btn-secondary": variant === "secondary",
