@@ -490,7 +490,10 @@ app.all("*", async (c) => {
   );
 });
 
-export default app;
+// Export the fetch function for Cloudflare Workers
+export default {
+  fetch: app.fetch,
+};
 
 // Export Durable Objects
 export { CampaignManager } from "./durable-objects/CampaignManager";
