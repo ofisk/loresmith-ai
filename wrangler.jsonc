@@ -44,6 +44,10 @@
       "tag": "v4",
       "new_sqlite_classes": ["CampaignManager"],
     },
+    {
+      "tag": "v5",
+      "new_sqlite_classes": ["Chat"],
+    },
   ],
   "observability": {
     "enabled": true,
