@@ -3,13 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { Input } from "@/components/input/Input";
+import { Modal } from "@/components/modal/Modal";
 import { cn } from "@/lib/utils";
 import { API_CONFIG, USER_MESSAGES } from "../../constants";
+import { useJwtExpiration } from "../../hooks/useJwtExpiration";
+import { authenticatedFetchWithExpiration } from "../../lib/auth";
 import { PdfList } from "./PdfList";
 import { PdfUpload } from "./PdfUpload";
-import { authenticatedFetchWithExpiration } from "../../lib/auth";
-import { useJwtExpiration } from "../../hooks/useJwtExpiration";
-import { Modal } from "@/components/modal/Modal";
 
 interface PdfUploadAgentProps {
   className?: string;

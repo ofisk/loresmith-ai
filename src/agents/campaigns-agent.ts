@@ -1,4 +1,4 @@
-import { campaignTools } from "../tools/campaignTools";
+import { campaignTools } from "../tools/campaign";
 import { BaseAgent } from "./base-agent";
 
 interface Env {

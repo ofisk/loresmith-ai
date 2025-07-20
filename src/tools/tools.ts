@@ -10,10 +10,10 @@ import { z } from "zod";
 import {
   API_CONFIG,
   AUTH_CODES,
-  USER_MESSAGES,
   type ToolResult,
-} from "./constants";
-import type { Chat } from "./server";
+  USER_MESSAGES,
+} from "../constants";
+import type { Chat } from "../server";
 
 /**
  * Tool to set admin secret for PDF upload functionality
