@@ -1,10 +1,10 @@
+import { getCurrentAgent } from "agents";
 import {
   unstable_getSchedulePrompt,
   unstable_scheduleSchema,
 } from "agents/schedule";
 import { tool } from "ai";
 import { z } from "zod";
-import { getCurrentAgent } from "agents";
 import type { Chat } from "../server";
 import { BaseAgent } from "./base-agent";
 

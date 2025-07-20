@@ -1,3 +1,4 @@
+import { openai } from "@ai-sdk/openai";
 import { routeAgentRequest, type Schedule } from "agents";
 import { AIChatAgent } from "agents/ai-chat-agent";
 import { generateId, type StreamTextOnFinishCallback, type ToolSet } from "ai";
@@ -6,9 +7,8 @@ import { Hono } from "hono";
 import { type JWTPayload, jwtVerify, SignJWT } from "jose";
 import campaignAgent from "./agents/campaign";
 import { CampaignsAgent } from "./agents/campaigns-agent";
-import { ResourceAgent } from "./agents/resource-agent";
 import { GeneralAgent } from "./agents/general-agent";
-import { openai } from "@ai-sdk/openai";
+import { ResourceAgent } from "./agents/resource-agent";
 
 interface PdfAuthPayload extends JWTPayload {
   type: "pdf-auth";

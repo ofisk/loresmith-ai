@@ -1,4 +1,4 @@
-import { pdfTools } from "../tools/pdfTools";
+import { pdfTools } from "../tools/pdf";
 import { BaseAgent } from "./base-agent";
 
 interface Env {

@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { authenticatedFetchWithExpiration } from "../../lib/auth";
+import { toast } from "react-hot-toast";
 import { USER_MESSAGES } from "../../constants";
+import { authenticatedFetchWithExpiration } from "../../lib/auth";
+import type {
+  Campaign,
+  CampaignDetailProps,
+  CreateCampaignResponse,
+} from "../../types/campaign";
 import { Button } from "../button/Button";
 import { Card } from "../card/Card";
 import { Loader } from "../loader/Loader";
-import { toast } from "react-hot-toast";
-import type {
-  Campaign,
-  CreateCampaignResponse,
-  CampaignDetailProps,
-} from "../../types/campaign";
 
 export function CampaignDetail({
   campaignId,

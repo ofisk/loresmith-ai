@@ -23,11 +23,11 @@ import { PdfUploadAgent } from "@/components/pdf-upload/PdfUploadAgent";
 import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
-import type { tools } from "./tools";
-import type { campaignTools } from "./tools/campaignTools";
-import type { pdfTools } from "./tools/pdfTools";
-import { useJwtExpiration } from "./hooks/useJwtExpiration";
 import { USER_MESSAGES } from "./constants";
+import { useJwtExpiration } from "./hooks/useJwtExpiration";
+import type { campaignTools } from "./tools/campaign";
+import type { pdfTools } from "./tools/pdf";
+import type { tools } from "./tools/tools";
 
 // List of tools that require human confirmation
 // NOTE: this should match the keys in the executions object in tools.ts
