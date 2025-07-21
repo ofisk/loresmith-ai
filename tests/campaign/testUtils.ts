@@ -6,11 +6,8 @@ type CampaignManagerStub = {
   fetch: ReturnType<typeof vi.fn>;
 };
 
-type CampaignsKVStub = {
-  get: ReturnType<typeof vi.fn>;
-  put: ReturnType<typeof vi.fn>;
-  delete: ReturnType<typeof vi.fn>;
-  list: ReturnType<typeof vi.fn>;
+type D1DatabaseStub = {
+  prepare: ReturnType<typeof vi.fn>;
 };
 
 /**
@@ -22,7 +19,7 @@ export type Env = {
     idFromName: ReturnType<typeof vi.fn>;
     get: ReturnType<typeof vi.fn>;
   };
-  CAMPAIGNS_KV?: CampaignsKVStub;
+  DB?: D1DatabaseStub;
   ADMIN_SECRET?: string;
 };
 
@@ -188,73 +185,59 @@ export function createMockResource(
 }
 
 /**
- * Create a mock campaigns KV stub
+ * Create a mock D1 database stub
  */
-export function createCampaignsKVStub(
-  campaigns: Record<string, string> = {},
+export function createD1DatabaseStub(
+  campaigns: any[] = [],
   operationSuccess = true
-): CampaignsKVStub {
+): D1DatabaseStub {
   return {
-    get: vi.fn(async (key: string) => {
-      if (!operationSuccess) {
-        throw new Error("KV operation failed");
-      }
-      return campaigns[key] || null;
-    }),
-    put: vi.fn(async (key: string, value: string) => {
-      if (!operationSuccess) {
-        throw new Error("KV operation failed");
-      }
-      campaigns[key] = value;
-    }),
-    delete: vi.fn(async (key: string) => {
-      if (!operationSuccess) {
-        throw new Error("KV operation failed");
-      }
-      delete campaigns[key];
-    }),
-    list: vi.fn(async (options?: any) => {
-      if (!operationSuccess) {
-        throw new Error("KV operation failed");
-      }
-
-      let keys = Object.keys(campaigns);
-
-      // Filter by prefix if provided
-      if (options?.prefix) {
-        keys = keys.filter((key) => key.startsWith(options.prefix));
-      }
-
-      return {
-        keys: keys.map((key) => ({ name: key })),
-        list_complete: true,
-        cursor: "",
+    prepare: vi.fn((_query: string) => {
+      const mockStmt = {
+        bind: vi.fn(() => mockStmt),
+        all: vi.fn(async () => ({ results: campaigns })),
+        first: vi.fn(async () => campaigns[0] || null),
+        run: vi.fn(async () => ({
+          meta: { changes: operationSuccess ? 1 : 0 },
+        })),
       };
+      return mockStmt;
     }),
   };
 }
 
 /**
- * Helper to create a test environment with campaign manager and KV storage
+ * Helper to create a test environment with campaign manager and D1 database
  */
 export function createTestEnv(
   campaigns: CampaignData[] = [],
   campaign?: CampaignData,
   operationSuccess = true
 ): Env {
-  // Create KV storage with campaign data
-  const kvData: Record<string, string> = {};
+  // Convert campaigns to D1 format
+  const d1Campaigns = campaigns.map((c) => ({
+    id: c.campaignId,
+    username: "demo-user",
+    name: c.name,
+    description: null,
+    status: "active",
+    metadata: JSON.stringify({}),
+    created_at: c.createdAt,
+    updated_at: c.updatedAt,
+  }));
 
   // Add individual campaign if provided
   if (campaign) {
-    const key = `user:demo-user:campaign:${campaign.campaignId}`;
-    kvData[key] = JSON.stringify(campaign);
-  }
-
-  // Add all campaigns from the array
-  for (const campaignData of campaigns) {
-    const key = `user:demo-user:campaign:${campaignData.campaignId}`;
-    kvData[key] = JSON.stringify(campaignData);
+    d1Campaigns.unshift({
+      id: campaign.campaignId,
+      username: "demo-user",
+      name: campaign.name,
+      description: null,
+      status: "active",
+      metadata: JSON.stringify({}),
+      created_at: campaign.createdAt,
+      updated_at: campaign.updatedAt,
+    });
   }
 
   return {
@@ -264,7 +247,7 @@ export function createTestEnv(
         createCampaignManagerStub(campaigns, campaign, operationSuccess)
       ),
     },
-    CAMPAIGNS_KV: createCampaignsKVStub(kvData, operationSuccess),
+    DB: createD1DatabaseStub(d1Campaigns, operationSuccess),
     ADMIN_SECRET: "test-admin-secret",
   };
 }

@@ -1,3 +1,4 @@
+import type { D1Database } from "@cloudflare/workers-types";
 import { getCurrentAgent } from "agents";
 import {
   unstable_getSchedulePrompt,
@@ -11,6 +12,7 @@ import { BaseAgent } from "./base-agent";
 interface Env {
   ADMIN_SECRET?: string;
   PDF_BUCKET: R2Bucket;
+  DB: D1Database;
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
   CampaignManager: DurableObjectNamespace;

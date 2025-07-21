@@ -619,10 +619,21 @@ const deleteCampaigns = tool({
 
       // If there was an authentication error, return it immediately
       if (authError) {
+        // Find the first authentication error status code
+        let authStatusCode = 401; // Default
+        for (const result of verificationResults) {
+          if (result.status === "fulfilled" && result.value.response) {
+            const { response } = result.value;
+            if (response.status === 401 || response.status === 403) {
+              authStatusCode = response.status;
+              break;
+            }
+          }
+        }
         return {
           code: AUTH_CODES.INVALID_KEY,
           message: authError,
-          data: { error: "HTTP 401" }, // Default to 401, will be overridden by specific error handling
+          data: { error: `HTTP ${authStatusCode}` },
         };
       }
 

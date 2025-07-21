@@ -1,14 +1,14 @@
 import { SignJWT } from "jose";
 import { beforeEach, describe, expect, it } from "vitest";
 // Import the campaign agent
-import campaignAgent from "../../src/agents/campaign";
+import campaignAgent from "../../src/agents/campaign-agent";
 // Import our mocks instead of cloudflare:test
 import {
   createExecutionContext,
   waitOnExecutionContext,
 } from "../mocks/cloudflare-test";
 import {
-  createCampaignsKVStub,
+  createD1DatabaseStub,
   createMockCampaign,
   createTestEnv,
 } from "./testUtils";
@@ -85,8 +85,8 @@ describe("Campaign API Endpoints (Node Environment)", () => {
       const env = createTestEnv();
       // Ensure ADMIN_SECRET is set
       env.ADMIN_SECRET = "test-admin-secret";
-      // Override the KV stub to return our test data
-      env.CAMPAIGNS_KV = createCampaignsKVStub(kvData, true);
+      // Override the DB stub to return our test data
+      env.DB = createD1DatabaseStub(userACampaigns, true);
 
       // Test that UserA only sees their own campaigns
       const userAJWT = await generateTestJWT("user-a");
@@ -165,8 +165,8 @@ describe("Campaign API Endpoints (Node Environment)", () => {
       const env = createTestEnv();
       // Ensure ADMIN_SECRET is set
       env.ADMIN_SECRET = "test-admin-secret";
-      // Override the KV stub to return our test data
-      env.CAMPAIGNS_KV = createCampaignsKVStub(kvData, true);
+      // Override the DB stub to return our test data
+      env.DB = createD1DatabaseStub(mockCampaigns, true);
 
       const testJWT = await generateTestJWT("test-user");
       const request = new Request("http://example.com/campaigns", {
@@ -213,7 +213,7 @@ describe("Campaign API Endpoints (Node Environment)", () => {
       const env = createTestEnv();
       // Ensure ADMIN_SECRET is set
       env.ADMIN_SECRET = "test-admin-secret";
-      env.CAMPAIGNS_KV = createCampaignsKVStub(kvData, true);
+      env.DB = createD1DatabaseStub([userACampaign, userBCampaign], true);
 
       // Test that UserA cannot access UserB's campaign
       const userAJWT = await generateTestJWT("user-a");

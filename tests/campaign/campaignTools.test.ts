@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AUTH_CODES, USER_MESSAGES } from "../../src/constants";
-import { campaignTools } from "../../src/tools/campaignTools";
+import { campaignTools } from "../../src/tools/campaign";
 
 // Mock fetch globally
 global.fetch = vi.fn();
@@ -295,7 +295,7 @@ describe("Campaign Tools", () => {
       expect(result).toEqual({
         code: AUTH_CODES.INVALID_KEY,
         message: expect.stringContaining("Access denied"),
-        data: { error: "HTTP 401" },
+        data: { error: "HTTP 403" },
       });
     });
 

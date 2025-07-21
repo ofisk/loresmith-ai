@@ -5,7 +5,7 @@ import {
 import { SignJWT } from "jose";
 import { beforeEach, describe, expect, it } from "vitest";
 // Import the campaign agent
-import campaignAgent from "../../src/agents/campaign";
+import campaignAgent from "../../src/agents/campaign-agent";
 import {
   createCampaignsKVStub,
   createMockCampaign,

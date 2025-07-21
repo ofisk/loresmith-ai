@@ -5,10 +5,10 @@ import { generateId, type StreamTextOnFinishCallback, type ToolSet } from "ai";
 import type { Context } from "hono";
 import { Hono } from "hono";
 import { type JWTPayload, jwtVerify, SignJWT } from "jose";
-import campaignAgent from "./agents/campaign";
-import { CampaignsAgent } from "./agents/campaigns-agent";
+import { CampaignAgent } from "./agents/campaign-agent";
 import { GeneralAgent } from "./agents/general-agent";
 import { ResourceAgent } from "./agents/resource-agent";
+import type { AuthEnv } from "./lib/auth";
 
 interface UserAuthPayload extends JWTPayload {
   type: "user-auth";
@@ -16,10 +16,11 @@ interface UserAuthPayload extends JWTPayload {
   openaiApiKey?: string;
 }
 
-interface Env {
+interface Env extends AuthEnv {
   ADMIN_SECRET?: string;
   OPENAI_API_KEY?: string;
   PDF_BUCKET: R2Bucket;
+  DB: D1Database;
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
   CampaignManager: DurableObjectNamespace;
@@ -68,7 +69,7 @@ console.log("Server file loaded and running");
  * Chat Agent implementation that routes to specialized agents based on user intent
  */
 export class Chat extends AIChatAgent<Env> {
-  private campaignsAgent: CampaignsAgent;
+  private campaignAgent: CampaignAgent;
   private resourceAgent: ResourceAgent;
   private generalAgent: GeneralAgent;
   private userOpenAIKey: string | null = null;
@@ -77,7 +78,7 @@ export class Chat extends AIChatAgent<Env> {
     super(ctx, env);
     // Initialize with default model
     const model = openai("gpt-4o-mini");
-    this.campaignsAgent = new CampaignsAgent(ctx, env, model);
+    this.campaignAgent = new CampaignAgent(ctx, env, model);
     this.resourceAgent = new ResourceAgent(ctx, env, model);
     this.generalAgent = new GeneralAgent(ctx, env, model);
 
@@ -113,7 +114,7 @@ export class Chat extends AIChatAgent<Env> {
     const model = openai("gpt-4o-mini");
 
     // Update all agents with the new model
-    this.campaignsAgent = new CampaignsAgent(this.ctx, this.env, model);
+    this.campaignAgent = new CampaignAgent(this.ctx, this.env, model);
     this.resourceAgent = new ResourceAgent(this.ctx, this.env, model);
     this.generalAgent = new GeneralAgent(this.ctx, this.env, model);
   }
@@ -292,10 +293,10 @@ export class Chat extends AIChatAgent<Env> {
    */
   private getAgentInstance(
     targetAgent: "campaigns" | "resources" | "general"
-  ): AIChatAgent<Env> {
+  ): any {
     switch (targetAgent) {
       case "campaigns":
-        return this.campaignsAgent;
+        return this.campaignAgent;
       case "resources":
         return this.resourceAgent;
       case "general":
@@ -680,7 +681,6 @@ app.get("/pdf/stats", requireUserJwt, async (c) => {
 });
 
 // Mount campaign agent routes
-app.route("/", campaignAgent);
 
 app.all("*", async (c) => {
   if (!process.env.OPENAI_API_KEY) {
