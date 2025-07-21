@@ -89,6 +89,24 @@ export const PdfUploadAgent = ({
         setIsAuthenticated(false);
         setJwtUsername(null);
         setCheckingAuth(false);
+
+        // Also check if we need to require OpenAI key when not authenticated
+        try {
+          const response = await fetch(
+            API_CONFIG.buildUrl("/check-open-ai-key")
+          );
+          const result = (await response.json()) as { success: boolean };
+          console.log("Initial OpenAI key check:", result);
+
+          if (!result.success) {
+            console.log("Setting requiresOpenAIKey to true on mount");
+            setRequiresOpenAIKey(true);
+          }
+        } catch (error) {
+          console.error("Error checking OpenAI key on mount:", error);
+          setRequiresOpenAIKey(true);
+        }
+
         return;
       }
 
@@ -132,6 +150,34 @@ export const PdfUploadAgent = ({
 
     checkAuthAndOpenAI();
   }, [clearExpiration]);
+
+  // Check OpenAI key requirement when authentication form is shown
+  useEffect(() => {
+    if (showAuthInput && !isAuthenticated) {
+      const checkOpenAIRequirement = async () => {
+        try {
+          const response = await fetch(
+            API_CONFIG.buildUrl("/check-open-ai-key")
+          );
+          const result = (await response.json()) as { success: boolean };
+          console.log("Auth form OpenAI key check:", result);
+
+          if (!result.success) {
+            console.log("Setting requiresOpenAIKey to true for auth form");
+            setRequiresOpenAIKey(true);
+          } else {
+            console.log("Setting requiresOpenAIKey to false for auth form");
+            setRequiresOpenAIKey(false);
+          }
+        } catch (error) {
+          console.error("Error checking OpenAI key for auth form:", error);
+          setRequiresOpenAIKey(true);
+        }
+      };
+
+      checkOpenAIRequirement();
+    }
+  }, [showAuthInput, isAuthenticated]);
 
   // Listen for agent responses to update authentication state
   useEffect(() => {
@@ -249,22 +295,28 @@ export const PdfUploadAgent = ({
   const handleAuthenticate = async () => {
     try {
       setAuthError(null);
+      setShowAuthInput(true); // Show the form immediately
 
       // Check if a default OpenAI key is available
       try {
         const response = await fetch(API_CONFIG.buildUrl("/check-open-ai-key"));
         const result = (await response.json()) as { success: boolean };
 
+        console.log("OpenAI key check result:", result);
+
         if (!result.success) {
+          console.log("Setting requiresOpenAIKey to true");
           setRequiresOpenAIKey(true);
+        } else {
+          console.log("Setting requiresOpenAIKey to false");
+          setRequiresOpenAIKey(false);
         }
       } catch (error) {
         console.error("Error checking OpenAI key availability:", error);
         // If we can't check, assume we need a key
+        console.log("Error occurred, setting requiresOpenAIKey to true");
         setRequiresOpenAIKey(true);
       }
-
-      setShowAuthInput(true);
     } catch (error) {
       console.error("Error starting authentication:", error);
       setAuthError("Failed to start authentication");
@@ -460,6 +512,11 @@ export const PdfUploadAgent = ({
                       if (e.key === "Enter") handleSubmitAuth();
                     }}
                   />
+                  {/* Debug info */}
+                  <div className="text-xs text-gray-500">
+                    Debug: requiresOpenAIKey = {requiresOpenAIKey.toString()}
+                  </div>
+
                   {requiresOpenAIKey && (
                     <>
                       <label
