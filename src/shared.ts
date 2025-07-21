@@ -53,6 +53,13 @@ export const API_CONFIG = {
       UPDATE_METADATA: "/pdf/update-metadata",
       STATS: "/pdf/stats",
     },
+    RAG: {
+      SEARCH: "/rag/search",
+      PROCESS_PDF: "/rag/process-pdf",
+      PDFS: "/rag/pdfs",
+      PDF_CHUNKS: (fileKey: string) => `/rag/pdfs/${fileKey}/chunks`,
+      DELETE_PDF: (fileKey: string) => `/rag/pdfs/${fileKey}`,
+    },
   },
 
   // Helper function to get the base URL

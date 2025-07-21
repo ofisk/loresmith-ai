@@ -9,6 +9,7 @@ import { CampaignAgent } from "./agents/campaign-agent";
 import { GeneralAgent } from "./agents/general-agent";
 import { ResourceAgent } from "./agents/resource-agent";
 import type { AuthEnv } from "./lib/auth";
+import { RAGService } from "./lib/rag";
 
 interface UserAuthPayload extends JWTPayload {
   type: "user-auth";
@@ -21,6 +22,7 @@ interface Env extends AuthEnv {
   OPENAI_API_KEY?: string;
   PDF_BUCKET: R2Bucket;
   DB: D1Database;
+  VECTORIZE: VectorizeIndex;
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
   CampaignManager: DurableObjectNamespace;
@@ -680,8 +682,185 @@ app.get("/pdf/stats", requireUserJwt, async (c) => {
   }
 });
 
-// Mount campaign agent routes
+// RAG Search Route
+app.post("/rag/search", requireUserJwt, async (c) => {
+  try {
+    const userAuth = (c as any).userAuth;
+    const { query, limit = 10 } = await c.req.json();
 
+    if (!query || typeof query !== "string") {
+      return c.json({ error: "Query is required" }, 400);
+    }
+
+    const ragService = new RAGService(c.env.DB, c.env.VECTORIZE);
+    const results = await ragService.searchContent(
+      userAuth.username,
+      query,
+      limit
+    );
+
+    return c.json({ results });
+  } catch (error) {
+    console.error("Error searching RAG:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// RAG Process PDF Route
+app.post("/rag/process-pdf", requireUserJwt, async (c) => {
+  try {
+    const userAuth = (c as any).userAuth;
+    const { fileKey, content, metadata } = await c.req.json();
+
+    if (!fileKey || !content) {
+      return c.json({ error: "File key and content are required" }, 400);
+    }
+
+    const ragService = new RAGService(c.env.DB, c.env.VECTORIZE);
+    await ragService.processPdf(
+      fileKey,
+      userAuth.username,
+      content,
+      metadata || {}
+    );
+
+    return c.json({ success: true, message: "PDF processed successfully" });
+  } catch (error) {
+    console.error("Error processing PDF for RAG:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// RAG Get PDFs Route
+app.get("/rag/pdfs", requireUserJwt, async (c) => {
+  try {
+    const userAuth = (c as any).userAuth;
+
+    const ragService = new RAGService(c.env.DB, c.env.VECTORIZE);
+    const pdfs = await ragService.getUserPdfs(userAuth.username);
+
+    return c.json({ pdfs });
+  } catch (error) {
+    console.error("Error getting PDFs:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// RAG Get PDF Chunks Route
+app.get("/rag/pdfs/:fileKey/chunks", requireUserJwt, async (c) => {
+  try {
+    const userAuth = (c as any).userAuth;
+    const fileKey = c.req.param("fileKey");
+
+    if (!fileKey) {
+      return c.json({ error: "File key is required" }, 400);
+    }
+
+    const ragService = new RAGService(c.env.DB, c.env.VECTORIZE);
+    const chunks = await ragService.getPdfChunks(fileKey, userAuth.username);
+
+    return c.json({ chunks });
+  } catch (error) {
+    console.error("Error getting PDF chunks:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// RAG Delete PDF Route
+app.delete("/rag/pdfs/:fileKey", requireUserJwt, async (c) => {
+  try {
+    const userAuth = (c as any).userAuth;
+    const fileKey = c.req.param("fileKey");
+
+    if (!fileKey) {
+      return c.json({ error: "File key is required" }, 400);
+    }
+
+    const ragService = new RAGService(c.env.DB, c.env.VECTORIZE);
+    await ragService.deletePdf(fileKey, userAuth.username);
+
+    return c.json({ success: true, message: "PDF deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting PDF:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// Mount campaign agent routes
+app.get("/campaigns", requireUserJwt, async (c) => {
+  try {
+    const userAuth = (c as any).userAuth;
+    const userId = userAuth.username;
+
+    const { results } = await c.env.DB.prepare(
+      "SELECT * FROM campaigns WHERE username = ? ORDER BY created_at DESC"
+    )
+      .bind(userId)
+      .all();
+
+    console.log(
+      `[GET] Listing campaigns for user`,
+      userId,
+      "found campaigns:",
+      results.length
+    );
+
+    return c.json({ campaigns: results });
+  } catch (error) {
+    console.error("Error fetching campaigns:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+app.post("/campaigns", requireUserJwt, async (c) => {
+  try {
+    const { name, description } = await c.req.json();
+    const userAuth = (c as any).userAuth;
+
+    if (!name || typeof name !== "string" || name.trim() === "") {
+      return c.json({ error: "Campaign name is required" }, 400);
+    }
+
+    const userId = userAuth.username;
+    const campaignId = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    const campaign = {
+      id: campaignId,
+      username: userId,
+      name: name.trim(),
+      description: description?.trim() || null,
+      status: "active",
+      metadata: JSON.stringify({}),
+      created_at: now,
+      updated_at: now,
+    };
+
+    // Store in D1
+    await c.env.DB.prepare(
+      "INSERT INTO campaigns (id, username, name, description, status, metadata, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+      .bind(
+        campaign.id,
+        campaign.username,
+        campaign.name,
+        campaign.description,
+        campaign.status,
+        campaign.metadata,
+        campaign.created_at,
+        campaign.updated_at
+      )
+      .run();
+
+    console.log(`[POST] Created campaign for user`, userId, ":", campaignId);
+    return c.json({ success: true, campaign });
+  } catch (error) {
+    console.error("Error creating campaign:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// Mount other agent routes
 app.all("*", async (c) => {
   if (!process.env.OPENAI_API_KEY) {
     console.error(

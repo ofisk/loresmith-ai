@@ -12,6 +12,7 @@ declare namespace Cloudflare {
 		UserFileTracker: DurableObjectNamespace<import("./src/server").UserFileTracker>;
 		CampaignManager: DurableObjectNamespace<import("./src/server").CampaignManager>;
 		PDF_BUCKET: R2Bucket;
+		VECTORIZE: VectorizeIndex;
 	}
 }
 interface Env extends Cloudflare.Env {}

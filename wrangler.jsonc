@@ -35,6 +35,12 @@
       "database_id": "bc158293-b4b4-4b21-b549-e5d011c0af3e",
     },
   ],
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "loresmith-embeddings",
+    },
+  ],
   "migrations": [
     {
       "tag": "v1",
