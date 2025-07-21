@@ -39,8 +39,10 @@ export const API_CONFIG = {
       RESOURCE: (campaignId: string) => `/campaigns/${campaignId}/resource`,
       DETAILS: (campaignId: string) => `/campaigns/${campaignId}`,
     },
+    AUTH: {
+      AUTHENTICATE: "/auth/authenticate",
+    },
     PDF: {
-      AUTHENTICATE: "/pdf/authenticate",
       UPLOAD_URL: "/pdf/upload-url",
       UPLOAD: "/pdf/upload",
       INGEST: "/pdf/ingest",

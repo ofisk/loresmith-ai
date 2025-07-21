@@ -85,9 +85,9 @@ export default function Chat() {
   // Get session ID for this browser session
   const sessionId = getSessionId();
 
-  // Get stored JWT for PDF operations
+  // Get stored JWT for user operations
   const getStoredJwt = (): string | null => {
-    const jwt = localStorage.getItem("pdf_auth_jwt");
+    const jwt = localStorage.getItem("user_auth_jwt");
     console.log("[App] getStoredJwt() returns:", jwt);
     return jwt;
   };
