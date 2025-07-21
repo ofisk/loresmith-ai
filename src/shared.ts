@@ -42,6 +42,9 @@ export const API_CONFIG = {
     AUTH: {
       AUTHENTICATE: "/auth/authenticate",
     },
+    CHAT: {
+      SET_OPENAI_KEY: "/chat/set-openai-key",
+    },
     PDF: {
       UPLOAD_URL: "/pdf/upload-url",
       UPLOAD: "/pdf/upload",

@@ -6,13 +6,13 @@ import { Input } from "@/components/input/Input";
 import { Modal } from "@/components/modal/Modal";
 import { cn } from "@/lib/utils";
 import { API_CONFIG, USER_MESSAGES } from "../../constants";
+import { useJwtExpiration } from "../../hooks/useJwtExpiration";
 import {
   authenticatedFetchWithExpiration,
+  clearJwt,
   getStoredJwt,
   storeJwt,
-  clearJwt,
 } from "../../lib/auth";
-import { useJwtExpiration } from "../../hooks/useJwtExpiration";
 import { PdfList } from "./PdfList";
 import { PdfUpload } from "./PdfUpload";
 
@@ -53,9 +53,11 @@ export const PdfUploadAgent = ({
   const [authError, setAuthError] = useState<string | null>(null);
   const [showAuthInput, setShowAuthInput] = useState(false);
   const [adminKey, setAdminKey] = useState("");
+  const [openaiApiKey, setOpenaiApiKey] = useState("");
   const [authenticating, setAuthenticating] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isAuthPanelExpanded, setIsAuthPanelExpanded] = useState(true);
+  const [requiresOpenAIKey, setRequiresOpenAIKey] = useState(false);
 
   const lastProcessedMessageId = useRef<string | null>(null);
   const [username, setUsername] = useState("");
@@ -79,52 +81,56 @@ export const PdfUploadAgent = ({
 
   const effectiveIsAuthenticated = isAuthenticated && !isExpired;
 
-  // On mount, check for JWT
+  // On mount, check for JWT and default OpenAI key
   useEffect(() => {
-    const jwt = getStoredJwt();
-    if (!jwt) {
-      setIsAuthenticated(false);
-      setJwtUsername(null);
-      setCheckingAuth(false);
-      return;
-    }
-
-    // Check if JWT is expired
-    try {
-      const payload = JSON.parse(atob(jwt.split(".")[1]));
-      const currentTime = Math.floor(Date.now() / 1000);
-      if (payload?.exp && payload.exp < currentTime) {
-        // JWT is expired, clear it and show auth
-        handleJwtExpirationLocal(
-          clearJwt,
-          setIsAuthenticated,
-          setJwtUsername,
-          setAuthError,
-          setShowAuthInput,
-          undefined,
-          setCheckingAuth
-        );
+    const checkAuthAndOpenAI = async () => {
+      const jwt = getStoredJwt();
+      if (!jwt) {
+        setIsAuthenticated(false);
+        setJwtUsername(null);
+        setCheckingAuth(false);
         return;
       }
 
-      if (payload?.username) {
-        setJwtUsername(payload.username);
-      } else {
-        setJwtUsername(null);
-      }
-    } catch {
-      // Invalid JWT, clear it
-      clearJwt();
-      setJwtUsername(null);
-      setIsAuthenticated(false);
-      setCheckingAuth(false);
-      return;
-    }
+      // Check if JWT is expired
+      try {
+        const payload = JSON.parse(atob(jwt.split(".")[1]));
+        const currentTime = Math.floor(Date.now() / 1000);
+        if (payload?.exp && payload.exp < currentTime) {
+          // JWT is expired, clear it and show auth
+          handleJwtExpirationLocal(
+            clearJwt,
+            setIsAuthenticated,
+            setJwtUsername,
+            setAuthError,
+            setShowAuthInput,
+            undefined,
+            setCheckingAuth
+          );
+          return;
+        }
 
-    setIsAuthenticated(true);
-    // Clear any expiration state since we have a valid JWT
-    clearExpiration();
-    setCheckingAuth(false);
+        if (payload?.username) {
+          setJwtUsername(payload.username);
+        } else {
+          setJwtUsername(null);
+        }
+      } catch {
+        // Invalid JWT, clear it
+        clearJwt();
+        setJwtUsername(null);
+        setIsAuthenticated(false);
+        setCheckingAuth(false);
+        return;
+      }
+
+      setIsAuthenticated(true);
+      // Clear any expiration state since we have a valid JWT
+      clearExpiration();
+      setCheckingAuth(false);
+    };
+
+    checkAuthAndOpenAI();
   }, [clearExpiration]);
 
   // Listen for agent responses to update authentication state
@@ -243,6 +249,21 @@ export const PdfUploadAgent = ({
   const handleAuthenticate = async () => {
     try {
       setAuthError(null);
+
+      // Check if a default OpenAI key is available
+      try {
+        const response = await fetch(API_CONFIG.buildUrl("/check-open-ai-key"));
+        const result = (await response.json()) as { success: boolean };
+
+        if (!result.success) {
+          setRequiresOpenAIKey(true);
+        }
+      } catch (error) {
+        console.error("Error checking OpenAI key availability:", error);
+        // If we can't check, assume we need a key
+        setRequiresOpenAIKey(true);
+      }
+
       setShowAuthInput(true);
     } catch (error) {
       console.error("Error starting authentication:", error);
@@ -259,6 +280,10 @@ export const PdfUploadAgent = ({
       setAuthError("Please enter your username");
       return;
     }
+    if (requiresOpenAIKey && !openaiApiKey.trim()) {
+      setAuthError("Please enter your OpenAI API key");
+      return;
+    }
     try {
       setAuthenticating(true);
       setAuthError(null);
@@ -272,13 +297,25 @@ export const PdfUploadAgent = ({
           body: JSON.stringify({
             providedKey: adminKey,
             username: username.trim(),
+            ...(requiresOpenAIKey && { openaiApiKey: openaiApiKey.trim() }),
           }),
         }
       );
       const result = (await response.json()) as {
         token?: string;
         error?: string;
+        requiresOpenAIKey?: boolean;
+        hasDefaultOpenAIKey?: boolean;
       };
+
+      if (response.status === 400 && result.requiresOpenAIKey) {
+        setRequiresOpenAIKey(true);
+        setAuthError(
+          "OpenAI API key is required when no default key is configured"
+        );
+        return;
+      }
+
       if (response.ok && result.token) {
         storeJwt(result.token);
         // Decode JWT to get username
@@ -297,8 +334,27 @@ export const PdfUploadAgent = ({
         setShowAuthInput(false);
         setAdminKey("");
         setUsername("");
+        setOpenaiApiKey("");
+        setRequiresOpenAIKey(false);
         // Clear any expiration state since we now have a valid JWT
         clearExpiration();
+
+        // If user provided an OpenAI key, set it in the Chat durable object
+        if (result.token && requiresOpenAIKey && openaiApiKey.trim()) {
+          try {
+            await fetch(API_CONFIG.buildUrl("/chat/set-openai-key"), {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${result.token}`,
+              },
+              body: JSON.stringify({ openaiApiKey: openaiApiKey.trim() }),
+            });
+          } catch (error) {
+            console.error("Error setting OpenAI API key in Chat:", error);
+          }
+        }
+
         await append({
           role: "user",
           content:
@@ -404,6 +460,34 @@ export const PdfUploadAgent = ({
                       if (e.key === "Enter") handleSubmitAuth();
                     }}
                   />
+                  {requiresOpenAIKey && (
+                    <>
+                      <label
+                        htmlFor="openai-key"
+                        className="text-ob-base-300 text-sm font-medium mb-2 block"
+                      >
+                        OpenAI API Key
+                      </label>
+                      <Input
+                        id="openai-key"
+                        type="password"
+                        placeholder="Enter your OpenAI API key..."
+                        value={openaiApiKey}
+                        onValueChange={(value: string) =>
+                          setOpenaiApiKey(value)
+                        }
+                        disabled={authenticating}
+                        onKeyDown={(e: React.KeyboardEvent) => {
+                          if (e.key === "Enter") handleSubmitAuth();
+                        }}
+                      />
+                      <p className="text-ob-base-200 text-xs">
+                        Your OpenAI API key is required when no default key is
+                        configured. This key will be used for chat interactions
+                        and will be stored securely.
+                      </p>
+                    </>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -412,7 +496,10 @@ export const PdfUploadAgent = ({
                     size="base"
                     loading={authenticating}
                     disabled={
-                      !adminKey.trim() || !username.trim() || authenticating
+                      !adminKey.trim() ||
+                      !username.trim() ||
+                      (requiresOpenAIKey && !openaiApiKey.trim()) ||
+                      authenticating
                     }
                   >
                     {authenticating ? "Authenticating..." : "Authenticate"}
@@ -422,6 +509,8 @@ export const PdfUploadAgent = ({
                       setShowAuthInput(false);
                       setAdminKey("");
                       setUsername("");
+                      setOpenaiApiKey("");
+                      setRequiresOpenAIKey(false);
                       setAuthError(null);
                     }}
                     variant="secondary"

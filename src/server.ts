@@ -13,10 +13,12 @@ import { ResourceAgent } from "./agents/resource-agent";
 interface UserAuthPayload extends JWTPayload {
   type: "user-auth";
   username: string;
+  openaiApiKey?: string;
 }
 
 interface Env {
   ADMIN_SECRET?: string;
+  OPENAI_API_KEY?: string;
   PDF_BUCKET: R2Bucket;
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
@@ -69,13 +71,117 @@ export class Chat extends AIChatAgent<Env> {
   private campaignsAgent: CampaignsAgent;
   private resourceAgent: ResourceAgent;
   private generalAgent: GeneralAgent;
+  private userOpenAIKey: string | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
+    // Initialize with default model
     const model = openai("gpt-4o-mini");
     this.campaignsAgent = new CampaignsAgent(ctx, env, model);
     this.resourceAgent = new ResourceAgent(ctx, env, model);
     this.generalAgent = new GeneralAgent(ctx, env, model);
+
+    // Load user's OpenAI key from storage if available
+    this.loadUserOpenAIKey();
+  }
+
+  /**
+   * Load the user's OpenAI API key from storage
+   */
+  private async loadUserOpenAIKey() {
+    try {
+      const storedKey = await this.ctx.storage.get<string>("userOpenAIKey");
+      if (storedKey) {
+        this.userOpenAIKey = storedKey;
+        console.log("Loaded user OpenAI API key from storage");
+      }
+    } catch (error) {
+      console.error("Error loading user OpenAI API key:", error);
+    }
+  }
+
+  /**
+   * Set the user's OpenAI API key and update all agents
+   */
+  setUserOpenAIKey(apiKey: string) {
+    this.userOpenAIKey = apiKey;
+    // Store the API key in the durable object state
+    this.ctx.storage.put("userOpenAIKey", apiKey);
+
+    // Create new model instances - the AI SDK will use the environment variable
+    // We'll need to modify the environment or handle this differently
+    const model = openai("gpt-4o-mini");
+
+    // Update all agents with the new model
+    this.campaignsAgent = new CampaignsAgent(this.ctx, this.env, model);
+    this.resourceAgent = new ResourceAgent(this.ctx, this.env, model);
+    this.generalAgent = new GeneralAgent(this.ctx, this.env, model);
+  }
+
+  /**
+   * Get the user's OpenAI API key if available
+   */
+  getUserOpenAIKey(): string | null {
+    return this.userOpenAIKey;
+  }
+
+  /**
+   * Handle HTTP requests to the Chat durable object
+   */
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    if (path === "/set-openai-key") {
+      return this.handleSetOpenAIKey(request);
+    }
+
+    // For all other requests, use the parent class implementation
+    return super.fetch(request);
+  }
+
+  /**
+   * Handle setting the user's OpenAI API key
+   */
+  private async handleSetOpenAIKey(request: Request): Promise<Response> {
+    try {
+      const body = (await request.json()) as { openaiApiKey?: string };
+      const { openaiApiKey } = body;
+
+      if (
+        !openaiApiKey ||
+        typeof openaiApiKey !== "string" ||
+        openaiApiKey.trim() === ""
+      ) {
+        return new Response(
+          JSON.stringify({ error: "OpenAI API key is required" }),
+          {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Set the user's OpenAI API key
+      this.setUserOpenAIKey(openaiApiKey.trim());
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "OpenAI API key set successfully",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      console.error("Error in handleSetOpenAIKey:", error);
+      return new Response(JSON.stringify({ error: "Internal server error" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
   }
 
   /**
@@ -241,14 +347,80 @@ app.use("*", async (c, next) => {
 });
 
 app.get("/check-open-ai-key", (c) => {
-  const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+  const hasOpenAIKey = !!c.env.OPENAI_API_KEY || !!process.env.OPENAI_API_KEY;
   return c.json({ success: hasOpenAIKey });
+});
+
+// Set user's OpenAI API key in Chat durable object
+app.post("/chat/set-openai-key", requireUserJwt, async (c) => {
+  try {
+    const { openaiApiKey } = await c.req.json();
+    if (
+      !openaiApiKey ||
+      typeof openaiApiKey !== "string" ||
+      openaiApiKey.trim() === ""
+    ) {
+      return c.json({ error: "OpenAI API key is required" }, 400);
+    }
+
+    // Validate the OpenAI API key
+    try {
+      const testResponse = await fetch("https://api.openai.com/v1/models", {
+        headers: {
+          Authorization: `Bearer ${openaiApiKey.trim()}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!testResponse.ok) {
+        return c.json({ error: "Invalid OpenAI API key" }, 400);
+      }
+    } catch (error) {
+      console.error("Error validating OpenAI API key:", error);
+      return c.json({ error: "Failed to validate OpenAI API key" }, 400);
+    }
+
+    // Get the Chat durable object for this session
+    const sessionId = c.req.header("X-Session-ID") || "default";
+    const chatId = c.env.Chat.idFromName(sessionId);
+    const chat = c.env.Chat.get(chatId);
+
+    // Call the Chat durable object to set the API key
+    const response = await chat.fetch(
+      new Request("http://localhost/set-openai-key", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${c.req.header("Authorization")}`,
+        },
+        body: JSON.stringify({ openaiApiKey: openaiApiKey.trim() }),
+      })
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      return c.json({ error: `Failed to set OpenAI API key: ${error}` }, 500);
+    }
+
+    return c.json({
+      success: true,
+      message: "OpenAI API key set successfully",
+    });
+  } catch (error) {
+    console.error("Error setting OpenAI API key:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
 });
 
 // User Authentication Route (returns JWT)
 app.post("/auth/authenticate", async (c) => {
-  const { providedKey, username } = await c.req.json();
+  const { providedKey, username, openaiApiKey } = await c.req.json();
   const expectedKey = c.env.ADMIN_SECRET || process.env.ADMIN_SECRET;
+
+  // Check if we have a default OpenAI key
+  const hasDefaultOpenAIKey =
+    !!c.env.OPENAI_API_KEY || !!process.env.OPENAI_API_KEY;
+
   if (
     !providedKey ||
     !expectedKey ||
@@ -258,16 +430,65 @@ app.post("/auth/authenticate", async (c) => {
   ) {
     return c.json({ error: "Missing admin key or username" }, 400);
   }
+
   if (providedKey !== expectedKey) {
     return c.json({ error: "Invalid admin key" }, 401);
   }
-  // Issue JWT with username
-  const jwt = await new SignJWT({ type: "user-auth", username })
+
+  // If no default OpenAI key is set, require the user to provide one
+  if (
+    !hasDefaultOpenAIKey &&
+    (!openaiApiKey ||
+      typeof openaiApiKey !== "string" ||
+      openaiApiKey.trim() === "")
+  ) {
+    return c.json(
+      {
+        error: "OpenAI API key is required when no default key is configured",
+        requiresOpenAIKey: true,
+      },
+      400
+    );
+  }
+
+  // Validate OpenAI API key if provided
+  if (openaiApiKey && openaiApiKey.trim() !== "") {
+    try {
+      // Test the OpenAI API key by making a simple request
+      const testResponse = await fetch("https://api.openai.com/v1/models", {
+        headers: {
+          Authorization: `Bearer ${openaiApiKey.trim()}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!testResponse.ok) {
+        return c.json({ error: "Invalid OpenAI API key" }, 400);
+      }
+    } catch (error) {
+      console.error("Error validating OpenAI API key:", error);
+      return c.json({ error: "Failed to validate OpenAI API key" }, 400);
+    }
+  }
+
+  // Issue JWT with username and OpenAI key (if provided)
+  const jwtPayload: UserAuthPayload = {
+    type: "user-auth",
+    username,
+    ...(openaiApiKey && { openaiApiKey: openaiApiKey.trim() }),
+  };
+
+  const jwt = await new SignJWT(jwtPayload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("1d")
     .sign(getJwtSecret(c.env));
-  return c.json({ token: jwt });
+
+  return c.json({
+    token: jwt,
+    hasDefaultOpenAIKey,
+    requiresOpenAIKey: !hasDefaultOpenAIKey,
+  });
 });
 
 // PDF Upload URL Route (for presigned uploads)

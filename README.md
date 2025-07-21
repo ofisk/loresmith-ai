@@ -12,6 +12,7 @@ Features:
 - Supports character management via [DND Beyond](https://www.dndbeyond.com/)
 - Maintains character state and helps plan character journeys
 - RAG (Retrieval-Augmented Generation) for campaign content
+- **Bring Your Own OpenAI API Key**: Users can provide their own OpenAI API key when no default key is configured
 
 ## Architecture
 
@@ -28,7 +29,7 @@ Features:
 ### Prerequisites
 
 - Cloudflare account
-- OpenAI API key
+- OpenAI API key (optional - users can provide their own)
 - Node.js 22+ and npm
 
 ### Installation
@@ -51,9 +52,21 @@ cp .dev.vars.example .dev.vars
 Then edit `.dev.vars` and provide your credentials:
 
 ```env
-OPENAI_API_KEY=your_openai_api_key
+OPENAI_API_KEY=your_openai_api_key  # Optional - users can provide their own
 ADMIN_SECRET=your_admin_secret_for_pdf_uploads
 ```
+
+### OpenAI API Key Configuration
+
+The application supports two modes for OpenAI API key configuration:
+
+1. **Default Key (Recommended)**: Set `OPENAI_API_KEY` in your environment variables. This key will be used for all chat interactions.
+
+2. **User-Provided Key**: If no default key is set, users will be prompted to provide their own OpenAI API key during authentication. This key will be:
+   - Validated against the OpenAI API
+   - Stored securely in the Chat durable object
+   - Used for all chat interactions in that session
+   - Automatically cleared when the session expires
 
 ### Running the Application Locally
 
@@ -91,7 +104,7 @@ npm run deploy
 
 ### Environment Variables
 
-- `OPENAI_API_KEY`: Your OpenAI API key for AI chat functionality
+- `OPENAI_API_KEY`: Your OpenAI API key for AI chat functionality (optional)
 - `ADMIN_SECRET`: Secret key for PDF upload authentication
 
 ### Cloudflare Resources
@@ -135,66 +148,44 @@ tests/
 The application includes comprehensive campaign management functionality:
 
 - **Campaign Creation**: Create new campaigns with custom names
-- **Resource Management**: Add and remove resources (PDFs, documents, images, etc.) from campaigns
-- **Campaign Indexing**: Trigger RAG indexing for campaign content
-- **Campaign Listing**: View all campaigns and their resources
+- **Resource Management**: Add PDF resources to campaigns
+- **Character Integration**: Link D&D Beyond characters to campaigns
+- **AI-Powered Planning**: Get AI suggestions for campaign development
 
-Campaign routes are handled by the dedicated campaign agent (`src/agents/campaign.ts`):
+### Authentication Flow
 
-- `GET /campaigns` - List all campaigns
-- `POST /campaigns` - Create a new campaign
-- `GET /campaigns/:id` - Get campaign details
-- `POST /campaigns/:id/resource` - Add resource to campaign
-- `DELETE /campaigns/:id/resource/:resourceId` - Remove resource from campaign
-- `DELETE /campaigns/:id` - Delete campaign
-- `POST /campaign/:id/index` - Trigger campaign indexing
+The application uses a JWT-based authentication system:
 
-### MCP Server Integration
+1. **Admin Authentication**: Users authenticate with an admin key and username
+2. **OpenAI Key Validation**: If no default key is set, users provide their own OpenAI API key
+3. **Session Management**: JWT tokens are used for session management with 24-hour expiration
+4. **Secure Storage**: User-provided API keys are stored securely in Durable Objects
 
-To connect an MCP server, uncomment and configure the MCP connection in `src/server.ts`:
+### PDF Processing
 
-```typescript
-const mcpConnection = await this.mcp.connect("https://your-mcp-server/sse");
-```
+PDF files are processed through a secure pipeline:
 
-## Testing
+1. **Upload**: Files are uploaded directly to R2 storage via presigned URLs
+2. **Processing**: PDFs are parsed and indexed for RAG functionality
+3. **Metadata**: Users can add descriptions and tags to uploaded files
+4. **Campaign Integration**: Files can be associated with specific campaigns
 
-The project includes comprehensive test coverage for all major functionality:
+## Security
 
-### Running Tests
-
-```bash
-# Run all tests
-npm test
-
-# Run specific test suites
-npm test tests/campaign/     # Campaign functionality tests
-npm test tests/pdf/          # PDF upload tests
-npm test tests/tools/        # Tool definition tests
-npm test tests/chat/         # Chat functionality tests
-```
-
-### Test Structure
-
-- **Campaign Tests**: API endpoints, hooks, tools, and durable objects for campaign management
-- **PDF Tests**: Upload functionality, authentication, and file processing
-- **Tool Tests**: AI tool definitions and execution logic
-- **Chat Tests**: Chat functionality and message handling
-
-### Test-Driven Development
-
-The project follows TDD principles with comprehensive test coverage for:
-
-- API endpoint validation and error handling
-- React hooks for data fetching and state management
-- AI tool definitions and execution
-- Durable Object operations and KV storage
-- Component rendering and user interactions
+- **JWT Authentication**: Secure token-based authentication
+- **Admin Key Protection**: Admin secrets are required for sensitive operations
+- **API Key Validation**: User-provided OpenAI keys are validated before use
+- **Secure Storage**: Sensitive data is stored in Durable Objects with encryption
+- **Session Expiration**: Automatic cleanup of expired sessions and keys
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests if applicable
+4. Add tests for new functionality
 5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
