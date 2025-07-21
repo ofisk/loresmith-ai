@@ -3,7 +3,7 @@ import { USER_MESSAGES } from "../constants";
 
 // Common auth payload interface used across the application
 export interface AuthPayload extends JWTPayload {
-  type: "pdf-auth";
+  type: "user-auth";
   username: string;
 }
 
@@ -43,8 +43,7 @@ export async function extractAuthFromHeader(
 
   try {
     const { payload } = await jwtVerify(token, getJwtSecret(env));
-    //TODO: change pdf-auth / all pdf auth specific language to be generic
-    if (!payload || payload.type !== "pdf-auth") {
+    if (!payload || payload.type !== "user-auth") {
       return null;
     }
     return payload as AuthPayload;
@@ -118,7 +117,27 @@ export function getStoredJwt(): string | null {
   if (typeof window === "undefined") {
     return null; // Server-side
   }
-  return localStorage.getItem("pdf_auth_jwt");
+  return localStorage.getItem("user_auth_jwt");
+}
+
+/**
+ * Helper function to store JWT in localStorage (client-side)
+ */
+export function storeJwt(token: string): void {
+  if (typeof window === "undefined") {
+    return; // Server-side
+  }
+  localStorage.setItem("user_auth_jwt", token);
+}
+
+/**
+ * Helper function to clear JWT from localStorage (client-side)
+ */
+export function clearJwt(): void {
+  if (typeof window === "undefined") {
+    return; // Server-side
+  }
+  localStorage.removeItem("user_auth_jwt");
 }
 
 /**
@@ -174,7 +193,7 @@ export function handleJwtExpiration(): void {
   }
 
   // Clear the JWT from localStorage
-  localStorage.removeItem("pdf_auth_jwt");
+  localStorage.removeItem("user_auth_jwt");
 
   // Dispatch a custom event to notify components about JWT expiration
   window.dispatchEvent(

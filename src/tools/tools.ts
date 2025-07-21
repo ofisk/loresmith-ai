@@ -29,7 +29,7 @@ const setAdminSecret = tool({
     try {
       // Make HTTP request to the authenticate endpoint using centralized API config
       const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.AUTHENTICATE),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
         {
           method: "POST",
           headers: {

@@ -6,8 +6,13 @@ import { Input } from "@/components/input/Input";
 import { Modal } from "@/components/modal/Modal";
 import { cn } from "@/lib/utils";
 import { API_CONFIG, USER_MESSAGES } from "../../constants";
+import {
+  authenticatedFetchWithExpiration,
+  getStoredJwt,
+  storeJwt,
+  clearJwt,
+} from "../../lib/auth";
 import { useJwtExpiration } from "../../hooks/useJwtExpiration";
-import { authenticatedFetchWithExpiration } from "../../lib/auth";
 import { PdfList } from "./PdfList";
 import { PdfUpload } from "./PdfUpload";
 
@@ -17,22 +22,8 @@ interface PdfUploadAgentProps {
   append: (message: CreateMessage) => Promise<string | null | undefined>;
 }
 
-const JWT_STORAGE_KEY = "pdf_auth_jwt";
-
-function getStoredJwt(): string | null {
-  return localStorage.getItem(JWT_STORAGE_KEY);
-}
-
-function storeJwt(token: string) {
-  localStorage.setItem(JWT_STORAGE_KEY, token);
-}
-
-function clearJwt() {
-  localStorage.removeItem(JWT_STORAGE_KEY);
-}
-
 // Helper function to handle JWT expiration consistently
-function handleJwtExpiration(
+function handleJwtExpirationLocal(
   clearJwt: () => void,
   setIsAuthenticated: (value: boolean) => void,
   setJwtUsername: (value: string | null) => void,
@@ -75,7 +66,7 @@ export const PdfUploadAgent = ({
   // Use JWT expiration hook
   const { isExpired, clearExpiration } = useJwtExpiration({
     onExpiration: () => {
-      handleJwtExpiration(
+      handleJwtExpirationLocal(
         clearJwt,
         setIsAuthenticated,
         setJwtUsername,
@@ -104,7 +95,7 @@ export const PdfUploadAgent = ({
       const currentTime = Math.floor(Date.now() / 1000);
       if (payload?.exp && payload.exp < currentTime) {
         // JWT is expired, clear it and show auth
-        handleJwtExpiration(
+        handleJwtExpirationLocal(
           clearJwt,
           setIsAuthenticated,
           setJwtUsername,
@@ -194,7 +185,7 @@ export const PdfUploadAgent = ({
         );
 
       if (jwtExpired) {
-        handleJwtExpiration(
+        handleJwtExpirationLocal(
           clearJwt,
           setIsAuthenticated,
           setJwtUsername,
@@ -272,7 +263,7 @@ export const PdfUploadAgent = ({
       setAuthenticating(true);
       setAuthError(null);
       const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.AUTHENTICATE),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
         {
           method: "POST",
           headers: {

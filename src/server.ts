@@ -10,8 +10,8 @@ import { CampaignsAgent } from "./agents/campaigns-agent";
 import { GeneralAgent } from "./agents/general-agent";
 import { ResourceAgent } from "./agents/resource-agent";
 
-interface PdfAuthPayload extends JWTPayload {
-  type: "pdf-auth";
+interface UserAuthPayload extends JWTPayload {
+  type: "user-auth";
   username: string;
 }
 
@@ -32,13 +32,13 @@ function getJwtSecret(env: Env): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-// Helper to set PDF auth context
-function setPdfAuth(c: Context, payload: PdfAuthPayload) {
-  (c as any).pdfAuth = payload;
+// Helper to set user auth context
+function setUserAuth(c: Context, payload: UserAuthPayload) {
+  (c as any).userAuth = payload;
 }
 
-// Middleware to require JWT for mutating PDF endpoints
-async function requirePdfJwt(
+// Middleware to require JWT for mutating endpoints
+async function requireUserJwt(
   c: Context,
   next: () => Promise<void>
 ): Promise<Response | undefined> {
@@ -49,11 +49,11 @@ async function requirePdfJwt(
   const token = authHeader.slice(7);
   try {
     const { payload } = await jwtVerify(token, getJwtSecret(c.env));
-    if (!payload || payload.type !== "pdf-auth") {
+    if (!payload || payload.type !== "user-auth") {
       return c.json({ error: "Invalid token" }, 401);
     }
     // Attach user info to context
-    setPdfAuth(c, payload as PdfAuthPayload);
+    setUserAuth(c, payload as UserAuthPayload);
     await next();
   } catch (_err) {
     return c.json({ error: "Invalid or expired token" }, 401);
@@ -245,8 +245,8 @@ app.get("/check-open-ai-key", (c) => {
   return c.json({ success: hasOpenAIKey });
 });
 
-// PDF Authentication Route (returns JWT)
-app.post("/pdf/authenticate", async (c) => {
+// User Authentication Route (returns JWT)
+app.post("/auth/authenticate", async (c) => {
   const { providedKey, username } = await c.req.json();
   const expectedKey = c.env.ADMIN_SECRET || process.env.ADMIN_SECRET;
   if (
@@ -262,7 +262,7 @@ app.post("/pdf/authenticate", async (c) => {
     return c.json({ error: "Invalid admin key" }, 401);
   }
   // Issue JWT with username
-  const jwt = await new SignJWT({ type: "pdf-auth", username })
+  const jwt = await new SignJWT({ type: "user-auth", username })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("1d")
@@ -271,12 +271,12 @@ app.post("/pdf/authenticate", async (c) => {
 });
 
 // PDF Upload URL Route (for presigned uploads)
-app.post("/pdf/upload-url", requirePdfJwt, async (c) => {
+app.post("/pdf/upload-url", requireUserJwt, async (c) => {
   try {
     const { fileName, fileSize } = await c.req.json();
-    const pdfAuth = (c as any).pdfAuth;
+    const userAuth = (c as any).userAuth;
 
-    console.log("Upload URL request received for user:", pdfAuth.username);
+    console.log("Upload URL request received for user:", userAuth.username);
     console.log("FileName:", fileName);
     console.log("FileSize:", fileSize);
 
@@ -286,7 +286,7 @@ app.post("/pdf/upload-url", requirePdfJwt, async (c) => {
     }
 
     // Generate unique file key using username from JWT
-    const fileKey = `uploads/${pdfAuth.username}/${fileName}`;
+    const fileKey = `uploads/${userAuth.username}/${fileName}`;
 
     // Generate direct upload URL to R2 bucket
     // This creates a URL that uploads directly to R2, bypassing the worker
@@ -298,7 +298,7 @@ app.post("/pdf/upload-url", requirePdfJwt, async (c) => {
     return c.json({
       uploadUrl,
       fileKey,
-      username: pdfAuth.username,
+      username: userAuth.username,
     });
   } catch (error) {
     console.error("Error generating upload URL:", error);
@@ -307,7 +307,7 @@ app.post("/pdf/upload-url", requirePdfJwt, async (c) => {
 });
 
 // Direct PDF Upload Route
-app.put("/pdf/upload/*", requirePdfJwt, async (c) => {
+app.put("/pdf/upload/*", requireUserJwt, async (c) => {
   try {
     const pathname = new URL(c.req.url).pathname;
     const fileKey = pathname.replace("/pdf/upload/", "");
@@ -342,17 +342,17 @@ app.put("/pdf/upload/*", requirePdfJwt, async (c) => {
 });
 
 // PDF Ingest Route
-app.post("/pdf/ingest", requirePdfJwt, async (c) => {
+app.post("/pdf/ingest", requireUserJwt, async (c) => {
   try {
     const { fileKey } = await c.req.json();
-    const pdfAuth = (c as any).pdfAuth;
+    const userAuth = (c as any).userAuth;
 
     if (!fileKey) {
       return c.json({ error: "fileKey is required" }, 400);
     }
 
     // Verify the fileKey belongs to the authenticated user
-    if (!fileKey.startsWith(`uploads/${pdfAuth.username}/`)) {
+    if (!fileKey.startsWith(`uploads/${userAuth.username}/`)) {
       return c.json({ error: "Access denied to this file" }, 403);
     }
 
@@ -363,7 +363,7 @@ app.post("/pdf/ingest", requirePdfJwt, async (c) => {
       success: true,
       fileKey,
       status: "parsed",
-      username: pdfAuth.username,
+      username: userAuth.username,
     });
   } catch (error) {
     console.error("Error ingesting PDF:", error);
@@ -372,12 +372,12 @@ app.post("/pdf/ingest", requirePdfJwt, async (c) => {
 });
 
 // Get Files Route
-app.get("/pdf/files", requirePdfJwt, async (c) => {
+app.get("/pdf/files", requireUserJwt, async (c) => {
   try {
-    const pdfAuth = (c as any).pdfAuth;
+    const userAuth = (c as any).userAuth;
 
     // List files from R2 bucket for this user
-    const prefix = `uploads/${pdfAuth.username}/`;
+    const prefix = `uploads/${userAuth.username}/`;
     const objects = await c.env.PDF_BUCKET.list({ prefix });
 
     const files = objects.objects.map((obj) => ({
@@ -396,17 +396,17 @@ app.get("/pdf/files", requirePdfJwt, async (c) => {
 });
 
 // PDF Update Metadata Route
-app.post("/pdf/update-metadata", requirePdfJwt, async (c) => {
+app.post("/pdf/update-metadata", requireUserJwt, async (c) => {
   try {
     const { fileKey, metadata } = await c.req.json();
-    const pdfAuth = (c as any).pdfAuth;
+    const userAuth = (c as any).userAuth;
 
     if (!fileKey || !metadata) {
       return c.json({ error: "fileKey and metadata are required" }, 400);
     }
 
     // Verify the fileKey belongs to the authenticated user
-    if (!fileKey.startsWith(`uploads/${pdfAuth.username}/`)) {
+    if (!fileKey.startsWith(`uploads/${userAuth.username}/`)) {
       return c.json({ error: "Access denied to this file" }, 403);
     }
 
@@ -421,7 +421,7 @@ app.post("/pdf/update-metadata", requirePdfJwt, async (c) => {
     return c.json({
       success: true,
       fileKey,
-      username: pdfAuth.username,
+      username: userAuth.username,
     });
   } catch (error) {
     console.error("Error updating metadata:", error);
@@ -430,12 +430,12 @@ app.post("/pdf/update-metadata", requirePdfJwt, async (c) => {
 });
 
 // PDF Stats Route
-app.get("/pdf/stats", requirePdfJwt, async (c) => {
+app.get("/pdf/stats", requireUserJwt, async (c) => {
   try {
-    const pdfAuth = (c as any).pdfAuth;
+    const userAuth = (c as any).userAuth;
 
     // Get stats for this user's files
-    const prefix = `uploads/${pdfAuth.username}/`;
+    const prefix = `uploads/${userAuth.username}/`;
     const objects = await c.env.PDF_BUCKET.list({ prefix });
 
     const totalFiles = objects.objects.length;
@@ -448,7 +448,7 @@ app.get("/pdf/stats", requirePdfJwt, async (c) => {
     };
 
     return c.json({
-      username: pdfAuth.username,
+      username: userAuth.username,
       totalFiles,
       filesByStatus,
     });

@@ -24,7 +24,7 @@ const TEST_ADMIN_SECRET = "test-admin-secret";
 const TEST_JWT_SECRET = new TextEncoder().encode(TEST_ADMIN_SECRET);
 
 async function createTestJwt(username = "test-user"): Promise<string> {
-  return await new SignJWT({ type: "pdf-auth", username })
+  return await new SignJWT({ type: "user-auth", username })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("1h")
