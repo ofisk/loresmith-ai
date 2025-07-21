@@ -1,9 +1,11 @@
+import type { D1Database } from "@cloudflare/workers-types";
 import { pdfTools } from "../tools/pdf";
 import { BaseAgent } from "./base-agent";
 
 interface Env {
   ADMIN_SECRET?: string;
   PDF_BUCKET: R2Bucket;
+  DB: D1Database;
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
   CampaignManager: DurableObjectNamespace;

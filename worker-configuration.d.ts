@@ -3,7 +3,7 @@
 // Runtime types generated with workerd@1.20250617.0 2025-05-07 nodejs_compat,nodejs_compat_populate_process_env
 declare namespace Cloudflare {
 	interface Env {
-		CAMPAIGNS_KV: KVNamespace;
+		DB: D1Database;
 		OPENAI_API_KEY: string;
 		ADMIN_SECRET: string;
 		VITE_API_URL: string;

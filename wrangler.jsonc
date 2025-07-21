@@ -28,11 +28,11 @@
       "preview_bucket_name": "loresmith-pdfs",
     },
   ],
-  "kv_namespaces": [
+  "d1_databases": [
     {
-      "binding": "CAMPAIGNS_KV",
-      "id": "84a30d5a2f6a4e3bad4dc3afbdd81083",
-      "preview_id": "loresmith-campaigns-kv-preview",
+      "binding": "DB",
+      "database_name": "loresmith-db",
+      "database_id": "bc158293-b4b4-4b21-b549-e5d011c0af3e",
     },
   ],
   "migrations": [
