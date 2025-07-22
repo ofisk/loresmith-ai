@@ -297,7 +297,8 @@ const updatePdfMetadata = tool({
 });
 
 const ingestPdfFile = tool({
-  description: "Trigger ingestion and processing of an uploaded PDF file",
+  description:
+    "Trigger ingestion and processing of an uploaded PDF file with AI metadata generation",
   parameters: z.object({
     fileKey: z.string().describe("The file key of the uploaded PDF to ingest"),
     jwt: z
@@ -310,41 +311,64 @@ const ingestPdfFile = tool({
     console.log("[Tool] ingestPdfFile received JWT:", jwt);
     try {
       console.log("[ingestPdfFile] Using JWT:", jwt);
+
+      // Use the new RAG processing endpoint that includes AI metadata generation
       const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.INGEST),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.RAG.PROCESS_PDF_FROM_R2),
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
           },
-          body: JSON.stringify({ fileKey }),
+          body: JSON.stringify({
+            fileKey,
+            metadata: {
+              file_name: fileKey.split("/").pop() || "document.pdf",
+              file_size: 0, // Will be updated from the actual file
+            },
+          }),
         }
       );
       console.log("[ingestPdfFile] Response status:", response.status);
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[ingestPdfFile] Error response:", errorText);
         return {
           code: AUTH_CODES.ERROR,
-          message: `Failed to trigger ingestion: ${response.status}`,
+          message: `Failed to trigger processing: ${response.status} - ${errorText}`,
           data: { error: `HTTP ${response.status}` },
         };
       }
       const result = (await response.json()) as {
         success: boolean;
-        fileKey: string;
-        status: string;
-        username: string;
+        message: string;
+        suggestedMetadata?: {
+          description: string;
+          tags: string[];
+          suggestions: string[];
+        };
       };
+
+      let message = `PDF processing started successfully for "${fileKey}".`;
+      if (result.suggestedMetadata) {
+        message += ` AI generated description: "${result.suggestedMetadata.description}" and tags: ${result.suggestedMetadata.tags.join(", ")}.`;
+      }
+
       return {
         code: AUTH_CODES.SUCCESS,
-        message: `PDF ingestion started successfully for "${fileKey}". Status: ${result.status}`,
-        data: { fileKey, status: result.status, username: result.username },
+        message,
+        data: {
+          fileKey,
+          status: "processed",
+          suggestedMetadata: result.suggestedMetadata,
+        },
       };
     } catch (error) {
-      console.error("Error triggering ingestion:", error);
+      console.error("Error triggering processing:", error);
       return {
         code: AUTH_CODES.ERROR,
-        message: `Error triggering ingestion: ${error instanceof Error ? error.message : String(error)}`,
+        message: `Error triggering processing: ${error instanceof Error ? error.message : String(error)}`,
         data: { error: error instanceof Error ? error.message : String(error) },
       };
     }

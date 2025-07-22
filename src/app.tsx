@@ -42,7 +42,6 @@ const toolsRequiringConfirmation: (
   // Resource/PDF tools that require confirmation
   "uploadPdfFile",
   "updatePdfMetadata",
-  "ingestPdfFile",
 
   // General tools that require confirmation
   "scheduleTask",

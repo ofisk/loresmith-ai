@@ -5,7 +5,6 @@ import {
   streamText,
   type ToolSet,
 } from "ai";
-import { processToolCalls } from "../utils";
 
 interface Env {
   ADMIN_SECRET?: string;
@@ -81,13 +80,21 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
           );
         }
 
-        // Process any pending tool calls from previous messages
-        const processedMessages = await processToolCalls({
-          messages: this.messages,
-          dataStream,
-          tools: this.tools,
-          executions: {}, // Tools have their own execute functions
+        // Filter out messages with incomplete tool invocations to prevent conversion errors
+        const processedMessages = this.messages.filter((message) => {
+          // If the message has tool invocations, check if they're all complete
+          if (message.toolInvocations && message.toolInvocations.length > 0) {
+            return message.toolInvocations.every(
+              (invocation) =>
+                invocation.state === "result" && invocation.result !== undefined
+            );
+          }
+          return true;
         });
+
+        console.log(
+          `[${this.constructor.name}] Filtered messages from ${this.messages.length} to ${processedMessages.length}`
+        );
 
         // Debug: Log available tools
         console.log(
@@ -101,47 +108,84 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
           );
         }
         console.log(
-          `[${this.constructor.name}] About to call streamText with maxSteps: 3...`
+          `[${this.constructor.name}] About to call streamText with maxSteps: 2...`
         );
 
         // Create enhanced tools that automatically include JWT
         const enhancedTools = this.createEnhancedTools(clientJwt);
 
         // Stream the AI response using the provided model
-        const result = streamText({
-          model: this.model,
-          system: this.systemPrompt,
-          toolChoice: "auto", // Let the model decide when to use tools, but limit to one call
-          messages: processedMessages,
-          tools: enhancedTools,
-          onFinish: async (args) => {
-            console.log(
-              `[${this.constructor.name}] onFinish called with args:`,
-              args
-            );
-            (onFinish ?? (() => {}))(
-              args as Parameters<StreamTextOnFinishCallback<ToolSet>>[0]
-            );
-          },
-          onError: (error) => {
-            console.error(
-              `Error while streaming in ${this.constructor.name}:`,
-              error
-            );
-          },
-          maxSteps: 1, // Limit to exactly one tool call per request
-        });
+        console.log(
+          `[${this.constructor.name}] Starting streamText with toolChoice: required`
+        );
+        console.log(`[${this.constructor.name}] Model:`, this.model);
+        console.log(
+          `[${this.constructor.name}] System prompt length:`,
+          this.systemPrompt.length
+        );
+        console.log(
+          `[${this.constructor.name}] Processed messages count:`,
+          processedMessages.length
+        );
+        console.log(
+          `[${this.constructor.name}] Enhanced tools count:`,
+          Object.keys(enhancedTools).length
+        );
 
-        // Merge the AI response stream with tool execution outputs
-        if (
-          result &&
-          typeof (
-            result as { mergeIntoDataStream?: (dataStream: unknown) => void }
-          ).mergeIntoDataStream === "function"
-        ) {
-          (
-            result as { mergeIntoDataStream: (dataStream: unknown) => void }
-          ).mergeIntoDataStream(dataStream);
+        try {
+          const result = streamText({
+            model: this.model,
+            system: this.systemPrompt,
+            toolChoice: "auto", // Allow the model to choose whether to use tools or respond directly
+            messages: processedMessages,
+            tools: enhancedTools,
+            onFinish: async (args) => {
+              console.log(
+                `[${this.constructor.name}] onFinish called with args:`,
+                args
+              );
+              (onFinish ?? (() => {}))(
+                args as Parameters<StreamTextOnFinishCallback<ToolSet>>[0]
+              );
+            },
+            onError: (error) => {
+              console.error(
+                `Error while streaming in ${this.constructor.name}:`,
+                error
+              );
+            },
+            maxSteps: 1, // Allow one step (either tool call or direct response)
+          });
+
+          console.log(
+            `[${this.constructor.name}] streamText returned result:`,
+            typeof result
+          );
+
+          // Merge the AI response stream with tool execution outputs
+          if (
+            result &&
+            typeof (
+              result as { mergeIntoDataStream?: (dataStream: unknown) => void }
+            ).mergeIntoDataStream === "function"
+          ) {
+            console.log(
+              `[${this.constructor.name}] Merging result into dataStream`
+            );
+            (
+              result as { mergeIntoDataStream: (dataStream: unknown) => void }
+            ).mergeIntoDataStream(dataStream);
+          } else {
+            console.log(
+              `[${this.constructor.name}] No mergeIntoDataStream function found on result`
+            );
+          }
+        } catch (error) {
+          console.error(
+            `[${this.constructor.name}] Error in streamText:`,
+            error
+          );
+          throw error;
         }
       },
     });

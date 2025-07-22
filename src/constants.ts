@@ -21,9 +21,19 @@ export const APP_CONFIG = {
 
 // File upload constants
 export const UPLOAD_CONFIG = {
-  MAX_FILE_SIZE: 50 * 1024 * 1024, // 50MB
+  MAX_FILE_SIZE: 500 * 1024 * 1024, // 500MB for D&D PDFs
   ALLOWED_FILE_TYPES: ["application/pdf"],
   MAX_FILES_PER_USER: 100,
+} as const;
+
+// PDF processing constants for large files
+export const PDF_PROCESSING_CONFIG = {
+  MAX_PDF_SIZE: 500 * 1024 * 1024, // 500MB limit
+  CHUNK_SIZE: 10 * 1024 * 1024, // 10MB chunks for processing
+  MAX_TEXT_LENGTH: 5 * 1024 * 1024, // 5MB text limit
+  TIMEOUT_SMALL_FILES: 60000, // 1 minute for files < 100MB
+  TIMEOUT_LARGE_FILES: 120000, // 2 minutes for files >= 100MB
+  LARGE_FILE_THRESHOLD: 100 * 1024 * 1024, // 100MB threshold
 } as const;
 
 // Campaign constants
@@ -55,7 +65,7 @@ export const ERROR_MESSAGES = {
   AUTHENTICATION_REQUIRED: "Authentication required. Please log in.",
   ACCESS_DENIED:
     "Access denied. You don't have permission to perform this action.",
-  FILE_TOO_LARGE: "File is too large. Maximum size is 50MB.",
+  FILE_TOO_LARGE: "File is too large. Maximum size is 500MB.",
   INVALID_FILE_TYPE: "Invalid file type. Only PDF files are allowed.",
   CAMPAIGN_NOT_FOUND: "Campaign not found",
   RESOURCE_NOT_FOUND: "Resource not found.",
@@ -142,6 +152,30 @@ export const VALIDATION_PATTERNS = {
   USERNAME: /^[a-zA-Z0-9_-]{3,20}$/,
   CAMPAIGN_NAME: /^[a-zA-Z0-9\s_-]{1,100}$/,
   FILE_NAME: /^[a-zA-Z0-9\s._-]{1,255}$/,
+} as const;
+
+// Model configuration - Change models here!
+export const MODEL_CONFIG = {
+  // OpenAI Models
+  OPENAI: {
+    // Primary model for chat and general tasks
+    PRIMARY: "gpt-4o-mini",
+    // Model for metadata generation and analysis
+    ANALYSIS: "gpt-3.5-turbo",
+    // Model for embeddings (if using OpenAI embeddings)
+    EMBEDDINGS: "text-embedding-3-small",
+  },
+  // Model parameters
+  PARAMETERS: {
+    // Default temperature for chat responses
+    CHAT_TEMPERATURE: 0.7,
+    // Default temperature for analysis tasks
+    ANALYSIS_TEMPERATURE: 0.3,
+    // Maximum tokens for responses
+    MAX_TOKENS: 4000,
+    // Top P for response generation
+    TOP_P: 0.9,
+  },
 } as const;
 
 // Default values

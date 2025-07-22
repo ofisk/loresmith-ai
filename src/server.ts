@@ -1,4 +1,3 @@
-import { openai } from "@ai-sdk/openai";
 import { routeAgentRequest, type Schedule } from "agents";
 import { AIChatAgent } from "agents/ai-chat-agent";
 import { generateId, type StreamTextOnFinishCallback, type ToolSet } from "ai";
@@ -9,7 +8,9 @@ import { CampaignAgent } from "./agents/campaign-agent";
 import { GeneralAgent } from "./agents/general-agent";
 import { ResourceAgent } from "./agents/resource-agent";
 import type { AuthEnv } from "./lib/auth";
+import { getPrimaryModel } from "./lib/modelConfig";
 import { RAGService } from "./lib/rag";
+import type { ProcessingProgress, ProgressMessage } from "./types/progress";
 
 interface UserAuthPayload extends JWTPayload {
   type: "user-auth";
@@ -26,6 +27,86 @@ interface Env extends AuthEnv {
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
   CampaignManager: DurableObjectNamespace;
+}
+
+// Progress tracking store
+const progressStore = new Map<string, ProcessingProgress>();
+const progressSubscribers = new Map<string, Set<WebSocket>>();
+
+// Progress management functions
+function updateProgress(fileKey: string, progress: ProcessingProgress) {
+  progressStore.set(fileKey, progress);
+
+  // Notify subscribers
+  const subscribers = progressSubscribers.get(fileKey);
+  if (subscribers) {
+    const message: ProgressMessage = {
+      type: "progress_update",
+      data: progress,
+    };
+
+    subscribers.forEach((ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(message));
+      }
+    });
+  }
+}
+
+function subscribeToProgress(fileKey: string, ws: WebSocket) {
+  if (!progressSubscribers.has(fileKey)) {
+    progressSubscribers.set(fileKey, new Set());
+  }
+  progressSubscribers.get(fileKey)!.add(ws);
+
+  // Send current progress if available
+  const currentProgress = progressStore.get(fileKey);
+  if (currentProgress) {
+    const message: ProgressMessage = {
+      type: "progress_update",
+      data: currentProgress,
+    };
+    ws.send(JSON.stringify(message));
+  }
+}
+
+function unsubscribeFromProgress(fileKey: string, ws: WebSocket) {
+  const subscribers = progressSubscribers.get(fileKey);
+  if (subscribers) {
+    subscribers.delete(ws);
+    if (subscribers.size === 0) {
+      progressSubscribers.delete(fileKey);
+    }
+  }
+}
+
+function completeProgress(
+  fileKey: string,
+  success: boolean,
+  error?: string,
+  suggestedMetadata?: any
+) {
+  const message: ProgressMessage = {
+    type: "progress_complete",
+    data: {
+      fileKey,
+      success,
+      error,
+      suggestedMetadata,
+    },
+  };
+
+  const subscribers = progressSubscribers.get(fileKey);
+  if (subscribers) {
+    subscribers.forEach((ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(message));
+      }
+    });
+    progressSubscribers.delete(fileKey);
+  }
+
+  progressStore.delete(fileKey);
 }
 
 // Helper to get the JWT secret key from env
@@ -78,8 +159,8 @@ export class Chat extends AIChatAgent<Env> {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    // Initialize with default model
-    const model = openai("gpt-4o-mini");
+    // Initialize with centralized model configuration
+    const model = getPrimaryModel();
     this.campaignAgent = new CampaignAgent(ctx, env, model);
     this.resourceAgent = new ResourceAgent(ctx, env, model);
     this.generalAgent = new GeneralAgent(ctx, env, model);
@@ -111,9 +192,8 @@ export class Chat extends AIChatAgent<Env> {
     // Store the API key in the durable object state
     this.ctx.storage.put("userOpenAIKey", apiKey);
 
-    // Create new model instances - the AI SDK will use the environment variable
-    // We'll need to modify the environment or handle this differently
-    const model = openai("gpt-4o-mini");
+    // Create new model instances using centralized configuration
+    const model = getPrimaryModel();
 
     // Update all agents with the new model
     this.campaignAgent = new CampaignAgent(this.ctx, this.env, model);
@@ -692,7 +772,11 @@ app.post("/rag/search", requireUserJwt, async (c) => {
       return c.json({ error: "Query is required" }, 400);
     }
 
-    const ragService = new RAGService(c.env.DB, c.env.VECTORIZE);
+    const ragService = new RAGService(
+      c.env.DB,
+      c.env.VECTORIZE,
+      c.env.OPENAI_API_KEY
+    );
     const results = await ragService.searchContent(
       userAuth.username,
       query,
@@ -731,12 +815,108 @@ app.post("/rag/process-pdf", requireUserJwt, async (c) => {
   }
 });
 
+// RAG Process PDF from R2 Route
+app.post("/rag/process-pdf-from-r2", requireUserJwt, async (c) => {
+  try {
+    const userAuth = (c as any).userAuth;
+    const { fileKey, metadata } = await c.req.json();
+
+    if (!fileKey) {
+      return c.json({ error: "File key is required" }, 400);
+    }
+
+    // Create progress callback
+    const progressCallback = (progress: ProcessingProgress) => {
+      updateProgress(fileKey, progress);
+    };
+
+    const ragService = new RAGService(
+      c.env.DB,
+      c.env.VECTORIZE,
+      c.env.OPENAI_API_KEY,
+      progressCallback
+    );
+
+    try {
+      const result = await ragService.processPdfFromR2(
+        fileKey,
+        userAuth.username,
+        c.env.PDF_BUCKET,
+        metadata || {}
+      );
+
+      // Complete progress successfully
+      completeProgress(fileKey, true, undefined, result.suggestedMetadata);
+
+      return c.json({
+        success: true,
+        message: "PDF processed successfully from R2",
+        suggestedMetadata: result.suggestedMetadata,
+      });
+    } catch (processingError) {
+      // Complete progress with error
+      completeProgress(
+        fileKey,
+        false,
+        processingError instanceof Error
+          ? processingError.message
+          : String(processingError)
+      );
+      throw processingError;
+    }
+  } catch (error) {
+    console.error("Error processing PDF from R2 for RAG:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// RAG Update PDF Metadata Route
+app.put("/rag/pdfs/:fileKey/metadata", requireUserJwt, async (c) => {
+  try {
+    const userAuth = (c as any).userAuth;
+    const fileKey = c.req.param("fileKey");
+    const { description, tags } = await c.req.json();
+
+    if (!fileKey) {
+      return c.json({ error: "File key is required" }, 400);
+    }
+
+    const ragService = new RAGService(
+      c.env.DB,
+      c.env.VECTORIZE,
+      c.env.OPENAI_API_KEY
+    );
+    const result = await ragService.updatePdfMetadata(
+      fileKey,
+      userAuth.username,
+      {
+        description,
+        tags,
+      },
+      true
+    ); // Regenerate suggestions
+
+    return c.json({
+      success: true,
+      message: "PDF metadata updated successfully",
+      suggestions: result.suggestions,
+    });
+  } catch (error) {
+    console.error("Error updating PDF metadata:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
 // RAG Get PDFs Route
 app.get("/rag/pdfs", requireUserJwt, async (c) => {
   try {
     const userAuth = (c as any).userAuth;
 
-    const ragService = new RAGService(c.env.DB, c.env.VECTORIZE);
+    const ragService = new RAGService(
+      c.env.DB,
+      c.env.VECTORIZE,
+      c.env.OPENAI_API_KEY
+    );
     const pdfs = await ragService.getUserPdfs(userAuth.username);
 
     return c.json({ pdfs });
@@ -756,7 +936,11 @@ app.get("/rag/pdfs/:fileKey/chunks", requireUserJwt, async (c) => {
       return c.json({ error: "File key is required" }, 400);
     }
 
-    const ragService = new RAGService(c.env.DB, c.env.VECTORIZE);
+    const ragService = new RAGService(
+      c.env.DB,
+      c.env.VECTORIZE,
+      c.env.OPENAI_API_KEY
+    );
     const chunks = await ragService.getPdfChunks(fileKey, userAuth.username);
 
     return c.json({ chunks });
@@ -776,7 +960,11 @@ app.delete("/rag/pdfs/:fileKey", requireUserJwt, async (c) => {
       return c.json({ error: "File key is required" }, 400);
     }
 
-    const ragService = new RAGService(c.env.DB, c.env.VECTORIZE);
+    const ragService = new RAGService(
+      c.env.DB,
+      c.env.VECTORIZE,
+      c.env.OPENAI_API_KEY
+    );
     await ragService.deletePdf(fileKey, userAuth.username);
 
     return c.json({ success: true, message: "PDF deleted successfully" });
@@ -858,6 +1046,43 @@ app.post("/campaigns", requireUserJwt, async (c) => {
     console.error("Error creating campaign:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
+});
+
+// Progress WebSocket endpoint
+app.get("/progress", async (c) => {
+  const upgradeHeader = c.req.header("Upgrade");
+  if (upgradeHeader !== "websocket") {
+    return c.json({ error: "WebSocket upgrade required" }, 400);
+  }
+
+  const { 0: client, 1: server } = new WebSocketPair();
+
+  server.accept();
+
+  server.addEventListener("message", (event) => {
+    try {
+      const data = JSON.parse(event.data as string);
+      if (data.type === "subscribe" && data.fileKey) {
+        subscribeToProgress(data.fileKey, server);
+      }
+    } catch (error) {
+      console.error("Error parsing WebSocket message:", error);
+    }
+  });
+
+  server.addEventListener("close", () => {
+    // Clean up subscriptions when WebSocket closes
+    progressSubscribers.forEach((subscribers, fileKey) => {
+      if (subscribers.has(server)) {
+        unsubscribeFromProgress(fileKey, server);
+      }
+    });
+  });
+
+  return new Response(null, {
+    status: 101,
+    webSocket: client,
+  });
 });
 
 // Mount other agent routes
