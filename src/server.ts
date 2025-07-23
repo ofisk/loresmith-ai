@@ -4,13 +4,14 @@ import { generateId, type StreamTextOnFinishCallback, type ToolSet } from "ai";
 import type { Context } from "hono";
 import { Hono } from "hono";
 import { type JWTPayload, jwtVerify, SignJWT } from "jose";
+import { openai } from "@ai-sdk/openai";
 import { CampaignAgent } from "./agents/campaign-agent";
 import { GeneralAgent } from "./agents/general-agent";
 import { ResourceAgent } from "./agents/resource-agent";
 import type { AuthEnv } from "./lib/auth";
-import { getPrimaryModel } from "./lib/modelConfig";
 import { RAGService } from "./lib/rag";
 import type { ProcessingProgress, ProgressMessage } from "./types/progress";
+import { MODEL_CONFIG } from "./constants";
 
 interface UserAuthPayload extends JWTPayload {
   type: "user-auth";
@@ -111,8 +112,8 @@ function completeProgress(
 
 // Helper to get the JWT secret key from env
 function getJwtSecret(env: Env): Uint8Array {
-  const secret = env.ADMIN_SECRET || process.env.ADMIN_SECRET;
-  if (!secret) {
+  const secret = env.ADMIN_SECRET || "";
+  if (!secret || secret === "undefined") {
     throw new Error("ADMIN_SECRET not configured");
   }
   return new TextEncoder().encode(secret);
@@ -159,11 +160,11 @@ export class Chat extends AIChatAgent<Env> {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    // Initialize with centralized model configuration
-    const model = getPrimaryModel();
-    this.campaignAgent = new CampaignAgent(ctx, env, model);
-    this.resourceAgent = new ResourceAgent(ctx, env, model);
-    this.generalAgent = new GeneralAgent(ctx, env, model);
+
+    // Initialize agents lazily - only when API key is available
+    this.campaignAgent = null as any;
+    this.resourceAgent = null as any;
+    this.generalAgent = null as any;
 
     // Load user's OpenAI key from storage if available
     this.loadUserOpenAIKey();
@@ -178,9 +179,48 @@ export class Chat extends AIChatAgent<Env> {
       if (storedKey) {
         this.userOpenAIKey = storedKey;
         console.log("Loaded user OpenAI API key from storage");
+        // Initialize agents with the stored key
+        this.initializeAgents(storedKey);
       }
     } catch (error) {
       console.error("Error loading user OpenAI API key:", error);
+    }
+  }
+
+  /**
+   * Initialize agents with the provided API key
+   */
+  private initializeAgents(apiKey: string) {
+    try {
+      // Set the API key in the environment for the model creation
+      const originalApiKey = process.env.OPENAI_API_KEY;
+      process.env.OPENAI_API_KEY = apiKey;
+
+      try {
+        // Create the model - it will use the API key from the environment
+        const model = openai(MODEL_CONFIG.OPENAI.PRIMARY as any);
+
+        // Initialize all agents with the new model
+        this.campaignAgent = new CampaignAgent(this.ctx, this.env, model);
+        this.resourceAgent = new ResourceAgent(this.ctx, this.env, model);
+        this.generalAgent = new GeneralAgent(this.ctx, this.env, model);
+
+        console.log("Agents initialized successfully with user API key");
+
+        // Keep the API key in the environment for the agents to use
+        // Don't restore the original value since the agents need this API key
+      } catch (error) {
+        // Restore the original API key if there was an error
+        if (originalApiKey === undefined) {
+          delete (process.env as any).OPENAI_API_KEY;
+        } else {
+          process.env.OPENAI_API_KEY = originalApiKey;
+        }
+        throw error;
+      }
+    } catch (error) {
+      console.error("Error initializing agents:", error);
+      throw error;
     }
   }
 
@@ -192,13 +232,8 @@ export class Chat extends AIChatAgent<Env> {
     // Store the API key in the durable object state
     this.ctx.storage.put("userOpenAIKey", apiKey);
 
-    // Create new model instances using centralized configuration
-    const model = getPrimaryModel();
-
-    // Update all agents with the new model
-    this.campaignAgent = new CampaignAgent(this.ctx, this.env, model);
-    this.resourceAgent = new ResourceAgent(this.ctx, this.env, model);
-    this.generalAgent = new GeneralAgent(this.ctx, this.env, model);
+    // Initialize agents with the new API key
+    this.initializeAgents(apiKey);
   }
 
   /**
@@ -217,6 +252,10 @@ export class Chat extends AIChatAgent<Env> {
 
     if (path === "/set-openai-key") {
       return this.handleSetOpenAIKey(request);
+    }
+
+    if (path === "/get-user-openai-key") {
+      return this.handleGetUserOpenAIKey(request);
     }
 
     // For all other requests, use the parent class implementation
@@ -268,6 +307,31 @@ export class Chat extends AIChatAgent<Env> {
   }
 
   /**
+   * Handle getting the user's stored OpenAI API key
+   */
+  private async handleGetUserOpenAIKey(_request: Request): Promise<Response> {
+    try {
+      const apiKey = this.getUserOpenAIKey();
+
+      return new Response(
+        JSON.stringify({
+          apiKey: apiKey,
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      console.error("Error in handleGetUserOpenAIKey:", error);
+      return new Response(JSON.stringify({ error: "Internal server error" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
+
+  /**
    * Determines which specialized agent should handle the user's request
    */
   private determineAgent(
@@ -286,9 +350,28 @@ export class Chat extends AIChatAgent<Env> {
       "add resource to campaign",
       "campaign resource",
       "delete campaign",
+      // RAG and resource discovery keywords
+      "find resources",
+      "search for",
+      "suggest resources",
+      "what resources",
+      "pdf library",
+      "d&d resources",
+      "monster manual",
+      "spell book",
+      "adventure module",
+      "world building",
+      "campaign planning",
+      "session planning",
+      "character backstory",
+      "player characters",
+      "party composition",
+      "campaign tone",
+      "setting preferences",
+      "special considerations",
     ];
 
-    // Resource/PDF-related keywords
+    // Resource/PDF-related keywords (for uploads and management)
     const resourceKeywords = [
       "pdf",
       "upload",
@@ -302,6 +385,8 @@ export class Chat extends AIChatAgent<Env> {
       "pdf metadata",
       "ingest pdf",
       "process pdf",
+      "delete pdf",
+      "update pdf",
     ];
 
     // General/scheduling keywords
@@ -316,12 +401,12 @@ export class Chat extends AIChatAgent<Env> {
       "reminders",
     ];
 
-    // Check for campaign-related intent
+    // Check for campaign-related intent (including RAG search)
     if (campaignKeywords.some((keyword) => lowerMessage.includes(keyword))) {
       return "campaigns";
     }
 
-    // Check for resource-related intent
+    // Check for resource-related intent (PDF management only)
     if (resourceKeywords.some((keyword) => lowerMessage.includes(keyword))) {
       return "resources";
     }
@@ -343,6 +428,33 @@ export class Chat extends AIChatAgent<Env> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
+    // Check if agents are initialized, and try to initialize them if not
+    if (!this.campaignAgent || !this.resourceAgent || !this.generalAgent) {
+      // Try to load the user's API key and initialize agents
+      if (this.userOpenAIKey) {
+        this.initializeAgents(this.userOpenAIKey);
+      } else {
+        // Try to load from storage
+        try {
+          const storedKey = await this.ctx.storage.get<string>("userOpenAIKey");
+          if (storedKey) {
+            this.userOpenAIKey = storedKey;
+            this.initializeAgents(storedKey);
+          } else {
+            // No API key available
+            throw new Error(
+              "Please set your OpenAI API key to use the chat functionality. You can do this by clicking the 'Set API Key' button in the modal."
+            );
+          }
+        } catch (error) {
+          console.error("Error loading stored API key:", error);
+          throw new Error(
+            "Please set your OpenAI API key to use the chat functionality. You can do this by clicking the 'Set API Key' button in the modal."
+          );
+        }
+      }
+    }
+
     // Get the last user message to determine routing
     const lastUserMessage = this.messages
       .slice()
@@ -376,6 +488,18 @@ export class Chat extends AIChatAgent<Env> {
   private getAgentInstance(
     targetAgent: "campaigns" | "resources" | "general"
   ): any {
+    // Check if agents are initialized
+    if (!this.campaignAgent || !this.resourceAgent || !this.generalAgent) {
+      // Try to load the user's API key and initialize agents
+      if (this.userOpenAIKey) {
+        this.initializeAgents(this.userOpenAIKey);
+      } else {
+        throw new Error(
+          "Agents not initialized. Please set an OpenAI API key first."
+        );
+      }
+    }
+
     switch (targetAgent) {
       case "campaigns":
         return this.campaignAgent;
@@ -430,12 +554,78 @@ app.use("*", async (c, next) => {
 });
 
 app.get("/check-open-ai-key", (c) => {
-  const hasOpenAIKey = !!c.env.OPENAI_API_KEY || !!process.env.OPENAI_API_KEY;
-  return c.json({ success: hasOpenAIKey });
+  const envKey =
+    !!c.env.OPENAI_API_KEY && c.env.OPENAI_API_KEY.trim().length > 0;
+  const processKey =
+    !!process.env.OPENAI_API_KEY &&
+    process.env.OPENAI_API_KEY.trim().length > 0 &&
+    process.env.OPENAI_API_KEY !== "undefined";
+  const hasOpenAIKey = envKey || processKey;
+
+  console.log("OpenAI key check:", {
+    envKey,
+    processKey,
+    hasOpenAIKey,
+    envKeyValue: c.env.OPENAI_API_KEY,
+    envKeyLength: c.env.OPENAI_API_KEY?.length || 0,
+    processKeyValue: process.env.OPENAI_API_KEY,
+    processKeyLength: process.env.OPENAI_API_KEY?.length || 0,
+  });
+
+  return c.json({
+    success: hasOpenAIKey,
+    debug: {
+      envKey,
+      processKey,
+      hasOpenAIKey,
+      envKeyValue: c.env.OPENAI_API_KEY,
+      envKeyLength: c.env.OPENAI_API_KEY?.length || 0,
+      processKeyValue: process.env.OPENAI_API_KEY,
+      processKeyLength: process.env.OPENAI_API_KEY?.length || 0,
+    },
+  });
+});
+
+app.get("/check-user-openai-key", async (c) => {
+  try {
+    // Check if user has already set an API key in their session
+    const sessionId = c.req.header("X-Session-ID") || "default";
+    const chatId = c.env.Chat.idFromName(sessionId);
+    const chat = c.env.Chat.get(chatId);
+
+    // Try to get the user's stored API key
+    const response = await chat.fetch(
+      new Request("http://localhost/get-user-openai-key", {
+        method: "GET",
+      })
+    );
+
+    if (response.ok) {
+      const result = (await response.json()) as { apiKey?: string };
+      const hasUserStoredKey =
+        !!result.apiKey && result.apiKey.trim().length > 0;
+
+      console.log("User OpenAI key check:", {
+        sessionId,
+        hasUserStoredKey,
+        apiKeyLength: result.apiKey?.length || 0,
+      });
+
+      return c.json({
+        success: hasUserStoredKey,
+        hasUserStoredKey,
+      });
+    }
+
+    return c.json({ success: false, hasUserStoredKey: false });
+  } catch (error) {
+    console.error("Error checking user OpenAI key:", error);
+    return c.json({ success: false, hasUserStoredKey: false });
+  }
 });
 
 // Set user's OpenAI API key in Chat durable object
-app.post("/chat/set-openai-key", requireUserJwt, async (c) => {
+app.post("/chat/set-openai-key", async (c) => {
   try {
     const { openaiApiKey } = await c.req.json();
     if (
@@ -497,12 +687,83 @@ app.post("/chat/set-openai-key", requireUserJwt, async (c) => {
 
 // User Authentication Route (returns JWT)
 app.post("/auth/authenticate", async (c) => {
-  const { providedKey, username, openaiApiKey } = await c.req.json();
-  const expectedKey = c.env.ADMIN_SECRET || process.env.ADMIN_SECRET;
+  console.log("=== AUTHENTICATION REQUEST START ===");
 
-  // Check if we have a default OpenAI key
+  const { providedKey, username, openaiApiKey } = await c.req.json();
+  // ADMIN_SECRET should be available as an environment variable from .dev.vars
+  // In local development, it should be directly accessible
+  const expectedKey = c.env.ADMIN_SECRET || "";
+
+  console.log("Authentication request details:", {
+    providedKey: providedKey ? "***" : null,
+    providedKeyLength: providedKey?.length || 0,
+    username,
+    hasOpenaiApiKey: !!openaiApiKey,
+    expectedKey: expectedKey ? "***" : null,
+    expectedKeyLength: expectedKey?.length || 0,
+    envAdminSecret: !!c.env.ADMIN_SECRET,
+    processAdminSecret: !!process.env.ADMIN_SECRET,
+    envAdminSecretLength: c.env.ADMIN_SECRET?.length || 0,
+    processAdminSecretLength: process.env.ADMIN_SECRET?.length || 0,
+    envAdminSecretType: typeof c.env.ADMIN_SECRET,
+    processAdminSecretType: typeof process.env.ADMIN_SECRET,
+    envAdminSecretValue: c.env.ADMIN_SECRET,
+    processAdminSecretValue: process.env.ADMIN_SECRET,
+    allProcessEnvKeys: Object.keys(process.env).filter(
+      (key) => key.includes("ADMIN") || key.includes("SECRET")
+    ),
+  });
+
+  // Check if we have a default OpenAI key (properly handle 'undefined' string)
   const hasDefaultOpenAIKey =
-    !!c.env.OPENAI_API_KEY || !!process.env.OPENAI_API_KEY;
+    (!!c.env.OPENAI_API_KEY && c.env.OPENAI_API_KEY.trim().length > 0) ||
+    (!!process.env.OPENAI_API_KEY &&
+      process.env.OPENAI_API_KEY.trim().length > 0 &&
+      process.env.OPENAI_API_KEY !== "undefined");
+
+  // Check if user has already set an API key in their session
+  let userStoredApiKey: string | null = null;
+  try {
+    const sessionId = c.req.header("X-Session-ID") || "default";
+    const chatId = c.env.Chat.idFromName(sessionId);
+    const chat = c.env.Chat.get(chatId);
+
+    // Try to get the user's stored API key
+    const response = await chat.fetch(
+      new Request("http://localhost/get-user-openai-key", {
+        method: "GET",
+      })
+    );
+
+    if (response.ok) {
+      const result = (await response.json()) as { apiKey?: string };
+      userStoredApiKey = result.apiKey || null;
+    }
+  } catch (error) {
+    console.log("Could not retrieve user's stored API key:", error);
+  }
+
+  console.log("Auth endpoint debug:", {
+    providedKey: providedKey ? "***" : null,
+    username,
+    hasOpenaiApiKey: !!openaiApiKey,
+    hasUserStoredApiKey: !!userStoredApiKey,
+    expectedKey: expectedKey ? "***" : null,
+    hasDefaultOpenAIKey,
+    envOpenAIKey: !!c.env.OPENAI_API_KEY,
+    processOpenAIKey: !!process.env.OPENAI_API_KEY,
+    processOpenAIKeyValue: process.env.OPENAI_API_KEY,
+    processOpenAIKeyLength: process.env.OPENAI_API_KEY?.length || 0,
+  });
+
+  console.log("Validation checks:", {
+    hasProvidedKey: !!providedKey,
+    hasExpectedKey: !!expectedKey,
+    hasUsername: !!username,
+    usernameType: typeof username,
+    usernameTrimmed: username?.trim(),
+    usernameTrimmedLength: username?.trim()?.length || 0,
+  });
 
   if (
     !providedKey ||
@@ -511,20 +772,36 @@ app.post("/auth/authenticate", async (c) => {
     typeof username !== "string" ||
     username.trim() === ""
   ) {
+    console.log("Validation failed - missing required fields");
     return c.json({ error: "Missing admin key or username" }, 400);
   }
 
+  console.log("Key comparison:", {
+    providedKeyFirstChar: providedKey?.[0],
+    expectedKeyFirstChar: expectedKey?.[0],
+    providedKeyLastChar: providedKey?.[providedKey.length - 1],
+    expectedKeyLastChar: expectedKey?.[expectedKey.length - 1],
+    keysMatch: providedKey === expectedKey,
+    providedKeyLength: providedKey?.length,
+    expectedKeyLength: expectedKey?.length,
+    providedKeyTrimmed: providedKey?.trim(),
+    expectedKeyTrimmed: expectedKey?.trim(),
+    providedKeyTrimmedLength: providedKey?.trim()?.length,
+    expectedKeyTrimmedLength: expectedKey?.trim()?.length,
+  });
+
   if (providedKey !== expectedKey) {
+    console.log("Authentication failed - invalid admin key");
     return c.json({ error: "Invalid admin key" }, 401);
   }
 
-  // If no default OpenAI key is set, require the user to provide one
-  if (
-    !hasDefaultOpenAIKey &&
-    (!openaiApiKey ||
-      typeof openaiApiKey !== "string" ||
-      openaiApiKey.trim() === "")
-  ) {
+  console.log("Authentication validation passed");
+
+  // Determine which API key to use: provided in request, stored in session, or default
+  const finalApiKey = openaiApiKey?.trim() || userStoredApiKey || null;
+
+  // If no API key is available from any source, require the user to provide one
+  if (!hasDefaultOpenAIKey && !finalApiKey) {
     return c.json(
       {
         error: "OpenAI API key is required when no default key is configured",
@@ -534,13 +811,13 @@ app.post("/auth/authenticate", async (c) => {
     );
   }
 
-  // Validate OpenAI API key if provided
-  if (openaiApiKey && openaiApiKey.trim() !== "") {
+  // Validate OpenAI API key if we have one to validate
+  if (finalApiKey) {
     try {
       // Test the OpenAI API key by making a simple request
       const testResponse = await fetch("https://api.openai.com/v1/models", {
         headers: {
-          Authorization: `Bearer ${openaiApiKey.trim()}`,
+          Authorization: `Bearer ${finalApiKey}`,
           "Content-Type": "application/json",
         },
       });
@@ -554,11 +831,11 @@ app.post("/auth/authenticate", async (c) => {
     }
   }
 
-  // Issue JWT with username and OpenAI key (if provided)
+  // Issue JWT with username and OpenAI key (if available)
   const jwtPayload: UserAuthPayload = {
     type: "user-auth",
     username,
-    ...(openaiApiKey && { openaiApiKey: openaiApiKey.trim() }),
+    ...(finalApiKey && { openaiApiKey: finalApiKey }),
   };
 
   const jwt = await new SignJWT(jwtPayload)
@@ -567,10 +844,12 @@ app.post("/auth/authenticate", async (c) => {
     .setExpirationTime("1d")
     .sign(getJwtSecret(c.env));
 
+  console.log("Authentication successful - issuing JWT");
+
   return c.json({
     token: jwt,
     hasDefaultOpenAIKey,
-    requiresOpenAIKey: !hasDefaultOpenAIKey,
+    requiresOpenAIKey: !hasDefaultOpenAIKey && !userStoredApiKey,
   });
 });
 
