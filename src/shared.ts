@@ -38,6 +38,13 @@ export const API_CONFIG = {
       RESOURCES: (campaignId: string) => `/campaigns/${campaignId}/resources`,
       RESOURCE: (campaignId: string) => `/campaigns/${campaignId}/resource`,
       DETAILS: (campaignId: string) => `/campaigns/${campaignId}`,
+      CONTEXT: (campaignId: string) => `/campaigns/${campaignId}/context`,
+      CHARACTERS: (campaignId: string) => `/campaigns/${campaignId}/characters`,
+      SUGGESTIONS: (campaignId: string) =>
+        `/campaigns/${campaignId}/suggestions`,
+      READINESS: (campaignId: string) => `/campaigns/${campaignId}/readiness`,
+      CONTEXT_SEARCH: (campaignId: string) =>
+        `/campaigns/${campaignId}/context-search`,
     },
     AUTH: {
       AUTHENTICATE: "/auth/authenticate",

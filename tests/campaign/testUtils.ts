@@ -20,6 +20,7 @@ export type Env = {
     get: ReturnType<typeof vi.fn>;
   };
   DB?: D1DatabaseStub;
+  CAMPAIGNS_KV?: any;
   ADMIN_SECRET?: string;
 };
 
@@ -181,6 +182,36 @@ export function createMockResource(
     id: "test-resource-id",
     name: "Test Resource",
     ...overrides,
+  };
+}
+
+/**
+ * Create a mock KV namespace stub for campaigns
+ */
+export function createCampaignsKVStub(
+  data: Record<string, string> = {},
+  operationSuccess = true
+): any {
+  return {
+    get: vi.fn(async (key: string) => {
+      if (!operationSuccess) return null;
+      return data[key] || null;
+    }),
+    list: vi.fn(async (options?: { prefix?: string }) => {
+      if (!operationSuccess) return { keys: [] };
+      const keys = Object.keys(data).filter(
+        (key) => !options?.prefix || key.startsWith(options.prefix)
+      );
+      return { keys: keys.map((key) => ({ name: key })) };
+    }),
+    put: vi.fn(async (key: string, value: string) => {
+      if (!operationSuccess) throw new Error("KV operation failed");
+      data[key] = value;
+    }),
+    delete: vi.fn(async (key: string) => {
+      if (!operationSuccess) throw new Error("KV operation failed");
+      delete data[key];
+    }),
   };
 }
 

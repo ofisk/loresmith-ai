@@ -1,15 +1,35 @@
-import { type JWTPayload, jwtVerify } from "jose";
+import { type JWTPayload, jwtVerify, SignJWT } from "jose";
 import { USER_MESSAGES } from "../constants";
 
 // Common auth payload interface used across the application
 export interface AuthPayload extends JWTPayload {
   type: "user-auth";
   username: string;
+  openaiApiKey?: string;
 }
 
 // Environment interface that includes auth-related fields
 export interface AuthEnv {
-  ADMIN_SECRET?: string;
+  ADMIN_SECRET?: string | any; // Allow any type for Secrets Store binding
+  OPENAI_API_KEY?: string;
+  Chat: DurableObjectNamespace;
+}
+
+// Authentication request interface
+export interface AuthRequest {
+  providedKey: string;
+  username: string;
+  openaiApiKey?: string;
+  sessionId?: string;
+}
+
+// Authentication response interface
+export interface AuthResponse {
+  success: boolean;
+  token?: string;
+  hasDefaultOpenAIKey?: boolean;
+  requiresOpenAIKey?: boolean;
+  error?: string;
 }
 
 // Context interface that includes auth-related fields
@@ -20,12 +40,157 @@ export interface AuthContext {
 /**
  * Get the JWT secret key from environment
  */
-export function getJwtSecret(env: AuthEnv): Uint8Array {
-  const secret = env.ADMIN_SECRET || process.env.ADMIN_SECRET;
+export async function getJwtSecret(_env: AuthEnv): Promise<Uint8Array> {
+  // For local development, prioritize process.env from .dev.vars
+  const secret = process.env.ADMIN_SECRET || "";
+
   if (!secret) {
     throw new Error("ADMIN_SECRET not configured");
   }
   return new TextEncoder().encode(secret);
+}
+
+/**
+ * Simplified authentication function that validates admin key and generates JWT
+ */
+export async function authenticateUser(
+  request: AuthRequest,
+  env: AuthEnv
+): Promise<AuthResponse> {
+  const {
+    providedKey,
+    username,
+    openaiApiKey,
+    sessionId = "default",
+  } = request;
+
+  // Validate required fields
+  if (
+    !providedKey ||
+    !username ||
+    typeof username !== "string" ||
+    username.trim() === ""
+  ) {
+    return {
+      success: false,
+      error: "Missing admin key or username",
+    };
+  }
+
+  // Get expected admin key from environment
+  // For local development, prioritize process.env from .dev.vars
+  const expectedKey = process.env.ADMIN_SECRET || "";
+
+  if (!expectedKey) {
+    return {
+      success: false,
+      error: "Admin secret not configured",
+    };
+  }
+
+  // Validate admin key
+  if (providedKey !== expectedKey) {
+    return {
+      success: false,
+      error: "Invalid admin key",
+    };
+  }
+
+  // Check for default OpenAI key
+  const hasDefaultOpenAIKey =
+    (!!env.OPENAI_API_KEY && env.OPENAI_API_KEY.trim().length > 0) ||
+    (!!process.env.OPENAI_API_KEY &&
+      process.env.OPENAI_API_KEY.trim().length > 0 &&
+      process.env.OPENAI_API_KEY !== "undefined");
+
+  // Try to get user's stored API key from session
+  let userStoredApiKey: string | null = null;
+  try {
+    const chatId = env.Chat.idFromName(sessionId);
+    const chat = env.Chat.get(chatId);
+
+    const response = await chat.fetch(
+      new Request("http://localhost/get-user-openai-key", {
+        method: "GET",
+      })
+    );
+
+    if (response.ok) {
+      const result = (await response.json()) as { apiKey?: string };
+      userStoredApiKey = result.apiKey || null;
+    }
+  } catch (_error) {
+    // Ignore errors when retrieving stored API key
+  }
+
+  // Determine which API key to use
+  const finalApiKey = openaiApiKey?.trim() || userStoredApiKey || null;
+
+  // Require API key if no default is available
+  if (!hasDefaultOpenAIKey && !finalApiKey) {
+    return {
+      success: false,
+      error: "OpenAI API key is required when no default key is configured",
+      requiresOpenAIKey: true,
+    };
+  }
+
+  // Validate OpenAI API key if provided
+  if (finalApiKey) {
+    try {
+      const testResponse = await fetch("https://api.openai.com/v1/models", {
+        headers: {
+          Authorization: `Bearer ${finalApiKey}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!testResponse.ok) {
+        return {
+          success: false,
+          error: "Invalid OpenAI API key",
+        };
+      }
+    } catch (_error) {
+      return {
+        success: false,
+        error: "Failed to validate OpenAI API key",
+      };
+    }
+  }
+
+  // Generate JWT
+  const jwtPayload: AuthPayload = {
+    type: "user-auth",
+    username: username.trim(),
+    ...(finalApiKey && { openaiApiKey: finalApiKey }),
+  };
+
+  try {
+    console.log("Getting JWT secret...");
+    const jwtSecret = await getJwtSecret(env);
+    console.log("JWT secret length:", jwtSecret.length);
+
+    console.log("Creating JWT payload:", jwtPayload);
+    const jwt = await new SignJWT(jwtPayload)
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("1d")
+      .sign(jwtSecret);
+
+    return {
+      success: true,
+      token: jwt,
+      hasDefaultOpenAIKey,
+      requiresOpenAIKey: !hasDefaultOpenAIKey && !finalApiKey,
+    };
+  } catch (error) {
+    console.error("JWT generation error:", error);
+    return {
+      success: false,
+      error: "Failed to generate authentication token",
+    };
+  }
 }
 
 /**
@@ -42,7 +207,8 @@ export async function extractAuthFromHeader(
   const token = authHeader.slice(7);
 
   try {
-    const { payload } = await jwtVerify(token, getJwtSecret(env));
+    const jwtSecret = await getJwtSecret(env);
+    const { payload } = await jwtVerify(token, jwtSecret);
     if (!payload || payload.type !== "user-auth") {
       return null;
     }

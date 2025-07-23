@@ -9,13 +9,16 @@ import { MODEL_CONFIG } from "../constants";
 
 /**
  * Get the primary model for chat and general tasks
+ * Note: This function requires an API key to be passed in since no default is configured
  */
-export const getPrimaryModel = () => {
-  // Check if API key is available in environment
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    console.error("OPENAI_API_KEY not found in environment");
-    throw new Error("OPENAI_API_KEY is required");
+export const getPrimaryModel = (apiKey?: string) => {
+  // Check if API key is provided or available in environment
+  const key = apiKey || process.env.OPENAI_API_KEY;
+  if (!key) {
+    console.error("OpenAI API key not provided and no default key configured");
+    throw new Error(
+      "OpenAI API key is required - users must provide their own key"
+    );
   }
 
   console.log("Creating primary model with API key available");
@@ -24,8 +27,18 @@ export const getPrimaryModel = () => {
 
 /**
  * Get the analysis model for metadata generation and analysis tasks
+ * Note: This function requires an API key to be passed in since no default is configured
  */
-export const getAnalysisModel = () => {
+export const getAnalysisModel = (apiKey?: string) => {
+  // Check if API key is provided or available in environment
+  const key = apiKey || process.env.OPENAI_API_KEY;
+  if (!key) {
+    console.error("OpenAI API key not provided and no default key configured");
+    throw new Error(
+      "OpenAI API key is required - users must provide their own key"
+    );
+  }
+
   return openai(MODEL_CONFIG.OPENAI.ANALYSIS as any);
 };
 
@@ -41,14 +54,34 @@ export const getModelWithParams = (
 
 /**
  * Get analysis model with default analysis parameters
+ * Note: This function requires an API key to be passed in since no default is configured
  */
-export const getAnalysisModelWithDefaults = () => {
+export const getAnalysisModelWithDefaults = (apiKey?: string) => {
+  // Check if API key is provided or available in environment
+  const key = apiKey || process.env.OPENAI_API_KEY;
+  if (!key) {
+    console.error("OpenAI API key not provided and no default key configured");
+    throw new Error(
+      "OpenAI API key is required - users must provide their own key"
+    );
+  }
+
   return openai(MODEL_CONFIG.OPENAI.ANALYSIS as any);
 };
 
 /**
  * Get primary model with default chat parameters
+ * Note: This function requires an API key to be passed in since no default is configured
  */
-export const getPrimaryModelWithDefaults = () => {
+export const getPrimaryModelWithDefaults = (apiKey?: string) => {
+  // Check if API key is provided or available in environment
+  const key = apiKey || process.env.OPENAI_API_KEY;
+  if (!key) {
+    console.error("OpenAI API key not provided and no default key configured");
+    throw new Error(
+      "OpenAI API key is required - users must provide their own key"
+    );
+  }
+
   return openai(MODEL_CONFIG.OPENAI.PRIMARY as any);
 };

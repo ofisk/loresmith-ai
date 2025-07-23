@@ -1,10 +1,10 @@
 import type React from "react";
 import { useState } from "react";
-import { Modal } from "./modal/Modal";
 import { Button } from "./button/Button";
+import { Card } from "./card/Card";
 import { Input } from "./input/Input";
 import { Label } from "./label/Label";
-import { Card } from "./card/Card";
+import { Modal } from "./modal/Modal";
 
 interface OpenAIKeyModalProps {
   isOpen: boolean;

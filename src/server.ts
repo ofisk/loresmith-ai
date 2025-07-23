@@ -1,23 +1,18 @@
+import { openai } from "@ai-sdk/openai";
 import { routeAgentRequest, type Schedule } from "agents";
 import { AIChatAgent } from "agents/ai-chat-agent";
 import { generateId, type StreamTextOnFinishCallback, type ToolSet } from "ai";
 import type { Context } from "hono";
 import { Hono } from "hono";
-import { type JWTPayload, jwtVerify, SignJWT } from "jose";
-import { openai } from "@ai-sdk/openai";
+import { jwtVerify, SignJWT } from "jose";
 import { CampaignAgent } from "./agents/campaign-agent";
 import { GeneralAgent } from "./agents/general-agent";
 import { ResourceAgent } from "./agents/resource-agent";
+import { MODEL_CONFIG } from "./constants";
 import type { AuthEnv } from "./lib/auth";
+import { type AuthPayload, authenticateUser, getJwtSecret } from "./lib/auth";
 import { RAGService } from "./lib/rag";
 import type { ProcessingProgress, ProgressMessage } from "./types/progress";
-import { MODEL_CONFIG } from "./constants";
-
-interface UserAuthPayload extends JWTPayload {
-  type: "user-auth";
-  username: string;
-  openaiApiKey?: string;
-}
 
 interface Env extends AuthEnv {
   ADMIN_SECRET?: string;
@@ -110,17 +105,8 @@ function completeProgress(
   progressStore.delete(fileKey);
 }
 
-// Helper to get the JWT secret key from env
-function getJwtSecret(env: Env): Uint8Array {
-  const secret = env.ADMIN_SECRET || "";
-  if (!secret || secret === "undefined") {
-    throw new Error("ADMIN_SECRET not configured");
-  }
-  return new TextEncoder().encode(secret);
-}
-
 // Helper to set user auth context
-function setUserAuth(c: Context, payload: UserAuthPayload) {
+function setUserAuth(c: Context, payload: AuthPayload) {
   (c as any).userAuth = payload;
 }
 
@@ -135,12 +121,13 @@ async function requireUserJwt(
   }
   const token = authHeader.slice(7);
   try {
-    const { payload } = await jwtVerify(token, getJwtSecret(c.env));
+    const jwtSecret = await getJwtSecret(c.env);
+    const { payload } = await jwtVerify(token, jwtSecret);
     if (!payload || payload.type !== "user-auth") {
       return c.json({ error: "Invalid token" }, 401);
     }
     // Attach user info to context
-    setUserAuth(c, payload as UserAuthPayload);
+    setUserAuth(c, payload as AuthPayload);
     await next();
   } catch (_err) {
     return c.json({ error: "Invalid or expired token" }, 401);
@@ -333,11 +320,55 @@ export class Chat extends AIChatAgent<Env> {
 
   /**
    * Determines which specialized agent should handle the user's request
+   * based on keywords and intent in the message and conversation context
    */
   private determineAgent(
     userMessage: string
   ): "campaigns" | "resources" | "general" {
     const lowerMessage = userMessage.toLowerCase();
+
+    // Check for retry/continue context - if the last few messages were campaign-related
+    if (
+      lowerMessage.includes("retry") ||
+      lowerMessage.includes("continue") ||
+      lowerMessage.includes("again")
+    ) {
+      // Look at recent conversation context to determine what to retry
+      const recentMessages = this.messages.slice(-6); // Last 6 messages
+      const recentContext = recentMessages
+        .map((msg) => msg.content)
+        .join(" ")
+        .toLowerCase();
+
+      // If recent context contains campaign keywords, route to campaigns
+      const campaignContextKeywords = [
+        "campaign",
+        "character",
+        "backstory",
+        "curse of strahd",
+        "barovia",
+        "strahd",
+        "melian",
+        "baron la croix",
+        "endinel",
+        "istelle",
+        "calbis",
+        "avren",
+        "horror",
+        "d&d",
+        "dungeons and dragons",
+        "session",
+        "planning",
+      ];
+
+      if (
+        campaignContextKeywords.some((keyword) =>
+          recentContext.includes(keyword)
+        )
+      ) {
+        return "campaigns";
+      }
+    }
 
     // Campaign-related keywords
     const campaignKeywords = [
@@ -369,6 +400,19 @@ export class Chat extends AIChatAgent<Env> {
       "campaign tone",
       "setting preferences",
       "special considerations",
+      // Character names and specific campaign content
+      "melian",
+      "baron la croix",
+      "endinel",
+      "istelle",
+      "calbis",
+      "avren",
+      "curse of strahd",
+      "barovia",
+      "strahd",
+      "horror",
+      "d&d",
+      "dungeons and dragons",
     ];
 
     // Resource/PDF-related keywords (for uploads and management)
@@ -687,170 +731,31 @@ app.post("/chat/set-openai-key", async (c) => {
 
 // User Authentication Route (returns JWT)
 app.post("/auth/authenticate", async (c) => {
-  console.log("=== AUTHENTICATION REQUEST START ===");
-
-  const { providedKey, username, openaiApiKey } = await c.req.json();
-  // ADMIN_SECRET should be available as an environment variable from .dev.vars
-  // In local development, it should be directly accessible
-  const expectedKey = c.env.ADMIN_SECRET || "";
-
-  console.log("Authentication request details:", {
-    providedKey: providedKey ? "***" : null,
-    providedKeyLength: providedKey?.length || 0,
-    username,
-    hasOpenaiApiKey: !!openaiApiKey,
-    expectedKey: expectedKey ? "***" : null,
-    expectedKeyLength: expectedKey?.length || 0,
-    envAdminSecret: !!c.env.ADMIN_SECRET,
-    processAdminSecret: !!process.env.ADMIN_SECRET,
-    envAdminSecretLength: c.env.ADMIN_SECRET?.length || 0,
-    processAdminSecretLength: process.env.ADMIN_SECRET?.length || 0,
-    envAdminSecretType: typeof c.env.ADMIN_SECRET,
-    processAdminSecretType: typeof process.env.ADMIN_SECRET,
-    envAdminSecretValue: c.env.ADMIN_SECRET,
-    processAdminSecretValue: process.env.ADMIN_SECRET,
-    allProcessEnvKeys: Object.keys(process.env).filter(
-      (key) => key.includes("ADMIN") || key.includes("SECRET")
-    ),
-  });
-
-  // Check if we have a default OpenAI key (properly handle 'undefined' string)
-  const hasDefaultOpenAIKey =
-    (!!c.env.OPENAI_API_KEY && c.env.OPENAI_API_KEY.trim().length > 0) ||
-    (!!process.env.OPENAI_API_KEY &&
-      process.env.OPENAI_API_KEY.trim().length > 0 &&
-      process.env.OPENAI_API_KEY !== "undefined");
-
-  // Check if user has already set an API key in their session
-  let userStoredApiKey: string | null = null;
   try {
+    const { providedKey, username, openaiApiKey } = await c.req.json();
     const sessionId = c.req.header("X-Session-ID") || "default";
-    const chatId = c.env.Chat.idFromName(sessionId);
-    const chat = c.env.Chat.get(chatId);
 
-    // Try to get the user's stored API key
-    const response = await chat.fetch(
-      new Request("http://localhost/get-user-openai-key", {
-        method: "GET",
-      })
+    const result = await authenticateUser(
+      { providedKey, username, openaiApiKey, sessionId },
+      c.env
     );
 
-    if (response.ok) {
-      const result = (await response.json()) as { apiKey?: string };
-      userStoredApiKey = result.apiKey || null;
+    if (!result.success) {
+      const statusCode = result.error?.includes("Invalid admin key")
+        ? 401
+        : 400;
+      return c.json({ error: result.error }, statusCode);
     }
+
+    return c.json({
+      token: result.token,
+      hasDefaultOpenAIKey: result.hasDefaultOpenAIKey,
+      requiresOpenAIKey: result.requiresOpenAIKey,
+    });
   } catch (error) {
-    console.log("Could not retrieve user's stored API key:", error);
+    console.error("Authentication error:", error);
+    return c.json({ error: "Internal server error" }, 500);
   }
-
-  console.log("Auth endpoint debug:", {
-    providedKey: providedKey ? "***" : null,
-    username,
-    hasOpenaiApiKey: !!openaiApiKey,
-    hasUserStoredApiKey: !!userStoredApiKey,
-    expectedKey: expectedKey ? "***" : null,
-    hasDefaultOpenAIKey,
-    envOpenAIKey: !!c.env.OPENAI_API_KEY,
-    processOpenAIKey: !!process.env.OPENAI_API_KEY,
-    processOpenAIKeyValue: process.env.OPENAI_API_KEY,
-    processOpenAIKeyLength: process.env.OPENAI_API_KEY?.length || 0,
-  });
-
-  console.log("Validation checks:", {
-    hasProvidedKey: !!providedKey,
-    hasExpectedKey: !!expectedKey,
-    hasUsername: !!username,
-    usernameType: typeof username,
-    usernameTrimmed: username?.trim(),
-    usernameTrimmedLength: username?.trim()?.length || 0,
-  });
-
-  if (
-    !providedKey ||
-    !expectedKey ||
-    !username ||
-    typeof username !== "string" ||
-    username.trim() === ""
-  ) {
-    console.log("Validation failed - missing required fields");
-    return c.json({ error: "Missing admin key or username" }, 400);
-  }
-
-  console.log("Key comparison:", {
-    providedKeyFirstChar: providedKey?.[0],
-    expectedKeyFirstChar: expectedKey?.[0],
-    providedKeyLastChar: providedKey?.[providedKey.length - 1],
-    expectedKeyLastChar: expectedKey?.[expectedKey.length - 1],
-    keysMatch: providedKey === expectedKey,
-    providedKeyLength: providedKey?.length,
-    expectedKeyLength: expectedKey?.length,
-    providedKeyTrimmed: providedKey?.trim(),
-    expectedKeyTrimmed: expectedKey?.trim(),
-    providedKeyTrimmedLength: providedKey?.trim()?.length,
-    expectedKeyTrimmedLength: expectedKey?.trim()?.length,
-  });
-
-  if (providedKey !== expectedKey) {
-    console.log("Authentication failed - invalid admin key");
-    return c.json({ error: "Invalid admin key" }, 401);
-  }
-
-  console.log("Authentication validation passed");
-
-  // Determine which API key to use: provided in request, stored in session, or default
-  const finalApiKey = openaiApiKey?.trim() || userStoredApiKey || null;
-
-  // If no API key is available from any source, require the user to provide one
-  if (!hasDefaultOpenAIKey && !finalApiKey) {
-    return c.json(
-      {
-        error: "OpenAI API key is required when no default key is configured",
-        requiresOpenAIKey: true,
-      },
-      400
-    );
-  }
-
-  // Validate OpenAI API key if we have one to validate
-  if (finalApiKey) {
-    try {
-      // Test the OpenAI API key by making a simple request
-      const testResponse = await fetch("https://api.openai.com/v1/models", {
-        headers: {
-          Authorization: `Bearer ${finalApiKey}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!testResponse.ok) {
-        return c.json({ error: "Invalid OpenAI API key" }, 400);
-      }
-    } catch (error) {
-      console.error("Error validating OpenAI API key:", error);
-      return c.json({ error: "Failed to validate OpenAI API key" }, 400);
-    }
-  }
-
-  // Issue JWT with username and OpenAI key (if available)
-  const jwtPayload: UserAuthPayload = {
-    type: "user-auth",
-    username,
-    ...(finalApiKey && { openaiApiKey: finalApiKey }),
-  };
-
-  const jwt = await new SignJWT(jwtPayload)
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("1d")
-    .sign(getJwtSecret(c.env));
-
-  console.log("Authentication successful - issuing JWT");
-
-  return c.json({
-    token: jwt,
-    hasDefaultOpenAIKey,
-    requiresOpenAIKey: !hasDefaultOpenAIKey && !userStoredApiKey,
-  });
 });
 
 // PDF Upload URL Route (for presigned uploads)
@@ -1254,75 +1159,44 @@ app.delete("/rag/pdfs/:fileKey", requireUserJwt, async (c) => {
 });
 
 // Mount campaign agent routes
-app.get("/campaigns", requireUserJwt, async (c) => {
+app.all("/campaigns/*", requireUserJwt, async (c) => {
   try {
-    const userAuth = (c as any).userAuth;
-    const userId = userAuth.username;
-
-    const { results } = await c.env.DB.prepare(
-      "SELECT * FROM campaigns WHERE username = ? ORDER BY created_at DESC"
-    )
-      .bind(userId)
-      .all();
-
-    console.log(
-      `[GET] Listing campaigns for user`,
-      userId,
-      "found campaigns:",
-      results.length
+    // Create a campaign agent instance to handle the request
+    const campaignAgent = new CampaignAgent(
+      {} as DurableObjectState, // We don't need the actual state for HTTP requests
+      c.env,
+      openai(MODEL_CONFIG.OPENAI.PRIMARY)
     );
 
-    return c.json({ campaigns: results });
-  } catch (error) {
-    console.error("Error fetching campaigns:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-app.post("/campaigns", requireUserJwt, async (c) => {
-  try {
-    const { name, description } = await c.req.json();
+    // Create a new request with the authentication context properly set
     const userAuth = (c as any).userAuth;
+    const newRequest = new Request(c.req.raw.url, {
+      method: c.req.raw.method,
+      headers: c.req.raw.headers,
+      body: c.req.raw.body,
+    });
 
-    if (!name || typeof name !== "string" || name.trim() === "") {
-      return c.json({ error: "Campaign name is required" }, 400);
+    // Add the Authorization header if it's not already present
+    if (!newRequest.headers.get("Authorization") && userAuth) {
+      // Create a JWT token for the user
+      const secret = await getJwtSecret(c.env);
+      const token = await new SignJWT({
+        type: "user-auth",
+        username: userAuth.username,
+        openaiApiKey: userAuth.openaiApiKey,
+      })
+        .setProtectedHeader({ alg: "HS256" })
+        .setIssuedAt()
+        .setExpirationTime("24h")
+        .sign(secret);
+
+      newRequest.headers.set("Authorization", `Bearer ${token}`);
     }
 
-    const userId = userAuth.username;
-    const campaignId = crypto.randomUUID();
-    const now = new Date().toISOString();
-
-    const campaign = {
-      id: campaignId,
-      username: userId,
-      name: name.trim(),
-      description: description?.trim() || null,
-      status: "active",
-      metadata: JSON.stringify({}),
-      created_at: now,
-      updated_at: now,
-    };
-
-    // Store in D1
-    await c.env.DB.prepare(
-      "INSERT INTO campaigns (id, username, name, description, status, metadata, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    )
-      .bind(
-        campaign.id,
-        campaign.username,
-        campaign.name,
-        campaign.description,
-        campaign.status,
-        campaign.metadata,
-        campaign.created_at,
-        campaign.updated_at
-      )
-      .run();
-
-    console.log(`[POST] Created campaign for user`, userId, ":", campaignId);
-    return c.json({ success: true, campaign });
+    // Forward the request to the campaign agent
+    return await campaignAgent.handleHttpRequest(newRequest, c.env);
   } catch (error) {
-    console.error("Error creating campaign:", error);
+    console.error("Error in campaign agent route:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 });
