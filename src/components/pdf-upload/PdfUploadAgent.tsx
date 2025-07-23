@@ -332,10 +332,7 @@ export const PdfUploadAgent = ({
       setAuthError("Please enter your username");
       return;
     }
-    if (requiresOpenAIKey && !openaiApiKey.trim()) {
-      setAuthError("Please enter your OpenAI API key");
-      return;
-    }
+
     try {
       setAuthenticating(true);
       setAuthError(null);
@@ -349,7 +346,6 @@ export const PdfUploadAgent = ({
           body: JSON.stringify({
             providedKey: adminKey,
             username: username.trim(),
-            ...(requiresOpenAIKey && { openaiApiKey: openaiApiKey.trim() }),
           }),
         }
       );
@@ -512,39 +508,6 @@ export const PdfUploadAgent = ({
                       if (e.key === "Enter") handleSubmitAuth();
                     }}
                   />
-                  {/* Debug info */}
-                  <div className="text-xs text-gray-500">
-                    Debug: requiresOpenAIKey = {requiresOpenAIKey.toString()}
-                  </div>
-
-                  {requiresOpenAIKey && (
-                    <>
-                      <label
-                        htmlFor="openai-key"
-                        className="text-ob-base-300 text-sm font-medium mb-2 block"
-                      >
-                        OpenAI API Key
-                      </label>
-                      <Input
-                        id="openai-key"
-                        type="password"
-                        placeholder="Enter your OpenAI API key..."
-                        value={openaiApiKey}
-                        onValueChange={(value: string) =>
-                          setOpenaiApiKey(value)
-                        }
-                        disabled={authenticating}
-                        onKeyDown={(e: React.KeyboardEvent) => {
-                          if (e.key === "Enter") handleSubmitAuth();
-                        }}
-                      />
-                      <p className="text-ob-base-200 text-xs">
-                        Your OpenAI API key is required when no default key is
-                        configured. This key will be used for chat interactions
-                        and will be stored securely.
-                      </p>
-                    </>
-                  )}
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -553,10 +516,7 @@ export const PdfUploadAgent = ({
                     size="base"
                     loading={authenticating}
                     disabled={
-                      !adminKey.trim() ||
-                      !username.trim() ||
-                      (requiresOpenAIKey && !openaiApiKey.trim()) ||
-                      authenticating
+                      !adminKey.trim() || !username.trim() || authenticating
                     }
                   >
                     {authenticating ? "Authenticating..." : "Authenticate"}
