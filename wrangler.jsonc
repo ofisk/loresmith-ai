@@ -18,12 +18,12 @@
     {
       "binding": "OPENAI_API_KEY",
       "store_id": "69b603107000458b8f1452516860c425",
-      "secret_name": "OPENAI_API_KEY"
+      "secret_name": "OPENAI_API_KEY",
     },
     {
       "binding": "ADMIN_SECRET",
       "store_id": "69b603107000458b8f1452516860c425",
-      "secret_name": "ADMIN_SECRET"
+      "secret_name": "ADMIN_SECRET",
     },
   ],
   "durable_objects": {

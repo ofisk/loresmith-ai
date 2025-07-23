@@ -56,8 +56,10 @@ export const API_CONFIG = {
     RAG: {
       SEARCH: "/rag/search",
       PROCESS_PDF: "/rag/process-pdf",
+      PROCESS_PDF_FROM_R2: "/rag/process-pdf-from-r2",
       PDFS: "/rag/pdfs",
       PDF_CHUNKS: (fileKey: string) => `/rag/pdfs/${fileKey}/chunks`,
+      UPDATE_METADATA: (fileKey: string) => `/rag/pdfs/${fileKey}/metadata`,
       DELETE_PDF: (fileKey: string) => `/rag/pdfs/${fileKey}`,
     },
   },
