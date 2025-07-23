@@ -2,6 +2,7 @@ import type { D1Database } from "@cloudflare/workers-types";
 import { Hono } from "hono";
 import { ERROR_MESSAGES } from "../constants";
 import type { AuthContext, AuthEnv } from "../lib/auth";
+import { CampaignRAGService } from "../lib/campaignRag";
 import { requireAuth } from "../lib/middleware";
 import { campaignTools } from "../tools/campaign";
 import { BaseAgent } from "./base-agent";
@@ -9,18 +10,21 @@ import { BaseAgent } from "./base-agent";
 interface Env extends AuthEnv {
   DB: D1Database;
   PDF_BUCKET: R2Bucket;
+  VECTORIZE: VectorizeIndex;
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
   CampaignManager: DurableObjectNamespace;
 }
 
-const CAMPAIGN_SYSTEM_PROMPT = `You are an expert D&D Campaign Planning AI assistant with access to a comprehensive PDF library of D&D resources. You help users plan campaigns, suggest relevant resources, and guide them through the campaign creation process.
+const CAMPAIGN_SYSTEM_PROMPT = `You are an expert D&D Campaign Planning AI assistant with access to a comprehensive PDF library of D&D resources and intelligent context management. You help users plan campaigns, suggest relevant resources, and guide them through the campaign creation process with personalized, context-aware recommendations.
 
 ### CORE CAPABILITIES ###
 1. **Resource Discovery**: Search through the user's PDF library to find relevant materials
 2. **Campaign Planning**: Help create and manage campaigns with intelligent suggestions
-3. **Proactive Questioning**: Ask relevant questions to understand campaign needs
-4. **Resource Recommendations**: Explain why specific resources would be helpful
+3. **Context Management**: Store and retrieve campaign context for personalized recommendations
+4. **Character Integration**: Manage character information and backstories for tailored suggestions
+5. **Proactive Questioning**: Ask relevant questions to understand campaign needs
+6. **Resource Recommendations**: Explain why specific resources would be helpful
 
 ### TOOL MAPPING ###
 **Campaign Management:**
@@ -36,6 +40,15 @@ const CAMPAIGN_SYSTEM_PROMPT = `You are an expert D&D Campaign Planning AI assis
 - "what resources do I have" → USE getPdfLibraryStats tool
 - "suggest resources for [campaign type]" → USE searchPdfLibrary tool
 
+**Context Management:**
+- "store character backstory" → USE storeCampaignContext tool
+- "save world description" → USE storeCampaignContext tool
+- "add character info" → USE storeCharacterInfo tool
+- "get campaign context" → USE getCampaignContext tool
+- "search campaign context" → USE searchCampaignContext tool
+- "get intelligent suggestions" → USE getIntelligentSuggestions tool
+- "assess campaign readiness" → USE assessCampaignReadiness tool
+
 ### CAMPAIGN PLANNING WORKFLOW ###
 When users express interest in planning a campaign, follow this proactive approach:
 
@@ -44,26 +57,38 @@ When users express interest in planning a campaign, follow this proactive approa
 - Inquire about setting preferences (fantasy, sci-fi, modern, etc.)
 - Determine campaign length and scope
 - Ask about player experience levels
+- **IMPORTANT**: Store this information using storeCampaignContext tool for future reference
 
 **Phase 2: Character Integration**
 - Ask about player character backstories
 - Inquire about character motivations and goals
 - Discuss character relationships and party dynamics
 - Identify potential story hooks from character backgrounds
+- **IMPORTANT**: Store character information using storeCharacterInfo tool
+- **IMPORTANT**: Store detailed backstories using storeCampaignContext tool
 
 **Phase 3: Special Considerations**
 - Ask about player preferences and boundaries
 - Discuss accessibility needs or accommodations
 - Inquire about scheduling and session length
 - Ask about any specific themes or content to avoid/include
+- **IMPORTANT**: Store preferences using storeCampaignContext tool
 
 **Phase 4: Resource Suggestions**
 - Search the PDF library for relevant materials
+- Use getIntelligentSuggestions tool to get personalized recommendations
 - Explain why specific resources would be helpful
 - Suggest world-building materials
 - Recommend monsters, NPCs, or locations
 
-**Phase 5: Next Steps**
+**Phase 5: Context Building and Readiness Assessment**
+- Use assessCampaignReadiness tool to evaluate current state
+- Ask if they want to add more context or are ready to start planning
+- Store any additional context they provide
+- Use getCampaignContext tool to review what's been stored
+- Offer to help plan specific sessions with full context awareness
+
+**Phase 6: Next Steps**
 - Offer to help plan specific sessions
 - Suggest additional world-building activities
 - Recommend campaign management tools
@@ -74,27 +99,38 @@ When users express interest in planning a campaign, follow this proactive approa
 - **Specific follow-ups**: "Given that you want a horror campaign, have you considered..."
 - **Resource-based suggestions**: "I found some great horror-themed monsters that might work well..."
 - **Progressive disclosure**: Start broad, then get more specific as context builds
+- **Context storage**: Always store important information using the appropriate tools
 
-### RESOURCE RECOMMENDATION APPROACH ###
-When suggesting resources:
-1. **Explain the relevance**: "This adventure module would work well because..."
-2. **Connect to context**: "Given your party's composition of..."
-3. **Offer alternatives**: "If that doesn't fit, I also found..."
-4. **Provide context**: "This resource contains [specific content] that could help with..."
+### CONTEXT-AWARE RECOMMENDATION APPROACH ###
+When providing suggestions:
+1. **Retrieve existing context**: Use getCampaignContext tool to understand what's already known
+2. **Explain the relevance**: "This adventure module would work well because..."
+3. **Connect to stored context**: "Given your party's composition of [retrieved characters]..."
+4. **Use intelligent suggestions**: Use getIntelligentSuggestions tool for personalized recommendations
+5. **Offer alternatives**: "If that doesn't fit, I also found..."
+6. **Provide context**: "This resource contains [specific content] that could help with..."
+7. **Assess readiness**: Use assessCampaignReadiness tool to suggest what else might be needed
 
 ### EXECUTION RULES ###
 1. Use tools for campaign operations and resource discovery
-2. Provide direct, helpful responses for general conversation
-3. Be proactive in asking relevant questions
-4. Always explain why resources are recommended
-5. Build context progressively through conversation
-6. Offer multiple options when appropriate
+2. **ALWAYS store important context information** using storeCampaignContext and storeCharacterInfo tools
+3. Provide direct, helpful responses for general conversation
+4. Be proactive in asking relevant questions
+5. Always explain why resources are recommended
+6. Build context progressively through conversation
+7. Offer multiple options when appropriate
+8. **Use context-aware tools** like getIntelligentSuggestions and assessCampaignReadiness
+9. **Encourage users to provide more context** when they seem to have limited information
+10. **Ask if they're ready to start planning** after gathering sufficient context
 
 ### RESPONSE FORMAT ###
 - For resource suggestions: Explain what you found and why it's relevant
 - For campaign planning: Ask targeted questions to build understanding
+- For context storage: Confirm what was stored and suggest what else might be helpful
 - For general conversation: Respond directly and helpfully
 - Always provide clear next steps or suggestions
+- **Encourage context building**: "Would you like to tell me more about [specific aspect]?"
+- **Assess readiness**: "Based on what you've told me, would you like to add more context or are you ready to start planning?"
 
 ### SPECIALIZATION ###
 You handle D&D campaign planning and resource discovery. Redirect other topics to appropriate agents:
@@ -103,9 +139,13 @@ You handle D&D campaign planning and resource discovery. Redirect other topics t
 
 ### PROACTIVE BEHAVIORS ###
 - When users mention campaign planning, immediately start gathering context
+- **ALWAYS store context information** as users provide it
 - When suggesting resources, always explain the reasoning
 - When building context, ask follow-up questions to deepen understanding
-- When offering next steps, provide specific, actionable suggestions`;
+- When offering next steps, provide specific, actionable suggestions
+- **Encourage comprehensive context**: "The more you tell me about your campaign, the better I can help you plan!"
+- **Use stored context**: Reference previously stored information when making suggestions
+- **Assess and guide**: Regularly check if users have provided enough context for effective planning`;
 
 /**
  * Unified Campaign Agent that handles both HTTP routes and AI interactions
@@ -517,6 +557,459 @@ export class CampaignAgent extends BaseAgent {
         return c.json({ error: ERROR_MESSAGES.INTERNAL_SERVER_ERROR }, 500);
       }
     });
+
+    // POST /campaigns/:campaignId/context - Store campaign context
+    this.app.post("/campaigns/:campaignId/context", requireAuth, async (c) => {
+      try {
+        const campaignId = c.req.param("campaignId");
+        const { contextType, title, content, metadata } = await c.req.json();
+
+        if (!campaignId) {
+          return c.json({ error: ERROR_MESSAGES.CAMPAIGN_ID_REQUIRED }, 400);
+        }
+        if (!contextType || !title || !content) {
+          return c.json(
+            { error: "contextType, title, and content are required" },
+            400
+          );
+        }
+
+        const userId = c.get("auth")!.username;
+
+        // Verify campaign exists and belongs to user
+        const campaignResult = await c.env.DB.prepare(
+          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
+        )
+          .bind(campaignId, userId)
+          .first();
+
+        if (!campaignResult) {
+          return c.json({ error: ERROR_MESSAGES.CAMPAIGN_NOT_FOUND }, 404);
+        }
+
+        // Store the context
+        const contextId = crypto.randomUUID();
+        const now = new Date().toISOString();
+
+        await c.env.DB.prepare(
+          "INSERT INTO campaign_context (id, campaign_id, context_type, title, content, metadata, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+          .bind(
+            contextId,
+            campaignId,
+            contextType,
+            title,
+            content,
+            metadata ? JSON.stringify(metadata) : null,
+            now,
+            now
+          )
+          .run();
+
+        // Process context for RAG
+        const campaignRagService = new CampaignRAGService(
+          c.env.DB,
+          c.env.VECTORIZE,
+          c.env.OPENAI_API_KEY
+        );
+
+        try {
+          await campaignRagService.processCampaignContext(
+            contextId,
+            campaignId,
+            content,
+            contextType,
+            title,
+            metadata
+          );
+        } catch (ragError) {
+          console.warn("Failed to process context for RAG:", ragError);
+          // Continue even if RAG processing fails
+        }
+
+        // Update campaign updated_at
+        await c.env.DB.prepare(
+          "UPDATE campaigns SET updated_at = ? WHERE id = ?"
+        )
+          .bind(now, campaignId)
+          .run();
+
+        console.log(
+          "[POST] Stored campaign context for user",
+          userId,
+          ":",
+          campaignId,
+          "type:",
+          contextType
+        );
+
+        return c.json({
+          success: true,
+          context: {
+            id: contextId,
+            contextType,
+            title,
+            content,
+            metadata,
+            createdAt: now,
+          },
+        });
+      } catch (error) {
+        console.error("Error storing campaign context:", error);
+        return c.json({ error: ERROR_MESSAGES.INTERNAL_SERVER_ERROR }, 500);
+      }
+    });
+
+    // GET /campaigns/:campaignId/context - Get campaign context
+    this.app.get("/campaigns/:campaignId/context", requireAuth, async (c) => {
+      try {
+        const campaignId = c.req.param("campaignId");
+        const contextType = c.req.query("type");
+
+        if (!campaignId) {
+          return c.json({ error: ERROR_MESSAGES.CAMPAIGN_ID_REQUIRED }, 400);
+        }
+
+        const userId = c.get("auth")!.username;
+
+        // Verify campaign exists and belongs to user
+        const campaignResult = await c.env.DB.prepare(
+          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
+        )
+          .bind(campaignId, userId)
+          .first();
+
+        if (!campaignResult) {
+          return c.json({ error: ERROR_MESSAGES.CAMPAIGN_NOT_FOUND }, 404);
+        }
+
+        // Get context entries
+        let query =
+          "SELECT * FROM campaign_context WHERE campaign_id = ? ORDER BY created_at DESC";
+        const params = [campaignId];
+
+        if (contextType && contextType !== "all") {
+          query += " AND context_type = ?";
+          params.push(contextType);
+        }
+
+        const { results: context } = await c.env.DB.prepare(query)
+          .bind(...params)
+          .all();
+
+        console.log(
+          `[GET] Retrieved context for campaign`,
+          campaignId,
+          ":",
+          context.length,
+          "entries"
+        );
+        return c.json({ context });
+      } catch (error) {
+        console.error("Error fetching campaign context:", error);
+        return c.json({ error: ERROR_MESSAGES.INTERNAL_SERVER_ERROR }, 500);
+      }
+    });
+
+    // POST /campaigns/:campaignId/characters - Store character information
+    this.app.post(
+      "/campaigns/:campaignId/characters",
+      requireAuth,
+      async (c) => {
+        try {
+          const campaignId = c.req.param("campaignId");
+          const {
+            characterName,
+            characterClass,
+            characterLevel,
+            characterRace,
+            backstory,
+            personalityTraits,
+            goals,
+            relationships,
+            metadata,
+          } = await c.req.json();
+
+          if (!campaignId) {
+            return c.json({ error: ERROR_MESSAGES.CAMPAIGN_ID_REQUIRED }, 400);
+          }
+          if (!characterName) {
+            return c.json({ error: "characterName is required" }, 400);
+          }
+
+          const userId = c.get("auth")!.username;
+
+          // Verify campaign exists and belongs to user
+          const campaignResult = await c.env.DB.prepare(
+            "SELECT id FROM campaigns WHERE id = ? AND username = ?"
+          )
+            .bind(campaignId, userId)
+            .first();
+
+          if (!campaignResult) {
+            return c.json({ error: ERROR_MESSAGES.CAMPAIGN_NOT_FOUND }, 404);
+          }
+
+          // Store the character
+          const characterId = crypto.randomUUID();
+          const now = new Date().toISOString();
+
+          await c.env.DB.prepare(
+            "INSERT INTO campaign_characters (id, campaign_id, character_name, character_class, character_level, character_race, backstory, personality_traits, goals, relationships, metadata, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          )
+            .bind(
+              characterId,
+              campaignId,
+              characterName,
+              characterClass || null,
+              characterLevel || 1,
+              characterRace || null,
+              backstory || null,
+              personalityTraits || null,
+              goals || null,
+              relationships ? JSON.stringify(relationships) : null,
+              metadata ? JSON.stringify(metadata) : null,
+              now,
+              now
+            )
+            .run();
+
+          // Update campaign updated_at
+          await c.env.DB.prepare(
+            "UPDATE campaigns SET updated_at = ? WHERE id = ?"
+          )
+            .bind(now, campaignId)
+            .run();
+
+          console.log(
+            "[POST] Stored character for user",
+            userId,
+            ":",
+            campaignId,
+            "character:",
+            characterName
+          );
+
+          return c.json({
+            success: true,
+            character: {
+              id: characterId,
+              characterName,
+              characterClass,
+              characterLevel,
+              characterRace,
+              backstory,
+              personalityTraits,
+              goals,
+              relationships,
+              metadata,
+              createdAt: now,
+            },
+          });
+        } catch (error) {
+          console.error("Error storing character:", error);
+          return c.json({ error: ERROR_MESSAGES.INTERNAL_SERVER_ERROR }, 500);
+        }
+      }
+    );
+
+    // POST /campaigns/:campaignId/suggestions - Get intelligent suggestions
+    this.app.post(
+      "/campaigns/:campaignId/suggestions",
+      requireAuth,
+      async (c) => {
+        try {
+          const campaignId = c.req.param("campaignId");
+          const { suggestionType, specificFocus } = await c.req.json();
+
+          if (!campaignId) {
+            return c.json({ error: ERROR_MESSAGES.CAMPAIGN_ID_REQUIRED }, 400);
+          }
+          if (!suggestionType) {
+            return c.json({ error: "suggestionType is required" }, 400);
+          }
+
+          const userId = c.get("auth")!.username;
+
+          // Verify campaign exists and belongs to user
+          const campaignResult = await c.env.DB.prepare(
+            "SELECT id FROM campaigns WHERE id = ? AND username = ?"
+          )
+            .bind(campaignId, userId)
+            .first();
+
+          if (!campaignResult) {
+            return c.json({ error: ERROR_MESSAGES.CAMPAIGN_NOT_FOUND }, 404);
+          }
+
+          // Get campaign context and characters for intelligent suggestions
+          const { results: context } = await c.env.DB.prepare(
+            "SELECT * FROM campaign_context WHERE campaign_id = ? ORDER BY created_at DESC"
+          )
+            .bind(campaignId)
+            .all();
+
+          const { results: characters } = await c.env.DB.prepare(
+            "SELECT * FROM campaign_characters WHERE campaign_id = ? ORDER BY created_at DESC"
+          )
+            .bind(campaignId)
+            .all();
+
+          const { results: resources } = await c.env.DB.prepare(
+            "SELECT * FROM campaign_resources WHERE campaign_id = ? ORDER BY created_at DESC"
+          )
+            .bind(campaignId)
+            .all();
+
+          // Generate suggestions using CampaignRAGService
+          const campaignRagService = new CampaignRAGService(
+            c.env.DB,
+            c.env.VECTORIZE,
+            c.env.OPENAI_API_KEY
+          );
+
+          const suggestionsResult =
+            await campaignRagService.getIntelligentSuggestions(
+              campaignId,
+              suggestionType,
+              specificFocus,
+              context,
+              characters,
+              resources
+            );
+
+          console.log(
+            "[POST] Generated suggestions for campaign",
+            campaignId,
+            "type:",
+            suggestionType,
+            "count:",
+            suggestionsResult.suggestions.length
+          );
+
+          return c.json({
+            success: true,
+            ...suggestionsResult,
+          });
+        } catch (error) {
+          console.error("Error generating suggestions:", error);
+          return c.json({ error: ERROR_MESSAGES.INTERNAL_SERVER_ERROR }, 500);
+        }
+      }
+    );
+
+    // GET /campaigns/:campaignId/readiness - Assess campaign readiness
+    this.app.get("/campaigns/:campaignId/readiness", requireAuth, async (c) => {
+      try {
+        const campaignId = c.req.param("campaignId");
+
+        if (!campaignId) {
+          return c.json({ error: ERROR_MESSAGES.CAMPAIGN_ID_REQUIRED }, 400);
+        }
+
+        const userId = c.get("auth")!.username;
+
+        // Verify campaign exists and belongs to user
+        const campaignResult = await c.env.DB.prepare(
+          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
+        )
+          .bind(campaignId, userId)
+          .first();
+
+        if (!campaignResult) {
+          return c.json({ error: ERROR_MESSAGES.CAMPAIGN_NOT_FOUND }, 404);
+        }
+
+        // Assess readiness using CampaignRAGService
+        const campaignRagService = new CampaignRAGService(
+          c.env.DB,
+          c.env.VECTORIZE,
+          c.env.OPENAI_API_KEY
+        );
+
+        const assessment =
+          await campaignRagService.assessCampaignReadiness(campaignId);
+
+        console.log(
+          "[GET] Assessed campaign readiness for",
+          campaignId,
+          "score:",
+          assessment.readinessScore
+        );
+
+        return c.json({
+          success: true,
+          ...assessment,
+        });
+      } catch (error) {
+        console.error("Error assessing campaign readiness:", error);
+        return c.json({ error: ERROR_MESSAGES.INTERNAL_SERVER_ERROR }, 500);
+      }
+    });
+
+    // POST /campaigns/:campaignId/context-search - Search campaign context
+    this.app.post(
+      "/campaigns/:campaignId/context-search",
+      requireAuth,
+      async (c) => {
+        try {
+          const campaignId = c.req.param("campaignId");
+          const { query, limit = 5 } = await c.req.json();
+
+          if (!campaignId) {
+            return c.json({ error: ERROR_MESSAGES.CAMPAIGN_ID_REQUIRED }, 400);
+          }
+          if (!query) {
+            return c.json({ error: "query is required" }, 400);
+          }
+
+          const userId = c.get("auth")!.username;
+
+          // Verify campaign exists and belongs to user
+          const campaignResult = await c.env.DB.prepare(
+            "SELECT id FROM campaigns WHERE id = ? AND username = ?"
+          )
+            .bind(campaignId, userId)
+            .first();
+
+          if (!campaignResult) {
+            return c.json({ error: ERROR_MESSAGES.CAMPAIGN_NOT_FOUND }, 404);
+          }
+
+          // Search campaign context using CampaignRAGService
+          const campaignRagService = new CampaignRAGService(
+            c.env.DB,
+            c.env.VECTORIZE,
+            c.env.OPENAI_API_KEY
+          );
+
+          const searchResults = await campaignRagService.searchCampaignContext(
+            campaignId,
+            query,
+            limit
+          );
+
+          console.log(
+            "[POST] Searched campaign context for",
+            campaignId,
+            "query:",
+            query,
+            "results:",
+            searchResults.length
+          );
+
+          return c.json({
+            success: true,
+            results: searchResults,
+            query,
+            limit,
+          });
+        } catch (error) {
+          console.error("Error searching campaign context:", error);
+          return c.json({ error: ERROR_MESSAGES.INTERNAL_SERVER_ERROR }, 500);
+        }
+      }
+    );
   }
 
   // Method to handle HTTP requests

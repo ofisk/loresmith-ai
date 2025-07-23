@@ -8,6 +8,7 @@ import {
 } from "../constants";
 import { authenticatedFetch, handleAuthError } from "../lib/toolAuth";
 import type { CampaignData, CampaignResource } from "../types/campaign";
+import { campaignContextTools } from "./campaignContext";
 
 export class CampaignTool {
   private campaignManager: DurableObjectNamespace;
@@ -1300,6 +1301,7 @@ export const campaignTools = {
   getPdfLibraryStats,
   planCampaignSession,
   suggestCampaignResources,
+  ...campaignContextTools,
 };
 
 // Usage example (in a Worker):

@@ -1,6 +1,6 @@
+import Chat from "../app";
 import { useOpenAIKey } from "../hooks/useOpenAIKey";
 import { OpenAIKeyModal } from "./OpenAIKeyModal";
-import Chat from "../app";
 
 export function AppWrapper() {
   const { hasApiKey, isLoading: isApiKeyLoading, setApiKey } = useOpenAIKey();

@@ -60,13 +60,14 @@ ADMIN_SECRET=your_admin_secret_for_pdf_uploads
 
 The application supports two modes for OpenAI API key configuration:
 
-1. **Default Key (Recommended)**: Set `OPENAI_API_KEY` in your environment variables. This key will be used for all chat interactions.
+1. **Local Development**: Set `OPENAI_API_KEY` in your `.dev.vars` file for local development and testing. This key will be used for all chat interactions during development.
 
-2. **User-Provided Key**: If no default key is set, users will be prompted to provide their own OpenAI API key during authentication. This key will be:
+2. **Production (User-Provided)**: In production, users must provide their own OpenAI API key during authentication. This key will be:
    - Validated against the OpenAI API
    - Stored securely in the Chat durable object
    - Used for all chat interactions in that session
    - Automatically cleared when the session expires
+   - Never stored in the application's environment variables
 
 ### Running the Application Locally
 
@@ -104,7 +105,7 @@ npm run deploy
 
 ### Environment Variables
 
-- `OPENAI_API_KEY`: Your OpenAI API key for AI chat functionality (optional)
+- `OPENAI_API_KEY`: Your OpenAI API key for AI chat functionality (local development only - not used in production)
 - `ADMIN_SECRET`: Secret key for PDF upload authentication
 
 ### Cloudflare Resources

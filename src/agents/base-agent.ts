@@ -218,7 +218,13 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
               console.log(
                 `[${this.constructor.name}] About to execute tool ${toolName}`
               );
-              const result = await tool.execute?.(enhancedArgs, context);
+
+              // Pass environment to tools that need it
+              const enhancedContext = { ...context, env: this.env };
+              const result = await tool.execute?.(
+                enhancedArgs,
+                enhancedContext
+              );
               console.log(
                 `[${this.constructor.name}] Tool ${toolName} result:`,
                 result
