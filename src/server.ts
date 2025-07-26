@@ -586,7 +586,8 @@ app.use("*", async (c, next) => {
       headers: {
         "Access-Control-Allow-Origin": "*", // For dev, or use "http://localhost:5173" for stricter
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Headers":
+          "Content-Type, Authorization, X-Session-ID",
         "Access-Control-Max-Age": "86400",
       },
     });
@@ -594,7 +595,10 @@ app.use("*", async (c, next) => {
   await next();
   c.header("Access-Control-Allow-Origin", "*");
   c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  c.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  c.header(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Session-ID"
+  );
 });
 
 app.get("/check-open-ai-key", (c) => {

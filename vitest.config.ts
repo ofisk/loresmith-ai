@@ -16,11 +16,4 @@ export default defineWorkersConfig({
     setupFiles: [],
     globals: true,
   },
-  // Handle AJV compatibility issues
-  optimizeDeps: {
-    exclude: ["ajv"],
-  },
-  ssr: {
-    external: ["ajv"],
-  },
 });
