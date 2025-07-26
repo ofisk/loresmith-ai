@@ -83,39 +83,40 @@ export const Modal = ({
 
   return (
     <div className="fixed top-0 left-0 z-50 flex h-screen w-full items-center justify-center bg-transparent p-6">
-      <button
-        type="button"
-        className="modal-overlay"
-        style={{ background: "rgba(0,0,0,0.7)" }}
+      {/* Modal overlay - clickable background */}
+      <div
+        className="absolute inset-0 bg-black/70"
         onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Modal content container */}
+      <div
+        className="relative z-10 bg-white dark:bg-neutral-900 rounded-lg shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        role="dialog"
+        tabIndex={-1}
       >
-        <div
-          className="modal-content bg-white dark:bg-neutral-900 rounded-lg shadow-lg"
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-          role="dialog"
+        <Card
+          className={cn("reveal reveal-sm relative z-50", className)}
+          style={cardStyle}
+          ref={modalRef}
           tabIndex={-1}
         >
-          <Card
-            className={cn("reveal reveal-sm relative z-50", className)}
-            style={cardStyle}
-            ref={modalRef}
-            tabIndex={-1}
-          >
-            {children}
+          {children}
 
-            <Button
-              aria-label="Close Modal"
-              shape="square"
-              className="absolute top-2 right-2"
-              onClick={onClose}
-              variant="ghost"
-            >
-              <X size={16} />
-            </Button>
-          </Card>
-        </div>
-      </button>
+          <Button
+            aria-label="Close Modal"
+            shape="square"
+            className="absolute top-2 right-2"
+            onClick={onClose}
+            variant="ghost"
+          >
+            <X size={16} />
+          </Button>
+        </Card>
+      </div>
     </div>
   );
 };
