@@ -22,7 +22,16 @@ function getApiUrl(): string {
   if (typeof process !== "undefined" && process.env?.VITE_API_URL) {
     return process.env.VITE_API_URL;
   }
-  // Default fallback
+
+  // In production (browser context), use the current origin
+  if (typeof window !== "undefined" && window.location) {
+    // If we're not on localhost, use the current origin
+    if (!window.location.hostname.includes("localhost")) {
+      return window.location.origin;
+    }
+  }
+
+  // Default fallback for development
   return "http://localhost:8787";
 }
 
