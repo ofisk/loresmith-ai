@@ -46,6 +46,14 @@ export const API_CONFIG = {
       CONTEXT_SEARCH: (campaignId: string) =>
         `/campaigns/${campaignId}/context-search`,
     },
+    CHARACTER_SHEETS: {
+      UPLOAD_URL: "/character-sheets/upload-url",
+      PROCESS: (characterSheetId: string) =>
+        `/character-sheets/${characterSheetId}/process`,
+      LIST: (campaignId: string) => `/campaigns/${campaignId}/character-sheets`,
+      DETAILS: (characterSheetId: string) =>
+        `/character-sheets/${characterSheetId}`,
+    },
     AUTH: {
       AUTHENTICATE: "/auth/authenticate",
     },

@@ -336,12 +336,16 @@ export const PdfUploadAgent = ({
     try {
       setAuthenticating(true);
       setAuthError(null);
+      // Get the session ID from localStorage to ensure we target the correct Chat Durable Object
+      const sessionId = localStorage.getItem("chat-session-id") || "default";
+
       const response = await fetch(
         API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "X-Session-ID": sessionId, // Include session ID to target the correct Chat Durable Object
           },
           body: JSON.stringify({
             providedKey: adminKey,

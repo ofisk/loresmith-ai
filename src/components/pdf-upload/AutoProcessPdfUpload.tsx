@@ -64,7 +64,7 @@ export function AutoProcessPdfUpload({
     const response = await fetch("/pdf/upload", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${localStorage.getItem("user_auth_jwt")}`,
+        Authorization: `Bearer ${localStorage.getItem("loresmith-jwt")}`,
       },
       body: formData,
     });

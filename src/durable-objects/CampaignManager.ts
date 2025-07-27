@@ -38,6 +38,10 @@ export class CampaignManager extends DurableObject {
   // List all campaigns for this user
   async listCampaigns(): Promise<CampaignData[]> {
     try {
+      // Ensure tables exist before querying
+      await this.ensureTables();
+
+      console.log("[DO] About to query campaigns");
       const cursor = await this.ctx.storage.sql.exec(
         "SELECT * FROM campaigns ORDER BY createdAt DESC"
       );
@@ -61,13 +65,21 @@ export class CampaignManager extends DurableObject {
   // Create a new campaign
   async createCampaign(name: string): Promise<CampaignData> {
     try {
+      // Temporarily skip SQL operations for debugging
+      console.log("[DO] createCampaign called with name:", name);
+
       const campaignId = crypto.randomUUID();
       const now = new Date().toISOString();
-      await this.ctx.storage.sql.exec(
-        "INSERT INTO campaigns (campaignId, name, createdAt, updatedAt) VALUES (?, ?, ?, ?)",
-        [campaignId, name, now, now]
-      );
-      console.log("[DO] Created campaign:", { campaignId, name });
+      console.log("[DO] Generated campaign data:", { campaignId, name, now });
+
+      // Skip SQL for now
+      // await this.ensureTables();
+      // await this.ctx.storage.sql.exec(
+      //   "INSERT INTO campaigns (campaignId, name, createdAt, updatedAt) VALUES (?, ?, ?, ?)",
+      //   [campaignId, name, now, now]
+      // );
+
+      console.log("[DO] Created campaign (without SQL):", { campaignId, name });
       return {
         campaignId,
         name,
@@ -84,11 +96,21 @@ export class CampaignManager extends DurableObject {
   // HTTP fetch handler for debugging (optional)
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    console.log("[DO] fetch called:", url.pathname, request.method);
+    console.log(
+      "[DO] fetch called:",
+      url.pathname,
+      request.method,
+      "Full URL:",
+      request.url
+    );
     try {
       if (url.pathname === "/list") {
         const campaigns = await this.listCampaigns();
         return Response.json({ campaigns });
+      }
+      if (url.pathname === "/test") {
+        console.log("[DO] Test endpoint called");
+        return Response.json({ message: "CampaignManager is working" });
       }
       if (url.pathname === "/create" && request.method === "POST") {
         const body: { name: string } = await request.json();
@@ -98,13 +120,48 @@ export class CampaignManager extends DurableObject {
       // Main handler for /campaigns
       if (url.pathname === "/campaigns") {
         if (request.method === "GET") {
-          const campaigns = await this.listCampaigns();
-          return Response.json({ campaigns });
+          console.log("[DO] GET /campaigns - returning empty array for now");
+          return Response.json({ campaigns: [] });
         }
         if (request.method === "POST") {
-          const body: { name: string } = await request.json();
-          const campaign = await this.createCampaign(body.name);
-          return Response.json({ campaign });
+          console.log("[DO] Processing POST request to /campaigns");
+          try {
+            const body: { name: string } = await request.json();
+            console.log("[DO] Request body:", body);
+            if (!body.name) {
+              console.log("[DO] Missing name in request body");
+              return new Response(
+                JSON.stringify({ error: "Name is required" }),
+                {
+                  status: 400,
+                  headers: { "Content-Type": "application/json" },
+                }
+              );
+            }
+            console.log("[DO] About to create campaign with name:", body.name);
+            // Temporarily return a simple response without calling createCampaign
+            const campaign = {
+              campaignId: "test-123",
+              name: body.name,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              resources: [],
+            };
+            console.log("[DO] Created campaign (simple):", campaign);
+            return Response.json({ campaign });
+          } catch (error) {
+            console.error("[DO] Error processing POST request:", error);
+            return new Response(
+              JSON.stringify({
+                error: "Failed to process request",
+                details: String(error),
+              }),
+              {
+                status: 500,
+                headers: { "Content-Type": "application/json" },
+              }
+            );
+          }
         }
       }
       return new Response("Not found", { status: 404 });
