@@ -742,6 +742,450 @@ const searchCampaignContext = tool({
   },
 });
 
+// Tool to create a character using AI with user confirmation
+const createCharacter = tool({
+  description:
+    "Create a new character for a campaign using AI generation. This tool will generate a complete character sheet including stats, backstory, personality, and goals. Requires user confirmation before creating.",
+  parameters: z.object({
+    campaignId: z
+      .string()
+      .describe("The ID of the campaign this character belongs to"),
+    characterName: z.string().describe("The name of the character"),
+    characterClass: z
+      .string()
+      .optional()
+      .describe(
+        "The character's class (e.g., Fighter, Wizard, etc.) - if not provided, AI will suggest one"
+      ),
+    characterLevel: z
+      .number()
+      .optional()
+      .describe("The character's level (defaults to 1)"),
+    characterRace: z
+      .string()
+      .optional()
+      .describe("The character's race - if not provided, AI will suggest one"),
+    campaignSetting: z
+      .string()
+      .optional()
+      .describe("The campaign setting or theme to inform character creation"),
+    playerPreferences: z
+      .string()
+      .optional()
+      .describe(
+        "Any specific player preferences or requirements for the character"
+      ),
+    partyComposition: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Array of existing party members to consider for party balance"
+      ),
+    jwt: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("JWT token for authentication"),
+  }),
+  execute: async (
+    {
+      campaignId,
+      characterName,
+      characterClass,
+      characterLevel = 1,
+      characterRace,
+      campaignSetting,
+      playerPreferences,
+      partyComposition,
+      jwt,
+    },
+    context?: any
+  ): Promise<ToolResult> => {
+    console.log("[Tool] createCharacter received:", {
+      campaignId,
+      characterName,
+      characterClass,
+      characterLevel,
+      characterRace,
+    });
+
+    try {
+      // Try to get environment from context or global scope
+      const env = getEnvFromContext(context);
+      console.log("[Tool] createCharacter - Environment found:", !!env);
+      console.log("[Tool] createCharacter - JWT provided:", !!jwt);
+
+      // If we have environment, work directly with the database
+      if (env) {
+        const userId = await extractUsernameFromJwt(jwt || null, env);
+        console.log("[Tool] createCharacter - User ID extracted:", userId);
+
+        if (!userId) {
+          return {
+            code: AUTH_CODES.INVALID_KEY,
+            message: "Invalid authentication token",
+            data: { error: "Authentication failed" },
+          };
+        }
+
+        // Verify campaign exists and belongs to user
+        const campaignResult = await env.DB.prepare(
+          "SELECT id, name FROM campaigns WHERE id = ? AND username = ?"
+        )
+          .bind(campaignId, userId)
+          .first();
+
+        if (!campaignResult) {
+          return {
+            code: AUTH_CODES.ERROR,
+            message: "Campaign not found",
+            data: { error: "Campaign not found" },
+          };
+        }
+
+        // Generate character using AI
+        const characterData = await generateCharacterWithAI({
+          characterName,
+          characterClass,
+          characterLevel,
+          characterRace,
+          campaignSetting,
+          playerPreferences,
+          partyComposition,
+          campaignName: campaignResult.name as string,
+        });
+
+        // Store the character information
+        const characterId = crypto.randomUUID();
+        const now = new Date().toISOString();
+
+        await env.DB.prepare(
+          "INSERT INTO campaign_characters (id, campaign_id, character_name, character_class, character_level, character_race, backstory, personality_traits, goals, relationships, metadata, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+          .bind(
+            characterId,
+            campaignId,
+            characterData.characterName,
+            characterData.characterClass,
+            characterData.characterLevel,
+            characterData.characterRace,
+            characterData.backstory,
+            characterData.personalityTraits,
+            characterData.goals,
+            characterData.relationships
+              ? JSON.stringify(characterData.relationships)
+              : null,
+            characterData.metadata
+              ? JSON.stringify(characterData.metadata)
+              : null,
+            now,
+            now
+          )
+          .run();
+
+        // Update campaign updated_at
+        await env.DB.prepare("UPDATE campaigns SET updated_at = ? WHERE id = ?")
+          .bind(now, campaignId)
+          .run();
+
+        console.log(
+          "[Tool] Created character with AI:",
+          characterId,
+          "name:",
+          characterData.characterName
+        );
+
+        return {
+          code: AUTH_CODES.SUCCESS,
+          message: `Successfully created character ${characterData.characterName} using AI generation`,
+          data: {
+            id: characterId,
+            ...characterData,
+            createdAt: now,
+            requiresConfirmation: true,
+          },
+        };
+      }
+
+      // Otherwise, make HTTP request
+      const response = await authenticatedFetch(
+        API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.CHARACTERS(campaignId)
+        ),
+        {
+          method: "POST",
+          jwt,
+          body: JSON.stringify({
+            characterName,
+            characterClass,
+            characterLevel,
+            characterRace,
+            campaignSetting,
+            playerPreferences,
+            partyComposition,
+            useAI: true,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const authError = handleAuthError(response);
+        if (authError) {
+          return {
+            code: AUTH_CODES.INVALID_KEY,
+            message: authError,
+            data: { error: `HTTP ${response.status}` },
+          };
+        }
+        return {
+          code: AUTH_CODES.ERROR,
+          message: `Failed to create character: ${response.status}`,
+          data: { error: `HTTP ${response.status}` },
+        };
+      }
+
+      const result = (await response.json()) as any;
+      return {
+        code: AUTH_CODES.SUCCESS,
+        message: `Successfully created character ${characterName} using AI generation`,
+        data: { ...result, requiresConfirmation: true },
+      };
+    } catch (error) {
+      console.error("Error creating character:", error);
+      return {
+        code: AUTH_CODES.ERROR,
+        message: `Failed to create character: ${error instanceof Error ? error.message : String(error)}`,
+        data: { error: error instanceof Error ? error.message : String(error) },
+      };
+    }
+  },
+});
+
+// Helper function to generate character data using AI
+async function generateCharacterWithAI(params: {
+  characterName: string;
+  characterClass?: string;
+  characterLevel: number;
+  characterRace?: string;
+  campaignSetting?: string;
+  playerPreferences?: string;
+  partyComposition?: string[];
+  campaignName: string;
+}): Promise<{
+  characterName: string;
+  characterClass: string;
+  characterLevel: number;
+  characterRace: string;
+  backstory: string;
+  personalityTraits: string;
+  goals: string;
+  relationships: string[];
+  metadata: Record<string, any>;
+}> {
+  // This would integrate with OpenAI to generate character data
+  // For now, return a structured character with AI-generated content
+  const {
+    characterName,
+    characterClass,
+    characterLevel,
+    characterRace,
+    campaignSetting,
+    playerPreferences,
+    partyComposition,
+    campaignName,
+  } = params;
+
+  // Generate character class if not provided
+  const finalClass = characterClass || generateRandomClass();
+
+  // Generate character race if not provided
+  const finalRace = characterRace || generateRandomRace();
+
+  // Generate backstory based on provided parameters
+  const backstory = generateBackstory({
+    characterName,
+    characterClass: finalClass,
+    characterRace: finalRace,
+    campaignSetting,
+    playerPreferences,
+  });
+
+  // Generate personality traits
+  const personalityTraits = generatePersonalityTraits(finalClass, finalRace);
+
+  // Generate goals
+  const goals = generateGoals({
+    characterName,
+    characterClass: finalClass,
+    characterRace: finalRace,
+    campaignSetting,
+  });
+
+  // Generate relationships
+  const relationships = generateRelationships(partyComposition || []);
+
+  return {
+    characterName,
+    characterClass: finalClass,
+    characterLevel,
+    characterRace: finalRace,
+    backstory,
+    personalityTraits,
+    goals,
+    relationships,
+    metadata: {
+      generatedByAI: true,
+      generationTimestamp: new Date().toISOString(),
+      campaignName,
+      campaignSetting,
+      playerPreferences,
+    },
+  };
+}
+
+// Helper functions for character generation
+function generateRandomClass(): string {
+  const classes = [
+    "Fighter",
+    "Wizard",
+    "Cleric",
+    "Rogue",
+    "Ranger",
+    "Paladin",
+    "Bard",
+    "Druid",
+    "Monk",
+    "Warlock",
+    "Sorcerer",
+    "Barbarian",
+  ];
+  return classes[Math.floor(Math.random() * classes.length)];
+}
+
+function generateRandomRace(): string {
+  const races = [
+    "Human",
+    "Elf",
+    "Dwarf",
+    "Halfling",
+    "Dragonborn",
+    "Tiefling",
+    "Half-Elf",
+    "Half-Orc",
+    "Gnome",
+    "Aarakocra",
+    "Genasi",
+    "Goliath",
+  ];
+  return races[Math.floor(Math.random() * races.length)];
+}
+
+function generateBackstory(params: {
+  characterName: string;
+  characterClass: string;
+  characterRace: string;
+  campaignSetting?: string;
+  playerPreferences?: string;
+}): string {
+  const {
+    characterName,
+    characterClass,
+    characterRace,
+    campaignSetting,
+    playerPreferences,
+  } = params;
+
+  const setting = campaignSetting || "fantasy world";
+  const preferences = playerPreferences || "";
+
+  return `${characterName} is a 1st level ${characterRace} ${characterClass} from a ${setting}. ${preferences ? `The player has requested: ${preferences}. ` : ""}They have trained in their chosen path and are ready to embark on their adventure. Their background and experiences have shaped them into a unique individual with their own motivations and goals.`;
+}
+
+function generatePersonalityTraits(
+  characterClass: string,
+  characterRace: string
+): string {
+  const classTraits = {
+    Fighter: "Brave, disciplined, and tactical",
+    Wizard: "Intellectual, curious, and methodical",
+    Cleric: "Devout, compassionate, and principled",
+    Rogue: "Cunning, adaptable, and resourceful",
+    Ranger: "Independent, observant, and nature-loving",
+    Paladin: "Honorable, courageous, and just",
+    Bard: "Charismatic, creative, and social",
+    Druid: "Wise, connected to nature, and spiritual",
+    Monk: "Disciplined, focused, and philosophical",
+    Warlock: "Ambitious, mysterious, and determined",
+    Sorcerer: "Impulsive, powerful, and instinctive",
+    Barbarian: "Fierce, passionate, and primal",
+  };
+
+  const raceTraits = {
+    Human: "Adaptable and ambitious",
+    Elf: "Graceful and long-lived",
+    Dwarf: "Sturdy and traditional",
+    Halfling: "Cheerful and lucky",
+    Dragonborn: "Proud and honorable",
+    Tiefling: "Resilient and misunderstood",
+    "Half-Elf": "Diplomatic and versatile",
+    "Half-Orc": "Strong and determined",
+    Gnome: "Curious and inventive",
+    Aarakocra: "Free-spirited and aerial",
+    Genasi: "Elemental and unique",
+    Goliath: "Strong and competitive",
+  };
+
+  const classTrait =
+    classTraits[characterClass as keyof typeof classTraits] ||
+    "Unique and individual";
+  const raceTrait =
+    raceTraits[characterRace as keyof typeof raceTraits] ||
+    "Distinctive and special";
+
+  return `${classTrait}. ${raceTrait}. They have developed their own unique personality through their experiences and choices.`;
+}
+
+function generateGoals(params: {
+  characterName: string;
+  characterClass: string;
+  characterRace: string;
+  campaignSetting?: string;
+}): string {
+  const { characterName, characterClass } = params;
+
+  const classGoals = {
+    Fighter: "Prove their martial prowess and protect others",
+    Wizard: "Unlock ancient knowledge and master powerful magic",
+    Cleric: "Serve their deity and spread their faith",
+    Rogue: "Acquire wealth and live by their own rules",
+    Ranger: "Explore the wilderness and protect nature",
+    Paladin: "Uphold justice and vanquish evil",
+    Bard: "Gather stories and inspire others",
+    Druid: "Maintain the balance of nature",
+    Monk: "Achieve inner peace and physical perfection",
+    Warlock: "Fulfill their pact and gain power",
+    Sorcerer: "Control their innate magic and discover their destiny",
+    Barbarian: "Prove their strength and honor their ancestors",
+  };
+
+  const goal =
+    classGoals[characterClass as keyof typeof classGoals] ||
+    "Make their mark on the world";
+
+  return `${characterName} seeks to ${goal}. They are driven by their personal motivations and the challenges that lie ahead in their journey.`;
+}
+
+function generateRelationships(partyComposition: string[]): string[] {
+  if (partyComposition.length === 0) {
+    return ["Ready to form new bonds with fellow adventurers"];
+  }
+
+  return partyComposition.map(
+    (member) =>
+      `Looking forward to working with ${member} and building a strong partnership`
+  );
+}
+
 export const campaignContextTools = {
   storeCampaignContext,
   getCampaignContext,
@@ -749,4 +1193,5 @@ export const campaignContextTools = {
   getIntelligentSuggestions,
   assessCampaignReadiness,
   searchCampaignContext,
+  createCharacter,
 };

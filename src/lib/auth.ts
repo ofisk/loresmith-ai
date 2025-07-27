@@ -1,29 +1,25 @@
-import { type JWTPayload, jwtVerify, SignJWT } from "jose";
-import { USER_MESSAGES } from "../constants";
+import { SignJWT, jwtVerify } from "jose";
+import type { JWTPayload } from "jose";
 
-// Common auth payload interface used across the application
 export interface AuthPayload extends JWTPayload {
   type: "user-auth";
   username: string;
   openaiApiKey?: string;
 }
 
-// Environment interface that includes auth-related fields
 export interface AuthEnv {
-  ADMIN_SECRET?: string | any; // Allow any type for Secrets Store binding
   OPENAI_API_KEY?: string;
+  ADMIN_SECRET?: string;
   Chat: DurableObjectNamespace;
 }
 
-// Authentication request interface
 export interface AuthRequest {
-  providedKey: string;
   username: string;
   openaiApiKey?: string;
+  providedKey: string;
   sessionId?: string;
 }
 
-// Authentication response interface
 export interface AuthResponse {
   success: boolean;
   token?: string;
@@ -32,99 +28,87 @@ export interface AuthResponse {
   error?: string;
 }
 
-// Context interface that includes auth-related fields
 export interface AuthContext {
   auth?: AuthPayload;
 }
 
 /**
- * Get the JWT secret key from environment
+ * Get JWT secret from environment
  */
-export async function getJwtSecret(_env: AuthEnv): Promise<Uint8Array> {
-  // For local development, prioritize process.env from .dev.vars
-  const secret = process.env.ADMIN_SECRET || "";
-
-  if (!secret) {
-    throw new Error("ADMIN_SECRET not configured");
-  }
+export async function getJwtSecret(env: AuthEnv): Promise<Uint8Array> {
+  // Use admin secret for JWT signing
+  const secret = env.ADMIN_SECRET || "default-secret-key";
   return new TextEncoder().encode(secret);
 }
 
 /**
- * Simplified authentication function that validates admin key and generates JWT
+ * Simple authentication based on username whitelist
  */
 export async function authenticateUser(
   request: AuthRequest,
   env: AuthEnv
 ): Promise<AuthResponse> {
-  const {
-    providedKey,
-    username,
-    openaiApiKey,
-    sessionId = "default",
-  } = request;
+  const { username, openaiApiKey, providedKey } = request;
 
   // Validate required fields
+  if (!username || typeof username !== "string" || username.trim() === "") {
+    return {
+      success: false,
+      error: "Username is required",
+    };
+  }
+
   if (
     !providedKey ||
-    !username ||
-    typeof username !== "string" ||
-    username.trim() === ""
+    typeof providedKey !== "string" ||
+    providedKey.trim() === ""
   ) {
     return {
       success: false,
-      error: "Missing admin key or username",
+      error: "Admin key is required",
     };
   }
 
-  // Get expected admin key from environment
-  // For local development, prioritize process.env from .dev.vars
-  const expectedKey = process.env.ADMIN_SECRET || "";
+  // Simple access control: check if admin key is valid
+  const validAdminKey = env.ADMIN_SECRET
+    ? await env.ADMIN_SECRET
+    : "undefined-admin-key";
+  const isValidAdminKey = providedKey.trim() === validAdminKey;
 
-  if (!expectedKey) {
+  const envAdminSecretValue = env.ADMIN_SECRET ? await env.ADMIN_SECRET : null;
+  console.log("Admin key validation:", {
+    providedKey: providedKey
+      ? `${providedKey.substring(0, 4)}...`
+      : "undefined",
+    validAdminKey: validAdminKey
+      ? `${validAdminKey.substring(0, 4)}...`
+      : "undefined",
+    providedKeyLength: providedKey?.length || 0,
+    validAdminKeyLength: validAdminKey?.length || 0,
+    providedKeyTrimmed: providedKey?.trim(),
+    validAdminKeyTrimmed: validAdminKey?.trim(),
+    areEqual: providedKey.trim() === validAdminKey,
+    areEqualTrimmed: providedKey.trim() === validAdminKey.trim(),
+    envHasAdminSecret: !!env.ADMIN_SECRET,
+    envAdminSecretValue: envAdminSecretValue
+      ? `${envAdminSecretValue.substring(0, 4)}...`
+      : "undefined",
+  });
+
+  if (!isValidAdminKey) {
     return {
       success: false,
-      error: "Admin secret not configured",
-    };
-  }
-
-  // Validate admin key
-  if (providedKey !== expectedKey) {
-    return {
-      success: false,
-      error: "Invalid admin key",
+      error:
+        "Invalid admin key. Please contact the administrator for the correct key.",
     };
   }
 
   // Check for default OpenAI key
   const hasDefaultOpenAIKey =
-    (!!env.OPENAI_API_KEY && env.OPENAI_API_KEY.trim().length > 0) ||
-    (!!process.env.OPENAI_API_KEY &&
-      process.env.OPENAI_API_KEY.trim().length > 0 &&
-      process.env.OPENAI_API_KEY !== "undefined");
-
-  // Try to get user's stored API key from session
-  let userStoredApiKey: string | null = null;
-  try {
-    const chatId = env.Chat.idFromName(sessionId);
-    const chat = env.Chat.get(chatId);
-
-    const response = await chat.fetch(
-      new Request("http://localhost/get-user-openai-key", {
-        method: "GET",
-      })
-    );
-
-    if (response.ok) {
-      const result = (await response.json()) as { apiKey?: string };
-      userStoredApiKey = result.apiKey || null;
-    }
-  } catch (_error) {
-    // Ignore errors when retrieving stored API key
-  }
+    !!env.OPENAI_API_KEY && env.OPENAI_API_KEY.trim().length > 0;
 
   // Determine which API key to use
-  const finalApiKey = openaiApiKey?.trim() || userStoredApiKey || null;
+  const finalApiKey = openaiApiKey?.trim() || null;
 
   // Require API key if no default is available
   if (!hasDefaultOpenAIKey && !finalApiKey) {
@@ -135,30 +119,6 @@ export async function authenticateUser(
     };
   }
 
-  // Validate OpenAI API key if provided
-  if (finalApiKey) {
-    try {
-      const testResponse = await fetch("https://api.openai.com/v1/models", {
-        headers: {
-          Authorization: `Bearer ${finalApiKey}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!testResponse.ok) {
-        return {
-          success: false,
-          error: "Invalid OpenAI API key",
-        };
-      }
-    } catch (_error) {
-      return {
-        success: false,
-        error: "Failed to validate OpenAI API key",
-      };
-    }
-  }
-
   // Generate JWT
   const jwtPayload: AuthPayload = {
     type: "user-auth",
@@ -167,11 +127,7 @@ export async function authenticateUser(
   };
 
   try {
-    console.log("Getting JWT secret...");
     const jwtSecret = await getJwtSecret(env);
-    console.log("JWT secret length:", jwtSecret.length);
-
-    console.log("Creating JWT payload:", jwtPayload);
     const jwt = await new SignJWT(jwtPayload)
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
@@ -209,18 +165,19 @@ export async function extractAuthFromHeader(
   try {
     const jwtSecret = await getJwtSecret(env);
     const { payload } = await jwtVerify(token, jwtSecret);
-    if (!payload || payload.type !== "user-auth") {
-      return null;
+
+    if (payload.type === "user-auth") {
+      return payload as AuthPayload;
     }
-    return payload as AuthPayload;
-  } catch (_err) {
-    return null;
+  } catch (error) {
+    console.error("JWT verification error:", error);
   }
+
+  return null;
 }
 
 /**
- * Get username from Authorization header
- * Returns null if no valid token is provided
+ * Extract username from Authorization header
  */
 export async function getUsernameFromHeader(
   authHeader: string | null | undefined,
@@ -231,41 +188,33 @@ export async function getUsernameFromHeader(
 }
 
 /**
- * Generate a user-scoped key for KV storage
- * Format: user:{username}:{resourceType}:{resourceId}
+ * Generate a user-specific key for resources
  */
 export function generateUserKey(
   username: string,
   resourceType: string,
   resourceId?: string
 ): string {
-  if (resourceId) {
-    return `user:${username}:${resourceType}:${resourceId}`;
-  }
-  return `user:${username}:${resourceType}`;
+  const base = `${username}:${resourceType}`;
+  return resourceId ? `${base}:${resourceId}` : base;
 }
 
 /**
- * Generate a user-scoped prefix for KV listing
- * Format: user:{username}:{resourceType}:
+ * Generate a user-specific prefix for resources
  */
 export function generateUserPrefix(
   username: string,
   resourceType: string
 ): string {
-  return `user:${username}:${resourceType}:`;
+  return `${username}:${resourceType}:`;
 }
 
 /**
- * Extract username from a user-scoped key
- * Returns null if the key doesn't match the expected format
+ * Extract username from a user key
  */
 export function extractUsernameFromKey(key: string): string | null {
   const parts = key.split(":");
-  if (parts.length >= 3 && parts[0] === "user") {
-    return parts[1];
-  }
-  return null;
+  return parts.length >= 2 ? parts[0] : null;
 }
 
 /**
@@ -277,37 +226,31 @@ export function validateUserKey(key: string, username: string): boolean {
 }
 
 /**
- * Helper function to get stored JWT from localStorage (client-side)
+ * Get stored JWT from localStorage
  */
 export function getStoredJwt(): string | null {
-  if (typeof window === "undefined") {
-    return null; // Server-side
-  }
-  return localStorage.getItem("user_auth_jwt");
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("loresmith-jwt");
 }
 
 /**
- * Helper function to store JWT in localStorage (client-side)
+ * Store JWT in localStorage
  */
 export function storeJwt(token: string): void {
-  if (typeof window === "undefined") {
-    return; // Server-side
-  }
-  localStorage.setItem("user_auth_jwt", token);
+  if (typeof window === "undefined") return;
+  localStorage.setItem("loresmith-jwt", token);
 }
 
 /**
- * Helper function to clear JWT from localStorage (client-side)
+ * Clear JWT from localStorage
  */
 export function clearJwt(): void {
-  if (typeof window === "undefined") {
-    return; // Server-side
-  }
-  localStorage.removeItem("user_auth_jwt");
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("loresmith-jwt");
 }
 
 /**
- * Helper function to create authenticated headers for API requests
+ * Create auth headers with JWT
  */
 export function createAuthHeaders(jwt?: string | null): Record<string, string> {
   const headers: Record<string, string> = {
@@ -322,7 +265,7 @@ export function createAuthHeaders(jwt?: string | null): Record<string, string> {
 }
 
 /**
- * Helper function to create authenticated headers using stored JWT
+ * Create auth headers from stored JWT
  */
 export function createAuthHeadersFromStorage(): Record<string, string> {
   const jwt = getStoredJwt();
@@ -330,73 +273,56 @@ export function createAuthHeadersFromStorage(): Record<string, string> {
 }
 
 /**
- * Check if a JWT token is expired
+ * Check if JWT is expired
  */
 export function isJwtExpired(jwt: string): boolean {
   try {
     const payload = JSON.parse(atob(jwt.split(".")[1]));
-    const exp = payload.exp;
-    if (!exp) return true;
-
-    // Convert to milliseconds and compare with current time
-    const expirationTime = exp * 1000;
-    const currentTime = Date.now();
-
-    return currentTime >= expirationTime;
+    const exp = payload.exp * 1000; // Convert to milliseconds
+    return Date.now() >= exp;
   } catch {
-    // If we can't decode the JWT, consider it expired
     return true;
   }
 }
 
 /**
- * Clear JWT from localStorage and trigger re-authentication
- * This function should be called when a 401 response is received
+ * Handle JWT expiration
  */
 export function handleJwtExpiration(): void {
-  if (typeof window === "undefined") {
-    return; // Server-side
+  const jwt = getStoredJwt();
+  if (jwt && isJwtExpired(jwt)) {
+    clearJwt();
+    // Optionally redirect to login or show login modal
+    if (typeof window !== "undefined") {
+      window.location.reload();
+    }
   }
-
-  // Clear the JWT from localStorage
-  localStorage.removeItem("user_auth_jwt");
-
-  // Dispatch a custom event to notify components about JWT expiration
-  window.dispatchEvent(
-    new CustomEvent("jwt-expired", {
-      detail: { message: USER_MESSAGES.SESSION_EXPIRED },
-    })
-  );
 }
 
 /**
- * Enhanced fetch function that automatically handles JWT expiration
- * Returns the response and a boolean indicating if JWT was expired
+ * Fetch with automatic JWT expiration handling
  */
 export async function authenticatedFetchWithExpiration(
   url: string,
   options: RequestInit & { jwt?: string | null } = {}
 ): Promise<{ response: Response; jwtExpired: boolean }> {
-  const { jwt, ...fetchOptions } = options;
+  const jwt = options.jwt || getStoredJwt();
+  let jwtExpired = false;
 
-  const headers = createAuthHeaders(jwt);
-
-  // Merge with any existing headers
-  if (fetchOptions.headers) {
-    Object.assign(headers, fetchOptions.headers);
+  if (jwt && isJwtExpired(jwt)) {
+    clearJwt();
+    jwtExpired = true;
   }
+
+  const headers = {
+    ...options.headers,
+    ...createAuthHeaders(jwt),
+  };
 
   const response = await fetch(url, {
-    ...fetchOptions,
+    ...options,
     headers,
   });
-
-  // Check if the response indicates JWT expiration
-  const jwtExpired = response.status === 401;
-
-  if (jwtExpired) {
-    handleJwtExpiration();
-  }
 
   return { response, jwtExpired };
 }

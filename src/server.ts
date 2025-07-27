@@ -4,8 +4,10 @@ import { AIChatAgent } from "agents/ai-chat-agent";
 import { generateId, type StreamTextOnFinishCallback, type ToolSet } from "ai";
 import type { Context } from "hono";
 import { Hono } from "hono";
-import { jwtVerify, SignJWT } from "jose";
+import { jwtVerify } from "jose";
 import { CampaignAgent } from "./agents/campaign-agent";
+import { CampaignContextAgent } from "./agents/campaign-context-agent";
+import { CharacterSheetAgent } from "./agents/character-sheet-agent";
 import { GeneralAgent } from "./agents/general-agent";
 import { ResourceAgent } from "./agents/resource-agent";
 import { MODEL_CONFIG } from "./constants";
@@ -116,20 +118,40 @@ async function requireUserJwt(
   next: () => Promise<void>
 ): Promise<Response | undefined> {
   const authHeader = c.req.header("Authorization");
+  console.log(
+    "[requireUserJwt] Auth header:",
+    authHeader ? `${authHeader.substring(0, 20)}...` : "undefined"
+  );
+
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    console.log("[requireUserJwt] Missing or invalid Authorization header");
     return c.json({ error: "Missing or invalid Authorization header" }, 401);
   }
+
   const token = authHeader.slice(7);
+  console.log(
+    "[requireUserJwt] Token:",
+    token ? `${token.substring(0, 20)}...` : "undefined"
+  );
+
   try {
     const jwtSecret = await getJwtSecret(c.env);
+    console.log("[requireUserJwt] JWT secret length:", jwtSecret.length);
+
     const { payload } = await jwtVerify(token, jwtSecret);
+    console.log("[requireUserJwt] JWT payload:", payload);
+
     if (!payload || payload.type !== "user-auth") {
+      console.log("[requireUserJwt] Invalid token payload:", payload);
       return c.json({ error: "Invalid token" }, 401);
     }
+
     // Attach user info to context
     setUserAuth(c, payload as AuthPayload);
+    console.log("[requireUserJwt] User auth set:", payload);
     await next();
-  } catch (_err) {
+  } catch (err) {
+    console.error("[requireUserJwt] JWT verification error:", err);
     return c.json({ error: "Invalid or expired token" }, 401);
   }
 }
@@ -141,6 +163,8 @@ console.log("Server file loaded and running");
  */
 export class Chat extends AIChatAgent<Env> {
   private campaignAgent: CampaignAgent;
+  private campaignContextAgent: CampaignContextAgent;
+  private characterSheetAgent: CharacterSheetAgent;
   private resourceAgent: ResourceAgent;
   private generalAgent: GeneralAgent;
   private userOpenAIKey: string | null = null;
@@ -150,6 +174,8 @@ export class Chat extends AIChatAgent<Env> {
 
     // Initialize agents lazily - only when API key is available
     this.campaignAgent = null as any;
+    this.campaignContextAgent = null as any;
+    this.characterSheetAgent = null as any;
     this.resourceAgent = null as any;
     this.generalAgent = null as any;
 
@@ -189,6 +215,16 @@ export class Chat extends AIChatAgent<Env> {
 
         // Initialize all agents with the new model
         this.campaignAgent = new CampaignAgent(this.ctx, this.env, model);
+        this.campaignContextAgent = new CampaignContextAgent(
+          this.ctx,
+          this.env,
+          model
+        );
+        this.characterSheetAgent = new CharacterSheetAgent(
+          this.ctx,
+          this.env,
+          model
+        );
         this.resourceAgent = new ResourceAgent(this.ctx, this.env, model);
         this.generalAgent = new GeneralAgent(this.ctx, this.env, model);
 
@@ -324,7 +360,12 @@ export class Chat extends AIChatAgent<Env> {
    */
   private determineAgent(
     userMessage: string
-  ): "campaigns" | "resources" | "general" {
+  ):
+    | "campaigns"
+    | "campaign-context"
+    | "character-sheets"
+    | "resources"
+    | "general" {
     const lowerMessage = userMessage.toLowerCase();
 
     // Check for retry/continue context - if the last few messages were campaign-related
@@ -370,7 +411,7 @@ export class Chat extends AIChatAgent<Env> {
       }
     }
 
-    // Campaign-related keywords
+    // Campaign management keywords (CampaignAgent)
     const campaignKeywords = [
       "campaign",
       "campaigns",
@@ -381,22 +422,11 @@ export class Chat extends AIChatAgent<Env> {
       "add resource to campaign",
       "campaign resource",
       "delete campaign",
-      // RAG and resource discovery keywords
-      "find resources",
-      "search for",
-      "suggest resources",
-      "what resources",
-      "pdf library",
-      "d&d resources",
-      "monster manual",
-      "spell book",
-      "adventure module",
-      "world building",
+      "update campaign",
+      "campaign management",
       "campaign planning",
       "session planning",
-      "character backstory",
-      "player characters",
-      "party composition",
+      "world building",
       "campaign tone",
       "setting preferences",
       "special considerations",
@@ -413,6 +443,47 @@ export class Chat extends AIChatAgent<Env> {
       "horror",
       "d&d",
       "dungeons and dragons",
+    ];
+
+    // Campaign context keywords (CampaignContextAgent)
+    const campaignContextKeywords = [
+      "character backstory",
+      "player characters",
+      "party composition",
+      "store character",
+      "get character",
+      "search character",
+      "character info",
+      "store context",
+      "get context",
+      "search context",
+      "campaign context",
+      "create character",
+      "character creation",
+      "backstory",
+      "personality",
+      "goals",
+      "relationships",
+      "npc",
+      "non-player character",
+      "world description",
+      "session notes",
+      "plot hooks",
+      "player preferences",
+    ];
+
+    // Character sheet keywords (CharacterSheetAgent)
+    const characterSheetKeywords = [
+      "character sheet",
+      "upload character sheet",
+      "process character sheet",
+      "list character sheets",
+      "create character from chat",
+      "character sheet file",
+      "pdf character sheet",
+      "docx character sheet",
+      "character sheet upload",
+      "character sheet processing",
     ];
 
     // Resource/PDF-related keywords (for uploads and management)
@@ -445,7 +516,21 @@ export class Chat extends AIChatAgent<Env> {
       "reminders",
     ];
 
-    // Check for campaign-related intent (including RAG search)
+    // Check for character sheet intent (highest priority for specific file operations)
+    if (
+      characterSheetKeywords.some((keyword) => lowerMessage.includes(keyword))
+    ) {
+      return "character-sheets";
+    }
+
+    // Check for campaign context intent (character creation, backstories, etc.)
+    if (
+      campaignContextKeywords.some((keyword) => lowerMessage.includes(keyword))
+    ) {
+      return "campaign-context";
+    }
+
+    // Check for campaign management intent
     if (campaignKeywords.some((keyword) => lowerMessage.includes(keyword))) {
       return "campaigns";
     }
@@ -530,10 +615,21 @@ export class Chat extends AIChatAgent<Env> {
    * Get the appropriate agent instance based on the target type
    */
   private getAgentInstance(
-    targetAgent: "campaigns" | "resources" | "general"
+    targetAgent:
+      | "campaigns"
+      | "campaign-context"
+      | "character-sheets"
+      | "resources"
+      | "general"
   ): any {
     // Check if agents are initialized
-    if (!this.campaignAgent || !this.resourceAgent || !this.generalAgent) {
+    if (
+      !this.campaignAgent ||
+      !this.campaignContextAgent ||
+      !this.characterSheetAgent ||
+      !this.resourceAgent ||
+      !this.generalAgent
+    ) {
       // Try to load the user's API key and initialize agents
       if (this.userOpenAIKey) {
         this.initializeAgents(this.userOpenAIKey);
@@ -547,6 +643,10 @@ export class Chat extends AIChatAgent<Env> {
     switch (targetAgent) {
       case "campaigns":
         return this.campaignAgent;
+      case "campaign-context":
+        return this.campaignContextAgent;
+      case "character-sheets":
+        return this.characterSheetAgent;
       case "resources":
         return this.resourceAgent;
       case "general":
@@ -736,19 +836,30 @@ app.post("/chat/set-openai-key", async (c) => {
 // User Authentication Route (returns JWT)
 app.post("/auth/authenticate", async (c) => {
   try {
-    const { providedKey, username, openaiApiKey } = await c.req.json();
+    const { username, openaiApiKey, providedKey } = await c.req.json();
     const sessionId = c.req.header("X-Session-ID") || "default";
 
+    console.log("[auth/authenticate] Request received:", {
+      username,
+      providedKey: providedKey
+        ? `${providedKey.substring(0, 10)}...`
+        : "undefined",
+    });
+    const adminSecretValue = c.env.ADMIN_SECRET
+      ? await c.env.ADMIN_SECRET
+      : null;
+    console.log(
+      "[auth/authenticate] Environment ADMIN_SECRET:",
+      adminSecretValue ? `${adminSecretValue.substring(0, 10)}...` : "undefined"
+    );
+
     const result = await authenticateUser(
-      { providedKey, username, openaiApiKey, sessionId },
+      { username, openaiApiKey, providedKey, sessionId },
       c.env
     );
 
     if (!result.success) {
-      const statusCode = result.error?.includes("Invalid admin key")
-        ? 401
-        : 400;
-      return c.json({ error: result.error }, statusCode);
+      return c.json({ error: result.error }, 401);
     }
 
     return c.json({
@@ -1162,48 +1273,118 @@ app.delete("/rag/pdfs/:fileKey", requireUserJwt, async (c) => {
   }
 });
 
-// Mount campaign agent routes
-app.all("/campaigns/*", requireUserJwt, async (c) => {
+// Campaign routes
+app.get("/campaigns", requireUserJwt, async (c) => {
   try {
-    // Create a campaign agent instance to handle the request
-    const campaignAgent = new CampaignAgent(
-      {} as DurableObjectState, // We don't need the actual state for HTTP requests
-      c.env,
-      openai(MODEL_CONFIG.OPENAI.PRIMARY)
-    );
-
-    // Create a new request with the authentication context properly set
     const userAuth = (c as any).userAuth;
-    const newRequest = new Request(c.req.raw.url, {
-      method: c.req.raw.method,
-      headers: c.req.raw.headers,
-      body: c.req.raw.body,
+
+    // Get the CampaignManager Durable Object for this user
+    const campaignManagerId = c.env.CampaignManager.idFromName(
+      userAuth.username
+    );
+    const campaignManager = c.env.CampaignManager.get(campaignManagerId);
+
+    const response = await campaignManager.fetch("http://localhost/campaigns", {
+      method: "GET",
     });
 
-    // Add the Authorization header if it's not already present
-    if (!newRequest.headers.get("Authorization") && userAuth) {
-      // Create a JWT token for the user
-      const secret = await getJwtSecret(c.env);
-      const token = await new SignJWT({
-        type: "user-auth",
-        username: userAuth.username,
-        openaiApiKey: userAuth.openaiApiKey,
-      })
-        .setProtectedHeader({ alg: "HS256" })
-        .setIssuedAt()
-        .setExpirationTime("24h")
-        .sign(secret);
-
-      newRequest.headers.set("Authorization", `Bearer ${token}`);
+    if (!response.ok) {
+      return c.json({ error: "Failed to fetch campaigns" }, 500);
     }
 
-    // Forward the request to the campaign agent
-    return await campaignAgent.handleHttpRequest(newRequest, c.env);
+    const data = await response.json();
+    return c.json(data as any);
   } catch (error) {
-    console.error("Error in campaign agent route:", error);
+    console.error("Error fetching campaigns:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 });
+
+app.post("/campaigns", requireUserJwt, async (c) => {
+  try {
+    console.log("[Server] Processing POST /campaigns request");
+    const userAuth = (c as any).userAuth;
+    console.log("[Server] User auth:", userAuth);
+
+    const { name } = await c.req.json();
+    console.log("[Server] Request body name:", name);
+
+    if (!name || typeof name !== "string") {
+      console.log("[Server] Invalid name:", name);
+      return c.json({ error: "Campaign name is required" }, 400);
+    }
+
+    // Get the CampaignManager Durable Object for this user
+    const campaignManagerId = c.env.CampaignManager.idFromName(
+      userAuth.username
+    );
+    console.log("[Server] CampaignManager ID:", campaignManagerId.toString());
+    const campaignManager = c.env.CampaignManager.get(campaignManagerId);
+
+    console.log("[Server] Calling CampaignManager with body:", { name });
+    try {
+      const response = await campaignManager.fetch(
+        "http://localhost/campaigns",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        }
+      );
+
+      console.log("[Server] CampaignManager response status:", response.status);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log("[Server] CampaignManager error response:", errorText);
+        return c.json({ error: "Failed to create campaign" }, 500);
+      }
+
+      const data = await response.json();
+      console.log("[Server] CampaignManager success response:", data);
+      return c.json(data as any);
+    } catch (fetchError) {
+      console.error("[Server] Error calling CampaignManager:", fetchError);
+      return c.json({ error: "Failed to call CampaignManager" }, 500);
+    }
+  } catch (error) {
+    console.error("[Server] Error creating campaign:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+app.get("/campaigns/:campaignId", requireUserJwt, async (c) => {
+  try {
+    const userAuth = (c as any).userAuth;
+    const campaignId = c.req.param("campaignId");
+
+    // Get the CampaignManager Durable Object for this user
+    const campaignManagerId = c.env.CampaignManager.idFromName(
+      userAuth.username
+    );
+    const campaignManager = c.env.CampaignManager.get(campaignManagerId);
+
+    const response = await campaignManager.fetch(
+      `http://localhost/campaigns/${campaignId}`,
+      {
+        method: "GET",
+      }
+    );
+
+    if (!response.ok) {
+      return c.json({ error: "Failed to fetch campaign details" }, 500);
+    }
+
+    const data = await response.json();
+    return c.json(data as any);
+  } catch (error) {
+    console.error("Error fetching campaign details:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// Note: Campaign agent routes are now handled through the Chat Durable Object
+// The new specialized agents (CampaignAgent, CampaignContextAgent, CharacterSheetAgent)
+// are AIChatAgent instances without HTTP routes
 
 // Progress WebSocket endpoint
 app.get("/progress", async (c) => {

@@ -91,7 +91,7 @@ export default function Chat() {
 
   // Get stored JWT for user operations
   const getStoredJwt = (): string | null => {
-    const jwt = localStorage.getItem("user_auth_jwt");
+    const jwt = localStorage.getItem("loresmith-jwt");
     console.log("[App] getStoredJwt() returns:", jwt);
     return jwt;
   };

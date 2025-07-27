@@ -10,6 +10,7 @@ import type {
 import { Button } from "../button/Button";
 import { Card } from "../card/Card";
 import { Loader } from "../loader/Loader";
+import { CharacterSheetList, CharacterSheetUpload } from "../character-sheet";
 
 export function CampaignDetail({
   campaignId,
@@ -20,6 +21,8 @@ export function CampaignDetail({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [removingResource, setRemovingResource] = useState<string | null>(null);
+  const [showCharacterSheetUpload, setShowCharacterSheetUpload] =
+    useState(false);
 
   const fetchCampaign = useCallback(async () => {
     try {
@@ -88,6 +91,18 @@ export function CampaignDetail({
     }
   };
 
+  const handleCharacterSheetAdded = (_characterSheet: any) => {
+    toast.success("Character sheet added successfully!");
+    // Refresh campaign data if needed
+    fetchCampaign();
+  };
+
+  const handleCharacterSheetRemoved = (_characterSheetId: string) => {
+    toast.success("Character sheet removed successfully!");
+    // Refresh campaign data if needed
+    fetchCampaign();
+  };
+
   if (loading) {
     return <Loader />;
   }
@@ -120,6 +135,9 @@ export function CampaignDetail({
           </p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => setShowCharacterSheetUpload(true)}>
+            Upload Character Sheet
+          </Button>
           <Button onClick={onAddResource}>Add Resource</Button>
           <Button onClick={onBack} variant="secondary">
             Back to Campaigns
@@ -157,6 +175,20 @@ export function CampaignDetail({
           </p>
         )}
       </Card>
+
+      <Card>
+        <CharacterSheetList
+          campaignId={campaignId}
+          onCharacterSheetRemoved={handleCharacterSheetRemoved}
+        />
+      </Card>
+
+      <CharacterSheetUpload
+        isOpen={showCharacterSheetUpload}
+        onClose={() => setShowCharacterSheetUpload(false)}
+        campaignId={campaignId}
+        onCharacterSheetAdded={handleCharacterSheetAdded}
+      />
     </div>
   );
 }

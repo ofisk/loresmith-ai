@@ -58,6 +58,21 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
           `[${this.constructor.name}] Last user message:`,
           lastUserMessage
         );
+        console.log(
+          `[${this.constructor.name}] Last user message keys:`,
+          lastUserMessage ? Object.keys(lastUserMessage) : "no message"
+        );
+        console.log(
+          `[${this.constructor.name}] Last user message has data property:`,
+          lastUserMessage && "data" in lastUserMessage
+        );
+        console.log(
+          `[${this.constructor.name}] Last user message data value:`,
+          lastUserMessage && "data" in lastUserMessage
+            ? lastUserMessage.data
+            : "no data"
+        );
+
         let clientJwt: string | null = null;
         if (
           lastUserMessage &&
