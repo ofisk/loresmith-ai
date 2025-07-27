@@ -743,7 +743,7 @@ app.get("/check-user-openai-key", async (c) => {
 
     // Try to get the user's stored API key
     const response = await chat.fetch(
-      new Request("http://localhost/get-user-openai-key", {
+      new Request(`${new URL(c.req.url).origin}/get-user-openai-key`, {
         method: "GET",
       })
     );
@@ -808,7 +808,7 @@ app.post("/chat/set-openai-key", async (c) => {
 
     // Call the Chat durable object to set the API key
     const response = await chat.fetch(
-      new Request("http://localhost/set-openai-key", {
+      new Request(`${new URL(c.req.url).origin}/set-openai-key`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1284,9 +1284,12 @@ app.get("/campaigns", requireUserJwt, async (c) => {
     );
     const campaignManager = c.env.CampaignManager.get(campaignManagerId);
 
-    const response = await campaignManager.fetch("http://localhost/campaigns", {
-      method: "GET",
-    });
+    const response = await campaignManager.fetch(
+      `${new URL(c.req.url).origin}/campaigns`,
+      {
+        method: "GET",
+      }
+    );
 
     if (!response.ok) {
       return c.json({ error: "Failed to fetch campaigns" }, 500);
@@ -1324,7 +1327,7 @@ app.post("/campaigns", requireUserJwt, async (c) => {
     console.log("[Server] Calling CampaignManager with body:", { name });
     try {
       const response = await campaignManager.fetch(
-        "http://localhost/campaigns",
+        `${new URL(c.req.url).origin}/campaigns`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1364,7 +1367,7 @@ app.get("/campaigns/:campaignId", requireUserJwt, async (c) => {
     const campaignManager = c.env.CampaignManager.get(campaignManagerId);
 
     const response = await campaignManager.fetch(
-      `http://localhost/campaigns/${campaignId}`,
+      `${new URL(c.req.url).origin}/campaigns/${campaignId}`,
       {
         method: "GET",
       }
