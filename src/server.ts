@@ -845,6 +845,15 @@ app.post("/auth/authenticate", async (c) => {
         ? `${providedKey.substring(0, 10)}...`
         : "undefined",
     });
+
+    // Enhanced environment variable debugging
+    console.log("[auth/authenticate] Environment variables check:", {
+      hasAdminSecret: !!c.env.ADMIN_SECRET,
+      adminSecretType: typeof c.env.ADMIN_SECRET,
+      hasOpenAIKey: !!c.env.OPENAI_API_KEY,
+      openAIKeyType: typeof c.env.OPENAI_API_KEY,
+    });
+
     const adminSecretValue = c.env.ADMIN_SECRET
       ? await c.env.ADMIN_SECRET
       : null;
@@ -859,9 +868,11 @@ app.post("/auth/authenticate", async (c) => {
     );
 
     if (!result.success) {
+      console.log("[auth/authenticate] Authentication failed:", result.error);
       return c.json({ error: result.error }, 401);
     }
 
+    console.log("[auth/authenticate] Authentication successful");
     return c.json({
       token: result.token,
       hasDefaultOpenAIKey: result.hasDefaultOpenAIKey,

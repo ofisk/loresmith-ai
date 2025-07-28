@@ -93,7 +93,7 @@ export const PdfUploadAgent = ({
         // Also check if we need to require OpenAI key when not authenticated
         try {
           const response = await fetch(
-            API_CONFIG.buildUrl("/check-open-ai-key")
+            API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY)
           );
           const result = (await response.json()) as { success: boolean };
           console.log("Initial OpenAI key check:", result);
@@ -157,7 +157,7 @@ export const PdfUploadAgent = ({
       const checkOpenAIRequirement = async () => {
         try {
           const response = await fetch(
-            API_CONFIG.buildUrl("/check-open-ai-key")
+            API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY)
           );
           const result = (await response.json()) as { success: boolean };
           console.log("Auth form OpenAI key check:", result);
@@ -299,7 +299,9 @@ export const PdfUploadAgent = ({
 
       // Check if a default OpenAI key is available
       try {
-        const response = await fetch(API_CONFIG.buildUrl("/check-open-ai-key"));
+        const response = await fetch(
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY)
+        );
         const result = (await response.json()) as { success: boolean };
 
         console.log("OpenAI key check result:", result);
