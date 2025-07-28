@@ -50,8 +50,17 @@ export async function authenticateUser(
 ): Promise<AuthResponse> {
   const { username, openaiApiKey, providedKey } = request;
 
+  console.log("[authenticateUser] Starting authentication process");
+  console.log("[authenticateUser] Request data:", {
+    username: username ? `${username.substring(0, 10)}...` : "undefined",
+    hasOpenAIKey: !!openaiApiKey,
+    hasProvidedKey: !!providedKey,
+    providedKeyLength: providedKey?.length || 0,
+  });
+
   // Validate required fields
   if (!username || typeof username !== "string" || username.trim() === "") {
+    console.log("[authenticateUser] Username validation failed");
     return {
       success: false,
       error: "Username is required",
@@ -63,6 +72,9 @@ export async function authenticateUser(
     typeof providedKey !== "string" ||
     providedKey.trim() === ""
   ) {
+    console.log(
+      "[authenticateUser] Admin key validation failed - missing or empty"
+    );
     return {
       success: false,
       error: "Admin key is required",
@@ -73,6 +85,15 @@ export async function authenticateUser(
   const validAdminKey = env.ADMIN_SECRET
     ? await env.ADMIN_SECRET
     : "undefined-admin-key";
+
+  console.log("[authenticateUser] Environment check:", {
+    hasAdminSecret: !!env.ADMIN_SECRET,
+    validAdminKeyLength: validAdminKey?.length || 0,
+    validAdminKeyPrefix: validAdminKey
+      ? `${validAdminKey.substring(0, 4)}...`
+      : "undefined",
+  });
+
   const isValidAdminKey = providedKey.trim() === validAdminKey;
 
   const envAdminSecretValue = env.ADMIN_SECRET ? await env.ADMIN_SECRET : null;
@@ -96,6 +117,9 @@ export async function authenticateUser(
   });
 
   if (!isValidAdminKey) {
+    console.log(
+      "[authenticateUser] Admin key validation failed - keys don't match"
+    );
     return {
       success: false,
       error:
@@ -103,15 +127,23 @@ export async function authenticateUser(
     };
   }
 
+  console.log("[authenticateUser] Admin key validation successful");
+
   // Check for default OpenAI key
   const hasDefaultOpenAIKey =
     !!env.OPENAI_API_KEY && env.OPENAI_API_KEY.trim().length > 0;
+
+  console.log("[authenticateUser] OpenAI key check:", {
+    hasDefaultOpenAIKey,
+    hasUserOpenAIKey: !!openaiApiKey,
+  });
 
   // Determine which API key to use
   const finalApiKey = openaiApiKey?.trim() || null;
 
   // Require API key if no default is available
   if (!hasDefaultOpenAIKey && !finalApiKey) {
+    console.log("[authenticateUser] No OpenAI key available");
     return {
       success: false,
       error: "OpenAI API key is required when no default key is configured",
@@ -134,6 +166,7 @@ export async function authenticateUser(
       .setExpirationTime("1d")
       .sign(jwtSecret);
 
+    console.log("[authenticateUser] JWT generated successfully");
     return {
       success: true,
       token: jwt,

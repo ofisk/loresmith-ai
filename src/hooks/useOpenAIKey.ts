@@ -24,7 +24,7 @@ export function useOpenAIKey(): UseOpenAIKeyReturn {
 
       // Check if the user has an API key stored in their session
       const response = await fetch(
-        API_CONFIG.buildUrl("/check-user-openai-key"),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.OPENAI.CHECK_USER_KEY),
         {
           method: "GET",
           headers: {
@@ -65,7 +65,7 @@ export function useOpenAIKey(): UseOpenAIKeyReturn {
 
       // Store the API key in the user's session
       const response = await fetch(
-        API_CONFIG.buildUrl("/chat/set-openai-key"),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CHAT.SET_OPENAI_KEY),
         {
           method: "POST",
           headers: {

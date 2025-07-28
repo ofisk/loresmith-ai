@@ -37,8 +37,20 @@ function getApiUrl(): string {
 
 // API Configuration - centralized base URL and endpoints
 export const API_CONFIG = {
-  // Use environment variable for API URL, fallback to localhost for development
-  BASE_URL: getApiUrl(),
+  // Helper function to get the base URL dynamically
+  getApiBaseUrl: (): string => {
+    return getApiUrl();
+  },
+
+  // Helper function to build full API URLs
+  buildUrl: (endpoint: string): string => {
+    return `${API_CONFIG.getApiBaseUrl()}${endpoint}`;
+  },
+
+  // Helper function to build campaign-specific URLs
+  buildCampaignUrl: (campaignId: string, endpoint: string): string => {
+    return API_CONFIG.buildUrl(`/campaigns/${campaignId}${endpoint}`);
+  },
 
   // API endpoints without /api/ prefix
   ENDPOINTS: {
@@ -69,6 +81,10 @@ export const API_CONFIG = {
     CHAT: {
       SET_OPENAI_KEY: "/chat/set-openai-key",
     },
+    OPENAI: {
+      CHECK_KEY: "/check-open-ai-key",
+      CHECK_USER_KEY: "/check-user-openai-key",
+    },
     PDF: {
       UPLOAD_URL: "/pdf/upload-url",
       UPLOAD: "/pdf/upload",
@@ -86,21 +102,6 @@ export const API_CONFIG = {
       UPDATE_METADATA: (fileKey: string) => `/rag/pdfs/${fileKey}/metadata`,
       DELETE_PDF: (fileKey: string) => `/rag/pdfs/${fileKey}`,
     },
-  },
-
-  // Helper function to get the base URL
-  getApiBaseUrl: (): string => {
-    return getApiUrl();
-  },
-
-  // Helper function to build full API URLs
-  buildUrl: (endpoint: string): string => {
-    return `${API_CONFIG.getApiBaseUrl()}${endpoint}`;
-  },
-
-  // Helper function to build campaign-specific URLs
-  buildCampaignUrl: (campaignId: string, endpoint: string): string => {
-    return API_CONFIG.buildUrl(`/campaigns/${campaignId}${endpoint}`);
   },
 } as const;
 
