@@ -352,6 +352,7 @@ export const PdfUploadAgent = ({
           body: JSON.stringify({
             providedKey: adminKey,
             username: username.trim(),
+            ...(openaiApiKey.trim() && { openaiApiKey: openaiApiKey.trim() }),
           }),
         }
       );

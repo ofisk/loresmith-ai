@@ -24,8 +24,16 @@ const setAdminSecret = tool({
   parameters: z.object({
     adminKey: z.string().describe("The admin key provided by the user"),
     username: z.string().describe("The username provided by the user"),
+    openaiApiKey: z
+      .string()
+      .optional()
+      .describe("Optional OpenAI API key provided by the user"),
   }),
-  execute: async ({ adminKey, username }): Promise<ToolResult> => {
+  execute: async ({
+    adminKey,
+    username,
+    openaiApiKey,
+  }): Promise<ToolResult> => {
     try {
       // Make HTTP request to the authenticate endpoint using centralized API config
       const response = await fetch(
@@ -38,6 +46,7 @@ const setAdminSecret = tool({
           body: JSON.stringify({
             providedKey: adminKey,
             username,
+            ...(openaiApiKey && { openaiApiKey }),
           }),
         }
       );
