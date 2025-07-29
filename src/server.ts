@@ -23,7 +23,6 @@ interface Env extends AuthEnv {
   VECTORIZE: VectorizeIndex;
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
-  CampaignManager: DurableObjectNamespace;
 }
 
 // Progress tracking store
@@ -1330,25 +1329,18 @@ app.get("/campaigns/:campaignId", requireUserJwt, async (c) => {
     const userAuth = (c as any).userAuth;
     const campaignId = c.req.param("campaignId");
 
-    // Get the CampaignManager Durable Object for this user
-    const campaignManagerId = c.env.CampaignManager.idFromName(
-      userAuth.username
-    );
-    const campaignManager = c.env.CampaignManager.get(campaignManagerId);
+    // Query campaign directly from D1 database
+    const campaign = await c.env.DB.prepare(
+      "SELECT id as campaignId, name, created_at as createdAt, updated_at as updatedAt FROM campaigns WHERE id = ? AND username = ?"
+    )
+      .bind(campaignId, userAuth.username)
+      .first();
 
-    const response = await campaignManager.fetch(
-      `${new URL(c.req.url).origin}/campaigns/${campaignId}`,
-      {
-        method: "GET",
-      }
-    );
-
-    if (!response.ok) {
-      return c.json({ error: "Failed to fetch campaign details" }, 500);
+    if (!campaign) {
+      return c.json({ error: "Campaign not found" }, 404);
     }
 
-    const data = await response.json();
-    return c.json(data as any);
+    return c.json({ campaign });
   } catch (error) {
     console.error("Error fetching campaign details:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -1357,28 +1349,16 @@ app.get("/campaigns/:campaignId", requireUserJwt, async (c) => {
 
 app.get("/campaigns/:campaignId/resources", requireUserJwt, async (c) => {
   try {
-    const userAuth = (c as any).userAuth;
     const campaignId = c.req.param("campaignId");
 
-    // Get the CampaignManager Durable Object for this user
-    const campaignManagerId = c.env.CampaignManager.idFromName(
-      userAuth.username
-    );
-    const campaignManager = c.env.CampaignManager.get(campaignManagerId);
+    // Query campaign resources directly from D1 database
+    const resources = await c.env.DB.prepare(
+      "SELECT id, campaign_id, file_key, file_name, description, tags, status, created_at FROM campaign_resources WHERE campaign_id = ?"
+    )
+      .bind(campaignId)
+      .all();
 
-    const response = await campaignManager.fetch(
-      `${new URL(c.req.url).origin}/campaigns/${campaignId}/resources`,
-      {
-        method: "GET",
-      }
-    );
-
-    if (!response.ok) {
-      return c.json({ error: "Failed to fetch campaign resources" }, 500);
-    }
-
-    const data = await response.json();
-    return c.json(data as any);
+    return c.json({ resources: resources.results || [] });
   } catch (error) {
     console.error("Error fetching campaign resources:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -1434,7 +1414,7 @@ app.all("*", async (c) => {
     );
   }
   return (
-    (await routeAgentRequest(c.req.raw, c.env, { cors: true })) ||
+    (await routeAgentRequest(c.req.raw, c.env as any, { cors: true })) ||
     new Response("Not found", { status: 404 })
   );
 });
@@ -1442,4 +1422,4 @@ app.all("*", async (c) => {
 export default app;
 
 // Export Durable Objects
-export { CampaignManager } from "./durable-objects/CampaignManager";
+// CampaignManager removed - campaigns now handled directly in D1

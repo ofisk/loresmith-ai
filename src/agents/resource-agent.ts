@@ -12,7 +12,6 @@ interface Env {
   DB: D1Database;
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
-  CampaignManager: DurableObjectNamespace;
 }
 
 /**

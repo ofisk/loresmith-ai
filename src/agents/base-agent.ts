@@ -11,7 +11,6 @@ interface Env {
   PDF_BUCKET: R2Bucket;
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
-  CampaignManager: DurableObjectNamespace;
 }
 
 interface MessageData {
