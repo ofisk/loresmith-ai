@@ -27,6 +27,12 @@ export const PdfUpload = ({
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
   const [isValid, setIsValid] = useState(true);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [initialValues, setInitialValues] = useState({
+    filename: "",
+    description: "",
+    tags: "",
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,10 +42,17 @@ export const PdfUpload = ({
         setSelectedFile(file);
         setFilename(file.name);
         setIsValid(true);
+        setUploadSuccess(false);
+        setInitialValues({
+          filename: file.name,
+          description: "",
+          tags: "",
+        });
       } else {
         setSelectedFile(null);
         setFilename("");
         setIsValid(false);
+        setUploadSuccess(false);
       }
     }
   };
@@ -52,6 +65,12 @@ export const PdfUpload = ({
         .filter((tag) => tag.length > 0);
 
       onUpload(selectedFile, filename, description, tagsArray);
+      setUploadSuccess(true);
+      setInitialValues({
+        filename: filename,
+        description: description,
+        tags: tags,
+      });
     }
   };
 
@@ -62,10 +81,17 @@ export const PdfUpload = ({
       setSelectedFile(file);
       setFilename(file.name);
       setIsValid(true);
+      setUploadSuccess(false);
+      setInitialValues({
+        filename: file.name,
+        description: "",
+        tags: "",
+      });
     } else {
       setSelectedFile(null);
       setFilename("");
       setIsValid(false);
+      setUploadSuccess(false);
     }
   };
 
@@ -73,7 +99,13 @@ export const PdfUpload = ({
     event.preventDefault();
   };
 
-  const isUploadDisabled = !selectedFile || loading;
+  const hasChanges =
+    filename !== initialValues.filename ||
+    description !== initialValues.description ||
+    tags !== initialValues.tags;
+
+  const isUploadDisabled =
+    !selectedFile || loading || (uploadSuccess && !hasChanges);
 
   return (
     <Card className={cn("space-y-4", className)}>
@@ -218,23 +250,46 @@ export const PdfUpload = ({
           </div>
 
           {/* Upload Button */}
-          <Button
-            onClick={handleUpload}
-            disabled={isUploadDisabled}
-            loading={loading}
-            variant={selectedFile ? "primary" : "secondary"}
-            size="base"
-            className={cn(
-              "w-48",
-              selectedFile &&
-                "bg-[#F48120] hover:bg-[#F48120]/90 text-white border-[#F48120]",
-              !selectedFile &&
-                "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 cursor-not-allowed",
-              "mt-16"
-            )}
-          >
-            {loading ? "Uploading..." : "Upload"}
-          </Button>
+          <div className="flex justify-center mt-8">
+            <Button
+              onClick={handleUpload}
+              disabled={isUploadDisabled}
+              loading={loading}
+              variant={selectedFile ? "primary" : "secondary"}
+              size="sm"
+              className={cn(
+                "w-40 h-8 text-center justify-center",
+                selectedFile &&
+                  "bg-[#F48120] hover:bg-[#F48120]/90 text-white border-[#F48120]",
+                !selectedFile &&
+                  "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 cursor-not-allowed",
+                uploadSuccess &&
+                  !hasChanges &&
+                  "bg-green-500 hover:bg-green-600 text-white border-green-500 cursor-not-allowed"
+              )}
+            >
+              {uploadSuccess && !hasChanges ? (
+                <div className="flex items-center justify-center gap-2">
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  <span>Completed</span>
+                </div>
+              ) : (
+                "Upload"
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </Card>
