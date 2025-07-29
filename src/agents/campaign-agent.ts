@@ -1,5 +1,5 @@
-import { BaseAgent } from "./base-agent";
 import { campaignTools } from "../tools/campaign";
+import { BaseAgent } from "./base-agent";
 
 const CAMPAIGN_SYSTEM_PROMPT = `You are a specialized Campaign Agent for LoreSmith AI, focused on campaign management, resource organization, and intelligent campaign planning.
 

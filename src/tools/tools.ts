@@ -29,47 +29,99 @@ const setAdminSecret = tool({
       .optional()
       .describe("Optional OpenAI API key provided by the user"),
   }),
-  execute: async ({
-    adminKey,
-    username,
-    openaiApiKey,
-  }): Promise<ToolResult> => {
+  execute: async (
+    { adminKey, username, openaiApiKey },
+    context?: any
+  ): Promise<ToolResult> => {
+    console.log("[Tool] setAdminSecret received:", { username });
+    console.log("[Tool] setAdminSecret context:", context);
     try {
-      // Make HTTP request to the authenticate endpoint using centralized API config
-      const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            providedKey: adminKey,
-            username,
-            ...(openaiApiKey && { openaiApiKey }),
-          }),
-        }
+      // Check if we have access to the environment through context
+      const env = context?.env;
+      console.log("[setAdminSecret] Environment from context:", !!env);
+      console.log(
+        "[setAdminSecret] ADMIN_SECRET binding exists:",
+        env?.ADMIN_SECRET !== undefined
       );
 
-      const result = (await response.json()) as {
-        success: boolean;
-        authenticated: boolean;
-        error?: string;
-        token?: string;
-      };
+      if (env?.ADMIN_SECRET) {
+        console.log(
+          "[setAdminSecret] Running in Durable Object context, calling server directly"
+        );
 
-      if (result.success && result.authenticated) {
+        // Validate admin key directly
+        const validAdminKey = env.ADMIN_SECRET || "undefined-admin-key";
+        console.log(
+          "[setAdminSecret] Validating admin key against:",
+          validAdminKey
+        );
+
+        if (adminKey !== validAdminKey) {
+          return {
+            code: AUTH_CODES.INVALID_KEY,
+            message: USER_MESSAGES.INVALID_ADMIN_KEY,
+            data: { authenticated: false },
+          };
+        }
+
+        // Generate JWT token
+        const jwt = require("jsonwebtoken");
+        const token = jwt.sign(
+          { username, authenticated: true },
+          validAdminKey,
+          { expiresIn: "24h" }
+        );
+
+        console.log(
+          "[setAdminSecret] Admin key validated successfully for user:",
+          username
+        );
+
         return {
           code: AUTH_CODES.SUCCESS,
           message: USER_MESSAGES.ADMIN_KEY_VALIDATED,
-          data: { authenticated: true, token: result.token },
+          data: { authenticated: true, token },
+        };
+      } else {
+        // Fall back to HTTP API
+        console.log(
+          "[setAdminSecret] Running in HTTP context, making API request"
+        );
+        const response = await fetch(
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              providedKey: adminKey,
+              username,
+              ...(openaiApiKey && { openaiApiKey }),
+            }),
+          }
+        );
+
+        const result = (await response.json()) as {
+          success: boolean;
+          authenticated: boolean;
+          error?: string;
+          token?: string;
+        };
+
+        if (result.success && result.authenticated) {
+          return {
+            code: AUTH_CODES.SUCCESS,
+            message: USER_MESSAGES.ADMIN_KEY_VALIDATED,
+            data: { authenticated: true, token: result.token },
+          };
+        }
+        return {
+          code: AUTH_CODES.INVALID_KEY,
+          message: USER_MESSAGES.INVALID_ADMIN_KEY,
+          data: { authenticated: false },
         };
       }
-      return {
-        code: AUTH_CODES.INVALID_KEY,
-        message: USER_MESSAGES.INVALID_ADMIN_KEY,
-        data: { authenticated: false },
-      };
     } catch (error) {
       console.error("Error validating admin key:", error);
       return {

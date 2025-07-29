@@ -14,24 +14,54 @@ export const AUTH_CODES = {
 
 // Helper function to get API URL that works in both Vite and Worker contexts
 function getApiUrl(): string {
+  console.log("[getApiUrl] Starting URL resolution");
+
   // Try Vite environment first (for frontend)
   if (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) {
+    console.log(
+      "[getApiUrl] Using Vite environment URL:",
+      import.meta.env.VITE_API_URL
+    );
     return import.meta.env.VITE_API_URL;
   }
   // Fallback to process.env (for Worker context)
   if (typeof process !== "undefined" && process.env?.VITE_API_URL) {
+    console.log("[getApiUrl] Using process.env URL:", process.env.VITE_API_URL);
     return process.env.VITE_API_URL;
   }
 
   // In production (browser context), use the current origin
   if (typeof window !== "undefined" && window.location) {
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    const port = window.location.port;
+
+    console.log("[getApiUrl] Browser context detected:", {
+      hostname,
+      protocol,
+      port,
+      origin: window.location.origin,
+    });
+
     // If we're not on localhost, use the current origin
-    if (!window.location.hostname.includes("localhost")) {
+    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+      console.log(
+        "[getApiUrl] Using production origin:",
+        window.location.origin
+      );
       return window.location.origin;
+    }
+
+    // If we are on localhost but have a port, use it
+    if (hostname === "localhost" && port) {
+      const localhostUrl = `${protocol}//${hostname}:${port}`;
+      console.log("[getApiUrl] Using localhost with port:", localhostUrl);
+      return localhostUrl;
     }
   }
 
   // Default fallback for development
+  console.log("[getApiUrl] Using default localhost fallback");
   return "http://localhost:8787";
 }
 

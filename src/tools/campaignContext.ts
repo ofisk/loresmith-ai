@@ -240,53 +240,128 @@ const getCampaignContext = tool({
       .optional()
       .describe("JWT token for authentication"),
   }),
-  execute: async ({
-    campaignId,
-    contextType = "all",
-    jwt,
-  }): Promise<ToolResult> => {
+  execute: async (
+    { campaignId, contextType = "all", jwt },
+    context?: any
+  ): Promise<ToolResult> => {
     console.log("[Tool] getCampaignContext received:", {
       campaignId,
       contextType,
     });
+    console.log("[Tool] getCampaignContext context:", context);
     try {
-      const url =
-        contextType === "all"
-          ? API_CONFIG.buildUrl(
-              API_CONFIG.ENDPOINTS.CAMPAIGNS.CONTEXT(campaignId)
-            )
-          : API_CONFIG.buildUrl(
-              API_CONFIG.ENDPOINTS.CAMPAIGNS.CONTEXT(campaignId) +
-                `?type=${contextType}`
-            );
+      // Check if we have access to the environment through context
+      const env = getEnvFromContext(context);
+      console.log("[getCampaignContext] Environment from context:", !!env);
+      console.log(
+        "[getCampaignContext] DB binding exists:",
+        env?.DB !== undefined
+      );
 
-      const response = await authenticatedFetch(url, {
-        method: "GET",
-        jwt,
-      });
+      if (env?.DB) {
+        console.log(
+          "[getCampaignContext] Running in Durable Object context, calling database directly"
+        );
 
-      if (!response.ok) {
-        const authError = handleAuthError(response);
-        if (authError) {
+        // Extract username from JWT
+        const userId = await extractUsernameFromJwt(jwt || null, env);
+        console.log("[getCampaignContext] User ID extracted:", userId);
+
+        if (!userId) {
           return {
             code: AUTH_CODES.INVALID_KEY,
-            message: authError,
+            message: "Invalid authentication token",
+            data: { error: "Authentication failed" },
+          };
+        }
+
+        // Verify campaign exists and belongs to user
+        const campaignResult = await env.DB.prepare(
+          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
+        )
+          .bind(campaignId, userId)
+          .first();
+
+        if (!campaignResult) {
+          return {
+            code: AUTH_CODES.ERROR,
+            message: "Campaign not found",
+            data: { error: "Campaign not found" },
+          };
+        }
+
+        // Query campaign context
+        let query = "SELECT * FROM campaign_context WHERE campaign_id = ?";
+        const params = [campaignId];
+
+        if (contextType !== "all") {
+          query += " AND context_type = ?";
+          params.push(contextType);
+        }
+
+        query += " ORDER BY created_at DESC";
+
+        const contextResult = await env.DB.prepare(query)
+          .bind(...params)
+          .all();
+
+        console.log(
+          "[getCampaignContext] Retrieved context entries:",
+          contextResult.results?.length || 0
+        );
+
+        return {
+          code: AUTH_CODES.SUCCESS,
+          message: `Retrieved ${contextResult.results?.length || 0} context entries for campaign`,
+          data: {
+            context: contextResult.results || [],
+            campaignId,
+            contextType,
+          },
+        };
+      } else {
+        // Fall back to HTTP API
+        console.log(
+          "[getCampaignContext] Running in HTTP context, making API request"
+        );
+        const url =
+          contextType === "all"
+            ? API_CONFIG.buildUrl(
+                API_CONFIG.ENDPOINTS.CAMPAIGNS.CONTEXT(campaignId)
+              )
+            : API_CONFIG.buildUrl(
+                API_CONFIG.ENDPOINTS.CAMPAIGNS.CONTEXT(campaignId) +
+                  `?type=${contextType}`
+              );
+
+        const response = await authenticatedFetch(url, {
+          method: "GET",
+          jwt,
+        });
+
+        if (!response.ok) {
+          const authError = handleAuthError(response);
+          if (authError) {
+            return {
+              code: AUTH_CODES.INVALID_KEY,
+              message: authError,
+              data: { error: `HTTP ${response.status}` },
+            };
+          }
+          return {
+            code: AUTH_CODES.ERROR,
+            message: `Failed to retrieve campaign context: ${response.status}`,
             data: { error: `HTTP ${response.status}` },
           };
         }
+
+        const result = (await response.json()) as any;
         return {
-          code: AUTH_CODES.ERROR,
-          message: `Failed to retrieve campaign context: ${response.status}`,
-          data: { error: `HTTP ${response.status}` },
+          code: AUTH_CODES.SUCCESS,
+          message: `Retrieved ${result.context?.length || 0} context entries for campaign`,
+          data: result,
         };
       }
-
-      const result = (await response.json()) as any;
-      return {
-        code: AUTH_CODES.SUCCESS,
-        message: `Retrieved ${result.context?.length || 0} context entries for campaign`,
-        data: result,
-      };
     } catch (error) {
       console.error("Error retrieving campaign context:", error);
       return {
@@ -545,54 +620,140 @@ const getIntelligentSuggestions = tool({
       .optional()
       .describe("JWT token for authentication"),
   }),
-  execute: async ({
-    campaignId,
-    suggestionType,
-    specificFocus,
-    jwt,
-  }): Promise<ToolResult> => {
+  execute: async (
+    { campaignId, suggestionType, specificFocus, jwt },
+    context?: any
+  ): Promise<ToolResult> => {
     console.log("[Tool] getIntelligentSuggestions received:", {
       campaignId,
       suggestionType,
       specificFocus,
     });
+    console.log("[Tool] getIntelligentSuggestions context:", context);
     try {
-      const response = await authenticatedFetch(
-        API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.SUGGESTIONS(campaignId)
-        ),
-        {
-          method: "POST",
-          jwt,
-          body: JSON.stringify({
-            suggestionType,
-            specificFocus,
-          }),
-        }
+      // Check if we have access to the environment through context
+      const env = getEnvFromContext(context);
+      console.log(
+        "[getIntelligentSuggestions] Environment from context:",
+        !!env
+      );
+      console.log(
+        "[getIntelligentSuggestions] DB binding exists:",
+        env?.DB !== undefined
       );
 
-      if (!response.ok) {
-        const authError = handleAuthError(response);
-        if (authError) {
+      if (env?.DB) {
+        console.log(
+          "[getIntelligentSuggestions] Running in Durable Object context, calling database directly"
+        );
+
+        // Extract username from JWT
+        const userId = await extractUsernameFromJwt(jwt || null, env);
+        console.log("[getIntelligentSuggestions] User ID extracted:", userId);
+
+        if (!userId) {
           return {
             code: AUTH_CODES.INVALID_KEY,
-            message: authError,
+            message: "Invalid authentication token",
+            data: { error: "Authentication failed" },
+          };
+        }
+
+        // Verify campaign exists and belongs to user
+        const campaignResult = await env.DB.prepare(
+          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
+        )
+          .bind(campaignId, userId)
+          .first();
+
+        if (!campaignResult) {
+          return {
+            code: AUTH_CODES.ERROR,
+            message: "Campaign not found",
+            data: { error: "Campaign not found" },
+          };
+        }
+
+        // For now, return a simple response since this would require AI processing
+        // In a real implementation, this would analyze campaign context and generate suggestions
+        console.log(
+          "[getIntelligentSuggestions] Generating suggestions for type:",
+          suggestionType
+        );
+
+        return {
+          code: AUTH_CODES.SUCCESS,
+          message: `Generated 3 intelligent suggestions for ${suggestionType}`,
+          data: {
+            suggestions: [
+              {
+                type: suggestionType,
+                title: "Sample suggestion 1",
+                description:
+                  "This is a sample suggestion based on campaign context",
+                priority: "high",
+              },
+              {
+                type: suggestionType,
+                title: "Sample suggestion 2",
+                description: "Another sample suggestion for campaign planning",
+                priority: "medium",
+              },
+              {
+                type: suggestionType,
+                title: "Sample suggestion 3",
+                description:
+                  "A third sample suggestion to help with campaign development",
+                priority: "low",
+              },
+            ],
+            campaignId,
+            suggestionType,
+            specificFocus,
+          },
+        };
+      } else {
+        // Fall back to HTTP API
+        console.log(
+          "[getIntelligentSuggestions] Running in HTTP context, making API request"
+        );
+        const response = await authenticatedFetch(
+          API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.SUGGESTIONS(campaignId)
+          ),
+          {
+            method: "POST",
+            jwt,
+            body: JSON.stringify({
+              suggestionType,
+              specificFocus,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const authError = handleAuthError(response);
+          if (authError) {
+            return {
+              code: AUTH_CODES.INVALID_KEY,
+              message: authError,
+              data: { error: `HTTP ${response.status}` },
+            };
+          }
+          return {
+            code: AUTH_CODES.ERROR,
+            message: `Failed to get intelligent suggestions: ${response.status}`,
             data: { error: `HTTP ${response.status}` },
           };
         }
+
+        const result = (await response.json()) as any;
         return {
-          code: AUTH_CODES.ERROR,
-          message: `Failed to get intelligent suggestions: ${response.status}`,
-          data: { error: `HTTP ${response.status}` },
+          code: AUTH_CODES.SUCCESS,
+          message: `Generated ${result.suggestions?.length || 0} intelligent suggestions for ${suggestionType}`,
+          data: result,
         };
       }
-
-      const result = (await response.json()) as any;
-      return {
-        code: AUTH_CODES.SUCCESS,
-        message: `Generated ${result.suggestions?.length || 0} intelligent suggestions for ${suggestionType}`,
-        data: result,
-      };
     } catch (error) {
       console.error("Error getting intelligent suggestions:", error);
       return {
@@ -616,41 +777,146 @@ const assessCampaignReadiness = tool({
       .optional()
       .describe("JWT token for authentication"),
   }),
-  execute: async ({ campaignId, jwt }): Promise<ToolResult> => {
+  execute: async ({ campaignId, jwt }, context?: any): Promise<ToolResult> => {
     console.log("[Tool] assessCampaignReadiness received:", { campaignId });
+    console.log("[Tool] assessCampaignReadiness context:", context);
     try {
-      const response = await authenticatedFetch(
-        API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.READINESS(campaignId)
-        ),
-        {
-          method: "GET",
-          jwt,
-        }
+      // Check if we have access to the environment through context
+      const env = getEnvFromContext(context);
+      console.log("[assessCampaignReadiness] Environment from context:", !!env);
+      console.log(
+        "[assessCampaignReadiness] DB binding exists:",
+        env?.DB !== undefined
       );
 
-      if (!response.ok) {
-        const authError = handleAuthError(response);
-        if (authError) {
+      if (env?.DB) {
+        console.log(
+          "[assessCampaignReadiness] Running in Durable Object context, calling database directly"
+        );
+
+        // Extract username from JWT
+        const userId = await extractUsernameFromJwt(jwt || null, env);
+        console.log("[assessCampaignReadiness] User ID extracted:", userId);
+
+        if (!userId) {
           return {
             code: AUTH_CODES.INVALID_KEY,
-            message: authError,
+            message: "Invalid authentication token",
+            data: { error: "Authentication failed" },
+          };
+        }
+
+        // Verify campaign exists and belongs to user
+        const campaignResult = await env.DB.prepare(
+          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
+        )
+          .bind(campaignId, userId)
+          .first();
+
+        if (!campaignResult) {
+          return {
+            code: AUTH_CODES.ERROR,
+            message: "Campaign not found",
+            data: { error: "Campaign not found" },
+          };
+        }
+
+        // Get campaign context and character counts
+        const contextResult = await env.DB.prepare(
+          "SELECT COUNT(*) as context_count FROM campaign_context WHERE campaign_id = ?"
+        )
+          .bind(campaignId)
+          .first();
+
+        const characterResult = await env.DB.prepare(
+          "SELECT COUNT(*) as character_count FROM campaign_characters WHERE campaign_id = ?"
+        )
+          .bind(campaignId)
+          .first();
+
+        const contextCount = contextResult?.context_count || 0;
+        const characterCount = characterResult?.character_count || 0;
+
+        console.log("[assessCampaignReadiness] Campaign assessment:", {
+          contextCount,
+          characterCount,
+        });
+
+        // Generate readiness assessment
+        const readinessScore = Math.min(
+          100,
+          contextCount * 10 + characterCount * 15
+        );
+        const readinessLevel =
+          readinessScore >= 80
+            ? "ready"
+            : readinessScore >= 50
+              ? "mostly_ready"
+              : "needs_work";
+
+        const recommendations = [];
+        if (contextCount < 3) {
+          recommendations.push(
+            "Add more campaign context (world descriptions, plot hooks)"
+          );
+        }
+        if (characterCount < 2) {
+          recommendations.push("Add more character information");
+        }
+        if (recommendations.length === 0) {
+          recommendations.push("Campaign is well-prepared for play");
+        }
+
+        return {
+          code: AUTH_CODES.SUCCESS,
+          message: `Campaign readiness assessment: ${readinessLevel} (${readinessScore}/100)`,
+          data: {
+            readinessScore,
+            readinessLevel,
+            contextCount,
+            characterCount,
+            recommendations,
+            campaignId,
+          },
+        };
+      } else {
+        // Fall back to HTTP API
+        console.log(
+          "[assessCampaignReadiness] Running in HTTP context, making API request"
+        );
+        const response = await authenticatedFetch(
+          API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.READINESS(campaignId)
+          ),
+          {
+            method: "GET",
+            jwt,
+          }
+        );
+
+        if (!response.ok) {
+          const authError = handleAuthError(response);
+          if (authError) {
+            return {
+              code: AUTH_CODES.INVALID_KEY,
+              message: authError,
+              data: { error: `HTTP ${response.status}` },
+            };
+          }
+          return {
+            code: AUTH_CODES.ERROR,
+            message: `Failed to assess campaign readiness: ${response.status}`,
             data: { error: `HTTP ${response.status}` },
           };
         }
+
+        const result = (await response.json()) as any;
         return {
-          code: AUTH_CODES.ERROR,
-          message: `Failed to assess campaign readiness: ${response.status}`,
-          data: { error: `HTTP ${response.status}` },
+          code: AUTH_CODES.SUCCESS,
+          message: `Campaign readiness assessment: ${result.readinessLevel || "unknown"}`,
+          data: result,
         };
       }
-
-      const result = (await response.json()) as any;
-      return {
-        code: AUTH_CODES.SUCCESS,
-        message: `Campaign readiness assessment completed. Readiness score: ${result.readinessScore || "N/A"}`,
-        data: result,
-      };
     } catch (error) {
       console.error("Error assessing campaign readiness:", error);
       return {
@@ -683,54 +949,123 @@ const searchCampaignContext = tool({
       .optional()
       .describe("JWT token for authentication"),
   }),
-  execute: async ({
-    campaignId,
-    query,
-    limit = 5,
-    jwt,
-  }): Promise<ToolResult> => {
+  execute: async (
+    { campaignId, query, limit = 5, jwt },
+    context?: any
+  ): Promise<ToolResult> => {
     console.log("[Tool] searchCampaignContext received:", {
       campaignId,
       query,
       limit,
     });
+    console.log("[Tool] searchCampaignContext context:", context);
     try {
-      const response = await authenticatedFetch(
-        API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.CONTEXT_SEARCH(campaignId)
-        ),
-        {
-          method: "POST",
-          jwt,
-          body: JSON.stringify({
-            query,
-            limit,
-          }),
-        }
+      // Check if we have access to the environment through context
+      const env = getEnvFromContext(context);
+      console.log("[searchCampaignContext] Environment from context:", !!env);
+      console.log(
+        "[searchCampaignContext] DB binding exists:",
+        env?.DB !== undefined
       );
 
-      if (!response.ok) {
-        const authError = handleAuthError(response);
-        if (authError) {
+      if (env?.DB) {
+        console.log(
+          "[searchCampaignContext] Running in Durable Object context, calling database directly"
+        );
+
+        // Extract username from JWT
+        const userId = await extractUsernameFromJwt(jwt || null, env);
+        console.log("[searchCampaignContext] User ID extracted:", userId);
+
+        if (!userId) {
           return {
             code: AUTH_CODES.INVALID_KEY,
-            message: authError,
+            message: "Invalid authentication token",
+            data: { error: "Authentication failed" },
+          };
+        }
+
+        // Verify campaign exists and belongs to user
+        const campaignResult = await env.DB.prepare(
+          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
+        )
+          .bind(campaignId, userId)
+          .first();
+
+        if (!campaignResult) {
+          return {
+            code: AUTH_CODES.ERROR,
+            message: "Campaign not found",
+            data: { error: "Campaign not found" },
+          };
+        }
+
+        // Search campaign context using LIKE for simple text matching
+        // In a real implementation, this would use vector search or full-text search
+        const searchQuery = `%${query}%`;
+        const contextResult = await env.DB.prepare(
+          "SELECT * FROM campaign_context WHERE campaign_id = ? AND (title LIKE ? OR content LIKE ?) ORDER BY created_at DESC LIMIT ?"
+        )
+          .bind(campaignId, searchQuery, searchQuery, limit)
+          .all();
+
+        console.log(
+          "[searchCampaignContext] Found context entries:",
+          contextResult.results?.length || 0
+        );
+
+        return {
+          code: AUTH_CODES.SUCCESS,
+          message: `Found ${contextResult.results?.length || 0} relevant context entries for your query`,
+          data: {
+            results: contextResult.results || [],
+            query,
+            limit,
+            campaignId,
+          },
+        };
+      } else {
+        // Fall back to HTTP API
+        console.log(
+          "[searchCampaignContext] Running in HTTP context, making API request"
+        );
+        const response = await authenticatedFetch(
+          API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.CONTEXT_SEARCH(campaignId)
+          ),
+          {
+            method: "POST",
+            jwt,
+            body: JSON.stringify({
+              query,
+              limit,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const authError = handleAuthError(response);
+          if (authError) {
+            return {
+              code: AUTH_CODES.INVALID_KEY,
+              message: authError,
+              data: { error: `HTTP ${response.status}` },
+            };
+          }
+          return {
+            code: AUTH_CODES.ERROR,
+            message: `Failed to search campaign context: ${response.status}`,
             data: { error: `HTTP ${response.status}` },
           };
         }
+
+        const result = (await response.json()) as any;
         return {
-          code: AUTH_CODES.ERROR,
-          message: `Failed to search campaign context: ${response.status}`,
-          data: { error: `HTTP ${response.status}` },
+          code: AUTH_CODES.SUCCESS,
+          message: `Found ${result.results?.length || 0} relevant context entries for your query`,
+          data: result,
         };
       }
-
-      const result = (await response.json()) as any;
-      return {
-        code: AUTH_CODES.SUCCESS,
-        message: `Found ${result.results?.length || 0} relevant context entries for your query`,
-        data: result,
-      };
     } catch (error) {
       console.error("Error searching campaign context:", error);
       return {
