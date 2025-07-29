@@ -1,10 +1,10 @@
 import { useCallback, useState } from "react";
-import toast from "react-hot-toast";
+import { useBaseAsync } from "./useBaseAsync";
 
 /**
  * Hook for managing form submissions with validation, loading states, and error handling.
  *
- * This hook encapsulates the common pattern of:
+ * This hook uses the base async hook to provide:
  * - Form validation
  * - Loading states during submission
  * - Error handling and display
@@ -17,7 +17,7 @@ import toast from "react-hot-toast";
  *
  * @example
  * ```typescript
- * const { handleSubmit, isSubmitting, error, setError } = useFormSubmission(
+ * const { handleSubmit, loading, error, setError } = useFormSubmission(
  *   async (formData) => {
  *     const response = await fetch('/api/submit', {
  *       method: 'POST',
@@ -38,8 +38,8 @@ import toast from "react-hot-toast";
  *   handleSubmit(formData);
  * }}>
  *   {error && <div className="error">{error}</div>}
- *   <button disabled={isSubmitting}>
- *     {isSubmitting ? 'Submitting...' : 'Submit'}
+ *   <button disabled={loading}>
+ *     {loading ? 'Submitting...' : 'Submit'}
  *   </button>
  * </form>
  * ```
@@ -55,60 +55,52 @@ export function useFormSubmission<T>(
     validate?: (data: T) => string | null;
   } = {}
 ) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const {
+    execute,
+    loading,
+    reset: resetAsync,
+  } = useBaseAsync(
+    async (data: T) => {
+      // Validate form data if validation function is provided
+      if (options.validate) {
+        const validationError = options.validate(data);
+        if (validationError) {
+          throw new Error(validationError);
+        }
+      }
+
+      await submitFn(data);
+    },
+    {
+      onSuccess: options.onSuccess,
+      onError: (error) => {
+        setError(error);
+        options.onError?.(error);
+      },
+      showToast: options.showToast,
+      successMessage: options.successMessage,
+      errorMessage: options.errorMessage,
+    }
+  );
 
   const handleSubmit = useCallback(
     async (data: T) => {
-      try {
-        // Validate form data if validation function is provided
-        if (options.validate) {
-          const validationError = options.validate(data);
-          if (validationError) {
-            setError(validationError);
-            if (options.showToast) {
-              toast.error(validationError);
-            }
-            return;
-          }
-        }
-
-        setIsSubmitting(true);
-        setError(null);
-
-        await submitFn(data);
-
-        options.onSuccess?.();
-
-        if (options.showToast && options.successMessage) {
-          toast.success(options.successMessage);
-        }
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error
-            ? err.message
-            : options.errorMessage || "Form submission failed";
-        setError(errorMessage);
-        options.onError?.(errorMessage);
-
-        if (options.showToast) {
-          toast.error(errorMessage);
-        }
-      } finally {
-        setIsSubmitting(false);
-      }
+      setError(null);
+      return execute(data);
     },
-    [submitFn, options]
+    [execute]
   );
 
   const reset = useCallback(() => {
-    setIsSubmitting(false);
     setError(null);
-  }, []);
+    resetAsync();
+  }, [resetAsync]);
 
   return {
     handleSubmit,
-    isSubmitting,
+    isSubmitting: loading,
     error,
     setError,
     reset,
@@ -125,7 +117,7 @@ export function useFormSubmission<T>(
  *
  * @example
  * ```typescript
- * const { handleSubmit, isSubmitting, error, data } = useFormSubmissionWithData(
+ * const { handleSubmit, loading, error, data } = useFormSubmissionWithData(
  *   async (formData) => {
  *     const response = await fetch('/api/submit', {
  *       method: 'POST',
@@ -151,67 +143,53 @@ export function useFormSubmissionWithData<T, R>(
     validate?: (data: T) => string | null;
   } = {}
 ) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<R | null>(null);
+
+  const {
+    execute,
+    loading,
+    data,
+    reset: resetAsync,
+  } = useBaseAsync(
+    async (formData: T) => {
+      // Validate form data if validation function is provided
+      if (options.validate) {
+        const validationError = options.validate(formData);
+        if (validationError) {
+          throw new Error(validationError);
+        }
+      }
+
+      return await submitFn(formData);
+    },
+    {
+      onSuccess: options.onSuccess,
+      onError: (error) => {
+        setError(error);
+        options.onError?.(error);
+      },
+      showToast: options.showToast,
+      successMessage: options.successMessage,
+      errorMessage: options.errorMessage,
+    }
+  );
 
   const handleSubmit = useCallback(
     async (formData: T) => {
-      try {
-        // Validate form data if validation function is provided
-        if (options.validate) {
-          const validationError = options.validate(formData);
-          if (validationError) {
-            setError(validationError);
-            if (options.showToast) {
-              toast.error(validationError);
-            }
-            return;
-          }
-        }
-
-        setIsSubmitting(true);
-        setError(null);
-
-        const result = await submitFn(formData);
-
-        setData(result);
-        options.onSuccess?.(result);
-
-        if (options.showToast && options.successMessage) {
-          toast.success(options.successMessage);
-        }
-
-        return result;
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error
-            ? err.message
-            : options.errorMessage || "Form submission failed";
-        setError(errorMessage);
-        options.onError?.(errorMessage);
-
-        if (options.showToast) {
-          toast.error(errorMessage);
-        }
-
-        throw err;
-      } finally {
-        setIsSubmitting(false);
-      }
+      setError(null);
+      return execute(formData);
     },
-    [submitFn, options]
+    [execute]
   );
 
   const reset = useCallback(() => {
-    setIsSubmitting(false);
     setError(null);
-    setData(null);
-  }, []);
+    resetAsync();
+  }, [resetAsync]);
 
   return {
     handleSubmit,
-    isSubmitting,
+    isSubmitting: loading,
     error,
     setError,
     data,

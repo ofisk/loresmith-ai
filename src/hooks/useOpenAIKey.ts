@@ -49,6 +49,7 @@ export function useOpenAIKey(): UseOpenAIKeyReturn {
     {
       onSuccess: (hasKey) => setHasApiKey(hasKey),
       onError: () => setHasApiKey(false),
+      autoExecute: true,
     }
   );
 
@@ -88,7 +89,7 @@ export function useOpenAIKey(): UseOpenAIKeyReturn {
 
   useEffect(() => {
     checkApiKeyStatus.execute();
-  }, [checkApiKeyStatus.execute]); // Only run once on mount
+  }, [checkApiKeyStatus.execute]);
 
   return {
     hasApiKey,
