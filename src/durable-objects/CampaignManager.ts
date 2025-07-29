@@ -43,7 +43,7 @@ export class CampaignManager extends DurableObject {
 
       console.log("[DO] About to query campaigns");
       const cursor = await this.ctx.storage.sql.exec(
-        "SELECT * FROM campaigns ORDER BY createdAt DESC"
+        "SELECT campaignId, name, createdAt, updatedAt FROM campaigns ORDER BY createdAt DESC"
       );
       if (
         cursor &&
@@ -63,23 +63,39 @@ export class CampaignManager extends DurableObject {
   }
 
   // Create a new campaign
-  async createCampaign(name: string): Promise<CampaignData> {
+  async createCampaign(
+    name: string,
+    username: string = "default"
+  ): Promise<CampaignData> {
     try {
-      // Temporarily skip SQL operations for debugging
-      console.log("[DO] createCampaign called with name:", name);
+      console.log(
+        "[DO] createCampaign called with name:",
+        name,
+        "username:",
+        username
+      );
 
       const campaignId = crypto.randomUUID();
       const now = new Date().toISOString();
-      console.log("[DO] Generated campaign data:", { campaignId, name, now });
+      console.log("[DO] Generated campaign data:", {
+        campaignId,
+        name,
+        username,
+        now,
+      });
 
-      // Skip SQL for now
-      // await this.ensureTables();
-      // await this.ctx.storage.sql.exec(
-      //   "INSERT INTO campaigns (campaignId, name, createdAt, updatedAt) VALUES (?, ?, ?, ?)",
-      //   [campaignId, name, now, now]
-      // );
+      // Save to database
+      await this.ensureTables();
+      await this.ctx.storage.sql.exec(
+        "INSERT INTO campaigns (campaignId, name, createdAt, updatedAt) VALUES (?, ?, ?, ?)",
+        [campaignId, name, now, now]
+      );
 
-      console.log("[DO] Created campaign (without SQL):", { campaignId, name });
+      console.log("[DO] Created campaign (with SQL):", {
+        campaignId,
+        name,
+        username,
+      });
       return {
         campaignId,
         name,
@@ -139,15 +155,21 @@ export class CampaignManager extends DurableObject {
               );
             }
             console.log("[DO] About to create campaign with name:", body.name);
-            // Temporarily return a simple response without calling createCampaign
-            const campaign = {
-              campaignId: "test-123",
-              name: body.name,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              resources: [],
-            };
-            console.log("[DO] Created campaign (simple):", campaign);
+            // Extract username from request headers or use default
+            const authHeader = request.headers.get("Authorization");
+            let username = "default";
+            if (authHeader && authHeader.startsWith("Bearer ")) {
+              try {
+                const token = authHeader.substring(7);
+                const payload = JSON.parse(atob(token.split(".")[1]));
+                username = payload.username || "default";
+              } catch (error) {
+                console.error("[DO] Error parsing JWT:", error);
+              }
+            }
+            // Call the proper createCampaign method with username
+            const campaign = await this.createCampaign(body.name, username);
+            console.log("[DO] Created campaign:", campaign);
             return Response.json({ campaign });
           } catch (error) {
             console.error("[DO] Error processing POST request:", error);
@@ -164,6 +186,16 @@ export class CampaignManager extends DurableObject {
           }
         }
       }
+
+      // Handle campaign resources endpoint
+      if (url.pathname.match(/^\/campaigns\/[^/]+\/resources$/)) {
+        if (request.method === "GET") {
+          console.log("[DO] GET /campaigns/:campaignId/resources");
+          // For now, return empty resources array since resources are not fully implemented
+          return Response.json({ resources: [] });
+        }
+      }
+
       return new Response("Not found", { status: 404 });
     } catch (error) {
       console.error("[DO] Error in fetch handler:", error);

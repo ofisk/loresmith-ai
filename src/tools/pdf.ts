@@ -87,14 +87,57 @@ const listPdfFiles = tool({
 
         console.log("[listPdfFiles] Listing files for username:", username);
 
-        // For now, return a simple response since we can't directly access R2 from the tool
-        // In a real implementation, this would list files from R2
+        // Call the server endpoint to get actual files
+        const response = await fetch(
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.FILES),
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+            },
+          }
+        );
+
+        if (!response.ok) {
+          return {
+            code: AUTH_CODES.ERROR,
+            message: `Failed to list PDF files: ${response.status}`,
+            data: { error: `HTTP ${response.status}` },
+          };
+        }
+
+        const result = (await response.json()) as {
+          files: Array<{
+            fileKey: string;
+            fileName: string;
+            fileSize: number;
+            uploaded: string;
+            status: string;
+          }>;
+        };
+
+        if (!result.files || result.files.length === 0) {
+          return {
+            code: AUTH_CODES.SUCCESS,
+            message: `No PDF files found for user "${username}". Upload some PDFs to get started!`,
+            data: { files: [], count: 0, username },
+          };
+        }
+
+        const fileList = result.files
+          .map(
+            (file) =>
+              `- ${file.fileName} (${(file.fileSize / 1024 / 1024).toFixed(2)} MB)`
+          )
+          .join("\n");
+
         return {
           code: AUTH_CODES.SUCCESS,
-          message: `Found 0 PDF files for user "${username}". Files are stored in R2 storage and will be listed when the server endpoint is called.`,
+          message: `📄 Found ${result.files.length} PDF file(s) for user "${username}":\n${fileList}`,
           data: {
-            files: [],
-            count: 0,
+            files: result.files,
+            count: result.files.length,
             username,
           },
         };
@@ -202,16 +245,47 @@ const getPdfStats = tool({
 
         console.log("[getPdfStats] Getting stats for username:", username);
 
-        // For now, return a simple response since we can't directly access R2 from the tool
-        // In a real implementation, this would get stats from R2
+        // Call the server endpoint to get actual stats
+        const response = await fetch(
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.STATS),
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+            },
+          }
+        );
+
+        if (!response.ok) {
+          return {
+            code: AUTH_CODES.ERROR,
+            message: `Failed to get PDF stats: ${response.status}`,
+            data: { error: `HTTP ${response.status}` },
+          };
+        }
+
+        const result = (await response.json()) as {
+          username: string;
+          totalFiles: number;
+          filesByStatus: {
+            uploading: number;
+            uploaded: number;
+            parsing: number;
+            parsed: number;
+            error: number;
+          };
+        };
+
         return {
           code: AUTH_CODES.SUCCESS,
-          message: `PDF statistics for user "${username}": 0 files uploaded, 0 MB total size`,
+          message: `PDF statistics for user "${result.username}": ${result.totalFiles} files uploaded`,
           data: {
-            totalFiles: 0,
-            totalSize: 0,
-            averageFileSize: 0,
-            username,
+            totalFiles: result.totalFiles,
+            totalSize: 0, // Not calculated in current implementation
+            averageFileSize: 0, // Not calculated in current implementation
+            username: result.username,
+            filesByStatus: result.filesByStatus,
           },
         };
       } else {

@@ -234,11 +234,15 @@ const createCampaign = tool({
 });
 
 const listCampaignResources = tool({
-  description: "List all resources in a campaign",
+  description:
+    "List all resources in a campaign or across all campaigns if no specific campaign is provided",
   parameters: z.object({
     campaignId: z
       .string()
-      .describe("The ID of the campaign to list resources for"),
+      .optional()
+      .describe(
+        "The ID of the campaign to list resources for (optional - will list all campaigns if not provided)"
+      ),
     jwt: z
       .string()
       .nullable()
@@ -279,41 +283,74 @@ const listCampaignResources = tool({
           }
         }
 
-        // Verify campaign exists and belongs to user
-        const campaignResult = await env.DB.prepare(
-          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
-        )
-          .bind(campaignId, username)
-          .first();
+        if (campaignId) {
+          // Verify campaign exists and belongs to user
+          const campaignResult = await env.DB.prepare(
+            "SELECT id FROM campaigns WHERE id = ? AND username = ?"
+          )
+            .bind(campaignId, username)
+            .first();
 
-        if (!campaignResult) {
+          if (!campaignResult) {
+            return {
+              code: AUTH_CODES.ERROR,
+              message: "Campaign not found",
+              data: { error: "Campaign not found" },
+            };
+          }
+
+          // For now, return a simple response since resources are not stored in the database yet
+          console.log(
+            "[listCampaignResources] Listing resources for campaign:",
+            campaignId
+          );
+
           return {
-            code: AUTH_CODES.ERROR,
-            message: "Campaign not found",
-            data: { error: "Campaign not found" },
+            code: AUTH_CODES.SUCCESS,
+            message: `Found 0 resources for campaign ${campaignId}`,
+            data: {
+              resources: [],
+              campaignId,
+            },
+          };
+        } else {
+          // No specific campaign ID provided, list all campaigns for the user
+          const campaignsResult = await env.DB.prepare(
+            "SELECT id, name FROM campaigns WHERE username = ?"
+          )
+            .bind(username)
+            .all();
+
+          console.log(
+            "[listCampaignResources] Listing all campaigns for user:",
+            username
+          );
+
+          return {
+            code: AUTH_CODES.SUCCESS,
+            message: `Found ${campaignsResult.results?.length || 0} campaigns for user. No resources are currently stored in the database.`,
+            data: {
+              campaigns: campaignsResult.results || [],
+              resources: [],
+              totalCampaigns: campaignsResult.results?.length || 0,
+            },
           };
         }
-
-        // For now, return a simple response since resources are not stored in the database yet
-        // In a real implementation, this would query a campaign_resources table
-        console.log(
-          "[listCampaignResources] Listing resources for campaign:",
-          campaignId
-        );
-
-        return {
-          code: AUTH_CODES.SUCCESS,
-          message: `Found 0 resources for campaign ${campaignId}`,
-          data: {
-            resources: [],
-            campaignId,
-          },
-        };
       } else {
         // Fall back to HTTP API
         console.log(
           "[listCampaignResources] Running in HTTP context, making API request"
         );
+
+        if (!campaignId) {
+          return {
+            code: AUTH_CODES.ERROR,
+            message:
+              "No campaign ID provided and HTTP fallback not supported for listing all campaigns",
+            data: { error: "Campaign ID required for HTTP API" },
+          };
+        }
+
         const response = await fetch(
           API_CONFIG.buildUrl(
             API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(campaignId)
