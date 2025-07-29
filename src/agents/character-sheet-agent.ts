@@ -5,6 +5,10 @@ import {
   createToolMappingFromObjects,
 } from "./systemPrompts";
 
+/**
+ * System prompt configuration for the Character Sheet Agent.
+ * Defines the agent's role in managing character sheet files and data.
+ */
 const CHARACTER_SHEET_SYSTEM_PROMPT = buildSystemPrompt({
   agentName: "Character Sheet Agent",
   responsibilities: [
@@ -39,7 +43,50 @@ const CHARACTER_SHEET_SYSTEM_PROMPT = buildSystemPrompt({
   ],
 });
 
+/**
+ * Character Sheet Agent for LoreSmith AI.
+ *
+ * This agent specializes in character sheet management and processing, including:
+ * - File upload and processing for character sheets
+ * - Character data extraction from various file formats
+ * - Character creation from chat input
+ * - Character sheet organization and management
+ *
+ * The agent can handle multiple file formats (PDF, DOCX, DOC, TXT, JSON) and
+ * extract character information from uploaded files or create characters directly
+ * from user input. It provides secure upload URLs and processes files to extract
+ * structured character data for storage in campaigns.
+ *
+ * @extends BaseAgent - Inherits common agent functionality
+ *
+ * @example
+ * ```typescript
+ * // Create a character sheet agent instance
+ * const characterAgent = new CharacterSheetAgent(ctx, env, model);
+ *
+ * // Process a character sheet-related message
+ * await characterAgent.onChatMessage((response) => {
+ *   console.log('Character sheet response:', response);
+ * });
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // The agent can handle various character sheet tasks:
+ * // - "Upload my character sheet PDF"
+ * // - "Create a character from this information"
+ * // - "Show me all my character sheets"
+ * // - "Process the uploaded character file"
+ * ```
+ */
 export class CharacterSheetAgent extends BaseAgent {
+  /**
+   * Creates a new CharacterSheetAgent instance.
+   *
+   * @param ctx - The Durable Object state for persistence
+   * @param env - The environment containing Cloudflare bindings
+   * @param model - The AI model instance for generating responses
+   */
   constructor(ctx: DurableObjectState, env: any, model: any) {
     super(ctx, env, model, characterSheetTools, CHARACTER_SHEET_SYSTEM_PROMPT);
   }

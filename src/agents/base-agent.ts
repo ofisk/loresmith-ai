@@ -19,13 +19,41 @@ interface MessageData {
 }
 
 /**
- * Abstract base agent class that provides common functionality for specialized agents
+ * Abstract base agent class that provides common functionality for specialized agents.
+ *
+ * This class serves as the foundation for all specialized AI agents in the LoreSmith AI system.
+ * It handles common operations like JWT extraction, message processing, and tool management.
+ *
+ * @extends AIChatAgent<Env> - Extends the AI chat agent with environment-specific functionality
+ *
+ * @example
+ * ```typescript
+ * class CampaignAgent extends BaseAgent {
+ *   constructor(ctx: DurableObjectState, env: Env, model: any) {
+ *     super(ctx, env, model, campaignTools, CAMPAIGN_SYSTEM_PROMPT);
+ *   }
+ * }
+ * ```
  */
 export abstract class BaseAgent extends AIChatAgent<Env> {
+  /** The AI model instance used for generating responses */
   protected model: any;
+
+  /** Collection of tools available to this agent */
   protected tools: Record<string, any>;
+
+  /** The system prompt that defines the agent's behavior and capabilities */
   protected systemPrompt: string;
 
+  /**
+   * Creates a new BaseAgent instance.
+   *
+   * @param ctx - The Durable Object state for persistence
+   * @param env - The environment containing Cloudflare bindings (R2, Durable Objects, etc.)
+   * @param model - The AI model instance for generating responses
+   * @param tools - Collection of tools available to this agent
+   * @param systemPrompt - The system prompt that defines agent behavior
+   */
   constructor(
     ctx: DurableObjectState,
     env: Env,
@@ -40,7 +68,25 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
   }
 
   /**
-   * Common implementation of onChatMessage that all specialized agents can use
+   * Processes incoming chat messages and generates responses.
+   *
+   * This method handles the core chat functionality including:
+   * - JWT extraction from user messages for authentication
+   * - Message filtering to prevent incomplete tool invocation errors
+   * - Tool execution with enhanced authentication context
+   * - Streaming response generation
+   *
+   * @param onFinish - Callback function called when the response is complete
+   * @param _options - Optional configuration including abort signal
+   *
+   * @returns Promise that resolves when the response is complete
+   *
+   * @example
+   * ```typescript
+   * await agent.onChatMessage((response) => {
+   *   console.log('Response complete:', response);
+   * });
+   * ```
    */
   async onChatMessage(
     onFinish: StreamTextOnFinishCallback<ToolSet>,

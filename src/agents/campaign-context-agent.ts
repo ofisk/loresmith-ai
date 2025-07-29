@@ -5,6 +5,10 @@ import {
   createToolMappingFromObjects,
 } from "./systemPrompts";
 
+/**
+ * System prompt configuration for the Campaign Context Agent.
+ * Defines the agent's role in analyzing and managing campaign context.
+ */
 const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
   agentName: "Campaign Context Agent",
   responsibilities: [
@@ -34,7 +38,49 @@ const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
   ],
 });
 
+/**
+ * Campaign Context Agent for LoreSmith AI.
+ *
+ * This agent specializes in managing and analyzing campaign context, including:
+ * - Character creation and management with AI-generated content
+ * - Campaign context storage and retrieval
+ * - World building and session note management
+ * - Intelligent context analysis and suggestions
+ *
+ * The agent uses AI to generate rich character backstories, personalities, and
+ * relationships, while also helping users organize and retrieve campaign information
+ * like world descriptions, session notes, and plot hooks.
+ *
+ * @extends BaseAgent - Inherits common agent functionality
+ *
+ * @example
+ * ```typescript
+ * // Create a campaign context agent instance
+ * const contextAgent = new CampaignContextAgent(ctx, env, model);
+ *
+ * // Process a context-related message
+ * await contextAgent.onChatMessage((response) => {
+ *   console.log('Context response:', response);
+ * });
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // The agent can handle various context tasks:
+ * // - "Create a character named Thorin, a dwarf fighter"
+ * // - "Store this world description"
+ * // - "Find information about the Black Dragon"
+ * // - "Generate a backstory for my character"
+ * ```
+ */
 export class CampaignContextAgent extends BaseAgent {
+  /**
+   * Creates a new CampaignContextAgent instance.
+   *
+   * @param ctx - The Durable Object state for persistence
+   * @param env - The environment containing Cloudflare bindings
+   * @param model - The AI model instance for generating responses
+   */
   constructor(ctx: DurableObjectState, env: any, model: any) {
     super(
       ctx,
