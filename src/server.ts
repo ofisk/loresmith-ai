@@ -1291,32 +1291,15 @@ app.get("/campaigns", requireUserJwt, async (c) => {
     const userAuth = (c as any).userAuth;
     console.log("[Server] User auth from middleware:", userAuth);
 
-    // Get the CampaignManager Durable Object for this user
-    const campaignManagerId = c.env.CampaignManager.idFromName(
-      userAuth.username
-    );
-    console.log("[Server] CampaignManager ID:", campaignManagerId.toString());
-    const campaignManager = c.env.CampaignManager.get(campaignManagerId);
+    // Query campaigns directly from D1 database
+    const campaigns = await c.env.DB.prepare(
+      "SELECT id as campaignId, name, created_at as createdAt, updated_at as updatedAt FROM campaigns WHERE username = ? ORDER BY created_at DESC"
+    )
+      .bind(userAuth.username)
+      .all();
 
-    const requestUrl = `${new URL(c.req.url).origin}/campaigns`;
-    console.log("[Server] Calling CampaignManager with URL:", requestUrl);
-
-    const response = await campaignManager.fetch(requestUrl, {
-      method: "GET",
-    });
-
-    console.log("[Server] CampaignManager response status:", response.status);
-    console.log("[Server] CampaignManager response ok:", response.ok);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.log("[Server] CampaignManager error response:", errorText);
-      return c.json({ error: "Failed to fetch campaigns" }, 500);
-    }
-
-    const data = await response.json();
-    console.log("[Server] CampaignManager success response:", data);
-    return c.json(data as any);
+    console.log("[Server] Found campaigns:", campaigns.results?.length || 0);
+    return c.json({ campaigns: campaigns.results || [] });
   } catch (error) {
     console.error("[Server] Error fetching campaigns:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -1337,38 +1320,31 @@ app.post("/campaigns", requireUserJwt, async (c) => {
       return c.json({ error: "Campaign name is required" }, 400);
     }
 
-    // Get the CampaignManager Durable Object for this user
-    const campaignManagerId = c.env.CampaignManager.idFromName(
-      userAuth.username
-    );
-    console.log("[Server] CampaignManager ID:", campaignManagerId.toString());
-    const campaignManager = c.env.CampaignManager.get(campaignManagerId);
+    // Create campaign directly in D1 database
+    const campaignId = crypto.randomUUID();
+    const now = new Date().toISOString();
 
-    console.log("[Server] Calling CampaignManager with body:", { name });
-    try {
-      const response = await campaignManager.fetch(
-        `${new URL(c.req.url).origin}/campaigns`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name }),
-        }
-      );
+    await c.env.DB.prepare(
+      "INSERT INTO campaigns (id, username, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"
+    )
+      .bind(campaignId, userAuth.username, name, now, now)
+      .run();
 
-      console.log("[Server] CampaignManager response status:", response.status);
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.log("[Server] CampaignManager error response:", errorText);
-        return c.json({ error: "Failed to create campaign" }, 500);
-      }
+    console.log("[Server] Created campaign:", {
+      campaignId,
+      name,
+      username: userAuth.username,
+    });
 
-      const data = await response.json();
-      console.log("[Server] CampaignManager success response:", data);
-      return c.json(data as any);
-    } catch (fetchError) {
-      console.error("[Server] Error calling CampaignManager:", fetchError);
-      return c.json({ error: "Failed to call CampaignManager" }, 500);
-    }
+    const campaign = {
+      campaignId,
+      name,
+      createdAt: now,
+      updatedAt: now,
+      resources: [],
+    };
+
+    return c.json({ campaign });
   } catch (error) {
     console.error("[Server] Error creating campaign:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -1401,6 +1377,36 @@ app.get("/campaigns/:campaignId", requireUserJwt, async (c) => {
     return c.json(data as any);
   } catch (error) {
     console.error("Error fetching campaign details:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+app.get("/campaigns/:campaignId/resources", requireUserJwt, async (c) => {
+  try {
+    const userAuth = (c as any).userAuth;
+    const campaignId = c.req.param("campaignId");
+
+    // Get the CampaignManager Durable Object for this user
+    const campaignManagerId = c.env.CampaignManager.idFromName(
+      userAuth.username
+    );
+    const campaignManager = c.env.CampaignManager.get(campaignManagerId);
+
+    const response = await campaignManager.fetch(
+      `${new URL(c.req.url).origin}/campaigns/${campaignId}/resources`,
+      {
+        method: "GET",
+      }
+    );
+
+    if (!response.ok) {
+      return c.json({ error: "Failed to fetch campaign resources" }, 500);
+    }
+
+    const data = await response.json();
+    return c.json(data as any);
+  } catch (error) {
+    console.error("Error fetching campaign resources:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 });
