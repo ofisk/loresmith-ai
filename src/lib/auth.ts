@@ -1,5 +1,5 @@
-import { SignJWT, jwtVerify } from "jose";
 import type { JWTPayload } from "jose";
+import { jwtVerify, SignJWT } from "jose";
 
 export interface AuthPayload extends JWTPayload {
   type: "user-auth";
@@ -82,9 +82,7 @@ export async function authenticateUser(
   }
 
   // Simple access control: check if admin key is valid
-  const validAdminKey = env.ADMIN_SECRET
-    ? await env.ADMIN_SECRET
-    : "undefined-admin-key";
+  const validAdminKey = env.ADMIN_SECRET || "undefined-admin-key";
 
   console.log("[authenticateUser] Environment check:", {
     hasAdminSecret: !!env.ADMIN_SECRET,
@@ -96,7 +94,7 @@ export async function authenticateUser(
 
   const isValidAdminKey = providedKey.trim() === validAdminKey;
 
-  const envAdminSecretValue = env.ADMIN_SECRET ? await env.ADMIN_SECRET : null;
+  const envAdminSecretValue = env.ADMIN_SECRET || null;
   console.log("Admin key validation:", {
     providedKey: providedKey
       ? `${providedKey.substring(0, 4)}...`
@@ -138,20 +136,10 @@ export async function authenticateUser(
     hasUserOpenAIKey: !!openaiApiKey,
   });
 
-  // Determine which API key to use
+  // Determine which API key to use (optional during authentication)
   const finalApiKey = openaiApiKey?.trim() || null;
 
-  // Require API key if no default is available
-  if (!hasDefaultOpenAIKey && !finalApiKey) {
-    console.log("[authenticateUser] No OpenAI key available");
-    return {
-      success: false,
-      error: "OpenAI API key is required when no default key is configured",
-      requiresOpenAIKey: true,
-    };
-  }
-
-  // Generate JWT
+  // Generate JWT (OpenAI API key is optional and can be set later)
   const jwtPayload: AuthPayload = {
     type: "user-auth",
     username: username.trim(),

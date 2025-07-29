@@ -9,8 +9,8 @@ import type {
 } from "../../types/campaign";
 import { Button } from "../button/Button";
 import { Card } from "../card/Card";
-import { Loader } from "../loader/Loader";
 import { CharacterSheetList, CharacterSheetUpload } from "../character-sheet";
+import { Loader } from "../loader/Loader";
 
 export function CampaignDetail({
   campaignId,

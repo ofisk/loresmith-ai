@@ -1,5 +1,5 @@
-import { BaseAgent } from "./base-agent";
 import { campaignContextTools } from "../tools/campaignContext";
+import { BaseAgent } from "./base-agent";
 
 const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = `You are a specialized Campaign Context Agent for LoreSmith AI, focused on managing campaign context, character information, and AI-powered character creation.
 

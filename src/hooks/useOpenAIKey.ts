@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { API_CONFIG } from "../constants";
+import { createAuthHeadersFromStorage } from "../lib/auth";
 
 interface UseOpenAIKeyReturn {
   hasApiKey: boolean;
@@ -23,16 +24,18 @@ export function useOpenAIKey(): UseOpenAIKeyReturn {
       const sessionId = localStorage.getItem("chat-session-id") || "default";
 
       // Check if the user has an API key stored in their session
-      const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.OPENAI.CHECK_USER_KEY),
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Session-ID": sessionId, // Include session ID to check the correct Chat Durable Object
-          },
-        }
+      const url = API_CONFIG.buildUrl(
+        API_CONFIG.ENDPOINTS.OPENAI.CHECK_USER_KEY
       );
+      console.log("[useOpenAIKey] Checking API key status URL:", url);
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          ...createAuthHeadersFromStorage(),
+          "X-Session-ID": sessionId, // Include session ID to check the correct Chat Durable Object
+        },
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -64,19 +67,19 @@ export function useOpenAIKey(): UseOpenAIKeyReturn {
       const sessionId = localStorage.getItem("chat-session-id") || "default";
 
       // Store the API key in the user's session
-      const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CHAT.SET_OPENAI_KEY),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Session-ID": sessionId, // Include session ID to target the correct Chat Durable Object
-          },
-          body: JSON.stringify({
-            openaiApiKey: apiKey,
-          }),
-        }
-      );
+      const url = API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CHAT.SET_OPENAI_KEY);
+      console.log("[useOpenAIKey] Setting API key URL:", url);
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          ...createAuthHeadersFromStorage(),
+          "X-Session-ID": sessionId, // Include session ID to target the correct Chat Durable Object
+        },
+        body: JSON.stringify({
+          openaiApiKey: apiKey,
+        }),
+      });
 
       if (!response.ok) {
         throw new Error("Failed to set API key");

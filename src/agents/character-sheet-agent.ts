@@ -1,5 +1,5 @@
-import { BaseAgent } from "./base-agent";
 import { characterSheetTools } from "../tools/characterSheet";
+import { BaseAgent } from "./base-agent";
 
 const CHARACTER_SHEET_SYSTEM_PROMPT = `You are a specialized Character Sheet Agent for LoreSmith AI, focused on managing character sheet files and creating characters from various sources.
 

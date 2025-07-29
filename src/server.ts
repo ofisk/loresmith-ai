@@ -1287,29 +1287,38 @@ app.delete("/rag/pdfs/:fileKey", requireUserJwt, async (c) => {
 // Campaign routes
 app.get("/campaigns", requireUserJwt, async (c) => {
   try {
+    console.log("[Server] GET /campaigns - starting request");
     const userAuth = (c as any).userAuth;
+    console.log("[Server] User auth from middleware:", userAuth);
 
     // Get the CampaignManager Durable Object for this user
     const campaignManagerId = c.env.CampaignManager.idFromName(
       userAuth.username
     );
+    console.log("[Server] CampaignManager ID:", campaignManagerId.toString());
     const campaignManager = c.env.CampaignManager.get(campaignManagerId);
 
-    const response = await campaignManager.fetch(
-      `${new URL(c.req.url).origin}/campaigns`,
-      {
-        method: "GET",
-      }
-    );
+    const requestUrl = `${new URL(c.req.url).origin}/campaigns`;
+    console.log("[Server] Calling CampaignManager with URL:", requestUrl);
+
+    const response = await campaignManager.fetch(requestUrl, {
+      method: "GET",
+    });
+
+    console.log("[Server] CampaignManager response status:", response.status);
+    console.log("[Server] CampaignManager response ok:", response.ok);
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.log("[Server] CampaignManager error response:", errorText);
       return c.json({ error: "Failed to fetch campaigns" }, 500);
     }
 
     const data = await response.json();
+    console.log("[Server] CampaignManager success response:", data);
     return c.json(data as any);
   } catch (error) {
-    console.error("Error fetching campaigns:", error);
+    console.error("[Server] Error fetching campaigns:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 });

@@ -62,59 +62,164 @@ const listCampaigns = tool({
       .optional()
       .describe("JWT token for authentication"),
   }),
-  execute: async ({ jwt }): Promise<ToolResult> => {
+  execute: async ({ jwt }, context?: any): Promise<ToolResult> => {
     console.log("[Tool] listCampaigns received JWT:", jwt);
+    console.log("[Tool] listCampaigns context:", context);
     try {
       console.log("[listCampaigns] Using JWT:", jwt);
-      const response = await authenticatedFetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
-        {
-          method: "GET",
-          jwt,
-        }
+
+      // Check if we have access to the environment through context
+      const env = context?.env;
+      console.log("[listCampaigns] Environment from context:", env);
+      console.log(
+        "[listCampaigns] CampaignManager binding exists:",
+        env?.CampaignManager !== undefined
       );
-      console.log("[listCampaigns] Response status:", response.status);
-      if (!response.ok) {
-        const authError = handleAuthError(response);
-        if (authError) {
+
+      if (env?.CampaignManager) {
+        console.log(
+          "[listCampaigns] Running in Durable Object context, calling CampaignManager directly"
+        );
+
+        // Extract username from JWT
+        let username = "default";
+        if (jwt) {
+          try {
+            const payload = JSON.parse(atob(jwt.split(".")[1]));
+            username = payload.username || "default";
+            console.log(
+              "[listCampaigns] Extracted username from JWT:",
+              username
+            );
+          } catch (error) {
+            console.error("Error parsing JWT:", error);
+          }
+        }
+
+        // Get CampaignManager Durable Object
+        const campaignManager = env.CampaignManager;
+        console.log(
+          "[listCampaigns] CampaignManager binding:",
+          campaignManager
+        );
+        const campaignManagerId = campaignManager.idFromName(username);
+        console.log(
+          "[listCampaigns] CampaignManager ID:",
+          campaignManagerId.toString()
+        );
+        const campaignManagerStub = campaignManager.get(campaignManagerId);
+        console.log(
+          "[listCampaigns] CampaignManager stub:",
+          campaignManagerStub
+        );
+
+        // Call CampaignManager directly
+        const requestUrl = `${new URL("https://dummy-host").origin}/campaigns`;
+        console.log(
+          "[listCampaigns] Calling CampaignManager with URL:",
+          requestUrl
+        );
+        const response = await campaignManagerStub.fetch(requestUrl, {
+          method: "GET",
+        });
+
+        console.log(
+          "[listCampaigns] CampaignManager response status:",
+          response.status
+        );
+        console.log(
+          "[listCampaigns] CampaignManager response ok:",
+          response.ok
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.log(
+            "[listCampaigns] CampaignManager error response:",
+            errorText
+          );
           return {
-            code: AUTH_CODES.INVALID_KEY,
-            message: authError,
+            code: AUTH_CODES.ERROR,
+            message: `${USER_MESSAGES.FAILED_TO_FETCH_CAMPAIGNS}: ${response.status}`,
             data: { error: `HTTP ${response.status}` },
           };
         }
-        return {
-          code: AUTH_CODES.ERROR,
-          message: `${USER_MESSAGES.FAILED_TO_FETCH_CAMPAIGNS}: ${response.status}`,
-          data: { error: `HTTP ${response.status}` },
-        };
-      }
-      const result = (await response.json()) as {
-        campaigns: Array<{
-          campaignId: string;
-          name: string;
-          createdAt: string;
-          updatedAt: string;
-        }>;
-      };
 
-      if (!result.campaigns || result.campaigns.length === 0) {
+        const result = await response.json();
+        console.log("[listCampaigns] CampaignManager result:", result);
+
+        if (!result.campaigns || result.campaigns.length === 0) {
+          return {
+            code: AUTH_CODES.SUCCESS,
+            message: USER_MESSAGES.NO_CAMPAIGNS,
+            data: { campaigns: [], empty: true },
+          };
+        }
+
         return {
           code: AUTH_CODES.SUCCESS,
-          message: USER_MESSAGES.NO_CAMPAIGNS,
-          data: { campaigns: [], empty: true },
+          message: `${USER_MESSAGES.CAMPAIGNS_FOUND} ${result.campaigns.length}: ${result.campaigns.map((c: any) => c.name).join(", ")}`,
+          data: {
+            campaigns: result.campaigns,
+            empty: false,
+            count: result.campaigns.length,
+          },
+        };
+      } else {
+        // Fall back to HTTP API
+        console.log(
+          "[listCampaigns] Running in HTTP context, making API request"
+        );
+        const response = await authenticatedFetch(
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
+          {
+            method: "GET",
+            jwt,
+          }
+        );
+        console.log("[listCampaigns] Response status:", response.status);
+        if (!response.ok) {
+          const authError = handleAuthError(response);
+          if (authError) {
+            return {
+              code: AUTH_CODES.INVALID_KEY,
+              message: authError,
+              data: { error: `HTTP ${response.status}` },
+            };
+          }
+          return {
+            code: AUTH_CODES.ERROR,
+            message: `${USER_MESSAGES.FAILED_TO_FETCH_CAMPAIGNS}: ${response.status}`,
+            data: { error: `HTTP ${response.status}` },
+          };
+        }
+        const result = (await response.json()) as {
+          campaigns: Array<{
+            campaignId: string;
+            name: string;
+            createdAt: string;
+            updatedAt: string;
+          }>;
+        };
+
+        if (!result.campaigns || result.campaigns.length === 0) {
+          return {
+            code: AUTH_CODES.SUCCESS,
+            message: USER_MESSAGES.NO_CAMPAIGNS,
+            data: { campaigns: [], empty: true },
+          };
+        }
+
+        return {
+          code: AUTH_CODES.SUCCESS,
+          message: `${USER_MESSAGES.CAMPAIGNS_FOUND} ${result.campaigns.length}: ${result.campaigns.map((c) => c.name).join(", ")}`,
+          data: {
+            campaigns: result.campaigns,
+            empty: false,
+            count: result.campaigns.length,
+          },
         };
       }
-
-      return {
-        code: AUTH_CODES.SUCCESS,
-        message: `${USER_MESSAGES.CAMPAIGNS_FOUND} ${result.campaigns.length}: ${result.campaigns.map((c) => c.name).join(", ")}`,
-        data: {
-          campaigns: result.campaigns,
-          empty: false,
-          count: result.campaigns.length,
-        },
-      };
     } catch (error) {
       console.error("Error listing campaigns:", error);
       return {
@@ -136,47 +241,142 @@ const createCampaign = tool({
       .optional()
       .describe("JWT token for authentication"),
   }),
-  execute: async ({ name, jwt }): Promise<ToolResult> => {
+  execute: async ({ name, jwt }, context?: any): Promise<ToolResult> => {
     console.log("[Tool] createCampaign received JWT:", jwt);
+    console.log("[Tool] createCampaign context:", context);
     try {
       console.log("[createCampaign] Using JWT:", jwt);
-      const response = await authenticatedFetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
-        {
-          method: "POST",
-          jwt,
-          body: JSON.stringify({ name }),
-        }
+
+      // Check if we have access to the environment through context
+      const env = context?.env;
+      console.log("[createCampaign] Environment from context:", env);
+      console.log(
+        "[createCampaign] CampaignManager binding exists:",
+        env?.CampaignManager !== undefined
       );
-      console.log("[createCampaign] Response status:", response.status);
-      if (!response.ok) {
-        const authError = handleAuthError(response);
-        if (authError) {
+
+      if (env?.CampaignManager) {
+        console.log(
+          "[createCampaign] Running in Durable Object context, calling CampaignManager directly"
+        );
+
+        // Extract username from JWT
+        let username = "default";
+        if (jwt) {
+          try {
+            const payload = JSON.parse(atob(jwt.split(".")[1]));
+            username = payload.username || "default";
+            console.log(
+              "[createCampaign] Extracted username from JWT:",
+              username
+            );
+          } catch (error) {
+            console.error("Error parsing JWT:", error);
+          }
+        }
+
+        // Get CampaignManager Durable Object
+        const campaignManager = env.CampaignManager;
+        console.log(
+          "[createCampaign] CampaignManager binding:",
+          campaignManager
+        );
+        const campaignManagerId = campaignManager.idFromName(username);
+        console.log(
+          "[createCampaign] CampaignManager ID:",
+          campaignManagerId.toString()
+        );
+        const campaignManagerStub = campaignManager.get(campaignManagerId);
+        console.log(
+          "[createCampaign] CampaignManager stub:",
+          campaignManagerStub
+        );
+
+        // Call CampaignManager directly
+        const requestUrl = `${new URL("https://dummy-host").origin}/campaigns`;
+        console.log(
+          "[createCampaign] Calling CampaignManager with URL:",
+          requestUrl
+        );
+        const response = await campaignManagerStub.fetch(requestUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+
+        console.log(
+          "[createCampaign] CampaignManager response status:",
+          response.status
+        );
+        console.log(
+          "[createCampaign] CampaignManager response ok:",
+          response.ok
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.log(
+            "[createCampaign] CampaignManager error response:",
+            errorText
+          );
           return {
-            code: AUTH_CODES.INVALID_KEY,
-            message: authError,
+            code: AUTH_CODES.ERROR,
+            message: `${USER_MESSAGES.FAILED_TO_CREATE_CAMPAIGN}: ${response.status}`,
             data: { error: `HTTP ${response.status}` },
           };
         }
+
+        const result = await response.json();
+        console.log("[createCampaign] CampaignManager result:", result);
+
         return {
-          code: AUTH_CODES.ERROR,
-          message: `${USER_MESSAGES.FAILED_TO_CREATE_CAMPAIGN}: ${response.status}`,
-          data: { error: `HTTP ${response.status}` },
+          code: AUTH_CODES.SUCCESS,
+          message: `${USER_MESSAGES.CAMPAIGN_CREATED} "${name}" with ID: ${result.campaign.campaignId}`,
+          data: { campaign: result.campaign },
+        };
+      } else {
+        // Fall back to HTTP API
+        console.log(
+          "[createCampaign] Running in HTTP context, making API request"
+        );
+        const response = await authenticatedFetch(
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
+          {
+            method: "POST",
+            jwt,
+            body: JSON.stringify({ name }),
+          }
+        );
+        console.log("[createCampaign] Response status:", response.status);
+        if (!response.ok) {
+          const authError = handleAuthError(response);
+          if (authError) {
+            return {
+              code: AUTH_CODES.INVALID_KEY,
+              message: authError,
+              data: { error: `HTTP ${response.status}` },
+            };
+          }
+          return {
+            code: AUTH_CODES.ERROR,
+            message: `${USER_MESSAGES.FAILED_TO_CREATE_CAMPAIGN}: ${response.status}`,
+            data: { error: `HTTP ${response.status}` },
+          };
+        }
+        const result = (await response.json()) as {
+          campaign: {
+            campaignId: string;
+            name: string;
+            createdAt: string;
+            updatedAt: string;
+          };
+        };
+        return {
+          code: AUTH_CODES.SUCCESS,
+          message: `${USER_MESSAGES.CAMPAIGN_CREATED} "${name}" with ID: ${result.campaign.campaignId}`,
+          data: { campaign: result.campaign },
         };
       }
-      const result = (await response.json()) as {
-        campaign: {
-          campaignId: string;
-          name: string;
-          createdAt: string;
-          updatedAt: string;
-        };
-      };
-      return {
-        code: AUTH_CODES.SUCCESS,
-        message: `${USER_MESSAGES.CAMPAIGN_CREATED} "${name}" with ID: ${result.campaign.campaignId}`,
-        data: { campaign: result.campaign },
-      };
     } catch (error) {
       console.error("Error creating campaign:", error);
       return {
@@ -1289,11 +1489,178 @@ function explainRelevance(campaignType: string, content: string): string {
   return "Relevant content that could enhance your campaign";
 }
 
+// Tool to remove a resource from a campaign
+const removeResourceFromCampaign = tool({
+  description: "Remove a resource from a campaign",
+  parameters: z.object({
+    campaignId: z
+      .string()
+      .describe("The ID of the campaign to remove the resource from"),
+    resourceId: z.string().describe("The ID of the resource to remove"),
+    jwt: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("JWT token for authentication"),
+  }),
+  execute: async (
+    { campaignId, resourceId, jwt },
+    context?: any
+  ): Promise<ToolResult> => {
+    console.log("[Tool] removeResourceFromCampaign received:", {
+      campaignId,
+      resourceId,
+    });
+    console.log("[Tool] removeResourceFromCampaign context:", context);
+    try {
+      // Check if we have access to the environment through context
+      const env = context?.env;
+      console.log(
+        "[removeResourceFromCampaign] Environment from context:",
+        !!env
+      );
+      console.log(
+        "[removeResourceFromCampaign] CampaignManager binding exists:",
+        env?.CampaignManager !== undefined
+      );
+
+      if (env?.CampaignManager) {
+        console.log(
+          "[removeResourceFromCampaign] Running in Durable Object context, calling CampaignManager directly"
+        );
+
+        // Extract username from JWT
+        let username = "default";
+        if (jwt) {
+          try {
+            const payload = JSON.parse(atob(jwt.split(".")[1]));
+            username = payload.username || "default";
+            console.log(
+              "[removeResourceFromCampaign] Extracted username from JWT:",
+              username
+            );
+          } catch (error) {
+            console.error("Error parsing JWT:", error);
+          }
+        }
+
+        const campaignManager = env.CampaignManager;
+        console.log(
+          "[removeResourceFromCampaign] CampaignManager binding:",
+          campaignManager
+        );
+        const campaignManagerId = campaignManager.idFromName(username);
+        console.log(
+          "[removeResourceFromCampaign] CampaignManager ID:",
+          campaignManagerId.toString()
+        );
+        const campaignManagerStub = campaignManager.get(campaignManagerId);
+        console.log(
+          "[removeResourceFromCampaign] CampaignManager stub:",
+          campaignManagerStub
+        );
+        const requestUrl = `${new URL("https://dummy-host").origin}/campaigns/${campaignId}/resources/${resourceId}`;
+        console.log(
+          "[removeResourceFromCampaign] Calling CampaignManager with URL:",
+          requestUrl
+        );
+        const response = await campaignManagerStub.fetch(requestUrl, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+        });
+        console.log(
+          "[removeResourceFromCampaign] CampaignManager response status:",
+          response.status
+        );
+        console.log(
+          "[removeResourceFromCampaign] CampaignManager response ok:",
+          response.ok
+        );
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.log(
+            "[removeResourceFromCampaign] CampaignManager error response:",
+            errorText
+          );
+          return {
+            code: AUTH_CODES.ERROR,
+            message: `Failed to remove resource: ${response.status}`,
+            data: { error: `HTTP ${response.status}` },
+          };
+        }
+        console.log(
+          "[removeResourceFromCampaign] Resource removed successfully"
+        );
+        return {
+          code: AUTH_CODES.SUCCESS,
+          message: `Successfully removed resource ${resourceId} from campaign ${campaignId}`,
+          data: {
+            campaignId,
+            resourceId,
+            removed: true,
+          },
+        };
+      } else {
+        // Fall back to HTTP API
+        console.log(
+          "[removeResourceFromCampaign] Running in HTTP context, making API request"
+        );
+        const response = await authenticatedFetch(
+          API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(campaignId).replace(
+              "/resource",
+              `/resources/${resourceId}`
+            )
+          ),
+          {
+            method: "DELETE",
+            jwt,
+          }
+        );
+
+        if (!response.ok) {
+          const authError = handleAuthError(response);
+          if (authError) {
+            return {
+              code: AUTH_CODES.INVALID_KEY,
+              message: authError,
+              data: { error: `HTTP ${response.status}` },
+            };
+          }
+          return {
+            code: AUTH_CODES.ERROR,
+            message: `Failed to remove resource: ${response.status}`,
+            data: { error: `HTTP ${response.status}` },
+          };
+        }
+
+        return {
+          code: AUTH_CODES.SUCCESS,
+          message: `Successfully removed resource ${resourceId} from campaign ${campaignId}`,
+          data: {
+            campaignId,
+            resourceId,
+            removed: true,
+          },
+        };
+      }
+    } catch (error) {
+      console.error("Error removing resource from campaign:", error);
+      return {
+        code: AUTH_CODES.ERROR,
+        message: `Failed to remove resource: ${error instanceof Error ? error.message : String(error)}`,
+        data: { error: error instanceof Error ? error.message : String(error) },
+      };
+    }
+  },
+});
+
 export const campaignTools = {
   listCampaigns,
   createCampaign,
   listCampaignResources,
   addResourceToCampaign,
+  removeResourceFromCampaign,
   showCampaignDetails,
   deleteCampaign,
   deleteCampaigns,

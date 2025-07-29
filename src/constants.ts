@@ -111,6 +111,8 @@ export const USER_MESSAGES = {
   ALL_CAMPAIGNS_DELETED: "All campaigns deleted successfully.",
   SOME_CAMPAIGNS_NOT_DELETED: "Some campaigns could not be deleted:",
   CAMPAIGN_RESOURCES_FOUND: "Found resource(s) in campaign",
+  NO_RESOURCES: "No resources found for this campaign.",
+  RESOURCES_FOUND: "Found resource(s):",
   RESOURCE_ADDED: "Resource added successfully to campaign",
   CAMPAIGN_DETAILS: "Campaign details:",
   INDEXING_TRIGGERED: "Indexing triggered successfully",
