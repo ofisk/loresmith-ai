@@ -70,9 +70,7 @@ export function OpenAIKeyModal({
               htmlFor="api-key"
               title="OpenAI API Key"
               className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-            >
-              OpenAI API Key
-            </Label>
+            />
             <div className="relative">
               <Input
                 id="api-key"
