@@ -1,5 +1,8 @@
 import { createContext, useContext, useRef, useState } from "react";
 
+/**
+ * Context type for tooltip state management
+ */
 type TooltipContextType = {
   activeTooltip: string | null;
   showTooltip: (id: string, isFocused: boolean) => void;
@@ -8,6 +11,17 @@ type TooltipContextType = {
 
 const TooltipContext = createContext<TooltipContextType | null>(null);
 
+/**
+ * Tooltip provider component that manages tooltip state with smart timing
+ *
+ * Features:
+ * - Delayed tooltip display (600ms delay)
+ * - Grace period for quick mouse movements
+ * - Immediate display for focused elements
+ * - Proper cleanup of timeouts
+ *
+ * @param children - React children to wrap with tooltip context
+ */
 export const TooltipProvider = ({
   children,
 }: {
@@ -67,6 +81,12 @@ export const TooltipProvider = ({
   );
 };
 
+/**
+ * Hook to access tooltip context
+ *
+ * @returns Tooltip context with activeTooltip, showTooltip, and hideTooltip
+ * @throws Error if used outside of TooltipProvider
+ */
 export const useTooltip = () => {
   const context = useContext(TooltipContext);
   if (!context)
