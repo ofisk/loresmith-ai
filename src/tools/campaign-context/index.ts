@@ -9,23 +9,13 @@ import {
 } from "./suggestion-tools";
 
 // Export AI helper functions
-export {
-  generateBackstory,
-  generateCharacterWithAI,
-  generateGoals,
-  generatePersonalityTraits,
-  generateRandomClass,
-  generateRandomRace,
-  generateRelationships,
-} from "./ai-helpers";
-export { createCharacter, storeCharacterInfo } from "./character-tools";
-// Export all campaign context tools
-export { getCampaignContext, storeCampaignContext } from "./context-tools";
-export { searchCampaignContext } from "./search-tools";
-export {
-  assessCampaignReadiness,
-  getIntelligentSuggestions,
-} from "./suggestion-tools";
+export * from "./ai-helpers";
+export * from "./character-tools";
+export * from "./context-tools";
+export * from "./search-tools";
+export * from "./suggestion-tools";
+export * from "./assessment-tools";
+export * from "./assessment-core";
 
 // Export the tools object for backward compatibility
 export const campaignContextTools = {

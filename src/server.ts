@@ -14,6 +14,8 @@ import type { AuthEnv } from "./lib/auth";
 import { type AuthPayload, authenticateUser, getJwtSecret } from "./lib/auth";
 import { RAGService } from "./lib/rag";
 import type { ProcessingProgress, ProgressMessage } from "./types/progress";
+import { AssessmentService } from "./lib/assessmentService";
+import type { Campaign } from "./types/campaign";
 
 interface Env extends AuthEnv {
   ADMIN_SECRET?: string;
@@ -1404,6 +1406,262 @@ app.get("/progress", async (c) => {
     status: 101,
     webSocket: client,
   });
+});
+
+// Assessment and onboarding routes
+app.get("/assessment/user-state", requireUserJwt, async (c) => {
+  try {
+    const userAuth = (c as any).userAuth;
+    const assessmentService = new AssessmentService(c.env.DB);
+
+    const userState = await assessmentService.analyzeUserState(
+      userAuth.username
+    );
+
+    return c.json({ userState });
+  } catch (error) {
+    console.error("[Server] Error analyzing user state:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+app.get(
+  "/assessment/campaign-health/:campaignId",
+  requireUserJwt,
+  async (c) => {
+    try {
+      const campaignId = c.req.param("campaignId");
+      const userAuth = (c as any).userAuth;
+      const assessmentService = new AssessmentService(c.env.DB);
+
+      // Get campaign data
+      const campaignResult = await c.env.DB.prepare(
+        "SELECT id as campaignId, name, created_at as createdAt, updated_at as updatedAt FROM campaigns WHERE id = ? AND username = ?"
+      )
+        .bind(campaignId, userAuth.username)
+        .first<Campaign>();
+
+      if (!campaignResult) {
+        return c.json({ error: "Campaign not found" }, 404);
+      }
+
+      // Get campaign resources
+      const resourcesResult = await c.env.DB.prepare(
+        "SELECT id, file_name as name FROM campaign_resources WHERE campaign_id = ?"
+      )
+        .bind(campaignId)
+        .all();
+
+      const resources = (resourcesResult.results || []).map(
+        (resource: any) => ({
+          type: "pdf" as const,
+          id: resource.id,
+          name: resource.name,
+        })
+      );
+
+      const campaignHealth = await assessmentService.getCampaignHealth(
+        campaignId,
+        campaignResult,
+        resources
+      );
+
+      return c.json({ campaignHealth });
+    } catch (error) {
+      console.error("[Server] Error getting campaign health:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  }
+);
+
+app.get("/assessment/user-activity", requireUserJwt, async (c) => {
+  try {
+    const userAuth = (c as any).userAuth;
+    const assessmentService = new AssessmentService(c.env.DB);
+
+    const activity = await assessmentService.getUserActivity(userAuth.username);
+
+    return c.json({ activity });
+  } catch (error) {
+    console.error("[Server] Error getting user activity:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+app.post("/assessment/module-integration", requireUserJwt, async (c) => {
+  try {
+    const { campaignId, moduleAnalysis } = await c.req.json();
+    const userAuth = (c as any).userAuth;
+    const assessmentService = new AssessmentService(c.env.DB);
+
+    // Verify campaign ownership
+    const campaignResult = await c.env.DB.prepare(
+      "SELECT id FROM campaigns WHERE id = ? AND username = ?"
+    )
+      .bind(campaignId, userAuth.username)
+      .first();
+
+    if (!campaignResult) {
+      return c.json({ error: "Campaign not found" }, 404);
+    }
+
+    const success = await assessmentService.storeModuleAnalysis(
+      campaignId,
+      moduleAnalysis
+    );
+
+    return c.json({
+      success,
+      message: success
+        ? "Module information successfully integrated into campaign context"
+        : "Failed to integrate module information",
+    });
+  } catch (error) {
+    console.error("[Server] Error integrating module:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// Onboarding guidance routes
+app.get("/onboarding/welcome-guidance", requireUserJwt, async (c) => {
+  try {
+    const { provideWelcomeGuidanceTool } = await import(
+      "./tools/onboarding/guidance-tools"
+    );
+    const guidance = await provideWelcomeGuidanceTool();
+
+    return c.json(guidance);
+  } catch (error) {
+    console.error("[Server] Error providing welcome guidance:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+app.get("/onboarding/next-actions", requireUserJwt, async (c) => {
+  try {
+    const userAuth = (c as any).userAuth;
+    const { suggestNextActionsTool } = await import(
+      "./tools/onboarding/guidance-tools"
+    );
+
+    const result = await suggestNextActionsTool(userAuth.username, c.env.DB);
+
+    return c.json(result);
+  } catch (error) {
+    console.error("[Server] Error suggesting next actions:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+app.get(
+  "/onboarding/campaign-guidance/:campaignId",
+  requireUserJwt,
+  async (c) => {
+    try {
+      const campaignId = c.req.param("campaignId");
+      const userAuth = (c as any).userAuth;
+      const { provideCampaignGuidanceTool } = await import(
+        "./tools/onboarding/guidance-tools"
+      );
+      const assessmentService = new AssessmentService(c.env.DB);
+
+      // Get campaign data
+      const campaignResult = await c.env.DB.prepare(
+        "SELECT id as campaignId, name, created_at as createdAt, updated_at as updatedAt FROM campaigns WHERE id = ? AND username = ?"
+      )
+        .bind(campaignId, userAuth.username)
+        .first<Campaign>();
+
+      if (!campaignResult) {
+        return c.json({ error: "Campaign not found" }, 404);
+      }
+
+      // Get campaign resources
+      const resourcesResult = await c.env.DB.prepare(
+        "SELECT id, file_name as name FROM campaign_resources WHERE campaign_id = ?"
+      )
+        .bind(campaignId)
+        .all();
+
+      const resources = (resourcesResult.results || []).map(
+        (resource: any) => ({
+          type: "pdf" as const,
+          id: resource.id,
+          name: resource.name,
+        })
+      );
+
+      const campaignHealth = await assessmentService.getCampaignHealth(
+        campaignId,
+        campaignResult,
+        resources
+      );
+      const guidance = await provideCampaignGuidanceTool(
+        campaignId,
+        campaignHealth
+      );
+
+      return c.json(guidance);
+    } catch (error) {
+      console.error("[Server] Error providing campaign guidance:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  }
+);
+
+// External resources routes
+app.get("/external-resources/recommendations", requireUserJwt, async (c) => {
+  try {
+    const { userNeeds } = await c.req.json();
+    const { recommendExternalToolsTool } = await import(
+      "./tools/onboarding/external-resources-tools"
+    );
+
+    const tools = await recommendExternalToolsTool(userNeeds || []);
+
+    return c.json({ tools });
+  } catch (error) {
+    console.error("[Server] Error recommending external tools:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+app.get(
+  "/external-resources/inspiration-sources",
+  requireUserJwt,
+  async (c) => {
+    try {
+      const { campaignType } = await c.req.json();
+      const { suggestInspirationSourcesTool } = await import(
+        "./tools/onboarding/external-resources-tools"
+      );
+
+      const sources = await suggestInspirationSourcesTool(campaignType);
+
+      return c.json({ sources });
+    } catch (error) {
+      console.error("[Server] Error suggesting inspiration sources:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  }
+);
+
+app.get("/external-resources/gm-resources", requireUserJwt, async (c) => {
+  try {
+    const { experienceLevel } = await c.req.json();
+    const { recommendGMResourcesTool } = await import(
+      "./tools/onboarding/external-resources-tools"
+    );
+
+    const resources = await recommendGMResourcesTool(
+      experienceLevel || "beginner"
+    );
+
+    return c.json({ resources });
+  } catch (error) {
+    console.error("[Server] Error recommending GM resources:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
 });
 
 // Mount other agent routes
