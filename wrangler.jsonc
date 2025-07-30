@@ -47,12 +47,7 @@
       "index_name": "loresmith-embeddings",
     },
   ],
-  "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": ["Chat", "UserFileTracker"],
-    },
-  ],
+
   "observability": {
     "enabled": true,
   },
