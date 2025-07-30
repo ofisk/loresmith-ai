@@ -146,6 +146,20 @@ export const PdfUpload = ({
     }
   };
 
+  const handlePreviousFile = () => {
+    if (currentFileIndex > 0) {
+      const prevIndex = currentFileIndex - 1;
+      setCurrentFileIndex(prevIndex);
+      setFilename(sanitizeFilename(selectedFiles[prevIndex].name));
+      setUploadSuccess(false);
+      setInitialValues({
+        filename: sanitizeFilename(selectedFiles[prevIndex].name),
+        description: "",
+        tags: [],
+      });
+    }
+  };
+
   const hasChanges =
     filename !== initialValues.filename ||
     description !== initialValues.description ||
@@ -155,7 +169,7 @@ export const PdfUpload = ({
     !currentFile || loading || (uploadSuccess && !hasChanges);
 
   return (
-    <Card className={cn("space-y-4", className)}>
+    <div className={cn("space-y-4", className)}>
       <div className="mx-auto max-w-md w-full">
         {jwtUsername && (
           <div className="text-ob-base-200 text-xs mb-4 mt-2 text-left">
@@ -170,202 +184,60 @@ export const PdfUpload = ({
           <button
             type="button"
             className={cn(
-              "relative border-2 border-dashed border-ob-base-200 rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 hover:border-ob-accent-500 hover:bg-ob-accent-500/5 focus:border-ob-accent-500 focus:bg-ob-accent-500/5 outline-none min-h-[200px] w-full max-w-md",
+              "border-2 border-dashed border-ob-base-200 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer transition hover:border-ob-accent-500 focus:border-ob-accent-500 outline-none",
               loading && "opacity-50 pointer-events-none",
-              selectedFiles.length > 0 &&
-                "border-ob-accent-500 bg-ob-accent-500/5",
               className
             )}
+            aria-label="Upload PDF file"
             onClick={() => fileInputRef.current?.click()}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
                 fileInputRef.current?.click();
               }
             }}
-            aria-label="Upload PDF files"
+            onKeyUp={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                fileInputRef.current?.click();
+              }
+            }}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragEnter={(e) => e.preventDefault()}
+            onDragLeave={(e) => e.preventDefault()}
           >
             <input
               ref={fileInputRef}
               type="file"
-              accept="application/pdf"
-              multiple
-              className="hidden"
-              id="pdf-upload-input"
+              accept=".pdf"
               onChange={handleFileSelect}
+              className="hidden"
+              multiple
             />
-
-            {/* Upload Icon and Text */}
-            <div className="text-center space-y-4">
-              {selectedFiles.length > 0 ? (
-                <div className="space-y-3">
-                  <div className="text-ob-accent-500">
-                    <svg
-                      className="mx-auto h-12 w-12"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <title>File uploaded successfully</title>
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-ob-primary font-medium text-lg">
-                      {selectedFiles.length === 1
-                        ? currentFile?.name
-                        : `${selectedFiles.length} files selected`}
-                    </div>
-                    {selectedFiles.length === 1 && (
-                      <div className="text-ob-base-200 text-sm">
-                        {(currentFile?.size / 1024 / 1024).toFixed(2)} MB
-                      </div>
-                    )}
-                    {selectedFiles.length > 1 && (
-                      <div className="text-ob-base-200 text-sm">
-                        {currentFileIndex + 1} of {selectedFiles.length} files
-                      </div>
-                    )}
-                  </div>
+            {currentFile ? (
+              <div className="text-center">
+                <div className="text-ob-base-300 text-sm font-medium mb-2">
+                  {currentFile.name}
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="text-ob-base-200">
-                    <svg
-                      className="mx-auto h-16 w-16"
-                      stroke="currentColor"
-                      fill="none"
-                      viewBox="0 0 48 48"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                        strokeWidth={2}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-ob-base-300 font-medium text-lg">
-                      Click to select or drag and drop
-                    </div>
-                    <div className="text-ob-base-200 text-sm">
-                      Supported resource types: PDF (more coming soon)
-                    </div>
-                    <div className="text-ob-base-200 text-xs">
-                      You can select multiple files at once
-                    </div>
-                  </div>
+                <div className="text-ob-base-200 text-sm">
+                  {(currentFile.size / 1024 / 1024).toFixed(2)} MB
                 </div>
-              )}
-            </div>
-
-            {/* Multi-file navigation */}
-            {selectedFiles.length > 1 && (
-              <div className="absolute bottom-4 left-4 right-4 flex justify-between items-center">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (currentFileIndex > 0) {
-                      setCurrentFileIndex(currentFileIndex - 1);
-                      setFilename(
-                        sanitizeFilename(
-                          selectedFiles[currentFileIndex - 1].name
-                        )
-                      );
-                      setUploadSuccess(false);
-                    }
-                  }}
-                  disabled={currentFileIndex === 0}
-                  className={cn(
-                    "p-2 rounded-full transition-colors",
-                    currentFileIndex === 0
-                      ? "text-ob-base-200 cursor-not-allowed"
-                      : "text-ob-accent-500 hover:bg-ob-accent-500/10"
-                  )}
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <title>Previous file</title>
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 19l-7-7 7-7"
-                    />
-                  </svg>
-                </button>
-                <span className="text-ob-base-200 text-sm">
-                  {currentFileIndex + 1} of {selectedFiles.length}
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (currentFileIndex < selectedFiles.length - 1) {
-                      setCurrentFileIndex(currentFileIndex + 1);
-                      setFilename(
-                        sanitizeFilename(
-                          selectedFiles[currentFileIndex + 1].name
-                        )
-                      );
-                      setUploadSuccess(false);
-                    }
-                  }}
-                  disabled={currentFileIndex === selectedFiles.length - 1}
-                  className={cn(
-                    "p-2 rounded-full transition-colors",
-                    currentFileIndex === selectedFiles.length - 1
-                      ? "text-ob-base-200 cursor-not-allowed"
-                      : "text-ob-accent-500 hover:bg-ob-accent-500/10"
-                  )}
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <title>Next file</title>
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                </button>
+              </div>
+            ) : (
+              <div className="text-center">
+                <div className="text-ob-base-300 text-sm font-medium mb-2">
+                  Click to select or drag and drop
+                </div>
+                <div className="text-ob-base-200 text-sm">
+                  Supported resource types: PDF (more coming soon)
+                </div>
               </div>
             )}
           </button>
         </div>
 
         {/* Form Fields */}
-        <div className="mx-auto max-w-md w-full space-y-3 text-left">
-          {!isValid && selectedFiles.length === 0 && (
-            <div className="text-ob-destructive text-sm">
-              Please select a valid PDF file
-            </div>
-          )}
-
-          {/* Filename Input */}
-          <div className="flex flex-col space-y-1">
+        <div className="space-y-4">
+          <div>
             <label
               htmlFor="pdf-filename"
               className="text-ob-base-300 text-sm font-medium mb-2 block"
@@ -376,14 +248,12 @@ export const PdfUpload = ({
               id="pdf-filename"
               placeholder="Name this mighty tome…"
               value={filename}
-              onValueChange={(value, _isValid) => setFilename(value)}
+              onValueChange={(value, isValid) => setFilename(value)}
               disabled={loading}
-              className="[&:-webkit-autofill]:!bg-[#1a1a1a] [&:-webkit-autofill]:!text-white [&:-webkit-autofill]:!shadow-[0_0_0_1000px_#1a1a1a_inset] [&:-webkit-autofill]:!border-[#1a1a1a] [&:-webkit-autofill]:!transition-[background-color] [&:-webkit-autofill]:!duration-[999999s] [&:-webkit-autofill]:!delay-[999999s] [&:-webkit-autofill]:![-webkit-text-fill-color:white]"
+              className="w-full"
             />
           </div>
-
-          {/* Description Input */}
-          <div className="flex flex-col space-y-1">
+          <div>
             <label
               htmlFor="pdf-description"
               className="text-ob-base-300 text-sm font-medium mb-2 block"
@@ -394,14 +264,12 @@ export const PdfUpload = ({
               id="pdf-description"
               placeholder="Describe the perils and promises within..."
               value={description}
-              onValueChange={(value, _isValid) => setDescription(value)}
+              onValueChange={(value, isValid) => setDescription(value)}
               disabled={loading}
-              className="[&:-webkit-autofill]:!bg-[#1a1a1a] [&:-webkit-autofill]:!text-white [&:-webkit-autofill]:!shadow-[0_0_0_1000px_#1a1a1a_inset] [&:-webkit-autofill]:!border-[#1a1a1a] [&:-webkit-autofill]:!transition-[background-color] [&:-webkit-autofill]:!duration-[999999s] [&:-webkit-autofill]:!delay-[999999s] [&:-webkit-autofill]:![-webkit-text-fill-color:white]"
+              className="w-full"
             />
           </div>
-
-          {/* Tags Input */}
-          <div className="flex flex-col space-y-1">
+          <div>
             <label
               htmlFor="pdf-tags"
               className="text-ob-base-300 text-sm font-medium mb-2 block"
@@ -412,10 +280,10 @@ export const PdfUpload = ({
               id="pdf-tags"
               placeholder="Mark this tome with its arcane keywords…"
               value={tagInput}
-              onValueChange={(value, _isValid) => setTagInput(value)}
+              onValueChange={(value, isValid) => setTagInput(value)}
               onKeyPress={handleTagKeyPress}
               disabled={loading}
-              className="[&:-webkit-autofill]:!bg-[#1a1a1a] [&:-webkit-autofill]:!text-white [&:-webkit-autofill]:!shadow-[0_0_0_1000px_#1a1a1a_inset] [&:-webkit-autofill]:!border-[#1a1a1a] [&:-webkit-autofill]:!transition-[background-color] [&:-webkit-autofill]:!duration-[999999s] [&:-webkit-autofill]:!delay-[999999s] [&:-webkit-autofill]:![-webkit-text-fill-color:white]"
+              className="w-full"
             />
             {tags.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 mt-2">
@@ -497,10 +365,20 @@ export const PdfUpload = ({
             </Button>
           </div>
 
-          {/* Next File Button for Multi-file Upload */}
-          {selectedFiles.length > 1 &&
-            currentFileIndex < selectedFiles.length - 1 && (
-              <div className="flex justify-center mt-4">
+          {/* Multi-file Navigation Buttons */}
+          {selectedFiles.length > 1 && (
+            <div className="flex justify-center mt-4 gap-2">
+              {currentFileIndex > 0 && (
+                <Button
+                  onClick={handlePreviousFile}
+                  variant="secondary"
+                  size="sm"
+                  className="w-40 h-8 text-center justify-center"
+                >
+                  Previous File
+                </Button>
+              )}
+              {currentFileIndex < selectedFiles.length - 1 && (
                 <Button
                   onClick={handleNextFile}
                   variant="secondary"
@@ -509,10 +387,11 @@ export const PdfUpload = ({
                 >
                   Next File
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
+          )}
         </div>
       </div>
-    </Card>
+    </div>
   );
 };
