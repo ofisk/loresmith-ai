@@ -49,7 +49,19 @@
   ],
   "migrations": [
     {
+      "tag": "v1",
+      "new_sqlite_classes": ["Chat", "UserFileTracker"],
+    },
+    {
       "tag": "v2",
+      "new_sqlite_classes": ["CampaignManager"],
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": [],
+    },
+    {
+      "tag": "v4",
       "deleted_classes": ["CampaignManager"]
     }
   ],
