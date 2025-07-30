@@ -10,7 +10,7 @@ import {
 import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import loresmith from "@/assets/loresmith.png";
 import { Avatar } from "@/components/avatar/Avatar";
@@ -78,8 +78,8 @@ export default function Chat() {
     const savedTheme = localStorage.getItem("theme");
     return (savedTheme as "dark" | "light") || "dark";
   });
-  const { hasApiKey, isLoading: isApiKeyLoading, setApiKey } = useOpenAIKey();
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const { setApiKey } = useOpenAIKey();
+  const [showApiKeyModal] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
 
