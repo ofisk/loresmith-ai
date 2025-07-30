@@ -4,6 +4,17 @@ import { Card } from "@/components/card/Card";
 import { Input } from "@/components/input/Input";
 import { cn } from "@/lib/utils";
 
+// Function to sanitize filename by removing/replacing URL-encoded characters
+const sanitizeFilename = (filename: string): string => {
+  return filename
+    .replace(/[<>:"/\\|?*]/g, "_") // Replace invalid filesystem characters
+    .replace(/\s+/g, "_") // Replace spaces with underscores
+    .replace(/[^\w\-_.]/g, "_") // Replace any other non-alphanumeric chars except -_.
+    .replace(/_+/g, "_") // Replace multiple underscores with single
+    .replace(/^_+|_+$/g, "") // Remove leading/trailing underscores
+    .replace(/\.pdf$/i, ".pdf"); // Ensure .pdf extension is lowercase
+};
+
 interface PdfUploadProps {
   onUpload: (
     file: File,
@@ -25,13 +36,14 @@ export const PdfUpload = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filename, setFilename] = useState("");
   const [description, setDescription] = useState("");
-  const [tags, setTags] = useState("");
-  const [isValid, setIsValid] = useState(true);
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [isValid, setIsValid] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [initialValues, setInitialValues] = useState({
     filename: "",
     description: "",
-    tags: "",
+    tags: [] as string[],
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -40,13 +52,13 @@ export const PdfUpload = ({
     if (file) {
       if (file.type === "application/pdf") {
         setSelectedFile(file);
-        setFilename(file.name);
+        setFilename(sanitizeFilename(file.name));
         setIsValid(true);
         setUploadSuccess(false);
         setInitialValues({
-          filename: file.name,
+          filename: sanitizeFilename(file.name),
           description: "",
-          tags: "",
+          tags: [],
         });
       } else {
         setSelectedFile(null);
@@ -59,12 +71,7 @@ export const PdfUpload = ({
 
   const handleUpload = () => {
     if (selectedFile) {
-      const tagsArray = tags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter((tag) => tag.length > 0);
-
-      onUpload(selectedFile, filename, description, tagsArray);
+      onUpload(selectedFile, filename, description, tags);
       setUploadSuccess(true);
       setInitialValues({
         filename: filename,
@@ -79,13 +86,13 @@ export const PdfUpload = ({
     const file = event.dataTransfer.files[0];
     if (file && file.type === "application/pdf") {
       setSelectedFile(file);
-      setFilename(file.name);
+      setFilename(sanitizeFilename(file.name));
       setIsValid(true);
       setUploadSuccess(false);
       setInitialValues({
-        filename: file.name,
+        filename: sanitizeFilename(file.name),
         description: "",
-        tags: "",
+        tags: [],
       });
     } else {
       setSelectedFile(null);
@@ -99,10 +106,29 @@ export const PdfUpload = ({
     event.preventDefault();
   };
 
+  const handleAddTag = () => {
+    const trimmedTag = tagInput.trim();
+    if (trimmedTag && !tags.includes(trimmedTag)) {
+      setTags([...tags, trimmedTag]);
+      setTagInput("");
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter((tag) => tag !== tagToRemove));
+  };
+
+  const handleTagKeyPress = (event: React.KeyboardEvent) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleAddTag();
+    }
+  };
+
   const hasChanges =
     filename !== initialValues.filename ||
     description !== initialValues.description ||
-    tags !== initialValues.tags;
+    JSON.stringify(tags) !== JSON.stringify(initialValues.tags);
 
   const isUploadDisabled =
     !selectedFile || loading || (uploadSuccess && !hasChanges);
@@ -181,7 +207,9 @@ export const PdfUpload = ({
                 <div className="text-ob-base-300 font-medium">
                   Click to select or drag and drop
                 </div>
-                <div className="text-ob-base-200 text-sm">PDF files only</div>
+                <div className="text-ob-base-200 text-sm">
+                  Supported resource types: PDF (more coming soon)
+                </div>
               </div>
             )}
           </button>
@@ -205,10 +233,11 @@ export const PdfUpload = ({
             </label>
             <Input
               id="pdf-filename"
-              placeholder="Enter a filename for this PDF..."
+              placeholder="Name this mighty tome…"
               value={filename}
-              onValueChange={(value) => setFilename(value)}
-              disabled={loading || !selectedFile}
+              onValueChange={(value, isValid) => setFilename(value)}
+              disabled={loading}
+              className="[&:-webkit-autofill]:!bg-[#1a1a1a] [&:-webkit-autofill]:!text-white [&:-webkit-autofill]:!shadow-[0_0_0_1000px_#1a1a1a_inset] [&:-webkit-autofill]:!border-[#1a1a1a] [&:-webkit-autofill]:!transition-[background-color] [&:-webkit-autofill]:!duration-[999999s] [&:-webkit-autofill]:!delay-[999999s] [&:-webkit-autofill]:![-webkit-text-fill-color:white]"
             />
           </div>
 
@@ -222,10 +251,11 @@ export const PdfUpload = ({
             </label>
             <Input
               id="pdf-description"
-              placeholder="Enter a description for this PDF..."
+              placeholder="Describe the perils and promises within..."
               value={description}
-              onValueChange={(value) => setDescription(value)}
+              onValueChange={(value, isValid) => setDescription(value)}
               disabled={loading}
+              className="[&:-webkit-autofill]:!bg-[#1a1a1a] [&:-webkit-autofill]:!text-white [&:-webkit-autofill]:!shadow-[0_0_0_1000px_#1a1a1a_inset] [&:-webkit-autofill]:!border-[#1a1a1a] [&:-webkit-autofill]:!transition-[background-color] [&:-webkit-autofill]:!duration-[999999s] [&:-webkit-autofill]:!delay-[999999s] [&:-webkit-autofill]:![-webkit-text-fill-color:white]"
             />
           </div>
 
@@ -239,13 +269,50 @@ export const PdfUpload = ({
             </label>
             <Input
               id="pdf-tags"
-              placeholder="Enter tags separated by commas..."
-              value={tags}
-              onValueChange={(value) => setTags(value)}
+              placeholder="Mark this tome with its arcane keywords…"
+              value={tagInput}
+              onValueChange={(value, isValid) => setTagInput(value)}
+              onKeyPress={handleTagKeyPress}
               disabled={loading}
+              className="[&:-webkit-autofill]:!bg-[#1a1a1a] [&:-webkit-autofill]:!text-white [&:-webkit-autofill]:!shadow-[0_0_0_1000px_#1a1a1a_inset] [&:-webkit-autofill]:!border-[#1a1a1a] [&:-webkit-autofill]:!transition-[background-color] [&:-webkit-autofill]:!duration-[999999s] [&:-webkit-autofill]:!delay-[999999s] [&:-webkit-autofill]:![-webkit-text-fill-color:white]"
             />
+            {tags.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                {tags.map((tag, index) => (
+                  <span
+                    key={index}
+                    className="flex items-center bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-medium px-2.5 py-0.5 rounded-full"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleRemoveTag(tag);
+                      }}
+                      className="ml-1.5 p-0.5 text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 focus:outline-none rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/30"
+                    >
+                      <svg
+                        className="h-3 w-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="text-ob-base-200 text-xs">
-              Example: research, important, draft
+              Example: undead, forest, cursed treasure
             </div>
           </div>
 
@@ -283,7 +350,7 @@ export const PdfUpload = ({
                       d="M5 13l4 4L19 7"
                     />
                   </svg>
-                  <span>Completed</span>
+                  <span>Complete</span>
                 </div>
               ) : (
                 "Upload"

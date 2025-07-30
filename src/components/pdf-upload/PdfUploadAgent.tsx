@@ -574,14 +574,14 @@ export const PdfUploadAgent = ({
           variant="secondary"
           size="base"
         >
-          Add Resources
+          Add resources
         </Button>
         <Button
           onClick={() => setIsListModalOpen(true)}
           variant="secondary"
           size="base"
         >
-          Show Resources
+          Show resources
         </Button>
       </div>
 
