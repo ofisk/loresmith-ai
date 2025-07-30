@@ -2,6 +2,7 @@ import type { D1Database, VectorizeIndex } from "@cloudflare/workers-types";
 import { MODEL_CONFIG, PDF_PROCESSING_CONFIG } from "../constants";
 import type { ProcessingProgress, ProcessingStep } from "../types/progress";
 import { PDF_PROCESSING_STEPS } from "../types/progress";
+import { BaseRAGService } from "./baseRagService";
 
 export interface PdfChunk {
   id: string;
@@ -33,13 +34,18 @@ export interface SearchResult {
 
 export type ProgressCallback = (progress: ProcessingProgress) => void;
 
-export class RAGService {
+export class RAGService extends BaseRAGService {
+  private progressCallback?: ProgressCallback;
+
   constructor(
-    private db: D1Database,
-    private vectorize: VectorizeIndex,
-    private openaiApiKey?: string,
-    private progressCallback?: ProgressCallback
-  ) {}
+    db: D1Database,
+    vectorize: VectorizeIndex,
+    openaiApiKey?: string,
+    progressCallback?: ProgressCallback
+  ) {
+    super(db, vectorize, openaiApiKey);
+    this.progressCallback = progressCallback;
+  }
 
   private updateProgress(
     fileKey: string,
@@ -274,7 +280,7 @@ export class RAGService {
   ): Promise<void> {
     try {
       // Update PDF metadata status to processing
-      await this.updatePdfStatus(fileKey, "processing");
+      await this.updateStatus(fileKey, "processing");
 
       // Step 4: Chunk the content
       this.updateProgress(
@@ -388,7 +394,7 @@ export class RAGService {
       }
 
       // Update PDF metadata status to processed
-      await this.updatePdfStatus(fileKey, "processed");
+      await this.updateStatus(fileKey, "processed");
       this.updateProgress(
         fileKey,
         username,
@@ -402,7 +408,7 @@ export class RAGService {
       console.log(`Processed PDF ${fileKey} with ${chunks.length} chunks`);
     } catch (error) {
       console.error(`Error processing PDF ${fileKey}:`, error);
-      await this.updatePdfStatus(fileKey, "error");
+      await this.updateStatus(fileKey, "error");
       this.updateProgress(
         fileKey,
         username,
@@ -648,7 +654,7 @@ export class RAGService {
       return (await Promise.race([processingPromise, timeoutPromise])) as any;
     } catch (error) {
       console.error(`Error processing PDF ${fileKey} from R2:`, error);
-      await this.updatePdfStatus(fileKey, "error");
+      await this.updateStatus(fileKey, "error");
       this.updateProgress(
         fileKey,
         username,
@@ -821,7 +827,7 @@ export class RAGService {
       return { suggestedMetadata };
     } catch (error) {
       console.error(`Error processing PDF ${fileKey} from R2:`, error);
-      await this.updatePdfStatus(fileKey, "error");
+      await this.updateStatus(fileKey, "error");
       throw error;
     }
   }
@@ -1001,99 +1007,40 @@ export class RAGService {
   /**
    * Chunk text into smaller pieces for processing
    */
-  private chunkText(
+  // Override chunkText to add PDF-specific optimizations
+  protected chunkText(
     text: string,
     maxChunkSize: number = 1000,
     overlap: number = 200
   ): Array<{ text: string; index: number; metadata?: Record<string, any> }> {
     // Optimize chunking for large texts
     if (text.length > 1000000) {
-      // For very large texts
       maxChunkSize = 2000; // Larger chunks
       overlap = 300; // More overlap for context
     }
-    const chunks: Array<{
-      text: string;
-      index: number;
-      metadata?: Record<string, any>;
-    }> = [];
-    let start = 0;
-    let index = 0;
 
-    while (start < text.length) {
-      const end = Math.min(start + maxChunkSize, text.length);
-      let chunkText = text.slice(start, end);
-
-      // Try to break at sentence boundaries
-      if (end < text.length) {
-        const lastPeriod = chunkText.lastIndexOf(".");
-        const lastExclamation = chunkText.lastIndexOf("!");
-        const lastQuestion = chunkText.lastIndexOf("?");
-        const lastBreak = Math.max(lastPeriod, lastExclamation, lastQuestion);
-
-        if (lastBreak > maxChunkSize * 0.7) {
-          chunkText = chunkText.slice(0, lastBreak + 1);
-        }
-      }
-
-      chunks.push({
-        text: chunkText.trim(),
-        index: index++,
-        metadata: {
-          start_char: start,
-          end_char: start + chunkText.length,
-        },
-      });
-
-      start += chunkText.length - overlap;
-    }
-
-    return chunks;
+    return super.chunkText(text, maxChunkSize, overlap);
   }
 
-  /**
-   * Generate embeddings for text using OpenAI
-   */
-  private async generateEmbeddings(texts: string[]): Promise<number[][]> {
-    // For now, we'll use a simple placeholder
-    // In production, you'd call OpenAI's embedding API
-    const response = await fetch("https://api.openai.com/v1/embeddings", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.openaiApiKey}`,
-      },
-      body: JSON.stringify({
-        input: texts,
-        model: "text-embedding-3-small",
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`);
-    }
-
-    const result = (await response.json()) as any;
-    return result.data.map((item: any) => item.embedding);
-  }
+  // Use base class generateEmbeddings method
 
   /**
    * Update PDF processing status
    */
-  private async updatePdfStatus(
-    fileKey: string,
-    status: PdfMetadata["status"]
+  protected async updateStatus(
+    identifier: string,
+    status: string
   ): Promise<void> {
     await this.db
       .prepare("UPDATE pdf_metadata SET status = ? WHERE file_key = ?")
-      .bind(status, fileKey)
+      .bind(status, identifier)
       .run();
   }
 
   /**
    * Get chunks by their IDs
    */
-  private async getChunksByIds(ids: string[]): Promise<PdfChunk[]> {
+  protected async getChunksByIds(ids: string[]): Promise<PdfChunk[]> {
     if (ids.length === 0) return [];
 
     const placeholders = ids.map(() => "?").join(",");

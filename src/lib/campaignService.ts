@@ -1,0 +1,377 @@
+import type { D1Database } from "@cloudflare/workers-types";
+
+export interface CampaignSuggestion {
+  id: number;
+  type: string;
+  suggestion: string;
+  specificFocus?: string;
+  contextRelevance: string;
+  relatedContext?: string[];
+}
+
+export interface CampaignReadinessAssessment {
+  readinessScore: number;
+  recommendations: string[];
+  contextCount: number;
+  characterCount: number;
+  resourceCount: number;
+  isReady: boolean;
+  missingElements: string[];
+}
+
+export interface CampaignContext {
+  id: string;
+  campaign_id: string;
+  context_type: string;
+  title: string;
+  content: string;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampaignCharacter {
+  id: string;
+  campaign_id: string;
+  character_name: string;
+  character_class?: string;
+  character_level: number;
+  character_race?: string;
+  backstory?: string;
+  personality_traits?: string;
+  goals?: string;
+  relationships?: string[];
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export class CampaignService {
+  constructor(private db: D1Database) {}
+
+  /**
+   * Get intelligent suggestions based on campaign context and characters
+   */
+  async getIntelligentSuggestions(
+    campaignId: string,
+    suggestionType: string,
+    specificFocus?: string,
+    context?: CampaignContext[],
+    characters?: CampaignCharacter[],
+    resources?: any[]
+  ): Promise<{
+    suggestions: CampaignSuggestion[];
+    contextCount: number;
+    characterCount: number;
+    resourceCount: number;
+  }> {
+    try {
+      // Get campaign data if not provided
+      const contextData =
+        context ||
+        (
+          await this.db
+            .prepare(
+              "SELECT * FROM campaign_context WHERE campaign_id = ? ORDER BY created_at DESC"
+            )
+            .bind(campaignId)
+            .all()
+        ).results;
+
+      const charactersData =
+        characters ||
+        (
+          await this.db
+            .prepare(
+              "SELECT * FROM campaign_characters WHERE campaign_id = ? ORDER BY created_at DESC"
+            )
+            .bind(campaignId)
+            .all()
+        ).results;
+
+      const resourcesData =
+        resources ||
+        (
+          await this.db
+            .prepare(
+              "SELECT * FROM campaign_resources WHERE campaign_id = ? ORDER BY created_at DESC"
+            )
+            .bind(campaignId)
+            .all()
+        ).results;
+
+      // Generate base suggestions
+      const baseSuggestions = this.generateBaseSuggestions(
+        suggestionType,
+        specificFocus
+      );
+
+      // Enhance suggestions with context
+      const enhancedSuggestions = baseSuggestions.map((suggestion, index) => {
+        const relatedContext = this.findRelatedContext(
+          suggestion.suggestion,
+          contextData as CampaignContext[],
+          charactersData as CampaignCharacter[]
+        );
+
+        return {
+          ...suggestion,
+          id: index + 1,
+          relatedContext,
+          contextRelevance:
+            relatedContext.length > 0
+              ? `Based on ${relatedContext.length} relevant context entries`
+              : "General suggestion based on campaign planning best practices",
+        };
+      });
+
+      return {
+        suggestions: enhancedSuggestions,
+        contextCount: contextData.length,
+        characterCount: charactersData.length,
+        resourceCount: resourcesData.length,
+      };
+    } catch (error) {
+      console.error("Error getting intelligent suggestions:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Assess campaign readiness based on available information
+   */
+  async assessCampaignReadiness(
+    campaignId: string
+  ): Promise<CampaignReadinessAssessment> {
+    try {
+      // Get campaign data
+      const { results: context } = await this.db
+        .prepare("SELECT * FROM campaign_context WHERE campaign_id = ?")
+        .bind(campaignId)
+        .all();
+
+      const { results: characters } = await this.db
+        .prepare("SELECT * FROM campaign_characters WHERE campaign_id = ?")
+        .bind(campaignId)
+        .all();
+
+      const { results: resources } = await this.db
+        .prepare("SELECT * FROM campaign_resources WHERE campaign_id = ?")
+        .bind(campaignId)
+        .all();
+
+      let readinessScore = 0;
+      const recommendations = [];
+      const missingElements = [];
+
+      // Assess context completeness
+      const contextTypes = context.map((c) => c.context_type);
+
+      if (contextTypes.includes("world_description")) {
+        readinessScore += 20;
+      } else {
+        missingElements.push("World description");
+        recommendations.push(
+          "Add a world description to better understand your setting"
+        );
+      }
+
+      if (contextTypes.includes("campaign_notes")) {
+        readinessScore += 15;
+      } else {
+        missingElements.push("Campaign notes");
+        recommendations.push(
+          "Add campaign notes to track your planning progress"
+        );
+      }
+
+      if (contextTypes.includes("player_preferences")) {
+        readinessScore += 15;
+      } else {
+        missingElements.push("Player preferences");
+        recommendations.push("Add player preferences to tailor the experience");
+      }
+
+      // Assess character information
+      if (characters.length > 0) {
+        readinessScore += 25;
+        const charactersWithBackstories = characters.filter((c) => c.backstory);
+        if (charactersWithBackstories.length === characters.length) {
+          readinessScore += 15;
+        } else {
+          missingElements.push("Character backstories");
+          recommendations.push(
+            "Add backstories for all characters to create better story hooks"
+          );
+        }
+      } else {
+        missingElements.push("Character information");
+        recommendations.push(
+          "Add character information to personalize the campaign"
+        );
+      }
+
+      // Assess resources
+      if (resources.length > 0) {
+        readinessScore += 10;
+      } else {
+        missingElements.push("Campaign resources");
+        recommendations.push(
+          "Add resources to your campaign for better planning support"
+        );
+      }
+
+      return {
+        readinessScore: Math.min(readinessScore, 100),
+        recommendations,
+        contextCount: context.length,
+        characterCount: characters.length,
+        resourceCount: resources.length,
+        isReady: readinessScore >= 70,
+        missingElements,
+      };
+    } catch (error) {
+      console.error("Error assessing campaign readiness:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate base suggestions based on type
+   */
+  private generateBaseSuggestions(
+    suggestionType: string,
+    specificFocus?: string
+  ): Array<{ type: string; suggestion: string; specificFocus?: string }> {
+    const suggestions = [];
+
+    switch (suggestionType) {
+      case "session_planning":
+        suggestions.push(
+          "Consider the party's current level and composition when planning encounters",
+          "Include a mix of combat, social, and exploration challenges",
+          "Connect session events to character backstories and goals",
+          "Plan for both short-term objectives and long-term story progression"
+        );
+        break;
+      case "resource_recommendations":
+        suggestions.push(
+          "Upload monster manuals for encounter planning",
+          "Add adventure modules that match your campaign tone",
+          "Include spell books for magic-heavy campaigns",
+          "Consider adding world-building guides for setting development"
+        );
+        break;
+      case "plot_hooks":
+        suggestions.push(
+          "Use character backstories to create personal storylines",
+          "Connect character goals to main plot threads",
+          "Create NPCs that relate to character relationships",
+          "Develop conflicts that challenge character values and beliefs"
+        );
+        break;
+      case "character_development":
+        suggestions.push(
+          "Plan character arcs that align with their goals",
+          "Create opportunities for character growth",
+          "Include challenges that test character values",
+          "Develop relationships between party members"
+        );
+        break;
+      case "world_building":
+        suggestions.push(
+          "Develop locations that connect to character backgrounds",
+          "Create factions that align with character motivations",
+          "Build history that impacts current events",
+          "Design cultures and societies that feel authentic"
+        );
+        break;
+      case "npc_suggestions":
+        suggestions.push(
+          "Create NPCs that challenge character beliefs",
+          "Include mentors that can guide character development",
+          "Add antagonists that relate to character backstories",
+          "Develop allies who can provide support and resources"
+        );
+        break;
+      case "encounter_ideas":
+        suggestions.push(
+          "Design encounters that test character abilities",
+          "Include social challenges that require roleplaying",
+          "Create puzzles that relate to character knowledge",
+          "Balance combat encounters for your party's level"
+        );
+        break;
+      case "general_planning":
+        suggestions.push(
+          "Balance combat and non-combat encounters",
+          "Include opportunities for character interaction",
+          "Plan for both short-term and long-term story arcs",
+          "Consider player preferences and boundaries"
+        );
+        break;
+    }
+
+    return suggestions.map((suggestion) => ({
+      type: suggestionType,
+      suggestion,
+      specificFocus,
+    }));
+  }
+
+  /**
+   * Find context related to a suggestion
+   */
+  private findRelatedContext(
+    suggestion: string,
+    context: CampaignContext[],
+    characters: CampaignCharacter[]
+  ): string[] {
+    const related = [];
+    const lowerSuggestion = suggestion.toLowerCase();
+
+    // Check context entries
+    for (const ctx of context) {
+      const lowerContent = ctx.content.toLowerCase();
+      const lowerTitle = ctx.title.toLowerCase();
+
+      if (
+        lowerSuggestion.includes("character") &&
+        (lowerContent.includes("character") || lowerTitle.includes("character"))
+      ) {
+        related.push(`${ctx.title}: ${ctx.content.substring(0, 100)}...`);
+      }
+
+      if (
+        lowerSuggestion.includes("world") &&
+        (lowerContent.includes("world") || lowerTitle.includes("world"))
+      ) {
+        related.push(`${ctx.title}: ${ctx.content.substring(0, 100)}...`);
+      }
+
+      if (
+        lowerSuggestion.includes("backstory") &&
+        (lowerContent.includes("backstory") || lowerTitle.includes("backstory"))
+      ) {
+        related.push(`${ctx.title}: ${ctx.content.substring(0, 100)}...`);
+      }
+    }
+
+    // Check character information
+    for (const char of characters) {
+      if (lowerSuggestion.includes("character") && char.backstory) {
+        related.push(
+          `${char.character_name}'s backstory: ${char.backstory.substring(0, 100)}...`
+        );
+      }
+
+      if (lowerSuggestion.includes("goals") && char.goals) {
+        related.push(
+          `${char.character_name}'s goals: ${char.goals.substring(0, 100)}...`
+        );
+      }
+    }
+
+    return related.slice(0, 3); // Limit to 3 related items
+  }
+}
