@@ -22,6 +22,7 @@ import { PdfUploadAgent } from "@/components/pdf-upload/PdfUploadAgent";
 import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
+import { HelpButton } from "@/components/help/HelpButton";
 import { OpenAIKeyModal } from "./components/OpenAIKeyModal";
 import { USER_MESSAGES } from "./constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
@@ -174,6 +175,37 @@ export default function Chat() {
     window.location.reload();
   };
 
+  // Handle help button actions
+  const handleHelpAction = (action: string) => {
+    const jwt = getStoredJwt();
+    console.log("[App] handleHelpAction:", action);
+
+    let message = "";
+    switch (action) {
+      case "upload_resource":
+        message =
+          "I'd like to upload a resource to build my inspiration library. Can you help me with that?";
+        break;
+      case "create_campaign":
+        message =
+          "I want to create a new campaign. Can you help me set that up?";
+        break;
+      case "start_chat":
+        message =
+          "I'd like to chat about my campaign ideas and get help developing them.";
+        break;
+      default:
+        message = `I need help with: ${action}`;
+    }
+
+    append({
+      role: "user",
+      content: message,
+      data: jwt ? { jwt } : undefined,
+    });
+    setInput("");
+  };
+
   // Scroll to bottom when messages change
   useEffect(() => {
     agentMessages.length > 0 && scrollToBottom();
@@ -258,6 +290,8 @@ export default function Chat() {
                 onClick={() => setShowDebug((prev) => !prev)}
               />
             </div>
+
+            <HelpButton onActionClick={handleHelpAction} />
 
             <Button
               variant="ghost"
