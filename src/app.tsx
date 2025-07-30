@@ -184,7 +184,7 @@ export default function Chat() {
     switch (action) {
       case "upload_resource":
         message =
-          "I'd like to upload a resource to build my inspiration library. Can you help me with that?";
+          "I'd like to upload a resource to build my inspiration library. Can you point me to the Add Resources button?";
         break;
       case "create_campaign":
         message =

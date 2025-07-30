@@ -29,7 +29,7 @@ Let's get you started! What would you like to do first?`,
       primaryAction: {
         title: "Upload Your First Resource",
         description:
-          "Start building your inspiration library by uploading a PDF, image, or document",
+          "Click the 'Add Resources' button to upload PDFs, images, or documents to your inspiration library",
         action: "upload_resource",
         priority: "high",
         estimatedTime: "5 minutes",
@@ -106,7 +106,8 @@ export async function suggestNextActionsTool(
       actions.push(
         {
           title: "Upload Your First Resource",
-          description: "Start building your inspiration library",
+          description:
+            "Click the 'Add Resources' button to start building your inspiration library",
           action: "upload_resource",
           priority: "high",
           estimatedTime: "5 minutes",
@@ -126,7 +127,7 @@ export async function suggestNextActionsTool(
         {
           title: "Upload Resources",
           description:
-            "Build your inspiration library with PDFs, images, and documents",
+            "Click the 'Add Resources' button to build your inspiration library with PDFs, images, and documents",
           action: "upload_resources",
           priority: "high",
           estimatedTime: "10 minutes",
@@ -152,7 +153,8 @@ export async function suggestNextActionsTool(
         },
         {
           title: "Upload More Resources",
-          description: "Add more inspiration to your library",
+          description:
+            "Click the 'Add Resources' button to add more inspiration to your library",
           action: "upload_resources",
           priority: "medium",
           estimatedTime: "10 minutes",
@@ -180,7 +182,8 @@ export async function suggestNextActionsTool(
           },
           {
             title: "Add More Resources",
-            description: "Enrich your campaign with new inspiration",
+            description:
+              "Click the 'Add Resources' button to enrich your campaign with new inspiration",
             action: "upload_resources",
             priority: "medium",
             estimatedTime: "10 minutes",
@@ -244,7 +247,8 @@ export async function provideCampaignGuidanceTool(
         },
         {
           title: "Add More Resources",
-          description: "Enrich your campaign with new inspiration",
+          description:
+            "Click the 'Add Resources' button to enrich your campaign with new inspiration",
           action: "upload_resources",
           priority: "medium",
           estimatedTime: "10 minutes",
