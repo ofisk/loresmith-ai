@@ -284,7 +284,7 @@ export function deepClone<T>(obj: T): T {
   if (typeof obj === "object") {
     const clonedObj = {} as T;
     for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
+      if (key in obj) {
         clonedObj[key] = deepClone(obj[key]);
       }
     }

@@ -286,11 +286,7 @@ export const PdfUpload = ({
                     {tag}
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleRemoveTag(tag);
-                      }}
+                      onClick={() => handleRemoveTag(tag)}
                       className="ml-1.5 p-0.5 text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 focus:outline-none rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/30"
                     >
                       <svg

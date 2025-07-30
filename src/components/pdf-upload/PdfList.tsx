@@ -229,10 +229,10 @@ export function PdfList() {
               </div>
             ) : (
               <>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <fieldset className="mb-4">
+                  <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Select campaigns
-                  </label>
+                  </legend>
                   <MultiSelect
                     options={campaigns.map((campaign) => ({
                       value: campaign.campaignId,
@@ -242,7 +242,7 @@ export function PdfList() {
                     onSelectionChange={setSelectedCampaigns}
                     placeholder="Choose campaigns..."
                   />
-                </div>
+                </fieldset>
 
                 <div className="flex justify-end gap-3 mt-6">
                   <Button
