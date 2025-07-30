@@ -50,7 +50,7 @@
   "migrations": [
     {
       "tag": "v2",
-      "delete_classes": ["CampaignManager"]
+      "deleted_classes": ["CampaignManager"]
     }
   ],
   "observability": {
