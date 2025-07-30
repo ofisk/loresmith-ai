@@ -52,10 +52,6 @@
       "tag": "v1",
       "new_sqlite_classes": ["Chat", "UserFileTracker"],
     },
-    {
-      "tag": "v2",
-      "new_sqlite_classes": ["CampaignManager"],
-    },
   ],
   "observability": {
     "enabled": true,

@@ -10,7 +10,7 @@ declare namespace Cloudflare {
 		CORS_ALLOWED_ORIGINS: string;
 		Chat: DurableObjectNamespace<import("./src/server").Chat>;
 		UserFileTracker: DurableObjectNamespace<import("./src/server").UserFileTracker>;
-		CampaignManager: DurableObjectNamespace<import("./src/server").CampaignManager>;
+	
 		PDF_BUCKET: R2Bucket;
 		VECTORIZE: VectorizeIndex;
 	}
