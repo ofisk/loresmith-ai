@@ -8,7 +8,6 @@ import { jwtVerify } from "jose";
 import { CampaignAgent } from "./agents/campaign-agent";
 import { CampaignContextAgent } from "./agents/campaign-context-agent";
 import { CharacterSheetAgent } from "./agents/character-sheet-agent";
-import { GeneralAgent } from "./agents/general-agent";
 import { ResourceAgent } from "./agents/resource-agent";
 import { MODEL_CONFIG } from "./constants";
 import type { AuthEnv } from "./lib/auth";
@@ -24,7 +23,6 @@ interface Env extends AuthEnv {
   VECTORIZE: VectorizeIndex;
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
-  CampaignManager: DurableObjectNamespace;
 }
 
 // Progress tracking store
@@ -166,7 +164,6 @@ export class Chat extends AIChatAgent<Env> {
   private campaignContextAgent: CampaignContextAgent;
   private characterSheetAgent: CharacterSheetAgent;
   private resourceAgent: ResourceAgent;
-  private generalAgent: GeneralAgent;
   private userOpenAIKey: string | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -177,7 +174,6 @@ export class Chat extends AIChatAgent<Env> {
     this.campaignContextAgent = null as any;
     this.characterSheetAgent = null as any;
     this.resourceAgent = null as any;
-    this.generalAgent = null as any;
 
     // Load user's OpenAI key from storage if available
     this.loadUserOpenAIKey();
@@ -226,7 +222,6 @@ export class Chat extends AIChatAgent<Env> {
           model
         );
         this.resourceAgent = new ResourceAgent(this.ctx, this.env, model);
-        this.generalAgent = new GeneralAgent(this.ctx, this.env, model);
 
         console.log("Agents initialized successfully with user API key");
 
@@ -360,12 +355,7 @@ export class Chat extends AIChatAgent<Env> {
    */
   private determineAgent(
     userMessage: string
-  ):
-    | "campaigns"
-    | "campaign-context"
-    | "character-sheets"
-    | "resources"
-    | "general" {
+  ): "campaign" | "campaign-context" | "character-sheets" | "resources" {
     const lowerMessage = userMessage.toLowerCase();
 
     // Check for retry/continue context - if the last few messages were campaign-related
@@ -381,7 +371,7 @@ export class Chat extends AIChatAgent<Env> {
         .join(" ")
         .toLowerCase();
 
-      // If recent context contains campaign keywords, route to campaigns
+      // If recent context contains campaign keywords, route to campaign-context
       const campaignContextKeywords = [
         "campaign",
         "character",
@@ -407,7 +397,7 @@ export class Chat extends AIChatAgent<Env> {
           recentContext.includes(keyword)
         )
       ) {
-        return "campaigns";
+        return "campaign";
       }
     }
 
@@ -504,18 +494,6 @@ export class Chat extends AIChatAgent<Env> {
       "update pdf",
     ];
 
-    // General/scheduling keywords
-    const generalKeywords = [
-      "schedule",
-      "task",
-      "tasks",
-      "scheduled",
-      "cancel task",
-      "list tasks",
-      "reminder",
-      "reminders",
-    ];
-
     // Check for character sheet intent (highest priority for specific file operations)
     if (
       characterSheetKeywords.some((keyword) => lowerMessage.includes(keyword))
@@ -532,7 +510,7 @@ export class Chat extends AIChatAgent<Env> {
 
     // Check for campaign management intent
     if (campaignKeywords.some((keyword) => lowerMessage.includes(keyword))) {
-      return "campaigns";
+      return "campaign";
     }
 
     // Check for resource-related intent (PDF management only)
@@ -540,13 +518,8 @@ export class Chat extends AIChatAgent<Env> {
       return "resources";
     }
 
-    // Check for general/scheduling intent
-    if (generalKeywords.some((keyword) => lowerMessage.includes(keyword))) {
-      return "general";
-    }
-
-    // Default to general agent for unknown intents
-    return "general";
+    // Default to campaign-context for unknown intents
+    return "campaign";
   }
 
   /**
@@ -558,7 +531,7 @@ export class Chat extends AIChatAgent<Env> {
     _options?: { abortSignal?: AbortSignal }
   ) {
     // Check if agents are initialized, and try to initialize them if not
-    if (!this.campaignAgent || !this.resourceAgent || !this.generalAgent) {
+    if (!this.campaignAgent || !this.resourceAgent) {
       // Try to load the user's API key and initialize agents
       if (this.userOpenAIKey) {
         this.initializeAgents(this.userOpenAIKey);
@@ -591,8 +564,12 @@ export class Chat extends AIChatAgent<Env> {
       .find((msg) => msg.role === "user");
 
     if (!lastUserMessage) {
-      // No user message found, use general agent
-      return this.generalAgent.onChatMessage(onFinish, _options);
+      // No user message found, use campaign-context agent as fallback
+      const targetAgentInstance = this.getAgentInstance("campaign-context");
+      targetAgentInstance.messages = [...this.messages];
+      return targetAgentInstance.onChatMessage(onFinish, {
+        abortSignal: _options?.abortSignal,
+      });
     }
 
     // Determine which agent should handle this request
@@ -616,19 +593,17 @@ export class Chat extends AIChatAgent<Env> {
    */
   private getAgentInstance(
     targetAgent:
-      | "campaigns"
+      | "campaign"
       | "campaign-context"
       | "character-sheets"
       | "resources"
-      | "general"
   ): any {
     // Check if agents are initialized
     if (
       !this.campaignAgent ||
       !this.campaignContextAgent ||
       !this.characterSheetAgent ||
-      !this.resourceAgent ||
-      !this.generalAgent
+      !this.resourceAgent
     ) {
       // Try to load the user's API key and initialize agents
       if (this.userOpenAIKey) {
@@ -641,7 +616,7 @@ export class Chat extends AIChatAgent<Env> {
     }
 
     switch (targetAgent) {
-      case "campaigns":
+      case "campaign":
         return this.campaignAgent;
       case "campaign-context":
         return this.campaignContextAgent;
@@ -649,10 +624,8 @@ export class Chat extends AIChatAgent<Env> {
         return this.characterSheetAgent;
       case "resources":
         return this.resourceAgent;
-      case "general":
-        return this.generalAgent;
       default:
-        return this.generalAgent;
+        return this.campaignAgent;
     }
   }
 
@@ -1356,25 +1329,18 @@ app.get("/campaigns/:campaignId", requireUserJwt, async (c) => {
     const userAuth = (c as any).userAuth;
     const campaignId = c.req.param("campaignId");
 
-    // Get the CampaignManager Durable Object for this user
-    const campaignManagerId = c.env.CampaignManager.idFromName(
-      userAuth.username
-    );
-    const campaignManager = c.env.CampaignManager.get(campaignManagerId);
+    // Query campaign directly from D1 database
+    const campaign = await c.env.DB.prepare(
+      "SELECT id as campaignId, name, created_at as createdAt, updated_at as updatedAt FROM campaigns WHERE id = ? AND username = ?"
+    )
+      .bind(campaignId, userAuth.username)
+      .first();
 
-    const response = await campaignManager.fetch(
-      `${new URL(c.req.url).origin}/campaigns/${campaignId}`,
-      {
-        method: "GET",
-      }
-    );
-
-    if (!response.ok) {
-      return c.json({ error: "Failed to fetch campaign details" }, 500);
+    if (!campaign) {
+      return c.json({ error: "Campaign not found" }, 404);
     }
 
-    const data = await response.json();
-    return c.json(data as any);
+    return c.json({ campaign });
   } catch (error) {
     console.error("Error fetching campaign details:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -1383,28 +1349,16 @@ app.get("/campaigns/:campaignId", requireUserJwt, async (c) => {
 
 app.get("/campaigns/:campaignId/resources", requireUserJwt, async (c) => {
   try {
-    const userAuth = (c as any).userAuth;
     const campaignId = c.req.param("campaignId");
 
-    // Get the CampaignManager Durable Object for this user
-    const campaignManagerId = c.env.CampaignManager.idFromName(
-      userAuth.username
-    );
-    const campaignManager = c.env.CampaignManager.get(campaignManagerId);
+    // Query campaign resources directly from D1 database
+    const resources = await c.env.DB.prepare(
+      "SELECT id, campaign_id, file_key, file_name, description, tags, status, created_at FROM campaign_resources WHERE campaign_id = ?"
+    )
+      .bind(campaignId)
+      .all();
 
-    const response = await campaignManager.fetch(
-      `${new URL(c.req.url).origin}/campaigns/${campaignId}/resources`,
-      {
-        method: "GET",
-      }
-    );
-
-    if (!response.ok) {
-      return c.json({ error: "Failed to fetch campaign resources" }, 500);
-    }
-
-    const data = await response.json();
-    return c.json(data as any);
+    return c.json({ resources: resources.results || [] });
   } catch (error) {
     console.error("Error fetching campaign resources:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -1460,7 +1414,7 @@ app.all("*", async (c) => {
     );
   }
   return (
-    (await routeAgentRequest(c.req.raw, c.env, { cors: true })) ||
+    (await routeAgentRequest(c.req.raw, c.env as any, { cors: true })) ||
     new Response("Not found", { status: 404 })
   );
 });
@@ -1468,4 +1422,4 @@ app.all("*", async (c) => {
 export default app;
 
 // Export Durable Objects
-export { CampaignManager } from "./durable-objects/CampaignManager";
+// CampaignManager removed - campaigns now handled directly in D1

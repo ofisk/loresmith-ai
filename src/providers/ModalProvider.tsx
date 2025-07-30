@@ -1,6 +1,9 @@
 import { createContext, type ReactNode, useContext, useState } from "react";
 import { Modal } from "@/components/modal/Modal";
 
+/**
+ * Context type for modal state management
+ */
 type ModalContextType = {
   isOpen: boolean;
   content: ReactNode;
@@ -10,6 +13,11 @@ type ModalContextType = {
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
 
+/**
+ * Modal provider component that manages modal state and provides modal functionality
+ *
+ * @param children - React children to wrap with modal context
+ */
 export const ModalProvider = ({ children }: { children: ReactNode }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [content, setContent] = useState<ReactNode>(null);
@@ -36,6 +44,12 @@ export const ModalProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
+/**
+ * Hook to access modal context
+ *
+ * @returns Modal context with isOpen, content, openModal, and closeModal
+ * @throws Error if used outside of ModalProvider
+ */
 export const useModal = () => {
   const context = useContext(ModalContext);
   if (!context) {

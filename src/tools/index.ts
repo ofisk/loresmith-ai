@@ -1,29 +1,29 @@
 /**
  * Tool definitions for the AI chat agent
- * Tools can either require human confirmation or execute automatically
+ *
+ * This module exports all available tools for the AI model to use.
+ * Tools can either require human confirmation or execute automatically.
+ *
+ * Tool Categories:
+ * - Campaign Management: Create, list, and manage campaigns
+ * - PDF Processing: Upload, list, and process PDF files
+ * - General Utilities: Authentication and system tools
  */
 
 // Campaign-related tools
 import { campaignTools as importedCampaignTools } from "./campaign";
-// PDF-related tools have been moved to ./tools/pdfTools.ts
+// General tools for authentication and utilities
+import { generalTools } from "./general";
+// PDF-related tools for file management
 import { pdfTools as importedPdfTools } from "./pdf";
-// General tools
-import { tools as generalTools } from "./tools";
-
-console.log("DEBUG importedCampaignTools:", importedCampaignTools);
-console.log("DEBUG createCampaign tool:", importedCampaignTools.createCampaign);
-console.log(
-  "DEBUG createCampaign.description:",
-  importedCampaignTools.createCampaign.description
-);
-console.log(
-  "DEBUG createCampaign.parameters:",
-  importedCampaignTools.createCampaign.parameters
-);
 
 /**
  * Export all available tools
- * These will be provided to the AI model to describe available capabilities
+ *
+ * This object contains all tool definitions that will be provided to the AI model.
+ * Each tool includes a description, parameters schema, and execute function.
+ *
+ * @returns Object containing all available tools for AI model use
  */
 export const tools = {
   ...generalTools,
@@ -33,9 +33,13 @@ export const tools = {
 
 /**
  * Implementation of confirmation-required tools
- * This object contains the actual logic for tools that need human approval
- * Each function here corresponds to a tool above that doesn't have an execute function
- * NOTE: keys below should match toolsRequiringConfirmation in app.tsx
+ *
+ * This object contains the actual logic for tools that need human approval.
+ * Each function here corresponds to a tool above that doesn't have an execute function.
+ *
+ * These tools require user confirmation before execution for safety and control.
+ *
+ * @note Keys below should match toolsRequiringConfirmation in app.tsx
  */
 // Import the proper type for tool execution
 import type { ToolExecutionOptions } from "ai";

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { API_CONFIG } from "../constants";
 import { createAuthHeadersFromStorage } from "../lib/auth";
+import { useBaseAsync } from "./useBaseAsync";
 
 interface UseOpenAIKeyReturn {
   hasApiKey: boolean;
@@ -12,14 +13,9 @@ interface UseOpenAIKeyReturn {
 
 export function useOpenAIKey(): UseOpenAIKeyReturn {
   const [hasApiKey, setHasApiKey] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const checkApiKeyStatus = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
+  const checkApiKeyStatus = useBaseAsync(
+    async () => {
       // Get the session ID from localStorage to check the correct Chat Durable Object
       const sessionId = localStorage.getItem("chat-session-id") || "default";
 
@@ -48,21 +44,16 @@ export function useOpenAIKey(): UseOpenAIKeyReturn {
       console.log("User OpenAI key check result:", result);
 
       // Check if the user has a stored API key
-      setHasApiKey(result.hasUserStoredKey === true);
-    } catch (err) {
-      console.error("Error checking user OpenAI key status:", err);
-      // If we can't check, assume no API key
-      setHasApiKey(false);
-    } finally {
-      setIsLoading(false);
+      return result.hasUserStoredKey === true;
+    },
+    {
+      onSuccess: (hasKey) => setHasApiKey(hasKey),
+      onError: () => setHasApiKey(false),
     }
-  }, []);
+  );
 
-  const setApiKey = async (apiKey: string) => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
+  const setApiKey = useBaseAsync(
+    async (apiKey: string) => {
       // Get the session ID from localStorage to ensure we target the same Chat Durable Object
       const sessionId = localStorage.getItem("chat-session-id") || "default";
 
@@ -85,24 +76,29 @@ export function useOpenAIKey(): UseOpenAIKeyReturn {
         throw new Error("Failed to set API key");
       }
 
-      setHasApiKey(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to set API key");
-      throw err;
-    } finally {
-      setIsLoading(false);
+      return true;
+    },
+    {
+      onSuccess: () => setHasApiKey(true),
+      showToast: true,
+      successMessage: "API key set successfully!",
+      errorMessage: "Failed to set API key",
     }
-  };
+  );
 
   useEffect(() => {
-    checkApiKeyStatus();
-  }, [checkApiKeyStatus]);
+    checkApiKeyStatus.execute();
+  }, [checkApiKeyStatus.execute]); // Only run once on mount
 
   return {
     hasApiKey,
-    isLoading,
-    error,
-    setApiKey,
-    checkApiKeyStatus,
+    isLoading: checkApiKeyStatus.loading || setApiKey.loading,
+    error: checkApiKeyStatus.error || setApiKey.error,
+    setApiKey: async (apiKey: string) => {
+      await setApiKey.execute(apiKey);
+    },
+    checkApiKeyStatus: async () => {
+      await checkApiKeyStatus.execute();
+    },
   };
 }

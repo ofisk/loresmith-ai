@@ -235,7 +235,7 @@ export const PdfUpload = ({
               id="pdf-filename"
               placeholder="Name this mighty tome…"
               value={filename}
-              onValueChange={(value, isValid) => setFilename(value)}
+              onValueChange={(value, _isValid) => setFilename(value)}
               disabled={loading}
               className="[&:-webkit-autofill]:!bg-[#1a1a1a] [&:-webkit-autofill]:!text-white [&:-webkit-autofill]:!shadow-[0_0_0_1000px_#1a1a1a_inset] [&:-webkit-autofill]:!border-[#1a1a1a] [&:-webkit-autofill]:!transition-[background-color] [&:-webkit-autofill]:!duration-[999999s] [&:-webkit-autofill]:!delay-[999999s] [&:-webkit-autofill]:![-webkit-text-fill-color:white]"
             />
@@ -253,7 +253,7 @@ export const PdfUpload = ({
               id="pdf-description"
               placeholder="Describe the perils and promises within..."
               value={description}
-              onValueChange={(value, isValid) => setDescription(value)}
+              onValueChange={(value, _isValid) => setDescription(value)}
               disabled={loading}
               className="[&:-webkit-autofill]:!bg-[#1a1a1a] [&:-webkit-autofill]:!text-white [&:-webkit-autofill]:!shadow-[0_0_0_1000px_#1a1a1a_inset] [&:-webkit-autofill]:!border-[#1a1a1a] [&:-webkit-autofill]:!transition-[background-color] [&:-webkit-autofill]:!duration-[999999s] [&:-webkit-autofill]:!delay-[999999s] [&:-webkit-autofill]:![-webkit-text-fill-color:white]"
             />
@@ -271,16 +271,16 @@ export const PdfUpload = ({
               id="pdf-tags"
               placeholder="Mark this tome with its arcane keywords…"
               value={tagInput}
-              onValueChange={(value, isValid) => setTagInput(value)}
+              onValueChange={(value, _isValid) => setTagInput(value)}
               onKeyPress={handleTagKeyPress}
               disabled={loading}
               className="[&:-webkit-autofill]:!bg-[#1a1a1a] [&:-webkit-autofill]:!text-white [&:-webkit-autofill]:!shadow-[0_0_0_1000px_#1a1a1a_inset] [&:-webkit-autofill]:!border-[#1a1a1a] [&:-webkit-autofill]:!transition-[background-color] [&:-webkit-autofill]:!duration-[999999s] [&:-webkit-autofill]:!delay-[999999s] [&:-webkit-autofill]:![-webkit-text-fill-color:white]"
             />
             {tags.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 mt-2">
-                {tags.map((tag, index) => (
+                {tags.map((tag) => (
                   <span
-                    key={index}
+                    key={tag}
                     className="flex items-center bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-medium px-2.5 py-0.5 rounded-full"
                   >
                     {tag}
@@ -299,6 +299,7 @@ export const PdfUpload = ({
                         viewBox="0 0 24 24"
                         stroke="currentColor"
                       >
+                        <title>Remove tag</title>
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
@@ -343,6 +344,7 @@ export const PdfUpload = ({
                     stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
+                    <title>Upload complete</title>
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
