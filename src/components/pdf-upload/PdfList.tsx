@@ -79,20 +79,24 @@ export function PdfList() {
         {files.map((file) => (
           <div
             key={file.fileKey}
-            className="p-4 border rounded-lg bg-white shadow-sm"
+            className="p-4 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800"
           >
             <div className="flex justify-between items-start">
               <div className="flex-1">
-                <h4 className="font-medium text-gray-900">{file.fileName}</h4>
-                <p className="text-sm text-gray-500">
-                  Size: {(file.fileSize / 1024 / 1024).toFixed(2)} MB
-                </p>
-                <p className="text-sm text-gray-500">Status: {file.status}</p>
-                <p className="text-sm text-gray-500">
-                  Uploaded: {new Date(file.uploaded).toLocaleDateString()}
-                </p>
+                <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                  {file.fileName}
+                </h4>
+                <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <span>
+                    Size: {(file.fileSize / 1024 / 1024).toFixed(2)} MB
+                  </span>
+                  <span>•</span>
+                  <span>
+                    Uploaded: {new Date(file.uploaded).toLocaleString()}
+                  </span>
+                </div>
                 {file.metadata?.description && (
-                  <p className="text-sm text-gray-600 mt-2">
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
                     {file.metadata.description}
                   </p>
                 )}
@@ -101,7 +105,7 @@ export function PdfList() {
                     {file.metadata.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded"
+                        className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded"
                       >
                         {tag}
                       </span>
