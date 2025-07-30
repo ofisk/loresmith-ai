@@ -62,8 +62,8 @@
     },
     {
       "tag": "v4",
-      "deleted_classes": ["CampaignManager"]
-    }
+      "deleted_classes": ["CampaignManager"],
+    },
   ],
   "observability": {
     "enabled": true,

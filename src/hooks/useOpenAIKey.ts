@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { API_CONFIG } from "../constants";
 import { createAuthHeadersFromStorage } from "../lib/auth";
 import { useBaseAsync } from "./useBaseAsync";
@@ -13,6 +13,7 @@ interface UseOpenAIKeyReturn {
 
 export function useOpenAIKey(): UseOpenAIKeyReturn {
   const [hasApiKey, setHasApiKey] = useState<boolean>(false);
+  const hasCheckedRef = useRef(false);
 
   const checkApiKeyStatus = useBaseAsync(
     async () => {
@@ -87,8 +88,11 @@ export function useOpenAIKey(): UseOpenAIKeyReturn {
   );
 
   useEffect(() => {
-    checkApiKeyStatus.execute();
-  }, [checkApiKeyStatus.execute]); // Only run once on mount
+    if (!hasCheckedRef.current) {
+      hasCheckedRef.current = true;
+      checkApiKeyStatus.execute();
+    }
+  }, [checkApiKeyStatus.execute]);
 
   return {
     hasApiKey,
