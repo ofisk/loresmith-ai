@@ -47,7 +47,12 @@
       "index_name": "loresmith-embeddings",
     },
   ],
-
+  "migrations": [
+    {
+      "tag": "v2",
+      "delete_classes": ["CampaignManager"]
+    }
+  ],
   "observability": {
     "enabled": true,
   },
