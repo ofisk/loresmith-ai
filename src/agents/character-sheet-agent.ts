@@ -1,4 +1,4 @@
-import { characterSheetTools } from "../tools/characterSheet";
+import { characterSheetTools } from "../tools/character-sheet";
 import { BaseAgent } from "./base-agent";
 import {
   buildSystemPrompt,

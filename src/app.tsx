@@ -27,13 +27,13 @@ import { USER_MESSAGES } from "./constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
 import { useOpenAIKey } from "./hooks/useOpenAIKey";
 import type { campaignTools } from "./tools/campaign";
+import type { generalTools } from "./tools/general";
 import type { pdfTools } from "./tools/pdf";
-import type { tools } from "./tools/tools";
 
 // List of tools that require human confirmation
 // NOTE: this should match the keys in the executions object in tools.ts
 const toolsRequiringConfirmation: (
-  | keyof typeof tools
+  | keyof typeof generalTools
   | keyof typeof campaignTools
   | keyof typeof pdfTools
 )[] = [
@@ -45,8 +45,7 @@ const toolsRequiringConfirmation: (
   "updatePdfMetadata",
 
   // General tools that require confirmation
-  "scheduleTask",
-  "cancelScheduledTask",
+  "setAdminSecret",
 ];
 
 /**
@@ -186,7 +185,10 @@ export default function Chat() {
         part.type === "tool-invocation" &&
         part.toolInvocation.state === "call" &&
         toolsRequiringConfirmation.includes(
-          part.toolInvocation.toolName as keyof typeof tools
+          part.toolInvocation.toolName as
+            | keyof typeof generalTools
+            | keyof typeof campaignTools
+            | keyof typeof pdfTools
         )
     )
   );
@@ -400,7 +402,10 @@ export default function Chat() {
                               const toolCallId = toolInvocation.toolCallId;
                               const needsConfirmation =
                                 toolsRequiringConfirmation.includes(
-                                  toolInvocation.toolName as keyof typeof tools
+                                  toolInvocation.toolName as
+                                    | keyof typeof generalTools
+                                    | keyof typeof campaignTools
+                                    | keyof typeof pdfTools
                                 );
 
                               // Skip rendering the card in debug mode

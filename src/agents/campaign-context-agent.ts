@@ -1,4 +1,4 @@
-import { campaignContextTools } from "../tools/campaignContext";
+import { campaignContextTools } from "../tools/campaign-context";
 import { BaseAgent } from "./base-agent";
 import {
   buildSystemPrompt,
