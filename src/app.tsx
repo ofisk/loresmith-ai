@@ -180,27 +180,28 @@ export default function Chat() {
     const jwt = getStoredJwt();
     console.log("[App] handleHelpAction:", action);
 
-    let message = "";
+    let response = "";
     switch (action) {
       case "upload_resource":
-        message =
-          "I'd like to upload a resource to build my inspiration library. Can you point me to the Add Resources button?";
+        response =
+          "To upload resources to your inspiration library, look for the **'Add Resources'** button in the interface. This button will open a modal where you can upload PDF files and other resources. You can also drag and drop files directly onto the upload area for a quick upload experience.";
         break;
       case "create_campaign":
-        message =
-          "I want to create a new campaign. Can you help me set that up?";
+        response =
+          "To create a new campaign, look for the **'Create Campaign'** button. This will help you set up a new campaign with a name, description, and other details to organize your resources and planning.";
         break;
       case "start_chat":
-        message =
-          "I'd like to chat about my campaign ideas and get help developing them.";
+        response =
+          "You can start chatting with me right here! Just type your questions about campaign ideas, world building, character development, or any other GM topics. I'm here to help you develop your campaign ideas and provide guidance.";
         break;
       default:
-        message = `I need help with: ${action}`;
+        response = `I can help you with various tasks. For uploading resources, look for the 'Add Resources' button. For creating campaigns, use the 'Create Campaign' button. Or just start chatting with me about your campaign ideas!`;
     }
 
+    // Add the help response as an assistant message
     append({
-      role: "user",
-      content: message,
+      role: "assistant",
+      content: response,
       data: jwt ? { jwt } : undefined,
     });
     setInput("");
