@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { Modal } from "../modal/Modal";
 import { Button } from "../button/Button";
 import { Loader } from "../loader/Loader";
+import { Modal } from "../modal/Modal";
 
 /**
  * Props for the FormModal component
