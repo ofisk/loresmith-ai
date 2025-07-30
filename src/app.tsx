@@ -79,12 +79,11 @@ export default function Chat() {
     return (savedTheme as "dark" | "light") || "dark";
   });
   const { hasApiKey, isLoading: isApiKeyLoading, setApiKey } = useOpenAIKey();
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Show API key modal if no API key is available
-  const showApiKeyModal = !isApiKeyLoading && !hasApiKey;
 
   // Get session ID for this browser session
   const sessionId = getSessionId();
@@ -104,10 +103,6 @@ export default function Chat() {
     },
   });
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
   useEffect(() => {
     // Apply theme class on mount and when theme changes
     if (theme === "dark") {
@@ -121,11 +116,6 @@ export default function Chat() {
     // Save theme preference to localStorage
     localStorage.setItem("theme", theme);
   }, [theme]);
-
-  // Scroll to bottom on mount
-  useEffect(() => {
-    scrollToBottom();
-  }, [scrollToBottom]);
 
   const toggleTheme = () => {
     const newTheme = theme === "dark" ? "light" : "dark";
@@ -152,6 +142,23 @@ export default function Chat() {
     maxSteps: 5,
   });
 
+  // Scroll to bottom on mount - only if there are messages and not loading
+  useEffect(() => {
+    // Scroll to bottom once when the page loads with messages
+    if (agentMessages.length > 0 && !isLoading) {
+      const chatContainer = document.querySelector(".overflow-y-auto");
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+    }
+  }, [agentMessages.length, isLoading]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    // Only scroll when new messages are added, not on initial load
+    // This will be handled by the append function instead
+  }, []);
+
   // Function to handle suggested prompts
   const handleSuggestionSubmit = (suggestion: string) => {
     const jwt = getStoredJwt();
@@ -162,6 +169,8 @@ export default function Chat() {
       data: jwt ? { jwt } : undefined,
     });
     setInput("");
+    // Scroll to bottom after user sends a message
+    setTimeout(() => {}, 100);
   };
 
   // Enhanced clear history function that creates a new session
@@ -209,8 +218,15 @@ export default function Chat() {
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    agentMessages.length > 0 && scrollToBottom();
-  }, [agentMessages, scrollToBottom]);
+    // Only scroll if there are messages and we're not in the initial load
+    if (agentMessages.length > 0 && !isLoading) {
+      // Add a small delay to ensure the messages are rendered
+      const timer = setTimeout(() => {
+        // messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); // This line is removed
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [agentMessages.length, isLoading]);
 
   const pendingToolCallConfirmation = agentMessages.some((m: Message) =>
     m.parts?.some(
@@ -242,6 +258,8 @@ export default function Chat() {
     });
     setInput("");
     setTextareaHeight("auto"); // Reset height after submission
+    // Scroll to bottom after user sends a message
+    setTimeout(() => {}, 100);
   };
 
   // Enhanced key down handler that includes JWT
@@ -257,6 +275,8 @@ export default function Chat() {
       });
       setInput("");
       setTextareaHeight("auto"); // Reset height on Enter submission
+      // Scroll to bottom after user sends a message
+      setTimeout(() => {}, 100);
     }
   };
 
@@ -466,7 +486,6 @@ export default function Chat() {
                 </div>
               );
             })}
-            <div ref={messagesEndRef} />
           </div>
 
           {/* Chat-specific sections */}
