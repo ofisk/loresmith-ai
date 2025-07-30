@@ -2,16 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult, USER_MESSAGES } from "../../constants";
 import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
-import {
-  commonSchemas,
-  createToolError,
-  createToolSuccess,
-  extractUsernameFromJwt,
-  getEnvironment,
-  isDurableObjectContext,
-} from "../utils";
-
-// Resource management tools
+import { commonSchemas, createToolError, createToolSuccess } from "../utils";
 
 export const listCampaignResources = tool({
   description: "List all resources in a campaign",
@@ -23,33 +14,34 @@ export const listCampaignResources = tool({
     console.log("[Tool] listCampaignResources received JWT:", jwt);
 
     try {
-      const response = await fetch(
+      console.log("[listCampaignResources] Making API request");
+      const response = await authenticatedFetch(
         API_CONFIG.buildUrl(
           API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(campaignId)
         ),
         {
           method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            ...(jwt && { Authorization: `Bearer ${jwt}` }),
-          },
+          jwt,
         }
       );
 
       if (!response.ok) {
+        const authError = handleAuthError(response);
+        if (authError) {
+          return createToolError(authError, {
+            error: `HTTP ${response.status}`,
+          });
+        }
         return createToolError(
-          `${USER_MESSAGES.FAILED_TO_FETCH_RESOURCES}: ${response.status}`,
+          `Failed to list campaign resources: ${response.status}`,
           { error: `HTTP ${response.status}` }
         );
       }
 
       const result = (await response.json()) as {
-        resources: Array<{
-          type: string;
-          id: string;
-          name?: string;
-        }>;
+        resources: Array<{ type: string; id: string; name?: string }>;
       };
+      console.log("[listCampaignResources] API data:", result);
 
       return createToolSuccess(
         `${USER_MESSAGES.CAMPAIGN_RESOURCES_FOUND} ${campaignId}: ${result.resources.length} resource(s)`,
@@ -58,7 +50,7 @@ export const listCampaignResources = tool({
     } catch (error) {
       console.error("Error listing campaign resources:", error);
       return createToolError(
-        `${USER_MESSAGES.FAILED_TO_FETCH_RESOURCES}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to list campaign resources: ${error instanceof Error ? error.message : String(error)}`,
         { error: error instanceof Error ? error.message : String(error) }
       );
     }
@@ -66,139 +58,61 @@ export const listCampaignResources = tool({
 });
 
 export const addResourceToCampaign = tool({
-  description:
-    "Add a resource to a campaign. If campaignId is not provided, will attempt to find the best matching campaign based on the resource name or type.",
+  description: "Add a resource to a campaign",
   parameters: z.object({
-    campaignId: z
-      .string()
-      .optional()
-      .describe(
-        "The ID of the campaign to add the resource to (optional - will auto-detect if not provided)"
-      ),
-    resourceType: z
-      .enum(["pdf", "character", "note", "image"])
-      .describe("The type of resource to add"),
+    campaignId: commonSchemas.campaignId,
     resourceId: z.string().describe("The ID of the resource to add"),
-    resourceName: z
+    resourceType: z
       .string()
-      .optional()
-      .describe("The name of the resource (optional)"),
+      .describe("The type of resource (e.g., 'pdf', 'character-sheet')"),
     jwt: commonSchemas.jwt,
   }),
   execute: async ({
     campaignId,
-    resourceType,
     resourceId,
-    resourceName,
+    resourceType,
     jwt,
   }): Promise<ToolResult> => {
     console.log("[Tool] addResourceToCampaign received JWT:", jwt);
 
     try {
-      let targetCampaignId = campaignId;
-
-      // If no campaignId provided, try to find the best matching campaign
-      if (!targetCampaignId) {
-        try {
-          const campaignsResponse = await fetch(
-            API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
-            {
-              method: "GET",
-              headers: {
-                "Content-Type": "application/json",
-                ...(jwt && { Authorization: `Bearer ${jwt}` }),
-              },
-            }
-          );
-
-          if (campaignsResponse.ok) {
-            const campaignsResult = (await campaignsResponse.json()) as {
-              campaigns: Array<{
-                campaignId: string;
-                name: string;
-              }>;
-            };
-
-            if (
-              campaignsResult.campaigns &&
-              campaignsResult.campaigns.length > 0
-            ) {
-              // If there's only one campaign, use it
-              if (campaignsResult.campaigns.length === 1) {
-                targetCampaignId = campaignsResult.campaigns[0].campaignId;
-              } else {
-                // Try to find a campaign that matches the resource name
-                const resourceNameLower = (
-                  resourceName || resourceId
-                ).toLowerCase();
-                const matchingCampaign = campaignsResult.campaigns.find(
-                  (campaign) =>
-                    campaign.name.toLowerCase().includes(resourceNameLower) ||
-                    resourceNameLower.includes(campaign.name.toLowerCase())
-                );
-
-                if (matchingCampaign) {
-                  targetCampaignId = matchingCampaign.campaignId;
-                } else {
-                  // Use the first campaign as fallback
-                  targetCampaignId = campaignsResult.campaigns[0].campaignId;
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error("Error finding matching campaign:", error);
-        }
-      }
-
-      if (!targetCampaignId) {
-        return createToolError(
-          "No campaign found. Please create a campaign first or specify a campaign ID.",
-          { error: "No campaign available" }
-        );
-      }
-
-      const response = await fetch(
+      console.log("[addResourceToCampaign] Making API request");
+      const response = await authenticatedFetch(
         API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(targetCampaignId)
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(campaignId)
         ),
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(jwt && { Authorization: `Bearer ${jwt}` }),
-          },
+          jwt,
           body: JSON.stringify({
-            type: resourceType,
-            id: resourceId,
-            name: resourceName,
+            resourceId,
+            resourceType,
           }),
         }
       );
 
       if (!response.ok) {
+        const authError = handleAuthError(response);
+        if (authError) {
+          return createToolError(authError, {
+            error: `HTTP ${response.status}`,
+          });
+        }
         return createToolError(
-          `${USER_MESSAGES.FAILED_TO_ADD_RESOURCE}: ${response.status}`,
+          `Failed to add resource to campaign: ${response.status}`,
           { error: `HTTP ${response.status}` }
         );
       }
 
-      const result = (await response.json()) as {
-        resources: Array<{
-          type: string;
-          id: string;
-          name?: string;
-        }>;
-      };
-
+      console.log("[addResourceToCampaign] Resource added successfully");
       return createToolSuccess(
-        `${USER_MESSAGES.RESOURCE_ADDED} ${targetCampaignId}: ${resourceId}`,
-        { resources: result.resources }
+        `Resource "${resourceId}" has been added to campaign "${campaignId}" successfully.`,
+        { campaignId, resourceId, resourceType }
       );
     } catch (error) {
       console.error("Error adding resource to campaign:", error);
       return createToolError(
-        `Error adding resource to campaign: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to add resource to campaign: ${error instanceof Error ? error.message : String(error)}`,
         { error: error instanceof Error ? error.message : String(error) }
       );
     }
@@ -212,129 +126,43 @@ export const removeResourceFromCampaign = tool({
     resourceId: z.string().describe("The ID of the resource to remove"),
     jwt: commonSchemas.jwt,
   }),
-  execute: async (
-    { campaignId, resourceId, jwt },
-    context?: any
-  ): Promise<ToolResult> => {
-    console.log("[Tool] removeResourceFromCampaign received:", {
-      campaignId,
-      resourceId,
-    });
-    console.log("[Tool] removeResourceFromCampaign context:", context);
+  execute: async ({ campaignId, resourceId, jwt }): Promise<ToolResult> => {
+    console.log("[Tool] removeResourceFromCampaign received JWT:", jwt);
+
     try {
-      // Check if we have access to the environment through context
-      const env = getEnvironment(context);
-      const isDO = isDurableObjectContext(context);
-
-      if (isDO && env?.CampaignManager) {
-        console.log(
-          "[removeResourceFromCampaign] Running in Durable Object context, calling CampaignManager directly"
-        );
-
-        const username = extractUsernameFromJwt(jwt);
-        console.log(
-          "[removeResourceFromCampaign] Extracted username from JWT:",
-          username
-        );
-
-        const campaignManager = env.CampaignManager;
-        console.log(
-          "[removeResourceFromCampaign] CampaignManager binding:",
-          campaignManager
-        );
-        const campaignManagerId = campaignManager.idFromName(username);
-        console.log(
-          "[removeResourceFromCampaign] CampaignManager ID:",
-          campaignManagerId.toString()
-        );
-        const campaignManagerStub = campaignManager.get(campaignManagerId);
-        console.log(
-          "[removeResourceFromCampaign] CampaignManager stub:",
-          campaignManagerStub
-        );
-        const requestUrl = `${new URL("https://dummy-host").origin}/campaigns/${campaignId}/resources/${resourceId}`;
-        console.log(
-          "[removeResourceFromCampaign] Calling CampaignManager with URL:",
-          requestUrl
-        );
-        const response = await campaignManagerStub.fetch(requestUrl, {
+      console.log("[removeResourceFromCampaign] Making API request");
+      const response = await authenticatedFetch(
+        API_CONFIG.buildUrl(
+          `${API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(campaignId)}/${resourceId}`
+        ),
+        {
           method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-        });
-        console.log(
-          "[removeResourceFromCampaign] CampaignManager response status:",
-          response.status
-        );
-        console.log(
-          "[removeResourceFromCampaign] CampaignManager response ok:",
-          response.ok
-        );
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.log(
-            "[removeResourceFromCampaign] CampaignManager error response:",
-            errorText
-          );
-          return createToolError(
-            `Failed to remove resource: ${response.status}`,
-            { error: `HTTP ${response.status}` }
-          );
+          jwt,
         }
-        console.log(
-          "[removeResourceFromCampaign] Resource removed successfully"
-        );
-        return createToolSuccess(
-          `Successfully removed resource ${resourceId} from campaign ${campaignId}`,
-          {
-            campaignId,
-            resourceId,
-            removed: true,
-          }
-        );
-      } else {
-        // Fall back to HTTP API
-        console.log(
-          "[removeResourceFromCampaign] Running in HTTP context, making API request"
-        );
-        const response = await authenticatedFetch(
-          API_CONFIG.buildUrl(
-            API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(campaignId).replace(
-              "/resource",
-              `/resources/${resourceId}`
-            )
-          ),
-          {
-            method: "DELETE",
-            jwt,
-          }
-        );
+      );
 
-        if (!response.ok) {
-          const authError = handleAuthError(response);
-          if (authError) {
-            return createToolError(authError, {
-              error: `HTTP ${response.status}`,
-            });
-          }
-          return createToolError(
-            `Failed to remove resource: ${response.status}`,
-            { error: `HTTP ${response.status}` }
-          );
+      if (!response.ok) {
+        const authError = handleAuthError(response);
+        if (authError) {
+          return createToolError(authError, {
+            error: `HTTP ${response.status}`,
+          });
         }
-
-        return createToolSuccess(
-          `Successfully removed resource ${resourceId} from campaign ${campaignId}`,
-          {
-            campaignId,
-            resourceId,
-            removed: true,
-          }
+        return createToolError(
+          `Failed to remove resource from campaign: ${response.status}`,
+          { error: `HTTP ${response.status}` }
         );
       }
+
+      console.log("[removeResourceFromCampaign] Resource removed successfully");
+      return createToolSuccess(
+        `Resource "${resourceId}" has been removed from campaign "${campaignId}" successfully.`,
+        { campaignId, resourceId }
+      );
     } catch (error) {
       console.error("Error removing resource from campaign:", error);
       return createToolError(
-        `Failed to remove resource: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to remove resource from campaign: ${error instanceof Error ? error.message : String(error)}`,
         { error: error instanceof Error ? error.message : String(error) }
       );
     }
