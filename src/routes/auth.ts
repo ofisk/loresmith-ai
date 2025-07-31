@@ -90,7 +90,8 @@ export async function determineAgent(
   const intent = await AgentRouter.routeMessage(
     userMessage,
     recentContext,
-    ragService
+    ragService,
+    null // We don't have the model here, so it will create a new one
   );
 
   console.log(

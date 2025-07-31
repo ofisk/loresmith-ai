@@ -137,7 +137,7 @@ export class AgentRegistryService {
     agentType: string,
     ctx: DurableObjectState,
     env: any,
-    model: any
+    model?: any
   ): any {
     return AgentRouter.createAgentInstance(agentType, ctx, env, model);
   }
