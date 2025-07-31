@@ -129,7 +129,8 @@ export class Chat extends AIChatAgent<Env> {
         const agentInstance = AgentRegistryService.createAgentInstance(
           agentType as AgentType,
           this.ctx,
-          this.env
+          this.env,
+          modelManager.getModel()
         );
 
         // Store agent instances in the Map
@@ -218,6 +219,14 @@ export class Chat extends AIChatAgent<Env> {
     // Get the model from the global model manager
     const modelManager = ModelManager.getInstance();
     const model = modelManager.getModel();
+
+    // If no model is available, we can't route properly
+    if (!model) {
+      console.log(
+        "[Chat] No model available for agent routing, using default agent"
+      );
+      return "campaign-context";
+    }
 
     // Call the agent router directly with the model
     const { AgentRouter } = await import("./services/agent-router");

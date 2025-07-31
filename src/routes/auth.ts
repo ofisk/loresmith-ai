@@ -236,14 +236,14 @@ export async function handleCheckOpenAIKey(c: Context<{ Bindings: Env }>) {
   try {
     const username = c.req.query("username");
 
+    // If no username is provided, it means no default key is configured
+    // and the user will need to provide their own key
     if (!username) {
-      return c.json(
-        {
-          success: false,
-          error: "Username is required",
-        },
-        400
-      );
+      return c.json({
+        success: false,
+        hasKey: false,
+        requiresUserKey: true,
+      });
     }
 
     // Get the API key from D1 database
@@ -256,6 +256,7 @@ export async function handleCheckOpenAIKey(c: Context<{ Bindings: Env }>) {
     return c.json({
       success: true,
       hasKey: !!result?.api_key,
+      requiresUserKey: !result?.api_key,
     });
   } catch (error) {
     console.error("Error checking OpenAI key:", error);

@@ -53,9 +53,12 @@ export class ModelManager {
       // Auto-initialize with a default API key if not already initialized
       const defaultApiKey = process.env.OPENAI_API_KEY;
       if (!defaultApiKey) {
-        throw new Error(
-          "Model not initialized and no default OPENAI_API_KEY found in environment. Please call initializeModel() with a valid API key first."
+        // In production, users provide their own API keys, so this is expected
+        // Return null to indicate no model is available yet
+        console.log(
+          "[ModelManager] No default API key found - user must provide their own key"
         );
+        return null;
       }
       console.log(
         "[ModelManager] Auto-initializing model with default API key"
