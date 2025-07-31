@@ -184,6 +184,14 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
         );
         console.log(`[${this.constructor.name}] Model:`, this.model);
         console.log(
+          `[${this.constructor.name}] Model type:`,
+          typeof this.model
+        );
+        console.log(
+          `[${this.constructor.name}] Model constructor:`,
+          this.model?.constructor?.name
+        );
+        console.log(
           `[${this.constructor.name}] System prompt length:`,
           (this.constructor as any).agentMetadata.systemPrompt.length
         );
@@ -197,8 +205,62 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
         );
 
         try {
+          // Extract API key from JWT if available
+          let apiKey = null;
+          if (clientJwt) {
+            try {
+              const payload = JSON.parse(atob(clientJwt.split(".")[1]));
+              apiKey = payload.openaiApiKey;
+              console.log(
+                `[${this.constructor.name}] Using API key from JWT:`,
+                apiKey ? apiKey.substring(0, 20) + "..." : "none"
+              );
+            } catch (error) {
+              console.error(
+                `[${this.constructor.name}] Error extracting API key from JWT:`,
+                error
+              );
+            }
+          }
+
+          // Create model directly with API key if available
+          let modelToUse = this.model;
+          if (apiKey) {
+            console.log(
+              `[${this.constructor.name}] Creating new model with API key from JWT`
+            );
+            const { openai } = await import("@ai-sdk/openai");
+            const { MODEL_CONFIG } = await import("../constants");
+
+            // Set the API key in the environment temporarily
+            const originalApiKey = process.env.OPENAI_API_KEY;
+            process.env.OPENAI_API_KEY = apiKey;
+
+            try {
+              modelToUse = openai(MODEL_CONFIG.OPENAI.PRIMARY as any);
+              console.log(
+                `[${this.constructor.name}] New model created with API key:`,
+                modelToUse
+              );
+            } catch (error) {
+              console.error(
+                `[${this.constructor.name}] Error creating model with API key:`,
+                error
+              );
+              // Fall back to the original model
+              modelToUse = this.model;
+            } finally {
+              // Restore the original API key
+              if (originalApiKey === undefined) {
+                delete (process.env as any).OPENAI_API_KEY;
+              } else {
+                process.env.OPENAI_API_KEY = originalApiKey;
+              }
+            }
+          }
+
           const result = streamText({
-            model: this.model,
+            model: modelToUse,
             system: (this.constructor as any).agentMetadata.systemPrompt,
             toolChoice: "auto", // Allow the model to choose whether to use tools or respond directly
             messages: processedMessages,
