@@ -457,7 +457,7 @@ export default function Chat() {
             </div>
 
             <div className="flex-1">
-              <h2 className="font-semibold text-base">LoreSmith MCP Router</h2>
+              <h2 className="font-semibold text-base">LoreSmith</h2>
             </div>
 
             <div className="flex items-center gap-2 mr-2">

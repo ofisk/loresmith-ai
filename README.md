@@ -1,4 +1,4 @@
-# LoreSmith MCP Router
+# LoreSmith
 
 Dungeouns & Dragons(DND) RAG
 

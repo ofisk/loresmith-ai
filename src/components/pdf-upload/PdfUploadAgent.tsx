@@ -92,9 +92,22 @@ export const PdfUploadAgent = ({
 
         // Also check if we need to require OpenAI key when not authenticated
         try {
-          const response = await fetch(
-            API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY)
-          );
+          // Extract username from JWT if available
+          let username = null;
+          if (jwt) {
+            try {
+              const payload = JSON.parse(atob(jwt.split(".")[1]));
+              username = payload?.username;
+            } catch {
+              // JWT parsing failed, continue without username
+            }
+          }
+
+          const url = username
+            ? `${API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY)}?username=${encodeURIComponent(username)}`
+            : API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY);
+
+          const response = await fetch(url);
           const result = (await response.json()) as { success: boolean };
           console.log("Initial OpenAI key check:", result);
 
@@ -156,9 +169,23 @@ export const PdfUploadAgent = ({
     if (showAuthInput && !isAuthenticated) {
       const checkOpenAIRequirement = async () => {
         try {
-          const response = await fetch(
-            API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY)
-          );
+          // Extract username from JWT if available
+          let username = null;
+          const jwt = getStoredJwt();
+          if (jwt) {
+            try {
+              const payload = JSON.parse(atob(jwt.split(".")[1]));
+              username = payload?.username;
+            } catch {
+              // JWT parsing failed, continue without username
+            }
+          }
+
+          const url = username
+            ? `${API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY)}?username=${encodeURIComponent(username)}`
+            : API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY);
+
+          const response = await fetch(url);
           const result = (await response.json()) as { success: boolean };
           console.log("Auth form OpenAI key check:", result);
 
@@ -312,9 +339,23 @@ export const PdfUploadAgent = ({
 
       // Check if a default OpenAI key is available
       try {
-        const response = await fetch(
-          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY)
-        );
+        // Extract username from JWT if available
+        let username = null;
+        const jwt = getStoredJwt();
+        if (jwt) {
+          try {
+            const payload = JSON.parse(atob(jwt.split(".")[1]));
+            username = payload?.username;
+          } catch {
+            // JWT parsing failed, continue without username
+          }
+        }
+
+        const url = username
+          ? `${API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY)}?username=${encodeURIComponent(username)}`
+          : API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY);
+
+        const response = await fetch(url);
         const result = (await response.json()) as { success: boolean };
 
         console.log("OpenAI key check result:", result);
