@@ -160,14 +160,25 @@ export const ingestPdfFile = tool({
   parameters: z.object({
     fileKey: z.string().describe("The file key of the PDF file to ingest"),
     filename: z.string().describe("The filename of the PDF file to ingest"),
+    fileSize: z.number().optional().describe("The size of the file in bytes"),
     jwt: z
       .string()
       .nullable()
       .optional()
       .describe("JWT token for authentication"),
   }),
-  execute: async ({ fileKey, filename, jwt }): Promise<ToolResult> => {
-    console.log("[Tool] ingestPdfFile received:", { fileKey, filename, jwt });
+  execute: async ({
+    fileKey,
+    filename,
+    fileSize,
+    jwt,
+  }): Promise<ToolResult> => {
+    console.log("[Tool] ingestPdfFile received:", {
+      fileKey,
+      filename,
+      fileSize,
+      jwt,
+    });
     try {
       console.log("[ingestPdfFile] Using JWT:", jwt);
 
@@ -179,7 +190,7 @@ export const ingestPdfFile = tool({
             "Content-Type": "application/json",
             ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
           },
-          body: JSON.stringify({ fileKey, filename }),
+          body: JSON.stringify({ fileKey, filename, fileSize }),
         }
       );
 

@@ -33,6 +33,7 @@ import {
   handleIngestPdf,
   handleGetPdfFiles,
   handleUpdatePdfMetadata,
+  handleAutoGeneratePdfMetadata,
   handleGetPdfStats,
 } from "./routes/pdf";
 import {
@@ -403,6 +404,11 @@ app.put("/pdf/upload/*", requireUserJwt, handleCompleteUpload);
 app.post("/pdf/ingest", requireUserJwt, handleIngestPdf);
 app.get("/pdf/files", requireUserJwt, handleGetPdfFiles);
 app.post("/pdf/update-metadata", requireUserJwt, handleUpdatePdfMetadata);
+app.post(
+  "/pdf/auto-generate-metadata",
+  requireUserJwt,
+  handleAutoGeneratePdfMetadata
+);
 app.get("/pdf/stats", requireUserJwt, handleGetPdfStats);
 
 // RAG Routes

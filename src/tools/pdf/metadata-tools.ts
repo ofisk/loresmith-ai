@@ -123,3 +123,70 @@ export const updatePdfMetadata = tool({
     }
   },
 });
+
+export const autoGeneratePdfMetadata = tool({
+  description:
+    "Auto-generate description and tags for an existing PDF file based on its content",
+  parameters: z.object({
+    fileKey: z
+      .string()
+      .describe("The file key of the PDF file to auto-generate metadata for"),
+    jwt: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("JWT token for authentication"),
+  }),
+  execute: async ({ fileKey, jwt }): Promise<ToolResult> => {
+    console.log("[Tool] autoGeneratePdfMetadata received:", { fileKey, jwt });
+    try {
+      console.log("[autoGeneratePdfMetadata] Using JWT:", jwt);
+
+      const url = API_CONFIG.buildUrl(
+        API_CONFIG.ENDPOINTS.PDF.AUTO_GENERATE_METADATA
+      );
+      console.log("[autoGeneratePdfMetadata] Making request to:", url);
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+        },
+        body: JSON.stringify({ fileKey }),
+      });
+      console.log(
+        "[autoGeneratePdfMetadata] Response status:",
+        response.status
+      );
+
+      const result = (await response.json()) as {
+        message?: string;
+        data?: unknown;
+        error?: string;
+      };
+      console.log("[autoGeneratePdfMetadata] Response:", result);
+
+      if (response.ok) {
+        return {
+          code: 200,
+          message: result.message || "Metadata auto-generated successfully",
+          data: result.data,
+        };
+      } else {
+        return {
+          code: response.status,
+          message:
+            result.error ||
+            `Failed to auto-generate metadata: ${response.status}`,
+          data: result.data,
+        };
+      }
+    } catch (error) {
+      console.error("[autoGeneratePdfMetadata] Error:", error);
+      return {
+        code: 500,
+        message: `Failed to auto-generate metadata: ${error}`,
+      };
+    }
+  },
+});

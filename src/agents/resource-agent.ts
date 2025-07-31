@@ -33,6 +33,7 @@ const RESOURCE_SYSTEM_PROMPT = buildSystemPrompt({
     "Statistics: When users ask about PDF statistics, call the getPdfStats tool",
     "Processing: Guide users through the PDF upload and processing workflow",
     "Uploaded Files: When users mention they have uploaded a file, use updatePdfMetadata and ingestPdfFile tools",
+    "Auto-Generation: When users ask to auto-generate metadata for existing files, use autoGeneratePdfMetadata tool",
   ],
   importantNotes: [
     "ALWAYS use tools instead of just responding with text",
@@ -41,10 +42,12 @@ const RESOURCE_SYSTEM_PROMPT = buildSystemPrompt({
     "When users ask about PDF statistics, call the getPdfStats tool",
     "When users mention they have uploaded a file, use updatePdfMetadata to update metadata",
     "When users mention they have uploaded a file, use ingestPdfFile to process the file",
+    "When users ask to auto-generate metadata for existing files, use autoGeneratePdfMetadata tool",
     "Generate upload URL with generatePdfUploadUrl",
     "Upload the file using the provided URL",
     "Process the file with ingestPdfFile",
     "Update metadata as needed with updatePdfMetadata",
+    "Auto-generate metadata for existing files with autoGeneratePdfMetadata",
     "NEVER try to add files to campaigns - that's handled by the campaign agent",
   ],
   specialization:
