@@ -326,7 +326,18 @@ export class Chat extends AIChatAgent<Env> {
       };
       const { username, adminKey, openaiApiKey } = body;
 
+      console.log("[handleAuthenticate] Request body:", {
+        username,
+        adminKey: adminKey ? "***" : undefined,
+        openaiApiKey: openaiApiKey ? "***" : undefined,
+      });
+
       if (!username || !adminKey || !openaiApiKey) {
+        console.log("[handleAuthenticate] Missing required fields:", {
+          hasUsername: !!username,
+          hasAdminKey: !!adminKey,
+          hasOpenAIKey: !!openaiApiKey,
+        });
         return new Response(
           JSON.stringify({
             success: false,
@@ -359,12 +370,17 @@ export class Chat extends AIChatAgent<Env> {
       }
 
       // Store OpenAI API key in database
+      console.log(
+        "[handleAuthenticate] Storing OpenAI API key in database for user:",
+        username
+      );
       await this.env.DB.prepare(
         `INSERT OR REPLACE INTO user_openai_keys (username, api_key, updated_at) 
          VALUES (?, ?, CURRENT_TIMESTAMP)`
       )
         .bind(username, openaiApiKey)
         .run();
+      console.log("[handleAuthenticate] OpenAI API key stored successfully");
 
       return new Response(
         JSON.stringify({
@@ -829,20 +845,15 @@ export class Chat extends AIChatAgent<Env> {
           "[Chat] No OpenAI API key found for user, sending authentication request"
         );
 
-        // Send a special response that the frontend can detect to show the auth modal
+        // Send a special error that the frontend can detect to show the auth modal
         // This handles all three use cases:
         // 1. First time login: no keys set
         // 2. JWT expiry: keys exist but JWT expired
         // 3. User logout: keys were removed
-        console.log(
-          "[Chat] Calling onFinish with AUTHENTICATION_REQUIRED message"
+        console.log("[Chat] Throwing authentication error");
+        throw new Error(
+          "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
         );
-        onFinish({
-          content:
-            "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first.",
-        } as any);
-        console.log("[Chat] onFinish called successfully");
-        return;
       }
 
       // Initialize agents with the API key from database
@@ -1106,6 +1117,7 @@ app.post("/authenticate", async (c) => {
       providedKey: providedKey
         ? `${providedKey.substring(0, 10)}...`
         : "undefined",
+      openaiApiKey: openaiApiKey ? "***" : "undefined",
     });
 
     const result = await authenticateUser(
@@ -1116,6 +1128,21 @@ app.post("/authenticate", async (c) => {
     if (!result.success) {
       console.log("[auth/authenticate] Authentication failed:", result.error);
       return c.json({ error: result.error }, 401);
+    }
+
+    // Store OpenAI API key in database
+    if (openaiApiKey) {
+      console.log(
+        "[auth/authenticate] Storing OpenAI API key in database for user:",
+        username
+      );
+      await c.env.DB.prepare(
+        `INSERT OR REPLACE INTO user_openai_keys (username, api_key, updated_at) 
+         VALUES (?, ?, CURRENT_TIMESTAMP)`
+      )
+        .bind(username, openaiApiKey)
+        .run();
+      console.log("[auth/authenticate] OpenAI API key stored successfully");
     }
 
     console.log("[auth/authenticate] Authentication successful");

@@ -109,17 +109,22 @@ export default function Chat() {
       if (response.ok && result.hasKey) {
         setStoredOpenAIKey(result.apiKey || "");
       } else {
-        // No stored key found, but don't show modal yet - let the user try to use the app first
+        // No stored key found, show the auth modal immediately
         console.log("[App] No stored OpenAI key found for user:", username);
+        console.log("[App] Showing auth modal immediately");
+        setShowAuthModal(true);
       }
     } catch (error) {
       console.error("Error checking stored OpenAI key:", error);
-      // Don't show modal on error - let the user try to use the app first
+      // Show modal on error as well
+      console.log("[App] Error checking stored key, showing auth modal");
+      setShowAuthModal(true);
     }
   }, []);
 
   // Check authentication status on mount
   useEffect(() => {
+    console.log("[App] useEffect running - checking authentication status");
     const jwt = getStoredJwt();
     if (jwt) {
       try {
@@ -129,18 +134,22 @@ export default function Chat() {
           // Check if JWT is expired
           if (isJwtExpired(jwt)) {
             // JWT expired, show auth modal
+            console.log("[App] JWT expired, showing auth modal");
             setShowAuthModal(true);
           } else {
             // JWT valid, check if we have stored OpenAI key
+            console.log("[App] JWT valid, checking stored OpenAI key");
             checkStoredOpenAIKey(payload.username);
           }
         }
       } catch (error) {
         console.error("Error parsing JWT:", error);
+        console.log("[App] Error parsing JWT, showing auth modal");
         setShowAuthModal(true);
       }
     } else {
       // No JWT, show auth modal
+      console.log("[App] No JWT, showing auth modal");
       setShowAuthModal(true);
     }
   }, [checkStoredOpenAIKey, getStoredJwt]);
@@ -258,8 +267,13 @@ export default function Chat() {
       console.log("[App] Error type:", typeof error);
       console.log("[App] Error constructor:", error.constructor.name);
       // Check if the error is related to missing OpenAI API key
-      if (error.message.includes("OpenAI API key required")) {
-        console.log("[App] OpenAI API key error detected, showing auth modal");
+      if (
+        error.message.includes("AUTHENTICATION_REQUIRED:") ||
+        error.message.includes("OpenAI API key required")
+      ) {
+        console.log(
+          "[App] Authentication required error detected, showing auth modal"
+        );
         setShowAuthModal(true);
       } else {
         console.log("[App] Different error type, not showing auth modal");
@@ -293,13 +307,6 @@ export default function Chat() {
   const handleSuggestionSubmit = (suggestion: string) => {
     const jwt = getStoredJwt();
     console.log("[App] handleSuggestionSubmit sending JWT:", jwt);
-
-    // Check if we have a stored OpenAI key
-    if (!storedOpenAIKey) {
-      console.log("[App] No stored OpenAI key, showing auth modal");
-      setShowAuthModal(true);
-      return;
-    }
 
     // Always send the message to the agent - let the agent handle auth requirements
     append({
@@ -393,13 +400,6 @@ export default function Chat() {
     const jwt = getStoredJwt();
     console.log("[App] handleFormSubmit sending JWT:", jwt);
 
-    // Check if we have a stored OpenAI key
-    if (!storedOpenAIKey) {
-      console.log("[App] No stored OpenAI key, showing auth modal");
-      setShowAuthModal(true);
-      return;
-    }
-
     // Always send the message to the agent - let the agent handle auth requirements
     // The agent will detect missing keys and trigger the auth modal via onFinish callback
     append({
@@ -421,13 +421,6 @@ export default function Chat() {
 
       const jwt = getStoredJwt();
       console.log("[App] handleKeyDown sending JWT:", jwt);
-
-      // Check if we have a stored OpenAI key
-      if (!storedOpenAIKey) {
-        console.log("[App] No stored OpenAI key, showing auth modal");
-        setShowAuthModal(true);
-        return;
-      }
 
       // Always send the message to the agent - let the agent handle auth requirements
       // The agent will detect missing keys and trigger the auth modal via onFinish callback
