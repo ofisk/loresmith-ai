@@ -399,3 +399,39 @@ export function setNestedValue(obj: any, path: string, value: any): void {
   }, obj);
   target[lastKey] = value;
 }
+
+/**
+ * Utility function to safely retrieve secrets from the environment
+ * Uses Cloudflare's recommended approach: direct access
+ */
+export async function getSecretFromEnv(
+  env: any,
+  key: string
+): Promise<string | null> {
+  try {
+    const secret = await env[key].get();
+
+    if (!secret) {
+      console.log(`[getSecretFromEnv] No secret found for key: ${key}`);
+      return null;
+    }
+
+    console.log(`[getSecretFromEnv] Secret type for ${key}:`, typeof secret);
+
+    // Use direct access like in Cloudflare docs
+    if (typeof secret === "string") {
+      console.log(`[getSecretFromEnv] Using direct string value for ${key}`);
+      return secret;
+    }
+
+    // For objects, try direct access first (like env.DB_CONNECTION_STRING in docs)
+    console.log(`[getSecretFromEnv] Using direct object access for ${key}`);
+    return secret as any;
+  } catch (error) {
+    console.error(
+      `[getSecretFromEnv] Error retrieving secret for ${key}:`,
+      error
+    );
+    return null;
+  }
+}

@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import { Button } from "@/components/button/Button";
-import { Card } from "@/components/card/Card";
 import { Input } from "@/components/input/Input";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +38,7 @@ export const PdfUpload = ({
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
-  const [isValid, setIsValid] = useState(false);
+  const [_isValid, setIsValid] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [initialValues, setInitialValues] = useState({
     filename: "",
@@ -248,7 +247,7 @@ export const PdfUpload = ({
               id="pdf-filename"
               placeholder="Name this mighty tome…"
               value={filename}
-              onValueChange={(value, isValid) => setFilename(value)}
+              onValueChange={(value, _isValid) => setFilename(value)}
               disabled={loading}
               className="w-full"
             />
@@ -264,7 +263,7 @@ export const PdfUpload = ({
               id="pdf-description"
               placeholder="Describe the perils and promises within..."
               value={description}
-              onValueChange={(value, isValid) => setDescription(value)}
+              onValueChange={(value, _isValid) => setDescription(value)}
               disabled={loading}
               className="w-full"
             />
@@ -280,7 +279,7 @@ export const PdfUpload = ({
               id="pdf-tags"
               placeholder="Mark this tome with its arcane keywords…"
               value={tagInput}
-              onValueChange={(value, isValid) => setTagInput(value)}
+              onValueChange={(value, _isValid) => setTagInput(value)}
               onKeyPress={handleTagKeyPress}
               disabled={loading}
               className="w-full"

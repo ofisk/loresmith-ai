@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useTooltip } from "@/providers/TooltipProvider";
 
@@ -55,6 +55,45 @@ export const Tooltip = ({ children, className, content, id }: TooltipProps) => {
     }
   }, [isVisible]);
 
+  // Check if children is a button element to avoid nesting
+  const isButtonChild =
+    React.isValidElement(children) &&
+    (children.type === "button" ||
+      (typeof children.type === "function" &&
+        children.type.name === "ButtonComponent"));
+
+  if (isButtonChild) {
+    return (
+      <span
+        aria-describedby={isVisible ? tooltipId : undefined}
+        className={cn("relative inline-block", className)}
+      >
+        {children}
+        {isVisible && (
+          <span
+            aria-hidden={!isVisible}
+            className={cn(
+              "bg-ob-base-1000 text-ob-inverted absolute w-max rounded-md px-2 py-1 text-sm shadow before:absolute before:top-0 before:left-0 before:size-full before:scale-[1.5] before:bg-transparent",
+              {
+                "left-0 translate-x-0": positionX === "left",
+                "right-0 translate-x-0": positionX === "right",
+                "left-1/2 -translate-x-1/2": positionX === "center",
+                "-bottom-7": positionY === "bottom",
+                "-top-7": positionY === "top",
+              }
+            )}
+            id={tooltipId}
+            ref={tooltipRef}
+            role="tooltip"
+          >
+            {content}
+          </span>
+        )}
+      </span>
+    );
+  }
+
+  // Otherwise, render as a button for accessibility
   return (
     <button
       type="button"
@@ -81,6 +120,7 @@ export const Tooltip = ({ children, className, content, id }: TooltipProps) => {
         }
       }}
       onBlur={() => hideTooltip()}
+      tabIndex={0}
     >
       {children}
       {isVisible && (

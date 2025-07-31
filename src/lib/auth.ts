@@ -1,10 +1,10 @@
 import type { JWTPayload } from "jose";
 import { jwtVerify, SignJWT } from "jose";
+import { getSecretFromEnv } from "@/utils/common";
 
 export interface AuthPayload extends JWTPayload {
   type: "user-auth";
   username: string;
-  openaiApiKey?: string;
 }
 
 export interface AuthEnv {
@@ -23,8 +23,6 @@ export interface AuthRequest {
 export interface AuthResponse {
   success: boolean;
   token?: string;
-  hasDefaultOpenAIKey?: boolean;
-  requiresOpenAIKey?: boolean;
   error?: string;
 }
 
@@ -36,13 +34,13 @@ export interface AuthContext {
  * Get JWT secret from environment
  */
 export async function getJwtSecret(env: AuthEnv): Promise<Uint8Array> {
-  // Use admin secret for JWT signing
-  const secret = env.ADMIN_SECRET || "default-secret-key";
+  const secret =
+    (await getSecretFromEnv(env, "ADMIN_SECRET")) || "default-secret-key";
   return new TextEncoder().encode(secret);
 }
 
 /**
- * Simple authentication based on username whitelist
+ * Combined authentication - validates admin key and OpenAI API key, then generates JWT
  */
 export async function authenticateUser(
   request: AuthRequest,
@@ -50,17 +48,8 @@ export async function authenticateUser(
 ): Promise<AuthResponse> {
   const { username, openaiApiKey, providedKey } = request;
 
-  console.log("[authenticateUser] Starting authentication process");
-  console.log("[authenticateUser] Request data:", {
-    username: username ? `${username.substring(0, 10)}...` : "undefined",
-    hasOpenAIKey: !!openaiApiKey,
-    hasProvidedKey: !!providedKey,
-    providedKeyLength: providedKey?.length || 0,
-  });
-
   // Validate required fields
   if (!username || typeof username !== "string" || username.trim() === "") {
-    console.log("[authenticateUser] Username validation failed");
     return {
       success: false,
       error: "Username is required",
@@ -72,52 +61,27 @@ export async function authenticateUser(
     typeof providedKey !== "string" ||
     providedKey.trim() === ""
   ) {
-    console.log(
-      "[authenticateUser] Admin key validation failed - missing or empty"
-    );
     return {
       success: false,
       error: "Admin key is required",
     };
   }
 
-  // Simple access control: check if admin key is valid
-  const validAdminKey = env.ADMIN_SECRET || "undefined-admin-key";
+  if (
+    !openaiApiKey ||
+    typeof openaiApiKey !== "string" ||
+    openaiApiKey.trim() === ""
+  ) {
+    return {
+      success: false,
+      error: "OpenAI API key is required",
+    };
+  }
 
-  console.log("[authenticateUser] Environment check:", {
-    hasAdminSecret: !!env.ADMIN_SECRET,
-    validAdminKeyLength: validAdminKey?.length || 0,
-    validAdminKeyPrefix: validAdminKey
-      ? `${validAdminKey.substring(0, 4)}...`
-      : "undefined",
-  });
-
-  const isValidAdminKey = providedKey.trim() === validAdminKey;
-
-  const envAdminSecretValue = env.ADMIN_SECRET || null;
-  console.log("Admin key validation:", {
-    providedKey: providedKey
-      ? `${providedKey.substring(0, 4)}...`
-      : "undefined",
-    validAdminKey: validAdminKey
-      ? `${validAdminKey.substring(0, 4)}...`
-      : "undefined",
-    providedKeyLength: providedKey?.length || 0,
-    validAdminKeyLength: validAdminKey?.length || 0,
-    providedKeyTrimmed: providedKey?.trim(),
-    validAdminKeyTrimmed: validAdminKey?.trim(),
-    areEqual: providedKey.trim() === validAdminKey,
-    areEqualTrimmed: providedKey.trim() === validAdminKey.trim(),
-    envHasAdminSecret: !!env.ADMIN_SECRET,
-    envAdminSecretValue: envAdminSecretValue
-      ? `${envAdminSecretValue.substring(0, 4)}...`
-      : "undefined",
-  });
-
-  if (!isValidAdminKey) {
-    console.log(
-      "[authenticateUser] Admin key validation failed - keys don't match"
-    );
+  // Validate admin key
+  const validAdminKey =
+    (await getSecretFromEnv(env, "ADMIN_SECRET")) || "undefined-admin-key";
+  if (providedKey.trim() !== validAdminKey) {
     return {
       success: false,
       error:
@@ -125,25 +89,10 @@ export async function authenticateUser(
     };
   }
 
-  console.log("[authenticateUser] Admin key validation successful");
-
-  // Check for default OpenAI key
-  const hasDefaultOpenAIKey =
-    !!env.OPENAI_API_KEY && env.OPENAI_API_KEY.trim().length > 0;
-
-  console.log("[authenticateUser] OpenAI key check:", {
-    hasDefaultOpenAIKey,
-    hasUserOpenAIKey: !!openaiApiKey,
-  });
-
-  // Determine which API key to use (optional during authentication)
-  const finalApiKey = openaiApiKey?.trim() || null;
-
-  // Generate JWT (OpenAI API key is optional and can be set later)
+  // Generate JWT (OpenAI key stored separately in database)
   const jwtPayload: AuthPayload = {
     type: "user-auth",
     username: username.trim(),
-    ...(finalApiKey && { openaiApiKey: finalApiKey }),
   };
 
   try {
@@ -154,12 +103,9 @@ export async function authenticateUser(
       .setExpirationTime("1d")
       .sign(jwtSecret);
 
-    console.log("[authenticateUser] JWT generated successfully");
     return {
       success: true,
       token: jwt,
-      hasDefaultOpenAIKey,
-      requiresOpenAIKey: !hasDefaultOpenAIKey && !finalApiKey,
     };
   } catch (error) {
     console.error("JWT generation error:", error);
