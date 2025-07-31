@@ -187,6 +187,15 @@ PDF files are processed through a secure pipeline:
 4. Add tests for new functionality
 5. Submit a pull request
 
+## Documentation
+
+For detailed information about specific aspects of the project, see:
+
+- **[Storage Strategy](docs/STORAGE_STRATEGY.md)** - Comprehensive guide to data storage architecture using Cloudflare D1, R2, and Durable Objects
+- **[Large File Support](docs/LARGE_FILE_SUPPORT.md)** - Details on handling large PDF files (up to 500MB) for D&D rulebooks and campaign guides
+- **[Model Configuration](docs/MODEL_CONFIGURATION.md)** - Guide to configuring and changing AI models used throughout the application
+- **[Testing Guide](docs/TESTING_GUIDE.md)** - Comprehensive testing documentation and campaign workflow test suite
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
