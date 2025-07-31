@@ -74,6 +74,15 @@ const CAMPAIGN_SYSTEM_PROMPT = buildSystemPrompt({
  * ```
  */
 export class CampaignAgent extends BaseAgent {
+  /** Agent metadata for registration and routing */
+  static readonly agentMetadata = {
+    type: "campaign",
+    description:
+      "Handles campaign management, session planning, world building, creating/listing/updating campaigns, and overall campaign coordination.",
+    systemPrompt: CAMPAIGN_SYSTEM_PROMPT,
+    tools: campaignTools,
+  };
+
   /**
    * Creates a new CampaignAgent instance.
    *
@@ -82,6 +91,6 @@ export class CampaignAgent extends BaseAgent {
    * @param model - The AI model instance for generating responses
    */
   constructor(ctx: DurableObjectState, env: any, model: any) {
-    super(ctx, env, model, campaignTools, CAMPAIGN_SYSTEM_PROMPT);
+    super(ctx, env, model, campaignTools);
   }
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { USER_MESSAGES } from "../../constants";
 import { useAsyncOperation } from "../../hooks/useAsyncOperation";
-import { authenticatedFetchWithExpiration } from "../../lib/auth";
+import { authenticatedFetchWithExpiration } from "../../services/auth-service";
 import { API_CONFIG } from "../../shared";
 import type { Campaign, CampaignListProps } from "../../types/campaign";
 import { AsyncList } from "../ui/AsyncList";

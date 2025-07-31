@@ -41,8 +41,13 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
   /** Collection of tools available to this agent */
   protected tools: Record<string, any>;
 
-  /** The system prompt that defines the agent's behavior and capabilities */
-  protected systemPrompt: string;
+  /** Agent metadata for registration and routing */
+  static readonly agentMetadata = {
+    type: "", // Will be set by subclasses
+    description: "", // Will be set by subclasses
+    systemPrompt: "", // Will be set by subclasses
+    tools: {} as Record<string, any>, // Will be set by subclasses
+  };
 
   /**
    * Creates a new BaseAgent instance.
@@ -57,13 +62,12 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
     ctx: DurableObjectState,
     env: Env,
     model: any,
-    tools: Record<string, any>,
-    systemPrompt: string
+    tools: Record<string, any>
   ) {
     super(ctx, env);
     this.model = model;
     this.tools = tools;
-    this.systemPrompt = systemPrompt;
+    // systemPrompt is now stored in static agentMetadata
   }
 
   /**
@@ -181,7 +185,7 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
         console.log(`[${this.constructor.name}] Model:`, this.model);
         console.log(
           `[${this.constructor.name}] System prompt length:`,
-          this.systemPrompt.length
+          (this.constructor as any).agentMetadata.systemPrompt.length
         );
         console.log(
           `[${this.constructor.name}] Processed messages count:`,
@@ -195,7 +199,7 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
         try {
           const result = streamText({
             model: this.model,
-            system: this.systemPrompt,
+            system: (this.constructor as any).agentMetadata.systemPrompt,
             toolChoice: "auto", // Allow the model to choose whether to use tools or respond directly
             messages: processedMessages,
             tools: enhancedTools,

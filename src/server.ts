@@ -2,20 +2,65 @@ import { openai } from "@ai-sdk/openai";
 import { routeAgentRequest, type Schedule } from "agents";
 import { AIChatAgent } from "agents/ai-chat-agent";
 import { generateId, type StreamTextOnFinishCallback, type ToolSet } from "ai";
-import type { Context } from "hono";
 import { Hono } from "hono";
-import { jwtVerify } from "jose";
-import { CampaignAgent } from "./agents/campaign-agent";
-import { CampaignContextAgent } from "./agents/campaign-context-agent";
-import { CharacterSheetAgent } from "./agents/character-sheet-agent";
-import { ResourceAgent } from "./agents/resource-agent";
 import { MODEL_CONFIG } from "./constants";
-import type { AuthEnv } from "./lib/auth";
-import { type AuthPayload, authenticateUser, getJwtSecret } from "./lib/auth";
-import { RAGService } from "./lib/rag";
-import type { ProcessingProgress, ProgressMessage } from "./types/progress";
-import { AssessmentService } from "./lib/assessmentService";
-import type { Campaign } from "./types/campaign";
+import type { AuthEnv } from "./services/auth-service";
+import type { AgentType } from "./services/agent-router";
+import {
+  handleAuthenticate,
+  handleGetOpenAIKey,
+  handleStoreOpenAIKey,
+  handleDeleteOpenAIKey,
+  handleCheckOpenAIKey,
+  handleSetOpenAIApiKey,
+  handleCheckUserOpenAIKey,
+  requireUserJwt,
+  determineAgent as determineAgentFromAuth,
+} from "./routes/auth";
+import { AuthService } from "./services/auth-service";
+import {
+  handleGetCampaigns,
+  handleCreateCampaign,
+  handleGetCampaign,
+  handleGetCampaignResources,
+  handleDeleteCampaign,
+  handleDeleteAllCampaigns,
+} from "./routes/campaigns";
+import {
+  handleGenerateUploadUrl,
+  handleCompleteUpload,
+  handleUploadPart,
+  handleIngestPdf,
+  handleGetPdfFiles,
+  handleUpdatePdfMetadata,
+  handleGetPdfStats,
+} from "./routes/pdf";
+import {
+  handleRagSearch,
+  handleProcessPdfForRag,
+  handleProcessPdfFromR2ForRag,
+  handleUpdatePdfMetadataForRag,
+  handleGetPdfFilesForRag,
+  handleGetPdfChunksForRag,
+  handleDeletePdfForRag,
+} from "./routes/rag";
+import {
+  handleGetUserState,
+  handleGetAssessmentRecommendations,
+  handleGetUserActivity,
+  handleModuleIntegration,
+} from "./routes/assessment";
+import {
+  handleGetWelcomeGuidance,
+  handleGetNextActions,
+  handleGetStateAnalysis,
+} from "./routes/onboarding";
+import {
+  handleGetExternalResourceRecommendations,
+  handleGetExternalResourceSearch,
+  handleGetGmResources,
+} from "./routes/external-resources";
+import { handleProgressWebSocket } from "./routes/progress";
 
 interface Env extends AuthEnv {
   ADMIN_SECRET?: string;
@@ -27,155 +72,21 @@ interface Env extends AuthEnv {
   UserFileTracker: DurableObjectNamespace;
 }
 
-// Progress tracking store
-const progressStore = new Map<string, ProcessingProgress>();
-const progressSubscribers = new Map<string, Set<WebSocket>>();
-
-// Progress management functions
-function updateProgress(fileKey: string, progress: ProcessingProgress) {
-  progressStore.set(fileKey, progress);
-
-  // Notify subscribers
-  const subscribers = progressSubscribers.get(fileKey);
-  if (subscribers) {
-    const message: ProgressMessage = {
-      type: "progress_update",
-      data: progress,
-    };
-
-    subscribers.forEach((ws) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(message));
-      }
-    });
-  }
-}
-
-function subscribeToProgress(fileKey: string, ws: WebSocket) {
-  if (!progressSubscribers.has(fileKey)) {
-    progressSubscribers.set(fileKey, new Set());
-  }
-  progressSubscribers.get(fileKey)!.add(ws);
-
-  // Send current progress if available
-  const currentProgress = progressStore.get(fileKey);
-  if (currentProgress) {
-    const message: ProgressMessage = {
-      type: "progress_update",
-      data: currentProgress,
-    };
-    ws.send(JSON.stringify(message));
-  }
-}
-
-function unsubscribeFromProgress(fileKey: string, ws: WebSocket) {
-  const subscribers = progressSubscribers.get(fileKey);
-  if (subscribers) {
-    subscribers.delete(ws);
-    if (subscribers.size === 0) {
-      progressSubscribers.delete(fileKey);
-    }
-  }
-}
-
-function completeProgress(
-  fileKey: string,
-  success: boolean,
-  error?: string,
-  suggestedMetadata?: any
-) {
-  const message: ProgressMessage = {
-    type: "progress_complete",
-    data: {
-      fileKey,
-      success,
-      error,
-      suggestedMetadata,
-    },
-  };
-
-  const subscribers = progressSubscribers.get(fileKey);
-  if (subscribers) {
-    subscribers.forEach((ws) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(message));
-      }
-    });
-    progressSubscribers.delete(fileKey);
-  }
-
-  progressStore.delete(fileKey);
-}
-
-// Helper to set user auth context
-function setUserAuth(c: Context, payload: AuthPayload) {
-  (c as any).userAuth = payload;
-}
-
-// Middleware to require JWT for mutating endpoints
-async function requireUserJwt(
-  c: Context,
-  next: () => Promise<void>
-): Promise<Response | undefined> {
-  const authHeader = c.req.header("Authorization");
-  console.log(
-    "[requireUserJwt] Auth header:",
-    authHeader ? `${authHeader.substring(0, 20)}...` : "undefined"
-  );
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    console.log("[requireUserJwt] Missing or invalid Authorization header");
-    return c.json({ error: "Missing or invalid Authorization header" }, 401);
-  }
-
-  const token = authHeader.slice(7);
-  console.log(
-    "[requireUserJwt] Token:",
-    token ? `${token.substring(0, 20)}...` : "undefined"
-  );
-
-  try {
-    const jwtSecret = await getJwtSecret(c.env);
-    console.log("[requireUserJwt] JWT secret length:", jwtSecret.length);
-
-    const { payload } = await jwtVerify(token, jwtSecret);
-    console.log("[requireUserJwt] JWT payload:", payload);
-
-    if (!payload || payload.type !== "user-auth") {
-      console.log("[requireUserJwt] Invalid token payload:", payload);
-      return c.json({ error: "Invalid token" }, 401);
-    }
-
-    // Attach user info to context
-    setUserAuth(c, payload as AuthPayload);
-    console.log("[requireUserJwt] User auth set:", payload);
-    await next();
-  } catch (err) {
-    console.error("[requireUserJwt] JWT verification error:", err);
-    return c.json({ error: "Invalid or expired token" }, 401);
-  }
-}
-
-console.log("Server file loaded and running");
+// Progress tracking store (moved to services/progress.ts)
 
 /**
  * Chat Agent implementation that routes to specialized agents based on user intent
  */
 export class Chat extends AIChatAgent<Env> {
-  private campaignAgent: CampaignAgent;
-  private campaignContextAgent: CampaignContextAgent;
-  private characterSheetAgent: CharacterSheetAgent;
-  private resourceAgent: ResourceAgent;
+  private agents: Map<string, any> = new Map();
   private userOpenAIKey: string | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
 
     // Initialize agents lazily - only when API key is available
-    this.campaignAgent = null as any;
-    this.campaignContextAgent = null as any;
-    this.characterSheetAgent = null as any;
-    this.resourceAgent = null as any;
+    // Initialize agents Map (will be populated when agents are created)
+    this.agents = new Map();
 
     // Load user's OpenAI key from storage if available
     this.loadUserOpenAIKey();
@@ -188,10 +99,9 @@ export class Chat extends AIChatAgent<Env> {
     try {
       const storedKey = await this.ctx.storage.get<string>("userOpenAIKey");
       if (storedKey) {
-        this.userOpenAIKey = storedKey;
         console.log("Loaded user OpenAI API key from storage");
-        // Initialize agents with the stored key
-        this.initializeAgents(storedKey);
+        this.userOpenAIKey = storedKey;
+        await this.initializeAgents(storedKey);
       }
     } catch (error) {
       console.error("Error loading user OpenAI API key:", error);
@@ -201,7 +111,7 @@ export class Chat extends AIChatAgent<Env> {
   /**
    * Initialize agents with the provided API key
    */
-  private initializeAgents(apiKey: string) {
+  private async initializeAgents(apiKey: string) {
     try {
       // Set the API key in the environment for the model creation
       const originalApiKey = process.env.OPENAI_API_KEY;
@@ -211,21 +121,30 @@ export class Chat extends AIChatAgent<Env> {
         // Create the model - it will use the API key from the environment
         const model = openai(MODEL_CONFIG.OPENAI.PRIMARY as any);
 
-        // Initialize all agents with the new model
-        this.campaignAgent = new CampaignAgent(this.ctx, this.env, model);
-        this.campaignContextAgent = new CampaignContextAgent(
-          this.ctx,
-          this.env,
-          model
+        // Import the agent registry to ensure agents are registered
+        const { AgentRegistryService } = await import(
+          "./services/agent-registry"
         );
-        this.characterSheetAgent = new CharacterSheetAgent(
-          this.ctx,
-          this.env,
-          model
-        );
-        this.resourceAgent = new ResourceAgent(this.ctx, this.env, model);
 
-        console.log("Agents initialized successfully with user API key");
+        // Initialize all agents dynamically using the registry
+        const registeredAgentTypes =
+          AgentRegistryService.getRegisteredAgentTypes();
+
+        for (const agentType of registeredAgentTypes) {
+          const agentInstance = AgentRegistryService.createAgentInstance(
+            agentType as AgentType,
+            this.ctx,
+            this.env,
+            model
+          );
+
+          // Store agent instances in the Map
+          this.agents.set(agentType, agentInstance);
+        }
+
+        console.log(
+          `Agents initialized successfully with user API key: ${registeredAgentTypes.join(", ")}`
+        );
 
         // Keep the API key in the environment for the agents to use
         // Don't restore the original value since the agents need this API key
@@ -244,23 +163,54 @@ export class Chat extends AIChatAgent<Env> {
     }
   }
 
+  // OpenAIKeyCache interface implementation
+  getCachedKey(): string | null {
+    return this.userOpenAIKey;
+  }
+
   /**
-   * Set the user's OpenAI API key and update all agents
+   * Set the user's OpenAI API key and initialize all agents with the new key.
+   * This is called when a user explicitly sets their API key (e.g., via HTTP request).
+   *
+   * @param apiKey - The OpenAI API key to set
    */
-  setUserOpenAIKey(apiKey: string) {
+  async setUserOpenAIKey(apiKey: string) {
     this.userOpenAIKey = apiKey;
     // Store the API key in the durable object state
     this.ctx.storage.put("userOpenAIKey", apiKey);
 
     // Initialize agents with the new API key
-    this.initializeAgents(apiKey);
+    await this.initializeAgents(apiKey);
   }
 
   /**
-   * Get the user's OpenAI API key if available
+   * Handle HTTP request to set user's OpenAI API key.
+   * This is the HTTP endpoint handler that validates the request and calls setUserOpenAIKey().
+   *
+   * @param request - The HTTP request containing the API key
+   * @returns Promise<Response> - HTTP response indicating success/failure
    */
-  getUserOpenAIKey(): string | null {
-    return this.userOpenAIKey;
+  private async handleSetUserOpenAIKeyRequest(
+    request: Request
+  ): Promise<Response> {
+    return AuthService.handleSetUserOpenAIKey(request, this);
+  }
+
+  /**
+   * Cache the user's OpenAI API key without initializing agents.
+   * This is part of the OpenAIKeyCache interface and is called when loading
+   * keys from the database during caching operations.
+   *
+   * @param key - The OpenAI API key to cache
+   */
+  async setCachedKey(key: string): Promise<void> {
+    this.userOpenAIKey = key;
+    await this.ctx.storage.put("userOpenAIKey", key);
+  }
+
+  async clearCachedKey(): Promise<void> {
+    this.userOpenAIKey = null;
+    await this.ctx.storage.delete("userOpenAIKey");
   }
 
   /**
@@ -270,24 +220,8 @@ export class Chat extends AIChatAgent<Env> {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    if (path === "/store-openai-key") {
-      return this.handleStoreOpenAIKey(request);
-    }
-
-    if (path === "/get-openai-key") {
-      return this.handleGetOpenAIKey(request);
-    }
-
-    if (path === "/delete-openai-key") {
-      return this.handleDeleteOpenAIKey(request);
-    }
-
-    if (path === "/check-openai-key") {
-      return this.handleCheckOpenAIKey(request);
-    }
-
-    if (path === "/authenticate") {
-      return this.handleAuthenticate(request);
+    if (path === "/set-user-openai-key") {
+      return this.handleSetUserOpenAIKeyRequest(request);
     }
 
     // For all other requests, use the parent class implementation
@@ -295,495 +229,11 @@ export class Chat extends AIChatAgent<Env> {
   }
 
   /**
-   * Get OpenAI API key from database for a specific user
-   */
-  private async getUserOpenAIKeyFromDB(
-    username: string
-  ): Promise<string | null> {
-    try {
-      const result = await this.env.DB.prepare(
-        `SELECT api_key FROM user_openai_keys WHERE username = ?`
-      )
-        .bind(username)
-        .first();
-
-      return (result as any)?.api_key || null;
-    } catch (error) {
-      console.error("Error getting user OpenAI key from DB:", error);
-      return null;
-    }
-  }
-
-  /**
-   * Handle combined authentication (admin key + OpenAI API key)
-   */
-  private async handleAuthenticate(request: Request): Promise<Response> {
-    try {
-      const body = (await request.json()) as {
-        username?: string;
-        adminKey?: string;
-        openaiApiKey?: string;
-      };
-      const { username, adminKey, openaiApiKey } = body;
-
-      console.log("[handleAuthenticate] Request body:", {
-        username,
-        adminKey: adminKey ? "***" : undefined,
-        openaiApiKey: openaiApiKey ? "***" : undefined,
-      });
-
-      if (!username || !adminKey || !openaiApiKey) {
-        console.log("[handleAuthenticate] Missing required fields:", {
-          hasUsername: !!username,
-          hasAdminKey: !!adminKey,
-          hasOpenAIKey: !!openaiApiKey,
-        });
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: "Username, admin key, and OpenAI API key are required",
-          }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      // Authenticate user with both keys
-      const authResult = await authenticateUser(
-        { username, providedKey: adminKey, openaiApiKey },
-        this.env
-      );
-
-      if (!authResult.success) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: authResult.error,
-          }),
-          {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      // Store OpenAI API key in database
-      console.log(
-        "[handleAuthenticate] Storing OpenAI API key in database for user:",
-        username
-      );
-      await this.env.DB.prepare(
-        `INSERT OR REPLACE INTO user_openai_keys (username, api_key, updated_at) 
-         VALUES (?, ?, CURRENT_TIMESTAMP)`
-      )
-        .bind(username, openaiApiKey)
-        .run();
-      console.log("[handleAuthenticate] OpenAI API key stored successfully");
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          token: authResult.token,
-          message: "Authentication successful",
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    } catch (error) {
-      console.error("Error in handleAuthenticate:", error);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Internal server error",
-        }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-  }
-
-  /**
-   * Handle checking if OpenAI key is required
-   */
-  private async handleCheckOpenAIKey(request: Request): Promise<Response> {
-    try {
-      const url = new URL(request.url);
-      const username = url.searchParams.get("username");
-
-      if (!username) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: "Username is required",
-          }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      // Get the API key from D1 database
-      const result = await this.env.DB.prepare(
-        `SELECT api_key FROM user_openai_keys WHERE username = ?`
-      )
-        .bind(username)
-        .first();
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          hasKey: !!result?.api_key,
-        }),
-        {
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    } catch (error) {
-      console.error("Error checking OpenAI key:", error);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Failed to check OpenAI key",
-        }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-  }
-
-  private async handleStoreOpenAIKey(request: Request): Promise<Response> {
-    try {
-      const body = (await request.json()) as {
-        username: string;
-        apiKey: string;
-      };
-      const { username, apiKey } = body;
-
-      if (!username || !apiKey) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: "Username and API key are required",
-          }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      // Store the API key in D1 database
-      await this.env.DB.prepare(
-        `INSERT OR REPLACE INTO user_openai_keys (username, api_key, created_at, updated_at) 
-         VALUES (?, ?, datetime('now'), datetime('now'))`
-      )
-        .bind(username, apiKey)
-        .run();
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "OpenAI API key stored successfully",
-        }),
-        {
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    } catch (error) {
-      console.error("Error storing OpenAI key:", error);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Failed to store OpenAI key",
-        }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-  }
-
-  private async handleGetOpenAIKey(request: Request): Promise<Response> {
-    try {
-      const url = new URL(request.url);
-      const username = url.searchParams.get("username");
-
-      if (!username) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: "Username is required",
-          }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      // Get the API key from D1 database
-      const result = await this.env.DB.prepare(
-        `SELECT api_key FROM user_openai_keys WHERE username = ?`
-      )
-        .bind(username)
-        .first();
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          hasKey: !!result?.api_key,
-          apiKey: result?.api_key || null,
-        }),
-        {
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    } catch (error) {
-      console.error("Error getting OpenAI key:", error);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Failed to get OpenAI key",
-        }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-  }
-
-  private async handleDeleteOpenAIKey(request: Request): Promise<Response> {
-    try {
-      const body = (await request.json()) as { username: string };
-      const { username } = body;
-
-      if (!username) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: "Username is required",
-          }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      // Delete the API key from D1 database
-      await this.env.DB.prepare(
-        `DELETE FROM user_openai_keys WHERE username = ?`
-      )
-        .bind(username)
-        .run();
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "OpenAI API key deleted successfully",
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    } catch (error) {
-      console.error("Error deleting OpenAI key:", error);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Failed to delete OpenAI key",
-        }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-  }
-
-  /**
    * Determines which specialized agent should handle the user's request
    * based on keywords and intent in the message and conversation context
    */
-  private determineAgent(
-    userMessage: string
-  ): "campaign" | "campaign-context" | "character-sheets" | "resources" {
-    const lowerMessage = userMessage.toLowerCase();
-
-    // Check for retry/continue context - if the last few messages were campaign-related
-    if (
-      lowerMessage.includes("retry") ||
-      lowerMessage.includes("continue") ||
-      lowerMessage.includes("again")
-    ) {
-      // Look at recent conversation context to determine what to retry
-      const recentMessages = this.messages.slice(-6); // Last 6 messages
-      const recentContext = recentMessages
-        .map((msg) => msg.content)
-        .join(" ")
-        .toLowerCase();
-
-      // If recent context contains campaign keywords, route to campaign-context
-      const campaignContextKeywords = [
-        "campaign",
-        "character",
-        "backstory",
-        "curse of strahd",
-        "barovia",
-        "strahd",
-        "melian",
-        "baron la croix",
-        "endinel",
-        "istelle",
-        "calbis",
-        "avren",
-        "horror",
-        "d&d",
-        "dungeons and dragons",
-        "session",
-        "planning",
-      ];
-
-      if (
-        campaignContextKeywords.some((keyword) =>
-          recentContext.includes(keyword)
-        )
-      ) {
-        return "campaign";
-      }
-    }
-
-    // Campaign management keywords (CampaignAgent)
-    const campaignKeywords = [
-      "campaign",
-      "campaigns",
-      "create campaign",
-      "list campaigns",
-      "show campaigns",
-      "campaign details",
-      "add resource to campaign",
-      "campaign resource",
-      "delete campaign",
-      "update campaign",
-      "campaign management",
-      "campaign planning",
-      "session planning",
-      "world building",
-      "campaign tone",
-      "setting preferences",
-      "special considerations",
-      // Character names and specific campaign content
-      "melian",
-      "baron la croix",
-      "endinel",
-      "istelle",
-      "calbis",
-      "avren",
-      "curse of strahd",
-      "barovia",
-      "strahd",
-      "horror",
-      "d&d",
-      "dungeons and dragons",
-    ];
-
-    // Campaign context keywords (CampaignContextAgent)
-    const campaignContextKeywords = [
-      "character backstory",
-      "player characters",
-      "party composition",
-      "store character",
-      "get character",
-      "search character",
-      "character info",
-      "store context",
-      "get context",
-      "search context",
-      "campaign context",
-      "create character",
-      "character creation",
-      "backstory",
-      "personality",
-      "goals",
-      "relationships",
-      "npc",
-      "non-player character",
-      "world description",
-      "session notes",
-      "plot hooks",
-      "player preferences",
-    ];
-
-    // Character sheet keywords (CharacterSheetAgent)
-    const characterSheetKeywords = [
-      "character sheet",
-      "upload character sheet",
-      "process character sheet",
-      "list character sheets",
-      "create character from chat",
-      "character sheet file",
-      "pdf character sheet",
-      "docx character sheet",
-      "character sheet upload",
-      "character sheet processing",
-    ];
-
-    // Resource/PDF-related keywords (for uploads and management)
-    const resourceKeywords = [
-      "pdf",
-      "upload",
-      "file",
-      "files",
-      "document",
-      "documents",
-      "list pdf",
-      "upload pdf",
-      "pdf stats",
-      "pdf metadata",
-      "ingest pdf",
-      "process pdf",
-      "delete pdf",
-      "update pdf",
-    ];
-
-    // Check for character sheet intent (highest priority for specific file operations)
-    if (
-      characterSheetKeywords.some((keyword) => lowerMessage.includes(keyword))
-    ) {
-      return "character-sheets";
-    }
-
-    // Check for campaign context intent (character creation, backstories, etc.)
-    if (
-      campaignContextKeywords.some((keyword) => lowerMessage.includes(keyword))
-    ) {
-      return "campaign-context";
-    }
-
-    // Check for campaign management intent
-    if (campaignKeywords.some((keyword) => lowerMessage.includes(keyword))) {
-      return "campaign";
-    }
-
-    // Check for resource-related intent (PDF management only)
-    if (resourceKeywords.some((keyword) => lowerMessage.includes(keyword))) {
-      return "resources";
-    }
-
-    // Default to campaign-context for unknown intents
-    return "campaign";
+  private async determineAgent(userMessage: string): Promise<string> {
+    return determineAgentFromAuth(userMessage, this.messages, this.env);
   }
 
   /**
@@ -795,49 +245,27 @@ export class Chat extends AIChatAgent<Env> {
     _options?: { abortSignal?: AbortSignal }
   ) {
     // Check if agents are initialized, and try to initialize them if not
-    if (!this.campaignAgent || !this.resourceAgent) {
+    if (this.agents.size === 0) {
       // Get the username from the JWT in the messages
       const lastUserMessage = this.messages
         .slice()
         .reverse()
         .find((msg) => msg.role === "user");
 
-      let username: string | null = null;
-
-      // Try to extract username from JWT in the message data
-      if (
-        lastUserMessage?.data &&
-        typeof lastUserMessage.data === "object" &&
-        "jwt" in lastUserMessage.data
-      ) {
-        try {
-          const jwt = (lastUserMessage.data as any).jwt;
-          const payload = JSON.parse(atob(jwt.split(".")[1]));
-          username = payload.username;
-        } catch (error) {
-          console.error("Error parsing JWT for username:", error);
-        }
-      }
+      const username = lastUserMessage
+        ? AuthService.extractUsernameFromMessage(lastUserMessage)
+        : null;
 
       if (!username) {
         throw new Error("Unable to determine user. Please authenticate again.");
       }
 
-      // Get API key from database using username from JWT
-      let apiKey: string | null = null;
-      try {
-        if (lastUserMessage?.data) {
-          const jwt = (lastUserMessage.data as any).jwt;
-          const payload = JSON.parse(atob(jwt.split(".")[1]));
-          const username = payload.username;
-
-          if (username) {
-            apiKey = await this.getUserOpenAIKeyFromDB(username);
-          }
-        }
-      } catch (error) {
-        console.error("Error getting API key from database:", error);
-      }
+      // Get API key from database (with caching)
+      const apiKey = await AuthService.loadUserOpenAIKeyWithCache(
+        username,
+        this.env.DB,
+        this
+      );
 
       if (!apiKey) {
         // Send a proper error response to the frontend so it can show the auth modal
@@ -856,9 +284,8 @@ export class Chat extends AIChatAgent<Env> {
         );
       }
 
-      // Initialize agents with the API key from database
-      this.userOpenAIKey = apiKey;
-      this.initializeAgents(apiKey);
+      // Initialize agents with the API key (already cached)
+      await this.initializeAgents(apiKey);
     }
 
     // Get the last user message to determine routing
@@ -877,7 +304,7 @@ export class Chat extends AIChatAgent<Env> {
     }
 
     // Determine which agent should handle this request
-    const targetAgent = this.determineAgent(lastUserMessage.content);
+    const targetAgent = await this.determineAgent(lastUserMessage.content);
     console.log(
       `[Chat] Routing to ${targetAgent} agent for message: "${lastUserMessage.content}"`
     );
@@ -895,38 +322,23 @@ export class Chat extends AIChatAgent<Env> {
   /**
    * Get the appropriate agent instance based on the target type
    */
-  private getAgentInstance(
-    targetAgent:
-      | "campaign"
-      | "campaign-context"
-      | "character-sheets"
-      | "resources"
-  ): any {
+  private getAgentInstance(targetAgent: string): any {
     // Check if agents are initialized
-    if (
-      !this.campaignAgent ||
-      !this.campaignContextAgent ||
-      !this.characterSheetAgent ||
-      !this.resourceAgent
-    ) {
-      // Agents should be initialized by onChatMessage before this is called
+    if (this.agents.size === 0) {
       throw new Error(
         "Agents not initialized. Please set an OpenAI API key first."
       );
     }
 
-    switch (targetAgent) {
-      case "campaign":
-        return this.campaignAgent;
-      case "campaign-context":
-        return this.campaignContextAgent;
-      case "character-sheets":
-        return this.characterSheetAgent;
-      case "resources":
-        return this.resourceAgent;
-      default:
-        return this.campaignAgent;
+    const agentInstance = this.agents.get(targetAgent);
+    if (!agentInstance) {
+      // Fallback to first available agent if the requested one doesn't exist
+      const firstAgent = this.agents.values().next().value;
+      console.warn(`Agent '${targetAgent}' not found, using fallback agent`);
+      return firstAgent;
     }
+
+    return agentInstance;
   }
 
   async executeTask(description: string, _task: Schedule<string>) {
@@ -974,1054 +386,104 @@ app.use("*", async (c, next) => {
   );
 });
 
-app.get("/check-open-ai-key", (c) => {
-  const envKey =
-    !!c.env.OPENAI_API_KEY && c.env.OPENAI_API_KEY.trim().length > 0;
-  const processKey =
-    !!process.env.OPENAI_API_KEY &&
-    process.env.OPENAI_API_KEY.trim().length > 0 &&
-    process.env.OPENAI_API_KEY !== "undefined";
-  const hasOpenAIKey = envKey || processKey;
-
-  console.log("OpenAI key check:", {
-    envKey,
-    processKey,
-    hasOpenAIKey,
-    envKeyValue: c.env.OPENAI_API_KEY,
-    envKeyLength: c.env.OPENAI_API_KEY?.length || 0,
-    processKeyValue: process.env.OPENAI_API_KEY,
-    processKeyLength: process.env.OPENAI_API_KEY?.length || 0,
-  });
-
-  return c.json({
-    success: hasOpenAIKey,
-    debug: {
-      envKey,
-      processKey,
-      hasOpenAIKey,
-      envKeyValue: c.env.OPENAI_API_KEY,
-      envKeyLength: c.env.OPENAI_API_KEY?.length || 0,
-      processKeyValue: process.env.OPENAI_API_KEY,
-      processKeyLength: process.env.OPENAI_API_KEY?.length || 0,
-    },
-  });
-});
-
-app.get("/check-user-openai-key", async (c) => {
-  try {
-    // Check if user has already set an API key in their session
-    const sessionId = c.req.header("X-Session-ID") || "default";
-    const chatId = c.env.Chat.idFromName(sessionId);
-    const chat = c.env.Chat.get(chatId);
-
-    // Try to get the user's stored API key
-    const response = await chat.fetch(
-      new Request(`${new URL(c.req.url).origin}/get-user-openai-key`, {
-        method: "GET",
-      })
-    );
-
-    if (response.ok) {
-      const result = (await response.json()) as { apiKey?: string };
-      const hasUserStoredKey =
-        !!result.apiKey && result.apiKey.trim().length > 0;
-
-      console.log("User OpenAI key check:", {
-        sessionId,
-        hasUserStoredKey,
-        apiKeyLength: result.apiKey?.length || 0,
-      });
-
-      return c.json({
-        success: hasUserStoredKey,
-        hasUserStoredKey,
-      });
-    }
-
-    return c.json({ success: false, hasUserStoredKey: false });
-  } catch (error) {
-    console.error("Error checking user OpenAI key:", error);
-    return c.json({ success: false, hasUserStoredKey: false });
-  }
-});
-
-// Set user's OpenAI API key in Chat durable object
-app.post("/chat/set-openai-key", async (c) => {
-  try {
-    const { openaiApiKey } = await c.req.json();
-    if (
-      !openaiApiKey ||
-      typeof openaiApiKey !== "string" ||
-      openaiApiKey.trim() === ""
-    ) {
-      return c.json({ error: "OpenAI API key is required" }, 400);
-    }
-
-    // Validate the OpenAI API key
-    try {
-      const testResponse = await fetch("https://api.openai.com/v1/models", {
-        headers: {
-          Authorization: `Bearer ${openaiApiKey.trim()}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!testResponse.ok) {
-        return c.json({ error: "Invalid OpenAI API key" }, 400);
-      }
-    } catch (error) {
-      console.error("Error validating OpenAI API key:", error);
-      return c.json({ error: "Failed to validate OpenAI API key" }, 400);
-    }
-
-    // Get the Chat durable object for this session
-    const sessionId = c.req.header("X-Session-ID") || "default";
-    const chatId = c.env.Chat.idFromName(sessionId);
-    const chat = c.env.Chat.get(chatId);
-
-    // Call the Chat durable object to set the API key
-    const response = await chat.fetch(
-      new Request(`${new URL(c.req.url).origin}/set-openai-key`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${c.req.header("Authorization")}`,
-        },
-        body: JSON.stringify({ openaiApiKey: openaiApiKey.trim() }),
-      })
-    );
-
-    if (!response.ok) {
-      const error = await response.text();
-      return c.json({ error: `Failed to set OpenAI API key: ${error}` }, 500);
-    }
-
-    return c.json({
-      success: true,
-      message: "OpenAI API key set successfully",
-    });
-  } catch (error) {
-    console.error("Error setting OpenAI API key:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// User Authentication Route (returns JWT)
-app.post("/authenticate", async (c) => {
-  try {
-    const { username, openaiApiKey, providedKey } = await c.req.json();
-    const sessionId = c.req.header("X-Session-ID") || "default";
-
-    console.log("[auth/authenticate] Request received:", {
-      username,
-      providedKey: providedKey
-        ? `${providedKey.substring(0, 10)}...`
-        : "undefined",
-      openaiApiKey: openaiApiKey ? "***" : "undefined",
-    });
-
-    const result = await authenticateUser(
-      { username, openaiApiKey, providedKey, sessionId },
-      c.env
-    );
-
-    if (!result.success) {
-      console.log("[auth/authenticate] Authentication failed:", result.error);
-      return c.json({ error: result.error }, 401);
-    }
-
-    // Store OpenAI API key in database
-    if (openaiApiKey) {
-      console.log(
-        "[auth/authenticate] Storing OpenAI API key in database for user:",
-        username
-      );
-      await c.env.DB.prepare(
-        `INSERT OR REPLACE INTO user_openai_keys (username, api_key, updated_at) 
-         VALUES (?, ?, CURRENT_TIMESTAMP)`
-      )
-        .bind(username, openaiApiKey)
-        .run();
-      console.log("[auth/authenticate] OpenAI API key stored successfully");
-    }
-
-    console.log("[auth/authenticate] Authentication successful");
-    return c.json({
-      token: result.token,
-    });
-  } catch (error) {
-    console.error("Authentication error:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// OpenAI Key Management Routes
-app.get("/get-openai-key", async (c) => {
-  try {
-    const username = c.req.query("username");
-    if (!username) {
-      return c.json({ error: "username parameter is required" }, 400);
-    }
-
-    const result = await c.env.DB.prepare(
-      `SELECT api_key FROM user_openai_keys WHERE username = ?`
-    )
-      .bind(username)
-      .first();
-
-    const hasKey = !!(result as any)?.api_key;
-    return c.json({
-      hasKey,
-      apiKey: hasKey ? (result as any).api_key : undefined,
-    });
-  } catch (error) {
-    console.error("Error getting OpenAI key:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-app.post("/store-openai-key", async (c) => {
-  try {
-    const { username, apiKey } = await c.req.json();
-    if (!username || !apiKey) {
-      return c.json({ error: "username and apiKey are required" }, 400);
-    }
-
-    await c.env.DB.prepare(
-      `INSERT OR REPLACE INTO user_openai_keys (username, api_key, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`
-    )
-      .bind(username, apiKey)
-      .run();
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.error("Error storing OpenAI key:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-app.delete("/delete-openai-key", async (c) => {
-  try {
-    const { username } = await c.req.json();
-    if (!username) {
-      return c.json({ error: "username is required" }, 400);
-    }
-
-    await c.env.DB.prepare(`DELETE FROM user_openai_keys WHERE username = ?`)
-      .bind(username)
-      .run();
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.error("Error deleting OpenAI key:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// PDF Upload URL Route (for presigned uploads)
-app.post("/pdf/upload-url", requireUserJwt, async (c) => {
-  try {
-    const { fileName, fileSize } = await c.req.json();
-    const userAuth = (c as any).userAuth;
-
-    console.log("Upload URL request received for user:", userAuth.username);
-    console.log("FileName:", fileName);
-    console.log("FileSize:", fileSize);
-
-    if (!fileName) {
-      console.log("Missing fileName");
-      return c.json({ error: "fileName is required" }, 400);
-    }
-
-    // Generate unique file key using username from JWT
-    const fileKey = `uploads/${userAuth.username}/${fileName}`;
-
-    // Generate direct upload URL to R2 bucket
-    // This creates a URL that uploads directly to R2, bypassing the worker
-    const uploadUrl = `/pdf/upload/${fileKey}`;
-
-    console.log("Generated fileKey:", fileKey);
-    console.log("Generated uploadUrl:", uploadUrl);
-
-    return c.json({
-      uploadUrl,
-      fileKey,
-      username: userAuth.username,
-    });
-  } catch (error) {
-    console.error("Error generating upload URL:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// Direct PDF Upload Route
-app.put("/pdf/upload/*", requireUserJwt, async (c) => {
-  try {
-    const pathname = new URL(c.req.url).pathname;
-    const fileKey = pathname.replace("/pdf/upload/", "");
-
-    if (!fileKey) {
-      return c.json({ error: "fileKey parameter is required" }, 400);
-    }
-
-    // Get the file content from the request body
-    const fileContent = await c.req.arrayBuffer();
-
-    if (fileContent.byteLength === 0) {
-      return c.json({ error: "File content is empty" }, 400);
-    }
-
-    // Upload to R2
-    await c.env.PDF_BUCKET.put(fileKey, fileContent, {
-      httpMetadata: {
-        contentType: "application/pdf",
-      },
-    });
-
-    return c.json({
-      success: true,
-      fileKey,
-      message: "File uploaded successfully",
-    });
-  } catch (error) {
-    console.error("Error uploading file:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// PDF Ingest Route
-app.post("/pdf/ingest", requireUserJwt, async (c) => {
-  try {
-    const { fileKey } = await c.req.json();
-    const userAuth = (c as any).userAuth;
-
-    if (!fileKey) {
-      return c.json({ error: "fileKey is required" }, 400);
-    }
-
-    // Verify the fileKey belongs to the authenticated user
-    if (!fileKey.startsWith(`uploads/${userAuth.username}/`)) {
-      return c.json({ error: "Access denied to this file" }, 403);
-    }
-
-    // Simulate parsing process
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    return c.json({
-      success: true,
-      fileKey,
-      status: "parsed",
-      username: userAuth.username,
-    });
-  } catch (error) {
-    console.error("Error ingesting PDF:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// Get Files Route
-app.get("/pdf/files", requireUserJwt, async (c) => {
-  try {
-    const userAuth = (c as any).userAuth;
-
-    // List files from R2 bucket for this user
-    const prefix = `uploads/${userAuth.username}/`;
-    const objects = await c.env.PDF_BUCKET.list({ prefix });
-
-    const files = objects.objects.map((obj) => ({
-      fileKey: obj.key,
-      fileName: obj.key.replace(prefix, ""),
-      fileSize: obj.size,
-      uploaded: obj.uploaded,
-      status: "uploaded", // All files in R2 are considered uploaded
-    }));
-
-    return c.json({ files });
-  } catch (error) {
-    console.error("Error getting files:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// PDF Update Metadata Route
-app.post("/pdf/update-metadata", requireUserJwt, async (c) => {
-  try {
-    const { fileKey, metadata } = await c.req.json();
-    const userAuth = (c as any).userAuth;
-
-    if (!fileKey || !metadata) {
-      return c.json({ error: "fileKey and metadata are required" }, 400);
-    }
-
-    // Verify the fileKey belongs to the authenticated user
-    if (!fileKey.startsWith(`uploads/${userAuth.username}/`)) {
-      return c.json({ error: "Access denied to this file" }, 403);
-    }
-
-    // Store metadata in R2 bucket as a separate object
-    const metadataKey = `${fileKey}.metadata`;
-    await c.env.PDF_BUCKET.put(metadataKey, JSON.stringify(metadata), {
-      httpMetadata: {
-        contentType: "application/json",
-      },
-    });
-
-    return c.json({
-      success: true,
-      fileKey,
-      username: userAuth.username,
-    });
-  } catch (error) {
-    console.error("Error updating metadata:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// PDF Stats Route
-app.get("/pdf/stats", requireUserJwt, async (c) => {
-  try {
-    const userAuth = (c as any).userAuth;
-
-    // Get stats for this user's files
-    const prefix = `uploads/${userAuth.username}/`;
-    const objects = await c.env.PDF_BUCKET.list({ prefix });
-
-    const totalFiles = objects.objects.length;
-    const filesByStatus = {
-      uploading: 0,
-      uploaded: totalFiles,
-      parsing: 0,
-      parsed: 0,
-      error: 0,
-    };
-
-    return c.json({
-      username: userAuth.username,
-      totalFiles,
-      filesByStatus,
-    });
-  } catch (error) {
-    console.error("Error getting stats:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// RAG Search Route
-app.post("/rag/search", requireUserJwt, async (c) => {
-  try {
-    const userAuth = (c as any).userAuth;
-    const { query, limit = 10 } = await c.req.json();
-
-    if (!query || typeof query !== "string") {
-      return c.json({ error: "Query is required" }, 400);
-    }
-
-    const ragService = new RAGService(
-      c.env.DB,
-      c.env.VECTORIZE,
-      c.env.OPENAI_API_KEY
-    );
-    const results = await ragService.searchContent(
-      userAuth.username,
-      query,
-      limit
-    );
-
-    return c.json({ results });
-  } catch (error) {
-    console.error("Error searching RAG:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// RAG Process PDF Route
-app.post("/rag/process-pdf", requireUserJwt, async (c) => {
-  try {
-    const userAuth = (c as any).userAuth;
-    const { fileKey, content, metadata } = await c.req.json();
-
-    if (!fileKey || !content) {
-      return c.json({ error: "File key and content are required" }, 400);
-    }
-
-    const ragService = new RAGService(c.env.DB, c.env.VECTORIZE);
-    await ragService.processPdf(
-      fileKey,
-      userAuth.username,
-      content,
-      metadata || {}
-    );
-
-    return c.json({ success: true, message: "PDF processed successfully" });
-  } catch (error) {
-    console.error("Error processing PDF for RAG:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// RAG Process PDF from R2 Route
-app.post("/rag/process-pdf-from-r2", requireUserJwt, async (c) => {
-  try {
-    const userAuth = (c as any).userAuth;
-    const { fileKey, metadata } = await c.req.json();
-
-    if (!fileKey) {
-      return c.json({ error: "File key is required" }, 400);
-    }
-
-    // Create progress callback
-    const progressCallback = (progress: ProcessingProgress) => {
-      updateProgress(fileKey, progress);
-    };
-
-    const ragService = new RAGService(
-      c.env.DB,
-      c.env.VECTORIZE,
-      c.env.OPENAI_API_KEY,
-      progressCallback
-    );
-
-    try {
-      const result = await ragService.processPdfFromR2(
-        fileKey,
-        userAuth.username,
-        c.env.PDF_BUCKET,
-        metadata || {}
-      );
-
-      // Complete progress successfully
-      completeProgress(fileKey, true, undefined, result.suggestedMetadata);
-
-      return c.json({
-        success: true,
-        message: "PDF processed successfully from R2",
-        suggestedMetadata: result.suggestedMetadata,
-      });
-    } catch (processingError) {
-      // Complete progress with error
-      completeProgress(
-        fileKey,
-        false,
-        processingError instanceof Error
-          ? processingError.message
-          : String(processingError)
-      );
-      throw processingError;
-    }
-  } catch (error) {
-    console.error("Error processing PDF from R2 for RAG:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// RAG Update PDF Metadata Route
-app.put("/rag/pdfs/:fileKey/metadata", requireUserJwt, async (c) => {
-  try {
-    const userAuth = (c as any).userAuth;
-    const fileKey = c.req.param("fileKey");
-    const { description, tags } = await c.req.json();
-
-    if (!fileKey) {
-      return c.json({ error: "File key is required" }, 400);
-    }
-
-    const ragService = new RAGService(
-      c.env.DB,
-      c.env.VECTORIZE,
-      c.env.OPENAI_API_KEY
-    );
-    const result = await ragService.updatePdfMetadata(
-      fileKey,
-      userAuth.username,
-      {
-        description,
-        tags,
-      },
-      true
-    ); // Regenerate suggestions
-
-    return c.json({
-      success: true,
-      message: "PDF metadata updated successfully",
-      suggestions: result.suggestions,
-    });
-  } catch (error) {
-    console.error("Error updating PDF metadata:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// RAG Get PDFs Route
-app.get("/rag/pdfs", requireUserJwt, async (c) => {
-  try {
-    const userAuth = (c as any).userAuth;
-
-    const ragService = new RAGService(
-      c.env.DB,
-      c.env.VECTORIZE,
-      c.env.OPENAI_API_KEY
-    );
-    const pdfs = await ragService.getUserPdfs(userAuth.username);
-
-    return c.json({ pdfs });
-  } catch (error) {
-    console.error("Error getting PDFs:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// RAG Get PDF Chunks Route
-app.get("/rag/pdfs/:fileKey/chunks", requireUserJwt, async (c) => {
-  try {
-    const userAuth = (c as any).userAuth;
-    const fileKey = c.req.param("fileKey");
-
-    if (!fileKey) {
-      return c.json({ error: "File key is required" }, 400);
-    }
-
-    const ragService = new RAGService(
-      c.env.DB,
-      c.env.VECTORIZE,
-      c.env.OPENAI_API_KEY
-    );
-    const chunks = await ragService.getPdfChunks(fileKey, userAuth.username);
-
-    return c.json({ chunks });
-  } catch (error) {
-    console.error("Error getting PDF chunks:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// RAG Delete PDF Route
-app.delete("/rag/pdfs/:fileKey", requireUserJwt, async (c) => {
-  try {
-    const userAuth = (c as any).userAuth;
-    const fileKey = c.req.param("fileKey");
-
-    if (!fileKey) {
-      return c.json({ error: "File key is required" }, 400);
-    }
-
-    const ragService = new RAGService(
-      c.env.DB,
-      c.env.VECTORIZE,
-      c.env.OPENAI_API_KEY
-    );
-    await ragService.deletePdf(fileKey, userAuth.username);
-
-    return c.json({ success: true, message: "PDF deleted successfully" });
-  } catch (error) {
-    console.error("Error deleting PDF:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// Campaign routes
-app.get("/campaigns", requireUserJwt, async (c) => {
-  try {
-    console.log("[Server] GET /campaigns - starting request");
-    const userAuth = (c as any).userAuth;
-    console.log("[Server] User auth from middleware:", userAuth);
-
-    // Query campaigns directly from D1 database
-    const campaigns = await c.env.DB.prepare(
-      "SELECT id as campaignId, name, created_at as createdAt, updated_at as updatedAt FROM campaigns WHERE username = ? ORDER BY created_at DESC"
-    )
-      .bind(userAuth.username)
-      .all();
-
-    console.log("[Server] Found campaigns:", campaigns.results?.length || 0);
-    return c.json({ campaigns: campaigns.results || [] });
-  } catch (error) {
-    console.error("[Server] Error fetching campaigns:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-app.post("/campaigns", requireUserJwt, async (c) => {
-  try {
-    console.log("[Server] Processing POST /campaigns request");
-    const userAuth = (c as any).userAuth;
-    console.log("[Server] User auth:", userAuth);
-
-    const { name } = await c.req.json();
-    console.log("[Server] Request body name:", name);
-
-    if (!name || typeof name !== "string") {
-      console.log("[Server] Invalid name:", name);
-      return c.json({ error: "Campaign name is required" }, 400);
-    }
-
-    // Create campaign directly in D1 database
-    const campaignId = crypto.randomUUID();
-    const now = new Date().toISOString();
-
-    await c.env.DB.prepare(
-      "INSERT INTO campaigns (id, username, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"
-    )
-      .bind(campaignId, userAuth.username, name, now, now)
-      .run();
-
-    console.log("[Server] Created campaign:", {
-      campaignId,
-      name,
-      username: userAuth.username,
-    });
-
-    const campaign = {
-      campaignId,
-      name,
-      createdAt: now,
-      updatedAt: now,
-      resources: [],
-    };
-
-    return c.json({ campaign });
-  } catch (error) {
-    console.error("[Server] Error creating campaign:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-app.get("/campaigns/:campaignId", requireUserJwt, async (c) => {
-  try {
-    const userAuth = (c as any).userAuth;
-    const campaignId = c.req.param("campaignId");
-
-    // Query campaign directly from D1 database
-    const campaign = await c.env.DB.prepare(
-      "SELECT id as campaignId, name, created_at as createdAt, updated_at as updatedAt FROM campaigns WHERE id = ? AND username = ?"
-    )
-      .bind(campaignId, userAuth.username)
-      .first();
-
-    if (!campaign) {
-      return c.json({ error: "Campaign not found" }, 404);
-    }
-
-    return c.json({ campaign });
-  } catch (error) {
-    console.error("Error fetching campaign details:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-app.get("/campaigns/:campaignId/resources", requireUserJwt, async (c) => {
-  try {
-    const campaignId = c.req.param("campaignId");
-
-    // Query campaign resources directly from D1 database
-    const resources = await c.env.DB.prepare(
-      "SELECT id, campaign_id, file_key, file_name, description, tags, status, created_at FROM campaign_resources WHERE campaign_id = ?"
-    )
-      .bind(campaignId)
-      .all();
-
-    return c.json({ resources: resources.results || [] });
-  } catch (error) {
-    console.error("Error fetching campaign resources:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
+app.get("/check-open-ai-key", handleCheckOpenAIKey);
+app.get("/check-user-openai-key", handleCheckUserOpenAIKey);
+app.post("/chat/set-openai-key", handleSetOpenAIApiKey);
+
+// Authentication and OpenAI Key Management Routes
+app.post("/authenticate", handleAuthenticate);
+app.get("/get-openai-key", handleGetOpenAIKey);
+app.post("/store-openai-key", handleStoreOpenAIKey);
+app.delete("/delete-openai-key", handleDeleteOpenAIKey);
+
+// PDF Routes
+app.post("/pdf/upload-url", requireUserJwt, handleGenerateUploadUrl);
+app.post("/pdf/upload-part", requireUserJwt, handleUploadPart);
+app.put("/pdf/upload/*", requireUserJwt, handleCompleteUpload);
+app.post("/pdf/ingest", requireUserJwt, handleIngestPdf);
+app.get("/pdf/files", requireUserJwt, handleGetPdfFiles);
+app.post("/pdf/update-metadata", requireUserJwt, handleUpdatePdfMetadata);
+app.get("/pdf/stats", requireUserJwt, handleGetPdfStats);
+
+// RAG Routes
+app.post("/rag/search", requireUserJwt, handleRagSearch);
+app.post("/rag/process-pdf", requireUserJwt, handleProcessPdfForRag);
+app.post(
+  "/rag/process-pdf-from-r2",
+  requireUserJwt,
+  handleProcessPdfFromR2ForRag
+);
+app.put(
+  "/rag/pdfs/:fileKey/metadata",
+  requireUserJwt,
+  handleUpdatePdfMetadataForRag
+);
+app.get("/rag/pdfs", requireUserJwt, handleGetPdfFilesForRag);
+app.get("/rag/pdfs/:fileKey/chunks", requireUserJwt, handleGetPdfChunksForRag);
+app.delete("/rag/pdfs/:fileKey", requireUserJwt, handleDeletePdfForRag);
+
+// Campaign Routes
+app.get("/campaigns", requireUserJwt, handleGetCampaigns);
+app.post("/campaigns", requireUserJwt, handleCreateCampaign);
+app.get("/campaigns/:campaignId", requireUserJwt, handleGetCampaign);
+app.get(
+  "/campaigns/:campaignId/resources",
+  requireUserJwt,
+  handleGetCampaignResources
+);
+app.delete("/campaigns/:campaignId", requireUserJwt, handleDeleteCampaign);
+app.delete("/campaigns", requireUserJwt, handleDeleteAllCampaigns);
 
 // Note: Campaign agent routes are now handled through the Chat Durable Object
 // The new specialized agents (CampaignAgent, CampaignContextAgent, CharacterSheetAgent)
 // are AIChatAgent instances without HTTP routes
 
 // Progress WebSocket endpoint
-app.get("/progress", async (c) => {
-  const upgradeHeader = c.req.header("Upgrade");
-  if (upgradeHeader !== "websocket") {
-    return c.json({ error: "WebSocket upgrade required" }, 400);
-  }
+app.get("/progress", handleProgressWebSocket);
 
-  const { 0: client, 1: server } = new WebSocketPair();
-
-  server.accept();
-
-  server.addEventListener("message", (event) => {
-    try {
-      const data = JSON.parse(event.data as string);
-      if (data.type === "subscribe" && data.fileKey) {
-        subscribeToProgress(data.fileKey, server);
-      }
-    } catch (error) {
-      console.error("Error parsing WebSocket message:", error);
-    }
-  });
-
-  server.addEventListener("close", () => {
-    // Clean up subscriptions when WebSocket closes
-    progressSubscribers.forEach((subscribers, fileKey) => {
-      if (subscribers.has(server)) {
-        unsubscribeFromProgress(fileKey, server);
-      }
-    });
-  });
-
-  return new Response(null, {
-    status: 101,
-    webSocket: client,
-  });
-});
-
-// Assessment and onboarding routes
-app.get("/assessment/user-state", requireUserJwt, async (c) => {
-  try {
-    const userAuth = (c as any).userAuth;
-    const assessmentService = new AssessmentService(c.env.DB);
-
-    const userState = await assessmentService.analyzeUserState(
-      userAuth.username
-    );
-
-    return c.json({ userState });
-  } catch (error) {
-    console.error("[Server] Error analyzing user state:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
+// Assessment Routes
+app.get("/assessment/user-state", requireUserJwt, handleGetUserState);
 app.get(
   "/assessment/campaign-health/:campaignId",
   requireUserJwt,
-  async (c) => {
-    try {
-      const campaignId = c.req.param("campaignId");
-      const userAuth = (c as any).userAuth;
-      const assessmentService = new AssessmentService(c.env.DB);
-
-      // Get campaign data
-      const campaignResult = await c.env.DB.prepare(
-        "SELECT id as campaignId, name, created_at as createdAt, updated_at as updatedAt FROM campaigns WHERE id = ? AND username = ?"
-      )
-        .bind(campaignId, userAuth.username)
-        .first<Campaign>();
-
-      if (!campaignResult) {
-        return c.json({ error: "Campaign not found" }, 404);
-      }
-
-      // Get campaign resources
-      const resourcesResult = await c.env.DB.prepare(
-        "SELECT id, file_name as name FROM campaign_resources WHERE campaign_id = ?"
-      )
-        .bind(campaignId)
-        .all();
-
-      const resources = (resourcesResult.results || []).map(
-        (resource: any) => ({
-          type: "pdf" as const,
-          id: resource.id,
-          name: resource.name,
-        })
-      );
-
-      const campaignHealth = await assessmentService.getCampaignHealth(
-        campaignId,
-        campaignResult,
-        resources
-      );
-
-      return c.json({ campaignHealth });
-    } catch (error) {
-      console.error("[Server] Error getting campaign health:", error);
-      return c.json({ error: "Internal server error" }, 500);
-    }
-  }
+  handleGetAssessmentRecommendations
+);
+app.get("/assessment/user-activity", requireUserJwt, handleGetUserActivity);
+app.post(
+  "/assessment/module-integration",
+  requireUserJwt,
+  handleModuleIntegration
 );
 
-app.get("/assessment/user-activity", requireUserJwt, async (c) => {
-  try {
-    const userAuth = (c as any).userAuth;
-    const assessmentService = new AssessmentService(c.env.DB);
-
-    const activity = await assessmentService.getUserActivity(userAuth.username);
-
-    return c.json({ activity });
-  } catch (error) {
-    console.error("[Server] Error getting user activity:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-app.post("/assessment/module-integration", requireUserJwt, async (c) => {
-  try {
-    const { campaignId, moduleAnalysis } = await c.req.json();
-    const userAuth = (c as any).userAuth;
-    const assessmentService = new AssessmentService(c.env.DB);
-
-    // Verify campaign ownership
-    const campaignResult = await c.env.DB.prepare(
-      "SELECT id FROM campaigns WHERE id = ? AND username = ?"
-    )
-      .bind(campaignId, userAuth.username)
-      .first();
-
-    if (!campaignResult) {
-      return c.json({ error: "Campaign not found" }, 404);
-    }
-
-    const success = await assessmentService.storeModuleAnalysis(
-      campaignId,
-      moduleAnalysis
-    );
-
-    return c.json({
-      success,
-      message: success
-        ? "Module information successfully integrated into campaign context"
-        : "Failed to integrate module information",
-    });
-  } catch (error) {
-    console.error("[Server] Error integrating module:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-// Onboarding guidance routes
-app.get("/onboarding/welcome-guidance", requireUserJwt, async (c) => {
-  try {
-    const { provideWelcomeGuidanceTool } = await import(
-      "./tools/onboarding/guidance-tools"
-    );
-    const guidance = await provideWelcomeGuidanceTool();
-
-    return c.json(guidance);
-  } catch (error) {
-    console.error("[Server] Error providing welcome guidance:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
-app.get("/onboarding/next-actions", requireUserJwt, async (c) => {
-  try {
-    const userAuth = (c as any).userAuth;
-    const { suggestNextActionsTool } = await import(
-      "./tools/onboarding/guidance-tools"
-    );
-
-    const result = await suggestNextActionsTool(userAuth.username, c.env.DB);
-
-    return c.json(result);
-  } catch (error) {
-    console.error("[Server] Error suggesting next actions:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
+// Onboarding Routes
+app.get(
+  "/onboarding/welcome-guidance",
+  requireUserJwt,
+  handleGetWelcomeGuidance
+);
+app.get("/onboarding/next-actions", requireUserJwt, handleGetNextActions);
 app.get(
   "/onboarding/campaign-guidance/:campaignId",
   requireUserJwt,
-  async (c) => {
-    try {
-      const campaignId = c.req.param("campaignId");
-      const userAuth = (c as any).userAuth;
-      const { provideCampaignGuidanceTool } = await import(
-        "./tools/onboarding/guidance-tools"
-      );
-      const assessmentService = new AssessmentService(c.env.DB);
-
-      // Get campaign data
-      const campaignResult = await c.env.DB.prepare(
-        "SELECT id as campaignId, name, created_at as createdAt, updated_at as updatedAt FROM campaigns WHERE id = ? AND username = ?"
-      )
-        .bind(campaignId, userAuth.username)
-        .first<Campaign>();
-
-      if (!campaignResult) {
-        return c.json({ error: "Campaign not found" }, 404);
-      }
-
-      // Get campaign resources
-      const resourcesResult = await c.env.DB.prepare(
-        "SELECT id, file_name as name FROM campaign_resources WHERE campaign_id = ?"
-      )
-        .bind(campaignId)
-        .all();
-
-      const resources = (resourcesResult.results || []).map(
-        (resource: any) => ({
-          type: "pdf" as const,
-          id: resource.id,
-          name: resource.name,
-        })
-      );
-
-      const campaignHealth = await assessmentService.getCampaignHealth(
-        campaignId,
-        campaignResult,
-        resources
-      );
-      const guidance = await provideCampaignGuidanceTool(
-        campaignId,
-        campaignHealth
-      );
-
-      return c.json(guidance);
-    } catch (error) {
-      console.error("[Server] Error providing campaign guidance:", error);
-      return c.json({ error: "Internal server error" }, 500);
-    }
-  }
+  handleGetStateAnalysis
 );
 
-// External resources routes
-app.get("/external-resources/recommendations", requireUserJwt, async (c) => {
-  try {
-    const { userNeeds } = await c.req.json();
-    const { recommendExternalToolsTool } = await import(
-      "./tools/onboarding/external-resources-tools"
-    );
-
-    const tools = await recommendExternalToolsTool(userNeeds || []);
-
-    return c.json({ tools });
-  } catch (error) {
-    console.error("[Server] Error recommending external tools:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
-
+// External Resources Routes
+app.get(
+  "/external-resources/recommendations",
+  requireUserJwt,
+  handleGetExternalResourceRecommendations
+);
 app.get(
   "/external-resources/inspiration-sources",
   requireUserJwt,
-  async (c) => {
-    try {
-      const { campaignType } = await c.req.json();
-      const { suggestInspirationSourcesTool } = await import(
-        "./tools/onboarding/external-resources-tools"
-      );
-
-      const sources = await suggestInspirationSourcesTool(campaignType);
-
-      return c.json({ sources });
-    } catch (error) {
-      console.error("[Server] Error suggesting inspiration sources:", error);
-      return c.json({ error: "Internal server error" }, 500);
-    }
-  }
+  handleGetExternalResourceSearch
 );
-
-app.get("/external-resources/gm-resources", requireUserJwt, async (c) => {
-  try {
-    const { experienceLevel } = await c.req.json();
-    const { recommendGMResourcesTool } = await import(
-      "./tools/onboarding/external-resources-tools"
-    );
-
-    const resources = await recommendGMResourcesTool(
-      experienceLevel || "beginner"
-    );
-
-    return c.json({ resources });
-  } catch (error) {
-    console.error("[Server] Error recommending GM resources:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-});
+app.get(
+  "/external-resources/gm-resources",
+  requireUserJwt,
+  handleGetGmResources
+);
 
 // Mount other agent routes
 app.all("*", async (c) => {
@@ -2037,6 +499,3 @@ app.all("*", async (c) => {
 });
 
 export default app;
-
-// Export Durable Objects
-// CampaignManager removed - campaigns now handled directly in D1

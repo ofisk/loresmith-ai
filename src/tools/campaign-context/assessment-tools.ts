@@ -1,4 +1,4 @@
-import { AssessmentService } from "../../lib/assessmentService";
+import { AssessmentService } from "../../services/assessment-service";
 import type { Campaign, CampaignResource } from "../../types/campaign";
 import {
   analyzeCampaignHealth,

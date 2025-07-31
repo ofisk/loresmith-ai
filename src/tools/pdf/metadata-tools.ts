@@ -64,7 +64,11 @@ export const updatePdfMetadata = tool({
         }
 
         // Verify the fileKey belongs to the authenticated user
-        if (!fileKey.startsWith(`uploads/${username}/`)) {
+        // File keys can be either "username/filename" or "uploads/username/filename"
+        if (
+          !fileKey.startsWith(`${username}/`) &&
+          !fileKey.startsWith(`uploads/${username}/`)
+        ) {
           return createToolError("Access denied to this file", {
             error: "Access denied",
           });

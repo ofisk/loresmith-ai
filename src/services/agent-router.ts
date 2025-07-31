@@ -1,0 +1,252 @@
+import { streamText } from "ai";
+import { openai } from "@ai-sdk/openai";
+import { MODEL_CONFIG } from "../constants";
+
+export type AgentType =
+  | "campaign"
+  | "campaign-context"
+  | "character-sheets"
+  | "onboarding"
+  | "resources";
+
+export interface AgentIntent {
+  agent: AgentType;
+  confidence: number;
+  reason: string;
+}
+
+export interface AgentRegistry {
+  [key: string]: {
+    description: string;
+    agentClass: any;
+    tools: Record<string, any>;
+    systemPrompt: string;
+  };
+}
+
+export class AgentRouter {
+  // Registry of available agents - automatically populated from BaseAgent classes
+  private static agentRegistry: AgentRegistry = {};
+
+  /**
+   * Register an agent with the router
+   */
+  static registerAgent(
+    agentType: AgentType,
+    agentClass: any,
+    tools: Record<string, any>,
+    systemPrompt: string,
+    description?: string
+  ) {
+    AgentRouter.agentRegistry[agentType] = {
+      description: description || `Handles ${agentType} operations`,
+      agentClass,
+      tools,
+      systemPrompt,
+    };
+
+    console.log(`[AgentRouter] Registered agent: ${agentType}`);
+  }
+
+  /**
+   * Get all registered agent types
+   */
+  static getRegisteredAgentTypes(): string[] {
+    return Object.keys(AgentRouter.agentRegistry);
+  }
+
+  /**
+   * Get agent registry information
+   */
+  static getAgentRegistry(): AgentRegistry {
+    return { ...AgentRouter.agentRegistry };
+  }
+
+  /**
+   * Create an agent instance
+   */
+  static createAgentInstance(
+    agentType: string,
+    ctx: DurableObjectState,
+    env: any,
+    model: any
+  ): any {
+    const agentInfo = AgentRouter.agentRegistry[agentType];
+    if (!agentInfo) {
+      throw new Error(`Agent type '${agentType}' not registered`);
+    }
+
+    return new agentInfo.agentClass(ctx, env, model);
+  }
+
+  /**
+   * Get agent tools
+   */
+  static getAgentTools(agentType: string): Record<string, any> {
+    const agentInfo = AgentRouter.agentRegistry[agentType];
+    if (!agentInfo) {
+      throw new Error(`Agent type '${agentType}' not registered`);
+    }
+
+    return agentInfo.tools;
+  }
+
+  /**
+   * Get agent system prompt
+   */
+  static getAgentSystemPrompt(agentType: string): string {
+    const agentInfo = AgentRouter.agentRegistry[agentType];
+    if (!agentInfo) {
+      throw new Error(`Agent type '${agentType}' not registered`);
+    }
+
+    return agentInfo.systemPrompt;
+  }
+
+  /**
+   * Route a user message to the most appropriate agent using LLM-based analysis.
+   *
+   * This method uses the LLM to analyze the user's message against the descriptions
+   * of all registered agents, making intelligent routing decisions based on:
+   * - Agent capabilities and specializations
+   * - User intent and request type
+   * - Which agent's tools would be most relevant
+   *
+   * The LLM examines agent descriptions like:
+   * - "resources: Manages PDF file uploads, file processing, metadata updates, and file ingestion..."
+   * - "campaign: Handles campaign management, session planning, world building..."
+   * - "onboarding: Provides guidance and help for new users..."
+   *
+   * And makes routing decisions based on these descriptions rather than hardcoded rules.
+   *
+   * @param userMessage - The user's message to route
+   * @param recentContext - Optional recent context for routing decisions
+   * @param ragService - Optional RAG service for enhanced routing
+   * @returns Promise<AgentIntent> - The routing decision with agent, confidence, and reason
+   */
+  static async routeMessage(
+    userMessage: string,
+    recentContext?: string,
+    _ragService?: any
+  ): Promise<AgentIntent> {
+    // Build dynamic prompt based on registered agents
+    const registeredAgents = AgentRouter.getRegisteredAgentTypes();
+    const agentDescriptions = registeredAgents
+      .map(
+        (agentType) =>
+          `- ${agentType}: ${AgentRouter.getAgentDescription(agentType)}`
+      )
+      .join("\n");
+
+    const prompt = `Based on the user's message, determine which agent should handle this request.
+
+Available agents:
+${agentDescriptions}
+
+User message: "${userMessage}"
+${recentContext ? `Recent context: "${recentContext}"` : ""}
+
+Important routing rules:
+- If the message mentions "uploaded", "file key", "metadata", "ingestion", or "successfully uploaded" → route to "resources"
+- If the message mentions "campaign" or campaign management → route to "campaign"
+- If the message mentions "character" or character sheets → route to "campaign-context"
+- If the message is asking for help or guidance → route to "onboarding"
+- For file upload completion messages → route to "resources"
+
+Respond with only the agent name (${registeredAgents.join(", ")}) and a confidence score 0-100.
+Format: agent_name|confidence|reason
+
+Examples:
+- "I have successfully uploaded the PDF file..." → resources|90|PDF upload completion
+- "show me all campaigns" → campaign|85|Campaign listing request
+- "create a new campaign" → campaign|90|Campaign creation
+- "upload a character sheet" → campaign-context|85|Character sheet upload`;
+
+    try {
+      // Use a simple LLM call to determine intent
+      // This could be replaced with your actual LLM service
+      const response = await AgentRouter.callLLM(prompt);
+      const [agent, confidenceStr, reason] = response.split("|");
+
+      // Validate that the agent is registered
+      if (!registeredAgents.includes(agent)) {
+        console.log(`[AgentRouter] Invalid agent '${agent}', using default`);
+        return {
+          agent: "resources" as AgentType,
+          confidence: 30,
+          reason: "Invalid agent, defaulting to resources",
+        };
+      }
+
+      return {
+        agent: agent as AgentType,
+        confidence: parseInt(confidenceStr) || 50,
+        reason: reason || "LLM-based routing",
+      };
+    } catch (error) {
+      console.log("[AgentRouter] LLM routing failed, using default:", error);
+
+      // Default to resources for file-related operations
+      return {
+        agent: "resources" as AgentType,
+        confidence: 30,
+        reason: "LLM routing failed, defaulting to resources",
+      };
+    }
+  }
+
+  private static async callLLM(userMessage: string): Promise<string> {
+    try {
+      // Get all registered agents and their descriptions
+      const registeredAgents = AgentRouter.getRegisteredAgentTypes();
+      const agentDescriptions = registeredAgents
+        .map((agentType) => {
+          const description = AgentRouter.getAgentDescription(agentType);
+          return `${agentType}: ${description}`;
+        })
+        .join("\n");
+
+      // Create a generic system prompt that only uses agent descriptions
+      const systemPrompt = `You are an intelligent router that determines which AI agent should handle a user's request.
+
+Available agents and their capabilities:
+${agentDescriptions}
+
+Analyze the user's message and determine which agent would best serve their request. Consider the agent descriptions and user intent.
+
+Respond with ONLY the agent type followed by a confidence score (0-100) and a brief reason, separated by pipes.
+
+Example format: "agent_type|confidence|reason"`;
+
+      // Create the model instance
+      const model = openai(MODEL_CONFIG.OPENAI.PRIMARY as any);
+
+      // Use streamText for the routing decision
+      const result = await streamText({
+        model,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userMessage }],
+        maxSteps: 1,
+        temperature: 0,
+      });
+
+      // Extract the response text
+      let responseText = "";
+      for await (const chunk of result.textStream) {
+        responseText += chunk;
+      }
+
+      const trimmedResponse = responseText.trim();
+      console.log("[AgentRouter] LLM routing result:", trimmedResponse);
+      return trimmedResponse;
+    } catch (error) {
+      console.error("[AgentRouter] LLM routing failed:", error);
+      throw error;
+    }
+  }
+
+  static getAgentDescription(agentType: string): string {
+    const agentInfo = AgentRouter.agentRegistry[agentType];
+    return agentInfo?.description || `Handles ${agentType} operations`;
+  }
+}

@@ -32,16 +32,20 @@ const RESOURCE_SYSTEM_PROMPT = buildSystemPrompt({
     "File Upload: When users ask to upload PDFs, call the generatePdfUploadUrl tool",
     "Statistics: When users ask about PDF statistics, call the getPdfStats tool",
     "Processing: Guide users through the PDF upload and processing workflow",
+    "Uploaded Files: When users mention they have uploaded a file, use updatePdfMetadata and ingestPdfFile tools",
   ],
   importantNotes: [
     "ALWAYS use tools instead of just responding with text",
     "When users ask to see PDF files, IMMEDIATELY call the listPdfFiles tool",
     "When users ask to upload PDFs, call the generatePdfUploadUrl tool",
     "When users ask about PDF statistics, call the getPdfStats tool",
+    "When users mention they have uploaded a file, use updatePdfMetadata to update metadata",
+    "When users mention they have uploaded a file, use ingestPdfFile to process the file",
     "Generate upload URL with generatePdfUploadUrl",
     "Upload the file using the provided URL",
     "Process the file with ingestPdfFile",
     "Update metadata as needed with updatePdfMetadata",
+    "NEVER try to add files to campaigns - that's handled by the campaign agent",
   ],
   specialization:
     "You are ONLY responsible for PDF and resource management. If users ask about campaigns, character management, or other non-resource topics, politely redirect them to the appropriate agent.",
@@ -92,6 +96,15 @@ const RESOURCE_SYSTEM_PROMPT = buildSystemPrompt({
  * ```
  */
 export class ResourceAgent extends BaseAgent {
+  /** Agent metadata for registration and routing */
+  static readonly agentMetadata = {
+    type: "resources",
+    description:
+      "Manages PDF file uploads, file processing, metadata updates, and file ingestion. Handles file upload completion, metadata management, and file processing operations. Specifically handles messages about uploaded files, file keys, metadata updates, and file ingestion.",
+    systemPrompt: RESOURCE_SYSTEM_PROMPT,
+    tools: pdfTools,
+  };
+
   /**
    * Creates a new ResourceAgent instance.
    *
@@ -100,6 +113,6 @@ export class ResourceAgent extends BaseAgent {
    * @param model - The AI model instance for generating responses
    */
   constructor(ctx: DurableObjectState, env: Env, model: any) {
-    super(ctx, env, model, pdfTools, RESOURCE_SYSTEM_PROMPT);
+    super(ctx, env, model, pdfTools);
   }
 }

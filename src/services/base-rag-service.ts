@@ -1,5 +1,5 @@
 import type { D1Database, VectorizeIndex } from "@cloudflare/workers-types";
-import { DatabaseUtils } from "./dbUtils";
+import { DatabaseUtils } from "../lib/dbUtils";
 
 /**
  * Base RAG Service that provides shared functionality for different RAG implementations.

@@ -90,6 +90,15 @@ const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
  * ```
  */
 export class CampaignContextAgent extends BaseAgent {
+  /** Agent metadata for registration and routing */
+  static readonly agentMetadata = {
+    type: "campaign-context",
+    description:
+      "Manages character backstories, player characters, NPCs, character motivations, personality traits, and character context information.",
+    systemPrompt: CAMPAIGN_CONTEXT_SYSTEM_PROMPT,
+    tools: campaignContextTools,
+  };
+
   /**
    * Creates a new CampaignContextAgent instance.
    *
@@ -98,12 +107,6 @@ export class CampaignContextAgent extends BaseAgent {
    * @param model - The AI model instance for generating responses
    */
   constructor(ctx: DurableObjectState, env: any, model: any) {
-    super(
-      ctx,
-      env,
-      model,
-      campaignContextTools,
-      CAMPAIGN_CONTEXT_SYSTEM_PROMPT
-    );
+    super(ctx, env, model, campaignContextTools);
   }
 }

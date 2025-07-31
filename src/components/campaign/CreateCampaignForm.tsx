@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { USER_MESSAGES } from "../../constants";
-import { authenticatedFetchWithExpiration } from "../../lib/auth";
+import { authenticatedFetchWithExpiration } from "../../services/auth-service";
 import { API_CONFIG } from "../../shared";
 import type { Campaign, CreateCampaignFormProps } from "../../types/campaign";
 

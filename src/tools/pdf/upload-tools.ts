@@ -158,15 +158,16 @@ export const uploadPdfFile = tool({
 export const ingestPdfFile = tool({
   description: "Process and ingest a PDF file for AI analysis and search",
   parameters: z.object({
-    fileId: z.string().describe("The ID of the PDF file to ingest"),
+    fileKey: z.string().describe("The file key of the PDF file to ingest"),
+    filename: z.string().describe("The filename of the PDF file to ingest"),
     jwt: z
       .string()
       .nullable()
       .optional()
       .describe("JWT token for authentication"),
   }),
-  execute: async ({ fileId, jwt }): Promise<ToolResult> => {
-    console.log("[Tool] ingestPdfFile received:", { fileId, jwt });
+  execute: async ({ fileKey, filename, jwt }): Promise<ToolResult> => {
+    console.log("[Tool] ingestPdfFile received:", { fileKey, filename, jwt });
     try {
       console.log("[ingestPdfFile] Using JWT:", jwt);
 
@@ -178,7 +179,7 @@ export const ingestPdfFile = tool({
             "Content-Type": "application/json",
             ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
           },
-          body: JSON.stringify({ fileKey: fileId }),
+          body: JSON.stringify({ fileKey, filename }),
         }
       );
 
@@ -199,9 +200,10 @@ export const ingestPdfFile = tool({
       console.log("[ingestPdfFile] Success response:", result);
 
       return createToolSuccess(
-        `PDF file "${fileId}" has been successfully ingested and is now available for AI analysis and search.`,
+        `PDF file "${filename}" has been successfully ingested and is now available for AI analysis and search.`,
         {
-          fileId,
+          fileKey,
+          filename,
           status: "ingested",
           chunks: result.chunks || 0,
           processingTime: result.processingTime || "unknown",

@@ -79,6 +79,15 @@ const ONBOARDING_SYSTEM_PROMPT = buildSystemPrompt({
  * ```
  */
 export class OnboardingAgent extends BaseAgent {
+  /** Agent metadata for registration and routing */
+  static readonly agentMetadata = {
+    type: "onboarding",
+    description:
+      "Provides contextual guidance, onboarding, and help for new and existing users.",
+    systemPrompt: ONBOARDING_SYSTEM_PROMPT,
+    tools: onboardingTools,
+  };
+
   /**
    * Creates a new OnboardingAgent instance.
    *
@@ -87,6 +96,6 @@ export class OnboardingAgent extends BaseAgent {
    * @param model - The AI model instance for generating responses
    */
   constructor(ctx: DurableObjectState, env: any, model: any) {
-    super(ctx, env, model, onboardingTools, ONBOARDING_SYSTEM_PROMPT);
+    super(ctx, env, model, onboardingTools);
   }
 }

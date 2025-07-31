@@ -27,7 +27,7 @@ import { BlockingAuthenticationModal } from "./components/BlockingAuthentication
 
 import { USER_MESSAGES } from "./constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
-import { storeJwt, isJwtExpired } from "./lib/auth";
+import { AuthService } from "./services/auth-service";
 
 import type { campaignTools } from "./tools/campaign";
 import type { generalTools } from "./tools/general";
@@ -132,7 +132,8 @@ export default function Chat() {
         if (payload.username) {
           setUsername(payload.username);
           // Check if JWT is expired
-          if (isJwtExpired(jwt)) {
+          const authService = new AuthService({} as any);
+          if (authService.isJwtExpired(jwt)) {
             // JWT expired, show auth modal
             console.log("[App] JWT expired, showing auth modal");
             setShowAuthModal(true);
@@ -192,7 +193,7 @@ export default function Chat() {
 
       if (response.ok && result.token) {
         // Store JWT token
-        storeJwt(result.token);
+        AuthService.storeJwt(result.token);
 
         // Update stored OpenAI key
         setStoredOpenAIKey(openaiApiKey);
