@@ -24,6 +24,11 @@ export class ModelManager {
       return;
     }
 
+    console.log(
+      "[ModelManager] Initializing model with API key:",
+      apiKey.substring(0, 20) + "..."
+    );
+
     // Set the API key in the environment for the model creation
     const originalApiKey = process.env.OPENAI_API_KEY;
     process.env.OPENAI_API_KEY = apiKey;
@@ -33,8 +38,13 @@ export class ModelManager {
       this.model = openai(MODEL_CONFIG.OPENAI.PRIMARY as any);
       this.apiKey = apiKey;
 
-      console.log("[ModelManager] Model initialized with user API key");
+      console.log(
+        "[ModelManager] Model initialized successfully with user API key"
+      );
+      console.log("[ModelManager] Model type:", typeof this.model);
+      console.log("[ModelManager] Model object:", this.model);
     } catch (error) {
+      console.error("[ModelManager] Error initializing model:", error);
       // Restore the original API key if there was an error
       if (originalApiKey === undefined) {
         delete (process.env as any).OPENAI_API_KEY;
