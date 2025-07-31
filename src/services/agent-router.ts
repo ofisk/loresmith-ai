@@ -226,6 +226,14 @@ Example format: "agent_type|confidence|reason"`;
       // Use the provided model or get from global model manager
       const modelToUse = model || ModelManager.getInstance().getModel();
 
+      // If no model is available, we can't route the message
+      if (!modelToUse) {
+        console.log(
+          "[AgentRouter] No model available for routing, returning default agent"
+        );
+        return "campaign|50|No model available for routing, using default agent";
+      }
+
       // Use streamText for the routing decision
       const result = await streamText({
         model: modelToUse,
