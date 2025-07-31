@@ -10,7 +10,7 @@ import {
 import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import loresmith from "@/assets/loresmith.png";
 import { Avatar } from "@/components/avatar/Avatar";
@@ -23,10 +23,12 @@ import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import { HelpButton } from "@/components/help/HelpButton";
-import { OpenAIKeyModal } from "./components/OpenAIKeyModal";
+import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
+
 import { USER_MESSAGES } from "./constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
-import { useOpenAIKey } from "./hooks/useOpenAIKey";
+import { storeJwt, isJwtExpired } from "./lib/auth";
+
 import type { campaignTools } from "./tools/campaign";
 import type { generalTools } from "./tools/general";
 import type { pdfTools } from "./tools/pdf";
@@ -78,22 +80,73 @@ export default function Chat() {
     const savedTheme = localStorage.getItem("theme");
     return (savedTheme as "dark" | "light") || "dark";
   });
-  const { setApiKey } = useOpenAIKey();
-  const [showApiKeyModal] = useState(false);
+
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
 
-  // Show API key modal if no API key is available
-
-  // Get session ID for this browser session
-  const sessionId = getSessionId();
+  // Authentication state management
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [username, setUsername] = useState<string>("");
+  const [storedOpenAIKey, setStoredOpenAIKey] = useState<string>("");
 
   // Get stored JWT for user operations
-  const getStoredJwt = (): string | null => {
+  const getStoredJwt = useCallback((): string | null => {
     const jwt = localStorage.getItem("loresmith-jwt");
     console.log("[App] getStoredJwt() returns:", jwt);
     return jwt;
-  };
+  }, []);
+
+  // Check for stored OpenAI key
+  const checkStoredOpenAIKey = useCallback(async (username: string) => {
+    try {
+      const response = await fetch(
+        `/get-openai-key?username=${encodeURIComponent(username)}`
+      );
+      const result = (await response.json()) as {
+        hasKey?: boolean;
+        apiKey?: string;
+      };
+      if (response.ok && result.hasKey) {
+        setStoredOpenAIKey(result.apiKey || "");
+      } else {
+        // No stored key found, but don't show modal yet - let the user try to use the app first
+        console.log("[App] No stored OpenAI key found for user:", username);
+      }
+    } catch (error) {
+      console.error("Error checking stored OpenAI key:", error);
+      // Don't show modal on error - let the user try to use the app first
+    }
+  }, []);
+
+  // Check authentication status on mount
+  useEffect(() => {
+    const jwt = getStoredJwt();
+    if (jwt) {
+      try {
+        const payload = JSON.parse(atob(jwt.split(".")[1]));
+        if (payload.username) {
+          setUsername(payload.username);
+          // Check if JWT is expired
+          if (isJwtExpired(jwt)) {
+            // JWT expired, show auth modal
+            setShowAuthModal(true);
+          } else {
+            // JWT valid, check if we have stored OpenAI key
+            checkStoredOpenAIKey(payload.username);
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing JWT:", error);
+        setShowAuthModal(true);
+      }
+    } else {
+      // No JWT, show auth modal
+      setShowAuthModal(true);
+    }
+  }, [checkStoredOpenAIKey, getStoredJwt]);
+
+  // Get session ID for this browser session
+  const sessionId = getSessionId();
 
   // Handle JWT expiration globally
   useJwtExpiration({
@@ -102,6 +155,51 @@ export default function Chat() {
       toast.error(USER_MESSAGES.SESSION_EXPIRED);
     },
   });
+
+  // Handle authentication submission
+  const handleAuthenticationSubmit = async (
+    username: string,
+    adminKey: string,
+    openaiApiKey: string
+  ) => {
+    try {
+      const response = await fetch("/authenticate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          providedKey: adminKey,
+          openaiApiKey,
+        }),
+      });
+
+      const result = (await response.json()) as {
+        success?: boolean;
+        token?: string;
+        error?: string;
+      };
+
+      if (response.ok && result.token) {
+        // Store JWT token
+        storeJwt(result.token);
+
+        // Update stored OpenAI key
+        setStoredOpenAIKey(openaiApiKey);
+
+        // Close modal
+        setShowAuthModal(false);
+
+        toast.success("Authentication successful");
+      } else {
+        throw new Error(result.error || "Authentication failed");
+      }
+    } catch (error) {
+      console.error("Error during authentication:", error);
+      throw error;
+    }
+  };
 
   useEffect(() => {
     // Apply theme class on mount and when theme changes
@@ -140,6 +238,33 @@ export default function Chat() {
   } = useAgentChat({
     agent,
     maxSteps: 5,
+    onFinish: (result) => {
+      console.log("[App] Agent finished:", result);
+      console.log("[App] Result content:", result.content);
+      // Check if the response indicates authentication is required
+      if (result.content?.includes("AUTHENTICATION_REQUIRED:")) {
+        console.log(
+          "[App] Authentication required detected, showing auth modal"
+        );
+        setShowAuthModal(true);
+      } else {
+        console.log("[App] No authentication required in response");
+      }
+    },
+    onError: (error) => {
+      console.log("[App] Agent error:", error);
+      console.log("[App] Error message:", error.message);
+      console.log("[App] Error stack:", error.stack);
+      console.log("[App] Error type:", typeof error);
+      console.log("[App] Error constructor:", error.constructor.name);
+      // Check if the error is related to missing OpenAI API key
+      if (error.message.includes("OpenAI API key required")) {
+        console.log("[App] OpenAI API key error detected, showing auth modal");
+        setShowAuthModal(true);
+      } else {
+        console.log("[App] Different error type, not showing auth modal");
+      }
+    },
   });
 
   // Scroll to bottom on mount - only if there are messages and not loading
@@ -159,10 +284,24 @@ export default function Chat() {
     // This will be handled by the append function instead
   }, []);
 
+  // Debug modal state changes
+  useEffect(() => {
+    console.log("[App] showAuthModal changed to:", showAuthModal);
+  }, [showAuthModal]);
+
   // Function to handle suggested prompts
   const handleSuggestionSubmit = (suggestion: string) => {
     const jwt = getStoredJwt();
     console.log("[App] handleSuggestionSubmit sending JWT:", jwt);
+
+    // Check if we have a stored OpenAI key
+    if (!storedOpenAIKey) {
+      console.log("[App] No stored OpenAI key, showing auth modal");
+      setShowAuthModal(true);
+      return;
+    }
+
+    // Always send the message to the agent - let the agent handle auth requirements
     append({
       role: "user",
       content: suggestion,
@@ -249,8 +388,20 @@ export default function Chat() {
   // Enhanced form submission handler that includes JWT
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!agentInput.trim()) return;
+
     const jwt = getStoredJwt();
     console.log("[App] handleFormSubmit sending JWT:", jwt);
+
+    // Check if we have a stored OpenAI key
+    if (!storedOpenAIKey) {
+      console.log("[App] No stored OpenAI key, showing auth modal");
+      setShowAuthModal(true);
+      return;
+    }
+
+    // Always send the message to the agent - let the agent handle auth requirements
+    // The agent will detect missing keys and trigger the auth modal via onFinish callback
     append({
       role: "user",
       content: agentInput,
@@ -266,8 +417,20 @@ export default function Chat() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
+      if (!agentInput.trim()) return;
+
       const jwt = getStoredJwt();
       console.log("[App] handleKeyDown sending JWT:", jwt);
+
+      // Check if we have a stored OpenAI key
+      if (!storedOpenAIKey) {
+        console.log("[App] No stored OpenAI key, showing auth modal");
+        setShowAuthModal(true);
+        return;
+      }
+
+      // Always send the message to the agent - let the agent handle auth requirements
+      // The agent will detect missing keys and trigger the auth modal via onFinish callback
       append({
         role: "user",
         content: agentInput,
@@ -550,7 +713,12 @@ export default function Chat() {
         </div>
       </div>
 
-      <OpenAIKeyModal isOpen={showApiKeyModal} onSubmit={setApiKey} />
+      <BlockingAuthenticationModal
+        isOpen={showAuthModal}
+        username={username}
+        storedOpenAIKey={storedOpenAIKey}
+        onSubmit={handleAuthenticationSubmit}
+      />
     </>
   );
 }

@@ -24,8 +24,6 @@ export interface AuthRequest {
 export interface AuthResponse {
   success: boolean;
   token?: string;
-  hasDefaultOpenAIKey?: boolean;
-  requiresOpenAIKey?: boolean;
   error?: string;
 }
 
@@ -134,8 +132,6 @@ export class AuthService {
       return {
         success: true,
         token,
-        hasDefaultOpenAIKey: !!this.env.OPENAI_API_KEY,
-        requiresOpenAIKey: !this.env.OPENAI_API_KEY,
       };
     } catch (error) {
       console.error("[AuthService] Error creating JWT:", error);

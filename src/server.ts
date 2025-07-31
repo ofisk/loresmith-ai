@@ -270,12 +270,24 @@ export class Chat extends AIChatAgent<Env> {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    if (path === "/set-openai-key") {
-      return this.handleSetOpenAIKey(request);
+    if (path === "/store-openai-key") {
+      return this.handleStoreOpenAIKey(request);
     }
 
-    if (path === "/get-user-openai-key") {
-      return this.handleGetUserOpenAIKey(request);
+    if (path === "/get-openai-key") {
+      return this.handleGetOpenAIKey(request);
+    }
+
+    if (path === "/delete-openai-key") {
+      return this.handleDeleteOpenAIKey(request);
+    }
+
+    if (path === "/check-openai-key") {
+      return this.handleCheckOpenAIKey(request);
+    }
+
+    if (path === "/authenticate") {
+      return this.handleAuthenticate(request);
     }
 
     // For all other requests, use the parent class implementation
@@ -283,20 +295,43 @@ export class Chat extends AIChatAgent<Env> {
   }
 
   /**
-   * Handle setting the user's OpenAI API key
+   * Get OpenAI API key from database for a specific user
    */
-  private async handleSetOpenAIKey(request: Request): Promise<Response> {
+  private async getUserOpenAIKeyFromDB(
+    username: string
+  ): Promise<string | null> {
     try {
-      const body = (await request.json()) as { openaiApiKey?: string };
-      const { openaiApiKey } = body;
+      const result = await this.env.DB.prepare(
+        `SELECT api_key FROM user_openai_keys WHERE username = ?`
+      )
+        .bind(username)
+        .first();
 
-      if (
-        !openaiApiKey ||
-        typeof openaiApiKey !== "string" ||
-        openaiApiKey.trim() === ""
-      ) {
+      return (result as any)?.api_key || null;
+    } catch (error) {
+      console.error("Error getting user OpenAI key from DB:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Handle combined authentication (admin key + OpenAI API key)
+   */
+  private async handleAuthenticate(request: Request): Promise<Response> {
+    try {
+      const body = (await request.json()) as {
+        username?: string;
+        adminKey?: string;
+        openaiApiKey?: string;
+      };
+      const { username, adminKey, openaiApiKey } = body;
+
+      if (!username || !adminKey || !openaiApiKey) {
         return new Response(
-          JSON.stringify({ error: "OpenAI API key is required" }),
+          JSON.stringify({
+            success: false,
+            error: "Username, admin key, and OpenAI API key are required",
+          }),
           {
             status: 400,
             headers: { "Content-Type": "application/json" },
@@ -304,13 +339,38 @@ export class Chat extends AIChatAgent<Env> {
         );
       }
 
-      // Set the user's OpenAI API key
-      this.setUserOpenAIKey(openaiApiKey.trim());
+      // Authenticate user with both keys
+      const authResult = await authenticateUser(
+        { username, providedKey: adminKey, openaiApiKey },
+        this.env
+      );
+
+      if (!authResult.success) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: authResult.error,
+          }),
+          {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Store OpenAI API key in database
+      await this.env.DB.prepare(
+        `INSERT OR REPLACE INTO user_openai_keys (username, api_key, updated_at) 
+         VALUES (?, ?, CURRENT_TIMESTAMP)`
+      )
+        .bind(username, openaiApiKey)
+        .run();
 
       return new Response(
         JSON.stringify({
           success: true,
-          message: "OpenAI API key set successfully",
+          token: authResult.token,
+          message: "Authentication successful",
         }),
         {
           status: 200,
@@ -318,24 +378,204 @@ export class Chat extends AIChatAgent<Env> {
         }
       );
     } catch (error) {
-      console.error("Error in handleSetOpenAIKey:", error);
-      return new Response(JSON.stringify({ error: "Internal server error" }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
+      console.error("Error in handleAuthenticate:", error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Internal server error",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
     }
   }
 
   /**
-   * Handle getting the user's stored OpenAI API key
+   * Handle checking if OpenAI key is required
    */
-  private async handleGetUserOpenAIKey(_request: Request): Promise<Response> {
+  private async handleCheckOpenAIKey(request: Request): Promise<Response> {
     try {
-      const apiKey = this.getUserOpenAIKey();
+      const url = new URL(request.url);
+      const username = url.searchParams.get("username");
+
+      if (!username) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Username is required",
+          }),
+          {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Get the API key from D1 database
+      const result = await this.env.DB.prepare(
+        `SELECT api_key FROM user_openai_keys WHERE username = ?`
+      )
+        .bind(username)
+        .first();
 
       return new Response(
         JSON.stringify({
-          apiKey: apiKey,
+          success: true,
+          hasKey: !!result?.api_key,
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      console.error("Error checking OpenAI key:", error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Failed to check OpenAI key",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+  }
+
+  private async handleStoreOpenAIKey(request: Request): Promise<Response> {
+    try {
+      const body = (await request.json()) as {
+        username: string;
+        apiKey: string;
+      };
+      const { username, apiKey } = body;
+
+      if (!username || !apiKey) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Username and API key are required",
+          }),
+          {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Store the API key in D1 database
+      await this.env.DB.prepare(
+        `INSERT OR REPLACE INTO user_openai_keys (username, api_key, created_at, updated_at) 
+         VALUES (?, ?, datetime('now'), datetime('now'))`
+      )
+        .bind(username, apiKey)
+        .run();
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "OpenAI API key stored successfully",
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      console.error("Error storing OpenAI key:", error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Failed to store OpenAI key",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+  }
+
+  private async handleGetOpenAIKey(request: Request): Promise<Response> {
+    try {
+      const url = new URL(request.url);
+      const username = url.searchParams.get("username");
+
+      if (!username) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Username is required",
+          }),
+          {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Get the API key from D1 database
+      const result = await this.env.DB.prepare(
+        `SELECT api_key FROM user_openai_keys WHERE username = ?`
+      )
+        .bind(username)
+        .first();
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          hasKey: !!result?.api_key,
+          apiKey: result?.api_key || null,
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      console.error("Error getting OpenAI key:", error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Failed to get OpenAI key",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+  }
+
+  private async handleDeleteOpenAIKey(request: Request): Promise<Response> {
+    try {
+      const body = (await request.json()) as { username: string };
+      const { username } = body;
+
+      if (!username) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Username is required",
+          }),
+          {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Delete the API key from D1 database
+      await this.env.DB.prepare(
+        `DELETE FROM user_openai_keys WHERE username = ?`
+      )
+        .bind(username)
+        .run();
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "OpenAI API key deleted successfully",
         }),
         {
           status: 200,
@@ -343,11 +583,17 @@ export class Chat extends AIChatAgent<Env> {
         }
       );
     } catch (error) {
-      console.error("Error in handleGetUserOpenAIKey:", error);
-      return new Response(JSON.stringify({ error: "Internal server error" }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
+      console.error("Error deleting OpenAI key:", error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Failed to delete OpenAI key",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
     }
   }
 
@@ -534,29 +780,74 @@ export class Chat extends AIChatAgent<Env> {
   ) {
     // Check if agents are initialized, and try to initialize them if not
     if (!this.campaignAgent || !this.resourceAgent) {
-      // Try to load the user's API key and initialize agents
-      if (this.userOpenAIKey) {
-        this.initializeAgents(this.userOpenAIKey);
-      } else {
-        // Try to load from storage
+      // Get the username from the JWT in the messages
+      const lastUserMessage = this.messages
+        .slice()
+        .reverse()
+        .find((msg) => msg.role === "user");
+
+      let username: string | null = null;
+
+      // Try to extract username from JWT in the message data
+      if (
+        lastUserMessage?.data &&
+        typeof lastUserMessage.data === "object" &&
+        "jwt" in lastUserMessage.data
+      ) {
         try {
-          const storedKey = await this.ctx.storage.get<string>("userOpenAIKey");
-          if (storedKey) {
-            this.userOpenAIKey = storedKey;
-            this.initializeAgents(storedKey);
-          } else {
-            // No API key available
-            throw new Error(
-              "Please set your OpenAI API key to use the chat functionality. You can do this by clicking the 'Set API Key' button in the modal."
-            );
-          }
+          const jwt = (lastUserMessage.data as any).jwt;
+          const payload = JSON.parse(atob(jwt.split(".")[1]));
+          username = payload.username;
         } catch (error) {
-          console.error("Error loading stored API key:", error);
-          throw new Error(
-            "Please set your OpenAI API key to use the chat functionality. You can do this by clicking the 'Set API Key' button in the modal."
-          );
+          console.error("Error parsing JWT for username:", error);
         }
       }
+
+      if (!username) {
+        throw new Error("Unable to determine user. Please authenticate again.");
+      }
+
+      // Get API key from database using username from JWT
+      let apiKey: string | null = null;
+      try {
+        if (lastUserMessage?.data) {
+          const jwt = (lastUserMessage.data as any).jwt;
+          const payload = JSON.parse(atob(jwt.split(".")[1]));
+          const username = payload.username;
+
+          if (username) {
+            apiKey = await this.getUserOpenAIKeyFromDB(username);
+          }
+        }
+      } catch (error) {
+        console.error("Error getting API key from database:", error);
+      }
+
+      if (!apiKey) {
+        // Send a proper error response to the frontend so it can show the auth modal
+        console.log(
+          "[Chat] No OpenAI API key found for user, sending authentication request"
+        );
+
+        // Send a special response that the frontend can detect to show the auth modal
+        // This handles all three use cases:
+        // 1. First time login: no keys set
+        // 2. JWT expiry: keys exist but JWT expired
+        // 3. User logout: keys were removed
+        console.log(
+          "[Chat] Calling onFinish with AUTHENTICATION_REQUIRED message"
+        );
+        onFinish({
+          content:
+            "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first.",
+        } as any);
+        console.log("[Chat] onFinish called successfully");
+        return;
+      }
+
+      // Initialize agents with the API key from database
+      this.userOpenAIKey = apiKey;
+      this.initializeAgents(apiKey);
     }
 
     // Get the last user message to determine routing
@@ -607,14 +898,10 @@ export class Chat extends AIChatAgent<Env> {
       !this.characterSheetAgent ||
       !this.resourceAgent
     ) {
-      // Try to load the user's API key and initialize agents
-      if (this.userOpenAIKey) {
-        this.initializeAgents(this.userOpenAIKey);
-      } else {
-        throw new Error(
-          "Agents not initialized. Please set an OpenAI API key first."
-        );
-      }
+      // Agents should be initialized by onChatMessage before this is called
+      throw new Error(
+        "Agents not initialized. Please set an OpenAI API key first."
+      );
     }
 
     switch (targetAgent) {
@@ -809,7 +1096,7 @@ app.post("/chat/set-openai-key", async (c) => {
 });
 
 // User Authentication Route (returns JWT)
-app.post("/auth/authenticate", async (c) => {
+app.post("/authenticate", async (c) => {
   try {
     const { username, openaiApiKey, providedKey } = await c.req.json();
     const sessionId = c.req.header("X-Session-ID") || "default";
@@ -820,22 +1107,6 @@ app.post("/auth/authenticate", async (c) => {
         ? `${providedKey.substring(0, 10)}...`
         : "undefined",
     });
-
-    // Enhanced environment variable debugging
-    console.log("[auth/authenticate] Environment variables check:", {
-      hasAdminSecret: !!c.env.ADMIN_SECRET,
-      adminSecretType: typeof c.env.ADMIN_SECRET,
-      hasOpenAIKey: !!c.env.OPENAI_API_KEY,
-      openAIKeyType: typeof c.env.OPENAI_API_KEY,
-    });
-
-    const adminSecretValue = c.env.ADMIN_SECRET
-      ? await c.env.ADMIN_SECRET
-      : null;
-    console.log(
-      "[auth/authenticate] Environment ADMIN_SECRET:",
-      adminSecretValue ? `${adminSecretValue.substring(0, 10)}...` : "undefined"
-    );
 
     const result = await authenticateUser(
       { username, openaiApiKey, providedKey, sessionId },
@@ -850,11 +1121,72 @@ app.post("/auth/authenticate", async (c) => {
     console.log("[auth/authenticate] Authentication successful");
     return c.json({
       token: result.token,
-      hasDefaultOpenAIKey: result.hasDefaultOpenAIKey,
-      requiresOpenAIKey: result.requiresOpenAIKey,
     });
   } catch (error) {
     console.error("Authentication error:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// OpenAI Key Management Routes
+app.get("/get-openai-key", async (c) => {
+  try {
+    const username = c.req.query("username");
+    if (!username) {
+      return c.json({ error: "username parameter is required" }, 400);
+    }
+
+    const result = await c.env.DB.prepare(
+      `SELECT api_key FROM user_openai_keys WHERE username = ?`
+    )
+      .bind(username)
+      .first();
+
+    const hasKey = !!(result as any)?.api_key;
+    return c.json({
+      hasKey,
+      apiKey: hasKey ? (result as any).api_key : undefined,
+    });
+  } catch (error) {
+    console.error("Error getting OpenAI key:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+app.post("/store-openai-key", async (c) => {
+  try {
+    const { username, apiKey } = await c.req.json();
+    if (!username || !apiKey) {
+      return c.json({ error: "username and apiKey are required" }, 400);
+    }
+
+    await c.env.DB.prepare(
+      `INSERT OR REPLACE INTO user_openai_keys (username, api_key, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`
+    )
+      .bind(username, apiKey)
+      .run();
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Error storing OpenAI key:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+app.delete("/delete-openai-key", async (c) => {
+  try {
+    const { username } = await c.req.json();
+    if (!username) {
+      return c.json({ error: "username is required" }, 400);
+    }
+
+    await c.env.DB.prepare(`DELETE FROM user_openai_keys WHERE username = ?`)
+      .bind(username)
+      .run();
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting OpenAI key:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 });
