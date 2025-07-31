@@ -1,9 +1,7 @@
-import { openai } from "@ai-sdk/openai";
 import { routeAgentRequest, type Schedule } from "agents";
 import { AIChatAgent } from "agents/ai-chat-agent";
 import { generateId, type StreamTextOnFinishCallback, type ToolSet } from "ai";
 import { Hono } from "hono";
-import { MODEL_CONFIG } from "./constants";
 import type { AuthEnv } from "./services/auth-service";
 import type { AgentType } from "./services/agent-router";
 import {
@@ -15,9 +13,9 @@ import {
   handleSetOpenAIApiKey,
   handleCheckUserOpenAIKey,
   requireUserJwt,
-  determineAgent as determineAgentFromAuth,
 } from "./routes/auth";
 import { AuthService } from "./services/auth-service";
+import { ModelManager } from "./services/model-manager";
 import {
   handleGetCampaigns,
   handleCreateCampaign,
@@ -114,50 +112,33 @@ export class Chat extends AIChatAgent<Env> {
    */
   private async initializeAgents(apiKey: string) {
     try {
-      // Set the API key in the environment for the model creation
-      const originalApiKey = process.env.OPENAI_API_KEY;
-      process.env.OPENAI_API_KEY = apiKey;
+      // Initialize the global model manager with the user's API key
+      const modelManager = ModelManager.getInstance();
+      modelManager.initializeModel(apiKey);
 
-      try {
-        // Create the model - it will use the API key from the environment
-        const model = openai(MODEL_CONFIG.OPENAI.PRIMARY as any);
+      // Import the agent registry to ensure agents are registered
+      const { AgentRegistryService } = await import(
+        "./services/agent-registry"
+      );
 
-        // Import the agent registry to ensure agents are registered
-        const { AgentRegistryService } = await import(
-          "./services/agent-registry"
+      // Initialize all agents dynamically using the registry
+      const registeredAgentTypes =
+        AgentRegistryService.getRegisteredAgentTypes();
+
+      for (const agentType of registeredAgentTypes) {
+        const agentInstance = AgentRegistryService.createAgentInstance(
+          agentType as AgentType,
+          this.ctx,
+          this.env
         );
 
-        // Initialize all agents dynamically using the registry
-        const registeredAgentTypes =
-          AgentRegistryService.getRegisteredAgentTypes();
-
-        for (const agentType of registeredAgentTypes) {
-          const agentInstance = AgentRegistryService.createAgentInstance(
-            agentType as AgentType,
-            this.ctx,
-            this.env,
-            model
-          );
-
-          // Store agent instances in the Map
-          this.agents.set(agentType, agentInstance);
-        }
-
-        console.log(
-          `Agents initialized successfully with user API key: ${registeredAgentTypes.join(", ")}`
-        );
-
-        // Keep the API key in the environment for the agents to use
-        // Don't restore the original value since the agents need this API key
-      } catch (error) {
-        // Restore the original API key if there was an error
-        if (originalApiKey === undefined) {
-          delete (process.env as any).OPENAI_API_KEY;
-        } else {
-          process.env.OPENAI_API_KEY = originalApiKey;
-        }
-        throw error;
+        // Store agent instances in the Map
+        this.agents.set(agentType, agentInstance);
       }
+
+      console.log(
+        `Agents initialized successfully with user API key: ${registeredAgentTypes.join(", ")}`
+      );
     } catch (error) {
       console.error("Error initializing agents:", error);
       throw error;
@@ -234,7 +215,24 @@ export class Chat extends AIChatAgent<Env> {
    * based on keywords and intent in the message and conversation context
    */
   private async determineAgent(userMessage: string): Promise<string> {
-    return determineAgentFromAuth(userMessage, this.messages, this.env);
+    // Get the model from the global model manager
+    const modelManager = ModelManager.getInstance();
+    const model = modelManager.getModel();
+
+    // Call the agent router directly with the model
+    const { AgentRouter } = await import("./services/agent-router");
+
+    const intent = await AgentRouter.routeMessage(
+      userMessage,
+      this.messages
+        .slice(-6)
+        .map((msg) => msg.content)
+        .join(" "),
+      null, // ragService
+      model
+    );
+
+    return intent.agent;
   }
 
   /**

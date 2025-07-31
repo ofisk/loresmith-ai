@@ -1,6 +1,5 @@
 import { streamText } from "ai";
-import { openai } from "@ai-sdk/openai";
-import { MODEL_CONFIG } from "../constants";
+import { ModelManager } from "./model-manager";
 
 export type AgentType =
   | "campaign"
@@ -69,14 +68,16 @@ export class AgentRouter {
     agentType: string,
     ctx: DurableObjectState,
     env: any,
-    model: any
+    model?: any
   ): any {
     const agentInfo = AgentRouter.agentRegistry[agentType];
     if (!agentInfo) {
       throw new Error(`Agent type '${agentType}' not registered`);
     }
 
-    return new agentInfo.agentClass(ctx, env, model);
+    // Use the provided model or get from global model manager
+    const modelToUse = model || ModelManager.getInstance().getModel();
+    return new agentInfo.agentClass(ctx, env, modelToUse);
   }
 
   /**
@@ -127,7 +128,8 @@ export class AgentRouter {
   static async routeMessage(
     userMessage: string,
     recentContext?: string,
-    _ragService?: any
+    _ragService?: any,
+    model?: any
   ): Promise<AgentIntent> {
     // Build dynamic prompt based on registered agents
     const registeredAgents = AgentRouter.getRegisteredAgentTypes();
@@ -165,7 +167,7 @@ Examples:
     try {
       // Use a simple LLM call to determine intent
       // This could be replaced with your actual LLM service
-      const response = await AgentRouter.callLLM(prompt);
+      const response = await AgentRouter.callLLM(prompt, model);
       const [agent, confidenceStr, reason] = response.split("|");
 
       // Validate that the agent is registered
@@ -195,7 +197,10 @@ Examples:
     }
   }
 
-  private static async callLLM(userMessage: string): Promise<string> {
+  private static async callLLM(
+    userMessage: string,
+    model?: any
+  ): Promise<string> {
     try {
       // Get all registered agents and their descriptions
       const registeredAgents = AgentRouter.getRegisteredAgentTypes();
@@ -218,12 +223,12 @@ Respond with ONLY the agent type followed by a confidence score (0-100) and a br
 
 Example format: "agent_type|confidence|reason"`;
 
-      // Create the model instance
-      const model = openai(MODEL_CONFIG.OPENAI.PRIMARY as any);
+      // Use the provided model or get from global model manager
+      const modelToUse = model || ModelManager.getInstance().getModel();
 
       // Use streamText for the routing decision
       const result = await streamText({
-        model,
+        model: modelToUse,
         system: systemPrompt,
         messages: [{ role: "user", content: userMessage }],
         maxSteps: 1,
