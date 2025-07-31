@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { API_CONFIG } from "../constants";
-import { createAuthHeadersFromStorage } from "../lib/auth";
+import { createAuthHeadersFromStorage } from "../services/auth-service";
 import { useBaseAsync } from "./useBaseAsync";
 
 interface UseOpenAIKeyReturn {

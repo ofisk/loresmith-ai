@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import { USER_MESSAGES } from "../../constants";
-import { authenticatedFetchWithExpiration } from "../../lib/auth";
+import { authenticatedFetchWithExpiration } from "../../services/auth-service";
 import type {
   Campaign,
   CampaignDetailProps,

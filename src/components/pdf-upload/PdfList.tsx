@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { ERROR_MESSAGES, USER_MESSAGES } from "../../constants";
-import { authenticatedFetchWithExpiration, getStoredJwt } from "../../lib/auth";
+import {
+  authenticatedFetchWithExpiration,
+  getStoredJwt,
+} from "../../services/auth-service";
 import { API_CONFIG } from "../../shared";
 import { Button } from "../button/Button";
 import { Modal } from "../modal/Modal";

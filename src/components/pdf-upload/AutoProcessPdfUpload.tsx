@@ -1,7 +1,7 @@
 import type React from "react";
 import { useCallback, useState } from "react";
 import { useProcessingProgress } from "../../hooks/useProcessingProgress";
-import { authenticatedFetchWithExpiration } from "../../lib/auth";
+import { authenticatedFetchWithExpiration } from "../../services/auth-service";
 import { API_CONFIG } from "../../shared";
 import { Button } from "../button/Button";
 import { Card } from "../card/Card";

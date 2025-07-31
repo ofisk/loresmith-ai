@@ -8,11 +8,11 @@ import { cn } from "@/lib/utils";
 import { API_CONFIG, USER_MESSAGES } from "../../constants";
 import { useJwtExpiration } from "../../hooks/useJwtExpiration";
 import {
-  authenticatedFetchWithExpiration,
-  clearJwt,
   getStoredJwt,
   storeJwt,
-} from "../../lib/auth";
+  clearJwt,
+  authenticatedFetchWithExpiration,
+} from "../../services/auth-service";
 import { PdfList } from "./PdfList";
 import { PdfUpload } from "./PdfUpload";
 
@@ -230,8 +230,8 @@ export const PdfUploadAgent = ({
             method: "POST",
             jwt,
             body: JSON.stringify({
-              fileName: filename,
-              fileSize: file.size,
+              filename: filename,
+              contentType: "application/pdf",
             }),
           }
         );
@@ -258,21 +258,34 @@ export const PdfUploadAgent = ({
         uploadUrl: string;
         fileKey: string;
       };
-      // Step 3: Upload file directly to R2 using the presigned URL
+
+      // Step 3: Upload file directly to R2 using multipart upload
+      console.log("[Client] Upload ID received:", uploadUrlResult.uploadUrl);
+      console.log("[Client] File key:", uploadUrlResult.fileKey);
+
+      // Upload the file using the multipart upload ID
       const uploadResponse = await fetch(
-        `${API_CONFIG.getApiBaseUrl()}${uploadUrlResult.uploadUrl}`,
+        `${API_CONFIG.getApiBaseUrl()}/pdf/upload-part`,
         {
-          method: "PUT",
-          body: file,
+          method: "POST",
           headers: {
-            "Content-Type": "application/pdf",
+            "Content-Type": "application/json",
             Authorization: `Bearer ${jwt}`,
           },
+          body: JSON.stringify({
+            fileKey: uploadUrlResult.fileKey,
+            uploadId: uploadUrlResult.uploadUrl,
+            partNumber: 1,
+            file: await file.arrayBuffer(),
+          }),
         }
       );
+
       if (!uploadResponse.ok) {
-        throw new Error(`Upload failed: ${uploadResponse.status}`);
+        const errorText = await uploadResponse.text();
+        throw new Error(`Upload failed: ${uploadResponse.status} ${errorText}`);
       }
+
       // Step 4: Send metadata to agent after successful upload
       console.log("[Client] Calling append for metadata/ingest with JWT:", jwt);
       await append({

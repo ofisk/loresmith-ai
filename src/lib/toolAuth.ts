@@ -1,5 +1,5 @@
 import { ERROR_MESSAGES } from "../constants";
-import { createAuthHeaders } from "./auth";
+import { createAuthHeaders } from "../services/auth-service";
 
 /**
  * Helper function for tools to create authenticated fetch requests

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { authenticatedFetchWithExpiration } from "../lib/auth";
+import { authenticatedFetchWithExpiration } from "../services/auth-service";
 
 /**
  * Hook for making authenticated requests with automatic JWT expiration handling.

@@ -80,6 +80,15 @@ const CHARACTER_SHEET_SYSTEM_PROMPT = buildSystemPrompt({
  * ```
  */
 export class CharacterSheetAgent extends BaseAgent {
+  /** Agent metadata for registration and routing */
+  static readonly agentMetadata = {
+    type: "character-sheets",
+    description:
+      "Handles character sheet uploads, imports, management, listing, and character sheet file operations.",
+    systemPrompt: CHARACTER_SHEET_SYSTEM_PROMPT,
+    tools: characterSheetTools,
+  };
+
   /**
    * Creates a new CharacterSheetAgent instance.
    *
@@ -88,6 +97,6 @@ export class CharacterSheetAgent extends BaseAgent {
    * @param model - The AI model instance for generating responses
    */
   constructor(ctx: DurableObjectState, env: any, model: any) {
-    super(ctx, env, model, characterSheetTools, CHARACTER_SHEET_SYSTEM_PROMPT);
+    super(ctx, env, model, characterSheetTools);
   }
 }

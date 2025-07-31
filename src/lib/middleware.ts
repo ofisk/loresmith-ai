@@ -1,5 +1,9 @@
 import type { Context, Next } from "hono";
-import { type AuthContext, type AuthEnv, extractAuthFromHeader } from "./auth";
+import {
+  type AuthContext,
+  type AuthEnv,
+  extractAuthFromHeader,
+} from "../services/auth-service";
 
 /**
  * Middleware to require JWT authentication
