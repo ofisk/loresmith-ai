@@ -121,6 +121,7 @@ export const API_CONFIG = {
       INGEST: "/pdf/ingest",
       FILES: "/pdf/files",
       UPDATE_METADATA: "/pdf/update-metadata",
+      AUTO_GENERATE_METADATA: "/pdf/auto-generate-metadata",
       STATS: "/pdf/stats",
     },
     RAG: {

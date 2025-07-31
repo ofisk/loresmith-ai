@@ -799,11 +799,35 @@ export class RAGService extends BaseRAGService {
       console.log(`Generated suggestions:`, suggestedMetadata);
 
       // Use suggested metadata to fill in missing fields
+      let metadataUpdated = false;
       if (!metadata.description || metadata.description.trim() === "") {
         metadata.description = suggestedMetadata.description;
+        metadataUpdated = true;
       }
       if (!metadata.tags || metadata.tags.length === 0) {
         metadata.tags = suggestedMetadata.tags;
+        metadataUpdated = true;
+      }
+
+      // Save auto-generated metadata to database if any was generated
+      if (metadataUpdated) {
+        console.log(`Saving auto-generated metadata for ${fileKey}:`, {
+          description: metadata.description,
+          tags: metadata.tags,
+        });
+
+        await this.db
+          .prepare(
+            "UPDATE pdf_files SET description = ?, tags = ?, updated_at = ? WHERE file_key = ? AND username = ?"
+          )
+          .bind(
+            metadata.description || "",
+            metadata.tags ? JSON.stringify(metadata.tags) : "[]",
+            new Date().toISOString(),
+            fileKey,
+            username
+          )
+          .run();
       }
 
       // Process the extracted text with memory protection

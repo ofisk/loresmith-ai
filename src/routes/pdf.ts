@@ -2,6 +2,7 @@ import type { Context } from "hono";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { completeProgress } from "../services/progress";
+import { RAGService } from "../lib/rag";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -97,7 +98,8 @@ export async function handleUploadPart(c: ContextWithAuth) {
 export async function handleIngestPdf(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
-    const { fileKey, filename, description, tags } = await c.req.json();
+    const { fileKey, filename, description, tags, fileSize } =
+      await c.req.json();
 
     if (!fileKey || !filename) {
       return c.json({ error: "File key and filename are required" }, 400);
@@ -117,7 +119,7 @@ export async function handleIngestPdf(c: ContextWithAuth) {
     const now = new Date().toISOString();
 
     await c.env.DB.prepare(
-      "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
       .bind(
         fileId,
@@ -127,7 +129,8 @@ export async function handleIngestPdf(c: ContextWithAuth) {
         tags ? JSON.stringify(tags) : "[]",
         userAuth.username,
         "processing",
-        now
+        now,
+        fileSize || 0
       )
       .run();
 
@@ -225,11 +228,106 @@ export async function handleUpdatePdfMetadata(c: ContextWithAuth) {
   }
 }
 
+// Auto-generate metadata for an existing PDF file
+export async function handleAutoGeneratePdfMetadata(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    const { fileKey } = await c.req.json();
+
+    if (!fileKey) {
+      return c.json({ error: "File key is required" }, 400);
+    }
+
+    // Verify the fileKey belongs to the authenticated user
+    if (
+      !fileKey.startsWith(`${userAuth.username}/`) &&
+      !fileKey.startsWith(`uploads/${userAuth.username}/`)
+    ) {
+      return c.json({ error: "Access denied to this file" }, 403);
+    }
+
+    // Get the file from the database
+    const file = await c.env.DB.prepare(
+      "SELECT * FROM pdf_files WHERE file_key = ? AND username = ?"
+    )
+      .bind(fileKey, userAuth.username)
+      .first();
+
+    if (!file) {
+      return c.json({ error: "File not found" }, 404);
+    }
+
+    // Get the file from R2
+    const object = await c.env.PDF_BUCKET.get(fileKey);
+    if (!object) {
+      return c.json({ error: "File not found in storage" }, 404);
+    }
+
+    // Process the PDF to extract text and generate metadata
+    const ragService = new RAGService(
+      c.env.DB,
+      c.env.VECTORIZE,
+      userAuth.openaiApiKey
+    );
+
+    // Create a temporary metadata object for processing
+    const tempMetadata = {
+      description: "",
+      tags: [],
+      filename: file.file_name as string,
+      file_size: (file.file_size as number) || 0,
+      status:
+        (file.status as "uploaded" | "processing" | "processed" | "error") ||
+        "uploaded",
+      created_at: file.created_at as string,
+    };
+
+    // Process the PDF to generate metadata
+    const processedResult = await ragService.processPdfFromR2(
+      fileKey,
+      userAuth.username,
+      c.env.PDF_BUCKET,
+      tempMetadata
+    );
+
+    // Extract the suggested metadata
+    const suggestedMetadata = processedResult.suggestedMetadata;
+    if (!suggestedMetadata) {
+      return c.json({ error: "Failed to generate metadata" }, 500);
+    }
+
+    // Update the database with the auto-generated metadata
+    await c.env.DB.prepare(
+      "UPDATE pdf_files SET description = ?, tags = ? WHERE file_key = ? AND username = ?"
+    )
+      .bind(
+        suggestedMetadata.description || "",
+        JSON.stringify(suggestedMetadata.tags || []),
+        fileKey,
+        userAuth.username
+      )
+      .run();
+
+    return c.json({
+      message: "Metadata auto-generated successfully",
+      data: {
+        fileKey,
+        description: suggestedMetadata.description,
+        tags: suggestedMetadata.tags,
+      },
+    });
+  } catch (error) {
+    console.error("[handleAutoGeneratePdfMetadata] Error:", error);
+    return c.json({ error: `Failed to auto-generate metadata: ${error}` }, 500);
+  }
+}
+
 // Get PDF processing stats
 export async function handleGetPdfStats(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
 
+    // Get status-based stats
     const stats = await c.env.DB.prepare(
       "SELECT status, COUNT(*) as count FROM pdf_files WHERE username = ? GROUP BY status"
     )
@@ -241,17 +339,27 @@ export async function handleGetPdfStats(c: ContextWithAuth) {
       statsMap.set(row.status, row.count);
     });
 
+    // Get file size statistics
+    const sizeStats = await c.env.DB.prepare(
+      "SELECT SUM(file_size) as total_size, AVG(file_size) as avg_size, COUNT(*) as total_files FROM pdf_files WHERE username = ? AND file_size > 0"
+    )
+      .bind(userAuth.username)
+      .first();
+
     const totalFiles =
       (statsMap.get("completed") || 0) +
       (statsMap.get("processing") || 0) +
-      (statsMap.get("error") || 0);
+      (statsMap.get("error") || 0) +
+      (statsMap.get("uploaded") || 0);
 
     return c.json({
       username: userAuth.username,
       totalFiles,
+      totalSize: sizeStats?.total_size || 0,
+      averageFileSize: sizeStats?.avg_size || 0,
       filesByStatus: {
         uploading: 0, // Not tracked in current implementation
-        uploaded: statsMap.get("processing") || 0,
+        uploaded: statsMap.get("uploaded") || 0,
         parsing: 0, // Not tracked in current implementation
         parsed: statsMap.get("completed") || 0,
         error: statsMap.get("error") || 0,
