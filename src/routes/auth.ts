@@ -104,13 +104,19 @@ export async function determineAgent(
 // User Authentication Route (returns JWT)
 export async function handleAuthenticate(c: Context<{ Bindings: Env }>) {
   try {
-    const { username, openaiApiKey, providedKey } = await c.req.json();
+    const { username, openaiApiKey, adminSecret } = await c.req.json();
     const sessionId = c.req.header("X-Session-ID") || "default";
+
+    console.log(
+      "[auth/authenticate] Server environment:",
+      JSON.stringify(process.env, null, 2)
+    );
+    console.log("[auth/authenticate] c.env:", JSON.stringify(c.env, null, 2));
 
     console.log("[auth/authenticate] Request received:", {
       username,
-      providedKey: providedKey
-        ? `${providedKey.substring(0, 10)}...`
+      adminSecret: adminSecret
+        ? `${adminSecret.substring(0, 10)}...`
         : "undefined",
     });
 
@@ -118,7 +124,7 @@ export async function handleAuthenticate(c: Context<{ Bindings: Env }>) {
     const result = await authService.authenticateUser({
       username,
       openaiApiKey,
-      providedKey,
+      adminSecret,
       sessionId,
     });
 

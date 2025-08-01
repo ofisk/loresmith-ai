@@ -17,7 +17,7 @@ export interface AuthEnv {
 export interface AuthRequest {
   username: string;
   openaiApiKey?: string;
-  providedKey: string;
+  adminSecret: string;
   sessionId?: string;
 }
 
@@ -48,12 +48,26 @@ export class AuthService {
    * Get JWT secret from environment
    */
   async getJwtSecret(): Promise<Uint8Array> {
-    // Get secret from Secrets Store
-    const secret = this.env.ADMIN_SECRET
-      ? await this.env.ADMIN_SECRET.get()
-      : "default-secret-key";
+    // Get secret from local dev vars or Cloudflare secrets store
+    let secret: string;
+
+    if (typeof this.env.ADMIN_SECRET === "string") {
+      // Local development: direct string from .dev.vars
+      secret = this.env.ADMIN_SECRET;
+    } else if (
+      this.env.ADMIN_SECRET &&
+      typeof this.env.ADMIN_SECRET.get === "function"
+    ) {
+      // Production: Cloudflare secrets store
+      secret = await this.env.ADMIN_SECRET.get();
+    } else {
+      // Fallback
+      secret = "default-secret-key";
+    }
+
     console.log("[AuthService] JWT secret source:", {
       hasEnvSecret: !!this.env.ADMIN_SECRET,
+      secretType: typeof this.env.ADMIN_SECRET,
       secretLength: secret.length,
       secretPrefix: secret.substring(0, 10) + "...",
       encodedLength: new TextEncoder().encode(secret).length,
@@ -65,14 +79,14 @@ export class AuthService {
    * Authenticate a user and create a JWT token
    */
   async authenticateUser(request: AuthRequest): Promise<AuthResponse> {
-    const { username, openaiApiKey, providedKey } = request;
+    const { username, openaiApiKey, adminSecret } = request;
 
     console.log("[AuthService] Starting authentication process");
     console.log("[AuthService] Request data:", {
       username: username ? `${username.substring(0, 10)}...` : "undefined",
       hasOpenAIKey: !!openaiApiKey,
-      hasProvidedKey: !!providedKey,
-      providedKeyLength: providedKey?.length || 0,
+      hasAdminSecret: !!adminSecret,
+      adminSecretLength: adminSecret?.length || 0,
     });
 
     // Validate required fields
@@ -85,9 +99,9 @@ export class AuthService {
     }
 
     if (
-      !providedKey ||
-      typeof providedKey !== "string" ||
-      providedKey.trim() === ""
+      !adminSecret ||
+      typeof adminSecret !== "string" ||
+      adminSecret.trim() === ""
     ) {
       console.log(
         "[AuthService] Admin key validation failed - missing or empty"
@@ -99,14 +113,27 @@ export class AuthService {
     }
 
     // Simple access control: check if admin key is valid
-    const validAdminKey = this.env.ADMIN_SECRET
-      ? await this.env.ADMIN_SECRET.get()
-      : "undefined-admin-key";
-    const isValidAdminKey = providedKey.trim() === validAdminKey;
+    let validAdminKey: string;
+
+    if (typeof this.env.ADMIN_SECRET === "string") {
+      // Local development: direct string from .dev.vars
+      validAdminKey = this.env.ADMIN_SECRET;
+    } else if (
+      this.env.ADMIN_SECRET &&
+      typeof this.env.ADMIN_SECRET.get === "function"
+    ) {
+      // Production: Cloudflare secrets store
+      validAdminKey = await this.env.ADMIN_SECRET.get();
+    } else {
+      // Fallback
+      validAdminKey = "undefined-admin-key";
+    }
+
+    const isValidAdminKey = adminSecret.trim() === validAdminKey;
 
     console.log("[AuthService] Admin key validation:", {
-      providedKey: providedKey
-        ? `${providedKey.substring(0, 4)}...`
+      adminSecret: adminSecret
+        ? `${adminSecret.substring(0, 4)}...`
         : "undefined",
       validAdminKey: validAdminKey
         ? `${validAdminKey.substring(0, 4)}...`

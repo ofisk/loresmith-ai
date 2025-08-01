@@ -180,7 +180,7 @@ export default function Chat() {
         },
         body: JSON.stringify({
           username,
-          providedKey: adminKey,
+          adminSecret: adminKey,
           openaiApiKey,
         }),
       });
