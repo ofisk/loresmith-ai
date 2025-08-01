@@ -12,6 +12,8 @@ type ModalProps = {
   isOpen: boolean;
   onClose: () => void;
   cardStyle?: React.CSSProperties;
+  showCloseButton?: boolean;
+  allowEscape?: boolean;
 };
 
 export const Modal = ({
@@ -21,6 +23,8 @@ export const Modal = ({
   isOpen,
   onClose,
   cardStyle,
+  showCloseButton = true,
+  allowEscape = true,
 }: ModalProps) => {
   const clickOutsideRef = useClickOutside(onClose);
   const defaultRef = useRef<HTMLDivElement>(null);
@@ -68,7 +72,7 @@ export const Modal = ({
           }
         }
       }
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && allowEscape) {
         onClose();
       }
     };
@@ -106,15 +110,17 @@ export const Modal = ({
         >
           {children}
 
-          <Button
-            aria-label="Close Modal"
-            shape="square"
-            className="absolute top-2 right-2"
-            onClick={onClose}
-            variant="ghost"
-          >
-            <X size={16} />
-          </Button>
+          {showCloseButton && (
+            <Button
+              aria-label="Close Modal"
+              shape="square"
+              className="absolute top-2 right-2"
+              onClick={onClose}
+              variant="ghost"
+            >
+              <X size={16} />
+            </Button>
+          )}
         </Card>
       </div>
     </div>

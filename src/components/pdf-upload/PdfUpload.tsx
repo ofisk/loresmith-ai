@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { Button } from "@/components/button/Button";
-import { Input } from "@/components/input/Input";
+import { Button, PrimaryActionButton } from "@/components/button";
+import { FormField } from "@/components/input/FormField";
 import { cn } from "@/lib/utils";
 
 // Function to sanitize filename by removing/replacing URL-encoded characters
@@ -236,54 +236,31 @@ export const PdfUpload = ({
 
         {/* Form Fields */}
         <div className="space-y-4">
-          <div>
-            <label
-              htmlFor="pdf-filename"
-              className="text-ob-base-300 text-sm font-medium mb-2 block"
-            >
-              Filename
-            </label>
-            <Input
-              id="pdf-filename"
-              placeholder="Name this mighty tome…"
-              value={filename}
-              onValueChange={(value, _isValid) => setFilename(value)}
-              disabled={loading}
-              className="w-full"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="pdf-description"
-              className="text-ob-base-300 text-sm font-medium mb-2 block"
-            >
-              Description (optional)
-            </label>
-            <Input
-              id="pdf-description"
-              placeholder="Describe the perils and promises within..."
-              value={description}
-              onValueChange={(value, _isValid) => setDescription(value)}
-              disabled={loading}
-              className="w-full"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="pdf-tags"
-              className="text-ob-base-300 text-sm font-medium mb-2 block"
-            >
-              Tags (optional)
-            </label>
-            <Input
-              id="pdf-tags"
-              placeholder="Mark this tome with its arcane keywords…"
-              value={tagInput}
-              onValueChange={(value, _isValid) => setTagInput(value)}
-              onKeyPress={handleTagKeyPress}
-              disabled={loading}
-              className="w-full"
-            />
+          <FormField
+            id="pdf-filename"
+            label="Filename"
+            placeholder="Name this mighty tome…"
+            value={filename}
+            onValueChange={(value, _isValid) => setFilename(value)}
+            disabled={loading}
+          />
+          <FormField
+            id="pdf-description"
+            label="Description (optional)"
+            placeholder="Describe the perils and promises within..."
+            value={description}
+            onValueChange={(value, _isValid) => setDescription(value)}
+            disabled={loading}
+          />
+          <FormField
+            id="pdf-tags"
+            label="Tags (optional)"
+            placeholder="Mark this tome with its arcane keywords…"
+            value={tagInput}
+            onValueChange={(value, _isValid) => setTagInput(value)}
+            onKeyPress={handleTagKeyPress}
+            disabled={loading}
+          >
             {tags.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 {tags.map((tag) => (
@@ -319,49 +296,50 @@ export const PdfUpload = ({
             <div className="text-ob-base-200 text-xs">
               Example: undead, forest, cursed treasure
             </div>
-          </div>
+          </FormField>
 
           {/* Upload Button */}
           <div className="flex justify-center mt-8">
-            <Button
-              onClick={handleUpload}
-              disabled={isUploadDisabled}
-              loading={loading}
-              variant={currentFile ? "primary" : "secondary"}
-              size="sm"
-              className={cn(
-                "w-40 h-10 text-center justify-center text-base font-medium",
-                currentFile &&
-                  "bg-[#F48120] hover:bg-[#F48120]/90 text-white border-[#F48120] shadow-lg hover:shadow-xl transition-all duration-200",
-                !currentFile &&
-                  "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 cursor-not-allowed",
-                uploadSuccess &&
-                  !hasChanges &&
-                  "bg-green-500 hover:bg-green-600 text-white border-green-500 cursor-not-allowed"
-              )}
-            >
-              {uploadSuccess && !hasChanges ? (
-                <div className="flex items-center justify-center gap-2">
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <title>Upload complete</title>
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  <span>Complete</span>
-                </div>
-              ) : (
-                "Upload"
-              )}
-            </Button>
+            {currentFile ? (
+              <PrimaryActionButton
+                onClick={handleUpload}
+                disabled={isUploadDisabled}
+                loading={loading}
+              >
+                {uploadSuccess && !hasChanges ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <title>Upload complete</title>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    <span>Complete</span>
+                  </div>
+                ) : (
+                  "Upload"
+                )}
+              </PrimaryActionButton>
+            ) : (
+              <Button
+                onClick={handleUpload}
+                disabled={isUploadDisabled}
+                loading={loading}
+                variant="secondary"
+                size="sm"
+                className="w-40 h-10 text-center justify-center text-base font-medium bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 cursor-not-allowed"
+              >
+                Upload
+              </Button>
+            )}
           </div>
 
           {/* Multi-file Navigation Buttons */}

@@ -1,9 +1,8 @@
 import type React from "react";
 import { useState, useEffect } from "react";
 import { Modal } from "./modal/Modal";
-import { Button } from "./button/Button";
-import { Input } from "./input/Input";
-import { Label } from "./label/Label";
+import { PrimaryActionButton } from "./button";
+import { FormField } from "./input/FormField";
 
 interface BlockingAuthenticationModalProps {
   isOpen: boolean;
@@ -58,8 +57,10 @@ export function BlockingAuthenticationModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose || (() => {})}
+      onClose={() => {}} // Disable closing - authentication is required
       clickOutsideToClose={false}
+      showCloseButton={false}
+      allowEscape={false}
     >
       <div className="p-6 max-w-md mx-auto">
         <h2 className="text-xl font-semibold mb-4">Authentication Required</h2>
@@ -71,99 +72,94 @@ export function BlockingAuthenticationModal({
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="username" title="Username" required></Label>
-            <Input
-              id="username"
-              type="text"
-              value={currentUsername}
-              onChange={(e) => setCurrentUsername(e.target.value)}
-              placeholder="Speak your name..."
-              required
-            />
+          <FormField
+            id="username"
+            label="Username"
+            placeholder="Speak your name..."
+            value={currentUsername}
+            onValueChange={(value, _isValid) => setCurrentUsername(value)}
+            disabled={false}
+          >
             <p className="text-xs text-gray-500 mt-1">
               Forge your identity in the realm of LoreSmith.
             </p>
-          </div>
+          </FormField>
 
-          <div>
-            <Label htmlFor="adminKey" title="Admin Key" required></Label>
-            <Input
-              id="adminKey"
-              type="password"
-              value={adminKey}
-              onChange={(e) => setAdminKey(e.target.value)}
-              placeholder="Enter the sacred key..."
-              required
-            />
+          <FormField
+            id="adminKey"
+            label="Admin Key"
+            placeholder="Enter the sacred key..."
+            value={adminKey}
+            onValueChange={(value, _isValid) => setAdminKey(value)}
+            disabled={false}
+          >
             <p className="text-xs text-gray-500 mt-1">
               Seek the administrator for the key to unlock these halls.
             </p>
-          </div>
+          </FormField>
 
-          <div>
-            <Label htmlFor="openaiKey" title="OpenAI API Key" required></Label>
-            <Input
-              id="openaiKey"
-              type="password"
-              value={isOpenAIKeyDisabled ? openaiKeyDisplay : openaiApiKey}
-              onChange={(e) => setOpenaiApiKey(e.target.value)}
-              placeholder="Enter OpenAI's spell..."
-              disabled={isOpenAIKeyDisabled}
-              required
-            />
-            {isOpenAIKeyDisabled ? (
-              <p className="text-sm text-gray-500 mt-1">
-                Using stored API key. Contact administrator to reset.
-              </p>
-            ) : (
-              <div className="text-xs text-gray-500 mt-1">
-                <p>Seeking the power of OpenAI's arcane knowledge?</p>
-                <ol className="list-decimal list-inside mt-1 space-y-1">
-                  <li>
-                    Journey to{" "}
-                    <a
-                      href="https://platform.openai.com/api-keys"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-500 hover:underline"
-                    >
-                      platform.openai.com/api-keys
-                    </a>
-                  </li>
-                  <li>Sign in or create an account</li>
-                  <li>Click "Create new secret key"</li>
-                  <li>Copy the key and paste it here</li>
-                </ol>
-                <p className="mt-2 text-orange-600 dark:text-orange-400">
-                  ⚠️ Guard your API key like a precious treasure - never share
-                  it publicly.
-                </p>
-              </div>
-            )}
-          </div>
+          <FormField
+            id="openaiKey"
+            label="OpenAI API Key"
+            placeholder="Enter OpenAI's spell..."
+            value={isOpenAIKeyDisabled ? openaiKeyDisplay : openaiApiKey}
+            onValueChange={(value, _isValid) => setOpenaiApiKey(value)}
+            disabled={isOpenAIKeyDisabled}
+            tooltip={
+              isOpenAIKeyDisabled ? (
+                <div className="text-sm text-gray-700 dark:text-gray-300">
+                  <p>Using stored API key. Contact administrator to reset.</p>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-700 dark:text-gray-300">
+                  <p className="mb-2">
+                    Seeking the power of OpenAI's arcane knowledge?
+                  </p>
+                  <ol className="list-decimal list-inside space-y-1 mb-2">
+                    <li>
+                      Journey to{" "}
+                      <a
+                        href="https://platform.openai.com/api-keys"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        platform.openai.com/api-keys
+                      </a>
+                    </li>
+                    <li>Sign in or create an account</li>
+                    <li>Click "Create new secret key"</li>
+                    <li>Copy the key and paste it here</li>
+                  </ol>
+                  <p className="text-orange-600 dark:text-orange-400">
+                    ⚠️ Guard your API key like a precious treasure - never share
+                    it publicly.
+                  </p>
+                </div>
+              )
+            }
+          />
 
           {error && <div className="text-red-500 text-sm">{error}</div>}
 
-          <div className="flex justify-end pt-4">
-            <Button
+          <div className="flex justify-center pt-4">
+            <PrimaryActionButton
               type="submit"
               disabled={
                 isLoading ||
                 !adminKey.trim() ||
                 (!isOpenAIKeyDisabled && !openaiApiKey.trim())
               }
-              className="min-w-[100px]"
             >
               {isLoading ? (
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center justify-center gap-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                   <span>Authenticating...</span>
                 </div>
               ) : (
                 "Sign In"
               )}
-            </Button>
+            </PrimaryActionButton>
           </div>
         </form>
 
