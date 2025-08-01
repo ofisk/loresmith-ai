@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import type React from "react";
+import { useState } from "react";
 import { Input } from "./Input";
 import { Info } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
 
 interface FormFieldProps {
   id: string;
@@ -37,10 +37,13 @@ export const FormField: React.FC<FormFieldProps> = ({
           {label}
         </label>
         {tooltip && (
-          <div
+          <button
+            type="button"
             className="relative"
             onMouseEnter={() => setShowTooltip(true)}
             onMouseLeave={() => setShowTooltip(false)}
+            onFocus={() => setShowTooltip(true)}
+            onBlur={() => setShowTooltip(false)}
           >
             <Info
               size={16}
@@ -55,7 +58,7 @@ export const FormField: React.FC<FormFieldProps> = ({
                 </div>
               </div>
             )}
-          </div>
+          </button>
         )}
       </div>
       <Input
