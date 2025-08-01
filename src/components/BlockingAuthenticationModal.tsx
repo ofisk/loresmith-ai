@@ -20,7 +20,6 @@ export function BlockingAuthenticationModal({
   isOpen,
   storedOpenAIKey,
   onSubmit,
-  onClose,
 }: BlockingAuthenticationModalProps) {
   const [currentUsername, setCurrentUsername] = useState("");
   const [adminKey, setAdminKey] = useState("");

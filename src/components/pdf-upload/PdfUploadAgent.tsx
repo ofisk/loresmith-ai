@@ -506,106 +506,106 @@ export const PdfUploadAgent = ({
     );
   }
 
-  // if (!effectiveIsAuthenticated) {
-  //   // Show authentication UI
-  //   return (
-  //     <Card className={cn("space-y-4", className)}>
-  //       <div className="flex items-center justify-between">
-  //         <div className="space-y-2">
-  //           <h3 className="text-ob-base-300 font-medium">
-  //             Loresmith Authentication
-  //           </h3>
-  //           <p className="text-ob-base-200 text-sm">
-  //             Utter the secret words, adventurer, and the gates shall open.
-  //             Speak your name as well, that we may recover the tomes of your
-  //             past journeys.
-  //           </p>
-  //         </div>
-  //         <Button
-  //           onClick={() => setIsAuthPanelExpanded(!isAuthPanelExpanded)}
-  //           variant="ghost"
-  //           size="sm"
-  //           className="text-ob-base-200 hover:text-ob-base-300"
-  //         >
-  //           {isAuthPanelExpanded ? "−" : "+"}
-  //         </Button>
-  //       </div>
+  if (!effectiveIsAuthenticated) {
+    // Show authentication UI
+    return (
+      <Card className={cn("space-y-4", className)}>
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <h3 className="text-ob-base-300 font-medium">
+              Loresmith Authentication
+            </h3>
+            <p className="text-ob-base-200 text-sm">
+              Utter the secret words, adventurer, and the gates shall open.
+              Speak your name as well, that we may recover the tomes of your
+              past journeys.
+            </p>
+          </div>
+          <Button
+            onClick={() => setIsAuthPanelExpanded(!isAuthPanelExpanded)}
+            variant="ghost"
+            size="sm"
+            className="text-ob-base-200 hover:text-ob-base-300"
+          >
+            {isAuthPanelExpanded ? "−" : "+"}
+          </Button>
+        </div>
 
-  //       {isAuthPanelExpanded && (
-  //         <>
-  //           {authError && (
-  //             <div className="text-ob-destructive text-sm">{authError}</div>
-  //           )}
+        {isAuthPanelExpanded && (
+          <>
+            {authError && (
+              <div className="text-ob-destructive text-sm">{authError}</div>
+            )}
 
-  //           {showAuthInput ? (
-  //             <div className="space-y-3">
-  //               <div className="space-y-3">
-  //                 <FormField
-  //                   id="username"
-  //                   label="Username"
-  //                   placeholder="Enter your username..."
-  //                   value={username}
-  //                   onValueChange={(value, _isValid) => setUsername(value)}
-  //                   disabled={authenticating}
-  //                   onKeyPress={(e: React.KeyboardEvent) => {
-  //                     if (e.key === "Enter") handleSubmitAuth();
-  //                   }}
-  //                 />
-  //                 <FormField
-  //                   id="admin-key"
-  //                   label="Admin Key"
-  //                   placeholder="Enter admin key..."
-  //                   value={adminKey}
-  //                   onValueChange={(value, _isValid) => setAdminKey(value)}
-  //                   disabled={authenticating}
-  //                   onKeyPress={(e: React.KeyboardEvent) => {
-  //                     if (e.key === "Enter") handleSubmitAuth();
-  //                   }}
-  //                 />
-  //               </div>
-  //               <div className="flex gap-2">
-  //                 <Button
-  //                   onClick={handleSubmitAuth}
-  //                   variant="primary"
-  //                   size="base"
-  //                   loading={authenticating}
-  //                   disabled={
-  //                     !adminKey.trim() || !username.trim() || authenticating
-  //                   }
-  //                 >
-  //                   {authenticating ? "Authenticating..." : "Authenticate"}
-  //                 </Button>
-  //                 <Button
-  //                   onClick={() => {
-  //                     setShowAuthInput(false);
-  //                     setAdminKey("");
-  //                     setUsername("");
-  //                     setOpenaiApiKey("");
-  //                     setRequiresOpenAIKey(false);
-  //                     setAuthError(null);
-  //                   }}
-  //                   variant="secondary"
-  //                   size="base"
-  //                   disabled={authenticating}
-  //                 >
-  //                   Cancel
-  //                 </Button>
-  //               </div>
-  //             </div>
-  //           ) : (
-  //             <Button
-  //               onClick={handleAuthenticate}
-  //               variant="primary"
-  //               size="base"
-  //             >
-  //               Start Authentication
-  //             </Button>
-  //           )}
-  //         </>
-  //       )}
-  //     </Card>
-  //   );
-  // }
+            {showAuthInput ? (
+              <div className="space-y-3">
+                <div className="space-y-3">
+                  <FormField
+                    id="username"
+                    label="Username"
+                    placeholder="Enter your username..."
+                    value={username}
+                    onValueChange={(value, _isValid) => setUsername(value)}
+                    disabled={authenticating}
+                    onKeyPress={(e: React.KeyboardEvent) => {
+                      if (e.key === "Enter") handleSubmitAuth();
+                    }}
+                  />
+                  <FormField
+                    id="admin-key"
+                    label="Admin Key"
+                    placeholder="Enter admin key..."
+                    value={adminKey}
+                    onValueChange={(value, _isValid) => setAdminKey(value)}
+                    disabled={authenticating}
+                    onKeyPress={(e: React.KeyboardEvent) => {
+                      if (e.key === "Enter") handleSubmitAuth();
+                    }}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleSubmitAuth}
+                    variant="primary"
+                    size="base"
+                    loading={authenticating}
+                    disabled={
+                      !adminKey.trim() || !username.trim() || authenticating
+                    }
+                  >
+                    {authenticating ? "Authenticating..." : "Authenticate"}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowAuthInput(false);
+                      setAdminKey("");
+                      setUsername("");
+                      setOpenaiApiKey("");
+                      setRequiresOpenAIKey(false);
+                      setAuthError(null);
+                    }}
+                    variant="secondary"
+                    size="base"
+                    disabled={authenticating}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                onClick={handleAuthenticate}
+                variant="primary"
+                size="base"
+              >
+                Start Authentication
+              </Button>
+            )}
+          </>
+        )}
+      </Card>
+    );
+  }
 
   // Show upload UI
   return (

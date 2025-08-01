@@ -22,7 +22,7 @@
   //   },
   // ],
   "vars": {
-    "ADMIN_SECRET": "local-dev-secret"
+    "ADMIN_SECRET": "local-dev-secret",
   },
   "durable_objects": {
     "bindings": [

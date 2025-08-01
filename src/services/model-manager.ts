@@ -26,7 +26,7 @@ export class ModelManager {
 
     console.log(
       "[ModelManager] Initializing model with API key:",
-      apiKey.substring(0, 20) + "..."
+      `${apiKey.substring(0, 20)}...`
     );
 
     // Set the API key in the environment for the model creation

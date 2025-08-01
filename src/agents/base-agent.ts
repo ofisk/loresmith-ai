@@ -213,7 +213,7 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
               apiKey = payload.openaiApiKey;
               console.log(
                 `[${this.constructor.name}] Using API key from JWT:`,
-                apiKey ? apiKey.substring(0, 20) + "..." : "none"
+                apiKey ? `${apiKey.substring(0, 20)}...` : "none"
               );
             } catch (error) {
               console.error(

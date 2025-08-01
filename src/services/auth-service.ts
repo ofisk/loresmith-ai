@@ -69,7 +69,7 @@ export class AuthService {
       hasEnvSecret: !!this.env.ADMIN_SECRET,
       secretType: typeof this.env.ADMIN_SECRET,
       secretLength: secret.length,
-      secretPrefix: secret.substring(0, 10) + "...",
+      secretPrefix: `${secret.substring(0, 10)}...`,
       encodedLength: new TextEncoder().encode(secret).length,
     });
     return new TextEncoder().encode(secret);
@@ -217,6 +217,14 @@ export class AuthService {
     }
   }
 
+  static async extractAuthFromHeader(
+    authHeader: string | null | undefined,
+    env: any
+  ): Promise<AuthPayload | null> {
+    const authService = new AuthService(env);
+    return authService.extractAuthFromHeader(authHeader);
+  }
+
   /**
    * Get username from Authorization header
    */
@@ -242,6 +250,13 @@ export class AuthService {
     return headers;
   }
 
+  static createAuthHeaders(jwt?: string | null): Record<string, string> {
+    return {
+      Authorization: jwt ? `Bearer ${jwt}` : "",
+      "Content-Type": "application/json",
+    };
+  }
+
   /**
    * Create authentication headers from stored JWT
    */
@@ -250,10 +265,26 @@ export class AuthService {
     return AuthService.createAuthHeaders(jwt);
   }
 
+  static createAuthHeadersFromStorage(): Record<string, string> {
+    const jwt = AuthService.getStoredJwt();
+    return AuthService.createAuthHeaders(jwt);
+  }
+
   /**
    * Check if JWT is expired
    */
   isJwtExpired(jwt: string): boolean {
+    try {
+      const payload = JSON.parse(atob(jwt.split(".")[1]));
+      const exp = payload.exp * 1000; // Convert to milliseconds
+      return Date.now() >= exp;
+    } catch (error) {
+      console.error("[AuthService] Error checking JWT expiration:", error);
+      return true; // Consider expired if we can't parse
+    }
+  }
+
+  static isJwtExpired(jwt: string): boolean {
     try {
       const payload = JSON.parse(atob(jwt.split(".")[1]));
       const exp = payload.exp * 1000; // Convert to milliseconds
@@ -288,63 +319,6 @@ export class AuthService {
     localStorage.removeItem("loresmith-jwt");
   }
 
-  static isJwtExpired(jwt: string): boolean {
-    try {
-      const payload = JSON.parse(atob(jwt.split(".")[1]));
-      const exp = payload.exp * 1000; // Convert to milliseconds
-      return Date.now() >= exp;
-    } catch (error) {
-      console.error("[AuthService] Error checking JWT expiration:", error);
-      return true; // Consider expired if we can't parse
-    }
-  }
-
-  static createAuthHeaders(jwt?: string | null): Record<string, string> {
-    return {
-      Authorization: jwt ? `Bearer ${jwt}` : "",
-      "Content-Type": "application/json",
-    };
-  }
-
-  static createAuthHeadersFromStorage(): Record<string, string> {
-    const jwt = AuthService.getStoredJwt();
-    return AuthService.createAuthHeaders(jwt);
-  }
-
-  static async extractAuthFromHeader(
-    authHeader: string | null | undefined,
-    env: any
-  ): Promise<AuthPayload | null> {
-    const authService = new AuthService(env);
-    return authService.extractAuthFromHeader(authHeader);
-  }
-
-  static async authenticatedFetchWithExpiration(
-    url: string,
-    options: RequestInit & { jwt?: string | null } = {}
-  ): Promise<{ response: Response; jwtExpired: boolean }> {
-    const { jwt, ...fetchOptions } = options;
-    const headers = AuthService.createAuthHeaders(jwt);
-
-    // Merge with any existing headers
-    if (fetchOptions.headers) {
-      Object.assign(headers, fetchOptions.headers);
-    }
-
-    const response = await fetch(url, {
-      ...fetchOptions,
-      headers,
-    });
-
-    // Check if JWT expired
-    const jwtExpired = response.status === 401;
-    if (jwtExpired) {
-      AuthService.clearJwt();
-    }
-
-    return { response, jwtExpired };
-  }
-
   /**
    * Make authenticated fetch request with JWT expiration handling
    */
@@ -369,6 +343,32 @@ export class AuthService {
     const jwtExpired = response.status === 401;
     if (jwtExpired) {
       this.handleJwtExpiration();
+    }
+
+    return { response, jwtExpired };
+  }
+
+  static async authenticatedFetchWithExpiration(
+    url: string,
+    options: RequestInit & { jwt?: string | null } = {}
+  ): Promise<{ response: Response; jwtExpired: boolean }> {
+    const { jwt, ...fetchOptions } = options;
+    const headers = AuthService.createAuthHeaders(jwt);
+
+    // Merge with any existing headers
+    if (fetchOptions.headers) {
+      Object.assign(headers, fetchOptions.headers);
+    }
+
+    const response = await fetch(url, {
+      ...fetchOptions,
+      headers,
+    });
+
+    // Check if JWT expired
+    const jwtExpired = response.status === 401;
+    if (jwtExpired) {
+      AuthService.clearJwt();
     }
 
     return { response, jwtExpired };
