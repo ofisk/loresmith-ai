@@ -197,6 +197,26 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
         );
 
         try {
+          // Validate that we have a model before proceeding
+          if (!this.model) {
+            throw new Error(
+              "Model not initialized. Please set an OpenAI API key first."
+            );
+          }
+
+          console.log(
+            `[${this.constructor.name}] About to call streamText with:`,
+            {
+              modelType: typeof this.model,
+              modelConstructor: this.model?.constructor?.name,
+              systemPromptLength: (this.constructor as any).agentMetadata
+                .systemPrompt.length,
+              messagesCount: processedMessages.length,
+              toolsCount: Object.keys(enhancedTools).length,
+              toolNames: Object.keys(enhancedTools),
+            }
+          );
+
           const result = streamText({
             model: this.model,
             system: (this.constructor as any).agentMetadata.systemPrompt,
@@ -217,8 +237,21 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
                 `Error while streaming in ${this.constructor.name}:`,
                 error
               );
+              console.error(`Error type: ${typeof error}`, error);
+              console.error(
+                `Error constructor: ${(error as any)?.constructor?.name}`,
+                error
+              );
+              console.error(`Error message: ${(error as any)?.message}`, error);
+              console.error(`Error stack: ${(error as any)?.stack}`, error);
+              console.error(
+                `Full error object:`,
+                JSON.stringify(error, null, 2)
+              );
+              // Re-throw the error so it can be handled by the calling code
+              throw error;
             },
-            maxSteps: 1, // Allow one step (either tool call or direct response)
+            maxSteps: 5, // Allow multiple steps for tool usage
           });
 
           console.log(
@@ -264,6 +297,11 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
     return Object.fromEntries(
       Object.entries(this.tools).map(([toolName, tool]) => {
         console.log(`[${this.constructor.name}] Adding tool ${toolName}`);
+        console.log(`[${this.constructor.name}] Processing tool ${toolName}:`, {
+          toolType: typeof tool,
+          hasExecute: typeof tool.execute,
+          toolKeys: Object.keys(tool),
+        });
         return [
           toolName,
           {

@@ -54,7 +54,10 @@ export const Modal = ({
     const firstElement = focusableElements[0];
     const lastElement = focusableElements[focusableElements.length - 1];
 
-    if (firstElement) firstElement.focus();
+    // Only auto-focus if no element is currently focused within the modal
+    if (firstElement && !modalRef.current.contains(document.activeElement)) {
+      firstElement.focus();
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Tab") {

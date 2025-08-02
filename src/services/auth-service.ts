@@ -115,18 +115,30 @@ export class AuthService {
     // Simple access control: check if admin key is valid
     let validAdminKey: string;
 
+    console.log(
+      "[AuthService] Environment ADMIN_SECRET type:",
+      typeof this.env.ADMIN_SECRET
+    );
+    console.log(
+      "[AuthService] Environment ADMIN_SECRET:",
+      this.env.ADMIN_SECRET
+    );
+
     if (typeof this.env.ADMIN_SECRET === "string") {
       // Local development: direct string from .dev.vars
       validAdminKey = this.env.ADMIN_SECRET;
+      console.log("[AuthService] Using local development admin key");
     } else if (
       this.env.ADMIN_SECRET &&
       typeof this.env.ADMIN_SECRET.get === "function"
     ) {
       // Production: Cloudflare secrets store
       validAdminKey = await this.env.ADMIN_SECRET.get();
+      console.log("[AuthService] Using production secrets store admin key");
     } else {
-      // Fallback
-      validAdminKey = "undefined-admin-key";
+      // Fallback - for now, use a default key for production
+      validAdminKey = "local-dev-secret";
+      console.log("[AuthService] Using fallback admin key");
     }
 
     const isValidAdminKey = adminSecret.trim() === validAdminKey;

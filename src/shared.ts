@@ -41,6 +41,7 @@ function getApiUrl(): string {
       protocol,
       port,
       origin: window.location.origin,
+      href: window.location.href,
     });
 
     // If we're not on localhost, use the current origin
@@ -52,11 +53,29 @@ function getApiUrl(): string {
       return window.location.origin;
     }
 
-    // If we are on localhost but have a port, use it
-    if (hostname === "localhost" && port) {
-      const localhostUrl = `${protocol}//${hostname}:${port}`;
-      console.log("[getApiUrl] Using localhost with port:", localhostUrl);
-      return localhostUrl;
+    // If we are on localhost, always use localhost:8787 for the API
+    console.log("[getApiUrl] Using localhost API URL");
+    return "http://localhost:8787";
+  }
+
+  // If we reach here, we're not in a browser context
+  console.log("[getApiUrl] Not in browser context, using default fallback");
+
+  // For Worker context, detect if we're running on Cloudflare Workers
+  // In Cloudflare Workers, we can detect production by checking if we're not in a browser context
+  // and if we have access to Cloudflare-specific globals
+  if (typeof window === "undefined" && typeof globalThis !== "undefined") {
+    // Check if we're in a Cloudflare Worker environment
+    const isCloudflareWorker =
+      typeof globalThis.fetch === "function" &&
+      typeof globalThis.Response === "function" &&
+      typeof globalThis.Request === "function";
+
+    if (isCloudflareWorker) {
+      console.log(
+        "[getApiUrl] Detected Cloudflare Worker environment, using production URL"
+      );
+      return "https://loresmith-ai.oren-t-fisk.workers.dev";
     }
   }
 

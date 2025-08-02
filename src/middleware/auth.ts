@@ -46,11 +46,16 @@ export async function requireUserJwt(
       Array.from(jwtSecret).slice(0, 10)
     );
     console.log("[requireUserJwt] Using Secrets Store for verification");
+    console.log(
+      "[requireUserJwt] Token to verify:",
+      token.substring(0, 50) + "..."
+    );
 
     const { payload } = await jwtVerify(token, jwtSecret);
     console.log("[requireUserJwt] JWT payload:", payload);
 
     if (payload.type !== "user-auth") {
+      console.log("[requireUserJwt] Invalid token type:", payload.type);
       return c.json({ error: "Invalid token type" }, 401);
     }
 
@@ -61,6 +66,11 @@ export async function requireUserJwt(
     await next();
   } catch (error) {
     console.error("[requireUserJwt] JWT verification failed:", error);
+    console.error("[requireUserJwt] Error details:", {
+      name: error instanceof Error ? error.name : "Unknown",
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return c.json({ error: "Invalid token" }, 401);
   }
 }

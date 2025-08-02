@@ -8,8 +8,7 @@ export const commonSchemas = {
   jwt: z
     .string()
     .nullable()
-    .optional()
-    .describe("JWT token for authentication"),
+    .describe("JWT token for authentication (required for all operations)"),
 
   campaignId: z.string().describe("The unique identifier for the campaign"),
 

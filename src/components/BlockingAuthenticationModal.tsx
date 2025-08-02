@@ -1,5 +1,5 @@
 import type React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Modal } from "./modal/Modal";
 import { PrimaryActionButton } from "./button";
 import { FormField } from "./input/FormField";
@@ -26,11 +26,13 @@ export function BlockingAuthenticationModal({
   const [openaiApiKey, setOpenaiApiKey] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasSetOpenAIKey = useRef(false);
 
   // Prefill OpenAI key if we have a stored one
   useEffect(() => {
-    if (storedOpenAIKey && isOpen) {
+    if (storedOpenAIKey && isOpen && !hasSetOpenAIKey.current) {
       setOpenaiApiKey(storedOpenAIKey);
+      hasSetOpenAIKey.current = true;
     }
   }, [storedOpenAIKey, isOpen]);
 
@@ -72,6 +74,7 @@ export function BlockingAuthenticationModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormField
+            key="username-field"
             id="username"
             label="Username"
             placeholder="Speak your name..."
@@ -85,6 +88,7 @@ export function BlockingAuthenticationModal({
           </FormField>
 
           <FormField
+            key="admin-key-field"
             id="adminKey"
             label="Admin Key"
             placeholder="Enter the sacred key..."
@@ -98,6 +102,7 @@ export function BlockingAuthenticationModal({
           </FormField>
 
           <FormField
+            key="openai-key-field"
             id="openaiKey"
             label="OpenAI API Key"
             placeholder="Enter OpenAI's spell..."

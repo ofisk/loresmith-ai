@@ -14,16 +14,14 @@
   "assets": {
     "directory": "public",
   },
-  // "secrets_store_secrets": [
-  //   {
-  //     "binding": "ADMIN_SECRET",
-  //     "store_id": "69b603107000458b8f1452516860c425",
-  //     "secret_name": "ADMIN_SECRET",
-  //   },
-  // ],
-  "vars": {
-    "ADMIN_SECRET": "local-dev-secret",
-  },
+  "secrets_store_secrets": [
+    {
+      "binding": "ADMIN_SECRET",
+      "store_id": "69b603107000458b8f1452516860c425",
+      "secret_name": "ADMIN_SECRET",
+    },
+  ],
+  "vars": {},
   "durable_objects": {
     "bindings": [
       { "name": "Chat", "class_name": "Chat" },
