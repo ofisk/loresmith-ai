@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Database migration script for LoreSmith AI (LOCAL DEVELOPMENT)
-# This script runs all database migrations against the local D1 database
+# This script automatically runs all SQL migration files in the migrations directory
+# Continues execution even if individual migrations fail
 
 set -e  # Exit on any error
 
@@ -20,19 +21,56 @@ if [ ! -d "migrations" ]; then
     exit 1
 fi
 
-# Run migrations in order (LOCAL)
-# echo "📋 Running migration: 0000_loresmith_db_schema.sql"
-# wrangler d1 execute loresmith-db --file=migrations/0000_loresmith_db_schema.sql --local
+# Get database name from wrangler config
+DB_NAME="loresmith-db"
 
-# echo "📋 Running migration: 0001_campaign_context.sql"
-# wrangler d1 execute loresmith-db --file=migrations/0001_campaign_context.sql --local
+# Find all SQL files in migrations directory and sort them
+MIGRATION_FILES=$(find migrations -name "*.sql" | sort)
 
-# echo "📋 Running migration: 0002_character_sheets.sql"
-# wrangler d1 execute loresmith-db --file=migrations/0002_character_sheets.sql --local
+if [ -z "$MIGRATION_FILES" ]; then
+    echo "⚠️  No SQL migration files found in migrations directory"
+    exit 0
+fi
 
-echo "📋 Running migration: 0004_user_openai_keys.sql"
-wrangler d1 execute loresmith-db --file=migrations/0004_user_openai_keys.sql --local
+echo "📋 Found $(echo "$MIGRATION_FILES" | wc -l) migration files to execute"
+echo ""
 
-echo "✅ All LOCAL migrations completed successfully!"
-echo "📊 Database tables created:"
-wrangler d1 execute loresmith-db --command="SELECT name FROM sqlite_master WHERE type='table';" --local 
+# Track success and failure counts
+SUCCESS_COUNT=0
+FAILURE_COUNT=0
+FAILED_MIGRATIONS=""
+
+# Execute each migration file
+for migration_file in $MIGRATION_FILES; do
+    echo "🔄 Running migration: $(basename "$migration_file")"
+    
+    if wrangler d1 execute "$DB_NAME" --file="$migration_file" --local; then
+        echo "✅ Success: $(basename "$migration_file")"
+        ((SUCCESS_COUNT++))
+    else
+        echo "❌ Failed: $(basename "$migration_file")"
+        ((FAILURE_COUNT++))
+        FAILED_MIGRATIONS="$FAILED_MIGRATIONS\n  - $(basename "$migration_file")"
+    fi
+    
+    echo ""
+done
+
+# Summary
+echo "📊 Migration Summary:"
+echo "  ✅ Successful: $SUCCESS_COUNT"
+echo "  ❌ Failed: $FAILURE_COUNT"
+
+if [ $FAILURE_COUNT -gt 0 ]; then
+    echo "  📝 Failed migrations:$FAILED_MIGRATIONS"
+    echo ""
+    echo "⚠️  Some migrations failed, but execution continued."
+    echo "   You may want to check the failed migrations and run them manually."
+fi
+
+echo ""
+echo "📋 Current database tables:"
+wrangler d1 execute "$DB_NAME" --command="SELECT name FROM sqlite_master WHERE type='table';" --local
+
+echo ""
+echo "🎉 Local migration process completed!" 
