@@ -4,6 +4,7 @@ import { CampaignContextAgent } from "../agents/campaign-context-agent";
 import { CharacterSheetAgent } from "../agents/character-sheet-agent";
 import { OnboardingAgent } from "../agents/onboarding-agent";
 import { ResourceAgent } from "../agents/resource-agent";
+import { SessionPlanningAgent } from "../agents/session-planning-agent";
 
 /**
  * Agent Registry Service
@@ -113,6 +114,15 @@ export class AgentRegistryService {
       ResourceAgent.agentMetadata.tools,
       ResourceAgent.agentMetadata.systemPrompt,
       ResourceAgent.agentMetadata.description
+    );
+
+    // Register Session Planning Agent
+    AgentRouter.registerAgent(
+      SessionPlanningAgent.agentMetadata.type as AgentType,
+      SessionPlanningAgent,
+      SessionPlanningAgent.agentMetadata.tools,
+      SessionPlanningAgent.agentMetadata.systemPrompt,
+      SessionPlanningAgent.agentMetadata.description
     );
 
     console.log(

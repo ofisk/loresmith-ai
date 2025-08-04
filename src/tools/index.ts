@@ -16,6 +16,8 @@ import { campaignTools as importedCampaignTools } from "./campaign";
 import { generalTools } from "./general";
 // PDF-related tools for file management
 import { pdfTools as importedPdfTools } from "./pdf";
+// Session planning-related tools
+import { sessionPlanningTools as importedSessionPlanningTools } from "./session-planning";
 
 /**
  * Export all available tools
@@ -29,6 +31,7 @@ export const tools = {
   ...generalTools,
   ...importedPdfTools,
   ...importedCampaignTools,
+  ...importedSessionPlanningTools,
 };
 
 /**
