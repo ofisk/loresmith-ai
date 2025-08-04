@@ -6,7 +6,8 @@ export type AgentType =
   | "campaign-context"
   | "character-sheets"
   | "onboarding"
-  | "resources";
+  | "resources"
+  | "session-planning";
 
 export interface AgentIntent {
   agent: AgentType;
