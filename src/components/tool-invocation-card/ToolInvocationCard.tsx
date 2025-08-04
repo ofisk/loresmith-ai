@@ -27,6 +27,7 @@ interface ToolInvocationCardProps {
   toolCallId: string;
   needsConfirmation: boolean;
   addToolResult: (args: { toolCallId: string; result: string }) => void;
+  showDebug?: boolean;
 }
 
 export function ToolInvocationCard({
@@ -34,6 +35,7 @@ export function ToolInvocationCard({
   toolCallId,
   needsConfirmation,
   addToolResult,
+  showDebug = false,
 }: ToolInvocationCardProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -220,37 +222,40 @@ export function ToolInvocationCard({
               </div>
             )}
 
-          {!needsConfirmation && toolInvocation.state === "result" && (
-            <div className="mt-3 border-t border-[#F48120]/10 pt-3">
-              <h5 className="text-xs font-medium mb-1 text-muted-foreground">
-                Result:
-              </h5>
-              <pre className="bg-background/80 p-2 rounded-md text-xs overflow-auto whitespace-pre-wrap break-words max-w-[450px]">
-                {(() => {
-                  const result = toolInvocation.result;
-                  if (typeof result === "object" && result.content) {
-                    return result.content
-                      .map((item: { type: string; text: string }) => {
-                        if (
-                          item.type === "text" &&
-                          item.text.startsWith("\n~ Page URL:")
-                        ) {
-                          const lines = item.text.split("\n").filter(Boolean);
-                          return lines
-                            .map(
-                              (line: string) => `- ${line.replace("\n~ ", "")}`
-                            )
-                            .join("\n");
-                        }
-                        return item.text;
-                      })
-                      .join("\n");
-                  }
-                  return JSON.stringify(result, null, 2);
-                })()}
-              </pre>
-            </div>
-          )}
+          {!needsConfirmation &&
+            toolInvocation.state === "result" &&
+            showDebug && (
+              <div className="mt-3 border-t border-[#F48120]/10 pt-3">
+                <h5 className="text-xs font-medium mb-1 text-muted-foreground">
+                  Result:
+                </h5>
+                <pre className="bg-background/80 p-2 rounded-md text-xs overflow-auto whitespace-pre-wrap break-words max-w-[450px]">
+                  {(() => {
+                    const result = toolInvocation.result;
+                    if (typeof result === "object" && result.content) {
+                      return result.content
+                        .map((item: { type: string; text: string }) => {
+                          if (
+                            item.type === "text" &&
+                            item.text.startsWith("\n~ Page URL:")
+                          ) {
+                            const lines = item.text.split("\n").filter(Boolean);
+                            return lines
+                              .map(
+                                (line: string) =>
+                                  `- ${line.replace("\n~ ", "")}`
+                              )
+                              .join("\n");
+                          }
+                          return item.text;
+                        })
+                        .join("\n");
+                    }
+                    return JSON.stringify(result, null, 2);
+                  })()}
+                </pre>
+              </div>
+            )}
         </div>
       </div>
     </Card>
