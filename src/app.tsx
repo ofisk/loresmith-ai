@@ -546,7 +546,16 @@ export default function Chat() {
                 <div key={m.id}>
                   {showDebug && (
                     <pre className="text-xs text-muted-foreground overflow-scroll">
-                      {JSON.stringify(m, null, 2)}
+                      {JSON.stringify(
+                        {
+                          ...m,
+                          parts: m.parts?.filter(
+                            (part) => part.type !== "tool-invocation"
+                          ),
+                        },
+                        null,
+                        2
+                      )}
                     </pre>
                   )}
                   <div
@@ -620,8 +629,8 @@ export default function Chat() {
                                     | keyof typeof pdfTools
                                 );
 
-                              // Skip rendering the card in debug mode
-                              if (showDebug) return null;
+                              // Skip rendering the card when debug is off
+                              if (!showDebug) return null;
 
                               return (
                                 <ToolInvocationCard
@@ -631,6 +640,7 @@ export default function Chat() {
                                   toolCallId={toolCallId}
                                   needsConfirmation={needsConfirmation}
                                   addToolResult={addToolResult}
+                                  showDebug={showDebug}
                                 />
                               );
                             }
