@@ -216,9 +216,7 @@ export class CampaignService {
         readinessScore += 10;
       } else {
         missingElements.push("Campaign resources");
-        recommendations.push(
-          "Add resources to your campaign for better planning support"
-        );
+        recommendations.push("Add to Library for better planning support");
       }
 
       return {

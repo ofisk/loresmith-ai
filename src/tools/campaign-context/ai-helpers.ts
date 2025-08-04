@@ -1,3 +1,6 @@
+import { createToolSuccess } from "../utils";
+import { type ToolResult } from "../../constants";
+
 // Helper function to generate character data using AI
 export async function generateCharacterWithAI(params: {
   characterName: string;
@@ -8,17 +11,8 @@ export async function generateCharacterWithAI(params: {
   playerPreferences?: string;
   partyComposition?: string[];
   campaignName: string;
-}): Promise<{
-  characterName: string;
-  characterClass: string;
-  characterLevel: number;
-  characterRace: string;
-  backstory: string;
-  personalityTraits: string;
-  goals: string;
-  relationships: string[];
-  metadata: Record<string, any>;
-}> {
+  toolCallId: string;
+}): Promise<ToolResult> {
   const {
     characterName,
     characterClass,
@@ -28,6 +22,7 @@ export async function generateCharacterWithAI(params: {
     playerPreferences,
     partyComposition,
     campaignName,
+    toolCallId,
   } = params;
 
   // Generate random class if not provided
@@ -72,17 +67,21 @@ export async function generateCharacterWithAI(params: {
     partyComposition,
   };
 
-  return {
-    characterName,
-    characterClass: finalCharacterClass,
-    characterLevel,
-    characterRace: finalCharacterRace,
-    backstory,
-    personalityTraits,
-    goals,
-    relationships,
-    metadata,
-  };
+  return createToolSuccess(
+    "Character generated successfully",
+    {
+      characterName,
+      characterClass: finalCharacterClass,
+      characterLevel,
+      characterRace: finalCharacterRace,
+      backstory,
+      personalityTraits,
+      goals,
+      relationships,
+      metadata,
+    },
+    toolCallId
+  );
 }
 
 // Helper function to generate a random character class

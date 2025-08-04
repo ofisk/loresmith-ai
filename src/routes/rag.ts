@@ -19,7 +19,11 @@ export async function handleRagSearch(c: ContextWithAuth) {
       return c.json({ error: "Query is required" }, 400);
     }
 
-    const ragService = new RAGService(c.env.DB, c.env.VECTORIZE);
+    const ragService = new RAGService(
+      c.env.DB,
+      c.env.VECTORIZE,
+      userAuth.openaiApiKey
+    );
     const results = await ragService.searchContent(
       userAuth.username,
       query,
@@ -47,8 +51,23 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
     const fileId = crypto.randomUUID();
     const now = new Date().toISOString();
 
+    // Get file size from R2
+    let fileSize = 0;
+    try {
+      console.log(`[RAG] Attempting to get file from R2: ${fileKey}`);
+      const file = await c.env.PDF_BUCKET.get(fileKey);
+      if (file) {
+        fileSize = file.size;
+        console.log(`[RAG] File found in R2, size: ${fileSize} bytes`);
+      } else {
+        console.log(`[RAG] File not found in R2: ${fileKey}`);
+      }
+    } catch (error) {
+      console.warn("Could not get file size from R2:", error);
+    }
+
     await c.env.DB.prepare(
-      "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
       .bind(
         fileId,
@@ -58,7 +77,8 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
         tags ? JSON.stringify(tags) : "[]",
         userAuth.username,
         "processing",
-        now
+        now,
+        fileSize
       )
       .run();
 
@@ -72,7 +92,11 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
         }
 
         // Process with RAG service
-        const ragService = new RAGService(c.env.DB, c.env.VECTORIZE);
+        const ragService = new RAGService(
+          c.env.DB,
+          c.env.VECTORIZE,
+          userAuth.openaiApiKey
+        );
         await ragService.processPdfFromR2(
           fileKey,
           userAuth.username,
@@ -87,11 +111,11 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
           }
         );
 
-        // Update database status
+        // Update database status and file size
         await c.env.DB.prepare(
-          "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ?"
+          "UPDATE pdf_files SET status = ?, updated_at = ?, file_size = ? WHERE file_key = ?"
         )
-          .bind("completed", new Date().toISOString(), fileKey)
+          .bind("completed", new Date().toISOString(), file.size, fileKey)
           .run();
 
         completeProgress(fileKey, true);
@@ -129,8 +153,19 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
     const fileId = crypto.randomUUID();
     const now = new Date().toISOString();
 
+    // Get file size from R2
+    let fileSize = 0;
+    try {
+      const file = await c.env.PDF_BUCKET.get(fileKey);
+      if (file) {
+        fileSize = file.size;
+      }
+    } catch (error) {
+      console.warn("Could not get file size from R2:", error);
+    }
+
     await c.env.DB.prepare(
-      "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
       .bind(
         fileId,
@@ -140,7 +175,8 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
         tags ? JSON.stringify(tags) : "[]",
         userAuth.username,
         "processing",
-        now
+        now,
+        fileSize
       )
       .run();
 
@@ -154,7 +190,11 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
         }
 
         // Process with RAG service
-        const ragService = new RAGService(c.env.DB, c.env.VECTORIZE);
+        const ragService = new RAGService(
+          c.env.DB,
+          c.env.VECTORIZE,
+          userAuth.openaiApiKey
+        );
         await ragService.processPdfFromR2(
           fileKey,
           userAuth.username,
@@ -169,11 +209,11 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
           }
         );
 
-        // Update database status
+        // Update database status and file size
         await c.env.DB.prepare(
-          "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ?"
+          "UPDATE pdf_files SET status = ?, updated_at = ?, file_size = ? WHERE file_key = ?"
         )
-          .bind("completed", new Date().toISOString(), fileKey)
+          .bind("completed", new Date().toISOString(), file.size, fileKey)
           .run();
 
         completeProgress(fileKey, true);
@@ -229,7 +269,7 @@ export async function handleGetPdfFilesForRag(c: ContextWithAuth) {
     const userAuth = (c as any).userAuth;
 
     const files = await c.env.DB.prepare(
-      "SELECT id, file_key, file_name, description, tags, status, created_at, updated_at FROM pdf_files WHERE username = ? ORDER BY created_at DESC"
+      "SELECT id, file_key, file_name, description, tags, status, created_at, updated_at, file_size FROM pdf_files WHERE username = ? ORDER BY created_at DESC"
     )
       .bind(userAuth.username)
       .all();
@@ -265,24 +305,71 @@ export async function handleDeletePdfForRag(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
     const fileKey = c.req.param("fileKey");
+    console.log("[handleDeletePdfForRag] Starting deletion process");
+    console.log("[handleDeletePdfForRag] Received fileKey:", fileKey);
+    console.log("[handleDeletePdfForRag] User:", userAuth.username);
+    console.log("[handleDeletePdfForRag] Request URL:", c.req.url);
+    console.log("[handleDeletePdfForRag] Request path:", c.req.path);
 
+    if (!fileKey) {
+      console.error("[handleDeletePdfForRag] No fileKey provided");
+      return c.json({ error: "No file key provided" }, 400);
+    }
+
+    // Check if file exists before deletion
+    const existingFile = await c.env.DB.prepare(
+      "SELECT file_key, file_name FROM pdf_files WHERE file_key = ? AND username = ?"
+    )
+      .bind(fileKey, userAuth.username)
+      .first();
+
+    console.log("[handleDeletePdfForRag] Existing file check:", existingFile);
+
+    if (!existingFile) {
+      console.log("[handleDeletePdfForRag] File not found in database");
+      return c.json({ error: "File not found" }, 404);
+    }
+
+    console.log("[handleDeletePdfForRag] Deleting from R2 bucket:", fileKey);
     // Delete from R2
     await c.env.PDF_BUCKET.delete(fileKey);
+    console.log("[handleDeletePdfForRag] R2 deletion completed");
 
+    console.log("[handleDeletePdfForRag] Deleting chunks from database");
     // Delete chunks from database
-    await c.env.DB.prepare(
+    const chunksResult = await c.env.DB.prepare(
       "DELETE FROM pdf_chunks WHERE file_key = ? AND username = ?"
     )
       .bind(fileKey, userAuth.username)
       .run();
+    console.log("[handleDeletePdfForRag] Chunks deleted:", chunksResult);
 
+    console.log("[handleDeletePdfForRag] Deleting file metadata from database");
     // Delete file metadata from database
-    await c.env.DB.prepare(
+    const fileResult = await c.env.DB.prepare(
       "DELETE FROM pdf_files WHERE file_key = ? AND username = ?"
     )
       .bind(fileKey, userAuth.username)
       .run();
+    console.log("[handleDeletePdfForRag] File metadata deleted:", fileResult);
 
+    // Verify deletion
+    const verifyFile = await c.env.DB.prepare(
+      "SELECT file_key FROM pdf_files WHERE file_key = ? AND username = ?"
+    )
+      .bind(fileKey, userAuth.username)
+      .first();
+
+    console.log("[handleDeletePdfForRag] Verification check:", verifyFile);
+
+    if (verifyFile) {
+      console.error(
+        "[handleDeletePdfForRag] File still exists after deletion!"
+      );
+      return c.json({ error: "File deletion failed" }, 500);
+    }
+
+    console.log("[handleDeletePdfForRag] Deletion successful");
     return c.json({ success: true });
   } catch (error) {
     console.error("Error deleting PDF for RAG:", error);

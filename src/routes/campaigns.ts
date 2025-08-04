@@ -23,7 +23,7 @@ export async function handleGetCampaigns(c: ContextWithAuth) {
     }
 
     const campaigns = await c.env.DB.prepare(
-      "SELECT id, name, description, created_at, updated_at FROM campaigns WHERE username = ? ORDER BY created_at DESC"
+      "SELECT id as campaignId, name, description, created_at as createdAt, updated_at as updatedAt FROM campaigns WHERE username = ? ORDER BY created_at DESC"
     )
       .bind(userAuth.username)
       .all<Campaign>();
@@ -84,7 +84,7 @@ export async function handleGetCampaign(c: ContextWithAuth) {
     const campaignId = c.req.param("campaignId");
 
     const campaign = await c.env.DB.prepare(
-      "SELECT id, name, description, created_at, updated_at FROM campaigns WHERE id = ? AND username = ?"
+      "SELECT id as campaignId, name, description, created_at as createdAt, updated_at as updatedAt FROM campaigns WHERE id = ? AND username = ?"
     )
       .bind(campaignId, userAuth.username)
       .first<Campaign>();

@@ -45,37 +45,95 @@ export const tools = {
 import type { ToolExecutionOptions } from "ai";
 
 export const executions = {
-  createCampaign: async (params: { name: string; jwt?: string }) => {
-    return importedCampaignTools.createCampaign.execute(
+  createCampaign: async (
+    params: { name: string; jwt?: string },
+    context?: ToolExecutionOptions
+  ) => {
+    return await importedCampaignTools.createCampaign.execute(
       params,
-      {} as ToolExecutionOptions
+      context || ({} as ToolExecutionOptions)
     );
   },
-  listCampaignResources: async (params: {
-    campaignId: string;
-    jwt?: string;
-  }) => {
-    return importedCampaignTools.listCampaignResources.execute(
+  listCampaignResources: async (
+    params: {
+      campaignId: string;
+      jwt?: string;
+    },
+    context?: ToolExecutionOptions
+  ) => {
+    return await importedCampaignTools.listCampaignResources.execute(
       params,
-      {} as ToolExecutionOptions
+      context || ({} as ToolExecutionOptions)
     );
   },
-  addResourceToCampaign: async (params: {
-    campaignId: string;
-    resourceType: "pdf" | "character" | "note" | "image";
-    resourceId: string;
-    resourceName?: string;
-    jwt?: string;
-  }) => {
-    return importedCampaignTools.addResourceToCampaign.execute(
+  addResourceToCampaign: async (
+    params: {
+      campaignId: string;
+      resourceType: "pdf" | "character" | "note" | "image";
+      resourceId: string;
+      resourceName?: string;
+      jwt?: string;
+    },
+    context?: ToolExecutionOptions
+  ) => {
+    return await importedCampaignTools.addResourceToCampaign.execute(
       params,
-      {} as ToolExecutionOptions
+      context || ({} as ToolExecutionOptions)
     );
   },
-  showCampaignDetails: async (params: { campaignId: string; jwt?: string }) => {
-    return importedCampaignTools.showCampaignDetails.execute(
+  removeResourceFromCampaign: async (
+    params: {
+      campaignId: string;
+      resourceId: string;
+      jwt?: string;
+    },
+    context?: ToolExecutionOptions
+  ) => {
+    return await importedCampaignTools.removeResourceFromCampaign.execute(
       params,
-      {} as ToolExecutionOptions
+      context || ({} as ToolExecutionOptions)
+    );
+  },
+  showCampaignDetails: async (
+    params: { campaignId: string; jwt?: string },
+    context?: ToolExecutionOptions
+  ) => {
+    return await importedCampaignTools.showCampaignDetails.execute(
+      params,
+      context || ({} as ToolExecutionOptions)
+    );
+  },
+  listPdfFiles: async (
+    params: { jwt?: string },
+    context?: ToolExecutionOptions
+  ) => {
+    return await importedPdfTools.listPdfFiles.execute(
+      params,
+      context || ({} as ToolExecutionOptions)
+    );
+  },
+  getPdfStats: async (
+    params: { jwt?: string },
+    context?: ToolExecutionOptions
+  ) => {
+    return await importedPdfTools.getPdfStats.execute(
+      params,
+      context || ({} as ToolExecutionOptions)
+    );
+  },
+  deletePdfFile: async (
+    params: { fileKey: string; jwt?: string },
+    context?: ToolExecutionOptions
+  ) => {
+    console.log("[Tool Index] deletePdfFile called with params:", params);
+    console.log("[Tool Index] fileKey from params:", params.fileKey);
+    console.log("[Tool Index] jwt from params:", params.jwt);
+
+    // Import the execution logic directly
+    const { deletePdfFileExecution } = await import("./pdf/list-tools");
+    return await deletePdfFileExecution(
+      params,
+      context || ({} as ToolExecutionOptions)
     );
   },
 };

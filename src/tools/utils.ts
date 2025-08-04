@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AUTH_CODES, type ToolResult } from "../constants";
+import { type ToolResult } from "../constants";
 
 /**
  * Common tool parameter schemas
@@ -48,24 +48,35 @@ export function createAuthHeaders(jwt?: string | null): Record<string, string> {
  */
 export function createToolError(
   message: string,
-  error?: any,
-  code: number = AUTH_CODES.ERROR
+  error: any,
+  _code: number,
+  toolCallId: string
 ): ToolResult {
   return {
-    code,
-    message,
-    data: { error: error instanceof Error ? error.message : String(error) },
+    toolCallId,
+    result: {
+      success: false,
+      message,
+      data: { error: error instanceof Error ? error.message : String(error) },
+    },
   };
 }
 
 /**
  * Standard success response for tool execution
  */
-export function createToolSuccess(message: string, data: any = {}): ToolResult {
+export function createToolSuccess(
+  message: string,
+  data: any,
+  toolCallId: string
+): ToolResult {
   return {
-    code: AUTH_CODES.SUCCESS,
-    message,
-    data,
+    toolCallId,
+    result: {
+      success: true,
+      message,
+      data,
+    },
   };
 }
 

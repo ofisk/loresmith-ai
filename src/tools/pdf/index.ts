@@ -1,29 +1,23 @@
 // Import all PDF tools
 
-import { getPdfStats, listPdfFiles } from "./list-tools";
-import { updatePdfMetadata, autoGeneratePdfMetadata } from "./metadata-tools";
+import { listPdfFiles } from "./list-tools";
 import {
   generatePdfUploadUrl,
-  ingestPdfFile,
-  uploadPdfFile,
+  completePdfUpload,
+  processPdfUpload,
 } from "./upload-tools";
 
-export { getPdfStats, listPdfFiles } from "./list-tools";
-export { updatePdfMetadata, autoGeneratePdfMetadata } from "./metadata-tools";
-// Export all PDF tools
+export { listPdfFiles } from "./list-tools";
 export {
   generatePdfUploadUrl,
-  ingestPdfFile,
-  uploadPdfFile,
+  completePdfUpload,
+  processPdfUpload,
 } from "./upload-tools";
 
 // Export the tools object for backward compatibility
 export const pdfTools = {
-  uploadPdfFile,
-  ingestPdfFile,
   generatePdfUploadUrl,
+  completePdfUpload,
+  processPdfUpload,
   listPdfFiles,
-  getPdfStats,
-  updatePdfMetadata,
-  autoGeneratePdfMetadata,
 };

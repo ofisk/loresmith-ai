@@ -432,8 +432,8 @@ app.put(
   handleUpdatePdfMetadataForRag
 );
 app.get("/rag/pdfs", requireUserJwt, handleGetPdfFilesForRag);
-app.get("/rag/pdfs/:fileKey/chunks", requireUserJwt, handleGetPdfChunksForRag);
 app.delete("/rag/pdfs/:fileKey", requireUserJwt, handleDeletePdfForRag);
+app.get("/rag/pdfs/:fileKey/chunks", requireUserJwt, handleGetPdfChunksForRag);
 
 // Campaign Routes
 app.get("/campaigns", requireUserJwt, handleGetCampaigns);

@@ -11,18 +11,22 @@ import { MultiSelect } from "../select/MultiSelect";
 import type { Campaign } from "../../types/campaign";
 
 interface PdfFile {
-  fileKey: string;
-  fileName: string;
-  fileSize: number;
-  uploaded: string;
+  id: string;
+  file_key: string;
+  file_name: string;
+  file_size: number;
+  description?: string;
+  tags?: string;
   status: string;
-  metadata?: {
-    description?: string;
-    tags?: string[];
-  };
+  created_at: string;
+  updated_at: string;
 }
 
-export function PdfList() {
+interface PdfListProps {
+  refreshTrigger?: number;
+}
+
+export function PdfList({ refreshTrigger }: PdfListProps) {
   const [files, setFiles] = useState<PdfFile[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,8 +111,8 @@ export function PdfList() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               type: "pdf",
-              id: selectedFile.fileKey,
-              name: selectedFile.fileName,
+              id: selectedFile.file_key,
+              name: selectedFile.file_name,
             }),
           }
         )
@@ -139,6 +143,13 @@ export function PdfList() {
     fetchCampaigns();
   }, [fetchFiles, fetchCampaigns]);
 
+  // Refresh when refreshTrigger changes
+  useEffect(() => {
+    if (refreshTrigger) {
+      fetchFiles();
+    }
+  }, [refreshTrigger, fetchFiles]);
+
   if (loading) {
     return <div>Loading PDF files...</div>;
   }
@@ -157,38 +168,42 @@ export function PdfList() {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Uploaded PDF Files</h3>
+      <h3 className="text-lg font-semibold">Resource Library</h3>
       <div className="space-y-3">
         {files.map((file) => (
           <div
-            key={file.fileKey}
+            key={file.file_key}
             className="p-4 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800"
           >
             <div className="flex justify-between items-start">
               <div className="flex-1 min-w-0">
                 <h4
                   className="font-medium text-gray-900 dark:text-gray-100 truncate cursor-help"
-                  title={file.fileName}
+                  title={file.file_name}
                 >
-                  {file.fileName}
+                  {file.file_name}
                 </h4>
                 <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-1">
                   <span>
-                    Size: {(file.fileSize / 1024 / 1024).toFixed(2)} MB
+                    Size:{" "}
+                    {file.file_size
+                      ? (file.file_size / 1024 / 1024).toFixed(2)
+                      : "Unknown"}{" "}
+                    MB
                   </span>
                   <span>•</span>
                   <span>
-                    Uploaded: {new Date(file.uploaded).toLocaleString()}
+                    Uploaded: {new Date(file.created_at).toLocaleString()}
                   </span>
                 </div>
-                {file.metadata?.description && (
+                {file.description && (
                   <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
-                    {file.metadata.description}
+                    {file.description}
                   </p>
                 )}
-                {file.metadata?.tags && file.metadata.tags.length > 0 && (
+                {file.tags && file.tags !== "[]" && (
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {file.metadata.tags.map((tag) => (
+                    {JSON.parse(file.tags).map((tag: string) => (
                       <span
                         key={tag}
                         className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded"
@@ -220,14 +235,14 @@ export function PdfList() {
         >
           <div className="p-6">
             <h3 className="text-lg font-semibold mb-4">
-              "{selectedFile?.fileName}"
+              "{selectedFile?.file_name}"
             </h3>
 
             {campaigns.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <p>No campaigns available.</p>
                 <p className="text-sm mt-2">
-                  Create a campaign first to add resources.
+                  Create a campaign first to add to library.
                 </p>
               </div>
             ) : (

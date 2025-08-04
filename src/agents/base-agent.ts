@@ -293,6 +293,21 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
                 `[${this.constructor.name}] Tool ${toolName} result:`,
                 result
               );
+
+              // Runtime assertion to catch wrong format
+              if (result && typeof result === "object") {
+                if (!("toolCallId" in result) || !("result" in result)) {
+                  console.error(
+                    `[${this.constructor.name}] Tool ${toolName} returned wrong format:`,
+                    result
+                  );
+                  console.error(
+                    `[${this.constructor.name}] Expected format: { toolCallId: string, result: { success: boolean, message: string, data?: unknown } }`
+                  );
+                  throw new Error(`Tool ${toolName} returned wrong format`);
+                }
+              }
+
               return result;
             },
           },

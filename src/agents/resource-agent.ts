@@ -25,6 +25,7 @@ const RESOURCE_SYSTEM_PROMPT = buildSystemPrompt({
     "Resource Statistics: Provide PDF upload statistics and file information",
     "File Processing: Process uploaded PDFs for content extraction",
     "Metadata Management: Update and manage PDF metadata",
+    "Bulk Operations: Handle bulk deletion by first listing all files, then deleting each individually",
   ],
   tools: createToolMappingFromObjects(pdfTools),
   workflowGuidelines: [
@@ -34,6 +35,8 @@ const RESOURCE_SYSTEM_PROMPT = buildSystemPrompt({
     "Processing: Guide users through the PDF upload and processing workflow",
     "Uploaded Files: When users mention they have uploaded a file, use updatePdfMetadata and ingestPdfFile tools",
     "Auto-Generation: When users ask to auto-generate metadata for existing files, use autoGeneratePdfMetadata tool",
+    "File Deletion: When users ask to delete PDF files, call the deletePdfFile tool",
+    "Bulk Deletion: When users ask to delete 'all' or 'all resources', first call listPdfFiles to get all files, then call deletePdfFile for each file individually",
   ],
   importantNotes: [
     "ALWAYS use tools instead of just responding with text",
@@ -43,6 +46,8 @@ const RESOURCE_SYSTEM_PROMPT = buildSystemPrompt({
     "When users mention they have uploaded a file, use updatePdfMetadata to update metadata",
     "When users mention they have uploaded a file, use ingestPdfFile to process the file",
     "When users ask to auto-generate metadata for existing files, use autoGeneratePdfMetadata tool",
+    "When users ask to delete PDF files, call the deletePdfFile tool",
+    "When users ask to delete 'all' or 'all resources', first call listPdfFiles to get all files, then call deletePdfFile for each file individually",
     "Generate upload URL with generatePdfUploadUrl",
     "Upload the file using the provided URL",
     "Process the file with ingestPdfFile",

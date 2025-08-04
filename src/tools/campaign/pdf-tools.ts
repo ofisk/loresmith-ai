@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../constants";
 import { commonSchemas, createToolError, createToolSuccess } from "../utils";
+import { AUTH_CODES } from "../../shared";
 
 // PDF library tools
 
@@ -22,8 +23,17 @@ export const searchPdfLibrary = tool({
       .describe("Maximum number of results to return (default: 5)"),
     jwt: commonSchemas.jwt,
   }),
-  execute: async ({ query, context, limit = 5, jwt }): Promise<ToolResult> => {
+  execute: async (
+    { query, context, limit = 5, jwt },
+    aiContext?: any
+  ): Promise<ToolResult> => {
     console.log("[Tool] searchPdfLibrary received query:", query);
+    console.log("[Tool] searchPdfLibrary aiContext:", aiContext);
+
+    // Extract toolCallId from AI SDK context
+    const toolCallId = aiContext?.toolCallId || "unknown";
+    console.log("[searchPdfLibrary] Using toolCallId:", toolCallId);
+
     try {
       console.log("[searchPdfLibrary] Using JWT:", jwt);
 
@@ -50,7 +60,9 @@ export const searchPdfLibrary = tool({
         console.error("[searchPdfLibrary] Error response:", errorText);
         return createToolError(
           `Failed to search PDF library: ${response.status} - ${errorText}`,
-          { error: `HTTP ${response.status}` }
+          { error: `HTTP ${response.status}` },
+          AUTH_CODES.ERROR,
+          toolCallId
         );
       }
 
@@ -71,7 +83,8 @@ export const searchPdfLibrary = tool({
       if (!result.results || result.results.length === 0) {
         return createToolSuccess(
           "No relevant resources found in your PDF library for this query.",
-          { results: [], empty: true }
+          { results: [], empty: true },
+          toolCallId
         );
       }
 
@@ -110,13 +123,16 @@ export const searchPdfLibrary = tool({
           empty: false,
           count: sortedResults.length,
           query,
-        }
+        },
+        toolCallId
       );
     } catch (error) {
       console.error("Error searching PDF library:", error);
       return createToolError(
         `Failed to search PDF library: ${error instanceof Error ? error.message : String(error)}`,
-        { error: error instanceof Error ? error.message : String(error) }
+        { error: error instanceof Error ? error.message : String(error) },
+        AUTH_CODES.ERROR,
+        toolCallId
       );
     }
   },
@@ -128,8 +144,14 @@ export const getPdfLibraryStats = tool({
   parameters: z.object({
     jwt: commonSchemas.jwt,
   }),
-  execute: async ({ jwt }): Promise<ToolResult> => {
+  execute: async ({ jwt }, context?: any): Promise<ToolResult> => {
     console.log("[Tool] getPdfLibraryStats received JWT:", jwt);
+    console.log("[Tool] getPdfLibraryStats context:", context);
+
+    // Extract toolCallId from context
+    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[getPdfLibraryStats] Using toolCallId:", toolCallId);
+
     try {
       console.log("[getPdfLibraryStats] Using JWT:", jwt);
 
@@ -149,7 +171,9 @@ export const getPdfLibraryStats = tool({
         console.error("[getPdfLibraryStats] Error response:", errorText);
         return createToolError(
           `Failed to get PDF library stats: ${response.status} - ${errorText}`,
-          { error: `HTTP ${response.status}` }
+          { error: `HTTP ${response.status}` },
+          AUTH_CODES.ERROR,
+          toolCallId
         );
       }
 
@@ -168,7 +192,8 @@ export const getPdfLibraryStats = tool({
       if (!result.pdfs || result.pdfs.length === 0) {
         return createToolSuccess(
           "Your PDF library is empty. Consider uploading some D&D resources to get started with campaign planning!",
-          { pdfs: [], empty: true }
+          { pdfs: [], empty: true },
+          toolCallId
         );
       }
 
@@ -238,13 +263,16 @@ export const getPdfLibraryStats = tool({
             totalSizeMB: totalSize / 1024 / 1024,
             categories,
           },
-        }
+        },
+        toolCallId
       );
     } catch (error) {
       console.error("Error getting PDF library stats:", error);
       return createToolError(
         `Failed to get PDF library stats: ${error instanceof Error ? error.message : String(error)}`,
-        { error: error instanceof Error ? error.message : String(error) }
+        { error: error instanceof Error ? error.message : String(error) },
+        AUTH_CODES.ERROR,
+        toolCallId
       );
     }
   },

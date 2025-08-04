@@ -1,4 +1,6 @@
 import type { CampaignData, CampaignResource } from "../../types/campaign";
+import { createToolSuccess } from "../utils";
+import { type ToolResult } from "../../constants";
 
 // CampaignTool class for direct Durable Object interactions
 export class CampaignTool {
@@ -30,9 +32,16 @@ export class CampaignTool {
   }
 
   // Stub: triggerIndexing (not implemented in DO, so just return a dummy response)
-  async triggerIndexing(_campaignId: string): Promise<{ success: boolean }> {
+  async triggerIndexing(
+    campaignId: string,
+    toolCallId: string
+  ): Promise<ToolResult> {
     // In a real implementation, this would POST to /index on the DO
-    return { success: true };
+    return createToolSuccess(
+      "Campaign indexing triggered successfully",
+      { success: true, campaignId },
+      toolCallId
+    );
   }
 
   // Stub: getContextChunks (not implemented in DO, so just return a dummy response)

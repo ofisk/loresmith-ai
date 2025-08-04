@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../constants";
 import { createToolError, createToolSuccess } from "../utils";
+import { AUTH_CODES } from "../../shared";
 
 // PDF metadata tools
 
@@ -32,6 +33,11 @@ export const updatePdfMetadata = tool({
   ): Promise<ToolResult> => {
     console.log("[Tool] updatePdfMetadata received JWT:", jwt);
     console.log("[Tool] updatePdfMetadata context:", context);
+
+    // Extract toolCallId from context
+    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[updatePdfMetadata] Using toolCallId:", toolCallId);
+
     try {
       console.log("[updatePdfMetadata] Using JWT:", jwt);
 
@@ -69,9 +75,14 @@ export const updatePdfMetadata = tool({
           !fileKey.startsWith(`${username}/`) &&
           !fileKey.startsWith(`uploads/${username}/`)
         ) {
-          return createToolError("Access denied to this file", {
-            error: "Access denied",
-          });
+          return createToolError(
+            "Access denied to this file",
+            {
+              error: "Access denied",
+            },
+            AUTH_CODES.ERROR,
+            toolCallId
+          );
         }
 
         console.log(
@@ -81,7 +92,8 @@ export const updatePdfMetadata = tool({
 
         return createToolSuccess(
           `Metadata updated successfully for file "${fileKey}"`,
-          { fileKey, description, tags, fileSize }
+          { fileKey, description, tags, fileSize },
+          toolCallId
         );
       } else {
         // Fall back to HTTP API
@@ -106,19 +118,24 @@ export const updatePdfMetadata = tool({
         if (!response.ok) {
           return createToolError(
             `Failed to update metadata: ${response.status}`,
-            { error: `HTTP ${response.status}` }
+            { error: `HTTP ${response.status}` },
+            AUTH_CODES.ERROR,
+            toolCallId
           );
         }
         return createToolSuccess(
           `Metadata updated successfully for file "${fileKey}"`,
-          { fileKey, description, tags, fileSize }
+          { fileKey, description, tags, fileSize },
+          toolCallId
         );
       }
     } catch (error) {
       console.error("Error updating metadata:", error);
       return createToolError(
         `Error updating metadata: ${error instanceof Error ? error.message : String(error)}`,
-        { error: error instanceof Error ? error.message : String(error) }
+        { error: error instanceof Error ? error.message : String(error) },
+        AUTH_CODES.ERROR,
+        toolCallId
       );
     }
   },
@@ -137,8 +154,14 @@ export const autoGeneratePdfMetadata = tool({
       .optional()
       .describe("JWT token for authentication"),
   }),
-  execute: async ({ fileKey, jwt }): Promise<ToolResult> => {
+  execute: async ({ fileKey, jwt }, context?: any): Promise<ToolResult> => {
     console.log("[Tool] autoGeneratePdfMetadata received:", { fileKey, jwt });
+    console.log("[Tool] autoGeneratePdfMetadata context:", context);
+
+    // Extract toolCallId from context
+    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[autoGeneratePdfMetadata] Using toolCallId:", toolCallId);
+
     try {
       console.log("[autoGeneratePdfMetadata] Using JWT:", jwt);
 
@@ -167,26 +190,28 @@ export const autoGeneratePdfMetadata = tool({
       console.log("[autoGeneratePdfMetadata] Response:", result);
 
       if (response.ok) {
-        return {
-          code: 200,
-          message: result.message || "Metadata auto-generated successfully",
-          data: result.data,
-        };
+        return createToolSuccess(
+          result.message || "Metadata auto-generated successfully",
+          result.data,
+          toolCallId
+        );
       } else {
-        return {
-          code: response.status,
-          message:
-            result.error ||
+        return createToolError(
+          result.error ||
             `Failed to auto-generate metadata: ${response.status}`,
-          data: result.data,
-        };
+          result.data,
+          AUTH_CODES.ERROR,
+          toolCallId
+        );
       }
     } catch (error) {
       console.error("[autoGeneratePdfMetadata] Error:", error);
-      return {
-        code: 500,
-        message: `Failed to auto-generate metadata: ${error}`,
-      };
+      return createToolError(
+        `Failed to auto-generate metadata: ${error}`,
+        { error: error instanceof Error ? error.message : String(error) },
+        AUTH_CODES.ERROR,
+        toolCallId
+      );
     }
   },
 });

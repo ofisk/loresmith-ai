@@ -16,20 +16,6 @@ export const AUTH_CODES = {
 function getApiUrl(): string {
   console.log("[getApiUrl] Starting URL resolution");
 
-  // Try Vite environment first (for frontend)
-  if (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) {
-    console.log(
-      "[getApiUrl] Using Vite environment URL:",
-      import.meta.env.VITE_API_URL
-    );
-    return import.meta.env.VITE_API_URL;
-  }
-  // Fallback to process.env (for Worker context)
-  if (typeof process !== "undefined" && process.env?.VITE_API_URL) {
-    console.log("[getApiUrl] Using process.env URL:", process.env.VITE_API_URL);
-    return process.env.VITE_API_URL;
-  }
-
   // In production (browser context), use the current origin
   if (typeof window !== "undefined" && window.location) {
     const hostname = window.location.hostname;
@@ -50,14 +36,32 @@ function getApiUrl(): string {
         window.location.origin
       );
       return window.location.origin;
+    } else {
+      console.log("[getApiUrl] Using default localhost fallback");
+      return "http://localhost:8787";
     }
+  }
 
-    // If we are on localhost but have a port, use it
-    if (hostname === "localhost" && port) {
-      const localhostUrl = `${protocol}//${hostname}:${port}`;
-      console.log("[getApiUrl] Using localhost with port:", localhostUrl);
-      return localhostUrl;
-    }
+  // Try Vite environment first (for frontend)
+  if (
+    typeof import.meta !== "undefined" &&
+    import.meta.env?.VITE_API_URL &&
+    import.meta.env.VITE_API_URL !== "undefined"
+  ) {
+    console.log(
+      "[getApiUrl] Using Vite environment URL:",
+      import.meta.env.VITE_API_URL
+    );
+    return import.meta.env.VITE_API_URL;
+  }
+  // Fallback to process.env (for Worker context)
+  if (
+    typeof process !== "undefined" &&
+    process.env?.VITE_API_URL &&
+    process.env.VITE_API_URL !== "undefined"
+  ) {
+    console.log("[getApiUrl] Using process.env URL:", process.env.VITE_API_URL);
+    return process.env.VITE_API_URL;
   }
 
   // Default fallback for development
@@ -123,6 +127,7 @@ export const API_CONFIG = {
       UPDATE_METADATA: "/pdf/update-metadata",
       AUTO_GENERATE_METADATA: "/pdf/auto-generate-metadata",
       STATS: "/pdf/stats",
+      DELETE_PDF: (fileKey: string) => `/rag/pdfs/${fileKey}`,
     },
     RAG: {
       SEARCH: "/rag/search",
@@ -145,7 +150,10 @@ export interface AuthResponse {
 }
 
 export interface ToolResult {
-  code: number;
-  message: string;
-  data?: unknown;
+  toolCallId: string;
+  result: {
+    success: boolean;
+    message: string;
+    data?: unknown;
+  };
 }

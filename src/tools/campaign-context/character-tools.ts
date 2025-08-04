@@ -72,6 +72,10 @@ export const storeCharacterInfo = tool({
     },
     context?: any
   ): Promise<ToolResult> => {
+    // Extract toolCallId from context
+    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[storeCharacterInfo] Using toolCallId:", toolCallId);
+
     console.log("[Tool] storeCharacterInfo received:", {
       campaignId,
       characterName,
@@ -95,7 +99,8 @@ export const storeCharacterInfo = tool({
           return createToolError(
             "Invalid authentication token",
             "Authentication failed",
-            AUTH_CODES.INVALID_KEY
+            AUTH_CODES.INVALID_KEY,
+            toolCallId
           );
         }
 
@@ -107,7 +112,12 @@ export const storeCharacterInfo = tool({
           .first();
 
         if (!campaignResult) {
-          return createToolError("Campaign not found", "Campaign not found");
+          return createToolError(
+            "Campaign not found",
+            "Campaign not found",
+            404,
+            toolCallId
+          );
         }
 
         // Store the character information
@@ -160,7 +170,8 @@ export const storeCharacterInfo = tool({
             relationships,
             metadata,
             createdAt: now,
-          }
+          },
+          toolCallId
         );
       }
 
@@ -187,68 +198,66 @@ export const storeCharacterInfo = tool({
       );
 
       if (!response.ok) {
-        const authError = handleAuthError(response);
+        const authError = await handleAuthError(response);
         if (authError) {
-          return createToolError(authError, null, AUTH_CODES.INVALID_KEY);
+          return createToolError(
+            authError,
+            null,
+            AUTH_CODES.INVALID_KEY,
+            toolCallId
+          );
         }
         return createToolError(
-          `Failed to store character info: ${response.status}`,
-          `HTTP ${response.status}`
+          "Failed to store character information",
+          `HTTP ${response.status}: ${await response.text()}`,
+          500,
+          toolCallId
         );
       }
 
-      const result = (await response.json()) as any;
+      const result = await response.json();
       return createToolSuccess(
         `Successfully stored character information for ${characterName}`,
-        result
+        result,
+        toolCallId
       );
     } catch (error) {
-      console.error("Error storing character info:", error);
+      console.error("Error storing character information:", error);
       return createToolError(
-        `Failed to store character info: ${error instanceof Error ? error.message : String(error)}`,
-        error
+        "Failed to store character information",
+        error,
+        500,
+        toolCallId
       );
     }
   },
 });
 
-// Tool to create a character using AI with user confirmation
-export const createCharacter = tool({
+// Tool to generate character using AI
+export const generateCharacterWithAITool = tool({
   description:
-    "Create a new character for a campaign using AI generation. This tool will generate a complete character sheet including stats, backstory, personality, and goals. Requires user confirmation before creating.",
+    "Generate a complete character using AI based on provided parameters and campaign context",
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
-    characterName: z.string().describe("The name of the character"),
+    characterName: z.string().describe("The name of the character to generate"),
     characterClass: z
       .string()
       .optional()
-      .describe(
-        "The character's class (e.g., Fighter, Wizard, etc.) - if not provided, AI will suggest one"
-      ),
-    characterLevel: z
-      .number()
-      .optional()
-      .describe("The character's level (defaults to 1)"),
-    characterRace: z
-      .string()
-      .optional()
-      .describe("The character's race - if not provided, AI will suggest one"),
+      .describe("The character's class (e.g., Fighter, Wizard, etc.)"),
+    characterLevel: z.number().optional().describe("The character's level"),
+    characterRace: z.string().optional().describe("The character's race"),
     campaignSetting: z
       .string()
       .optional()
-      .describe("The campaign setting or theme to inform character creation"),
+      .describe("The campaign setting or world"),
     playerPreferences: z
       .string()
       .optional()
-      .describe(
-        "Any specific player preferences or requirements for the character"
-      ),
+      .describe("Player preferences for character generation"),
     partyComposition: z
       .array(z.string())
       .optional()
-      .describe(
-        "Array of existing party members to consider for party balance"
-      ),
+      .describe("Array of existing party members for relationship generation"),
     jwt: commonSchemas.jwt,
   }),
   execute: async (
@@ -256,7 +265,7 @@ export const createCharacter = tool({
       campaignId,
       characterName,
       characterClass,
-      characterLevel = 1,
+      characterLevel,
       characterRace,
       campaignSetting,
       playerPreferences,
@@ -265,7 +274,11 @@ export const createCharacter = tool({
     },
     context?: any
   ): Promise<ToolResult> => {
-    console.log("[Tool] createCharacter received:", {
+    // Extract toolCallId from context
+    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[generateCharacterWithAITool] Using toolCallId:", toolCallId);
+
+    console.log("[Tool] generateCharacterWithAI received:", {
       campaignId,
       characterName,
       characterClass,
@@ -276,19 +289,23 @@ export const createCharacter = tool({
     try {
       // Try to get environment from context or global scope
       const env = getEnvFromContext(context);
-      console.log("[Tool] createCharacter - Environment found:", !!env);
-      console.log("[Tool] createCharacter - JWT provided:", !!jwt);
+      console.log("[Tool] generateCharacterWithAI - Environment found:", !!env);
+      console.log("[Tool] generateCharacterWithAI - JWT provided:", !!jwt);
 
       // If we have environment, work directly with the database
       if (env) {
         const userId = extractUsernameFromJwt(jwt);
-        console.log("[Tool] createCharacter - User ID extracted:", userId);
+        console.log(
+          "[Tool] generateCharacterWithAI - User ID extracted:",
+          userId
+        );
 
         if (!userId) {
           return createToolError(
             "Invalid authentication token",
             "Authentication failed",
-            AUTH_CODES.INVALID_KEY
+            AUTH_CODES.INVALID_KEY,
+            toolCallId
           );
         }
 
@@ -300,10 +317,15 @@ export const createCharacter = tool({
           .first();
 
         if (!campaignResult) {
-          return createToolError("Campaign not found", "Campaign not found");
+          return createToolError(
+            "Campaign not found",
+            "Campaign not found",
+            404,
+            toolCallId
+          );
         }
 
-        // Generate character data using AI
+        // Generate character using AI
         const characterData = await generateCharacterWithAI({
           characterName,
           characterClass,
@@ -313,9 +335,10 @@ export const createCharacter = tool({
           playerPreferences,
           partyComposition,
           campaignName: campaignResult.name,
+          toolCallId,
         });
 
-        // Store the character information
+        // Store the generated character
         const characterId = crypto.randomUUID();
         const now = new Date().toISOString();
 
@@ -325,17 +348,15 @@ export const createCharacter = tool({
           .bind(
             characterId,
             campaignId,
-            characterData.characterName,
-            characterData.characterClass,
-            characterData.characterLevel,
-            characterData.characterRace,
-            characterData.backstory,
-            characterData.personalityTraits,
-            characterData.goals,
-            JSON.stringify(characterData.relationships),
-            characterData.metadata
-              ? JSON.stringify(characterData.metadata)
-              : null,
+            characterData.result.data.characterName,
+            characterData.result.data.characterClass,
+            characterData.result.data.characterLevel,
+            characterData.result.data.characterRace,
+            characterData.result.data.backstory,
+            characterData.result.data.personalityTraits,
+            characterData.result.data.goals,
+            JSON.stringify(characterData.result.data.relationships),
+            JSON.stringify(characterData.result.data.metadata),
             now,
             now
           )
@@ -347,20 +368,20 @@ export const createCharacter = tool({
           .run();
 
         console.log(
-          "[Tool] Created character with AI:",
+          "[Tool] Generated and stored character:",
           characterId,
           "name:",
-          characterData.characterName
+          characterData.result.data.characterName
         );
 
         return createToolSuccess(
-          `Successfully created character ${characterData.characterName} using AI generation`,
+          `Successfully created character ${characterData.result.data.characterName} using AI generation`,
           {
             id: characterId,
-            ...characterData,
+            ...characterData.result.data,
             createdAt: now,
-            requiresConfirmation: true,
-          }
+          },
+          toolCallId
         );
       }
 
@@ -380,32 +401,42 @@ export const createCharacter = tool({
             campaignSetting,
             playerPreferences,
             partyComposition,
-            useAI: true,
+            generateWithAI: true,
           }),
         }
       );
 
       if (!response.ok) {
-        const authError = handleAuthError(response);
+        const authError = await handleAuthError(response);
         if (authError) {
-          return createToolError(authError, null, AUTH_CODES.INVALID_KEY);
+          return createToolError(
+            authError,
+            null,
+            AUTH_CODES.INVALID_KEY,
+            toolCallId
+          );
         }
         return createToolError(
-          `Failed to create character: ${response.status}`,
-          `HTTP ${response.status}`
+          "Failed to generate character with AI",
+          `HTTP ${response.status}: ${await response.text()}`,
+          500,
+          toolCallId
         );
       }
 
-      const result = (await response.json()) as any;
+      const result = await response.json();
       return createToolSuccess(
-        `Successfully created character ${characterName} using AI generation`,
-        { ...result, requiresConfirmation: true }
+        "Successfully generated character using AI",
+        result,
+        toolCallId
       );
     } catch (error) {
-      console.error("Error creating character:", error);
+      console.error("Error generating character with AI:", error);
       return createToolError(
-        `Failed to create character: ${error instanceof Error ? error.message : String(error)}`,
-        error
+        "Failed to generate character with AI",
+        error,
+        500,
+        toolCallId
       );
     }
   },
