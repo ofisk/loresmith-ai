@@ -1,8 +1,8 @@
 import type { Context } from "hono";
-import { AuthService } from "../services/auth-service";
+import { jwtVerify } from "jose";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
-import { jwtVerify } from "jose";
+import { AuthService } from "../services/auth-service";
 
 // Helper to set user auth context
 export function setUserAuth(c: Context, payload: AuthPayload) {

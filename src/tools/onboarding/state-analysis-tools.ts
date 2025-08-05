@@ -1,5 +1,5 @@
-import type { Campaign, CampaignResource } from "../../types/campaign";
 import { AssessmentService } from "../../services/assessment-service";
+import type { Campaign, CampaignResource } from "../../types/campaign";
 
 /**
  * User state analysis for contextual guidance

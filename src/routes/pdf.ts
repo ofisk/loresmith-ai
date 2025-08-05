@@ -1,8 +1,9 @@
 import type { Context } from "hono";
+import { RAGService } from "../lib/rag";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { completeProgress } from "../services/progress";
-import { RAGService } from "../lib/rag";
+import { PDF_SCHEMA } from "../types/pdf";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -19,7 +20,8 @@ export async function handleGenerateUploadUrl(c: ContextWithAuth) {
       return c.json({ error: "Filename is required" }, 400);
     }
 
-    const fileKey = `${userAuth.username}/${Date.now()}-${filename}`;
+    // Generate a consistent file key based on filename to avoid duplicates
+    const fileKey = `${userAuth.username}/${filename}`;
 
     // Create a multipart upload session
     const uploadUrl = await c.env.PDF_BUCKET.createMultipartUpload(fileKey, {
@@ -48,8 +50,12 @@ export async function handleCompleteUpload(c: ContextWithAuth) {
       return c.json({ error: "Upload ID and parts are required" }, 400);
     }
 
-    // Note: R2Bucket doesn't have completeMultipartUpload method
-    // This would need to be implemented differently for R2
+    // Complete the multipart upload
+    const multipartUpload = c.env.PDF_BUCKET.resumeMultipartUpload(
+      fileKey,
+      uploadId
+    );
+    await multipartUpload.complete(parts);
     console.log("Upload completed for fileKey:", fileKey);
 
     return c.json({ success: true, fileKey });
@@ -74,12 +80,15 @@ export async function handleUploadPart(c: ContextWithAuth) {
     // Convert the file data back to a buffer
     const fileBuffer = new Uint8Array(file);
 
-    // Upload the part to R2
-    await c.env.PDF_BUCKET.put(fileKey, fileBuffer, {
-      httpMetadata: {
-        contentType: "application/pdf",
-      },
-    });
+    // Resume the multipart upload and upload the part
+    const multipartUpload = c.env.PDF_BUCKET.resumeMultipartUpload(
+      fileKey,
+      uploadId
+    );
+    const uploadedPart = await multipartUpload.uploadPart(
+      partNumber,
+      fileBuffer
+    );
 
     console.log(`Uploaded part ${partNumber} for fileKey:`, fileKey);
 
@@ -87,6 +96,7 @@ export async function handleUploadPart(c: ContextWithAuth) {
       success: true,
       fileKey,
       partNumber,
+      etag: uploadedPart.etag,
     });
   } catch (error) {
     console.error("Error uploading part:", error);
@@ -114,58 +124,148 @@ export async function handleIngestPdf(c: ContextWithAuth) {
       return c.json({ error: "Access denied to this file" }, 403);
     }
 
-    // Store file metadata in database
-    const fileId = crypto.randomUUID();
-    const now = new Date().toISOString();
-
-    await c.env.DB.prepare(
-      "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    )
-      .bind(
-        fileId,
-        fileKey,
-        filename,
-        description || "",
-        tags ? JSON.stringify(tags) : "[]",
-        userAuth.username,
-        "processing",
-        now,
-        fileSize || 0
-      )
-      .run();
-
-    // Start processing in background
-    setTimeout(async () => {
+    // Get file size from R2 if not provided
+    let actualFileSize = fileSize;
+    if (!actualFileSize) {
       try {
-        // Get file from R2
+        console.log(`[PDF Ingest] Attempting to get file from R2: ${fileKey}`);
+        // Add a small delay to ensure the file is fully uploaded
+        await new Promise((resolve) => setTimeout(resolve, 1000));
         const file = await c.env.PDF_BUCKET.get(fileKey);
-        if (!file) {
-          throw new Error("File not found in R2");
+        if (file) {
+          actualFileSize = file.size;
+          console.log(
+            `[PDF Ingest] File found in R2, size: ${actualFileSize} bytes`
+          );
+        } else {
+          console.log(`[PDF Ingest] File not found in R2: ${fileKey}`);
         }
-
-        // Process the PDF (simplified for now)
-        // Update database status
-        await c.env.DB.prepare(
-          "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ?"
-        )
-          .bind("completed", new Date().toISOString(), fileKey)
-          .run();
-
-        completeProgress(fileKey, true);
       } catch (error) {
-        console.error("Error processing PDF:", error);
-        completeProgress(fileKey, false, (error as Error).message);
-
-        // Update database status
-        await c.env.DB.prepare(
-          "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ?"
-        )
-          .bind("error", new Date().toISOString(), fileKey)
-          .run();
+        console.warn("Could not get file size from R2:", error);
       }
-    }, 100);
+    }
 
-    return c.json({ success: true, fileKey, fileId });
+    // Check if file already exists
+    const existingFile = await c.env.DB.prepare(
+      "SELECT id FROM pdf_files WHERE file_key = ? AND username = ?"
+    )
+      .bind(fileKey, userAuth.username)
+      .first();
+
+    const now = new Date().toISOString();
+    let newFileId: string | undefined;
+
+    if (existingFile) {
+      // Update existing file
+      await c.env.DB.prepare(
+        "UPDATE pdf_files SET file_name = ?, description = ?, tags = ?, status = ?, updated_at = ?, file_size = ? WHERE file_key = ? AND username = ?"
+      )
+        .bind(
+          filename,
+          description || "",
+          tags ? JSON.stringify(tags) : "[]",
+          "processing",
+          now,
+          actualFileSize || 0,
+          fileKey,
+          userAuth.username
+        )
+        .run();
+    } else {
+      // Insert new file
+      newFileId = crypto.randomUUID();
+      await c.env.DB.prepare(
+        "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      )
+        .bind(
+          newFileId,
+          fileKey,
+          filename,
+          description || "",
+          tags ? JSON.stringify(tags) : "[]",
+          userAuth.username,
+          "processing",
+          now,
+          actualFileSize || 0
+        )
+        .run();
+    }
+
+    // Process the PDF immediately for RAG
+    try {
+      // Get file from R2
+      const file = await c.env.PDF_BUCKET.get(fileKey);
+      if (!file) {
+        throw new Error("File not found in R2");
+      }
+
+      // Process the PDF for RAG
+      const ragService = new RAGService(
+        c.env.DB,
+        c.env.VECTORIZE,
+        userAuth.openaiApiKey
+      );
+      const tempMetadata = {
+        description: description || "",
+        tags: tags || [],
+        filename: filename,
+        file_size: actualFileSize || file.size,
+        status: "processing" as const,
+        created_at: now,
+      };
+
+      const processedResult = await ragService.processPdfFromR2(
+        fileKey,
+        userAuth.username,
+        c.env.PDF_BUCKET,
+        tempMetadata
+      );
+
+      // Auto-generate metadata if missing
+      let finalDescription = description || "";
+      let finalTags = tags || [];
+
+      if (processedResult.suggestedMetadata) {
+        if (!finalDescription) {
+          finalDescription = processedResult.suggestedMetadata.description;
+        }
+        if (!finalTags.length) {
+          finalTags = processedResult.suggestedMetadata.tags;
+        }
+      }
+
+      // Update database status with final metadata and file size
+      await c.env.DB.prepare(
+        "UPDATE pdf_files SET status = ?, updated_at = ?, file_size = ?, description = ?, tags = ? WHERE file_key = ?"
+      )
+        .bind(
+          "completed",
+          new Date().toISOString(),
+          file.size,
+          finalDescription,
+          JSON.stringify(finalTags),
+          fileKey
+        )
+        .run();
+
+      completeProgress(fileKey, true);
+    } catch (error) {
+      console.error("Error processing PDF:", error);
+      completeProgress(fileKey, false, (error as Error).message);
+
+      // Update database status
+      await c.env.DB.prepare(
+        "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ?"
+      )
+        .bind("error", new Date().toISOString(), fileKey)
+        .run();
+    }
+
+    return c.json({
+      success: true,
+      fileKey,
+      fileId: existingFile?.id || newFileId,
+    });
   } catch (error) {
     console.error("Error ingesting PDF:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -178,7 +278,7 @@ export async function handleGetPdfFiles(c: ContextWithAuth) {
     const userAuth = (c as any).userAuth;
 
     const files = await c.env.DB.prepare(
-      "SELECT id, file_key, file_name, description, tags, status, created_at, updated_at FROM pdf_files WHERE username = ? ORDER BY created_at DESC"
+      `SELECT ${PDF_SCHEMA.COLUMNS.ID}, ${PDF_SCHEMA.COLUMNS.FILE_KEY}, ${PDF_SCHEMA.COLUMNS.FILE_NAME}, ${PDF_SCHEMA.COLUMNS.DESCRIPTION}, ${PDF_SCHEMA.COLUMNS.TAGS}, ${PDF_SCHEMA.COLUMNS.STATUS}, ${PDF_SCHEMA.COLUMNS.CREATED_AT}, ${PDF_SCHEMA.COLUMNS.UPDATED_AT}, ${PDF_SCHEMA.COLUMNS.FILE_SIZE} FROM ${PDF_SCHEMA.TABLE_NAME} WHERE ${PDF_SCHEMA.COLUMNS.USERNAME} = ? ORDER BY ${PDF_SCHEMA.COLUMNS.CREATED_AT} DESC`
     )
       .bind(userAuth.username)
       .all();

@@ -1,7 +1,7 @@
+import { Info } from "@phosphor-icons/react";
 import type React from "react";
 import { useState } from "react";
 import { Input } from "./Input";
-import { Info } from "@phosphor-icons/react";
 
 interface FormFieldProps {
   id: string;

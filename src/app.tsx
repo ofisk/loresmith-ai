@@ -17,12 +17,12 @@ import { Avatar } from "@/components/avatar/Avatar";
 // Component imports
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
+import { HelpButton } from "@/components/help/HelpButton";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { PdfUploadAgent } from "@/components/pdf-upload/PdfUploadAgent";
 import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
-import { HelpButton } from "@/components/help/HelpButton";
 import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
 
 import { USER_MESSAGES } from "./constants";
@@ -44,11 +44,8 @@ const toolsRequiringConfirmation: (
   "createCampaign",
 
   // Resource/PDF tools that require confirmation
-  "uploadPdfFile",
   "updatePdfMetadata",
-
-  // General tools that require confirmation
-  "setAdminSecret",
+  "deletePdfFile",
 ];
 
 /**
@@ -340,7 +337,7 @@ export default function Chat() {
     switch (action) {
       case "upload_resource":
         response =
-          "To upload resources to your inspiration library, look for the **'Add Resources'** button in the interface. This button will open a modal where you can upload PDF files and other resources. You can also drag and drop files directly onto the upload area for a quick upload experience.";
+          "To upload resources to your inspiration library, look for the **'Add to library'** button in the interface. This button will open a modal where you can upload PDF files and other resources. You can also drag and drop files directly onto the upload area for a quick upload experience.";
         break;
       case "create_campaign":
         response =
@@ -351,7 +348,7 @@ export default function Chat() {
           "You can start chatting with me right here! Just type your questions about campaign ideas, world building, character development, or any other GM topics. I'm here to help you develop your campaign ideas and provide guidance.";
         break;
       default:
-        response = `I can help you with various tasks. For uploading resources, look for the 'Add Resources' button. For creating campaigns, use the 'Create Campaign' button. Or just start chatting with me about your campaign ideas!`;
+        response = `I can help you with various tasks. For uploading resources, look for the 'Add to library' button. For creating campaigns, use the 'Create Campaign' button. Or just start chatting with me about your campaign ideas!`;
     }
 
     // Add the help response as an assistant message

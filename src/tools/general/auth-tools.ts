@@ -1,112 +1,120 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult, USER_MESSAGES } from "../../constants";
+import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
 import { createToolError, createToolSuccess } from "../utils";
 
-// General authentication tools
+// Helper function to get environment from context
+function getEnvFromContext(context: any): any {
+  if (context?.env) {
+    return context.env;
+  }
+  if (typeof globalThis !== "undefined" && "env" in globalThis) {
+    return (globalThis as any).env;
+  }
+  return null;
+}
 
-export const setAdminSecret = tool({
-  description: "Validate and store the admin key for PDF upload functionality",
+// Tool to validate admin key
+export const validateAdminKey = tool({
+  description:
+    "Validate the admin key for accessing PDF upload and processing features",
   parameters: z.object({
-    adminKey: z.string().describe("The admin key provided by the user"),
-    username: z.string().describe("The username provided by the user"),
-    openaiApiKey: z
+    adminKey: z.string().describe("The admin key to validate"),
+    jwt: z
       .string()
+      .nullable()
       .optional()
-      .describe("Optional OpenAI API key provided by the user"),
+      .describe("JWT token for authentication"),
   }),
-  execute: async (
-    { adminKey, username, openaiApiKey },
-    context?: any
-  ): Promise<ToolResult> => {
-    console.log("[Tool] setAdminSecret received:", { username });
-    console.log("[Tool] setAdminSecret context:", context);
+  execute: async ({ adminKey, jwt }, context?: any): Promise<ToolResult> => {
+    // Extract toolCallId from context
+    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[validateAdminKey] Using toolCallId:", toolCallId);
+
+    console.log("[Tool] validateAdminKey received:", {
+      adminKey: adminKey ? "***" : "not provided",
+    });
+
     try {
-      // Check if we have access to the environment through context
-      const env = context?.env;
-      console.log("[setAdminSecret] Environment from context:", !!env);
-      console.log(
-        "[setAdminSecret] ADMIN_SECRET binding exists:",
-        env?.ADMIN_SECRET !== undefined
+      // Try to get environment from context or global scope
+      const env = getEnvFromContext(context);
+      console.log("[Tool] validateAdminKey - Environment found:", !!env);
+      console.log("[Tool] validateAdminKey - JWT provided:", !!jwt);
+
+      // If we have environment, work directly with the database
+      if (env) {
+        // Validate admin key against stored value
+        const storedKey = env.ADMIN_KEY || process.env.ADMIN_KEY;
+
+        if (!storedKey) {
+          console.error("[validateAdminKey] No admin key configured");
+          return createToolError(
+            USER_MESSAGES.INVALID_ADMIN_KEY,
+            "Admin key not configured",
+            500,
+            toolCallId
+          );
+        }
+
+        if (adminKey === storedKey) {
+          console.log("[validateAdminKey] Admin key validated successfully");
+          return createToolSuccess(
+            USER_MESSAGES.ADMIN_KEY_VALIDATED,
+            { authenticated: true },
+            toolCallId
+          );
+        } else {
+          console.log("[validateAdminKey] Invalid admin key provided");
+          return createToolError(
+            USER_MESSAGES.INVALID_ADMIN_KEY,
+            "Invalid admin key",
+            401,
+            toolCallId
+          );
+        }
+      }
+
+      // Otherwise, make HTTP request
+      const response = await authenticatedFetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
+        {
+          method: "POST",
+          jwt,
+          body: JSON.stringify({
+            providedKey: adminKey,
+            validateAdmin: true,
+          }),
+        }
       );
 
-      if (env?.ADMIN_SECRET) {
-        console.log(
-          "[setAdminSecret] Running in Durable Object context, calling server directly"
-        );
-
-        // Validate admin key directly
-        const validAdminKey = env.ADMIN_SECRET || "undefined-admin-key";
-        console.log(
-          "[setAdminSecret] Validating admin key against:",
-          validAdminKey
-        );
-
-        if (adminKey !== validAdminKey) {
-          return createToolError(USER_MESSAGES.INVALID_ADMIN_KEY, {
-            authenticated: false,
-          });
+      if (!response.ok) {
+        const authError = await handleAuthError(response);
+        if (authError) {
+          return createToolError(authError, null, 401, toolCallId);
         }
-
-        // Generate JWT token
-        const jwt = require("jsonwebtoken");
-        const token = jwt.sign(
-          { username, authenticated: true },
-          validAdminKey,
-          { expiresIn: "24h" }
+        return createToolError(
+          USER_MESSAGES.INVALID_ADMIN_KEY,
+          `HTTP ${response.status}: ${await response.text()}`,
+          401,
+          toolCallId
         );
-
-        console.log(
-          "[setAdminSecret] Admin key validated successfully for user:",
-          username
-        );
-
-        return createToolSuccess(USER_MESSAGES.ADMIN_KEY_VALIDATED, {
-          authenticated: true,
-          token,
-        });
-      } else {
-        // Fall back to HTTP API
-        console.log(
-          "[setAdminSecret] Running in HTTP context, making API request"
-        );
-        const response = await fetch(
-          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              providedKey: adminKey,
-              username,
-              ...(openaiApiKey && { openaiApiKey }),
-            }),
-          }
-        );
-
-        const result = (await response.json()) as {
-          success: boolean;
-          authenticated: boolean;
-          error?: string;
-          token?: string;
-        };
-
-        if (result.success && result.authenticated) {
-          return createToolSuccess(USER_MESSAGES.ADMIN_KEY_VALIDATED, {
-            authenticated: true,
-            token: result.token,
-          });
-        }
-        return createToolError(USER_MESSAGES.INVALID_ADMIN_KEY, {
-          authenticated: false,
-        });
       }
+
+      const result = await response.json();
+      return createToolSuccess(
+        USER_MESSAGES.ADMIN_KEY_VALIDATED,
+        result,
+        toolCallId
+      );
     } catch (error) {
       console.error("Error validating admin key:", error);
-      return createToolError(`Error validating admin key: ${error}`, {
-        authenticated: false,
-      });
+      return createToolError(
+        `Error validating admin key: ${error}`,
+        error,
+        500,
+        toolCallId
+      );
     }
   },
 });

@@ -1,4 +1,6 @@
+import type { ToolResult } from "../../constants";
 import { AssessmentService } from "../../services/assessment-service";
+import { createToolSuccess } from "../utils";
 import type {
   ActionSuggestion,
   CampaignHealthSummary,
@@ -29,7 +31,7 @@ Let's get you started! What would you like to do first?`,
       primaryAction: {
         title: "Upload Your First Resource",
         description:
-          "Click the 'Add Resources' button to upload PDFs, images, or documents to your inspiration library",
+          "Click the 'Add to library' button to upload PDFs, images, or documents to your inspiration library",
         action: "upload_resource",
         priority: "high",
         estimatedTime: "5 minutes",
@@ -88,11 +90,9 @@ Let's get you started! What would you like to do first?`,
 export async function suggestNextActionsTool(
   username: string,
   db: any,
+  toolCallId: string,
   campaignHealth?: CampaignHealthSummary
-): Promise<{
-  actions: ActionSuggestion[];
-  explanation: string;
-}> {
+): Promise<ToolResult> {
   try {
     const assessmentService = new AssessmentService(db);
     const userState = await assessmentService.analyzeUserState(username);
@@ -107,7 +107,7 @@ export async function suggestNextActionsTool(
         {
           title: "Upload Your First Resource",
           description:
-            "Click the 'Add Resources' button to start building your inspiration library",
+            "Click the 'Add to library' button to start building your inspiration library",
           action: "upload_resource",
           priority: "high",
           estimatedTime: "5 minutes",
@@ -127,7 +127,7 @@ export async function suggestNextActionsTool(
         {
           title: "Upload Resources",
           description:
-            "Click the 'Add Resources' button to build your inspiration library with PDFs, images, and documents",
+            "Click the 'brary' button to build your inspiration library with PDFs, images, and documents",
           action: "upload_resources",
           priority: "high",
           estimatedTime: "10 minutes",
@@ -154,7 +154,7 @@ export async function suggestNextActionsTool(
         {
           title: "Upload More Resources",
           description:
-            "Click the 'Add Resources' button to add more inspiration to your library",
+            "Click the 'Add to library' button to add more inspiration to your library",
           action: "upload_resources",
           priority: "medium",
           estimatedTime: "10 minutes",
@@ -183,7 +183,7 @@ export async function suggestNextActionsTool(
           {
             title: "Add More Resources",
             description:
-              "Click the 'Add Resources' button to enrich your campaign with new inspiration",
+              "Click the 'Add to library' button to enrich your campaign with new inspiration",
             action: "upload_resources",
             priority: "medium",
             estimatedTime: "10 minutes",
@@ -192,7 +192,11 @@ export async function suggestNextActionsTool(
       }
     }
 
-    return { actions, explanation };
+    return createToolSuccess(
+      "Next actions generated successfully",
+      { actions, explanation },
+      toolCallId
+    );
   } catch (error) {
     console.error("Failed to suggest next actions:", error);
     throw new Error("Failed to generate action suggestions");
@@ -204,12 +208,9 @@ export async function suggestNextActionsTool(
  */
 export async function provideCampaignGuidanceTool(
   _campaignId: string,
-  campaignHealth: CampaignHealthSummary
-): Promise<{
-  guidance: string;
-  priorityActions: ActionSuggestion[];
-  externalTools: ToolRecommendation[];
-}> {
+  campaignHealth: CampaignHealthSummary,
+  toolCallId: string
+): Promise<ToolResult> {
   try {
     let guidance = "";
     const priorityActions: ActionSuggestion[] = [];
@@ -248,7 +249,7 @@ export async function provideCampaignGuidanceTool(
         {
           title: "Add More Resources",
           description:
-            "Click the 'Add Resources' button to enrich your campaign with new inspiration",
+            "Click the 'Add to library' button to enrich your campaign with new inspiration",
           action: "upload_resources",
           priority: "medium",
           estimatedTime: "10 minutes",
@@ -295,7 +296,11 @@ export async function provideCampaignGuidanceTool(
       );
     }
 
-    return { guidance, priorityActions, externalTools };
+    return createToolSuccess(
+      "Campaign guidance generated successfully",
+      { guidance, priorityActions, externalTools },
+      toolCallId
+    );
   } catch (error) {
     console.error("Failed to provide campaign guidance:", error);
     throw new Error("Failed to generate campaign guidance");

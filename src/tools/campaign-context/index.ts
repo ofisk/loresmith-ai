@@ -1,29 +1,38 @@
 // Import all campaign context tools
-
-import { createCharacter, storeCharacterInfo } from "./character-tools";
+import {
+  generateCharacterWithAITool,
+  storeCharacterInfo,
+} from "./character-tools";
 import { getCampaignContext, storeCampaignContext } from "./context-tools";
-import { searchCampaignContext } from "./search-tools";
+import { searchCampaignContext, searchExternalResources } from "./search-tools";
 import {
   assessCampaignReadiness,
-  getIntelligentSuggestions,
+  getCampaignSuggestions,
 } from "./suggestion-tools";
 
-// Export AI helper functions
-export * from "./ai-helpers";
-export * from "./character-tools";
-export * from "./context-tools";
-export * from "./search-tools";
-export * from "./suggestion-tools";
-export * from "./assessment-tools";
-export * from "./assessment-core";
+export {
+  // Character tools
+  storeCharacterInfo,
+  generateCharacterWithAITool,
+  // Context tools
+  getCampaignContext,
+  storeCampaignContext,
+  // Search tools
+  searchCampaignContext,
+  searchExternalResources,
+  // Suggestion tools
+  getCampaignSuggestions,
+  assessCampaignReadiness,
+};
 
 // Export the tools object for backward compatibility
 export const campaignContextTools = {
   storeCampaignContext,
   getCampaignContext,
   storeCharacterInfo,
-  createCharacter,
-  getIntelligentSuggestions,
+  generateCharacterWithAITool,
+  getCampaignSuggestions,
   assessCampaignReadiness,
   searchCampaignContext,
+  searchExternalResources,
 };

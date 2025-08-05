@@ -2,307 +2,317 @@ import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../constants";
 import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
-import { createToolError, createToolSuccess } from "../utils";
+import {
+  commonSchemas,
+  createToolError,
+  createToolSuccess,
+  extractUsernameFromJwt,
+} from "../utils";
 
-// Character sheet upload tools
+// Helper function to get environment from context
+function getEnvFromContext(context: any): any {
+  if (context?.env) {
+    return context.env;
+  }
+  if (typeof globalThis !== "undefined" && "env" in globalThis) {
+    return (globalThis as any).env;
+  }
+  return null;
+}
 
+// Tool to upload a character sheet
 export const uploadCharacterSheet = tool({
   description:
-    "Upload a character sheet file (PDF, Word document, or other format) and process it for use in a campaign",
+    "Upload a character sheet file (PDF, image, or document) for a campaign",
   parameters: z.object({
-    campaignId: z
-      .string()
-      .describe("The ID of the campaign to add the character sheet to"),
+    campaignId: commonSchemas.campaignId,
     fileName: z.string().describe("The name of the character sheet file"),
-    fileType: z
-      .enum(["pdf", "docx", "doc", "txt", "json"])
-      .describe("The type of character sheet file"),
+    fileContent: z
+      .string()
+      .describe("Base64 encoded content of the character sheet file"),
     characterName: z
       .string()
       .optional()
-      .describe(
-        "The name of the character (will be extracted from file if not provided)"
-      ),
-    description: z
-      .string()
-      .optional()
-      .describe("Optional description of the character sheet"),
-    jwt: z
-      .string()
-      .nullable()
-      .optional()
-      .describe("JWT token for authentication"),
+      .describe("The name of the character (if known)"),
+    jwt: commonSchemas.jwt,
   }),
   execute: async (
-    { campaignId, fileName, fileType, characterName, description, jwt },
+    { campaignId, fileName, fileContent, characterName, jwt },
     context?: any
   ): Promise<ToolResult> => {
+    // Extract toolCallId from context
+    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[uploadCharacterSheet] Using toolCallId:", toolCallId);
+
     console.log("[Tool] uploadCharacterSheet received:", {
       campaignId,
       fileName,
-      fileType,
       characterName,
     });
-    console.log("[Tool] uploadCharacterSheet context:", context);
+
     try {
-      // Check if we have access to the environment through context
-      const env = context?.env;
-      console.log("[uploadCharacterSheet] Environment from context:", !!env);
-      console.log(
-        "[uploadCharacterSheet] DB binding exists:",
-        env?.DB !== undefined
-      );
+      // Try to get environment from context or global scope
+      const env = getEnvFromContext(context);
+      console.log("[Tool] uploadCharacterSheet - Environment found:", !!env);
+      console.log("[Tool] uploadCharacterSheet - JWT provided:", !!jwt);
 
-      if (env?.DB) {
-        console.log(
-          "[uploadCharacterSheet] Running in Durable Object context, calling database directly"
-        );
+      // If we have environment, work directly with the database
+      if (env) {
+        const userId = extractUsernameFromJwt(jwt);
+        console.log("[Tool] uploadCharacterSheet - User ID extracted:", userId);
 
-        // Extract username from JWT
-        let username = "default";
-        if (jwt) {
-          try {
-            const payload = JSON.parse(atob(jwt.split(".")[1]));
-            username = payload.username || "default";
-            console.log(
-              "[uploadCharacterSheet] Extracted username from JWT:",
-              username
-            );
-          } catch (error) {
-            console.error("Error parsing JWT:", error);
-          }
+        if (!userId) {
+          return createToolError(
+            "Invalid authentication token",
+            "Authentication failed",
+            401,
+            toolCallId
+          );
         }
 
         // Verify campaign exists and belongs to user
         const campaignResult = await env.DB.prepare(
           "SELECT id FROM campaigns WHERE id = ? AND username = ?"
         )
-          .bind(campaignId, username)
+          .bind(campaignId, userId)
           .first();
 
         if (!campaignResult) {
-          return createToolError("Campaign not found", {
-            error: "Campaign not found",
-          });
-        }
-
-        // Generate unique file key and character sheet ID
-        const characterSheetId = crypto.randomUUID();
-        const fileKey = `character-sheets/${username}/${characterSheetId}/${fileName}`;
-        const uploadUrl = `/character-sheets/upload/${fileKey}`;
-
-        console.log(
-          "[uploadCharacterSheet] Generated characterSheetId:",
-          characterSheetId
-        );
-        console.log("[uploadCharacterSheet] Generated fileKey:", fileKey);
-        console.log("[uploadCharacterSheet] Generated uploadUrl:", uploadUrl);
-
-        return createToolSuccess(
-          `Character sheet upload URL generated successfully for ${fileName}`,
-          {
-            uploadUrl,
-            fileKey,
-            characterSheetId,
-            instructions:
-              "Use the upload URL to upload your character sheet file, then call processCharacterSheet to extract character data",
-          }
-        );
-      } else {
-        // Fall back to HTTP API
-        console.log(
-          "[uploadCharacterSheet] Running in HTTP context, making API request"
-        );
-        const uploadResponse = await authenticatedFetch(
-          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CHARACTER_SHEETS.UPLOAD_URL),
-          {
-            method: "POST",
-            jwt,
-            body: JSON.stringify({
-              fileName,
-              fileType,
-              campaignId,
-              characterName,
-              description,
-            }),
-          }
-        );
-
-        if (!uploadResponse.ok) {
-          const authError = handleAuthError(uploadResponse);
-          if (authError) {
-            return createToolError(authError, {
-              error: `HTTP ${uploadResponse.status}`,
-            });
-          }
           return createToolError(
-            `Failed to generate upload URL: ${uploadResponse.status}`,
-            { error: `HTTP ${uploadResponse.status}` }
+            "Campaign not found",
+            "Campaign not found",
+            404,
+            toolCallId
           );
         }
 
-        const uploadData = (await uploadResponse.json()) as {
-          uploadUrl: string;
-          fileKey: string;
-          characterSheetId: string;
-        };
+        // Store character sheet file
+        const characterId = crypto.randomUUID();
+        const now = new Date().toISOString();
+        const fileSize = Math.round((fileContent.length * 3) / 4); // Approximate base64 size
+
+        await env.DB.prepare(
+          "INSERT INTO character_sheets (id, campaign_id, character_name, file_name, file_content, file_size, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+          .bind(
+            characterId,
+            campaignId,
+            characterName || "Unknown Character",
+            fileName,
+            fileContent,
+            fileSize,
+            now,
+            now
+          )
+          .run();
+
+        // Update campaign updated_at
+        await env.DB.prepare("UPDATE campaigns SET updated_at = ? WHERE id = ?")
+          .bind(now, campaignId)
+          .run();
+
+        console.log("[Tool] Uploaded character sheet:", characterId);
 
         return createToolSuccess(
-          `Character sheet upload URL generated successfully for ${fileName}`,
+          `Successfully uploaded character sheet: ${fileName}`,
           {
-            uploadUrl: uploadData.uploadUrl,
-            fileKey: uploadData.fileKey,
-            characterSheetId: uploadData.characterSheetId,
-            instructions:
-              "Use the upload URL to upload your character sheet file, then call processCharacterSheet to extract character data",
-          }
+            id: characterId,
+            fileName,
+            characterName: characterName || "Unknown Character",
+            fileSize,
+            createdAt: now,
+          },
+          toolCallId
         );
       }
+
+      // Otherwise, make HTTP request
+      const response = await authenticatedFetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CHARACTER_SHEETS.UPLOAD_URL),
+        {
+          method: "POST",
+          jwt,
+          body: JSON.stringify({
+            campaignId,
+            fileName,
+            fileContent,
+            characterName,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const authError = await handleAuthError(response);
+        if (authError) {
+          return createToolError(authError, null, 401, toolCallId);
+        }
+        return createToolError(
+          "Failed to upload character sheet",
+          `HTTP ${response.status}: ${await response.text()}`,
+          500,
+          toolCallId
+        );
+      }
+
+      const result = await response.json();
+      return createToolSuccess(
+        `Successfully uploaded character sheet: ${fileName}`,
+        result,
+        toolCallId
+      );
     } catch (error) {
-      console.error("Error generating character sheet upload URL:", error);
+      console.error("Error uploading character sheet:", error);
       return createToolError(
-        `Failed to generate upload URL: ${error instanceof Error ? error.message : String(error)}`,
-        { error: error instanceof Error ? error.message : String(error) }
+        "Failed to upload character sheet",
+        error,
+        500,
+        toolCallId
       );
     }
   },
 });
 
+// Tool to process a character sheet
 export const processCharacterSheet = tool({
   description:
-    "Process an uploaded character sheet file to extract character information and add it to the campaign",
+    "Process and extract information from an uploaded character sheet",
   parameters: z.object({
     characterSheetId: z
       .string()
-      .describe("The ID of the uploaded character sheet to process"),
-    campaignId: z
-      .string()
-      .describe("The ID of the campaign to add the character to"),
-    extractData: z
-      .boolean()
-      .optional()
-      .describe(
-        "Whether to extract character data from the sheet (default: true)"
-      ),
-    jwt: z
-      .string()
-      .nullable()
-      .optional()
-      .describe("JWT token for authentication"),
+      .describe("The ID of the character sheet to process"),
+    jwt: commonSchemas.jwt,
   }),
   execute: async (
-    { characterSheetId, campaignId, extractData = true, jwt },
+    { characterSheetId, jwt },
     context?: any
   ): Promise<ToolResult> => {
+    // Extract toolCallId from context
+    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[processCharacterSheet] Using toolCallId:", toolCallId);
+
     console.log("[Tool] processCharacterSheet received:", {
       characterSheetId,
-      campaignId,
-      extractData,
     });
-    console.log("[Tool] processCharacterSheet context:", context);
+
     try {
-      // Check if we have access to the environment through context
-      const env = context?.env;
-      console.log("[processCharacterSheet] Environment from context:", !!env);
-      console.log(
-        "[processCharacterSheet] DB binding exists:",
-        env?.DB !== undefined
-      );
+      // Try to get environment from context or global scope
+      const env = getEnvFromContext(context);
+      console.log("[Tool] processCharacterSheet - Environment found:", !!env);
+      console.log("[Tool] processCharacterSheet - JWT provided:", !!jwt);
 
-      if (env?.DB) {
+      // If we have environment, work directly with the database
+      if (env) {
+        const userId = extractUsernameFromJwt(jwt);
         console.log(
-          "[processCharacterSheet] Running in Durable Object context, calling database directly"
+          "[Tool] processCharacterSheet - User ID extracted:",
+          userId
         );
 
-        // Extract username from JWT
-        let username = "default";
-        if (jwt) {
-          try {
-            const payload = JSON.parse(atob(jwt.split(".")[1]));
-            username = payload.username || "default";
-            console.log(
-              "[processCharacterSheet] Extracted username from JWT:",
-              username
-            );
-          } catch (error) {
-            console.error("Error parsing JWT:", error);
-          }
-        }
-
-        // Verify campaign exists and belongs to user
-        const campaignResult = await env.DB.prepare(
-          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
-        )
-          .bind(campaignId, username)
-          .first();
-
-        if (!campaignResult) {
-          return createToolError("Campaign not found", {
-            error: "Campaign not found",
-          });
-        }
-
-        console.log(
-          "[processCharacterSheet] Processing character sheet:",
-          characterSheetId
-        );
-
-        // For now, return a simple response since this would require file processing
-        // In a real implementation, this would extract character data from the uploaded file
-        return createToolSuccess(
-          `Character sheet ${characterSheetId} processed successfully`,
-          {
-            characterSheetId,
-            campaignId,
-            status: "processed",
-            extractedData: extractData,
-            message: "Character data extracted and added to campaign",
-          }
-        );
-      } else {
-        // Fall back to HTTP API
-        console.log(
-          "[processCharacterSheet] Running in HTTP context, making API request"
-        );
-        const response = await authenticatedFetch(
-          API_CONFIG.buildUrl(
-            API_CONFIG.ENDPOINTS.CHARACTER_SHEETS.PROCESS(characterSheetId)
-          ),
-          {
-            method: "POST",
-            jwt,
-            body: JSON.stringify({
-              campaignId,
-              extractData,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          const authError = handleAuthError(response);
-          if (authError) {
-            return createToolError(authError, {
-              error: `HTTP ${response.status}`,
-            });
-          }
+        if (!userId) {
           return createToolError(
-            `Failed to process character sheet: ${response.status}`,
-            { error: `HTTP ${response.status}` }
+            "Invalid authentication token",
+            "Authentication failed",
+            401,
+            toolCallId
           );
         }
 
-        const result = (await response.json()) as any;
+        // Get character sheet
+        const characterSheet = await env.DB.prepare(
+          "SELECT cs.*, c.username FROM character_sheets cs JOIN campaigns c ON cs.campaign_id = c.id WHERE cs.id = ? AND c.username = ?"
+        )
+          .bind(characterSheetId, userId)
+          .first();
+
+        if (!characterSheet) {
+          return createToolError(
+            "Character sheet not found",
+            "Character sheet not found",
+            404,
+            toolCallId
+          );
+        }
+
+        // Process the character sheet (extract information)
+        const processedData = await processCharacterSheetData(characterSheet);
+
+        // Update character sheet with processed data
+        const now = new Date().toISOString();
+        await env.DB.prepare(
+          "UPDATE character_sheets SET processed_data = ?, processed_at = ?, updated_at = ? WHERE id = ?"
+        )
+          .bind(JSON.stringify(processedData), now, now, characterSheetId)
+          .run();
+
+        console.log("[Tool] Processed character sheet:", characterSheetId);
+
         return createToolSuccess(
-          `Character sheet ${characterSheetId} processed successfully`,
-          result
+          `Successfully processed character sheet: ${characterSheet.character_name}`,
+          {
+            id: characterSheetId,
+            characterName: characterSheet.character_name,
+            processedData,
+            processedAt: now,
+          },
+          toolCallId
         );
       }
+
+      // Otherwise, make HTTP request
+      const response = await authenticatedFetch(
+        API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.CHARACTER_SHEETS.PROCESS(characterSheetId)
+        ),
+        {
+          method: "POST",
+          jwt,
+        }
+      );
+
+      if (!response.ok) {
+        const authError = await handleAuthError(response);
+        if (authError) {
+          return createToolError(authError, null, 401, toolCallId);
+        }
+        return createToolError(
+          "Failed to process character sheet",
+          `HTTP ${response.status}: ${await response.text()}`,
+          500,
+          toolCallId
+        );
+      }
+
+      const result = await response.json();
+      return createToolSuccess(
+        `Successfully processed character sheet: ${(result as any).characterName || "Unknown"}`,
+        result,
+        toolCallId
+      );
     } catch (error) {
       console.error("Error processing character sheet:", error);
       return createToolError(
-        `Failed to process character sheet: ${error instanceof Error ? error.message : String(error)}`,
-        { error: error instanceof Error ? error.message : String(error) }
+        "Failed to process character sheet",
+        error,
+        500,
+        toolCallId
       );
     }
   },
 });
+
+// Helper function to process character sheet data
+async function processCharacterSheetData(characterSheet: any): Promise<any> {
+  // This is a simplified processing function
+  // In a real implementation, this would use OCR or AI to extract character information
+  const processedData = {
+    characterName: characterSheet.character_name || "Unknown",
+    characterClass: characterSheet.character_class || "Unknown",
+    characterLevel: characterSheet.character_level || 1,
+    characterRace: characterSheet.character_race || "Unknown",
+    // Add more extracted fields as needed
+    extractedAt: new Date().toISOString(),
+    confidence: 0.8, // Confidence score for extracted data
+  };
+
+  return processedData;
+}

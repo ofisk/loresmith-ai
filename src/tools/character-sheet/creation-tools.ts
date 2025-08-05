@@ -2,94 +2,109 @@ import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../constants";
 import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
-import { createToolError, createToolSuccess } from "../utils";
+import {
+  commonSchemas,
+  createToolError,
+  createToolSuccess,
+  extractUsernameFromJwt,
+} from "../utils";
 
-// Character sheet creation tools
+// Helper function to get environment from context
+function getEnvFromContext(context: any): any {
+  if (context?.env) {
+    return context.env;
+  }
+  if (typeof globalThis !== "undefined" && "env" in globalThis) {
+    return (globalThis as any).env;
+  }
+  return null;
+}
 
-export const createCharacterFromChat = tool({
+// Tool to create a character sheet
+export const createCharacterSheet = tool({
   description:
-    "Create a character from information provided in chat, extracting character details from the conversation",
+    "Create a new character sheet for a campaign with basic character information",
   parameters: z.object({
-    campaignId: z
-      .string()
-      .describe("The ID of the campaign to add the character to"),
-    characterInfo: z
-      .string()
-      .describe("The character information extracted from chat conversation"),
+    campaignId: commonSchemas.campaignId,
     characterName: z.string().describe("The name of the character"),
-    jwt: z
-      .string()
-      .nullable()
-      .optional()
-      .describe("JWT token for authentication"),
+    characterClass: z.string().describe("The character's class"),
+    characterLevel: z.number().describe("The character's level"),
+    characterRace: z.string().describe("The character's race"),
+    jwt: commonSchemas.jwt,
   }),
   execute: async (
-    { campaignId, characterInfo, characterName, jwt },
-    context?: any
-  ): Promise<ToolResult> => {
-    console.log("[Tool] createCharacterFromChat received:", {
+    {
       campaignId,
       characterName,
+      characterClass,
+      characterLevel,
+      characterRace,
+      jwt,
+    },
+    context?: any
+  ): Promise<ToolResult> => {
+    // Extract toolCallId from context
+    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[createCharacterSheet] Using toolCallId:", toolCallId);
+
+    console.log("[Tool] createCharacterSheet received:", {
+      campaignId,
+      characterName,
+      characterClass,
+      characterLevel,
+      characterRace,
     });
-    console.log("[Tool] createCharacterFromChat context:", context);
+
     try {
-      // Check if we have access to the environment through context
-      const env = context?.env;
-      console.log("[createCharacterFromChat] Environment from context:", !!env);
-      console.log(
-        "[createCharacterFromChat] DB binding exists:",
-        env?.DB !== undefined
-      );
+      // Try to get environment from context or global scope
+      const env = getEnvFromContext(context);
+      console.log("[Tool] createCharacterSheet - Environment found:", !!env);
+      console.log("[Tool] createCharacterSheet - JWT provided:", !!jwt);
 
-      if (env?.DB) {
-        console.log(
-          "[createCharacterFromChat] Running in Durable Object context, calling database directly"
-        );
+      // If we have environment, work directly with the database
+      if (env) {
+        const userId = extractUsernameFromJwt(jwt);
+        console.log("[Tool] createCharacterSheet - User ID extracted:", userId);
 
-        // Extract username from JWT
-        let username = "default";
-        if (jwt) {
-          try {
-            const payload = JSON.parse(atob(jwt.split(".")[1]));
-            username = payload.username || "default";
-            console.log(
-              "[createCharacterFromChat] Extracted username from JWT:",
-              username
-            );
-          } catch (error) {
-            console.error("Error parsing JWT:", error);
-          }
+        if (!userId) {
+          return createToolError(
+            "Invalid authentication token",
+            "Authentication failed",
+            401,
+            toolCallId
+          );
         }
 
         // Verify campaign exists and belongs to user
         const campaignResult = await env.DB.prepare(
           "SELECT id FROM campaigns WHERE id = ? AND username = ?"
         )
-          .bind(campaignId, username)
+          .bind(campaignId, userId)
           .first();
 
         if (!campaignResult) {
-          return createToolError("Campaign not found", {
-            error: "Campaign not found",
-          });
+          return createToolError(
+            "Campaign not found",
+            "Campaign not found",
+            404,
+            toolCallId
+          );
         }
 
-        // Store the character information
+        // Create character sheet
         const characterId = crypto.randomUUID();
         const now = new Date().toISOString();
 
         await env.DB.prepare(
-          "INSERT INTO campaign_characters (id, campaign_id, character_name, backstory, metadata, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+          "INSERT INTO character_sheets (id, campaign_id, character_name, character_class, character_level, character_race, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         )
           .bind(
             characterId,
             campaignId,
             characterName,
-            characterInfo,
-            JSON.stringify({
-              source: "chat",
-              createdFromChat: true,
-            }),
+            characterClass,
+            characterLevel,
+            characterRace,
             now,
             now
           )
@@ -100,75 +115,64 @@ export const createCharacterFromChat = tool({
           .bind(now, campaignId)
           .run();
 
-        console.log(
-          "[createCharacterFromChat] Created character from chat:",
-          characterId
-        );
+        console.log("[Tool] Created character sheet:", characterId);
 
         return createToolSuccess(
-          `Successfully created character ${characterName} from chat information`,
+          `Successfully created character sheet for ${characterName}`,
           {
-            character: {
-              id: characterId,
-              characterName,
-              backstory: characterInfo,
-              source: "chat",
-              createdAt: now,
-            },
+            id: characterId,
             characterName,
-            source: "chat",
-          }
-        );
-      } else {
-        // Fall back to HTTP API
-        console.log(
-          "[createCharacterFromChat] Running in HTTP context, making API request"
-        );
-        const response = await authenticatedFetch(
-          API_CONFIG.buildUrl(
-            API_CONFIG.ENDPOINTS.CAMPAIGNS.CHARACTERS(campaignId)
-          ),
-          {
-            method: "POST",
-            jwt,
-            body: JSON.stringify({
-              characterName,
-              characterInfo,
-              source: "chat",
-              createdFromChat: true,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          const authError = handleAuthError(response);
-          if (authError) {
-            return createToolError(authError, {
-              error: `HTTP ${response.status}`,
-            });
-          }
-          return createToolError(
-            `Failed to create character from chat: ${response.status}`,
-            { error: `HTTP ${response.status}` }
-          );
-        }
-
-        const result = (await response.json()) as any;
-
-        return createToolSuccess(
-          `Successfully created character ${characterName} from chat information`,
-          {
-            character: result.character,
-            characterName,
-            source: "chat",
-          }
+            characterClass,
+            characterLevel,
+            characterRace,
+            createdAt: now,
+          },
+          toolCallId
         );
       }
+
+      // Otherwise, make HTTP request
+      const response = await authenticatedFetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CHARACTER_SHEETS.UPLOAD_URL),
+        {
+          method: "POST",
+          jwt,
+          body: JSON.stringify({
+            campaignId,
+            characterName,
+            characterClass,
+            characterLevel,
+            characterRace,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const authError = await handleAuthError(response);
+        if (authError) {
+          return createToolError(authError, null, 401, toolCallId);
+        }
+        return createToolError(
+          "Failed to create character sheet",
+          `HTTP ${response.status}: ${await response.text()}`,
+          500,
+          toolCallId
+        );
+      }
+
+      const result = await response.json();
+      return createToolSuccess(
+        `Successfully created character sheet for ${characterName}`,
+        result,
+        toolCallId
+      );
     } catch (error) {
-      console.error("Error creating character from chat:", error);
+      console.error("Error creating character sheet:", error);
       return createToolError(
-        `Failed to create character from chat: ${error instanceof Error ? error.message : String(error)}`,
-        { error: error instanceof Error ? error.message : String(error) }
+        "Failed to create character sheet",
+        error,
+        500,
+        toolCallId
       );
     }
   },

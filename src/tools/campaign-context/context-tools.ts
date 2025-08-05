@@ -60,6 +60,11 @@ export const storeCampaignContext = tool({
       title,
       content: `${content.substring(0, 100)}...`,
     });
+    console.log("[Tool] storeCampaignContext context:", context);
+
+    // Extract toolCallId from context
+    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[storeCampaignContext] Using toolCallId:", toolCallId);
 
     try {
       // Try to get environment from context or global scope
@@ -84,7 +89,8 @@ export const storeCampaignContext = tool({
           return createToolError(
             "Invalid authentication token",
             "Authentication failed",
-            AUTH_CODES.INVALID_KEY
+            AUTH_CODES.INVALID_KEY,
+            toolCallId
           );
         }
 
@@ -96,7 +102,12 @@ export const storeCampaignContext = tool({
           .first();
 
         if (!campaignResult) {
-          return createToolError("Campaign not found", "Campaign not found");
+          return createToolError(
+            "Campaign not found",
+            "Campaign not found",
+            AUTH_CODES.ERROR,
+            toolCallId
+          );
         }
 
         // Store the context
@@ -139,7 +150,8 @@ export const storeCampaignContext = tool({
             content,
             metadata,
             createdAt: now,
-          }
+          },
+          toolCallId
         );
       }
 
@@ -161,23 +173,33 @@ export const storeCampaignContext = tool({
       if (!response.ok) {
         const authError = handleAuthError(response);
         if (authError) {
-          return createToolError(authError, null, AUTH_CODES.INVALID_KEY);
+          return createToolError(
+            authError,
+            null,
+            AUTH_CODES.INVALID_KEY,
+            toolCallId
+          );
         }
         return createToolError(
           `Failed to store campaign context: ${response.status}`,
-          `HTTP ${response.status}`
+          `HTTP ${response.status}`,
+          AUTH_CODES.ERROR,
+          toolCallId
         );
       }
       const result = (await response.json()) as any;
       return createToolSuccess(
         `Successfully stored ${contextType} context: "${title}"`,
-        result
+        result,
+        toolCallId
       );
     } catch (error) {
       console.error("Error storing campaign context:", error);
       return createToolError(
         `Failed to store campaign context: ${error instanceof Error ? error.message : String(error)}`,
-        error
+        error,
+        AUTH_CODES.ERROR,
+        toolCallId
       );
     }
   },
@@ -214,6 +236,11 @@ export const getCampaignContext = tool({
       contextType,
     });
     console.log("[Tool] getCampaignContext context:", context);
+
+    // Extract toolCallId from context
+    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[getCampaignContext] Using toolCallId:", toolCallId);
+
     try {
       // Check if we have access to the environment through context
       const env = getEnvFromContext(context);
@@ -236,7 +263,8 @@ export const getCampaignContext = tool({
           return createToolError(
             "Invalid authentication token",
             "Authentication failed",
-            AUTH_CODES.INVALID_KEY
+            AUTH_CODES.INVALID_KEY,
+            toolCallId
           );
         }
 
@@ -248,7 +276,12 @@ export const getCampaignContext = tool({
           .first();
 
         if (!campaignResult) {
-          return createToolError("Campaign not found", "Campaign not found");
+          return createToolError(
+            "Campaign not found",
+            "Campaign not found",
+            AUTH_CODES.ERROR,
+            toolCallId
+          );
         }
 
         // Query campaign context
@@ -277,7 +310,8 @@ export const getCampaignContext = tool({
             context: contextResult.results || [],
             campaignId,
             contextType,
-          }
+          },
+          toolCallId
         );
       } else {
         // Fall back to HTTP API
@@ -302,25 +336,35 @@ export const getCampaignContext = tool({
         if (!response.ok) {
           const authError = handleAuthError(response);
           if (authError) {
-            return createToolError(authError, null, AUTH_CODES.INVALID_KEY);
+            return createToolError(
+              authError,
+              null,
+              AUTH_CODES.INVALID_KEY,
+              toolCallId
+            );
           }
           return createToolError(
             `Failed to retrieve campaign context: ${response.status}`,
-            `HTTP ${response.status}`
+            `HTTP ${response.status}`,
+            AUTH_CODES.ERROR,
+            toolCallId
           );
         }
 
         const result = (await response.json()) as any;
         return createToolSuccess(
           `Retrieved ${result.context?.length || 0} context entries for campaign`,
-          result
+          result,
+          toolCallId
         );
       }
     } catch (error) {
       console.error("Error retrieving campaign context:", error);
       return createToolError(
         `Failed to retrieve campaign context: ${error instanceof Error ? error.message : String(error)}`,
-        error
+        error,
+        AUTH_CODES.ERROR,
+        toolCallId
       );
     }
   },

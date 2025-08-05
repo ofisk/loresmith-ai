@@ -8,10 +8,10 @@ import { cn } from "@/lib/utils";
 import { API_CONFIG, USER_MESSAGES } from "../../constants";
 import { useJwtExpiration } from "../../hooks/useJwtExpiration";
 import {
+  authenticatedFetchWithExpiration,
+  clearJwt,
   getStoredJwt,
   storeJwt,
-  clearJwt,
-  authenticatedFetchWithExpiration,
 } from "../../services/auth-service";
 import { PdfList } from "./PdfList";
 import { PdfUpload } from "./PdfUpload";
@@ -64,6 +64,7 @@ export const PdfUploadAgent = ({
   const [jwtUsername, setJwtUsername] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isListModalOpen, setIsListModalOpen] = useState(false);
+  const [refreshTrigger, _setRefreshTrigger] = useState(0);
 
   // Use JWT expiration hook
   const { isExpired, clearExpiration } = useJwtExpiration({
@@ -313,7 +314,41 @@ export const PdfUploadAgent = ({
         throw new Error(`Upload failed: ${uploadResponse.status} ${errorText}`);
       }
 
-      // Step 4: Send metadata to agent after successful upload
+      const uploadResult = (await uploadResponse.json()) as {
+        success: boolean;
+        fileKey: string;
+        partNumber: number;
+        etag: string;
+      };
+      console.log("[Client] Upload part result:", uploadResult);
+
+      // Step 4: Complete the multipart upload
+      const completeResponse = await fetch(
+        `${API_CONFIG.getApiBaseUrl()}/pdf/upload/${encodeURIComponent(uploadUrlResult.fileKey)}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${jwt}`,
+          },
+          body: JSON.stringify({
+            uploadId: uploadUrlResult.uploadUrl,
+            parts: [{ partNumber: 1, etag: uploadResult.etag }],
+          }),
+        }
+      );
+
+      if (!completeResponse.ok) {
+        const errorText = await completeResponse.text();
+        console.warn(
+          `Complete upload failed: ${completeResponse.status} ${errorText}`
+        );
+        throw new Error(
+          `Complete upload failed: ${completeResponse.status} ${errorText}`
+        );
+      }
+
+      // Step 5: Send metadata to agent after successful upload
       console.log("[Client] Calling append for metadata/ingest with JWT:", jwt);
       await append({
         role: "user",
@@ -497,7 +532,7 @@ export const PdfUploadAgent = ({
     return (
       <Card className={cn("space-y-4", className)}>
         <div className="space-y-2">
-          <h3 className="text-ob-base-300 font-medium">Add Resources</h3>
+          <h3 className="text-ob-base-300 font-medium">Add to Library</h3>
           <p className="text-ob-base-200 text-sm">
             Checking authentication status...
           </p>
@@ -616,14 +651,18 @@ export const PdfUploadAgent = ({
           variant="secondary"
           size="base"
         >
-          Add resources
+          Add to library
         </Button>
         <Button
-          onClick={() => setIsListModalOpen(true)}
+          onClick={() => {
+            setIsListModalOpen(true);
+            // Trigger refresh when opening the modal
+            _setRefreshTrigger((prev) => prev + 1);
+          }}
           variant="secondary"
           size="base"
         >
-          Show resources
+          Show library
         </Button>
       </div>
 
@@ -644,7 +683,7 @@ export const PdfUploadAgent = ({
         onClose={() => setIsListModalOpen(false)}
         cardStyle={{ width: 560, height: 560 }}
       >
-        <PdfList />
+        <PdfList refreshTrigger={refreshTrigger} />
       </Modal>
     </Card>
   );
