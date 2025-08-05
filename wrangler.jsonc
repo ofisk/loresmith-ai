@@ -24,6 +24,8 @@
   "vars": {
     // ADMIN_SECRET is now managed via secrets store in production
     // For local development, use .dev.vars file
+    "VITE_API_URL": "https://ofisk.tech",
+    "CORS_ALLOWED_ORIGINS": "https://ofisk.tech",
   },
   "durable_objects": {
     "bindings": [
