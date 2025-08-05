@@ -1,6 +1,6 @@
+import type { ToolResult } from "../../constants";
 import type { CampaignData, CampaignResource } from "../../types/campaign";
 import { createToolSuccess } from "../utils";
-import { type ToolResult } from "../../constants";
 
 // CampaignTool class for direct Durable Object interactions
 export class CampaignTool {

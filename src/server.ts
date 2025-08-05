@@ -2,64 +2,64 @@ import { routeAgentRequest, type Schedule } from "agents";
 import { AIChatAgent } from "agents/ai-chat-agent";
 import { generateId, type StreamTextOnFinishCallback, type ToolSet } from "ai";
 import { Hono } from "hono";
-import type { AuthEnv } from "./services/auth-service";
-import type { AgentType } from "./services/agent-router";
 import {
-  handleAuthenticate,
-  handleGetOpenAIKey,
-  handleStoreOpenAIKey,
-  handleDeleteOpenAIKey,
-  handleCheckOpenAIKey,
-  handleSetOpenAIApiKey,
-  handleCheckUserOpenAIKey,
-  requireUserJwt,
-} from "./routes/auth";
-import { AuthService } from "./services/auth-service";
-import { ModelManager } from "./services/model-manager";
-import {
-  handleGetCampaigns,
-  handleCreateCampaign,
-  handleGetCampaign,
-  handleGetCampaignResources,
-  handleDeleteCampaign,
-  handleDeleteAllCampaigns,
-} from "./routes/campaigns";
-import {
-  handleGenerateUploadUrl,
-  handleCompleteUpload,
-  handleUploadPart,
-  handleIngestPdf,
-  handleGetPdfFiles,
-  handleUpdatePdfMetadata,
-  handleAutoGeneratePdfMetadata,
-  handleGetPdfStats,
-} from "./routes/pdf";
-import {
-  handleRagSearch,
-  handleProcessPdfForRag,
-  handleProcessPdfFromR2ForRag,
-  handleUpdatePdfMetadataForRag,
-  handleGetPdfFilesForRag,
-  handleGetPdfChunksForRag,
-  handleDeletePdfForRag,
-} from "./routes/rag";
-import {
-  handleGetUserState,
   handleGetAssessmentRecommendations,
   handleGetUserActivity,
+  handleGetUserState,
   handleModuleIntegration,
 } from "./routes/assessment";
 import {
-  handleGetWelcomeGuidance,
-  handleGetNextActions,
-  handleGetStateAnalysis,
-} from "./routes/onboarding";
+  handleAuthenticate,
+  handleCheckOpenAIKey,
+  handleCheckUserOpenAIKey,
+  handleDeleteOpenAIKey,
+  handleGetOpenAIKey,
+  handleSetOpenAIApiKey,
+  handleStoreOpenAIKey,
+  requireUserJwt,
+} from "./routes/auth";
+import {
+  handleCreateCampaign,
+  handleDeleteAllCampaigns,
+  handleDeleteCampaign,
+  handleGetCampaign,
+  handleGetCampaignResources,
+  handleGetCampaigns,
+} from "./routes/campaigns";
 import {
   handleGetExternalResourceRecommendations,
   handleGetExternalResourceSearch,
   handleGetGmResources,
 } from "./routes/external-resources";
+import {
+  handleGetNextActions,
+  handleGetStateAnalysis,
+  handleGetWelcomeGuidance,
+} from "./routes/onboarding";
+import {
+  handleAutoGeneratePdfMetadata,
+  handleCompleteUpload,
+  handleGenerateUploadUrl,
+  handleGetPdfFiles,
+  handleGetPdfStats,
+  handleIngestPdf,
+  handleUpdatePdfMetadata,
+  handleUploadPart,
+} from "./routes/pdf";
 import { handleProgressWebSocket } from "./routes/progress";
+import {
+  handleDeletePdfForRag,
+  handleGetPdfChunksForRag,
+  handleGetPdfFilesForRag,
+  handleProcessPdfForRag,
+  handleProcessPdfFromR2ForRag,
+  handleRagSearch,
+  handleUpdatePdfMetadataForRag,
+} from "./routes/rag";
+import type { AgentType } from "./services/agent-router";
+import type { AuthEnv } from "./services/auth-service";
+import { AuthService } from "./services/auth-service";
+import { ModelManager } from "./services/model-manager";
 
 interface Env extends AuthEnv {
   ADMIN_SECRET?: string;

@@ -7,11 +7,11 @@ import {
   showCampaignDetails,
 } from "./core-tools";
 import { getPdfLibraryStats, searchPdfLibrary } from "./pdf-tools";
-import { planSession, generateSessionHooks } from "./planning-tools";
+import { generateSessionHooks, planSession } from "./planning-tools";
 import {
   addResourceToCampaign,
-  removeResourceFromCampaign,
   listCampaignResources,
+  removeResourceFromCampaign,
 } from "./resource-tools";
 
 // Export all campaign tools

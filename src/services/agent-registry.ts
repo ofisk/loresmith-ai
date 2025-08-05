@@ -1,9 +1,9 @@
-import { AgentRouter, type AgentType } from "./agent-router";
 import { CampaignAgent } from "../agents/campaign-agent";
 import { CampaignContextAgent } from "../agents/campaign-context-agent";
 import { CharacterSheetAgent } from "../agents/character-sheet-agent";
 import { OnboardingAgent } from "../agents/onboarding-agent";
 import { ResourceAgent } from "../agents/resource-agent";
+import { AgentRouter, type AgentType } from "./agent-router";
 
 /**
  * Agent Registry Service

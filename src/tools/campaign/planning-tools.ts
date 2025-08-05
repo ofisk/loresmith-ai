@@ -334,8 +334,8 @@ function generateSessionPlan(
   type: string,
   duration: number,
   focusAreas: string[] = [],
-  characters: any[] = [],
-  resources: any[] = []
+  _characters: any[] = [],
+  _resources: any[] = []
 ): any {
   const encounters = [];
   const storyBeats = [];
@@ -429,9 +429,9 @@ function generateSessionPlan(
 // Helper function to generate hooks
 function generateHooks(
   type: string,
-  context: string = "",
-  characters: any[] = [],
-  resources: any[] = []
+  _context: string = "",
+  _characters: any[] = [],
+  _resources: any[] = []
 ): any[] {
   const hooks = [];
 

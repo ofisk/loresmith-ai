@@ -2,11 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult, USER_MESSAGES } from "../../constants";
 import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
-import {
-  createToolError,
-  createToolSuccess,
-  extractUsernameFromJwt,
-} from "../utils";
+import { createToolError, createToolSuccess } from "../utils";
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {

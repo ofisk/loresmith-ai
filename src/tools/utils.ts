@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { type ToolResult } from "../constants";
+import type { ToolResult } from "../constants";
 
 /**
  * Common tool parameter schemas

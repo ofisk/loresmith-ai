@@ -206,7 +206,7 @@ export const completePdfUpload = tool({
 
       const result = await response.json();
       return createToolSuccess(
-        `PDF upload completed successfully: ${result.fileName || "Unknown"}`,
+        `PDF upload completed successfully: ${(result as any).fileName || "Unknown"}`,
         result,
         toolCallId
       );
@@ -305,7 +305,7 @@ export const processPdfUpload = tool({
 
       const result = await response.json();
       return createToolSuccess(
-        `PDF processed successfully: ${result.fileName || "Unknown"}`,
+        `PDF processed successfully: ${(result as any).fileName || "Unknown"}`,
         result,
         toolCallId
       );

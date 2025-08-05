@@ -1,8 +1,8 @@
 import type { Context } from "hono";
+import { RAGService } from "../lib/rag";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { completeProgress } from "../services/progress";
-import { RAGService } from "../lib/rag";
 import { PDF_SCHEMA } from "../types/pdf";
 
 // Extend the context to include userAuth

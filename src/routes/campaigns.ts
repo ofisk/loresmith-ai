@@ -1,8 +1,8 @@
 import type { Context } from "hono";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
-import { CAMPAIGN_SCHEMA, schemaHelpers } from "../types/schemas";
 import type { Campaign } from "../types/campaign";
+import { CAMPAIGN_SCHEMA, schemaHelpers } from "../types/schemas";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {

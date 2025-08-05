@@ -5,10 +5,10 @@ import {
   getStoredJwt,
 } from "../../services/auth-service";
 import { API_CONFIG } from "../../shared";
+import type { Campaign } from "../../types/campaign";
 import { Button } from "../button/Button";
 import { Modal } from "../modal/Modal";
 import { MultiSelect } from "../select/MultiSelect";
-import type { Campaign } from "../../types/campaign";
 
 interface PdfFile {
   id: string;

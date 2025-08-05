@@ -17,12 +17,12 @@ import { Avatar } from "@/components/avatar/Avatar";
 // Component imports
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
+import { HelpButton } from "@/components/help/HelpButton";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { PdfUploadAgent } from "@/components/pdf-upload/PdfUploadAgent";
 import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
-import { HelpButton } from "@/components/help/HelpButton";
 import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
 
 import { USER_MESSAGES } from "./constants";

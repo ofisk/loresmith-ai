@@ -1,5 +1,5 @@
-import { Button, type ButtonProps } from "./Button";
 import { cn } from "@/lib/utils";
+import { Button, type ButtonProps } from "./Button";
 
 interface PrimaryActionButtonProps
   extends Omit<ButtonProps, "variant" | "size"> {

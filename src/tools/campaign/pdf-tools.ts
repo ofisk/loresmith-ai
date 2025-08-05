@@ -1,8 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../constants";
-import { commonSchemas, createToolError, createToolSuccess } from "../utils";
 import { AUTH_CODES } from "../../shared";
+import { commonSchemas, createToolError, createToolSuccess } from "../utils";
 
 // PDF library tools
 

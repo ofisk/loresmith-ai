@@ -1,6 +1,6 @@
+import type { ToolResult } from "../../constants";
 import { AssessmentService } from "../../services/assessment-service";
 import { createToolSuccess } from "../utils";
-import { type ToolResult } from "../../constants";
 import type {
   ActionSuggestion,
   CampaignHealthSummary,

@@ -284,7 +284,7 @@ export const processCharacterSheet = tool({
 
       const result = await response.json();
       return createToolSuccess(
-        `Successfully processed character sheet: ${result.characterName || "Unknown"}`,
+        `Successfully processed character sheet: ${(result as any).characterName || "Unknown"}`,
         result,
         toolCallId
       );

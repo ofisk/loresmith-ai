@@ -1,8 +1,8 @@
 import type React from "react";
-import { useState, useEffect } from "react";
-import { Modal } from "./modal/Modal";
+import { useEffect, useState } from "react";
 import { PrimaryActionButton } from "./button";
 import { FormField } from "./input/FormField";
+import { Modal } from "./modal/Modal";
 
 interface BlockingAuthenticationModalProps {
   isOpen: boolean;

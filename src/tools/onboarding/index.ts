@@ -1,6 +1,6 @@
+export * from "./external-resources-tools";
 export * from "./guidance-tools";
 export * from "./state-analysis-tools";
-export * from "./external-resources-tools";
 
 // Export the tools object for the agent
 export const onboardingTools = {

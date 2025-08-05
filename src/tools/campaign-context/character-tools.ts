@@ -329,7 +329,7 @@ export const generateCharacterWithAITool = tool({
         const characterData = await generateCharacterWithAI({
           characterName,
           characterClass,
-          characterLevel,
+          characterLevel: characterLevel || 1, // Default to level 1 if undefined
           characterRace,
           campaignSetting,
           playerPreferences,
@@ -342,21 +342,22 @@ export const generateCharacterWithAITool = tool({
         const characterId = crypto.randomUUID();
         const now = new Date().toISOString();
 
+        const characterDataTyped = characterData.result.data as any;
         await env.DB.prepare(
           "INSERT INTO campaign_characters (id, campaign_id, character_name, character_class, character_level, character_race, backstory, personality_traits, goals, relationships, metadata, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
           .bind(
             characterId,
             campaignId,
-            characterData.result.data.characterName,
-            characterData.result.data.characterClass,
-            characterData.result.data.characterLevel,
-            characterData.result.data.characterRace,
-            characterData.result.data.backstory,
-            characterData.result.data.personalityTraits,
-            characterData.result.data.goals,
-            JSON.stringify(characterData.result.data.relationships),
-            JSON.stringify(characterData.result.data.metadata),
+            characterDataTyped.characterName,
+            characterDataTyped.characterClass,
+            characterDataTyped.characterLevel,
+            characterDataTyped.characterRace,
+            characterDataTyped.backstory,
+            characterDataTyped.personalityTraits,
+            characterDataTyped.goals,
+            JSON.stringify(characterDataTyped.relationships),
+            JSON.stringify(characterDataTyped.metadata),
             now,
             now
           )
@@ -371,14 +372,14 @@ export const generateCharacterWithAITool = tool({
           "[Tool] Generated and stored character:",
           characterId,
           "name:",
-          characterData.result.data.characterName
+          characterDataTyped.characterName
         );
 
         return createToolSuccess(
-          `Successfully created character ${characterData.result.data.characterName} using AI generation`,
+          `Successfully created character ${characterDataTyped.characterName} using AI generation`,
           {
             id: characterId,
-            ...characterData.result.data,
+            ...characterDataTyped,
             createdAt: now,
           },
           toolCallId

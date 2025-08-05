@@ -87,7 +87,7 @@ export const searchCampaignContext = tool({
         }
 
         // Perform search based on type
-        let results = [];
+        const results = [];
         const searchQuery = `%${query}%`;
 
         if (searchType === "all" || searchType === "characters") {
@@ -178,7 +178,7 @@ export const searchCampaignContext = tool({
 
       const result = await response.json();
       return createToolSuccess(
-        `Found ${result.results?.length || 0} results for "${query}"`,
+        `Found ${(result as any).results?.length || 0} results for "${query}"`,
         result,
         toolCallId
       );
@@ -329,7 +329,7 @@ export const searchExternalResources = tool({
 
       const result = await response.json();
       return createToolSuccess(
-        `Found ${result.results?.length || 0} external resources for "${query}"`,
+        `Found ${(result as any).results?.length || 0} external resources for "${query}"`,
         result,
         toolCallId
       );

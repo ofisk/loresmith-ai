@@ -1,8 +1,8 @@
 import type { D1Database, VectorizeIndex } from "@cloudflare/workers-types";
 import { MODEL_CONFIG, PDF_PROCESSING_CONFIG } from "../constants";
+import { BaseRAGService } from "../services/base-rag-service";
 import type { ProcessingProgress, ProcessingStep } from "../types/progress";
 import { PDF_PROCESSING_STEPS } from "../types/progress";
-import { BaseRAGService } from "../services/base-rag-service";
 
 export interface PdfChunk {
   id: string;

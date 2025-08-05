@@ -1,5 +1,5 @@
+import type { ToolResult } from "../../constants";
 import { createToolSuccess } from "../utils";
-import { type ToolResult } from "../../constants";
 
 // Helper function to generate character data using AI
 export async function generateCharacterWithAI(params: {

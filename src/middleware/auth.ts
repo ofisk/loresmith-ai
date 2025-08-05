@@ -1,7 +1,6 @@
 import type { Context } from "hono";
 import { jwtVerify } from "jose";
-import type { AuthEnv } from "../services/auth-service";
-import type { AuthPayload } from "../services/auth-service";
+import type { AuthEnv, AuthPayload } from "../services/auth-service";
 
 export interface Env extends AuthEnv {
   PDF_BUCKET: R2Bucket;

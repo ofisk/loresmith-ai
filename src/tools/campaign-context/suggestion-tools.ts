@@ -337,9 +337,9 @@ export const assessCampaignReadiness = tool({
 // Helper function to generate suggestions
 function generateSuggestions(
   type: string,
-  characters: any[],
-  resources: any[],
-  context?: string
+  _characters: any[],
+  _resources: any[],
+  _context?: string
 ): any[] {
   const suggestions = [];
 
