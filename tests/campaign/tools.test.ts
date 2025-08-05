@@ -169,17 +169,25 @@ describe("Campaign Tools", () => {
       const { executions } = await import("../../src/tools");
       const mockCreateCampaign = (executions as any).createCampaign;
 
-      // Mock the execution function
+      // Mock the execution function with new ToolResult format
       mockCreateCampaign.mockResolvedValueOnce({
-        success: true,
-        campaign: createMockCampaign({ name: "Test Campaign" }),
+        toolCallId: "test-call-123",
+        result: {
+          success: true,
+          message: "Successfully created campaign",
+          data: {
+            campaign: createMockCampaign({ name: "Test Campaign" }),
+          },
+        },
       });
 
       // Test that the execution function can be called
       const result = await mockCreateCampaign({ name: "Test Campaign" });
 
-      expect(result.success).toBe(true);
-      expect(result.campaign.name).toBe("Test Campaign");
+      expect(result.toolCallId).toBe("test-call-123");
+      expect(result.result.success).toBe(true);
+      expect(result.result.message).toBe("Successfully created campaign");
+      expect(result.result.data.campaign.name).toBe("Test Campaign");
     });
 
     it("should handle resource listing execution", async () => {
@@ -196,16 +204,24 @@ describe("Campaign Tools", () => {
       ];
 
       mockListResources.mockResolvedValueOnce({
-        success: true,
-        resources: mockResources,
+        toolCallId: "test-call-123",
+        result: {
+          success: true,
+          message: "Successfully retrieved resources",
+          data: {
+            resources: mockResources,
+          },
+        },
       });
 
       const result = await mockListResources({ campaignId: "test-campaign" });
 
-      expect(result.success).toBe(true);
-      expect(result.resources).toHaveLength(2);
-      expect(result.resources[0].name).toBe("Document.pdf");
-      expect(result.resources[1].name).toBe("Character Sheet");
+      expect(result.toolCallId).toBe("test-call-123");
+      expect(result.result.success).toBe(true);
+      expect(result.result.message).toBe("Successfully retrieved resources");
+      expect(result.result.data.resources).toHaveLength(2);
+      expect(result.result.data.resources[0].name).toBe("Document.pdf");
+      expect(result.result.data.resources[1].name).toBe("Character Sheet");
     });
 
     it("should handle resource addition execution", async () => {
@@ -219,8 +235,14 @@ describe("Campaign Tools", () => {
       });
 
       mockAddResource.mockResolvedValueOnce({
-        success: true,
-        resources: [newResource],
+        toolCallId: "test-call-123",
+        result: {
+          success: true,
+          message: "Successfully added resource to campaign",
+          data: {
+            resources: [newResource],
+          },
+        },
       });
 
       const result = await mockAddResource({
@@ -230,9 +252,13 @@ describe("Campaign Tools", () => {
         resourceName: "New Resource",
       });
 
-      expect(result.success).toBe(true);
-      expect(result.resources).toHaveLength(1);
-      expect(result.resources[0].name).toBe("New Resource");
+      expect(result.toolCallId).toBe("test-call-123");
+      expect(result.result.success).toBe(true);
+      expect(result.result.message).toBe(
+        "Successfully added resource to campaign"
+      );
+      expect(result.result.data.resources).toHaveLength(1);
+      expect(result.result.data.resources[0].name).toBe("New Resource");
     });
 
     it("should handle campaign details execution", async () => {
@@ -246,15 +272,25 @@ describe("Campaign Tools", () => {
       });
 
       mockShowDetails.mockResolvedValueOnce({
-        success: true,
-        campaign: mockCampaign,
+        toolCallId: "test-call-123",
+        result: {
+          success: true,
+          message: "Successfully retrieved campaign details",
+          data: {
+            campaign: mockCampaign,
+          },
+        },
       });
 
       const result = await mockShowDetails({ campaignId: "test-campaign" });
 
-      expect(result.success).toBe(true);
-      expect(result.campaign.name).toBe("Test Campaign");
-      expect(result.campaign.resources).toHaveLength(1);
+      expect(result.toolCallId).toBe("test-call-123");
+      expect(result.result.success).toBe(true);
+      expect(result.result.message).toBe(
+        "Successfully retrieved campaign details"
+      );
+      expect(result.result.data.campaign.name).toBe("Test Campaign");
+      expect(result.result.data.campaign.resources).toHaveLength(1);
     });
   });
 
