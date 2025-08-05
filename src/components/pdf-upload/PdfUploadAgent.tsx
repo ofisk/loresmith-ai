@@ -651,7 +651,7 @@ export const PdfUploadAgent = ({
           variant="secondary"
           size="base"
         >
-          Add to Library
+          Add to library
         </Button>
         <Button
           onClick={() => {
@@ -662,7 +662,7 @@ export const PdfUploadAgent = ({
           variant="secondary"
           size="base"
         >
-          Show Library
+          Show library
         </Button>
       </div>
 
