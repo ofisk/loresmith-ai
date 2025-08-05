@@ -36,7 +36,7 @@ const RESOURCE_SYSTEM_PROMPT = buildSystemPrompt({
     "Uploaded Files: When users mention they have uploaded a file, use updatePdfMetadata and ingestPdfFile tools",
     "Auto-Generation: When users ask to auto-generate metadata for existing files, use autoGeneratePdfMetadata tool",
     "File Deletion: When users ask to delete PDF files, call the deletePdfFile tool",
-    "Bulk Deletion: When users ask to delete 'all' or 'all resources', first call listPdfFiles to get all files, then call deletePdfFile for each file individually",
+    "Bulk Deletion: When users ask to delete 'all' or 'all resources', ALWAYS call listPdfFiles first to get the current list of files, then call deletePdfFile for each file individually. NEVER use cached file information.",
   ],
   importantNotes: [
     "ALWAYS use tools instead of just responding with text",
@@ -47,7 +47,7 @@ const RESOURCE_SYSTEM_PROMPT = buildSystemPrompt({
     "When users mention they have uploaded a file, use ingestPdfFile to process the file",
     "When users ask to auto-generate metadata for existing files, use autoGeneratePdfMetadata tool",
     "When users ask to delete PDF files, call the deletePdfFile tool",
-    "When users ask to delete 'all' or 'all resources', first call listPdfFiles to get all files, then call deletePdfFile for each file individually",
+    "When users ask to delete 'all' or 'all resources', ALWAYS call listPdfFiles first to get the current list of files, then call deletePdfFile for each file individually. NEVER use cached file information.",
     "Generate upload URL with generatePdfUploadUrl",
     "Upload the file using the provided URL",
     "Process the file with ingestPdfFile",

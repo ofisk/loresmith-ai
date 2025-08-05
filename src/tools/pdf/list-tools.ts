@@ -2,6 +2,8 @@ import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../constants";
 import { createToolError, createToolSuccess } from "../utils";
+import type { PdfFileResponse } from "../../types/pdf";
+import { pdfFileHelpers } from "../../types/pdf";
 
 // PDF listing tools
 
@@ -76,15 +78,7 @@ export const listPdfFiles = tool({
           );
         }
 
-        const result = (await response.json()) as {
-          files: Array<{
-            fileKey: string;
-            fileName: string;
-            fileSize: number;
-            uploaded: string;
-            status: string;
-          }>;
-        };
+        const result = (await response.json()) as PdfFileResponse;
 
         if (!result.files || result.files.length === 0) {
           return createToolSuccess(
@@ -94,12 +88,7 @@ export const listPdfFiles = tool({
           );
         }
 
-        const fileList = result.files
-          .map(
-            (file) =>
-              `- ${file.fileName} (${(file.fileSize / 1024 / 1024).toFixed(2)} MB)`
-          )
-          .join("\n");
+        const fileList = pdfFileHelpers.formatFileList(result.files);
 
         return createToolSuccess(
           `📄 Found ${result.files.length} PDF file(s) for user "${username}":\n${fileList}`,
@@ -134,16 +123,7 @@ export const listPdfFiles = tool({
             toolCallId
           );
         }
-        const result = (await response.json()) as {
-          files: Array<{
-            fileKey: string;
-            fileName: string;
-            fileSize: number;
-            uploadedAt: string;
-            description?: string;
-            tags?: string[];
-          }>;
-        };
+        const result = (await response.json()) as PdfFileResponse;
 
         if (!result.files || result.files.length === 0) {
           return createToolSuccess(
@@ -153,8 +133,9 @@ export const listPdfFiles = tool({
           );
         }
 
+        const fileNames = result.files.map((f) => f.file_name).join(", ");
         return createToolSuccess(
-          `Found ${result.files.length} PDF file(s): ${result.files.map((f) => f.fileName).join(", ")}`,
+          `Found ${result.files.length} PDF file(s): ${fileNames}`,
           {
             files: result.files,
             count: result.files.length,
@@ -169,22 +150,9 @@ export const listPdfFiles = tool({
   },
 });
 
-export const deletePdfFile = tool({
-  description:
-    "Delete a specific PDF file for the current user. This action requires confirmation before execution.",
-  parameters: z.object({
-    fileKey: z.string().describe("The file key of the PDF to delete"),
-    jwt: z
-      .string()
-      .nullable()
-      .optional()
-      .describe("JWT token for authentication"),
-  }),
-});
-
 // Execution functions for confirmation-required tools
 export const deletePdfFileExecution = async (
-  { fileKey, jwt }: { fileKey: string; jwt?: string },
+  { fileKey, jwt }: { fileKey: string; jwt?: string | null },
   context?: any
 ): Promise<ToolResult> => {
   console.log(
@@ -311,6 +279,20 @@ export const deletePdfFileExecution = async (
     );
   }
 };
+
+export const deletePdfFile = tool({
+  description:
+    "Delete a specific PDF file for the current user. This action requires confirmation before execution.",
+  parameters: z.object({
+    fileKey: z.string().describe("The file key of the PDF to delete"),
+    jwt: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("JWT token for authentication"),
+  }),
+  execute: deletePdfFileExecution,
+});
 
 export const getPdfStats = tool({
   description: "Get statistics about uploaded PDF files",

@@ -3,6 +3,7 @@ import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { completeProgress } from "../services/progress";
 import { RAGService } from "../lib/rag";
+import { PDF_SCHEMA } from "../types/pdf";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -277,7 +278,7 @@ export async function handleGetPdfFiles(c: ContextWithAuth) {
     const userAuth = (c as any).userAuth;
 
     const files = await c.env.DB.prepare(
-      "SELECT id, file_key, file_name, description, tags, status, created_at, updated_at, file_size FROM pdf_files WHERE username = ? ORDER BY created_at DESC"
+      `SELECT ${PDF_SCHEMA.COLUMNS.ID}, ${PDF_SCHEMA.COLUMNS.FILE_KEY}, ${PDF_SCHEMA.COLUMNS.FILE_NAME}, ${PDF_SCHEMA.COLUMNS.DESCRIPTION}, ${PDF_SCHEMA.COLUMNS.TAGS}, ${PDF_SCHEMA.COLUMNS.STATUS}, ${PDF_SCHEMA.COLUMNS.CREATED_AT}, ${PDF_SCHEMA.COLUMNS.UPDATED_AT}, ${PDF_SCHEMA.COLUMNS.FILE_SIZE} FROM ${PDF_SCHEMA.TABLE_NAME} WHERE ${PDF_SCHEMA.COLUMNS.USERNAME} = ? ORDER BY ${PDF_SCHEMA.COLUMNS.CREATED_AT} DESC`
     )
       .bind(userAuth.username)
       .all();

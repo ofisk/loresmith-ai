@@ -208,6 +208,10 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
                 `[${this.constructor.name}] onFinish called with args:`,
                 args
               );
+              console.log(
+                `[${this.constructor.name}] onFinish steps:`,
+                args.steps
+              );
               (onFinish ?? (() => {}))(
                 args as Parameters<StreamTextOnFinishCallback<ToolSet>>[0]
               );
@@ -218,7 +222,7 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
                 error
               );
             },
-            maxSteps: 1, // Allow one step (either tool call or direct response)
+            maxSteps: 3, // Reduce steps to minimize rate limiting
           });
 
           console.log(
@@ -261,6 +265,9 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
    * Create enhanced tools that automatically include JWT for operations
    */
   protected createEnhancedTools(clientJwt: string | null): Record<string, any> {
+    // Track tool calls to prevent infinite loops
+    const toolCallCounts = new Map<string, number>();
+
     return Object.fromEntries(
       Object.entries(this.tools).map(([toolName, tool]) => {
         console.log(`[${this.constructor.name}] Adding tool ${toolName}`);
@@ -269,8 +276,32 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
           {
             ...tool,
             execute: async (args: any, context: any) => {
+              // Check for infinite loops
+              const callKey = `${toolName}_${JSON.stringify(args)}`;
+              const currentCount = toolCallCounts.get(callKey) || 0;
+              if (currentCount > 2) {
+                console.warn(
+                  `[${this.constructor.name}] Tool ${toolName} called ${currentCount} times, preventing infinite loop`
+                );
+                return {
+                  toolCallId: context?.toolCallId || "unknown",
+                  result: {
+                    success: false,
+                    message: `Tool ${toolName} called too many times, stopping to prevent infinite loop`,
+                    data: null,
+                  },
+                };
+              }
+              toolCallCounts.set(callKey, currentCount + 1);
+
               // Ensure JWT is always included for operations
               const enhancedArgs = { ...args, jwt: clientJwt };
+
+              // Add a small delay to prevent rate limiting
+              if (currentCount > 0) {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+              }
+
               console.log(
                 `[${this.constructor.name}] Calling tool ${toolName} with args:`,
                 enhancedArgs
@@ -294,6 +325,9 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
                 result
               );
 
+              // Add delay to prevent rate limiting
+              await new Promise((resolve) => setTimeout(resolve, 100));
+
               // Runtime assertion to catch wrong format
               if (result && typeof result === "object") {
                 if (!("toolCallId" in result) || !("result" in result)) {
@@ -302,9 +336,37 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
                     result
                   );
                   console.error(
-                    `[${this.constructor.name}] Expected format: { toolCallId: string, result: { success: boolean, message: string, data?: unknown } }`
+                    `[${this.constructor.name}] Expected ToolResult format: { toolCallId: string, result: { success: boolean, message: string, data?: unknown } }`
                   );
                   throw new Error(`Tool ${toolName} returned wrong format`);
+                }
+
+                // Validate the result structure
+                const toolResult = result as any;
+                if (
+                  !toolResult.result ||
+                  typeof toolResult.result !== "object"
+                ) {
+                  console.error(
+                    `[${this.constructor.name}] Tool ${toolName} result property is invalid:`,
+                    toolResult.result
+                  );
+                  throw new Error(
+                    `Tool ${toolName} result property is invalid`
+                  );
+                }
+
+                if (
+                  !("success" in toolResult.result) ||
+                  !("message" in toolResult.result)
+                ) {
+                  console.error(
+                    `[${this.constructor.name}] Tool ${toolName} result missing required properties:`,
+                    toolResult.result
+                  );
+                  throw new Error(
+                    `Tool ${toolName} result missing required properties`
+                  );
                 }
               }
 

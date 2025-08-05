@@ -1,7 +1,8 @@
 import type { Context } from "hono";
 import type { Env } from "../middleware/auth";
-import type { Campaign } from "../types/campaign";
 import type { AuthPayload } from "../services/auth-service";
+import { CAMPAIGN_SCHEMA, schemaHelpers } from "../types/schemas";
+import type { Campaign } from "../types/campaign";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -22,11 +23,14 @@ export async function handleGetCampaigns(c: ContextWithAuth) {
       return c.json({ error: "Authentication required" }, 401);
     }
 
-    const campaigns = await c.env.DB.prepare(
-      "SELECT id as campaignId, name, description, created_at as createdAt, updated_at as updatedAt FROM campaigns WHERE username = ? ORDER BY created_at DESC"
-    )
+    const selectQuery =
+      schemaHelpers.buildSelectQuery(CAMPAIGN_SCHEMA) +
+      ` WHERE ${CAMPAIGN_SCHEMA.COLUMNS.USERNAME} = ? ` +
+      schemaHelpers.buildOrderByClause(CAMPAIGN_SCHEMA.COLUMNS.CREATED_AT);
+
+    const campaigns = await c.env.DB.prepare(selectQuery)
       .bind(userAuth.username)
-      .all<Campaign>();
+      .all();
 
     console.log(
       `[Server] Found ${campaigns.results?.length || 0} campaigns for user ${userAuth.username}`

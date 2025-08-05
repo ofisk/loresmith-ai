@@ -44,12 +44,8 @@ const toolsRequiringConfirmation: (
   "createCampaign",
 
   // Resource/PDF tools that require confirmation
-  "uploadPdfFile",
   "updatePdfMetadata",
   "deletePdfFile",
-
-  // General tools that require confirmation
-  "setAdminSecret",
 ];
 
 /**
