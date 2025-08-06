@@ -25,6 +25,8 @@ import {
   handleGetCampaign,
   handleGetCampaignResources,
   handleGetCampaigns,
+  handleAddResourceToCampaign,
+  handleRemoveResourceFromCampaign,
 } from "./routes/campaigns";
 import {
   handleGetExternalResourceRecommendations,
@@ -443,6 +445,17 @@ app.get(
   "/campaigns/:campaignId/resources",
   requireUserJwt,
   handleGetCampaignResources
+);
+
+app.post(
+  "/campaigns/:campaignId/resource",
+  requireUserJwt,
+  handleAddResourceToCampaign
+);
+app.delete(
+  "/campaigns/:campaignId/resource/:resourceId",
+  requireUserJwt,
+  handleRemoveResourceFromCampaign
 );
 app.delete("/campaigns/:campaignId", requireUserJwt, handleDeleteCampaign);
 app.delete("/campaigns", requireUserJwt, handleDeleteAllCampaigns);

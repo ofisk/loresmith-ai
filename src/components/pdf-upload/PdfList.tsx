@@ -22,16 +22,22 @@ interface PdfFile {
   updated_at: string;
 }
 
+interface PdfFileWithCampaigns extends PdfFile {
+  campaigns?: Campaign[];
+}
+
 interface PdfListProps {
   refreshTrigger?: number;
 }
 
 export function PdfList({ refreshTrigger }: PdfListProps) {
-  const [files, setFiles] = useState<PdfFile[]>([]);
+  const [files, setFiles] = useState<PdfFileWithCampaigns[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<PdfFile | null>(null);
+  const [selectedFile, setSelectedFile] = useState<PdfFileWithCampaigns | null>(
+    null
+  );
   const [isAddToCampaignModalOpen, setIsAddToCampaignModalOpen] =
     useState(false);
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
@@ -57,7 +63,8 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
       }
 
       const data = (await response.json()) as { files: PdfFile[] };
-      setFiles(data.files || []);
+      const filesWithCampaigns = await fetchPdfCampaigns(data.files || []);
+      setFiles(filesWithCampaigns);
     } catch (err) {
       setError(
         err instanceof Error
@@ -92,6 +99,111 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
     }
   }, []);
 
+  const fetchPdfCampaigns = useCallback(async (files: PdfFile[]) => {
+    try {
+      const jwt = getStoredJwt();
+
+      // For each file, fetch which campaigns it belongs to
+      const filesWithCampaigns = await Promise.all(
+        files.map(async (file) => {
+          try {
+            // Get all campaigns for this user
+            const {
+              response: campaignsResponse,
+              jwtExpired: campaignsJwtExpired,
+            } = await authenticatedFetchWithExpiration(
+              API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
+              { jwt }
+            );
+
+            if (campaignsJwtExpired) {
+              throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
+            }
+
+            if (!campaignsResponse.ok) {
+              throw new Error(
+                `Failed to fetch campaigns: ${campaignsResponse.status}`
+              );
+            }
+
+            const campaignsData = (await campaignsResponse.json()) as {
+              campaigns: Campaign[];
+            };
+            const userCampaigns = campaignsData.campaigns || [];
+
+            // For each campaign, check if this file is in it
+            const campaignsWithFile = await Promise.all(
+              userCampaigns.map(async (campaign) => {
+                try {
+                  const {
+                    response: resourcesResponse,
+                    jwtExpired: resourcesJwtExpired,
+                  } = await authenticatedFetchWithExpiration(
+                    API_CONFIG.buildUrl(
+                      API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(
+                        campaign.campaignId
+                      )
+                    ),
+                    { jwt }
+                  );
+
+                  if (resourcesJwtExpired) {
+                    throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
+                  }
+
+                  if (!resourcesResponse.ok) {
+                    throw new Error(
+                      `Failed to fetch campaign resources: ${resourcesResponse.status}`
+                    );
+                  }
+
+                  const resourcesData = (await resourcesResponse.json()) as {
+                    resources: any[];
+                  };
+                  const resources = resourcesData.resources || [];
+
+                  // Check if this file is in the campaign
+                  const fileInCampaign = resources.some(
+                    (resource) => resource.file_key === file.file_key
+                  );
+
+                  return fileInCampaign ? campaign : null;
+                } catch (err) {
+                  console.error(
+                    `Failed to check campaign ${campaign.campaignId}:`,
+                    err
+                  );
+                  return null;
+                }
+              })
+            );
+
+            const campaigns = campaignsWithFile.filter(Boolean) as Campaign[];
+
+            return {
+              ...file,
+              campaigns,
+            };
+          } catch (err) {
+            console.error(
+              `Failed to fetch campaigns for file ${file.file_key}:`,
+              err
+            );
+            return {
+              ...file,
+              campaigns: [],
+            };
+          }
+        })
+      );
+
+      return filesWithCampaigns;
+    } catch (err) {
+      console.error("Failed to fetch PDF campaigns:", err);
+      return files.map((file) => ({ ...file, campaigns: [] }));
+    }
+  }, []);
+
   const handleAddToCampaigns = async () => {
     if (!selectedFile || selectedCampaigns.length === 0) return;
 
@@ -118,12 +230,26 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
         )
       );
 
-      await Promise.all(promises);
+      const results = await Promise.allSettled(promises);
 
-      // Close modal and reset state
-      setIsAddToCampaignModalOpen(false);
-      setSelectedFile(null);
-      setSelectedCampaigns([]);
+      // Check if any requests failed
+      const failedRequests = results.filter(
+        (result) => result.status === "rejected"
+      );
+      if (failedRequests.length > 0) {
+        console.error("Some requests failed:", failedRequests);
+        setError(
+          `Failed to add resource to ${failedRequests.length} campaign(s)`
+        );
+      } else {
+        // Close modal and reset state
+        setIsAddToCampaignModalOpen(false);
+        setSelectedFile(null);
+        setSelectedCampaigns([]);
+
+        // Refresh the files to update campaign information
+        fetchFiles();
+      }
     } catch (err) {
       console.error("Failed to add resource to campaigns:", err);
       setError("Failed to add resource to campaigns");
@@ -132,7 +258,7 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
     }
   };
 
-  const openAddToCampaignModal = (file: PdfFile) => {
+  const openAddToCampaignModal = (file: PdfFileWithCampaigns) => {
     setSelectedFile(file);
     setSelectedCampaigns([]);
     setIsAddToCampaignModalOpen(true);
@@ -168,7 +294,7 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Resource Library</h3>
+      <h3 className="text-lg font-semibold">Resource library</h3>
       <div className="space-y-3">
         {files.map((file) => (
           <div
@@ -213,6 +339,25 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
                     ))}
                   </div>
                 )}
+
+                {/* Display campaigns this PDF belongs to */}
+                {file.campaigns && file.campaigns.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      Linked campaigns:
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {file.campaigns.map((campaign) => (
+                        <span
+                          key={campaign.campaignId}
+                          className="px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded"
+                        >
+                          {campaign.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="flex-shrink-0 ml-4">
                 <Button
@@ -247,19 +392,57 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
               </div>
             ) : (
               <>
+                {/* Show which campaigns the file is already in */}
+                {selectedFile?.campaigns &&
+                  selectedFile.campaigns.length > 0 && (
+                    <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/10 rounded-md">
+                      <p className="text-sm font-medium text-purple-800 dark:text-purple-300 mb-2">
+                        Linked campaigns:
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedFile.campaigns.map((campaign) => (
+                          <span
+                            key={campaign.campaignId}
+                            className="px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded"
+                          >
+                            {campaign.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                 <fieldset className="mb-4">
                   <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Select campaigns
                   </legend>
-                  <MultiSelect
-                    options={campaigns.map((campaign) => ({
-                      value: campaign.campaignId,
-                      label: campaign.name,
-                    }))}
-                    selectedValues={selectedCampaigns}
-                    onSelectionChange={setSelectedCampaigns}
-                    placeholder="Choose campaigns..."
-                  />
+                  {campaigns.filter(
+                    (campaign) =>
+                      !selectedFile?.campaigns?.some(
+                        (c) => c.campaignId === campaign.campaignId
+                      )
+                  ).length === 0 ? (
+                    <div className="text-sm text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-900/20 rounded-md">
+                      This resource is already in all available campaigns.
+                    </div>
+                  ) : (
+                    <MultiSelect
+                      options={campaigns
+                        .filter(
+                          (campaign) =>
+                            !selectedFile?.campaigns?.some(
+                              (c) => c.campaignId === campaign.campaignId
+                            )
+                        )
+                        .map((campaign) => ({
+                          value: campaign.campaignId,
+                          label: campaign.name,
+                        }))}
+                      selectedValues={selectedCampaigns}
+                      onSelectionChange={setSelectedCampaigns}
+                      placeholder="Choose campaigns..."
+                    />
+                  )}
                 </fieldset>
 
                 <div className="flex justify-end gap-3 mt-6">
@@ -273,7 +456,15 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
                   </Button>
                   <Button
                     onClick={handleAddToCampaigns}
-                    disabled={selectedCampaigns.length === 0}
+                    disabled={
+                      selectedCampaigns.length === 0 ||
+                      campaigns.filter(
+                        (campaign) =>
+                          !selectedFile?.campaigns?.some(
+                            (c) => c.campaignId === campaign.campaignId
+                          )
+                      ).length === 0
+                    }
                     loading={addingToCampaigns}
                     variant="primary"
                     size="sm"
