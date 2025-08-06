@@ -1,18 +1,20 @@
 // Import all PDF tools
 
 import { deletePdfFile, getPdfStats, listPdfFiles } from "./list-tools";
-import { updatePdfMetadata } from "./metadata-tools";
+import { autoGeneratePdfMetadata, updatePdfMetadata } from "./metadata-tools";
 import {
   completePdfUpload,
   generatePdfUploadUrl,
+  ingestPdfFile,
   processPdfUpload,
 } from "./upload-tools";
 
 export { deletePdfFile, getPdfStats, listPdfFiles } from "./list-tools";
-export { updatePdfMetadata } from "./metadata-tools";
+export { autoGeneratePdfMetadata, updatePdfMetadata } from "./metadata-tools";
 export {
   completePdfUpload,
   generatePdfUploadUrl,
+  ingestPdfFile,
   processPdfUpload,
 } from "./upload-tools";
 
@@ -21,8 +23,10 @@ export const pdfTools = {
   generatePdfUploadUrl,
   completePdfUpload,
   processPdfUpload,
+  ingestPdfFile,
   listPdfFiles,
   deletePdfFile,
   updatePdfMetadata,
+  autoGeneratePdfMetadata,
   getPdfStats,
 };

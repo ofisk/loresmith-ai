@@ -1,7 +1,9 @@
 import { useRef, useState } from "react";
 import { Button, PrimaryActionButton } from "@/components/button";
 import { FormField } from "@/components/input/FormField";
+import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
 import { cn } from "@/lib/utils";
+import type { ProcessingProgress } from "../../types/progress";
 
 // Function to sanitize filename by removing/replacing URL-encoded characters
 const sanitizeFilename = (filename: string): string => {
@@ -24,6 +26,7 @@ interface PdfUploadProps {
   loading?: boolean;
   className?: string;
   jwtUsername?: string | null;
+  uploadProgress?: ProcessingProgress | null;
 }
 
 export const PdfUpload = ({
@@ -31,6 +34,7 @@ export const PdfUpload = ({
   loading = false,
   className,
   jwtUsername,
+  uploadProgress,
 }: PdfUploadProps) => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
@@ -48,6 +52,15 @@ export const PdfUpload = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentFile = selectedFiles[currentFileIndex];
+
+  // Show progress bar if upload is in progress
+  if (uploadProgress) {
+    return (
+      <div className={cn("space-y-4", className)}>
+        <ProcessingProgressBar progress={uploadProgress} />
+      </div>
+    );
+  }
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);

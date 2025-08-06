@@ -20,7 +20,7 @@ Loresmith AI now supports large PDF files (up to 500MB) specifically designed to
 Large PDFs are processed in 10MB chunks to prevent memory pressure:
 
 ```typescript
-const chunkSize = PDF_PROCESSING_CONFIG.CHUNK_SIZE; // 10MB
+const chunkSize = PDF_PROCESSING_CONFIG.INGEST_CHUNK_SIZE; // 10MB
 const totalChunks = Math.ceil(pdfString.length / chunkSize);
 ```
 
@@ -49,7 +49,7 @@ All limits are configurable in `src/constants.ts`:
 ```typescript
 export const PDF_PROCESSING_CONFIG = {
   MAX_PDF_SIZE: 500 * 1024 * 1024, // 500MB limit
-  CHUNK_SIZE: 10 * 1024 * 1024, // 10MB chunks for processing
+  INGEST_CHUNK_SIZE: 10 * 1024 * 1024, // 10MB chunks for processing
   MAX_TEXT_LENGTH: 5 * 1024 * 1024, // 5MB text limit
   TIMEOUT_SMALL_FILES: 60000, // 1 minute for files < 100MB
   TIMEOUT_LARGE_FILES: 120000, // 2 minutes for files >= 100MB

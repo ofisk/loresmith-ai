@@ -8,7 +8,6 @@ import {
 
 interface Env {
   ADMIN_SECRET?: string;
-  PDF_BUCKET: R2Bucket;
   DB: D1Database;
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
@@ -24,33 +23,31 @@ const RESOURCE_SYSTEM_PROMPT = buildSystemPrompt({
     "PDF File Management: Upload, list, and manage PDF files",
     "Resource Statistics: Provide PDF upload statistics and file information",
     "File Processing: Process uploaded PDFs for content extraction",
-    "Metadata Management: Update and manage PDF metadata",
-    "Bulk Operations: Handle bulk deletion by first listing all files, then deleting each individually",
+    "Metadata Management: Update and auto-generate file metadata",
+    "File Deletion: Delete individual or all PDF files",
   ],
   tools: createToolMappingFromObjects(pdfTools),
   workflowGuidelines: [
-    "File Listing: When users ask to see PDF files, immediately call the listPdfFiles tool",
     "File Upload: When users ask to upload PDFs, call the generatePdfUploadUrl tool",
-    "Statistics: When users ask about PDF statistics, call the getPdfStats tool",
-    "Processing: Guide users through the PDF upload and processing workflow",
-    "Uploaded Files: When users mention they have uploaded a file, use updatePdfMetadata and ingestPdfFile tools",
+    "File Listing: When users ask to see their PDF files, call the listPdfFiles tool",
+    "Processing: The new upload system automatically processes files during upload",
+    "Uploaded Files: When users mention they have uploaded a file, use updatePdfMetadata if they want to modify metadata",
     "Auto-Generation: When users ask to auto-generate metadata for existing files, use autoGeneratePdfMetadata tool",
     "File Deletion: When users ask to delete PDF files, call the deletePdfFile tool",
     "Bulk Deletion: When users ask to delete 'all' or 'all resources', ALWAYS call listPdfFiles first to get the current list of files, then call deletePdfFile for each file individually. NEVER use cached file information.",
+    "Statistics: When users ask about PDF statistics, call the getPdfStats tool",
   ],
   importantNotes: [
     "ALWAYS use tools instead of just responding with text",
     "When users ask to see PDF files, IMMEDIATELY call the listPdfFiles tool",
     "When users ask to upload PDFs, call the generatePdfUploadUrl tool",
     "When users ask about PDF statistics, call the getPdfStats tool",
-    "When users mention they have uploaded a file, use updatePdfMetadata to update metadata",
-    "When users mention they have uploaded a file, use ingestPdfFile to process the file",
+    "When users mention they have uploaded a file, use updatePdfMetadata to update metadata if needed",
     "When users ask to auto-generate metadata for existing files, use autoGeneratePdfMetadata tool",
     "When users ask to delete PDF files, call the deletePdfFile tool",
     "When users ask to delete 'all' or 'all resources', ALWAYS call listPdfFiles first to get the current list of files, then call deletePdfFile for each file individually. NEVER use cached file information.",
     "Generate upload URL with generatePdfUploadUrl",
     "Upload the file using the provided URL",
-    "Process the file with ingestPdfFile",
     "Update metadata as needed with updatePdfMetadata",
     "Auto-generate metadata for existing files with autoGeneratePdfMetadata",
     "NEVER try to add files to campaigns - that's handled by the campaign agent",

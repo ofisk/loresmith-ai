@@ -12,7 +12,7 @@
     "nodejs_compat_populate_process_env",
   ],
   "assets": {
-    "directory": "public",
+    "directory": "dist/client",
   },
   "secrets_store_secrets": [
     {
@@ -31,13 +31,14 @@
     "bindings": [
       { "name": "Chat", "class_name": "Chat" },
       { "name": "UserFileTracker", "class_name": "UserFileTracker" },
+      { "name": "UploadSession", "class_name": "UploadSessionDO" },
     ],
   },
   "r2_buckets": [
     {
-      "binding": "PDF_BUCKET",
-      "bucket_name": "loresmith-pdfs",
-      "preview_bucket_name": "loresmith-pdfs",
+      "binding": "FILE_BUCKET",
+      "bucket_name": "loresmith-files",
+      "preview_bucket_name": "loresmith-files",
     },
   ],
   "d1_databases": [
@@ -69,6 +70,14 @@
     {
       "tag": "v4",
       "deleted_classes": ["CampaignManager"],
+    },
+    {
+      "tag": "v5",
+      "new_classes": ["UploadSessionDO"],
+    },
+    {
+      "tag": "v6",
+      "new_classes": [],
     },
   ],
   "observability": {

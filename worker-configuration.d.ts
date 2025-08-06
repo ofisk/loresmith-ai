@@ -10,9 +10,10 @@ declare namespace Cloudflare {
 		CORS_ALLOWED_ORIGINS: string;
 		Chat: DurableObjectNamespace<import("./src/server").Chat>;
 		UserFileTracker: DurableObjectNamespace<import("./src/server").UserFileTracker>;
-	
-		PDF_BUCKET: R2Bucket;
+		UploadSession: DurableObjectNamespace<import("./src/server").UploadSessionDO>;
+		ASSETS: Fetcher;
 		VECTORIZE: VectorizeIndex;
+		FILE_BUCKET: R2Bucket;
 	}
 }
 interface Env extends Cloudflare.Env {}
@@ -1030,7 +1031,7 @@ declare class DigestStream extends WritableStream<ArrayBuffer | ArrayBufferView>
     get bytesWritten(): number | bigint;
 }
 /**
- * A decoder for a specific method, that is a specific character encoding, like utf-8, iso-8859-2, koi8, cp1261, gbk, etc. A decoder takes a stream of bytes as input and emits a stream of code points. For a more scalable, non-native library, see StringView – a C-like representation of strings based on typed arrays.
+ * A decoder for a specific method, that is a specific character encoding, like utf-8, iso-8859-2, koi8, cp1261, gbk, etc.  A decoder takes a stream of bytes as input and emits a stream of code points. For a more scalable, non-native library, see StringView – a C-like representation of strings based on typed arrays.
  *
  * [MDN Reference](https://developer.mozilla.org/docs/Web/API/TextDecoder)
  */
@@ -1222,7 +1223,7 @@ interface DocumentEnd {
     append(content: string, options?: ContentOptions): DocumentEnd;
 }
 /**
- * This is the event type for fetch events dispatched on the service worker global scope. It contains information about the fetch, including the request and how the receiver will treat the response. It provides the event.respondWith() method, which allows us to provide a response to this fetch.
+ * This is the event type for fetch  events dispatched on the  service worker global scope. It contains information about the fetch, including the  request and how the receiver will treat the response. It provides the event.respondWith() method, which allows us to provide a response to this fetch.
  *
  * [MDN Reference](https://developer.mozilla.org/docs/Web/API/FetchEvent)
  */
@@ -1235,7 +1236,7 @@ declare abstract class FetchEvent extends ExtendableEvent {
 }
 type HeadersInit = Headers | Iterable<Iterable<string>> | Record<string, string>;
 /**
- * This Fetch API interface allows you to perform various actions on HTTP request and response headers. These actions include retrieving, setting, adding to, and removing. A Headers object has an associated header list, which is initially empty and consists of zero or more name and value pairs.  You can add to this using methods like append() (see Examples.) In all methods of this interface, header names are matched by case-insensitive byte sequence.
+ * This Fetch API interface allows you to perform various actions on HTTP request and response headers. These actions include retrieving, setting, adding to, and removing. A Headers object has an associated header list, which is initially empty and consists  of zero or more name and value pairs.  You can add to this using methods like append() (see Examples.)  In all methods of this interface, header names are matched by case-insensitive byte sequence.
  *
  * [MDN Reference](https://developer.mozilla.org/docs/Web/API/Headers)
  */
@@ -1849,7 +1850,7 @@ declare abstract class ReadableByteStreamController {
     error(reason: any): void;
 }
 /**
- * This Streams API interface represents a controller allowing control of a WritableStream's state. When constructing a WritableStream, the underlying sink is given a corresponding WritableStreamDefaultController instance to manipulate.
+ * This Streams API interface represents a controller allowing control of a  WritableStream's state. When constructing a WritableStream, the underlying sink is given a corresponding WritableStreamDefaultController instance to manipulate.
  *
  * [MDN Reference](https://developer.mozilla.org/docs/Web/API/WritableStreamDefaultController)
  */
@@ -1880,7 +1881,7 @@ interface ReadableWritablePair<R = any, W = any> {
     readable: ReadableStream<R>;
 }
 /**
- * This Streams API interface provides a standard abstraction for writing streaming data to a destination, known as a sink. This object comes with built-in backpressure and queuing.
+ * This Streams API interface provides  a standard abstraction for writing streaming data to a destination, known as a sink. This object comes with built-in backpressure and queuing.
  *
  * [MDN Reference](https://developer.mozilla.org/docs/Web/API/WritableStream)
  */
@@ -1962,7 +1963,7 @@ interface TextDecoderStreamTextDecoderStreamInit {
     ignoreBOM?: boolean;
 }
 /**
- * This Streams API interface provides a built-in byte length queuing strategy that can be used when constructing streams.
+ * This Streams API interface provides  a built-in byte length queuing strategy that can be used when constructing streams.
  *
  * [MDN Reference](https://developer.mozilla.org/docs/Web/API/ByteLengthQueuingStrategy)
  */
@@ -1974,7 +1975,7 @@ declare class ByteLengthQueuingStrategy implements QueuingStrategy<ArrayBufferVi
     get size(): (chunk?: any) => number;
 }
 /**
- * This Streams API interface provides a built-in byte length queuing strategy that can be used when constructing streams.
+ * This Streams API interface provides  a built-in byte length queuing strategy that can be used when constructing streams.
  *
  * [MDN Reference](https://developer.mozilla.org/docs/Web/API/CountQueuingStrategy)
  */
@@ -2097,7 +2098,7 @@ interface UnsafeTraceMetrics {
     fromTrace(item: TraceItem): TraceMetrics;
 }
 /**
- * The URL interface represents an object providing static methods used for creating object URLs.
+ * The URL  interface represents an object providing static methods used for creating object URLs.
  *
  * [MDN Reference](https://developer.mozilla.org/docs/Web/API/URL)
  */
@@ -5495,7 +5496,7 @@ interface BasicImageTransformations {
      * or an object {x, y} containing focal point coordinates in the original
      * image expressed as fractions ranging from 0.0 (top or left) to 1.0
      * (bottom or right), 0.5 being the center. {fit: "cover", gravity: "top"} will
-     * crop bottom or left and right sides as necessary, but won’t crop anything
+     * crop bottom or left and right sides as necessary, but won't crop anything
      * from the top. {fit: "cover", gravity: {x:0.5, y:0.2}} will crop each side to
      * preserve as much as possible around a point at 20% of the height of the
      * source image.
@@ -5572,7 +5573,7 @@ interface RequestInitCfProperties extends Record<string, unknown> {
      * be proxied on the same Cloudflare zone of the incoming request.
      * Otherwise, the setting is ignored. CNAME hosts are allowed, so to
      * resolve to a host under a different domain or a DNS only domain first
-     * declare a CNAME record within your own zone’s DNS mapping to the
+     * declare a CNAME record within your own zone's DNS mapping to the
      * external hostname, set proxy on Cloudflare, then set resolveOverride
      * to point to that CNAME record.
      */
@@ -5652,7 +5653,7 @@ interface RequestInitCfPropertiesImage extends BasicImageTransformations {
     /**
      * Quality setting from 1-100 (useful values are in 60-90 range). Lower values
      * make images look worse, but load faster. The default is 85. It applies only
-     * to JPEG and WebP images. It doesn’t have any effect on PNG.
+     * to JPEG and WebP images. It doesn't have any effect on PNG.
      */
     quality?: number | "low" | "medium-low" | "medium-high" | "high";
     /**
@@ -5662,7 +5663,7 @@ interface RequestInitCfPropertiesImage extends BasicImageTransformations {
      *    the WebP-lossless format.
      *  - json: instead of generating an image, outputs information about the
      *    image, in JSON format. The JSON object will contain image size
-     *    (before and after resizing), source image’s MIME type, file size, etc.
+     *    (before and after resizing), source image's MIME type, file size, etc.
      * - jpeg: generate images in JPEG format.
      * - png: generate images in PNG format.
      */
@@ -5861,7 +5862,7 @@ interface IncomingRequestCfPropertiesBase extends Record<string, unknown> {
 }
 interface IncomingRequestCfPropertiesBotManagementBase {
     /**
-     * Cloudflare’s [level of certainty](https://developers.cloudflare.com/bots/concepts/bot-score/) that a request comes from a bot,
+     * Cloudflare's [level of certainty](https://developers.cloudflare.com/bots/concepts/bot-score/) that a request comes from a bot,
      * represented as an integer percentage between `1` (almost certainly a bot) and `99` (almost certainly human).
      *
      * @example 54

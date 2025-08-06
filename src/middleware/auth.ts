@@ -3,11 +3,13 @@ import { jwtVerify } from "jose";
 import type { AuthEnv, AuthPayload } from "../services/auth-service";
 
 export interface Env extends AuthEnv {
-  PDF_BUCKET: R2Bucket;
+  FILE_BUCKET: R2Bucket;
   DB: D1Database;
   VECTORIZE: VectorizeIndex;
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
+  UploadSession: DurableObjectNamespace;
+  ASSETS: Fetcher;
 }
 
 // Set user authentication data in context

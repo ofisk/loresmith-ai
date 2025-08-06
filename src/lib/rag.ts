@@ -146,7 +146,7 @@ export class RAGService extends BaseRAGService {
       console.log(`First 200 chars: ${pdfString.substring(0, 200)}`);
 
       // Method 1: Process large PDFs in chunks to prevent memory issues
-      const chunkSize = PDF_PROCESSING_CONFIG.CHUNK_SIZE;
+      const chunkSize = PDF_PROCESSING_CONFIG.INGEST_CHUNK_SIZE;
       const totalChunks = Math.ceil(pdfString.length / chunkSize);
       let extractedText = "";
 

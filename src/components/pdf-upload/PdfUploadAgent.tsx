@@ -1,11 +1,14 @@
-import type { CreateMessage, Message } from "@ai-sdk/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { FormField } from "@/components/input/FormField";
 import { Modal } from "@/components/modal/Modal";
 import { cn } from "@/lib/utils";
-import { API_CONFIG, USER_MESSAGES } from "../../constants";
+import {
+  API_CONFIG,
+  PDF_PROCESSING_CONFIG,
+  USER_MESSAGES,
+} from "../../constants";
 import { useJwtExpiration } from "../../hooks/useJwtExpiration";
 import {
   authenticatedFetchWithExpiration,
@@ -13,13 +16,13 @@ import {
   getStoredJwt,
   storeJwt,
 } from "../../services/auth-service";
+import type { ProcessingProgress } from "../../types/progress";
+
 import { PdfList } from "./PdfList";
 import { PdfUpload } from "./PdfUpload";
 
 interface PdfUploadAgentProps {
   className?: string;
-  messages: Message[];
-  append: (message: CreateMessage) => Promise<string | null | undefined>;
 }
 
 // Helper function to handle JWT expiration consistently
@@ -43,11 +46,7 @@ function handleJwtExpirationLocal(
   if (setCheckingAuth) setCheckingAuth(false);
 }
 
-export const PdfUploadAgent = ({
-  className,
-  messages,
-  append,
-}: PdfUploadAgentProps) => {
+export const PdfUploadAgent = ({ className }: PdfUploadAgentProps) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -59,12 +58,13 @@ export const PdfUploadAgent = ({
   const [isAuthPanelExpanded, setIsAuthPanelExpanded] = useState(true);
   const [requiresOpenAIKey, setRequiresOpenAIKey] = useState(false);
 
-  const lastProcessedMessageId = useRef<string | null>(null);
   const [username, setUsername] = useState("");
   const [jwtUsername, setJwtUsername] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isListModalOpen, setIsListModalOpen] = useState(false);
   const [refreshTrigger, _setRefreshTrigger] = useState(0);
+  const [uploadProgress, setUploadProgress] =
+    useState<ProcessingProgress | null>(null);
 
   // Use JWT expiration hook
   const { isExpired, clearExpiration } = useJwtExpiration({
@@ -208,24 +208,7 @@ export const PdfUploadAgent = ({
   }, [showAuthInput, isAuthenticated]);
 
   // Listen for agent responses to update authentication state
-  useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage?.role === "assistant") {
-      // Only log once per new message, not on every content update during streaming
-      const messageId = lastMessage.id || lastMessage.content;
-      if (messageId !== lastProcessedMessageId.current) {
-        lastProcessedMessageId.current = messageId;
-        const content = lastMessage.content;
-        console.log("Agent response received:", {
-          content: `${content.substring(0, 200)}...`,
-          isAuthenticated: isAuthenticated,
-          showAuthInput: showAuthInput,
-        });
-        // Only handle agent responses for non-auth operations
-        // Authentication is now handled by direct HTTP calls
-      }
-    }
-  }, [messages, isAuthenticated, showAuthInput]);
+  useEffect(() => {}, []);
 
   const handleUpload = async (
     file: File,
@@ -233,7 +216,51 @@ export const PdfUploadAgent = ({
     description: string,
     tags: string[]
   ) => {
+    console.log("[Client] handleUpload called with:", {
+      filename,
+      description,
+      tags,
+      fileSize: file.size,
+    });
     setUploading(true);
+
+    // Use optimized configuration for better upload performance
+    const MAX_CONCURRENT_UPLOADS = PDF_PROCESSING_CONFIG.MAX_CONCURRENT_UPLOADS; // 5 concurrent uploads
+
+    const initialProgress: ProcessingProgress = {
+      fileKey: `${jwtUsername}/${filename}`,
+      username: jwtUsername || "unknown",
+      startTime: Date.now(),
+      overallProgress: 0,
+      currentStep: "Preparing upload...",
+      status: "processing",
+      steps: [
+        {
+          id: "upload",
+          name: "Uploading file",
+          description: `Uploading chunks`,
+          status: "processing",
+          progress: 0,
+        },
+        {
+          id: "indexing",
+          name: "Indexing content",
+          description: "Processing and extracting text",
+          status: "pending",
+          progress: 0,
+        },
+        {
+          id: "metadata",
+          name: "Generating metadata",
+          description: "Creating description and tags",
+          status: "pending",
+          progress: 0,
+        },
+      ],
+    };
+
+    setUploadProgress(initialProgress);
+
     try {
       const jwt = getStoredJwt();
       if (!jwt) {
@@ -243,16 +270,36 @@ export const PdfUploadAgent = ({
         setShowAuthInput(true);
         return;
       }
-      // Step 1: Ask agent to generate upload URL
-      console.log("[Client] Calling append for upload with JWT:", jwt);
-      await append({
-        role: "user",
-        content: `Please generate an upload URL for my PDF file "${filename}" (${(file.size / 1024 / 1024).toFixed(2)} MB).`,
-        data: { jwt },
+
+      console.log("[Client] Starting upload process...");
+
+      // Step 1: Get upload URL
+      console.log("[Client] Getting upload URL...");
+      const uploadUrlEndpoint = API_CONFIG.buildUrl(
+        API_CONFIG.ENDPOINTS.PDF.UPLOAD_URL
+      );
+      console.log("[Client] Upload URL endpoint:", uploadUrlEndpoint);
+      console.log("[Client] Full upload URL:", uploadUrlEndpoint);
+      console.log("[Client] Request payload:", {
+        filename: filename,
+        contentType: "application/pdf",
       });
-      // Step 2: Get upload URL from server (send JWT)
-      const { response: uploadUrlResponse, jwtExpired } =
-        await authenticatedFetchWithExpiration(
+
+      setUploadProgress((prev) =>
+        prev
+          ? {
+              ...prev,
+              currentStep: "Getting upload URL...",
+              overallProgress: 5,
+            }
+          : null
+      );
+
+      let uploadUrlResponse: any;
+      let jwtExpired = false;
+
+      try {
+        const result = await authenticatedFetchWithExpiration(
           API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.UPLOAD_URL),
           {
             method: "POST",
@@ -260,11 +307,29 @@ export const PdfUploadAgent = ({
             body: JSON.stringify({
               filename: filename,
               contentType: "application/pdf",
+              fileSize: file.size,
             }),
           }
         );
 
+        uploadUrlResponse = result.response;
+        jwtExpired = result.jwtExpired;
+
+        console.log(
+          "[Client] Upload URL response status:",
+          uploadUrlResponse.status
+        );
+        console.log("[Client] Upload URL response headers:", {
+          contentType: uploadUrlResponse.headers.get("content-type"),
+          contentLength: uploadUrlResponse.headers.get("content-length"),
+        });
+      } catch (error) {
+        console.error("[Client] Error making upload URL request:", error);
+        throw new Error(`Failed to make upload URL request: ${error}`);
+      }
+
       if (jwtExpired) {
+        console.log("[Client] JWT expired during upload URL request");
         handleJwtExpirationLocal(
           clearJwt,
           setIsAuthenticated,
@@ -278,22 +343,287 @@ export const PdfUploadAgent = ({
 
       if (!uploadUrlResponse.ok) {
         const errorText = await uploadUrlResponse.text();
+        console.error("[Client] Upload URL request failed:", errorText);
         throw new Error(
           `Failed to get upload URL: ${uploadUrlResponse.status} ${errorText}`
         );
       }
-      const uploadUrlResult = (await uploadUrlResponse.json()) as {
-        uploadUrl: string;
+
+      const uploadUrlData = (await uploadUrlResponse.json()) as {
+        uploadId: string;
         fileKey: string;
+        chunkSize: number;
+        totalParts: number;
+        sessionId: string; // Added sessionId
       };
 
-      // Step 3: Upload file directly to R2 using multipart upload
-      console.log("[Client] Upload ID received:", uploadUrlResult.uploadUrl);
-      console.log("[Client] File key:", uploadUrlResult.fileKey);
+      console.log("[Client] Upload URL data:", uploadUrlData);
 
-      // Upload the file using the multipart upload ID
-      const uploadResponse = await fetch(
-        `${API_CONFIG.getApiBaseUrl()}/pdf/upload-part`,
+      // Step 2: Upload file using optimized parallel chunks with retry logic
+      console.log("[Client] Uploading file using optimized parallel chunks...");
+
+      const parts: { partNumber: number; etag: string }[] = [];
+      const uploadStartTime = Date.now();
+
+      // Create upload function for a single chunk with retry logic
+      const uploadChunk = async (
+        chunkIndex: number,
+        retryCount = 0
+      ): Promise<{ partNumber: number; etag: string }> => {
+        const start = chunkIndex * uploadUrlData.chunkSize;
+        const end = Math.min(start + uploadUrlData.chunkSize, file.size);
+        const chunk = file.slice(start, end);
+        const partNumber = chunkIndex + 1;
+
+        console.log(
+          `[Client] Starting upload for chunk ${partNumber}/${uploadUrlData.totalParts} (${chunk.size} bytes)`
+        );
+
+        // Update progress for this chunk
+        const chunkProgress = (chunkIndex / uploadUrlData.totalParts) * 80; // Upload takes 80% of total progress
+        setUploadProgress((prev) =>
+          prev
+            ? {
+                ...prev,
+                currentStep: `Uploading chunk ${partNumber}/${uploadUrlData.totalParts}`,
+                overallProgress: 10 + chunkProgress,
+                steps: prev.steps.map((step) =>
+                  step.id === "upload"
+                    ? {
+                        ...step,
+                        progress: Math.round(
+                          (chunkIndex / uploadUrlData.totalParts) * 100
+                        ),
+                      }
+                    : step
+                ),
+              }
+            : null
+        );
+
+        try {
+          // Use the original chunk for now (compression can be added later if needed)
+          const chunkToUpload = chunk;
+
+          const formData = new FormData();
+          formData.append("file", chunkToUpload);
+          formData.append("sessionId", uploadUrlData.sessionId);
+          formData.append("partNumber", partNumber.toString());
+
+          const chunkUploadUrl = `${API_CONFIG.getApiBaseUrl()}/upload/part`;
+          console.log(
+            `[Client] Uploading chunk ${partNumber} to:`,
+            chunkUploadUrl
+          );
+          console.log(`[Client] Full chunk upload URL:`, chunkUploadUrl);
+          console.log(`[Client] Chunk ${partNumber} details:`, {
+            sessionId: uploadUrlData.sessionId,
+            partNumber: partNumber,
+            chunkSize: chunkToUpload.size,
+          });
+
+          let uploadResponse: Response;
+          try {
+            uploadResponse = await fetch(
+              `${API_CONFIG.getApiBaseUrl()}/upload/part`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${jwt}`,
+                },
+                body: formData,
+              }
+            );
+          } catch (error) {
+            console.error(
+              `[Client] Error making chunk ${partNumber} upload request:`,
+              error
+            );
+            throw new Error(
+              `Failed to make chunk ${partNumber} upload request: ${error}`
+            );
+          }
+
+          console.log(
+            `[Client] Chunk ${partNumber} upload response status:`,
+            uploadResponse.status
+          );
+          console.log(`[Client] Chunk ${partNumber} upload response headers:`, {
+            contentType: uploadResponse.headers.get("content-type"),
+            contentLength: uploadResponse.headers.get("content-length"),
+          });
+
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text();
+            console.error(
+              `[Client] Chunk ${partNumber} upload failed:`,
+              errorText
+            );
+
+            // Retry logic for failed uploads
+            if (retryCount < 2) {
+              console.log(
+                `[Client] Retrying chunk ${partNumber} (attempt ${retryCount + 1})`
+              );
+              await new Promise((resolve) =>
+                setTimeout(resolve, 1000 * (retryCount + 1))
+              ); // Exponential backoff
+              return uploadChunk(chunkIndex, retryCount + 1);
+            }
+
+            throw new Error(
+              `Chunk ${partNumber} upload failed after ${retryCount + 1} attempts: ${uploadResponse.status} ${errorText}`
+            );
+          }
+
+          const uploadResult = (await uploadResponse.json()) as {
+            success: boolean;
+            fileKey: string;
+            partNumber: number;
+            etag: string;
+          };
+          console.log(
+            `[Client] Chunk ${partNumber} upload result:`,
+            uploadResult
+          );
+
+          return {
+            partNumber: uploadResult.partNumber,
+            etag: uploadResult.etag,
+          };
+        } catch (error) {
+          console.error(`[Client] Error uploading chunk ${partNumber}:`, error);
+
+          // Retry logic for network errors
+          if (
+            retryCount < 2 &&
+            error instanceof Error &&
+            error.message.includes("network")
+          ) {
+            console.log(
+              `[Client] Retrying chunk ${partNumber} due to network error (attempt ${retryCount + 1})`
+            );
+            await new Promise((resolve) =>
+              setTimeout(resolve, 2000 * (retryCount + 1))
+            );
+            return uploadChunk(chunkIndex, retryCount + 1);
+          }
+
+          throw error;
+        }
+      };
+
+      // Upload chunks in parallel with concurrency limit and better error handling
+      for (
+        let i = 0;
+        i < uploadUrlData.totalParts;
+        i += MAX_CONCURRENT_UPLOADS
+      ) {
+        const batch = [];
+        for (
+          let j = 0;
+          j < MAX_CONCURRENT_UPLOADS && i + j < uploadUrlData.totalParts;
+          j++
+        ) {
+          batch.push(uploadChunk(i + j));
+        }
+
+        try {
+          const batchResults = await Promise.allSettled(batch);
+
+          // Check for failed uploads
+          const failedUploads = batchResults.filter(
+            (result) => result.status === "rejected"
+          );
+          if (failedUploads.length > 0) {
+            console.error(
+              `[Client] ${failedUploads.length} uploads failed in batch`
+            );
+            throw new Error(
+              `Upload batch failed: ${failedUploads.length} chunks failed`
+            );
+          }
+
+          const successfulResults = batchResults
+            .filter(
+              (
+                result
+              ): result is PromiseFulfilledResult<{
+                partNumber: number;
+                etag: string;
+              }> => result.status === "fulfilled"
+            )
+            .map((result) => result.value);
+
+          parts.push(...successfulResults);
+
+          // Update progress after each batch
+          const completedChunks = Math.min(
+            i + MAX_CONCURRENT_UPLOADS,
+            uploadUrlData.totalParts
+          );
+          const overallProgress =
+            10 + (completedChunks / uploadUrlData.totalParts) * 80;
+          setUploadProgress((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  currentStep: `Uploaded ${completedChunks}/${uploadUrlData.totalParts} chunks`,
+                  overallProgress,
+                  steps: prev.steps.map((step) =>
+                    step.id === "upload"
+                      ? {
+                          ...step,
+                          progress: Math.round(
+                            (completedChunks / uploadUrlData.totalParts) * 100
+                          ),
+                        }
+                      : step
+                  ),
+                }
+              : null
+          );
+        } catch (error) {
+          console.error("[Client] Batch upload failed:", error);
+          throw error;
+        }
+      }
+
+      // Sort parts by part number to ensure correct order
+      parts.sort((a, b) => a.partNumber - b.partNumber);
+
+      const uploadEndTime = Date.now();
+      const uploadDuration = (uploadEndTime - uploadStartTime) / 1000;
+      console.log(`[Client] Upload completed in ${uploadDuration.toFixed(2)}s`);
+
+      // Step 3: Complete the upload
+      console.log("[Client] Completing upload with all parts...");
+      const completionUrl = `${API_CONFIG.getApiBaseUrl()}/upload/complete`;
+      console.log("[Client] Completion request details:", {
+        url: completionUrl,
+        sessionId: uploadUrlData.sessionId,
+        partsCount: parts.length,
+        parts: parts.map((p) => ({ partNumber: p.partNumber, etag: p.etag })),
+      });
+      console.log("[Client] Full completion URL:", completionUrl);
+
+      setUploadProgress((prev) =>
+        prev
+          ? {
+              ...prev,
+              currentStep: "Completing upload...",
+              overallProgress: 90,
+              steps: prev.steps.map((step) =>
+                step.id === "upload"
+                  ? { ...step, status: "completed", progress: 100 }
+                  : step
+              ),
+            }
+          : null
+      );
+
+      const completeResponse = await fetch(
+        `${API_CONFIG.getApiBaseUrl()}/upload/complete`,
         {
           method: "POST",
           headers: {
@@ -301,67 +631,126 @@ export const PdfUploadAgent = ({
             Authorization: `Bearer ${jwt}`,
           },
           body: JSON.stringify({
-            fileKey: uploadUrlResult.fileKey,
-            uploadId: uploadUrlResult.uploadUrl,
-            partNumber: 1,
-            file: await file.arrayBuffer(),
+            sessionId: uploadUrlData.sessionId,
           }),
         }
       );
 
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        throw new Error(`Upload failed: ${uploadResponse.status} ${errorText}`);
-      }
-
-      const uploadResult = (await uploadResponse.json()) as {
-        success: boolean;
-        fileKey: string;
-        partNumber: number;
-        etag: string;
-      };
-      console.log("[Client] Upload part result:", uploadResult);
-
-      // Step 4: Complete the multipart upload
-      const completeResponse = await fetch(
-        `${API_CONFIG.getApiBaseUrl()}/pdf/upload/${encodeURIComponent(uploadUrlResult.fileKey)}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${jwt}`,
-          },
-          body: JSON.stringify({
-            uploadId: uploadUrlResult.uploadUrl,
-            parts: [{ partNumber: 1, etag: uploadResult.etag }],
-          }),
-        }
+      console.log(
+        "[Client] Completion response status:",
+        completeResponse.status
       );
+      console.log("[Client] Completion response headers:", {
+        contentType: completeResponse.headers.get("content-type"),
+        contentLength: completeResponse.headers.get("content-length"),
+      });
 
       if (!completeResponse.ok) {
         const errorText = await completeResponse.text();
-        console.warn(
-          `Complete upload failed: ${completeResponse.status} ${errorText}`
-        );
+        console.error("[Client] Complete upload failed:", errorText);
         throw new Error(
-          `Complete upload failed: ${completeResponse.status} ${errorText}`
+          `Upload failed: ${completeResponse.status} ${errorText}`
         );
+      } else {
+        console.log("[Client] Upload completed successfully!");
       }
 
-      // Step 5: Send metadata to agent after successful upload
-      console.log("[Client] Calling append for metadata/ingest with JWT:", jwt);
-      await append({
-        role: "user",
-        content: `I have successfully uploaded the PDF file "${filename}" (${(file.size / 1024 / 1024).toFixed(2)} MB) with file key "${uploadUrlResult.fileKey}". Please update the metadata with:\n- Description: ${description || "No description provided"}\n- Tags: ${tags.length > 0 ? tags.join(", ") : "No tags provided"}\n- File size: ${file.size} bytes\n\nThen please trigger ingestion for this file.`,
-        data: { jwt },
-      });
+      // Step 4: Process the uploaded file directly
+      console.log("[Client] Processing uploaded file...");
+      setUploadProgress((prev) =>
+        prev
+          ? {
+              ...prev,
+              currentStep: "Processing content...",
+              overallProgress: 95,
+              steps: prev.steps.map((step) =>
+                step.id === "indexing"
+                  ? { ...step, status: "processing", progress: 50 }
+                  : step
+              ),
+            }
+          : null
+      );
+
+      // Process the file using the ingest endpoint
+      try {
+        const processResponse = await fetch(
+          `${API_CONFIG.getApiBaseUrl()}/pdf/ingest`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${jwt}`,
+            },
+            body: JSON.stringify({
+              fileKey: uploadUrlData.fileKey,
+              filename: filename,
+              description: description || "",
+              tags: tags,
+              fileSize: file.size,
+            }),
+          }
+        );
+
+        if (!processResponse.ok) {
+          const errorText = await processResponse.text();
+          console.error("[Client] File processing failed:", errorText);
+          throw new Error(
+            `Processing failed: ${processResponse.status} ${errorText}`
+          );
+        }
+
+        const processResult = await processResponse.json();
+        console.log("[Client] File processing completed:", processResult);
+
+        // Update progress to show completion
+        setUploadProgress((prev) =>
+          prev
+            ? {
+                ...prev,
+                currentStep: "Upload and processing complete!",
+                overallProgress: 100,
+                steps: prev.steps.map((step) =>
+                  step.id === "indexing"
+                    ? { ...step, status: "completed", progress: 100 }
+                    : step
+                ),
+              }
+            : null
+        );
+
+        // Close the modal after successful upload
+        setTimeout(() => {
+          setIsAddModalOpen(false);
+          setUploadProgress(null);
+        }, 2000); // Show completion for 2 seconds
+      } catch (error) {
+        console.error("[Client] Error processing file:", error);
+        throw error;
+      }
     } catch (error) {
       console.error("Error uploading PDF:", error);
-      await append({
-        role: "user",
-        content: `Failed to upload PDF file "${filename}": ${error instanceof Error ? error.message : String(error)}`,
-        data: { jwt: getStoredJwt() },
-      });
+
+      // Update progress to show error
+      setUploadProgress((prev) =>
+        prev
+          ? {
+              ...prev,
+              currentStep: "Upload failed",
+              error: error instanceof Error ? error.message : String(error),
+              steps: prev.steps.map((step) =>
+                step.status === "processing"
+                  ? {
+                      ...step,
+                      status: "error",
+                      error:
+                        error instanceof Error ? error.message : String(error),
+                    }
+                  : step
+              ),
+            }
+          : null
+      );
     } finally {
       setUploading(false);
     }
@@ -504,12 +893,7 @@ export const PdfUploadAgent = ({
           }
         }
 
-        await append({
-          role: "user",
-          content:
-            "I have successfully authenticated for PDF upload functionality.",
-          data: { jwt: result.token },
-        });
+        // Removed agent message for successful authentication
       } else {
         setIsAuthenticated(false);
         setAuthError(
@@ -676,6 +1060,7 @@ export const PdfUploadAgent = ({
           loading={uploading}
           className="border-0 p-0 shadow-none"
           jwtUsername={jwtUsername}
+          uploadProgress={uploadProgress}
         />
       </Modal>
       <Modal

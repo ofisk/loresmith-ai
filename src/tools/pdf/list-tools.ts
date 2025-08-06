@@ -27,122 +27,62 @@ export const listPdfFiles = tool({
     try {
       console.log("[listPdfFiles] Using JWT:", jwt);
 
-      // Check if we have access to the environment through context
-      const env = context?.env;
-      console.log("[listPdfFiles] Environment from context:", env);
-      console.log(
-        "[listPdfFiles] PDF_BUCKET binding exists:",
-        env?.PDF_BUCKET !== undefined
+      // Extract username from JWT
+      let username = "default";
+      if (jwt) {
+        try {
+          const payload = JSON.parse(atob(jwt.split(".")[1]));
+          username = payload.username || "default";
+          console.log("[listPdfFiles] Extracted username from JWT:", username);
+        } catch (error) {
+          console.error("Error parsing JWT:", error);
+        }
+      }
+
+      console.log("[listPdfFiles] Listing files for username:", username);
+
+      // Call the server endpoint to get actual files
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.FILES),
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          },
+        }
       );
 
-      if (env?.PDF_BUCKET) {
-        console.log(
-          "[listPdfFiles] Running in Durable Object context, calling server directly"
-        );
-
-        // Extract username from JWT
-        let username = "default";
-        if (jwt) {
-          try {
-            const payload = JSON.parse(atob(jwt.split(".")[1]));
-            username = payload.username || "default";
-            console.log(
-              "[listPdfFiles] Extracted username from JWT:",
-              username
-            );
-          } catch (error) {
-            console.error("Error parsing JWT:", error);
-          }
-        }
-
-        console.log("[listPdfFiles] Listing files for username:", username);
-
-        // Call the server endpoint to get actual files
-        const response = await fetch(
-          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.FILES),
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-            },
-          }
-        );
-
-        if (!response.ok) {
-          return createToolError(
-            "Failed to list PDF files",
-            `HTTP ${response.status}: ${await response.text()}`,
-            500,
-            toolCallId
-          );
-        }
-
-        const result = (await response.json()) as PdfFileResponse;
-
-        if (!result.files || result.files.length === 0) {
-          return createToolSuccess(
-            `No PDF files found for user "${username}". Upload some PDFs to get started!`,
-            { files: [], count: 0, username },
-            toolCallId
-          );
-        }
-
-        const fileList = pdfFileHelpers.formatFileList(result.files);
-
-        return createToolSuccess(
-          `📄 Found ${result.files.length} PDF file(s) for user "${username}":\n${fileList}`,
-          {
-            files: result.files,
-            count: result.files.length,
-            username,
-          },
-          toolCallId
-        );
-      } else {
-        // Fall back to HTTP API
-        console.log(
-          "[listPdfFiles] Running in HTTP context, making API request"
-        );
-        const response = await fetch(
-          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.FILES),
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-            },
-          }
-        );
-        console.log("[listPdfFiles] Response status:", response.status);
-        if (!response.ok) {
-          return createToolError(
-            "Failed to list PDF files",
-            `HTTP ${response.status}: ${await response.text()}`,
-            500,
-            toolCallId
-          );
-        }
-        const result = (await response.json()) as PdfFileResponse;
-
-        if (!result.files || result.files.length === 0) {
-          return createToolSuccess(
-            "No PDF files found. Upload some PDFs to get started!",
-            { files: [], count: 0 },
-            toolCallId
-          );
-        }
-
-        const fileNames = result.files.map((f) => f.file_name).join(", ");
-        return createToolSuccess(
-          `Found ${result.files.length} PDF file(s): ${fileNames}`,
-          {
-            files: result.files,
-            count: result.files.length,
-          },
+      if (!response.ok) {
+        return createToolError(
+          "Failed to list PDF files",
+          `HTTP ${response.status}: ${await response.text()}`,
+          500,
           toolCallId
         );
       }
+
+      const result = (await response.json()) as PdfFileResponse;
+
+      if (!result.files || result.files.length === 0) {
+        return createToolSuccess(
+          `No PDF files found for user "${username}". Upload some PDFs to get started!`,
+          { files: [], count: 0, username },
+          toolCallId
+        );
+      }
+
+      const fileList = pdfFileHelpers.formatFileList(result.files);
+
+      return createToolSuccess(
+        `📄 Found ${result.files.length} PDF file(s) for user "${username}":\n${fileList}`,
+        {
+          files: result.files,
+          count: result.files.length,
+          username,
+        },
+        toolCallId
+      );
     } catch (error) {
       console.error("Error listing PDF files:", error);
       return createToolError("Error listing PDF files", error, 500, toolCallId);
@@ -214,6 +154,15 @@ export const deletePdfFileExecution = async (
         response.status
       );
       console.error("[deletePdfFileExecution] Error response:", errorText);
+
+      // If it's a 404, the file might have already been deleted
+      if (response.status === 404) {
+        return createToolSuccess(
+          "File was already deleted or not found",
+          { status: "already_deleted", fileKey },
+          toolCallId
+        );
+      }
 
       return createToolError(
         "Failed to delete PDF file",
@@ -314,113 +263,64 @@ export const getPdfStats = tool({
     try {
       console.log("[getPdfStats] Using JWT:", jwt);
 
-      // Check if we have access to the environment through context
-      const env = context?.env;
-      console.log("[getPdfStats] Environment from context:", env);
-      console.log(
-        "[getPdfStats] PDF_BUCKET binding exists:",
-        env?.PDF_BUCKET !== undefined
+      // Extract username from JWT
+      let username = "default";
+      if (jwt) {
+        try {
+          const payload = JSON.parse(atob(jwt.split(".")[1]));
+          username = payload.username || "default";
+          console.log("[getPdfStats] Extracted username from JWT:", username);
+        } catch (error) {
+          console.error("Error parsing JWT:", error);
+        }
+      }
+
+      console.log("[getPdfStats] Getting stats for username:", username);
+
+      // Call the server endpoint to get actual stats
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.STATS),
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          },
+        }
       );
 
-      if (env?.PDF_BUCKET) {
-        console.log(
-          "[getPdfStats] Running in Durable Object context, calling server directly"
-        );
-
-        // Extract username from JWT
-        let username = "default";
-        if (jwt) {
-          try {
-            const payload = JSON.parse(atob(jwt.split(".")[1]));
-            username = payload.username || "default";
-            console.log("[getPdfStats] Extracted username from JWT:", username);
-          } catch (error) {
-            console.error("Error parsing JWT:", error);
-          }
-        }
-
-        console.log("[getPdfStats] Getting stats for username:", username);
-
-        // Call the server endpoint to get actual stats
-        const response = await fetch(
-          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.STATS),
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-            },
-          }
-        );
-
-        if (!response.ok) {
-          return createToolError(
-            "Failed to get PDF stats",
-            `HTTP ${response.status}: ${await response.text()}`,
-            500,
-            toolCallId
-          );
-        }
-
-        const result = (await response.json()) as {
-          username: string;
-          totalFiles: number;
-          filesByStatus: {
-            uploading: number;
-            uploaded: number;
-            parsing: number;
-            parsed: number;
-            error: number;
-          };
-        };
-
-        return createToolSuccess(
-          `PDF statistics for user "${result.username}": ${result.totalFiles} files uploaded`,
-          {
-            totalFiles: result.totalFiles,
-            totalSize: 0, // Not calculated in current implementation
-            averageFileSize: 0, // Not calculated in current implementation
-            username: result.username,
-            filesByStatus: result.filesByStatus,
-          },
-          toolCallId
-        );
-      } else {
-        // Fall back to HTTP API
-        console.log(
-          "[getPdfStats] Running in HTTP context, making API request"
-        );
-        const response = await fetch(
-          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.STATS),
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-            },
-          }
-        );
-        console.log("[getPdfStats] Response status:", response.status);
-        if (!response.ok) {
-          return createToolError(
-            "Failed to get PDF stats",
-            `HTTP ${response.status}: ${await response.text()}`,
-            500,
-            toolCallId
-          );
-        }
-        const result = (await response.json()) as {
-          totalFiles: number;
-          totalSize: number;
-          averageFileSize: number;
-        };
-
-        return createToolSuccess(
-          `PDF statistics: ${result.totalFiles} files uploaded, ${(result.totalSize / 1024 / 1024).toFixed(2)} MB total size, ${(result.averageFileSize / 1024 / 1024).toFixed(2)} MB average file size`,
-          result,
+      if (!response.ok) {
+        return createToolError(
+          "Failed to get PDF stats",
+          `HTTP ${response.status}: ${await response.text()}`,
+          500,
           toolCallId
         );
       }
+
+      const result = (await response.json()) as {
+        username: string;
+        totalFiles: number;
+        filesByStatus: {
+          uploading: number;
+          uploaded: number;
+          parsing: number;
+          parsed: number;
+          error: number;
+        };
+      };
+
+      return createToolSuccess(
+        `PDF statistics for user "${result.username}": ${result.totalFiles} files uploaded`,
+        {
+          totalFiles: result.totalFiles,
+          totalSize: 0, // Not calculated in current implementation
+          averageFileSize: 0, // Not calculated in current implementation
+          username: result.username,
+          filesByStatus: result.filesByStatus,
+        },
+        toolCallId
+      );
     } catch (error) {
       console.error("Error getting PDF stats:", error);
       return createToolError("Error getting PDF stats", error, 500, toolCallId);
