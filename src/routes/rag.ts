@@ -55,7 +55,7 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
     let fileSize = 0;
     try {
       console.log(`[RAG] Attempting to get file from R2: ${fileKey}`);
-      const file = await c.env.PDF_BUCKET.get(fileKey);
+      const file = await c.env.FILE_BUCKET.get(fileKey);
       if (file) {
         fileSize = file.size;
         console.log(`[RAG] File found in R2, size: ${fileSize} bytes`);
@@ -86,7 +86,7 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
     setTimeout(async () => {
       try {
         // Get file from R2
-        const file = await c.env.PDF_BUCKET.get(fileKey);
+        const file = await c.env.FILE_BUCKET.get(fileKey);
         if (!file) {
           throw new Error("File not found in R2");
         }
@@ -100,7 +100,7 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
         await ragService.processPdfFromR2(
           fileKey,
           userAuth.username,
-          c.env.PDF_BUCKET,
+          c.env.FILE_BUCKET,
           {
             file_key: fileKey,
             username: userAuth.username,
@@ -156,7 +156,7 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
     // Get file size from R2
     let fileSize = 0;
     try {
-      const file = await c.env.PDF_BUCKET.get(fileKey);
+      const file = await c.env.FILE_BUCKET.get(fileKey);
       if (file) {
         fileSize = file.size;
       }
@@ -184,7 +184,7 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
     setTimeout(async () => {
       try {
         // Get file from R2
-        const file = await c.env.PDF_BUCKET.get(fileKey);
+        const file = await c.env.FILE_BUCKET.get(fileKey);
         if (!file) {
           throw new Error("File not found in R2");
         }
@@ -198,7 +198,7 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
         await ragService.processPdfFromR2(
           fileKey,
           userAuth.username,
-          c.env.PDF_BUCKET,
+          c.env.FILE_BUCKET,
           {
             file_key: fileKey,
             username: userAuth.username,
@@ -325,14 +325,40 @@ export async function handleDeletePdfForRag(c: ContextWithAuth) {
 
     console.log("[handleDeletePdfForRag] Existing file check:", existingFile);
 
+    // If file doesn't exist in database, try to clean up any remaining chunks
     if (!existingFile) {
-      console.log("[handleDeletePdfForRag] File not found in database");
-      return c.json({ error: "File not found" }, 404);
+      console.log(
+        "[handleDeletePdfForRag] File not found in database, cleaning up chunks"
+      );
+
+      // Delete any remaining chunks from database
+      const chunksResult = await c.env.DB.prepare(
+        "DELETE FROM pdf_chunks WHERE file_key = ? AND username = ?"
+      )
+        .bind(fileKey, userAuth.username)
+        .run();
+      console.log("[handleDeletePdfForRag] Cleaned up chunks:", chunksResult);
+
+      // Try to delete from R2 anyway (in case it still exists)
+      try {
+        await c.env.FILE_BUCKET.delete(fileKey);
+        console.log("[handleDeletePdfForRag] R2 cleanup completed");
+      } catch (error) {
+        console.log(
+          "[handleDeletePdfForRag] R2 cleanup failed (file may not exist):",
+          error
+        );
+      }
+
+      return c.json({
+        success: true,
+        message: "File was already deleted or cleaned up",
+      });
     }
 
     console.log("[handleDeletePdfForRag] Deleting from R2 bucket:", fileKey);
     // Delete from R2
-    await c.env.PDF_BUCKET.delete(fileKey);
+    await c.env.FILE_BUCKET.delete(fileKey);
     console.log("[handleDeletePdfForRag] R2 deletion completed");
 
     console.log("[handleDeletePdfForRag] Deleting chunks from database");

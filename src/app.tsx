@@ -655,7 +655,7 @@ export default function Chat() {
           {/* Chat-specific sections */}
           {/* PDF Upload Section */}
           <div className="px-4 py-2 border-t border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900">
-            <PdfUploadAgent messages={agentMessages} append={append} />
+            <PdfUploadAgent />
           </div>
 
           {/* Input Area */}

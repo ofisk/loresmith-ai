@@ -2,6 +2,7 @@ import { routeAgentRequest, type Schedule } from "agents";
 import { AIChatAgent } from "agents/ai-chat-agent";
 import { generateId, type StreamTextOnFinishCallback, type ToolSet } from "ai";
 import { Hono } from "hono";
+import { UploadSessionDO } from "./durable-objects/upload-session";
 import {
   handleGetAssessmentRecommendations,
   handleGetUserActivity,
@@ -31,21 +32,13 @@ import {
   handleGetExternalResourceSearch,
   handleGetGmResources,
 } from "./routes/external-resources";
+import { library } from "./routes/library";
 import {
   handleGetNextActions,
   handleGetStateAnalysis,
   handleGetWelcomeGuidance,
 } from "./routes/onboarding";
-import {
-  handleAutoGeneratePdfMetadata,
-  handleCompleteUpload,
-  handleGenerateUploadUrl,
-  handleGetPdfFiles,
-  handleGetPdfStats,
-  handleIngestPdf,
-  handleUpdatePdfMetadata,
-  handleUploadPart,
-} from "./routes/pdf";
+import { pdfRouter } from "./routes/pdf-router";
 import { handleProgressWebSocket } from "./routes/progress";
 import {
   handleDeletePdfForRag,
@@ -56,6 +49,7 @@ import {
   handleRagSearch,
   handleUpdatePdfMetadataForRag,
 } from "./routes/rag";
+import { upload } from "./routes/upload";
 import type { AgentType } from "./services/agent-router";
 import type { AuthEnv } from "./services/auth-service";
 import { AuthService } from "./services/auth-service";
@@ -64,11 +58,13 @@ import { ModelManager } from "./services/model-manager";
 interface Env extends AuthEnv {
   ADMIN_SECRET?: string;
   OPENAI_API_KEY?: string;
-  PDF_BUCKET: R2Bucket;
+  FILE_BUCKET: R2Bucket;
   DB: D1Database;
   VECTORIZE: VectorizeIndex;
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
+  UploadSession: DurableObjectNamespace;
+  ASSETS: Fetcher;
 }
 
 // Progress tracking store (moved to services/progress.ts)
@@ -364,6 +360,7 @@ export class Chat extends AIChatAgent<Env> {
 
 // Export the UserFileTracker Durable Object
 export { UserFileTracker } from "./durable-objects/UserFileTracker";
+export { UploadSessionDO };
 
 /**
  * Worker entry point that routes incoming requests to the appropriate handler
@@ -405,18 +402,10 @@ app.post("/store-openai-key", handleStoreOpenAIKey);
 app.delete("/delete-openai-key", handleDeleteOpenAIKey);
 
 // PDF Routes
-app.post("/pdf/upload-url", requireUserJwt, handleGenerateUploadUrl);
-app.post("/pdf/upload-part", requireUserJwt, handleUploadPart);
-app.put("/pdf/upload/*", requireUserJwt, handleCompleteUpload);
-app.post("/pdf/ingest", requireUserJwt, handleIngestPdf);
-app.get("/pdf/files", requireUserJwt, handleGetPdfFiles);
-app.post("/pdf/update-metadata", requireUserJwt, handleUpdatePdfMetadata);
-app.post(
-  "/pdf/auto-generate-metadata",
-  requireUserJwt,
-  handleAutoGeneratePdfMetadata
-);
-app.get("/pdf/stats", requireUserJwt, handleGetPdfStats);
+app.route("/pdf", pdfRouter);
+
+// Upload Routes
+app.route("/upload", upload);
 
 // RAG Routes
 app.post("/rag/search", requireUserJwt, handleRagSearch);
@@ -447,11 +436,10 @@ app.get(
 app.delete("/campaigns/:campaignId", requireUserJwt, handleDeleteCampaign);
 app.delete("/campaigns", requireUserJwt, handleDeleteAllCampaigns);
 
-// Note: Campaign agent routes are now handled through the Chat Durable Object
-// The new specialized agents (CampaignAgent, CampaignContextAgent, CharacterSheetAgent)
-// are AIChatAgent instances without HTTP routes
+// Library Routes
+app.route("/library", library);
 
-// Progress WebSocket endpoint
+// Progress WebSocket
 app.get("/progress", handleProgressWebSocket);
 
 // Assessment Routes
@@ -498,8 +486,27 @@ app.get(
   handleGetGmResources
 );
 
-// Mount other agent routes
-app.all("*", async (c) => {
+// Static file serving for the React app
+app.get("*", async (c) => {
+  const url = new URL(c.req.url);
+  const path = url.pathname;
+
+  // Serve index.html for the root path
+  if (path === "/") {
+    return c.env.ASSETS.fetch(new Request("https://example.com/index.html"));
+  }
+
+  // Try to serve static assets
+  try {
+    const assetResponse = await c.env.ASSETS.fetch(c.req.raw);
+    if (assetResponse.status === 200) {
+      return assetResponse;
+    }
+  } catch (_error) {
+    console.log("Asset not found:", path);
+  }
+
+  // Fallback to agent routing
   if (!process.env.OPENAI_API_KEY) {
     console.error(
       "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"

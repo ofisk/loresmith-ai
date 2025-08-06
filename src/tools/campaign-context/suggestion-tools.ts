@@ -37,7 +37,7 @@ export const getCampaignSuggestions = tool({
     jwt: commonSchemas.jwt,
   }),
   execute: async (
-    { campaignId, suggestionType = "session", context: contextParam, jwt },
+    { campaignId, suggestionType = "session", context: _contextParam, jwt },
     context?: any
   ): Promise<ToolResult> => {
     // Extract toolCallId from context

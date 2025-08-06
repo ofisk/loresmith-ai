@@ -8,7 +8,6 @@ import {
 
 interface Env {
   ADMIN_SECRET?: string;
-  PDF_BUCKET: R2Bucket;
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
 }
@@ -296,11 +295,6 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
 
               // Ensure JWT is always included for operations
               const enhancedArgs = { ...args, jwt: clientJwt };
-
-              // Add a small delay to prevent rate limiting
-              if (currentCount > 0) {
-                await new Promise((resolve) => setTimeout(resolve, 100));
-              }
 
               console.log(
                 `[${this.constructor.name}] Calling tool ${toolName} with args:`,

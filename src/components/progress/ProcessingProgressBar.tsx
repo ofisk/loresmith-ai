@@ -32,13 +32,13 @@ export function ProcessingProgressBar({
   const getStepColor = (step: ProcessingStep) => {
     switch (step.status) {
       case "completed":
-        return "text-green-600";
+        return "text-green-400";
       case "processing":
-        return "text-blue-600";
+        return "text-blue-400";
       case "error":
-        return "text-red-600";
+        return "text-red-400";
       default:
-        return "text-gray-400";
+        return "text-ob-base-200";
     }
   };
 
@@ -46,13 +46,13 @@ export function ProcessingProgressBar({
   const elapsedSeconds = Math.floor(elapsedTime / 1000);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-6 max-w-2xl w-full">
+    <div className="bg-ob-base-900 border border-ob-base-700 rounded-lg shadow-lg p-6 max-w-2xl w-full">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">
+          <h3 className="text-lg font-semibold text-ob-base-100">
             Processing PDF
           </h3>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ob-base-200">
             {progress.fileKey.split("/").pop()}
           </p>
         </div>
@@ -60,7 +60,7 @@ export function ProcessingProgressBar({
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-ob-base-300 hover:text-ob-base-100 transition-colors"
           >
             ✕
           </button>
@@ -70,20 +70,20 @@ export function ProcessingProgressBar({
       {/* Overall Progress */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-sm font-medium text-gray-700">
+          <span className="text-sm font-medium text-ob-base-200">
             Overall Progress
           </span>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-ob-base-300">
             {Math.round(progress.overallProgress)}%
           </span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-3">
+        <div className="w-full bg-ob-base-700 rounded-full h-3">
           <div
-            className="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out"
+            className="bg-blue-500 h-3 rounded-full transition-all duration-300 ease-out"
             style={{ width: `${progress.overallProgress}%` }}
           />
         </div>
-        <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
+        <div className="flex justify-between items-center mt-2 text-xs text-ob-base-300">
           <span>Elapsed: {formatTime(elapsedSeconds)}</span>
           {progress.estimatedTimeRemaining && (
             <span>
@@ -96,20 +96,20 @@ export function ProcessingProgressBar({
       {/* Current Step */}
       <div className="mb-4">
         <div className="flex items-center space-x-2 mb-2">
-          <span className="text-sm font-medium text-gray-700">Current:</span>
-          <span className="text-sm text-blue-600 font-medium">
+          <span className="text-sm font-medium text-ob-base-200">Current:</span>
+          <span className="text-sm text-blue-400 font-medium">
             {progress.currentStep}
           </span>
         </div>
         {progress.steps.find((s) => s.status === "processing")?.description && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-3">
             <div className="flex items-center space-x-2 mb-1">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <span className="text-xs font-medium text-blue-700">
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+              <span className="text-xs font-medium text-blue-300">
                 Processing...
               </span>
             </div>
-            <p className="text-sm text-blue-800">
+            <p className="text-sm text-blue-200">
               {
                 progress.steps.find((s) => s.status === "processing")
                   ?.description
@@ -130,12 +130,14 @@ export function ProcessingProgressBar({
             </div>
             <div className="flex-1">
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium text-ob-base-200">
                   {step.name}
                 </span>
-                <span className="text-xs text-gray-500">{step.progress}%</span>
+                <span className="text-xs text-ob-base-300">
+                  {step.progress}%
+                </span>
               </div>
-              <div className="w-full bg-gray-100 rounded-full h-2 mt-1">
+              <div className="w-full bg-ob-base-700 rounded-full h-2 mt-1">
                 <div
                   className={`h-2 rounded-full transition-all duration-300 ease-out ${
                     step.status === "completed"
@@ -144,16 +146,16 @@ export function ProcessingProgressBar({
                         ? "bg-blue-500"
                         : step.status === "error"
                           ? "bg-red-500"
-                          : "bg-gray-300"
+                          : "bg-ob-base-600"
                   }`}
                   style={{ width: `${step.progress}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-600 mt-1 font-medium">
+              <p className="text-xs text-ob-base-300 mt-1 font-medium">
                 {step.description}
               </p>
               {step.error && (
-                <p className="text-xs text-red-500 mt-1">Error: {step.error}</p>
+                <p className="text-xs text-red-400 mt-1">Error: {step.error}</p>
               )}
             </div>
           </div>
@@ -162,8 +164,8 @@ export function ProcessingProgressBar({
 
       {/* Error Display */}
       {progress.error && (
-        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-sm text-red-700">
+        <div className="mt-4 p-3 bg-red-900/20 border border-red-700/50 rounded-md">
+          <p className="text-sm text-red-300">
             <strong>Error:</strong> {progress.error}
           </p>
         </div>

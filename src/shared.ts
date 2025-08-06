@@ -120,8 +120,9 @@ export const API_CONFIG = {
       CHECK_USER_KEY: "/check-user-openai-key",
     },
     PDF: {
-      UPLOAD_URL: "/pdf/upload-url",
-      UPLOAD: "/pdf/upload",
+      UPLOAD_URL: "/upload/start",
+      UPLOAD: "/upload/complete",
+      UPLOAD_PART: "/upload/part",
       INGEST: "/pdf/ingest",
       FILES: "/pdf/files",
       UPDATE_METADATA: "/pdf/update-metadata",
