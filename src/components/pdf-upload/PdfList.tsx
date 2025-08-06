@@ -43,62 +43,6 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
   const [addingToCampaigns, setAddingToCampaigns] = useState(false);
 
-  const fetchFiles = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const jwt = getStoredJwt();
-      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.FILES),
-        { jwt }
-      );
-
-      if (jwtExpired) {
-        throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
-      }
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch files: ${response.status}`);
-      }
-
-      const data = (await response.json()) as { files: PdfFile[] };
-      const filesWithCampaigns = await fetchPdfCampaigns(data.files || []);
-      setFiles(filesWithCampaigns);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : USER_MESSAGES.FAILED_TO_RETRIEVE_FILES
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const fetchCampaigns = useCallback(async () => {
-    try {
-      const jwt = getStoredJwt();
-      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
-        { jwt }
-      );
-
-      if (jwtExpired) {
-        throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
-      }
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch campaigns: ${response.status}`);
-      }
-
-      const data = (await response.json()) as { campaigns: Campaign[] };
-      setCampaigns(data.campaigns || []);
-    } catch (err) {
-      console.error("Failed to fetch campaigns:", err);
-    }
-  }, []);
-
   const fetchPdfCampaigns = useCallback(async (files: PdfFile[]) => {
     try {
       const jwt = getStoredJwt();
@@ -201,6 +145,62 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
     } catch (err) {
       console.error("Failed to fetch PDF campaigns:", err);
       return files.map((file) => ({ ...file, campaigns: [] }));
+    }
+  }, []);
+
+  const fetchFiles = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const jwt = getStoredJwt();
+      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.FILES),
+        { jwt }
+      );
+
+      if (jwtExpired) {
+        throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch files: ${response.status}`);
+      }
+
+      const data = (await response.json()) as { files: PdfFile[] };
+      const filesWithCampaigns = await fetchPdfCampaigns(data.files || []);
+      setFiles(filesWithCampaigns);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : USER_MESSAGES.FAILED_TO_RETRIEVE_FILES
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchPdfCampaigns]);
+
+  const fetchCampaigns = useCallback(async () => {
+    try {
+      const jwt = getStoredJwt();
+      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
+        { jwt }
+      );
+
+      if (jwtExpired) {
+        throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch campaigns: ${response.status}`);
+      }
+
+      const data = (await response.json()) as { campaigns: Campaign[] };
+      setCampaigns(data.campaigns || []);
+    } catch (err) {
+      console.error("Failed to fetch campaigns:", err);
     }
   }, []);
 

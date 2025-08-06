@@ -196,7 +196,7 @@ export const generateSessionHooks = tool({
     jwt: commonSchemas.jwt,
   }),
   execute: async (
-    { campaignId, hookType = "opening", context: contextParam, jwt },
+    { campaignId, hookType = "opening", context: _contextParam, jwt },
     context?: any
   ): Promise<ToolResult> => {
     // Extract toolCallId from context

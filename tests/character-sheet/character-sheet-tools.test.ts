@@ -70,7 +70,7 @@ vi.mock("../../src/tools/utils", () => ({
     (
       message: string,
       error: any,
-      code: number,
+      _code: number,
       toolCallId: string
     ): ToolResult => ({
       toolCallId,
