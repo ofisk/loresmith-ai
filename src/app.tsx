@@ -10,6 +10,7 @@ import {
 import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
+import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import loresmith from "@/assets/loresmith.png";
@@ -29,6 +30,7 @@ import { BlockingAuthenticationModal } from "./components/BlockingAuthentication
 
 import { USER_MESSAGES } from "./constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
+import { useNotifications } from "./hooks/useNotifications";
 import { AuthService } from "./services/auth-service";
 
 import type { campaignTools } from "./tools/campaign";
@@ -163,6 +165,14 @@ export default function Chat() {
       // Show a toast notification when JWT expires
       toast.error(USER_MESSAGES.SESSION_EXPIRED);
     },
+  });
+
+  // Background notification polling for file processing completion
+  useNotifications({
+    jwt: getStoredJwt(),
+    pollingInterval: 30000, // Check every 30 seconds
+    showToasts: true, // Show toast notifications when files are processed
+    autoMarkAsRead: true, // Auto-mark notifications as read when shown
   });
 
   // Handle authentication submission

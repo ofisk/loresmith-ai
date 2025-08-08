@@ -2,7 +2,7 @@
 -- This enables the campaign planner to store and retrieve context for intelligent suggestions
 
 -- Campaign context table for storing text-based campaign information
-CREATE TABLE campaign_context (
+CREATE TABLE IF NOT EXISTS campaign_context (
   id TEXT PRIMARY KEY,
   campaign_id TEXT NOT NULL,
   context_type TEXT NOT NULL, -- 'character_backstory', 'world_description', 'campaign_notes', 'session_notes', etc.
@@ -15,7 +15,7 @@ CREATE TABLE campaign_context (
 );
 
 -- Character information table for storing player character details
-CREATE TABLE campaign_characters (
+CREATE TABLE IF NOT EXISTS campaign_characters (
   id TEXT PRIMARY KEY,
   campaign_id TEXT NOT NULL,
   character_name TEXT NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE campaign_characters (
 );
 
 -- Campaign planning sessions table for tracking planning conversations
-CREATE TABLE campaign_planning_sessions (
+CREATE TABLE IF NOT EXISTS campaign_planning_sessions (
   id TEXT PRIMARY KEY,
   campaign_id TEXT NOT NULL,
   session_type TEXT NOT NULL, -- 'initial_setup', 'character_creation', 'session_planning', 'world_building', etc.
@@ -46,7 +46,7 @@ CREATE TABLE campaign_planning_sessions (
 );
 
 -- Campaign context chunks for RAG (similar to pdf_chunks but for campaign context)
-CREATE TABLE campaign_context_chunks (
+CREATE TABLE IF NOT EXISTS campaign_context_chunks (
   id TEXT PRIMARY KEY,
   campaign_id TEXT NOT NULL,
   context_id TEXT NOT NULL,
@@ -60,9 +60,9 @@ CREATE TABLE campaign_context_chunks (
 );
 
 -- Indexes for efficient querying
-CREATE INDEX idx_campaign_context_campaign_id ON campaign_context(campaign_id);
-CREATE INDEX idx_campaign_context_type ON campaign_context(context_type);
-CREATE INDEX idx_campaign_characters_campaign_id ON campaign_characters(campaign_id);
-CREATE INDEX idx_campaign_planning_sessions_campaign_id ON campaign_planning_sessions(campaign_id);
-CREATE INDEX idx_campaign_context_chunks_campaign_id ON campaign_context_chunks(campaign_id);
-CREATE INDEX idx_campaign_context_chunks_context_id ON campaign_context_chunks(context_id); 
+CREATE INDEX IF NOT EXISTS idx_campaign_context_campaign_id ON campaign_context(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_context_type ON campaign_context(context_type);
+CREATE INDEX IF NOT EXISTS idx_campaign_characters_campaign_id ON campaign_characters(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_planning_sessions_campaign_id ON campaign_planning_sessions(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_context_chunks_campaign_id ON campaign_context_chunks(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_context_chunks_context_id ON campaign_context_chunks(context_id); 

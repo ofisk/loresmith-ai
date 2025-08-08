@@ -3,6 +3,7 @@ import { AutoRAGService } from "../services/autorag-service";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { completeProgress } from "../services/progress";
+import { NotificationService } from "../services/notification-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -84,6 +85,9 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
 
     // Start processing in background
     setTimeout(async () => {
+      // Create single notification service instance for this processing session
+      const notificationService = new NotificationService(c.env);
+
       try {
         // Get file from R2
         const file = await c.env.FILE_BUCKET.get(fileKey);
@@ -118,10 +122,25 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
           .bind("completed", new Date().toISOString(), file.size, fileKey)
           .run();
 
+        // Create completion notification
+        await notificationService.notifyFileProcessingComplete(
+          userAuth.username,
+          filename,
+          fileKey
+        );
+
         completeProgress(fileKey, true);
       } catch (error) {
         console.error("Error processing PDF for RAG:", error);
         completeProgress(fileKey, false, (error as Error).message);
+
+        // Create error notification using the same service instance
+        await notificationService.notifyFileProcessingError(
+          userAuth.username,
+          filename,
+          fileKey,
+          (error as Error).message
+        );
 
         // Update database status
         await c.env.DB.prepare(
@@ -182,6 +201,9 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
 
     // Start processing in background
     setTimeout(async () => {
+      // Create single notification service instance for this processing session
+      const notificationService = new NotificationService(c.env);
+
       try {
         // Get file from R2
         const file = await c.env.FILE_BUCKET.get(fileKey);
@@ -216,10 +238,25 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
           .bind("completed", new Date().toISOString(), file.size, fileKey)
           .run();
 
+        // Create completion notification
+        await notificationService.notifyFileProcessingComplete(
+          userAuth.username,
+          filename,
+          fileKey
+        );
+
         completeProgress(fileKey, true);
       } catch (error) {
         console.error("Error processing PDF from R2 for RAG:", error);
         completeProgress(fileKey, false, (error as Error).message);
+
+        // Create error notification using the same service instance
+        await notificationService.notifyFileProcessingError(
+          userAuth.username,
+          filename,
+          fileKey,
+          (error as Error).message
+        );
 
         // Update database status
         await c.env.DB.prepare(
