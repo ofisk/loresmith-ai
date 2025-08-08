@@ -10,7 +10,7 @@ import {
 import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import loresmith from "@/assets/loresmith.png";
 import { Avatar } from "@/components/avatar/Avatar";
@@ -23,10 +23,12 @@ import { PdfUploadAgent } from "@/components/pdf-upload/PdfUploadAgent";
 import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
+// import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
 
 import { USER_MESSAGES } from "./constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
+// import { useNotifications } from "./hooks/useNotifications";
 import { AuthService } from "./services/auth-service";
 
 import type { campaignTools } from "./tools/campaign";
@@ -162,6 +164,15 @@ export default function Chat() {
       toast.error(USER_MESSAGES.SESSION_EXPIRED);
     },
   });
+
+  // Background notification polling for file processing completion
+  // TEMPORARILY DISABLED - suspected cause of React Children error
+  // useNotifications({
+  //   jwt: getStoredJwt(),
+  //   pollingInterval: 30000, // Check every 30 seconds
+  //   showToasts: true, // Show toast notifications when files are processed
+  //   autoMarkAsRead: true, // Auto-mark notifications as read when shown
+  // });
 
   // Handle authentication submission
   const handleAuthenticationSubmit = async (
@@ -577,119 +588,157 @@ export default function Chat() {
             )}
 
             {agentMessages.map((m: Message, index) => {
-              const isUser = m.role === "user";
-              const showAvatar =
-                index === 0 || agentMessages[index - 1]?.role !== m.role;
+              try {
+                const isUser = m.role === "user";
+                const showAvatar =
+                  index === 0 || agentMessages[index - 1]?.role !== m.role;
 
-              return (
-                <div key={m.id}>
-                  {showDebug && (
-                    <pre className="text-xs text-muted-foreground overflow-scroll">
-                      {JSON.stringify(
-                        {
-                          ...m,
-                          parts: m.parts?.filter(
-                            (part) => part.type !== "tool-invocation"
-                          ),
-                        },
-                        null,
-                        2
-                      )}
-                    </pre>
-                  )}
-                  <div
-                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                  >
+                return (
+                  <div key={m.id}>
+                    {showDebug && (
+                      <pre className="text-xs text-muted-foreground overflow-scroll">
+                        {JSON.stringify(
+                          {
+                            ...m,
+                            parts: m.parts?.filter(
+                              (part) => part.type !== "tool-invocation"
+                            ),
+                          },
+                          null,
+                          2
+                        )}
+                      </pre>
+                    )}
                     <div
-                      className={`flex gap-2 max-w-[85%] ${
-                        isUser ? "flex-row-reverse" : "flex-col"
-                      }`}
+                      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                     >
-                      {showAvatar && !isUser ? (
-                        <Avatar username={"LS"} />
-                      ) : (
-                        !isUser && <div className="w-8" />
-                      )}
+                      <div
+                        className={`flex gap-2 max-w-[85%] ${
+                          isUser ? "flex-row-reverse" : "flex-col"
+                        }`}
+                      >
+                        {showAvatar && !isUser ? (
+                          <Avatar username={"LS"} />
+                        ) : (
+                          !isUser && <div className="w-8" />
+                        )}
 
-                      <div className="flex-1">
-                        <div>
-                          {m.parts?.map((part, i) => {
-                            if (part.type === "text") {
-                              return (
-                                // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
-                                <div key={i}>
-                                  <Card
-                                    className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
-                                      isUser
-                                        ? "rounded-br-none"
-                                        : "rounded-bl-none border-assistant-border"
-                                    } ${
-                                      part.text.startsWith("scheduled message")
-                                        ? "border-accent/50"
-                                        : ""
-                                    } relative`}
-                                  >
-                                    {part.text.startsWith(
-                                      "scheduled message"
-                                    ) && (
-                                      <span className="absolute -top-3 -left-2 text-base">
-                                        🕒
-                                      </span>
-                                    )}
-                                    <MemoizedMarkdown
-                                      content={part.text.replace(
-                                        /^scheduled message: /,
-                                        ""
-                                      )}
+                        <div className="flex-1">
+                          <div>
+                            {(() => {
+                              const parts = m.parts || [];
+                              const validParts = parts.filter(
+                                (part) => part && typeof part === "object"
+                              );
+                              return validParts.map((part, i) => {
+                                if (part.type === "text") {
+                                  return (
+                                    // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
+                                    <div key={i}>
+                                      <Card
+                                        className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
+                                          isUser
+                                            ? "rounded-br-none"
+                                            : "rounded-bl-none border-assistant-border"
+                                        } ${
+                                          part.text.startsWith(
+                                            "scheduled message"
+                                          )
+                                            ? "border-accent/50"
+                                            : ""
+                                        } relative`}
+                                      >
+                                        {part.text.startsWith(
+                                          "scheduled message"
+                                        ) && (
+                                          <span className="absolute -top-3 -left-2 text-base">
+                                            🕒
+                                          </span>
+                                        )}
+                                        <MemoizedMarkdown
+                                          content={part.text.replace(
+                                            /^scheduled message: /,
+                                            ""
+                                          )}
+                                        />
+                                      </Card>
+                                      <p
+                                        className={`text-xs text-muted-foreground mt-1 ${
+                                          isUser ? "text-right" : "text-left"
+                                        }`}
+                                      >
+                                        {formatTime(
+                                          new Date(
+                                            m.createdAt as unknown as string
+                                          )
+                                        )}
+                                      </p>
+                                    </div>
+                                  );
+                                }
+
+                                if (
+                                  part.type === "tool-invocation" &&
+                                  part.toolInvocation
+                                ) {
+                                  const toolInvocation = part.toolInvocation;
+                                  const toolCallId =
+                                    toolInvocation?.toolCallId ||
+                                    `unknown-${i}`;
+                                  const needsConfirmation =
+                                    toolsRequiringConfirmation.includes(
+                                      toolInvocation.toolName as
+                                        | keyof typeof generalTools
+                                        | keyof typeof campaignTools
+                                        | keyof typeof pdfTools
+                                    );
+
+                                  // Skip rendering the card when debug is off
+                                  if (!showDebug)
+                                    return (
+                                      <React.Fragment
+                                        key={`${toolCallId}-empty`}
+                                      />
+                                    );
+
+                                  return (
+                                    <ToolInvocationCard
+                                      // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here as the array is static
+                                      key={`${toolCallId}-${i}`}
+                                      toolInvocation={toolInvocation}
+                                      toolCallId={toolCallId}
+                                      needsConfirmation={needsConfirmation}
+                                      addToolResult={addToolResult}
+                                      showDebug={showDebug}
                                     />
-                                  </Card>
-                                  <p
-                                    className={`text-xs text-muted-foreground mt-1 ${
-                                      isUser ? "text-right" : "text-left"
-                                    }`}
-                                  >
-                                    {formatTime(
-                                      new Date(m.createdAt as unknown as string)
-                                    )}
-                                  </p>
-                                </div>
-                              );
-                            }
-
-                            if (part.type === "tool-invocation") {
-                              const toolInvocation = part.toolInvocation;
-                              const toolCallId = toolInvocation.toolCallId;
-                              const needsConfirmation =
-                                toolsRequiringConfirmation.includes(
-                                  toolInvocation.toolName as
-                                    | keyof typeof generalTools
-                                    | keyof typeof campaignTools
-                                    | keyof typeof pdfTools
+                                  );
+                                }
+                                return (
+                                  <React.Fragment
+                                    key={`unknown-${part.type || "unknown"}-${i}`}
+                                  />
                                 );
-
-                              // Skip rendering the card when debug is off
-                              if (!showDebug) return null;
-
-                              return (
-                                <ToolInvocationCard
-                                  // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here as the array is static
-                                  key={`${toolCallId}-${i}`}
-                                  toolInvocation={toolInvocation}
-                                  toolCallId={toolCallId}
-                                  needsConfirmation={needsConfirmation}
-                                  addToolResult={addToolResult}
-                                  showDebug={showDebug}
-                                />
-                              );
-                            }
-                            return null;
-                          })}
+                              });
+                            })()}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
+                );
+              } catch (error) {
+                console.error("Error rendering message:", error, m);
+                return (
+                  <div
+                    key={m.id || index}
+                    className="p-2 bg-red-50 border border-red-200 rounded"
+                  >
+                    <p className="text-red-600 text-sm">
+                      Error rendering message
+                    </p>
+                  </div>
+                );
+              }
             })}
           </div>
 
