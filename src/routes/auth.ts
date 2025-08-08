@@ -3,6 +3,7 @@ import { jwtVerify } from "jose";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { AuthService } from "../services/auth-service";
+import { RAGService } from "../lib/rag";
 
 // Helper to set user auth context
 export function setUserAuth(c: Context, payload: AuthPayload) {
@@ -80,7 +81,6 @@ export async function determineAgent(
   let ragService = null;
   if (username) {
     try {
-      const { RAGService } = await import("../lib/rag");
       ragService = new RAGService(env.DB, env.VECTORIZE);
     } catch (error) {
       console.log("[AgentRouter] Could not initialize RAG service:", error);
