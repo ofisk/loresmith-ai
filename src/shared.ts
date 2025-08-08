@@ -92,6 +92,7 @@ export const API_CONFIG = {
       BASE: "/campaigns",
       RESOURCES: (campaignId: string) => `/campaigns/${campaignId}/resources`,
       RESOURCE: (campaignId: string) => `/campaigns/${campaignId}/resource`,
+
       DETAILS: (campaignId: string) => `/campaigns/${campaignId}`,
       CONTEXT: (campaignId: string) => `/campaigns/${campaignId}/context`,
       CHARACTERS: (campaignId: string) => `/campaigns/${campaignId}/characters`,
