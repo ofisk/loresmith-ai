@@ -2,20 +2,37 @@ export * from "./external-resources-tools";
 export * from "./guidance-tools";
 export * from "./state-analysis-tools";
 
+// Import the actual tool objects
+import {
+  analyzeUserState,
+  getCampaignHealth,
+  getUserActivity,
+} from "./state-analysis-tools";
+import {
+  provideWelcomeGuidance,
+  suggestNextActions,
+  provideCampaignGuidance,
+} from "./guidance-tools";
+import {
+  recommendExternalTools,
+  suggestInspirationSources,
+  recommendGMResources,
+} from "./external-resources-tools";
+
 // Export the tools object for the agent
 export const onboardingTools = {
   // State analysis tools
-  analyzeUserState: "analyzeUserState",
-  getCampaignHealth: "getCampaignHealth",
-  getUserActivity: "getUserActivity",
+  analyzeUserState,
+  getCampaignHealth,
+  getUserActivity,
 
   // Guidance tools
-  provideWelcomeGuidance: "provideWelcomeGuidance",
-  suggestNextActions: "suggestNextActions",
-  provideCampaignGuidance: "provideCampaignGuidance",
+  provideWelcomeGuidance,
+  suggestNextActions,
+  provideCampaignGuidance,
 
   // External resources tools
-  recommendExternalTools: "recommendExternalTools",
-  suggestInspirationSources: "suggestInspirationSources",
-  recommendGMResources: "recommendGMResources",
+  recommendExternalTools,
+  suggestInspirationSources,
+  recommendGMResources,
 } as const;

@@ -1,5 +1,9 @@
+import { tool } from "ai";
+import { z } from "zod";
 import { AssessmentService } from "../../services/assessment-service";
+import { AuthService } from "../../services/auth-service";
 import type { Campaign, CampaignResource } from "../../types/campaign";
+import { commonSchemas, createToolError, createToolSuccess } from "../utils";
 
 /**
  * User state analysis for contextual guidance
@@ -62,53 +66,164 @@ export interface ToolRecommendation {
 /**
  * Tool: Analyze user's current state for contextual guidance
  */
-export async function analyzeUserStateTool(
-  username: string,
-  db: any
-): Promise<UserState> {
-  try {
-    const assessmentService = new AssessmentService(db);
-    return await assessmentService.analyzeUserState(username);
-  } catch (error) {
-    console.error("Failed to analyze user state:", error);
-    throw new Error("Failed to analyze user state");
-  }
-}
+export const analyzeUserState = tool({
+  description:
+    "Analyze the user's current state to provide contextual guidance",
+  parameters: z.object({
+    jwt: commonSchemas.jwt,
+  }),
+  execute: async ({ jwt }, context?: any): Promise<any> => {
+    const toolCallId = context?.toolCallId || "unknown";
+
+    try {
+      const env = context?.env;
+      if (!env) {
+        return createToolError(
+          "Environment not available",
+          { error: "Environment not available" },
+          500,
+          toolCallId
+        );
+      }
+
+      // Extract username from JWT
+      const username = jwt ? AuthService.parseJwtForUsername(jwt) : null;
+      if (!username) {
+        return createToolError(
+          "Invalid JWT token",
+          { error: "Could not extract username from JWT" },
+          401,
+          toolCallId
+        );
+      }
+
+      const assessmentService = new AssessmentService(env.DB);
+      const userState = await assessmentService.analyzeUserState(username);
+
+      return createToolSuccess(
+        "User state analyzed successfully",
+        { userState },
+        toolCallId
+      );
+    } catch (error) {
+      console.error("Failed to analyze user state:", error);
+      return createToolError(
+        "Failed to analyze user state",
+        { error: error instanceof Error ? error.message : String(error) },
+        500,
+        toolCallId
+      );
+    }
+  },
+});
 
 /**
  * Tool: Get campaign health summary for existing campaigns
  */
-export async function getCampaignHealthTool(
-  campaignId: string,
-  campaign: Campaign,
-  resources: CampaignResource[],
-  db: any
-): Promise<CampaignHealthSummary> {
-  try {
-    const assessmentService = new AssessmentService(db);
-    return await assessmentService.getCampaignHealth(
-      campaignId,
-      campaign,
-      resources
-    );
-  } catch (error) {
-    console.error("Failed to get campaign health:", error);
-    throw new Error("Failed to analyze campaign health");
-  }
-}
+export const getCampaignHealth = tool({
+  description: "Get campaign health summary for existing campaigns",
+  parameters: z.object({
+    campaignId: z.string().describe("The campaign ID to analyze"),
+    jwt: commonSchemas.jwt,
+  }),
+  execute: async ({ campaignId, jwt }, context?: any): Promise<any> => {
+    const toolCallId = context?.toolCallId || "unknown";
+
+    try {
+      const env = context?.env;
+      if (!env) {
+        return createToolError(
+          "Environment not available",
+          { error: "Environment not available" },
+          500,
+          toolCallId
+        );
+      }
+
+      // Extract username from JWT
+      const username = jwt ? AuthService.parseJwtForUsername(jwt) : null;
+      if (!username) {
+        return createToolError(
+          "Invalid JWT token",
+          { error: "Could not extract username from JWT" },
+          401,
+          toolCallId
+        );
+      }
+
+      const assessmentService = new AssessmentService(env.DB);
+      const campaignHealth = await assessmentService.getCampaignHealth(
+        campaignId,
+        {} as Campaign, // TODO: Get actual campaign data
+        [] as CampaignResource[] // TODO: Get actual resource data
+      );
+
+      return createToolSuccess(
+        "Campaign health analyzed successfully",
+        { campaignHealth },
+        toolCallId
+      );
+    } catch (error) {
+      console.error("Failed to get campaign health:", error);
+      return createToolError(
+        "Failed to analyze campaign health",
+        { error: error instanceof Error ? error.message : String(error) },
+        500,
+        toolCallId
+      );
+    }
+  },
+});
 
 /**
  * Tool: Get user activity for personalized guidance
  */
-export async function getUserActivityTool(
-  username: string,
-  db: any
-): Promise<ActivityType[]> {
-  try {
-    const assessmentService = new AssessmentService(db);
-    return await assessmentService.getUserActivity(username);
-  } catch (error) {
-    console.error("Failed to get user activity:", error);
-    throw new Error("Failed to retrieve user activity");
-  }
-}
+export const getUserActivity = tool({
+  description: "Get user activity for personalized guidance",
+  parameters: z.object({
+    jwt: commonSchemas.jwt,
+  }),
+  execute: async ({ jwt }, context?: any): Promise<any> => {
+    const toolCallId = context?.toolCallId || "unknown";
+
+    try {
+      const env = context?.env;
+      if (!env) {
+        return createToolError(
+          "Environment not available",
+          { error: "Environment not available" },
+          500,
+          toolCallId
+        );
+      }
+
+      // Extract username from JWT
+      const username = jwt ? AuthService.parseJwtForUsername(jwt) : null;
+      if (!username) {
+        return createToolError(
+          "Invalid JWT token",
+          { error: "Could not extract username from JWT" },
+          401,
+          toolCallId
+        );
+      }
+
+      const assessmentService = new AssessmentService(env.DB);
+      const activity = await assessmentService.getUserActivity(username);
+
+      return createToolSuccess(
+        "User activity retrieved successfully",
+        { activity },
+        toolCallId
+      );
+    } catch (error) {
+      console.error("Failed to get user activity:", error);
+      return createToolError(
+        "Failed to retrieve user activity",
+        { error: error instanceof Error ? error.message : String(error) },
+        500,
+        toolCallId
+      );
+    }
+  },
+});
