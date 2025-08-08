@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import { RAGService } from "../lib/rag";
+import { AutoRAGService } from "../services/autorag-service";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { completeProgress } from "../services/progress";
@@ -19,9 +19,9 @@ export async function handleRagSearch(c: ContextWithAuth) {
       return c.json({ error: "Query is required" }, 400);
     }
 
-    const ragService = new RAGService(
+    const ragService = new AutoRAGService(
       c.env.DB,
-      c.env.VECTORIZE,
+      c.env.AUTORAG,
       userAuth.openaiApiKey
     );
     const results = await ragService.searchContent(
@@ -92,9 +92,9 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
         }
 
         // Process with RAG service
-        const ragService = new RAGService(
+        const ragService = new AutoRAGService(
           c.env.DB,
-          c.env.VECTORIZE,
+          c.env.AUTORAG,
           userAuth.openaiApiKey
         );
         await ragService.processPdfFromR2(
@@ -190,9 +190,9 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
         }
 
         // Process with RAG service
-        const ragService = new RAGService(
+        const ragService = new AutoRAGService(
           c.env.DB,
-          c.env.VECTORIZE,
+          c.env.AUTORAG,
           userAuth.openaiApiKey
         );
         await ragService.processPdfFromR2(
@@ -238,6 +238,76 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
 }
 
 // Update PDF metadata for RAG
+export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    const { fileKey } = await c.req.json();
+
+    if (fileKey) {
+      // Process specific file
+      const { AutoRAGService } = await import("../services/autorag-service");
+      const ragService = new AutoRAGService(
+        c.env.DB,
+        (c.env as any).AI,
+        userAuth.openaiApiKey
+      );
+
+      // Get file metadata
+      const file = await c.env.DB.prepare(
+        "SELECT * FROM pdf_files WHERE file_key = ? AND username = ?"
+      )
+        .bind(fileKey, userAuth.username)
+        .first();
+
+      if (!file) {
+        return c.json({ error: "File not found" }, 404);
+      }
+
+      // Run processing in background
+      setTimeout(async () => {
+        try {
+          await ragService.processPdfFromR2(
+            fileKey,
+            userAuth.username,
+            c.env.FILE_BUCKET,
+            {
+              file_key: fileKey,
+              username: userAuth.username,
+              file_name: file.file_name as string,
+              file_size: file.file_size as number,
+              status: "processing",
+              created_at: file.created_at as string,
+            }
+          );
+          console.log(`[AutoRAG] Manual processing completed for ${fileKey}`);
+        } catch (error) {
+          console.error(
+            `[AutoRAG] Manual processing failed for ${fileKey}:`,
+            error
+          );
+        }
+      }, 100);
+
+      return c.json({
+        success: true,
+        message: `AutoRAG processing triggered for ${fileKey}`,
+      });
+    } else {
+      // AutoRAG automatically handles indexing from R2 bucket
+      // No manual bulk processing needed
+      console.log("[RAG] AutoRAG automatically indexes content from R2 bucket");
+
+      return c.json({
+        success: true,
+        message: "AutoRAG indexing is automatic - no manual trigger needed",
+      });
+    }
+  } catch (error) {
+    console.error("Error triggering AutoRAG indexing:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+}
+
 export async function handleUpdatePdfMetadataForRag(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
@@ -274,6 +344,10 @@ export async function handleGetPdfFilesForRag(c: ContextWithAuth) {
       .bind(userAuth.username)
       .all();
 
+    // Check for metadata updates from AutoRAG
+    const autoRagService = new AutoRAGService(c.env.DB, (c.env as any).AI);
+    await autoRagService.getUserPdfs(userAuth.username); // This will trigger metadata updates
+
     return c.json({ files: files.results || [] });
   } catch (error) {
     console.error("Error fetching PDF files for RAG:", error);
@@ -296,6 +370,41 @@ export async function handleGetPdfChunksForRag(c: ContextWithAuth) {
     return c.json({ chunks: chunks.results || [] });
   } catch (error) {
     console.error("Error fetching PDF chunks for RAG:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+}
+
+// Check AutoRAG indexing status and update metadata
+export async function handleCheckAutoRAGStatus(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    const autoRagService = new AutoRAGService(c.env.DB, (c.env as any).AI);
+
+    // Get files and trigger metadata updates
+    const files = await autoRagService.getUserPdfs(userAuth.username);
+
+    // Count files by status
+    const uploaded = files.filter((f) => f.status === "uploaded").length;
+    const processed = files.filter((f) => f.status === "processed").length;
+    const processing = files.filter((f) => f.status === "processing").length;
+    const error = files.filter((f) => f.status === "error").length;
+
+    return c.json({
+      success: true,
+      uploaded,
+      processed,
+      processing,
+      error,
+      total: files.length,
+      message:
+        uploaded > 0
+          ? `${uploaded} files uploaded and waiting for AutoRAG indexing`
+          : processed > 0
+            ? "All files have been indexed and processed"
+            : "No files found",
+    });
+  } catch (error) {
+    console.error("Error checking AutoRAG status:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }

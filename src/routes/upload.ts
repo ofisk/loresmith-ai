@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import type { Env } from "../middleware/auth";
 import { requireUserJwt } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
-import { RAGService } from "../services/rag-service";
+
 import { UploadService } from "../services/upload-service";
 
 const upload = new Hono<{
@@ -19,7 +19,8 @@ upload.use("*", requireUserJwt);
 // Start a new upload session
 upload.post("/start", async (c) => {
   try {
-    const { filename, fileSize, contentType } = await c.req.json();
+    const { filename, fileSize, contentType, enableAutoRAGChunking } =
+      await c.req.json();
     const userId = c.get("userAuth")?.username || "anonymous";
 
     if (!filename || !fileSize) {
@@ -31,7 +32,8 @@ upload.post("/start", async (c) => {
       userId,
       filename,
       fileSize,
-      contentType
+      contentType,
+      enableAutoRAGChunking || false
     );
 
     console.log(`[Upload] Started upload session:`, {
@@ -46,6 +48,7 @@ upload.post("/start", async (c) => {
       fileKey: result.fileKey,
       chunkSize: 5 * 1024 * 1024, // 5MB chunks
       totalParts: result.totalParts,
+      autoRAGChunking: result.autoRAGChunking,
     });
   } catch (error) {
     console.error("[Upload] Error starting upload:", error);
@@ -60,6 +63,8 @@ upload.post("/part", async (c) => {
     const sessionId = formData.get("sessionId") as string;
     const partNumber = parseInt(formData.get("partNumber") as string);
     const file = formData.get("file") as File;
+    const enableAutoRAGChunking =
+      formData.get("enableAutoRAGChunking") === "true";
 
     if (!sessionId || !partNumber || !file) {
       return c.json(
@@ -73,7 +78,8 @@ upload.post("/part", async (c) => {
     const result = await uploadService.uploadPart(
       sessionId,
       partNumber,
-      arrayBuffer
+      arrayBuffer,
+      enableAutoRAGChunking
     );
 
     console.log(`[Upload] Uploaded part:`, {
@@ -88,6 +94,7 @@ upload.post("/part", async (c) => {
       partNumber,
       etag: result.etag,
       size: result.size,
+      autoRAGChunks: result.autoRAGChunks,
     });
   } catch (error) {
     console.error("[Upload] Error uploading part:", error);
@@ -108,17 +115,32 @@ upload.post("/complete", async (c) => {
     const uploadService = new UploadService(c.env);
     const { fileKey, metadata } = await uploadService.completeUpload(sessionId);
 
-    // Process file for metadata generation
-    const ragService = new RAGService(c.env);
-    const processedMetadata = await ragService.processFile(metadata);
+    // AutoRAG will automatically index content from the R2 bucket
+    // No need to create chunks manually - AutoRAG handles text extraction and indexing
+    console.log(
+      `[Upload] AutoRAG will automatically index content from R2 bucket for ${fileKey}`
+    );
 
-    // Update metadata with generated content
-    await ragService.updateFileMetadata(metadata.id, userId, {
-      description: processedMetadata.description,
-      tags: processedMetadata.tags,
-      status: "completed",
-      vectorId: processedMetadata.vectorId,
-    });
+    // Always count AutoRAG parts since we always create them
+    const parts = fileKey.split("/");
+    const username = parts[0];
+    const originalFilename = parts[parts.length - 1] || "unknown";
+    const prefix = `${username}/part-`;
+    const objects = await c.env.FILE_BUCKET.list({ prefix });
+    const partCount =
+      objects.objects?.filter(
+        (obj) =>
+          obj.key.includes(`part-`) &&
+          obj.key.includes(originalFilename) &&
+          (obj.key.endsWith(".txt") || obj.key.endsWith(".chunk"))
+      ).length || 0;
+
+    // Leave metadata blank - let AutoRAG generate meaningful metadata
+    const processedMetadata = {
+      description: "",
+      tags: [],
+      vectorId: null,
+    };
 
     // Also create an entry in the pdf_files table for PDF tools
     const now = new Date().toISOString();
@@ -129,7 +151,7 @@ upload.post("/complete", async (c) => {
 
     try {
       await c.env.DB.prepare(
-        "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size, chunk_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       )
         .bind(
           pdfFileId,
@@ -140,7 +162,8 @@ upload.post("/complete", async (c) => {
           userId,
           "completed",
           now,
-          metadata.fileSize || 0
+          metadata.fileSize || 0,
+          partCount
         )
         .run();
 

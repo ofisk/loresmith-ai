@@ -5,6 +5,7 @@ import {
   streamText,
   type ToolSet,
 } from "ai";
+import { formatDataStreamPart } from "@ai-sdk/ui-utils";
 
 interface Env {
   ADMIN_SECRET?: string;
@@ -177,39 +178,39 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
         // Create enhanced tools that automatically include JWT
         const enhancedTools = this.createEnhancedTools(clientJwt);
 
+        // Use tools if available, otherwise use none
+        const toolChoice =
+          Object.keys(enhancedTools).length > 0 ? "auto" : "none";
+
         // Stream the AI response using the provided model
         console.log(
-          `[${this.constructor.name}] Starting streamText with toolChoice: required`
+          `[${this.constructor.name}] Starting streamText with toolChoice: ${toolChoice}`
         );
-        console.log(`[${this.constructor.name}] Model:`, this.model);
+        console.log(`[${this.constructor.name}] Model: ${this.model}`);
         console.log(
-          `[${this.constructor.name}] System prompt length:`,
-          (this.constructor as any).agentMetadata.systemPrompt.length
-        );
-        console.log(
-          `[${this.constructor.name}] Processed messages count:`,
-          processedMessages.length
+          `[${this.constructor.name}] System prompt length: ${(this.constructor as any).agentMetadata.systemPrompt.length}`
         );
         console.log(
-          `[${this.constructor.name}] Enhanced tools count:`,
-          Object.keys(enhancedTools).length
+          `[${this.constructor.name}] Processed messages count: ${processedMessages.length}`
+        );
+        console.log(
+          `[${this.constructor.name}] Enhanced tools count: ${Object.keys(enhancedTools).length}`
         );
 
         try {
           const result = streamText({
             model: this.model,
             system: (this.constructor as any).agentMetadata.systemPrompt,
-            toolChoice: "auto", // Allow the model to choose whether to use tools or respond directly
+            toolChoice, // Use the variable instead of hardcoded value
             messages: processedMessages,
             tools: enhancedTools,
+            maxSteps: 5, // Allow multiple steps including final response
             onFinish: async (args) => {
               console.log(
-                `[${this.constructor.name}] onFinish called with args:`,
-                args
+                `[${this.constructor.name}] onFinish called with finishReason: ${args.finishReason}`
               );
               console.log(
-                `[${this.constructor.name}] onFinish steps:`,
-                args.steps
+                `[${this.constructor.name}] onFinish steps count: ${args.steps?.length || 0}`
               );
               (onFinish ?? (() => {}))(
                 args as Parameters<StreamTextOnFinishCallback<ToolSet>>[0]
@@ -217,11 +218,17 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
             },
             onError: (error) => {
               console.error(
-                `Error while streaming in ${this.constructor.name}:`,
+                `Error in ${this.constructor.name} streamText:`,
                 error
               );
+              // Send error message to user
+              dataStream.write(
+                formatDataStreamPart(
+                  "text",
+                  "I apologize, but I encountered an error while processing your request. Please try again."
+                )
+              );
             },
-            maxSteps: 3, // Reduce steps to minimize rate limiting
           });
 
           console.log(
@@ -229,28 +236,46 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
             typeof result
           );
 
-          // Merge the AI response stream with tool execution outputs
-          if (
-            result &&
-            typeof (
-              result as { mergeIntoDataStream?: (dataStream: unknown) => void }
-            ).mergeIntoDataStream === "function"
-          ) {
+          // Handle the result using textStream
+          if (result?.textStream) {
             console.log(
-              `[${this.constructor.name}] Merging result into dataStream`
+              `[${this.constructor.name}] Using textStream for response`
             );
-            (
-              result as { mergeIntoDataStream: (dataStream: unknown) => void }
-            ).mergeIntoDataStream(dataStream);
+
+            let fullText = "";
+            for await (const chunk of result.textStream) {
+              fullText += chunk;
+              // Write each chunk to the data stream
+              dataStream.write(formatDataStreamPart("text", chunk));
+            }
+
+            console.log(
+              `[${this.constructor.name}] Completed streaming response:`,
+              `${fullText.substring(0, 100)}...`
+            );
           } else {
             console.log(
-              `[${this.constructor.name}] No mergeIntoDataStream function found on result`
+              `[${this.constructor.name}] No textStream available, using fallback`
+            );
+            // Fallback response
+            dataStream.write(
+              formatDataStreamPart(
+                "text",
+                "I'm here to help! What would you like to know about LoreSmith AI?"
+              )
             );
           }
         } catch (error) {
           console.error(
             `[${this.constructor.name}] Error in streamText:`,
             error
+          );
+          // Write error message to dataStream
+          dataStream.write(
+            formatDataStreamPart(
+              "text",
+              "I apologize, but I encountered an error while processing your request. Please try again."
+            )
           );
           throw error;
         }
@@ -296,38 +321,34 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
               // Ensure JWT is always included for operations
               const enhancedArgs = { ...args, jwt: clientJwt };
 
-              console.log(
-                `[${this.constructor.name}] Calling tool ${toolName} with args:`,
-                enhancedArgs
-              );
-              console.log(
-                `[${this.constructor.name}] Tool ${toolName} execute function:`,
-                typeof tool.execute
-              );
+              // Execute the tool
               console.log(
                 `[${this.constructor.name}] About to execute tool ${toolName}`
               );
 
               // Pass environment to tools that need it
               const enhancedContext = { ...context, env: this.env };
-              const result = await tool.execute?.(
+              const toolResult = await tool.execute(
                 enhancedArgs,
                 enhancedContext
               );
+
               console.log(
-                `[${this.constructor.name}] Tool ${toolName} result:`,
-                result
+                `[${this.constructor.name}] Tool ${toolName} result: ${JSON.stringify(toolResult).substring(0, 200)}...`
               );
 
               // Add delay to prevent rate limiting
               await new Promise((resolve) => setTimeout(resolve, 100));
 
               // Runtime assertion to catch wrong format
-              if (result && typeof result === "object") {
-                if (!("toolCallId" in result) || !("result" in result)) {
+              if (toolResult && typeof toolResult === "object") {
+                if (
+                  !("toolCallId" in toolResult) ||
+                  !("result" in toolResult)
+                ) {
                   console.error(
                     `[${this.constructor.name}] Tool ${toolName} returned wrong format:`,
-                    result
+                    toolResult
                   );
                   console.error(
                     `[${this.constructor.name}] Expected ToolResult format: { toolCallId: string, result: { success: boolean, message: string, data?: unknown } }`
@@ -336,7 +357,6 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
                 }
 
                 // Validate the result structure
-                const toolResult = result as any;
                 if (
                   !toolResult.result ||
                   typeof toolResult.result !== "object"
@@ -364,7 +384,7 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
                 }
               }
 
-              return result;
+              return toolResult;
             },
           },
         ];

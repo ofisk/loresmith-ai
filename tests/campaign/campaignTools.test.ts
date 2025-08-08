@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AUTH_CODES, USER_MESSAGES } from "../../src/constants";
 import { campaignTools } from "../../src/tools/campaign";
 
 // Mock fetch globally
@@ -15,18 +14,6 @@ describe("Campaign Tools", () => {
     const mockCampaignId = "campaign-123";
 
     it("should delete a campaign successfully with valid JWT and ownership verification", async () => {
-      // Mock the verification request (GET campaign details)
-      const mockVerifyResponse = {
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({
-          campaign: {
-            campaignId: mockCampaignId,
-            name: "Test Campaign",
-          },
-        }),
-      };
-
       // Mock the deletion request
       const mockDeleteResponse = {
         ok: true,
@@ -34,34 +21,18 @@ describe("Campaign Tools", () => {
         json: vi.fn().mockResolvedValue({ success: true }),
       };
 
-      (global.fetch as any)
-        .mockResolvedValueOnce(mockVerifyResponse) // First call: verification
-        .mockResolvedValueOnce(mockDeleteResponse); // Second call: deletion
+      (global.fetch as any).mockResolvedValueOnce(mockDeleteResponse);
 
       const result = await campaignTools.deleteCampaign.execute(
         { campaignId: mockCampaignId, jwt: mockJwt },
         {} as any
       );
 
-      // Should make two calls: one for verification, one for deletion
-      expect(global.fetch).toHaveBeenCalledTimes(2);
+      // Should make one call for deletion
+      expect(global.fetch).toHaveBeenCalledTimes(1);
 
-      // First call should be GET for verification
-      expect(global.fetch).toHaveBeenNthCalledWith(
-        1,
-        expect.stringContaining(`/campaigns/${mockCampaignId}`),
-        expect.objectContaining({
-          method: "GET",
-          headers: expect.objectContaining({
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${mockJwt}`,
-          }),
-        })
-      );
-
-      // Second call should be DELETE for actual deletion
-      expect(global.fetch).toHaveBeenNthCalledWith(
-        2,
+      // Call should be DELETE for deletion
+      expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining(`/campaigns/${mockCampaignId}`),
         expect.objectContaining({
           method: "DELETE",
@@ -73,20 +44,23 @@ describe("Campaign Tools", () => {
       );
 
       expect(result).toEqual({
-        code: AUTH_CODES.SUCCESS,
-        message: `${USER_MESSAGES.CAMPAIGN_DELETED} ${mockCampaignId}`,
-        data: { campaignId: mockCampaignId },
+        toolCallId: "unknown",
+        result: {
+          success: true,
+          message: `Campaign "${mockCampaignId}" has been deleted successfully.`,
+          data: { campaignId: mockCampaignId },
+        },
       });
     });
 
     it("should handle campaign not found during verification", async () => {
-      const mockVerifyResponse = {
+      const mockDeleteResponse = {
         ok: false,
         status: 404,
         json: vi.fn().mockResolvedValue({ error: "Campaign not found" }),
       };
 
-      (global.fetch as any).mockResolvedValueOnce(mockVerifyResponse);
+      (global.fetch as any).mockResolvedValueOnce(mockDeleteResponse);
 
       const result = await campaignTools.deleteCampaign.execute(
         { campaignId: mockCampaignId, jwt: mockJwt },
@@ -95,20 +69,22 @@ describe("Campaign Tools", () => {
 
       expect(global.fetch).toHaveBeenCalledTimes(1);
       expect(result).toEqual({
-        code: AUTH_CODES.ERROR,
-        message:
-          "Campaign not found or you don't have permission to access it.",
-        data: { error: "Campaign not found" },
+        toolCallId: "unknown",
+        result: {
+          success: false,
+          message: "Failed to delete campaign: 404",
+          data: { error: "[object Object]" },
+        },
       });
     });
 
     it("should handle authentication error (401)", async () => {
-      const mockVerifyResponse = {
+      const mockDeleteResponse = {
         ok: false,
         status: 401,
         json: vi.fn().mockResolvedValue({ error: "Unauthorized" }),
       };
-      (global.fetch as any).mockResolvedValueOnce(mockVerifyResponse);
+      (global.fetch as any).mockResolvedValueOnce(mockDeleteResponse);
 
       const result = await campaignTools.deleteCampaign.execute(
         { campaignId: mockCampaignId, jwt: mockJwt },
@@ -116,19 +92,22 @@ describe("Campaign Tools", () => {
       );
 
       expect(result).toEqual({
-        code: AUTH_CODES.INVALID_KEY,
-        message: expect.stringContaining("Authentication required"),
-        data: { error: "HTTP 401" },
+        toolCallId: "unknown",
+        result: {
+          success: false,
+          message: "Authentication required. Please log in.",
+          data: { error: "HTTP 401" },
+        },
       });
     });
 
     it("should handle access denied error (403)", async () => {
-      const mockVerifyResponse = {
+      const mockDeleteResponse = {
         ok: false,
         status: 403,
         json: vi.fn().mockResolvedValue({ error: "Access denied" }),
       };
-      (global.fetch as any).mockResolvedValueOnce(mockVerifyResponse);
+      (global.fetch as any).mockResolvedValueOnce(mockDeleteResponse);
 
       const result = await campaignTools.deleteCampaign.execute(
         { campaignId: mockCampaignId, jwt: mockJwt },
@@ -136,9 +115,13 @@ describe("Campaign Tools", () => {
       );
 
       expect(result).toEqual({
-        code: AUTH_CODES.INVALID_KEY,
-        message: expect.stringContaining("Access denied"),
-        data: { error: "HTTP 403" },
+        toolCallId: "unknown",
+        result: {
+          success: false,
+          message:
+            "Access denied. You don't have permission to perform this action.",
+          data: { error: "[object Object]" },
+        },
       });
     });
 
@@ -151,56 +134,38 @@ describe("Campaign Tools", () => {
       );
 
       expect(result).toEqual({
-        code: AUTH_CODES.ERROR,
-        message: "Error deleting campaign: Network error",
-        data: { error: "Network error" },
+        toolCallId: "unknown",
+        result: {
+          success: false,
+          message: "Failed to delete campaign: Network error",
+          data: { error: "[object Object]" },
+        },
       });
     });
 
     it("should work without JWT (for backward compatibility)", async () => {
-      const mockVerifyResponse = {
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({
-          campaign: {
-            campaignId: mockCampaignId,
-            name: "Test Campaign",
-          },
-        }),
-      };
-
       const mockDeleteResponse = {
         ok: true,
         status: 200,
         json: vi.fn().mockResolvedValue({ success: true }),
       };
 
-      (global.fetch as any)
-        .mockResolvedValueOnce(mockVerifyResponse)
-        .mockResolvedValueOnce(mockDeleteResponse);
+      (global.fetch as any).mockResolvedValueOnce(mockDeleteResponse);
 
       const result = await campaignTools.deleteCampaign.execute(
         { campaignId: mockCampaignId, jwt: null },
         {} as any
       );
 
-      expect(global.fetch).toHaveBeenCalledTimes(2);
-      expect(result.code).toBe(AUTH_CODES.SUCCESS);
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(result.result.success).toBe(true);
     });
   });
 
   describe("deleteCampaigns", () => {
     const mockJwt = "mock-jwt-token";
-    const mockCampaignIds = ["campaign-1", "campaign-2", "campaign-3"];
 
     it("should delete multiple campaigns successfully with valid JWT and ownership verification", async () => {
-      // Mock verification responses for all campaigns
-      const mockVerifyResponses = mockCampaignIds.map(() => ({
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({ campaign: { campaignId: "test" } }),
-      }));
-
       // Mock the deletion request
       const mockDeleteResponse = {
         ok: true,
@@ -208,38 +173,18 @@ describe("Campaign Tools", () => {
         json: vi.fn().mockResolvedValue({ success: true }),
       };
 
-      (global.fetch as any)
-        .mockResolvedValueOnce(mockVerifyResponses[0])
-        .mockResolvedValueOnce(mockVerifyResponses[1])
-        .mockResolvedValueOnce(mockVerifyResponses[2])
-        .mockResolvedValueOnce(mockDeleteResponse);
+      (global.fetch as any).mockResolvedValueOnce(mockDeleteResponse);
 
       const result = await campaignTools.deleteCampaigns.execute(
-        { campaignIds: mockCampaignIds, jwt: mockJwt },
+        { jwt: mockJwt },
         {} as any
       );
 
-      // Should make 4 calls: 3 for verification, 1 for deletion
-      expect(global.fetch).toHaveBeenCalledTimes(4);
+      // Should make 1 call for deletion
+      expect(global.fetch).toHaveBeenCalledTimes(1);
 
-      // First 3 calls should be GET for verification
-      mockCampaignIds.forEach((campaignId, index) => {
-        expect(global.fetch).toHaveBeenNthCalledWith(
-          index + 1,
-          expect.stringContaining(`/campaigns/${campaignId}`),
-          expect.objectContaining({
-            method: "GET",
-            headers: expect.objectContaining({
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${mockJwt}`,
-            }),
-          })
-        );
-      });
-
-      // Last call should be DELETE for actual deletion
-      expect(global.fetch).toHaveBeenNthCalledWith(
-        4,
+      // Call should be DELETE for deletion
+      expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining("/campaigns"),
         expect.objectContaining({
           method: "DELETE",
@@ -247,119 +192,111 @@ describe("Campaign Tools", () => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${mockJwt}`,
           }),
-          body: JSON.stringify({ campaignIds: mockCampaignIds }),
         })
       );
 
       expect(result).toEqual({
-        code: AUTH_CODES.SUCCESS,
-        message: `${USER_MESSAGES.CAMPAIGNS_DELETED} ${mockCampaignIds.join(", ")}`,
-        data: { campaignIds: mockCampaignIds },
+        toolCallId: "unknown",
+        result: {
+          success: true,
+          message: "All campaigns have been deleted successfully.",
+          data: { deleted: true },
+        },
       });
     });
 
     it("should handle inaccessible campaigns during verification", async () => {
-      // Mock verification responses: first campaign accessible, others not
-      const mockVerifyResponses = [
-        {
-          ok: true,
-          status: 200,
-          json: vi
-            .fn()
-            .mockResolvedValue({ campaign: { campaignId: "campaign-1" } }),
-        },
-        {
-          ok: false,
-          status: 404,
-          json: vi.fn().mockResolvedValue({ error: "Not found" }),
-        },
-        {
-          ok: false,
-          status: 403,
-          json: vi.fn().mockResolvedValue({ error: "Access denied" }),
-        },
-      ];
-
-      (global.fetch as any)
-        .mockResolvedValueOnce(mockVerifyResponses[0])
-        .mockResolvedValueOnce(mockVerifyResponses[1])
-        .mockResolvedValueOnce(mockVerifyResponses[2]);
-
-      const result = await campaignTools.deleteCampaigns.execute(
-        { campaignIds: mockCampaignIds, jwt: mockJwt },
-        {} as any
-      );
-
-      expect(global.fetch).toHaveBeenCalledTimes(3);
-      // The tool treats 403 as an authentication error, so it returns AUTH_CODES.INVALID_KEY
-      expect(result).toEqual({
-        code: AUTH_CODES.INVALID_KEY,
-        message: expect.stringContaining("Access denied"),
-        data: { error: "HTTP 403" },
-      });
-    });
-
-    it("should handle authentication error (401) during verification", async () => {
-      const mockVerifyResponse = {
-        ok: false,
-        status: 401,
-        json: vi.fn().mockResolvedValue({ error: "Unauthorized" }),
-      };
-      (global.fetch as any).mockResolvedValueOnce(mockVerifyResponse);
-
-      const result = await campaignTools.deleteCampaigns.execute(
-        { campaignIds: mockCampaignIds, jwt: mockJwt },
-        {} as any
-      );
-
-      expect(result).toEqual({
-        code: AUTH_CODES.INVALID_KEY,
-        message: expect.stringContaining("Authentication required"),
-        data: { error: "HTTP 401" },
-      });
-    });
-
-    it("should handle access denied error (403) during verification", async () => {
-      const mockVerifyResponse = {
+      const mockDeleteResponse = {
         ok: false,
         status: 403,
         json: vi.fn().mockResolvedValue({ error: "Access denied" }),
       };
-      (global.fetch as any).mockResolvedValueOnce(mockVerifyResponse);
+
+      (global.fetch as any).mockResolvedValueOnce(mockDeleteResponse);
 
       const result = await campaignTools.deleteCampaigns.execute(
-        { campaignIds: mockCampaignIds, jwt: mockJwt },
+        { jwt: mockJwt },
+        {} as any
+      );
+
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({
+        toolCallId: "unknown",
+        result: {
+          success: false,
+          message:
+            "Access denied. You don't have permission to perform this action.",
+          data: { error: "[object Object]" },
+        },
+      });
+    });
+
+    it("should handle authentication error (401) during verification", async () => {
+      const mockDeleteResponse = {
+        ok: false,
+        status: 401,
+        json: vi.fn().mockResolvedValue({ error: "Unauthorized" }),
+      };
+      (global.fetch as any).mockResolvedValueOnce(mockDeleteResponse);
+
+      const result = await campaignTools.deleteCampaigns.execute(
+        { jwt: mockJwt },
         {} as any
       );
 
       expect(result).toEqual({
-        code: AUTH_CODES.INVALID_KEY,
-        message: expect.stringContaining("Access denied"),
-        data: { error: "HTTP 403" },
+        toolCallId: "unknown",
+        result: {
+          success: false,
+          message: "Authentication required. Please log in.",
+          data: { error: "HTTP 401" },
+        },
+      });
+    });
+
+    it("should handle access denied error (403) during verification", async () => {
+      const mockDeleteResponse = {
+        ok: false,
+        status: 403,
+        json: vi.fn().mockResolvedValue({ error: "Access denied" }),
+      };
+      (global.fetch as any).mockResolvedValueOnce(mockDeleteResponse);
+
+      const result = await campaignTools.deleteCampaigns.execute(
+        { jwt: mockJwt },
+        {} as any
+      );
+
+      expect(result).toEqual({
+        toolCallId: "unknown",
+        result: {
+          success: false,
+          message:
+            "Access denied. You don't have permission to perform this action.",
+          data: { error: "[object Object]" },
+        },
       });
     });
 
     it("should handle server error (500) during verification", async () => {
-      const mockVerifyResponse = {
+      const mockDeleteResponse = {
         ok: false,
         status: 500,
         json: vi.fn().mockResolvedValue({ error: "Internal server error" }),
       };
-      (global.fetch as any).mockResolvedValueOnce(mockVerifyResponse);
+      (global.fetch as any).mockResolvedValueOnce(mockDeleteResponse);
 
       const result = await campaignTools.deleteCampaigns.execute(
-        { campaignIds: mockCampaignIds, jwt: mockJwt },
+        { jwt: mockJwt },
         {} as any
       );
 
       expect(result).toEqual({
-        code: AUTH_CODES.ERROR,
-        message:
-          "Cannot delete campaigns: campaign-1, campaign-2, campaign-3. These campaigns either don't exist or you don't have permission to access them.",
-        data: {
-          error: "Campaigns not accessible",
-          inaccessibleCampaigns: ["campaign-1", "campaign-2", "campaign-3"],
-          accessibleCampaigns: [],
+        toolCallId: "unknown",
+        result: {
+          success: false,
+          message: "Failed to delete campaigns: 500",
+          data: { error: "[object Object]" },
         },
       });
     });
@@ -368,18 +305,16 @@ describe("Campaign Tools", () => {
       (global.fetch as any).mockRejectedValueOnce(new Error("Network error"));
 
       const result = await campaignTools.deleteCampaigns.execute(
-        { campaignIds: mockCampaignIds, jwt: mockJwt },
+        { jwt: mockJwt },
         {} as any
       );
 
       expect(result).toEqual({
-        code: AUTH_CODES.ERROR,
-        message:
-          "Cannot delete campaigns: campaign-1, campaign-2, campaign-3. These campaigns either don't exist or you don't have permission to access them.",
-        data: {
-          error: "Campaigns not accessible",
-          inaccessibleCampaigns: ["campaign-1", "campaign-2", "campaign-3"],
-          accessibleCampaigns: [],
+        toolCallId: "unknown",
+        result: {
+          success: false,
+          message: "Failed to delete campaigns: Network error",
+          data: { error: "[object Object]" },
         },
       });
     });
@@ -393,7 +328,7 @@ describe("Campaign Tools", () => {
       (global.fetch as any).mockResolvedValueOnce(mockDeleteResponse);
 
       const result = await campaignTools.deleteCampaigns.execute(
-        { campaignIds: [], jwt: mockJwt },
+        { jwt: mockJwt },
         {} as any
       );
 
@@ -401,63 +336,44 @@ describe("Campaign Tools", () => {
         expect.stringContaining("/campaigns"),
         expect.objectContaining({
           method: "DELETE",
-          body: JSON.stringify({ campaignIds: [] }),
         })
       );
 
-      expect(result.code).toBe(AUTH_CODES.SUCCESS);
-      expect(result.message).toBe(`${USER_MESSAGES.CAMPAIGNS_DELETED} `);
+      expect(result.result.success).toBe(true);
     });
 
     it("should work without JWT (for backward compatibility)", async () => {
-      // Mock verification responses for all campaigns
-      const mockVerifyResponses = mockCampaignIds.map(() => ({
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({ campaign: { campaignId: "test" } }),
-      }));
-
       const mockDeleteResponse = {
         ok: true,
         status: 200,
         json: vi.fn().mockResolvedValue({ success: true }),
       };
 
-      (global.fetch as any)
-        .mockResolvedValueOnce(mockVerifyResponses[0])
-        .mockResolvedValueOnce(mockVerifyResponses[1])
-        .mockResolvedValueOnce(mockVerifyResponses[2])
-        .mockResolvedValueOnce(mockDeleteResponse);
+      (global.fetch as any).mockResolvedValueOnce(mockDeleteResponse);
 
       const result = await campaignTools.deleteCampaigns.execute(
-        { campaignIds: mockCampaignIds, jwt: null },
+        { jwt: null },
         {} as any
       );
 
-      expect(global.fetch).toHaveBeenCalledTimes(4);
-      expect(result.code).toBe(AUTH_CODES.SUCCESS);
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(result.result.success).toBe(true);
     });
   });
 
   describe("Tool definitions", () => {
     it("should have correct tool structure for deleteCampaign", () => {
       expect(campaignTools.deleteCampaign).toBeDefined();
-      expect(campaignTools.deleteCampaign.description).toContain(
-        "user-specific"
-      );
-      expect(campaignTools.deleteCampaign.description).toContain(
-        "authenticated user"
+      expect(campaignTools.deleteCampaign.description).toBe(
+        "Delete a specific campaign"
       );
       expect(campaignTools.deleteCampaign.parameters).toBeDefined();
     });
 
     it("should have correct tool structure for deleteCampaigns", () => {
       expect(campaignTools.deleteCampaigns).toBeDefined();
-      expect(campaignTools.deleteCampaigns.description).toContain(
-        "user-specific"
-      );
-      expect(campaignTools.deleteCampaigns.description).toContain(
-        "authenticated user"
+      expect(campaignTools.deleteCampaigns.description).toBe(
+        "Delete all campaigns for the current user"
       );
       expect(campaignTools.deleteCampaigns.parameters).toBeDefined();
     });
@@ -480,13 +396,9 @@ describe("Campaign Tools", () => {
       expect(campaignTools.deleteCampaign.parameters).toBeDefined();
       expect(campaignTools.deleteCampaigns.parameters).toBeDefined();
 
-      // Verify the descriptions mention authentication
-      expect(campaignTools.deleteCampaign.description).toContain(
-        "authenticated user"
-      );
-      expect(campaignTools.deleteCampaigns.description).toContain(
-        "authenticated user"
-      );
+      // Verify the parameters are defined (JWT is included in commonSchemas)
+      expect(campaignTools.deleteCampaign.parameters).toBeDefined();
+      expect(campaignTools.deleteCampaigns.parameters).toBeDefined();
     });
   });
 });

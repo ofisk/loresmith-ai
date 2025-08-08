@@ -99,10 +99,8 @@ export const deletePdfFileExecution = async (
     "[deletePdfFileExecution] Starting deletion for fileKey:",
     fileKey
   );
-  console.log("[deletePdfFileExecution] Context:", context);
 
   const toolCallId = context?.toolCallId || "unknown";
-  console.log("[deletePdfFileExecution] Using toolCallId:", toolCallId);
 
   try {
     if (!fileKey) {
@@ -115,12 +113,7 @@ export const deletePdfFileExecution = async (
       );
     }
 
-    console.log(
-      "[deletePdfFileExecution] Constructing delete URL for fileKey:",
-      fileKey
-    );
     const deleteUrl = `${API_CONFIG.getApiBaseUrl()}/rag/pdfs/${encodeURIComponent(fileKey)}`;
-    console.log("[deletePdfFileExecution] Delete URL:", deleteUrl);
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -128,24 +121,12 @@ export const deletePdfFileExecution = async (
 
     if (jwt) {
       headers.Authorization = `Bearer ${jwt}`;
-      console.log(
-        "[deletePdfFileExecution] JWT provided, adding Authorization header"
-      );
-    } else {
-      console.log("[deletePdfFileExecution] No JWT provided");
     }
 
-    console.log(
-      "[deletePdfFileExecution] Making DELETE request to:",
-      deleteUrl
-    );
     const response = await fetch(deleteUrl, {
       method: "DELETE",
       headers,
     });
-
-    console.log("[deletePdfFileExecution] Response status:", response.status);
-    console.log("[deletePdfFileExecution] Response ok:", response.ok);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -153,7 +134,6 @@ export const deletePdfFileExecution = async (
         "[deletePdfFileExecution] Delete failed with status:",
         response.status
       );
-      console.error("[deletePdfFileExecution] Error response:", errorText);
 
       // If it's a 404, the file might have already been deleted
       if (response.status === 404) {
@@ -172,16 +152,7 @@ export const deletePdfFileExecution = async (
       );
     }
 
-    const responseText = await response.text();
-    console.log(
-      "[deletePdfFileExecution] Delete successful, response:",
-      responseText
-    );
-
     // Verify the file was actually deleted by trying to list files
-    console.log(
-      "[deletePdfFileExecution] Verifying deletion by listing files..."
-    );
     const listResponse = await fetch(
       `${API_CONFIG.getApiBaseUrl()}/pdf/files`,
       {
@@ -190,29 +161,39 @@ export const deletePdfFileExecution = async (
     );
 
     if (listResponse.ok) {
-      const files = (await listResponse.json()) as any[];
-      const fileStillExists = files.some(
-        (file: any) => file.file_key === fileKey
-      );
-      console.log(
-        "[deletePdfFileExecution] File still exists in list:",
-        fileStillExists
-      );
+      try {
+        const responseData = (await listResponse.json()) as any;
+        // Handle different response formats
+        const files = Array.isArray(responseData)
+          ? responseData
+          : responseData.files || responseData.data || [];
 
-      if (fileStillExists) {
+        if (Array.isArray(files)) {
+          const fileStillExists = files.some(
+            (file: any) => file.file_key === fileKey
+          );
+
+          if (fileStillExists) {
+            console.warn(
+              "[deletePdfFileExecution] File was not actually deleted from database"
+            );
+            return createToolError(
+              "File deletion reported success but file still exists in database",
+              "Deletion verification failed",
+              500,
+              toolCallId
+            );
+          }
+        }
+      } catch (verificationError) {
         console.warn(
-          "[deletePdfFileExecution] File was not actually deleted from database"
+          "[deletePdfFileExecution] Could not verify deletion:",
+          verificationError
         );
-        return createToolError(
-          "File deletion reported success but file still exists in database",
-          "Deletion verification failed",
-          500,
-          toolCallId
-        );
+        // Don't fail the deletion if verification fails
       }
     }
 
-    console.log("[deletePdfFileExecution] Deletion verified successful");
     return createToolSuccess(
       `File "${fileKey}" has been successfully deleted`,
       { deletedFile: fileKey },

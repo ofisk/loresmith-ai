@@ -1,9 +1,8 @@
 import type { Context } from "hono";
 import { PDF_PROCESSING_CONFIG } from "../constants";
-import { RAGService } from "../lib/rag";
+import { AutoRAGService } from "../services/autorag-service";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
-import { completeProgress } from "../services/progress";
 import { PDF_SCHEMA } from "../types/pdf";
 
 // Extend the context to include userAuth
@@ -345,242 +344,288 @@ export async function handleUploadPart(c: ContextWithAuth) {
   }
 }
 
-// Ingest PDF for processing
-export async function handleIngestPdf(c: ContextWithAuth) {
+// Shared function for PDF processing
+async function processPdfFile(
+  c: ContextWithAuth,
+  fileKey: string,
+  options: {
+    isRetry?: boolean;
+    filename?: string;
+    description?: string;
+    tags?: string[];
+    fileSize?: number;
+  } = {}
+): Promise<{
+  success: boolean;
+  fileId?: string;
+  message: string;
+  error?: string;
+}> {
+  const userAuth = c.get("userAuth") as AuthPayload;
+  const { isRetry = false, filename, description, tags, fileSize } = options;
+
   try {
-    const userAuth = c.get("userAuth") as AuthPayload;
-    const { fileKey, filename, description, tags, fileSize } =
-      await c.req.json();
-
-    if (!fileKey || !filename) {
-      return c.json({ error: "File key and filename are required" }, 400);
-    }
-
-    if (!userAuth || !userAuth.username) {
-      return c.json({ error: "User authentication required" }, 401);
-    }
-
     // Verify the fileKey belongs to the authenticated user
-    // File keys can be either "username/filename" or "uploads/username/filename"
     if (
       !fileKey.startsWith(`${userAuth.username}/`) &&
       !fileKey.startsWith(`uploads/${userAuth.username}/`)
     ) {
-      return c.json({ error: "Access denied to this file" }, 403);
+      return {
+        success: false,
+        error: "Access denied to this file",
+        message: "Access denied to this file",
+      };
+    }
+
+    // For retry operations, validate the file exists and is in error status
+    if (isRetry) {
+      const file = await c.env.DB.prepare(
+        "SELECT * FROM pdf_files WHERE file_key = ? AND username = ?"
+      )
+        .bind(fileKey, userAuth.username)
+        .first();
+
+      if (!file) {
+        return {
+          success: false,
+          error: "File not found",
+          message: "File not found in database",
+        };
+      }
+
+      if (file.status !== "error") {
+        return {
+          success: false,
+          error: "File is not in error status",
+          message: `Current status: ${file.status}`,
+        };
+      }
     }
 
     // Get file size from R2 if not provided
     let actualFileSize = fileSize;
     if (!actualFileSize) {
       try {
-        console.log(`[PDF Ingest] Attempting to get file from R2: ${fileKey}`);
-        // Add a small delay to ensure the file is fully uploaded
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        console.log(
+          `[PDF Processing] Attempting to get file from R2: ${fileKey}`
+        );
         const file = await c.env.FILE_BUCKET.get(fileKey);
         if (file) {
           actualFileSize = file.size;
           console.log(
-            `[PDF Ingest] File found in R2, size: ${actualFileSize} bytes`
+            `[PDF Processing] File found in R2, size: ${actualFileSize} bytes`
           );
         } else {
-          console.log(`[PDF Ingest] File not found in R2: ${fileKey}`);
+          console.log(`[PDF Processing] File not found in R2: ${fileKey}`);
         }
       } catch (error) {
         console.warn("Could not get file size from R2:", error);
       }
     }
 
-    // Check if file already exists
-    const existingFile = await c.env.DB.prepare(
-      "SELECT id FROM pdf_files WHERE file_key = ? AND username = ?"
-    )
-      .bind(fileKey, userAuth.username)
-      .first();
+    // For new ingestions, create/update database record
+    let fileId: string | undefined;
+    if (!isRetry) {
+      const existingFile = await c.env.DB.prepare(
+        "SELECT id FROM pdf_files WHERE file_key = ? AND username = ?"
+      )
+        .bind(fileKey, userAuth.username)
+        .first();
 
-    const now = new Date().toISOString();
-    let newFileId: string | undefined;
+      const now = new Date().toISOString();
 
-    if (existingFile) {
-      // Update existing file
+      if (existingFile) {
+        // Update existing file
+        await c.env.DB.prepare(
+          "UPDATE pdf_files SET file_name = ?, description = ?, tags = ?, status = ?, updated_at = ?, file_size = ? WHERE file_key = ? AND username = ?"
+        )
+          .bind(
+            filename || fileKey.split("/").pop() || "unknown.pdf",
+            description || "",
+            tags ? JSON.stringify(tags) : "[]",
+            "processing",
+            now,
+            actualFileSize || 0,
+            fileKey,
+            userAuth.username
+          )
+          .run();
+        fileId = existingFile.id as string;
+      } else {
+        // Insert new file
+        fileId = crypto.randomUUID();
+        await c.env.DB.prepare(
+          "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+          .bind(
+            fileId,
+            fileKey,
+            filename || fileKey.split("/").pop() || "unknown.pdf",
+            description || "",
+            tags ? JSON.stringify(tags) : "[]",
+            userAuth.username,
+            "processing",
+            now,
+            actualFileSize || 0
+          )
+          .run();
+      }
+    } else {
+      // For retries, update status to processing
       await c.env.DB.prepare(
-        "UPDATE pdf_files SET file_name = ?, description = ?, tags = ?, status = ?, updated_at = ?, file_size = ? WHERE file_key = ? AND username = ?"
+        "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ? AND username = ?"
       )
         .bind(
-          filename,
-          description || "",
-          tags ? JSON.stringify(tags) : "[]",
           "processing",
-          now,
-          actualFileSize || 0,
+          new Date().toISOString(),
           fileKey,
           userAuth.username
         )
         .run();
-    } else {
-      // Insert new file
-      newFileId = crypto.randomUUID();
-      await c.env.DB.prepare(
-        "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-      )
-        .bind(
-          newFileId,
-          fileKey,
-          filename,
-          description || "",
-          tags ? JSON.stringify(tags) : "[]",
-          userAuth.username,
-          "processing",
-          now,
-          actualFileSize || 0
-        )
-        .run();
     }
 
-    // Start background processing instead of processing immediately
-    try {
-      // Check if we have an OpenAI API key for processing
-      if (!userAuth.openaiApiKey) {
-        console.warn("No OpenAI API key available for PDF processing");
-        // Update status to indicate no processing will happen
-        await c.env.DB.prepare(
-          "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ?"
-        )
-          .bind("error", new Date().toISOString(), fileKey)
-          .run();
-
-        return c.json({
-          success: true,
-          fileKey,
-          fileId: existingFile?.id || newFileId,
-          message:
-            "File uploaded successfully but processing requires OpenAI API key.",
-        });
-      }
-
-      // Schedule background processing
-      const processingPromise = processPdfInBackground(
-        fileKey,
-        userAuth.username,
-        c.env.FILE_BUCKET,
-        c.env.DB,
-        c.env.VECTORIZE,
-        userAuth.openaiApiKey,
-        {
-          description: description || "",
-          tags: tags || [],
-          filename: filename,
-          file_size: actualFileSize || 0,
-          status: "processing" as const,
-          created_at: now,
-        }
-      );
-
-      // Don't await the processing - let it run in background
-      processingPromise.catch((error) => {
-        console.error("Background PDF processing failed:", error);
-        completeProgress(fileKey, false, (error as Error).message);
-      });
-
-      // Return immediately with success
-      return c.json({
-        success: true,
-        fileKey,
-        fileId: existingFile?.id || newFileId,
-        message:
-          "File uploaded successfully. Processing will continue in the background.",
-      });
-    } catch (error) {
-      console.error("Error scheduling PDF processing:", error);
-      completeProgress(fileKey, false, (error as Error).message);
-
-      // Update database status
+    // Check if we have an OpenAI API key for processing
+    if (!userAuth.openaiApiKey) {
+      console.warn("No OpenAI API key available for PDF processing");
       await c.env.DB.prepare(
         "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ?"
       )
         .bind("error", new Date().toISOString(), fileKey)
         .run();
 
-      return c.json({ error: "Internal server error" }, 500);
+      return {
+        success: false,
+        error: "OpenAI API key required for processing",
+        message: "PDF processing requires an OpenAI API key for text analysis.",
+      };
     }
+
+    // Check for AutoRAG parts instead of the original file
+    console.log(`[PDF Processing] Checking for AutoRAG parts: ${fileKey}`);
+    const parts = fileKey.split("/");
+    const username = parts[0];
+    const originalFilename = parts[parts.length - 1] || "unknown";
+    const prefix = `${username}/part-`;
+    const objects = await c.env.FILE_BUCKET.list({ prefix });
+    const partCount =
+      objects.objects?.filter(
+        (obj) =>
+          obj.key.includes(`part-`) &&
+          obj.key.includes(originalFilename) &&
+          (obj.key.endsWith(".txt") || obj.key.endsWith(".chunk"))
+      ).length || 0;
+
+    if (partCount === 0) {
+      console.error(`[PDF Processing] No AutoRAG parts found for: ${fileKey}`);
+      return {
+        success: false,
+        error: "No AutoRAG parts found in storage",
+        message: "The uploaded file parts could not be found in R2 storage",
+      };
+    }
+    console.log(
+      `[PDF Processing] Found ${partCount} AutoRAG parts for: ${fileKey}`
+    );
+
+    // Send to PDF processing queue
+    console.log(`[PDF Processing] Sending to queue for processing: ${fileKey}`);
+    await c.env.PDF_PROCESSING_QUEUE.send({
+      fileKey: fileKey,
+      username: userAuth.username,
+      openaiApiKey: userAuth.openaiApiKey,
+      metadata: {
+        description: description || "",
+        tags: tags || [],
+        filename: filename || fileKey.split("/").pop() || "unknown.pdf",
+        file_size: actualFileSize || 0,
+        status: "processing" as const,
+        created_at: new Date().toISOString(),
+      },
+    });
+
+    console.log(
+      `[PDF Processing] Successfully queued ${fileKey} for processing`
+    );
+
+    return {
+      success: true,
+      fileId,
+      message: isRetry
+        ? "PDF processing retry initiated successfully."
+        : "File uploaded successfully. Processing will continue in the background.",
+    };
   } catch (error) {
-    console.error("Error ingesting PDF:", error);
-    return c.json({ error: "Internal server error" }, 500);
+    console.error(`[PDF Processing] Error processing ${fileKey}:`, error);
+    return {
+      success: false,
+      error: `Failed to process PDF: ${error}`,
+      message: "An error occurred during PDF processing",
+    };
   }
 }
 
-// Background PDF processing function
-async function processPdfInBackground(
-  fileKey: string,
-  username: string,
-  fileBucket: R2Bucket,
-  db: D1Database,
-  vectorize: VectorizeIndex,
-  openaiApiKey: string,
-  metadata: any
-) {
+// Process PDF file (ingest new or retry failed)
+export async function handleProcessPdf(c: ContextWithAuth) {
   try {
-    console.log(`[Background Processing] Starting processing for ${fileKey}`);
-
-    // Get file from R2
-    const file = await fileBucket.get(fileKey);
-    if (!file) {
-      throw new Error("File not found in R2");
-    }
-
-    // Process the PDF for RAG
-    const ragService = new RAGService(db, vectorize, openaiApiKey);
-
-    const processedResult = await ragService.processPdfFromR2(
+    const userAuth = c.get("userAuth") as AuthPayload;
+    const {
       fileKey,
-      username,
-      fileBucket,
-      metadata
-    );
+      operation = "ingest",
+      filename,
+      description,
+      tags,
+      fileSize,
+    } = await c.req.json();
 
-    // Auto-generate metadata if missing
-    let finalDescription = metadata.description || "";
-    let finalTags = metadata.tags || [];
-
-    if (processedResult.suggestedMetadata) {
-      if (!finalDescription) {
-        finalDescription = processedResult.suggestedMetadata.description;
-      }
-      if (!finalTags.length) {
-        finalTags = processedResult.suggestedMetadata.tags;
-      }
+    if (!fileKey) {
+      return c.json({ error: "File key is required" }, 400);
     }
 
-    // Update database status with final metadata and file size
-    await db
-      .prepare(
-        "UPDATE pdf_files SET status = ?, updated_at = ?, file_size = ?, description = ?, tags = ? WHERE file_key = ?"
-      )
-      .bind(
-        "completed",
-        new Date().toISOString(),
-        file.size,
-        finalDescription,
-        JSON.stringify(finalTags),
-        fileKey
-      )
-      .run();
+    if (!userAuth || !userAuth.username) {
+      return c.json({ error: "User authentication required" }, 401);
+    }
 
-    completeProgress(fileKey, true);
-    console.log(`[Background Processing] Completed processing for ${fileKey}`);
+    // Validate operation
+    if (operation !== "ingest" && operation !== "retry") {
+      return c.json({ error: "Operation must be 'ingest' or 'retry'" }, 400);
+    }
+
+    // For ingest operations, filename is required
+    if (operation === "ingest" && !filename) {
+      return c.json(
+        { error: "Filename is required for ingest operations" },
+        400
+      );
+    }
+
+    const result = await processPdfFile(c, fileKey, {
+      isRetry: operation === "retry",
+      filename,
+      description,
+      tags,
+      fileSize,
+    });
+
+    if (!result.success) {
+      return c.json(
+        {
+          success: false,
+          error: result.error,
+          details: result.message,
+        },
+        result.error?.includes("not found") ? 404 : 500
+      );
+    }
+
+    return c.json({
+      success: true,
+      fileKey,
+      fileId: result.fileId,
+      message: result.message,
+    });
   } catch (error) {
-    console.error(
-      `[Background Processing] Error processing PDF ${fileKey}:`,
-      error
-    );
-    completeProgress(fileKey, false, (error as Error).message);
-
-    // Update database status
-    await db
-      .prepare(
-        "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ?"
-      )
-      .bind("error", new Date().toISOString(), fileKey)
-      .run();
+    console.error("Error processing PDF:", error);
+    return c.json({ error: "Internal server error" }, 500);
   }
 }
 
@@ -688,9 +733,9 @@ export async function handleAutoGeneratePdfMetadata(c: ContextWithAuth) {
     }
 
     // Process the PDF to extract text and generate metadata
-    const ragService = new RAGService(
+    const ragService = new AutoRAGService(
       c.env.DB,
-      c.env.VECTORIZE,
+      c.env.AUTORAG,
       userAuth.openaiApiKey
     );
 
@@ -848,9 +893,9 @@ export async function handleProcessMetadataBackground(c: ContextWithAuth) {
     }
 
     // Process the PDF to extract text and generate metadata
-    const ragService = new RAGService(
+    const ragService = new AutoRAGService(
       c.env.DB,
-      c.env.VECTORIZE,
+      c.env.AUTORAG,
       openaiApiKey || userAuth.openaiApiKey
     );
 
@@ -879,7 +924,14 @@ export async function handleProcessMetadataBackground(c: ContextWithAuth) {
 
     // Extract the suggested metadata
     const suggestedMetadata = processedResult.suggestedMetadata;
+    console.log(
+      "[handleProcessMetadataBackground] Processed result:",
+      processedResult
+    );
     if (!suggestedMetadata) {
+      console.error(
+        "[handleProcessMetadataBackground] No suggested metadata generated"
+      );
       return c.json({ error: "Failed to generate metadata" }, 500);
     }
 

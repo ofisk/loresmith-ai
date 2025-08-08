@@ -254,16 +254,14 @@ export const deleteCampaign = tool({
         if (authError) {
           return createToolError(
             authError,
-            {
-              error: `HTTP ${response.status}`,
-            },
+            `HTTP ${response.status}`,
             AUTH_CODES.ERROR,
             toolCallId
           );
         }
         return createToolError(
           `Failed to delete campaign: ${response.status}`,
-          { error: `HTTP ${response.status}` },
+          `HTTP ${response.status}`,
           AUTH_CODES.ERROR,
           toolCallId
         );
@@ -316,16 +314,14 @@ export const deleteCampaigns = tool({
         if (authError) {
           return createToolError(
             authError,
-            {
-              error: `HTTP ${response.status}`,
-            },
+            `HTTP ${response.status}`,
             AUTH_CODES.ERROR,
             toolCallId
           );
         }
         return createToolError(
           `Failed to delete campaigns: ${response.status}`,
-          { error: `HTTP ${response.status}` },
+          `HTTP ${response.status}`,
           AUTH_CODES.ERROR,
           toolCallId
         );

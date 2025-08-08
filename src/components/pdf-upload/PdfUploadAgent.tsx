@@ -308,6 +308,7 @@ export const PdfUploadAgent = ({ className }: PdfUploadAgentProps) => {
               filename: filename,
               contentType: "application/pdf",
               fileSize: file.size,
+              enableAutoRAGChunking: true, // Enable AutoRAG chunking during upload
             }),
           }
         );
@@ -409,6 +410,7 @@ export const PdfUploadAgent = ({ className }: PdfUploadAgentProps) => {
           formData.append("file", chunkToUpload);
           formData.append("sessionId", uploadUrlData.sessionId);
           formData.append("partNumber", partNumber.toString());
+          formData.append("enableAutoRAGChunking", "true"); // Enable AutoRAG chunking for each part
 
           const chunkUploadUrl = `${API_CONFIG.getApiBaseUrl()}/upload/part`;
           console.log(
@@ -675,7 +677,7 @@ export const PdfUploadAgent = ({ className }: PdfUploadAgentProps) => {
       // Process the file using the ingest endpoint
       try {
         const processResponse = await fetch(
-          `${API_CONFIG.getApiBaseUrl()}/pdf/ingest`,
+          `${API_CONFIG.getApiBaseUrl()}/pdf/process`,
           {
             method: "POST",
             headers: {
@@ -684,6 +686,7 @@ export const PdfUploadAgent = ({ className }: PdfUploadAgentProps) => {
             },
             body: JSON.stringify({
               fileKey: uploadUrlData.fileKey,
+              operation: "ingest",
               filename: filename,
               description: description || "",
               tags: tags,

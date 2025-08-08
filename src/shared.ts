@@ -123,7 +123,7 @@ export const API_CONFIG = {
       UPLOAD_URL: "/upload/start",
       UPLOAD: "/upload/complete",
       UPLOAD_PART: "/upload/part",
-      INGEST: "/pdf/ingest",
+      PROCESS: "/pdf/process",
       FILES: "/pdf/files",
       UPDATE_METADATA: "/pdf/update-metadata",
       AUTO_GENERATE_METADATA: "/pdf/auto-generate-metadata",
