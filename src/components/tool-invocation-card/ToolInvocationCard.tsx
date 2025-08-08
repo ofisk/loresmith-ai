@@ -8,6 +8,7 @@ import {
   CreateCampaignForm,
 } from "@/components/campaign";
 import { Card } from "@/components/card/Card";
+import { MemoizedMarkdown } from "@/components/memoized-markdown";
 
 import { APPROVAL } from "@/shared";
 
@@ -37,7 +38,7 @@ export function ToolInvocationCard({
   addToolResult,
   showDebug = false,
 }: ToolInvocationCardProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Render campaign UI components for campaign tools
   const renderCampaignUI = () => {
@@ -229,11 +230,11 @@ export function ToolInvocationCard({
                 <h5 className="text-xs font-medium mb-1 text-muted-foreground">
                   Result:
                 </h5>
-                <pre className="bg-background/80 p-2 rounded-md text-xs overflow-auto whitespace-pre-wrap break-words max-w-[450px]">
+                <div className="bg-background/80 p-2 rounded-md text-xs overflow-auto max-w-[450px]">
                   {(() => {
                     const result = toolInvocation.result;
                     if (typeof result === "object" && result.content) {
-                      return result.content
+                      const resultText = result.content
                         .map((item: { type: string; text: string }) => {
                           if (
                             item.type === "text" &&
@@ -250,10 +251,16 @@ export function ToolInvocationCard({
                           return item.text;
                         })
                         .join("\n");
+
+                      return <MemoizedMarkdown content={resultText} />;
                     }
-                    return JSON.stringify(result, null, 2);
+                    return (
+                      <pre className="whitespace-pre-wrap break-words">
+                        {JSON.stringify(result, null, 2)}
+                      </pre>
+                    );
                   })()}
-                </pre>
+                </div>
               </div>
             )}
         </div>

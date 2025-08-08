@@ -108,10 +108,7 @@ export function HelpButton({ onActionClick }: HelpButtonProps) {
               </div>
 
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <MemoizedMarkdown
-                  content={helpData.message}
-                  id="help-message"
-                />
+                <MemoizedMarkdown content={helpData.message} />
               </div>
 
               <div className="space-y-3">
