@@ -73,7 +73,7 @@ describe("Campaign Tools", () => {
         result: {
           success: false,
           message: "Failed to delete campaign: 404",
-          data: { error: "[object Object]" },
+          data: { error: "HTTP 404" },
         },
       });
     });
@@ -120,7 +120,7 @@ describe("Campaign Tools", () => {
           success: false,
           message:
             "Access denied. You don't have permission to perform this action.",
-          data: { error: "[object Object]" },
+          data: { error: "HTTP 403" },
         },
       });
     });
@@ -273,7 +273,7 @@ describe("Campaign Tools", () => {
           success: false,
           message:
             "Access denied. You don't have permission to perform this action.",
-          data: { error: "[object Object]" },
+          data: { error: "HTTP 403" },
         },
       });
     });
@@ -296,7 +296,7 @@ describe("Campaign Tools", () => {
         result: {
           success: false,
           message: "Failed to delete campaigns: 500",
-          data: { error: "[object Object]" },
+          data: { error: "HTTP 500" },
         },
       });
     });
