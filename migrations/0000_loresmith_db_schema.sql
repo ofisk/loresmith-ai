@@ -1,7 +1,7 @@
 -- Initial schema for LoreSmith campaigns and RAG functionality
 
 -- Campaigns table (replacing KV storage)
-CREATE TABLE campaigns (
+CREATE TABLE IF NOT EXISTS campaigns (
   id TEXT PRIMARY KEY,
   username TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE campaigns (
 );
 
 -- Campaign resources (PDFs associated with campaigns)
-CREATE TABLE campaign_resources (
+CREATE TABLE IF NOT EXISTS campaign_resources (
   id TEXT PRIMARY KEY,
   campaign_id TEXT NOT NULL,
   file_key TEXT NOT NULL,
@@ -26,7 +26,7 @@ CREATE TABLE campaign_resources (
 );
 
 -- PDF content chunks for RAG
-CREATE TABLE pdf_chunks (
+CREATE TABLE IF NOT EXISTS pdf_chunks (
   id TEXT PRIMARY KEY,
   file_key TEXT NOT NULL,
   username TEXT NOT NULL,
@@ -38,7 +38,7 @@ CREATE TABLE pdf_chunks (
 );
 
 -- PDF metadata for search
-CREATE TABLE pdf_metadata (
+CREATE TABLE IF NOT EXISTS pdf_metadata (
   file_key TEXT PRIMARY KEY,
   username TEXT NOT NULL,
   file_name TEXT NOT NULL,
@@ -50,9 +50,9 @@ CREATE TABLE pdf_metadata (
 );
 
 -- Search indexes
-CREATE INDEX idx_campaigns_username ON campaigns(username);
-CREATE INDEX idx_campaign_resources_campaign_id ON campaign_resources(campaign_id);
-CREATE INDEX idx_campaign_resources_file_key ON campaign_resources(file_key);
-CREATE INDEX idx_pdf_chunks_username ON pdf_chunks(username);
-CREATE INDEX idx_pdf_chunks_file_key ON pdf_chunks(file_key);
-CREATE INDEX idx_pdf_metadata_username ON pdf_metadata(username); 
+CREATE INDEX IF NOT EXISTS idx_campaigns_username ON campaigns(username);
+CREATE INDEX IF NOT EXISTS idx_campaign_resources_campaign_id ON campaign_resources(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_resources_file_key ON campaign_resources(file_key);
+CREATE INDEX IF NOT EXISTS idx_pdf_chunks_username ON pdf_chunks(username);
+CREATE INDEX IF NOT EXISTS idx_pdf_chunks_file_key ON pdf_chunks(file_key);
+CREATE INDEX IF NOT EXISTS idx_pdf_metadata_username ON pdf_metadata(username); 
