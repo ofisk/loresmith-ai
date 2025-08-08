@@ -250,192 +250,118 @@ export const completePdfUpload = tool({
   },
 });
 
-// Tool to process PDF upload
-export const processPdfUpload = tool({
-  description: "Process an uploaded PDF file for text extraction and indexing",
-  parameters: z.object({
-    fileKey: z.string().describe("The file key of the uploaded PDF"),
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async ({ fileKey, jwt }, context?: any): Promise<ToolResult> => {
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
-    console.log("[processPdfUpload] Using toolCallId:", toolCallId);
-
-    console.log("[Tool] processPdfUpload received:", {
-      fileKey,
-    });
-
-    try {
-      // Try to get environment from context or global scope
-      const env = getEnvFromContext(context);
-      console.log("[Tool] processPdfUpload - Environment found:", !!env);
-      console.log("[Tool] processPdfUpload - JWT provided:", !!jwt);
-
-      // If we have environment, work directly with the database
-      if (env) {
-        const userId = extractUsernameFromJwt(jwt);
-        console.log("[Tool] processPdfUpload - User ID extracted:", userId);
-
-        if (!userId) {
-          return createToolError(
-            "Invalid authentication token",
-            "Authentication failed",
-            401,
-            toolCallId
-          );
-        }
-
-        // Simulate PDF processing
-        const fileName = fileKey.split("/").pop() || "unknown.pdf";
-        const now = new Date().toISOString();
-
-        console.log("[Tool] Processed PDF:", fileKey);
-
-        return createToolSuccess(
-          `PDF processed successfully: ${fileName}`,
-          {
-            fileKey,
-            fileName,
-            status: "processed",
-            processedAt: now,
-            extractedText: "Sample extracted text from PDF...",
-            wordCount: 1500,
-          },
-          toolCallId
-        );
-      }
-
-      // Otherwise, make HTTP request
-      const response = await authenticatedFetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.INGEST),
-        {
-          method: "POST",
-          jwt,
-          body: JSON.stringify({
-            fileKey,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const authError = await handleAuthError(response);
-        if (authError) {
-          return createToolError(authError, null, 401, toolCallId);
-        }
-        return createToolError(
-          "Failed to process PDF",
-          `HTTP ${response.status}: ${await response.text()}`,
-          500,
-          toolCallId
-        );
-      }
-
-      const result = await response.json();
-      return createToolSuccess(
-        `PDF processed successfully: ${(result as any).fileName || "Unknown"}`,
-        result,
-        toolCallId
-      );
-    } catch (error) {
-      console.error("Error processing PDF:", error);
-      return createToolError("Failed to process PDF", error, 500, toolCallId);
-    }
+// Shared function for PDF processing tools
+async function processPdfTool(
+  fileKey: string,
+  jwt: string,
+  operation: "ingest" | "retry",
+  metadata?: {
+    filename?: string;
+    description?: string;
+    tags?: string[];
   },
-});
+  context?: any
+): Promise<ToolResult> {
+  const toolCallId = context?.toolCallId || "unknown";
+  const action = operation;
 
-// Tool to ingest PDF file
-export const ingestPdfFile = tool({
-  description:
-    "Ingest an uploaded PDF file for text extraction and content processing",
-  parameters: z.object({
-    fileKey: z.string().describe("The file key of the uploaded PDF to ingest"),
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async ({ fileKey, jwt }, context?: any): Promise<ToolResult> => {
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
-    console.log("[ingestPdfFile] Using toolCallId:", toolCallId);
+  console.log(`[Client] ${action}ing PDF processing for:`, fileKey);
 
-    console.log("[Tool] ingestPdfFile received:", {
-      fileKey,
-    });
-
-    try {
-      // Try to get environment from context or global scope
-      const env = getEnvFromContext(context);
-      console.log("[Tool] ingestPdfFile - Environment found:", !!env);
-      console.log("[Tool] ingestPdfFile - JWT provided:", !!jwt);
-
-      // If we have environment, work directly with the database
-      if (env) {
-        const userId = extractUsernameFromJwt(jwt);
-        console.log("[Tool] ingestPdfFile - User ID extracted:", userId);
-
-        if (!userId) {
-          return createToolError(
-            "Invalid authentication token",
-            "Authentication failed",
-            401,
-            toolCallId
-          );
-        }
-
-        // Simulate PDF ingestion
-        const fileName = fileKey.split("/").pop() || "unknown.pdf";
-        const now = new Date().toISOString();
-
-        console.log("[Tool] Ingesting PDF:", fileKey);
-
-        return createToolSuccess(
-          `PDF ingested successfully: ${fileName}`,
-          {
-            fileKey,
-            fileName,
-            status: "ingested",
-            ingestedAt: now,
-            extractedText: "Sample extracted text from PDF...",
-            wordCount: 1500,
-            processedContent: "Content has been processed and is ready for use",
-          },
-          toolCallId
-        );
+  try {
+    // Make HTTP request to process PDF
+    const response = await authenticatedFetch(
+      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.PROCESS),
+      {
+        method: "POST",
+        jwt,
+        body: JSON.stringify({
+          fileKey,
+          operation,
+          ...metadata,
+        }),
       }
+    );
 
-      // Otherwise, make HTTP request
-      const response = await authenticatedFetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.INGEST),
-        {
-          method: "POST",
-          jwt,
-          body: JSON.stringify({
-            fileKey,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const authError = await handleAuthError(response);
-        if (authError) {
-          return createToolError(authError, null, 401, toolCallId);
-        }
-        return createToolError(
-          "Failed to ingest PDF",
-          `HTTP ${response.status}: ${await response.text()}`,
-          500,
-          toolCallId
-        );
+    if (!response.ok) {
+      const authError = await handleAuthError(response);
+      if (authError) {
+        return createToolError(authError, null, 401, toolCallId);
       }
-
-      const result = await response.json();
-      return createToolSuccess(
-        `PDF ingested successfully: ${(result as any).fileName || "Unknown"}`,
-        result,
+      return createToolError(
+        `Failed to ${action} PDF processing`,
+        `HTTP ${response.status}: ${await response.text()}`,
+        500,
         toolCallId
       );
-    } catch (error) {
-      console.error("Error ingesting PDF:", error);
-      return createToolError("Failed to ingest PDF", error, 500, toolCallId);
     }
+
+    const result = await response.json();
+    return createToolSuccess(
+      `PDF ${action}ed successfully for: ${fileKey}`,
+      result,
+      toolCallId
+    );
+  } catch (error) {
+    console.error(`Error ${action}ing PDF processing:`, error);
+    return createToolError(
+      `Failed to ${action} PDF processing`,
+      error,
+      500,
+      toolCallId
+    );
+  }
+}
+
+export const processPdfFile = tool({
+  description:
+    "Process a PDF file for text extraction and content processing. Can be used for initial ingestion or retrying failed processing.",
+  parameters: z.object({
+    fileKey: z.string().describe("The file key of the PDF to process"),
+    jwt: commonSchemas.jwt,
+    operation: z
+      .enum(["ingest", "retry"])
+      .describe(
+        "Whether to ingest a new file or retry processing a failed file"
+      ),
+    filename: z
+      .string()
+      .optional()
+      .describe("Filename (required for ingest operations)"),
+    description: z.string().optional().describe("Description of the PDF file"),
+    tags: z
+      .array(z.string())
+      .optional()
+      .describe("Tags for categorizing the PDF file"),
+  }),
+  execute: async (
+    { fileKey, jwt, operation, filename, description, tags },
+    context?: any
+  ): Promise<ToolResult> => {
+    if (!jwt) {
+      return createToolError(
+        "JWT token is required",
+        "Authentication failed",
+        401,
+        context?.toolCallId || "unknown"
+      );
+    }
+
+    // Validate required parameters
+    if (operation === "ingest" && !filename) {
+      return createToolError(
+        "Filename is required for ingest operations",
+        "Please provide a filename when ingesting a new PDF file",
+        400,
+        context?.toolCallId || "unknown"
+      );
+    }
+
+    const metadata = {
+      filename,
+      description,
+      tags,
+    };
+
+    return processPdfTool(fileKey, jwt, operation, metadata, context);
   },
 });

@@ -9,7 +9,7 @@ import {
   handleGetPdfFiles,
   handleGetPdfStats,
   handleGetPdfStatus,
-  handleIngestPdf,
+  handleProcessPdf,
   handleProcessMetadataBackground,
   handleUpdatePdfMetadata,
   handleUploadPart,
@@ -22,16 +22,18 @@ pdfRouter.use("*", requireUserJwt);
 
 // Upload routes
 pdfRouter.post("/upload-url", handleGenerateUploadUrl);
-pdfRouter.post("/upload-part", handleUploadPart);
-pdfRouter.put("/upload/*", handleCompleteUpload);
+pdfRouter.post("/upload/complete/*", handleCompleteUpload);
+pdfRouter.post("/upload/part", handleUploadPart);
 
 // File management routes
-pdfRouter.post("/ingest", handleIngestPdf);
+pdfRouter.post("/process", handleProcessPdf);
 pdfRouter.get("/files", handleGetPdfFiles);
 pdfRouter.get("/status/*", handleGetPdfStatus);
 pdfRouter.post("/update-metadata", handleUpdatePdfMetadata);
 pdfRouter.post("/auto-generate-metadata", handleAutoGeneratePdfMetadata);
 pdfRouter.post("/process-metadata-background", handleProcessMetadataBackground);
+
+// Stats route
 pdfRouter.get("/stats", handleGetPdfStats);
 
 export { pdfRouter };

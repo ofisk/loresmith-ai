@@ -1,7 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { AssessmentService } from "../../services/assessment-service";
-import { AuthService } from "../../services/auth-service";
 import type { Campaign, CampaignResource } from "../../types/campaign";
 import { commonSchemas, createToolError, createToolSuccess } from "../utils";
 
@@ -66,34 +65,21 @@ export interface ToolRecommendation {
 /**
  * Tool: Analyze user's current state for contextual guidance
  */
-export const analyzeUserState = tool({
-  description:
-    "Analyze the user's current state to provide contextual guidance",
+export const analyzeUserStateTool = tool({
+  description: "Analyze user's current state for contextual guidance",
   parameters: z.object({
+    username: z.string().describe("The username to analyze"),
     jwt: commonSchemas.jwt,
   }),
-  execute: async ({ jwt }, context?: any): Promise<any> => {
-    const toolCallId = context?.toolCallId || "unknown";
-
+  execute: async ({ username, jwt: _jwt }, context?: any) => {
     try {
       const env = context?.env;
       if (!env) {
         return createToolError(
           "Environment not available",
-          { error: "Environment not available" },
+          "Database connection not available",
           500,
-          toolCallId
-        );
-      }
-
-      // Extract username from JWT
-      const username = jwt ? AuthService.parseJwtForUsername(jwt) : null;
-      if (!username) {
-        return createToolError(
-          "Invalid JWT token",
-          { error: "Could not extract username from JWT" },
-          401,
-          toolCallId
+          context?.toolCallId || "unknown"
         );
       }
 
@@ -101,17 +87,17 @@ export const analyzeUserState = tool({
       const userState = await assessmentService.analyzeUserState(username);
 
       return createToolSuccess(
-        "User state analyzed successfully",
-        { userState },
-        toolCallId
+        `User state analyzed successfully for ${username}`,
+        userState,
+        context?.toolCallId || "unknown"
       );
     } catch (error) {
       console.error("Failed to analyze user state:", error);
       return createToolError(
         "Failed to analyze user state",
-        { error: error instanceof Error ? error.message : String(error) },
+        error instanceof Error ? error.message : "Unknown error",
         500,
-        toolCallId
+        context?.toolCallId || "unknown"
       );
     }
   },
@@ -120,56 +106,44 @@ export const analyzeUserState = tool({
 /**
  * Tool: Get campaign health summary for existing campaigns
  */
-export const getCampaignHealth = tool({
+export const getCampaignHealthTool = tool({
   description: "Get campaign health summary for existing campaigns",
   parameters: z.object({
     campaignId: z.string().describe("The campaign ID to analyze"),
     jwt: commonSchemas.jwt,
   }),
-  execute: async ({ campaignId, jwt }, context?: any): Promise<any> => {
-    const toolCallId = context?.toolCallId || "unknown";
-
+  execute: async ({ campaignId, jwt: _jwt }, context?: any) => {
     try {
       const env = context?.env;
       if (!env) {
         return createToolError(
           "Environment not available",
-          { error: "Environment not available" },
+          "Database connection not available",
           500,
-          toolCallId
-        );
-      }
-
-      // Extract username from JWT
-      const username = jwt ? AuthService.parseJwtForUsername(jwt) : null;
-      if (!username) {
-        return createToolError(
-          "Invalid JWT token",
-          { error: "Could not extract username from JWT" },
-          401,
-          toolCallId
+          context?.toolCallId || "unknown"
         );
       }
 
       const assessmentService = new AssessmentService(env.DB);
+      // Note: This would need campaign and resources data, simplified for now
       const campaignHealth = await assessmentService.getCampaignHealth(
         campaignId,
-        {} as Campaign, // TODO: Get actual campaign data
-        [] as CampaignResource[] // TODO: Get actual resource data
+        {} as Campaign,
+        [] as CampaignResource[]
       );
 
       return createToolSuccess(
-        "Campaign health analyzed successfully",
-        { campaignHealth },
-        toolCallId
+        `Campaign health analyzed successfully for campaign ${campaignId}`,
+        campaignHealth,
+        context?.toolCallId || "unknown"
       );
     } catch (error) {
       console.error("Failed to get campaign health:", error);
       return createToolError(
         "Failed to analyze campaign health",
-        { error: error instanceof Error ? error.message : String(error) },
+        error instanceof Error ? error.message : "Unknown error",
         500,
-        toolCallId
+        context?.toolCallId || "unknown"
       );
     }
   },
@@ -178,51 +152,39 @@ export const getCampaignHealth = tool({
 /**
  * Tool: Get user activity for personalized guidance
  */
-export const getUserActivity = tool({
+export const getUserActivityTool = tool({
   description: "Get user activity for personalized guidance",
   parameters: z.object({
+    username: z.string().describe("The username to get activity for"),
     jwt: commonSchemas.jwt,
   }),
-  execute: async ({ jwt }, context?: any): Promise<any> => {
-    const toolCallId = context?.toolCallId || "unknown";
-
+  execute: async ({ username, jwt: _jwt }, context?: any) => {
     try {
       const env = context?.env;
       if (!env) {
         return createToolError(
           "Environment not available",
-          { error: "Environment not available" },
+          "Database connection not available",
           500,
-          toolCallId
-        );
-      }
-
-      // Extract username from JWT
-      const username = jwt ? AuthService.parseJwtForUsername(jwt) : null;
-      if (!username) {
-        return createToolError(
-          "Invalid JWT token",
-          { error: "Could not extract username from JWT" },
-          401,
-          toolCallId
+          context?.toolCallId || "unknown"
         );
       }
 
       const assessmentService = new AssessmentService(env.DB);
-      const activity = await assessmentService.getUserActivity(username);
+      const userActivity = await assessmentService.getUserActivity(username);
 
       return createToolSuccess(
-        "User activity retrieved successfully",
-        { activity },
-        toolCallId
+        `User activity retrieved successfully for ${username}`,
+        userActivity,
+        context?.toolCallId || "unknown"
       );
     } catch (error) {
       console.error("Failed to get user activity:", error);
       return createToolError(
         "Failed to retrieve user activity",
-        { error: error instanceof Error ? error.message : String(error) },
+        error instanceof Error ? error.message : "Unknown error",
         500,
-        toolCallId
+        context?.toolCallId || "unknown"
       );
     }
   },

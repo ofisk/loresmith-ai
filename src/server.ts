@@ -47,6 +47,7 @@ import {
   handleProcessPdfForRag,
   handleProcessPdfFromR2ForRag,
   handleRagSearch,
+  handleTriggerAutoRAGIndexing,
   handleUpdatePdfMetadataForRag,
 } from "./routes/rag";
 import { upload } from "./routes/upload";
@@ -61,10 +62,13 @@ interface Env extends AuthEnv {
   FILE_BUCKET: R2Bucket;
   DB: D1Database;
   VECTORIZE: VectorizeIndex;
+  AI: any; // AI binding for AutoRAG
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
   UploadSession: DurableObjectNamespace;
   ASSETS: Fetcher;
+  PDF_PROCESSING_QUEUE: Queue;
+  PDF_PROCESSING_DLQ: Queue;
 }
 
 // Progress tracking store (moved to services/progress.ts)
@@ -423,6 +427,8 @@ app.put(
 app.get("/rag/pdfs", requireUserJwt, handleGetPdfFilesForRag);
 app.delete("/rag/pdfs/:fileKey", requireUserJwt, handleDeletePdfForRag);
 app.get("/rag/pdfs/:fileKey/chunks", requireUserJwt, handleGetPdfChunksForRag);
+app.post("/rag/trigger-indexing", requireUserJwt, handleTriggerAutoRAGIndexing);
+app.get("/rag/status", requireUserJwt);
 
 // Campaign Routes
 app.get("/campaigns", requireUserJwt, handleGetCampaigns);
@@ -518,4 +524,175 @@ app.get("*", async (c) => {
   );
 });
 
-export default app;
+// Main app export
+const appExport = app;
+
+// Queue handler for PDF processing
+async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
+  console.log(`[PDF Queue] Processing ${batch.messages.length} messages`);
+
+  for (const message of batch.messages) {
+    try {
+      console.log(
+        `[PDF Queue] Processing message for file: ${message.body.fileKey}`
+      );
+
+      // Import progress tracking
+      const { completeProgress } = await import("./services/progress");
+
+      // Create RAG service instance with progress tracking
+      const { AutoRAGService } = await import("./services/autorag-service");
+      const ragService = new AutoRAGService(
+        env.DB,
+        env.AI,
+        message.body.openaiApiKey
+      );
+
+      // Update status to processing
+      await env.DB.prepare(
+        "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ? AND username = ?"
+      )
+        .bind(
+          "processing",
+          new Date().toISOString(),
+          message.body.fileKey,
+          message.body.username
+        )
+        .run();
+
+      console.log(
+        `[PDF Queue] Starting PDF processing for ${message.body.fileKey}`
+      );
+
+      // Process the PDF
+      const result = await ragService.processPdfFromR2(
+        message.body.fileKey,
+        message.body.username,
+        env.FILE_BUCKET,
+        message.body.metadata
+      );
+
+      console.log(
+        `[PDF Queue] PDF processing completed for ${message.body.fileKey}`
+      );
+
+      // Update status to processed
+      await env.DB.prepare(
+        "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ? AND username = ?"
+      )
+        .bind(
+          "processed",
+          new Date().toISOString(),
+          message.body.fileKey,
+          message.body.username
+        )
+        .run();
+
+      // Update metadata if suggestions were generated
+      if (result.suggestedMetadata) {
+        await env.DB.prepare(
+          "UPDATE pdf_files SET description = ?, tags = ?, updated_at = ? WHERE file_key = ? AND username = ?"
+        )
+          .bind(
+            result.suggestedMetadata.description,
+            JSON.stringify(result.suggestedMetadata.tags),
+            new Date().toISOString(),
+            message.body.fileKey,
+            message.body.username
+          )
+          .run();
+
+        console.log(
+          `[PDF Queue] Updated metadata for ${message.body.fileKey}:`,
+          result.suggestedMetadata
+        );
+      }
+
+      // Complete progress tracking
+      completeProgress(
+        message.body.fileKey,
+        true,
+        undefined,
+        result.suggestedMetadata
+      );
+      console.log(`[PDF Queue] Successfully processed ${message.body.fileKey}`);
+    } catch (error) {
+      console.error(
+        `[PDF Queue] Error processing ${message.body.fileKey}:`,
+        error
+      );
+
+      // Import progress tracking for error handling
+      const { completeProgress } = await import("./services/progress");
+
+      // Determine specific error message
+      let errorMessage = "PDF processing failed";
+      let errorDetails = "";
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+
+        // Provide more specific error messages based on the error type
+        if (error.message.includes("Unavailable content in PDF document")) {
+          errorMessage = "Unavailable content in PDF document";
+          errorDetails =
+            "The PDF file could not be parsed. It may be encrypted, corrupted, or contain no readable text.";
+        } else if (error.message.includes("timeout")) {
+          errorMessage = "PDF processing timeout";
+          errorDetails = "The PDF processing took too long and was cancelled.";
+        } else if (error.message.includes("not found in R2")) {
+          errorMessage = "File not found in storage";
+          errorDetails = "The uploaded file could not be found in storage.";
+        } else if (error.message.includes("No OpenAI API key")) {
+          errorMessage = "OpenAI API key required";
+          errorDetails =
+            "PDF processing requires an OpenAI API key for text analysis.";
+        } else {
+          errorDetails = error.message;
+        }
+      }
+
+      // Update status to error with specific error message
+      await env.DB.prepare(
+        "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ? AND username = ?"
+      )
+        .bind(
+          "error",
+          new Date().toISOString(),
+          message.body.fileKey,
+          message.body.username
+        )
+        .run();
+
+      // Complete progress tracking with error
+      completeProgress(message.body.fileKey, false, errorMessage);
+
+      // Send to dead letter queue for manual review with enhanced error info
+      await env.PDF_PROCESSING_DLQ.send({
+        fileKey: message.body.fileKey,
+        username: message.body.username,
+        metadata: message.body.metadata,
+        openaiApiKey: message.body.openaiApiKey,
+        error: {
+          message: errorMessage,
+          details: errorDetails,
+          originalError: error instanceof Error ? error.message : String(error),
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      console.log(
+        `[PDF Queue] Sent ${message.body.fileKey} to dead letter queue with error: ${errorMessage}`
+      );
+    }
+  }
+}
+
+// Export both the app and queue handler
+export default {
+  fetch: appExport.fetch,
+  queue: queueHandler,
+};
+
+// Also export the queue function directly for compatibility
+export { queueHandler as queue };

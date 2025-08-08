@@ -6,10 +6,13 @@ export interface Env extends AuthEnv {
   FILE_BUCKET: R2Bucket;
   DB: D1Database;
   VECTORIZE: VectorizeIndex;
+  AUTORAG: any; // AutoRAG binding
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
   UploadSession: DurableObjectNamespace;
   ASSETS: Fetcher;
+  PDF_PROCESSING_QUEUE: Queue;
+  PDF_PROCESSING_DLQ: Queue;
 }
 
 // Set user authentication data in context
@@ -41,11 +44,6 @@ export async function requireUserJwt(
       ? await c.env.ADMIN_SECRET.get()
       : "default-secret-key";
     const jwtSecret = new TextEncoder().encode(secret);
-    console.log("[requireUserJwt] JWT secret length:", jwtSecret.length);
-    console.log(
-      "[requireUserJwt] JWT secret bytes:",
-      Array.from(jwtSecret).slice(0, 10)
-    );
     console.log("[requireUserJwt] Using Secrets Store for verification");
 
     const { payload } = await jwtVerify(token, jwtSecret);

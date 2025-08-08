@@ -75,6 +75,8 @@
     "hono": "^4.8.5",
     "jose": "^6.0.11",
     "marked": "^16.0.0",
+    "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^5.4.54",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hot-toast": "^2.5.2",

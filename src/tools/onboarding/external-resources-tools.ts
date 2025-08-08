@@ -1,23 +1,20 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { commonSchemas, createToolError, createToolSuccess } from "../utils";
 import type { ToolRecommendation } from "./state-analysis-tools";
-import { createToolError, createToolSuccess } from "../utils";
 
 /**
  * Tool: Recommend external tools based on user needs
  */
-export const recommendExternalTools = tool({
-  description: "Recommend external tools and resources based on user needs",
+export const recommendExternalToolsTool = tool({
+  description: "Recommend external tools based on user needs",
   parameters: z.object({
     userNeeds: z
       .array(z.string())
-      .describe(
-        "Array of user needs (e.g., ['maps', 'adventures', 'community'])"
-      ),
+      .describe("Array of user needs to recommend tools for"),
+    jwt: commonSchemas.jwt,
   }),
-  execute: async ({ userNeeds }, context?: any): Promise<any> => {
-    const toolCallId = context?.toolCallId || "unknown";
-
+  execute: async ({ userNeeds, jwt: _jwt }, context?: any) => {
     try {
       const tools: ToolRecommendation[] = [];
 
@@ -124,253 +121,219 @@ export const recommendExternalTools = tool({
       }
 
       return createToolSuccess(
-        "External tools recommended successfully",
-        { tools },
-        toolCallId
+        `External tools recommended successfully for needs: ${userNeeds.join(", ")}`,
+        tools,
+        context?.toolCallId || "unknown"
       );
     } catch (error) {
       console.error("Failed to recommend external tools:", error);
       return createToolError(
-        "Failed to generate tool recommendations",
-        { error: error instanceof Error ? error.message : String(error) },
+        "Failed to recommend external tools",
+        error instanceof Error ? error.message : "Unknown error",
         500,
-        toolCallId
+        context?.toolCallId || "unknown"
       );
     }
   },
 });
 
 /**
- * Tool: Suggest inspiration sources for campaign building
+ * Tool: Suggest inspiration sources based on campaign type
  */
-export const suggestInspirationSources = tool({
-  description: "Suggest inspiration sources for campaign building",
+export const suggestInspirationSourcesTool = tool({
+  description: "Suggest inspiration sources based on campaign type",
   parameters: z.object({
     campaignType: z
       .string()
       .optional()
-      .describe("Type of campaign (e.g., 'horror', 'fantasy')"),
+      .describe("The type of campaign to suggest sources for"),
+    jwt: commonSchemas.jwt,
   }),
-  execute: async ({ campaignType }, context?: any): Promise<any> => {
-    const toolCallId = context?.toolCallId || "unknown";
-
+  execute: async ({ campaignType, jwt: _jwt }, context?: any) => {
     try {
       const sources: ToolRecommendation[] = [];
 
-      // General inspiration sources
+      // Add general inspiration sources
       sources.push(
         {
-          name: "Pinterest - D&D Maps",
-          url: "https://www.pinterest.com/search/pins/?q=dnd%20maps",
-          description: "Find battlemaps and world maps",
+          name: "Pinterest - Fantasy Art",
+          url: "https://www.pinterest.com/search/pins/?q=fantasy%20art",
+          description: "Discover fantasy artwork and character designs",
           category: "inspiration",
           relevance: "high",
         },
         {
-          name: "Pinterest - Character Art",
-          url: "https://www.pinterest.com/search/pins/?q=fantasy%20character%20art",
-          description: "Discover character portraits and designs",
+          name: "ArtStation - Concept Art",
+          url: "https://www.artstation.com/search?q=concept%20art",
+          description: "Find professional concept art and designs",
           category: "inspiration",
           relevance: "high",
         },
         {
-          name: "YouTube - D&D Campaign Ideas",
-          url: "https://www.youtube.com/results?search_query=dnd+campaign+ideas",
-          description: "Watch videos for campaign inspiration",
-          category: "content",
-          relevance: "high",
+          name: "Reddit - r/ImaginaryCharacters",
+          url: "https://www.reddit.com/r/ImaginaryCharacters/",
+          description: "Character art and designs",
+          category: "inspiration",
+          relevance: "medium",
         }
       );
 
-      // Campaign-specific sources
-      if (campaignType === "horror") {
+      // Add campaign-specific sources
+      if (campaignType === "fantasy") {
         sources.push(
           {
-            name: "Pinterest - Gothic Horror",
-            url: "https://www.pinterest.com/search/pins/?q=gothic%20horror",
-            description: "Find gothic and horror inspiration",
+            name: "Reddit - r/ImaginaryLandscapes",
+            url: "https://www.reddit.com/r/ImaginaryLandscapes/",
+            description: "Fantasy landscapes and environments",
             category: "inspiration",
             relevance: "high",
           },
           {
-            name: "YouTube - Horror RPG",
-            url: "https://www.youtube.com/results?search_query=horror+rpg",
-            description: "Learn horror RPG techniques",
-            category: "content",
+            name: "Reddit - r/ImaginaryMonsters",
+            url: "https://www.reddit.com/r/ImaginaryMonsters/",
+            description: "Monster and creature designs",
+            category: "inspiration",
             relevance: "high",
           }
         );
-      } else if (campaignType === "fantasy") {
+      } else if (campaignType === "sci-fi") {
         sources.push(
           {
-            name: "Pinterest - Fantasy Landscapes",
-            url: "https://www.pinterest.com/search/pins/?q=fantasy%20landscape",
-            description: "Find fantasy world inspiration",
+            name: "Reddit - r/ImaginaryTechnology",
+            url: "https://www.reddit.com/r/ImaginaryTechnology/",
+            description: "Sci-fi technology and designs",
             category: "inspiration",
             relevance: "high",
           },
           {
-            name: "YouTube - Fantasy World Building",
-            url: "https://www.youtube.com/results?search_query=fantasy+world+building",
-            description: "Learn world building techniques",
-            category: "content",
+            name: "Reddit - r/ImaginaryStarships",
+            url: "https://www.reddit.com/r/ImaginaryStarships/",
+            description: "Spaceship and vehicle designs",
+            category: "inspiration",
             relevance: "high",
           }
         );
       }
 
       return createToolSuccess(
-        "Inspiration sources suggested successfully",
-        { sources },
-        toolCallId
+        `Inspiration sources suggested successfully for campaign type: ${campaignType || "general"}`,
+        sources,
+        context?.toolCallId || "unknown"
       );
     } catch (error) {
       console.error("Failed to suggest inspiration sources:", error);
       return createToolError(
-        "Failed to generate inspiration suggestions",
-        { error: error instanceof Error ? error.message : String(error) },
+        "Failed to suggest inspiration sources",
+        error instanceof Error ? error.message : "Unknown error",
         500,
-        toolCallId
+        context?.toolCallId || "unknown"
       );
     }
   },
 });
 
 /**
- * Tool: Recommend GM-specific resources and tools
+ * Tool: Recommend GM resources based on experience level
  */
-export const recommendGMResources = tool({
-  description:
-    "Recommend GM-specific resources and tools based on experience level",
+export const recommendGMResourcesTool = tool({
+  description: "Recommend GM resources based on experience level",
   parameters: z.object({
     experienceLevel: z
       .enum(["beginner", "intermediate", "advanced"])
-      .describe("GM experience level"),
+      .describe("The GM's experience level"),
+    jwt: commonSchemas.jwt,
   }),
-  execute: async ({ experienceLevel }, context?: any): Promise<any> => {
-    const toolCallId = context?.toolCallId || "unknown";
-
+  execute: async ({ experienceLevel, jwt: _jwt }, context?: any) => {
     try {
       const resources: ToolRecommendation[] = [];
 
-      // Core GM resources for all levels
-      resources.push(
-        {
-          name: "D&D Beyond",
-          url: "https://www.dndbeyond.com",
-          description: "Official D&D tools and content",
-          category: "tools",
-          relevance: "high",
-        },
-        {
-          name: "DMsGuild",
-          url: "https://www.dmsguild.com",
-          description: "Find adventures and supplements",
-          category: "content",
-          relevance: "high",
-        },
-        {
-          name: "Reddit - r/DMAcademy",
-          url: "https://www.reddit.com/r/DMAcademy/",
-          description: "Get advice from experienced DMs",
-          category: "community",
-          relevance: "high",
-        }
-      );
-
-      // Beginner-specific resources
+      // Add resources based on experience level
       if (experienceLevel === "beginner") {
         resources.push(
           {
+            name: "D&D Beyond - Basic Rules",
+            url: "https://www.dndbeyond.com/sources/basic-rules",
+            description: "Free basic rules for D&D 5e",
+            category: "content",
+            relevance: "high",
+          },
+          {
             name: "YouTube - Matt Colville",
             url: "https://www.youtube.com/c/mattcolville",
-            description: "Excellent DM advice for beginners",
+            description: "Excellent GM advice for beginners",
             category: "content",
             relevance: "high",
           },
           {
-            name: "YouTube - Dungeon Dudes",
-            url: "https://www.youtube.com/c/DungeonDudes",
-            description: "Beginner-friendly D&D content",
-            category: "content",
-            relevance: "high",
-          },
-          {
-            name: "D&D Starter Set",
-            url: "https://dnd.wizards.com/products/starter-set",
-            description: "Perfect for new DMs",
-            category: "content",
+            name: "Reddit - r/DMAcademy",
+            url: "https://www.reddit.com/r/DMAcademy/",
+            description: "Get advice from experienced DMs",
+            category: "community",
             relevance: "high",
           }
         );
-      }
-
-      // Intermediate resources
-      if (experienceLevel === "intermediate") {
+      } else if (experienceLevel === "intermediate") {
         resources.push(
           {
-            name: "YouTube - Critical Role",
-            url: "https://www.youtube.com/c/CriticalRole",
-            description: "Watch professional DMs in action",
+            name: "DMsGuild - Adventures",
+            url: "https://www.dmsguild.com/browse.php?keywords=adventure",
+            description: "Find adventures to run or adapt",
+            category: "content",
+            relevance: "high",
+          },
+          {
+            name: "YouTube - Dungeon Craft",
+            url: "https://www.youtube.com/c/DungeonCraft",
+            description: "Advanced GM techniques and tips",
             category: "content",
             relevance: "high",
           },
           {
             name: "Reddit - r/DnDBehindTheScreen",
             url: "https://www.reddit.com/r/DnDBehindTheScreen/",
-            description: "Advanced DM techniques and resources",
+            description: "Advanced DM resources and discussions",
             category: "community",
-            relevance: "high",
-          },
-          {
-            name: "Kobold Press",
-            url: "https://koboldpress.com",
-            description: "High-quality third-party content",
-            category: "content",
             relevance: "high",
           }
         );
-      }
-
-      // Advanced resources
-      if (experienceLevel === "advanced") {
+      } else if (experienceLevel === "advanced") {
         resources.push(
           {
-            name: "YouTube - Sly Flourish",
-            url: "https://www.youtube.com/c/SlyFlourish",
-            description: "Advanced DM techniques and prep",
+            name: "DriveThruRPG - Third Party Content",
+            url: "https://www.drivethrurpg.com/browse.php?keywords=third+party",
+            description: "Advanced third-party content and supplements",
+            category: "content",
+            relevance: "high",
+          },
+          {
+            name: "YouTube - Taking20",
+            url: "https://www.youtube.com/c/Taking20",
+            description: "Advanced GM strategies and analysis",
             category: "content",
             relevance: "high",
           },
           {
             name: "Reddit - r/DnDBehindTheScreen",
             url: "https://www.reddit.com/r/DnDBehindTheScreen/",
-            description: "Advanced DM techniques and resources",
+            description: "Advanced DM resources and discussions",
             category: "community",
-            relevance: "high",
-          },
-          {
-            name: "DriveThruRPG",
-            url: "https://www.drivethrurpg.com",
-            description: "Extensive RPG content library",
-            category: "content",
             relevance: "high",
           }
         );
       }
 
       return createToolSuccess(
-        "GM resources recommended successfully",
-        { resources },
-        toolCallId
+        `GM resources recommended successfully for experience level: ${experienceLevel}`,
+        resources,
+        context?.toolCallId || "unknown"
       );
     } catch (error) {
       console.error("Failed to recommend GM resources:", error);
       return createToolError(
-        "Failed to generate GM resource recommendations",
-        { error: error instanceof Error ? error.message : String(error) },
+        "Failed to recommend GM resources",
+        error instanceof Error ? error.message : "Unknown error",
         500,
-        toolCallId
+        context?.toolCallId || "unknown"
       );
     }
   },
