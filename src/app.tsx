@@ -302,7 +302,7 @@ export default function Chat() {
         behavior: "smooth",
       });
     }
-  }, [agentMessages, isLoading]);
+  }, []);
 
   // Debug modal state changes
   useEffect(() => {
@@ -616,7 +616,7 @@ export default function Chat() {
                 </div>
               )}
 
-              {agentMessages.map((m: Message, index) => {
+              {agentMessages.map((m: Message, _index) => {
                 const isUser = m.role === "user";
 
                 return (

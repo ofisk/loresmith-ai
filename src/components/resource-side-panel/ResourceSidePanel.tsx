@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { CaretDown, CaretRight, Upload, FileText } from "@phosphor-icons/react";
 import { Card } from "../card/Card";
 import { Button } from "../button/Button";
@@ -25,12 +25,12 @@ export function ResourceSidePanel({ className = "" }: ResourceSidePanelProps) {
   const [resources, setResources] = useState<PdfFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchResources = async () => {
+  const fetchResources = useCallback(async () => {
     try {
       setIsLoading(true);
       const response = await fetch("/api/pdf/list");
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as { files?: PdfFile[] };
         setResources(data.files || []);
       }
     } catch (error) {
@@ -38,11 +38,11 @@ export function ResourceSidePanel({ className = "" }: ResourceSidePanelProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchResources();
-  }, []);
+  }, [fetchResources]);
 
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return "Unknown size";
@@ -61,10 +61,10 @@ export function ResourceSidePanel({ className = "" }: ResourceSidePanelProps) {
       {/* Header */}
       <div className="p-4 border-b border-neutral-300 dark:border-neutral-800">
         <h2 className="font-semibold text-lg text-gray-900 dark:text-gray-100">
-          📚 Resources
+          Resources
         </h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          Manage your campaign files
+          Manage your campaign content
         </p>
       </div>
 
@@ -73,12 +73,13 @@ export function ResourceSidePanel({ className = "" }: ResourceSidePanelProps) {
         {/* Upload Section */}
         <Card className="p-0">
           <button
+            type="button"
             onClick={() => setIsUploadOpen(!isUploadOpen)}
             className="w-full p-3 flex items-center justify-between text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <Upload size={16} className="text-orange-500" />
-              <span className="font-medium">Upload Files</span>
+              <Upload size={16} className="text-purple-500" />
+              <span className="font-medium">Upload resources</span>
             </div>
             {isUploadOpen ? <CaretDown size={16} /> : <CaretRight size={16} />}
           </button>
@@ -93,12 +94,13 @@ export function ResourceSidePanel({ className = "" }: ResourceSidePanelProps) {
         {/* Resources Section */}
         <Card className="p-0">
           <button
+            type="button"
             onClick={() => setIsResourcesOpen(!isResourcesOpen)}
             className="w-full p-3 flex items-center justify-between text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <FileText size={16} className="text-blue-500" />
-              <span className="font-medium">Your Files</span>
+              <FileText size={16} className="text-purple-600" />
+              <span className="font-medium">Your resources</span>
               <span className="text-sm text-gray-500">
                 ({resources.length})
               </span>
@@ -118,8 +120,8 @@ export function ResourceSidePanel({ className = "" }: ResourceSidePanelProps) {
                 </div>
               ) : resources.length === 0 ? (
                 <div className="p-3 text-sm text-gray-500 text-center">
-                  No files uploaded yet. Use the upload section above to add
-                  your first file! 📄
+                  No resources uploaded yet. Use the upload section above to add
+                  your first resource! 📄
                 </div>
               ) : (
                 <div className="max-h-96 overflow-y-auto">
@@ -167,8 +169,8 @@ export function ResourceSidePanel({ className = "" }: ResourceSidePanelProps) {
                           <div className="flex flex-wrap gap-1">
                             {resource.tags.map((tag, index) => (
                               <span
-                                key={index}
-                                className="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 text-xs rounded-full"
+                                key={`${resource.file_key}-tag-${index}`}
+                                className="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 text-xs rounded-full"
                               >
                                 {tag}
                               </span>
@@ -190,7 +192,7 @@ export function ResourceSidePanel({ className = "" }: ResourceSidePanelProps) {
                   className="w-full"
                   disabled={isLoading}
                 >
-                  🔄 Refresh Files
+                  🔄 Refresh resources
                 </Button>
               </div>
             </div>
