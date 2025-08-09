@@ -23,6 +23,7 @@ import { PdfUploadAgent } from "@/components/pdf-upload/PdfUploadAgent";
 import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
+import { ThinkingSpinner } from "@/components/thinking-spinner";
 import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
 
 import { USER_MESSAGES } from "./constants";
@@ -480,7 +481,7 @@ export default function Chat() {
     <>
       <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
         <Toaster position="top-right" />
-        <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-lg flex flex-col shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
+        <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-5xl flex flex-col shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
           <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
             <div
               className="flex items-center justify-center rounded-lg"
@@ -532,10 +533,10 @@ export default function Chat() {
           </div>
 
           {/* Main Content Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 max-h-[calc(100vh-10rem)]">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 pb-32 max-h-[calc(100vh-10rem)]">
             {agentMessages.length === 0 && (
               <div className="h-full flex items-center justify-center">
-                <Card className="p-6 max-w-md mx-auto bg-neutral-100 dark:bg-neutral-900">
+                <Card className="p-6 max-w-2xl mx-auto bg-neutral-100 dark:bg-neutral-900">
                   <div className="text-left space-y-4">
                     <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
                       <img
@@ -601,8 +602,10 @@ export default function Chat() {
                     className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                   >
                     <div
-                      className={`flex gap-2 max-w-[85%] ${
-                        isUser ? "flex-row-reverse" : "flex-col"
+                      className={`flex gap-2 ${
+                        isUser
+                          ? "flex-row-reverse max-w-[85%]"
+                          : "flex-col w-full"
                       }`}
                     >
                       {showAvatar && !isUser ? (
@@ -691,6 +694,20 @@ export default function Chat() {
                 </div>
               );
             })}
+
+            {/* Thinking Spinner - shown when agent is processing */}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="flex gap-2 w-full">
+                  <Avatar username={"LS"} />
+                  <div className="flex-1">
+                    <Card className="p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 rounded-bl-none border-assistant-border">
+                      <ThinkingSpinner />
+                    </Card>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Chat-specific sections */}
