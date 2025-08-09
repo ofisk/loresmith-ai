@@ -18,7 +18,6 @@ import {
 } from "../../services/auth-service";
 import type { ProcessingProgress } from "../../types/progress";
 
-import { PdfList } from "./PdfList";
 import { PdfUpload } from "./PdfUpload";
 
 interface PdfUploadAgentProps {
@@ -61,8 +60,7 @@ export const PdfUploadAgent = ({ className }: PdfUploadAgentProps) => {
   const [username, setUsername] = useState("");
   const [jwtUsername, setJwtUsername] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isListModalOpen, setIsListModalOpen] = useState(false);
-  const [refreshTrigger, _setRefreshTrigger] = useState(0);
+
   const [uploadProgress, setUploadProgress] =
     useState<ProcessingProgress | null>(null);
 
@@ -1032,24 +1030,13 @@ export const PdfUploadAgent = ({ className }: PdfUploadAgentProps) => {
   // Show upload UI
   return (
     <Card className={cn("space-y-4 relative", className)}>
-      <div className="flex justify-center gap-6 mb-2">
+      <div className="flex justify-center mb-2">
         <Button
           onClick={() => setIsAddModalOpen(true)}
           variant="secondary"
           size="base"
         >
           Add to library
-        </Button>
-        <Button
-          onClick={() => {
-            setIsListModalOpen(true);
-            // Trigger refresh when opening the modal
-            _setRefreshTrigger((prev) => prev + 1);
-          }}
-          variant="secondary"
-          size="base"
-        >
-          Show library
         </Button>
       </div>
 
@@ -1065,13 +1052,6 @@ export const PdfUploadAgent = ({ className }: PdfUploadAgentProps) => {
           jwtUsername={jwtUsername}
           uploadProgress={uploadProgress}
         />
-      </Modal>
-      <Modal
-        isOpen={isListModalOpen}
-        onClose={() => setIsListModalOpen(false)}
-        cardStyle={{ width: 560, height: 560 }}
-      >
-        <PdfList refreshTrigger={refreshTrigger} />
       </Modal>
     </Card>
   );
