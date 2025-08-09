@@ -2,7 +2,8 @@ import { useState } from "react";
 import { CaretDown, CaretRight, FileText, Plus } from "@phosphor-icons/react";
 import { Card } from "../card/Card";
 import { PdfList } from "../pdf-upload/PdfList";
-import { PdfUploadAgent } from "../pdf-upload/PdfUploadAgent";
+import { Modal } from "../modal/Modal";
+import { PdfUpload } from "../pdf-upload/PdfUpload";
 
 interface ResourceSidePanelProps {
   className?: string;
@@ -10,7 +11,42 @@ interface ResourceSidePanelProps {
 
 export function ResourceSidePanel({ className = "" }: ResourceSidePanelProps) {
   const [isLibraryOpen, setIsLibraryOpen] = useState(true);
-  const [refreshTrigger, _setRefreshTrigger] = useState(0);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const handleUpload = async (
+    file: File,
+    filename: string,
+    description: string,
+    tags: string[]
+  ) => {
+    console.log("[ResourceSidePanel] Upload started:", {
+      filename,
+      description,
+      tags,
+    });
+    setUploading(true);
+
+    try {
+      // For now, just simulate an upload that succeeds after 2 seconds
+      // TODO: Implement real upload logic similar to PdfUploadAgent
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      console.log("[ResourceSidePanel] Upload successful (simulated)");
+      setIsAddModalOpen(false);
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (error) {
+      console.error("[ResourceSidePanel] Upload error:", error);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleAddToLibraryClick = () => {
+    console.log("[ResourceSidePanel] Opening add modal");
+    setIsAddModalOpen(true);
+  };
 
   return (
     <div
@@ -32,34 +68,13 @@ export function ResourceSidePanel({ className = "" }: ResourceSidePanelProps) {
         <Card className="p-0">
           <button
             type="button"
-            onClick={() => {
-              // Find the "Add to library" button in the hidden PdfUploadAgent and click it
-              const hiddenAgent = document.querySelector(
-                ".hidden-upload-agent button"
-              ) as HTMLButtonElement;
-              if (hiddenAgent) {
-                hiddenAgent.click();
-              }
-            }}
+            onClick={handleAddToLibraryClick}
             className="w-full p-3 flex items-center gap-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           >
             <Plus size={16} className="text-purple-500" />
             <span className="font-medium">Add to library</span>
           </button>
         </Card>
-
-        {/* Hidden PdfUploadAgent for modal functionality */}
-        <div
-          className="hidden-upload-agent"
-          style={{
-            position: "absolute",
-            left: "-9999px",
-            opacity: 0,
-            pointerEvents: "none",
-          }}
-        >
-          <PdfUploadAgent />
-        </div>
 
         {/* Resources Section */}
         <Card className="p-0">
@@ -82,6 +97,20 @@ export function ResourceSidePanel({ className = "" }: ResourceSidePanelProps) {
           )}
         </Card>
       </div>
+
+      {/* Upload Modal */}
+      <Modal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        cardStyle={{ width: 560, height: 560 }}
+      >
+        <PdfUpload
+          onUpload={handleUpload}
+          loading={uploading}
+          className="border-0 p-0 shadow-none"
+          jwtUsername="testuser"
+        />
+      </Modal>
     </div>
   );
 }
