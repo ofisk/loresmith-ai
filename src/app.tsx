@@ -13,16 +13,18 @@ import { useAgent } from "agents/react";
 import { useCallback, useEffect, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import loresmith from "@/assets/loresmith.png";
-import { Avatar } from "@/components/avatar/Avatar";
+
 // Component imports
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { HelpButton } from "@/components/help/HelpButton";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
-import { PdfUploadAgent } from "@/components/pdf-upload/PdfUploadAgent";
+
 import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
+import { ThinkingSpinner } from "@/components/thinking-spinner";
+import { ResourceSidePanel } from "@/components/resource-side-panel";
 import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
 
 import { USER_MESSAGES } from "./constants";
@@ -283,17 +285,23 @@ export default function Chat() {
   useEffect(() => {
     // Scroll to bottom once when the page loads with messages
     if (agentMessages.length > 0 && !isLoading) {
-      const chatContainer = document.querySelector(".overflow-y-auto");
+      const chatContainer = document.getElementById("chat-container");
       if (chatContainer) {
         chatContainer.scrollTop = chatContainer.scrollHeight;
       }
     }
   }, [agentMessages.length, isLoading]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change or when agent is responding
   useEffect(() => {
-    // Only scroll when new messages are added, not on initial load
-    // This will be handled by the append function instead
+    const chatContainer = document.getElementById("chat-container");
+    if (chatContainer) {
+      // Smooth scroll to bottom when messages change
+      chatContainer.scrollTo({
+        top: chatContainer.scrollHeight,
+        behavior: "smooth",
+      });
+    }
   }, []);
 
   // Debug modal state changes
@@ -314,7 +322,15 @@ export default function Chat() {
     });
     setInput("");
     // Scroll to bottom after user sends a message
-    setTimeout(() => {}, 100);
+    setTimeout(() => {
+      const chatContainer = document.getElementById("chat-container");
+      if (chatContainer) {
+        chatContainer.scrollTo({
+          top: chatContainer.scrollHeight,
+          behavior: "smooth",
+        });
+      }
+    }, 100);
   };
 
   // Enhanced clear history function that creates a new session
@@ -450,7 +466,15 @@ export default function Chat() {
     setInput("");
     setTextareaHeight("auto"); // Reset height after submission
     // Scroll to bottom after user sends a message
-    setTimeout(() => {}, 100);
+    setTimeout(() => {
+      const chatContainer = document.getElementById("chat-container");
+      if (chatContainer) {
+        chatContainer.scrollTo({
+          top: chatContainer.scrollHeight,
+          behavior: "smooth",
+        });
+      }
+    }, 100);
   };
 
   // Enhanced key down handler that includes JWT
@@ -472,7 +496,15 @@ export default function Chat() {
       setInput("");
       setTextareaHeight("auto"); // Reset height on Enter submission
       // Scroll to bottom after user sends a message
-      setTimeout(() => {}, 100);
+      setTimeout(() => {
+        const chatContainer = document.getElementById("chat-container");
+        if (chatContainer) {
+          chatContainer.scrollTo({
+            top: chatContainer.scrollHeight,
+            behavior: "smooth",
+          });
+        }
+      }, 100);
     }
   };
 
@@ -480,278 +512,298 @@ export default function Chat() {
     <>
       <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
         <Toaster position="top-right" />
-        <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-lg flex flex-col shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
-          <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
-            <div
-              className="flex items-center justify-center rounded-lg"
-              style={{ width: 28, height: 28 }}
-            >
-              <img
-                src={loresmith}
-                alt="LoreSmith logo"
-                width={28}
-                height={28}
-                className="object-contain"
-              />
-            </div>
+        <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-[1400px] flex shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
+          {/* Resource Side Panel */}
+          <ResourceSidePanel />
 
-            <div className="flex-1">
-              <h2 className="font-semibold text-base">LoreSmith</h2>
-            </div>
-
-            <div className="flex items-center gap-2 mr-2">
-              <Bug size={16} />
-              <Toggle
-                toggled={showDebug}
-                aria-label="Toggle debug mode"
-                onClick={() => setShowDebug((prev) => !prev)}
-              />
-            </div>
-
-            <HelpButton onActionClick={handleHelpAction} />
-
-            <Button
-              variant="ghost"
-              size="md"
-              shape="square"
-              className="rounded-full h-9 w-9"
-              onClick={toggleTheme}
-            >
-              {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="md"
-              shape="square"
-              className="rounded-full h-9 w-9"
-              onClick={handleClearHistory}
-            >
-              <Trash size={20} />
-            </Button>
-          </div>
-
-          {/* Main Content Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 max-h-[calc(100vh-10rem)]">
-            {agentMessages.length === 0 && (
-              <div className="h-full flex items-center justify-center">
-                <Card className="p-6 max-w-md mx-auto bg-neutral-100 dark:bg-neutral-900">
-                  <div className="text-left space-y-4">
-                    <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
-                      <img
-                        src={loresmith}
-                        alt="LoreSmith logo"
-                        width={48}
-                        height={48}
-                      />
-                    </div>
-                    <h3 className="font-semibold text-lg">
-                      👋 Welcome to LoreSmith Campaign Planner!
-                    </h3>
-                    <p className="text-muted-foreground text-sm">
-                      Speak your query, and I shall summon the most fitting
-                      agent. Try:
-                    </p>
-                    <div className="flex justify-center gap-2 pt-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="bg-neutral-100 dark:bg-neutral-600"
-                        onClick={() => handleSuggestionSubmit("Get started")}
-                      >
-                        <Lightbulb size={12} />
-                        Get started
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="bg-neutral-100 dark:bg-neutral-600"
-                        onClick={() => handleSuggestionSubmit("Show agents")}
-                      >
-                        Show agents
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
+          {/* Main Chat Area */}
+          <div className="flex-1 flex flex-col">
+            <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
+              <div
+                className="flex items-center justify-center rounded-lg"
+                style={{ width: 28, height: 28 }}
+              >
+                <img
+                  src={loresmith}
+                  alt="LoreSmith logo"
+                  width={28}
+                  height={28}
+                  className="object-contain"
+                />
               </div>
-            )}
 
-            {agentMessages.map((m: Message, index) => {
-              const isUser = m.role === "user";
-              const showAvatar =
-                index === 0 || agentMessages[index - 1]?.role !== m.role;
+              <div className="flex-1">
+                <h2 className="font-semibold text-base">LoreSmith</h2>
+              </div>
 
-              return (
-                <div key={m.id}>
-                  {showDebug && (
-                    <pre className="text-xs text-muted-foreground overflow-scroll">
-                      {JSON.stringify(
-                        {
-                          ...m,
-                          parts: m.parts?.filter(
-                            (part) => part.type !== "tool-invocation"
-                          ),
-                        },
-                        null,
-                        2
+              <div className="flex items-center gap-2 mr-2">
+                <Bug size={16} />
+                <Toggle
+                  toggled={showDebug}
+                  aria-label="Toggle debug mode"
+                  onClick={() => setShowDebug((prev) => !prev)}
+                />
+              </div>
+
+              <HelpButton onActionClick={handleHelpAction} />
+
+              <Button
+                variant="ghost"
+                size="md"
+                shape="square"
+                className="rounded-full h-9 w-9"
+                onClick={toggleTheme}
+              >
+                {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="md"
+                shape="square"
+                className="rounded-full h-9 w-9"
+                onClick={handleClearHistory}
+              >
+                <Trash size={20} />
+              </Button>
+            </div>
+
+            {/* Main Content Area */}
+            <div
+              id="chat-container"
+              className="flex-1 overflow-y-auto px-6 py-4 space-y-4 pb-32 max-h-[calc(100vh-10rem)]"
+            >
+              {agentMessages.length === 0 && (
+                <div className="h-full flex items-center justify-center">
+                  <Card className="p-6 max-w-2xl mx-auto bg-neutral-100 dark:bg-neutral-900">
+                    <div className="text-left space-y-4">
+                      <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
+                        <img
+                          src={loresmith}
+                          alt="LoreSmith logo"
+                          width={48}
+                          height={48}
+                        />
+                      </div>
+                      <h3 className="font-semibold text-lg">
+                        👋 Welcome to LoreSmith Campaign Planner!
+                      </h3>
+                      <p className="text-muted-foreground text-sm">
+                        Speak your query, and I shall summon the most fitting
+                        agent. Try:
+                      </p>
+                      <div className="flex justify-center gap-2 pt-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="bg-neutral-100 dark:bg-neutral-600"
+                          onClick={() => handleSuggestionSubmit("Get started")}
+                        >
+                          <Lightbulb size={12} />
+                          Get started
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="bg-neutral-100 dark:bg-neutral-600"
+                          onClick={() => handleSuggestionSubmit("Show agents")}
+                        >
+                          Show agents
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+              )}
+
+              {agentMessages
+                .filter((m: Message) => {
+                  // Hide "Get started" messages from display
+                  if (m.role === "user" && m.content === "Get started") {
+                    return false;
+                  }
+                  return true;
+                })
+                .map((m: Message, _index) => {
+                  const isUser = m.role === "user";
+
+                  return (
+                    <div key={m.id}>
+                      {showDebug && (
+                        <pre className="text-xs text-muted-foreground overflow-scroll">
+                          {JSON.stringify(
+                            {
+                              ...m,
+                              parts: m.parts?.filter(
+                                (part) => part.type !== "tool-invocation"
+                              ),
+                            },
+                            null,
+                            2
+                          )}
+                        </pre>
                       )}
-                    </pre>
-                  )}
-                  <div
-                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`flex gap-2 max-w-[85%] ${
-                        isUser ? "flex-row-reverse" : "flex-col"
-                      }`}
-                    >
-                      {showAvatar && !isUser ? (
-                        <Avatar username={"LS"} />
-                      ) : (
-                        !isUser && <div className="w-8" />
-                      )}
+                      <div
+                        className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+                      >
+                        <div
+                          className={`${
+                            isUser
+                              ? "flex flex-row-reverse gap-2 max-w-[85%]"
+                              : "w-full"
+                          }`}
+                        >
+                          <div className={isUser ? "flex-1" : "w-full"}>
+                            <div>
+                              {m.parts?.map((part, i) => {
+                                if (part.type === "text") {
+                                  return (
+                                    // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
+                                    <div key={i}>
+                                      <Card
+                                        className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
+                                          isUser
+                                            ? "rounded-br-none"
+                                            : "rounded-bl-none border-assistant-border"
+                                        } ${
+                                          part.text.startsWith(
+                                            "scheduled message"
+                                          )
+                                            ? "border-accent/50"
+                                            : ""
+                                        } relative`}
+                                      >
+                                        {part.text.startsWith(
+                                          "scheduled message"
+                                        ) && (
+                                          <span className="absolute -top-3 -left-2 text-base">
+                                            🕒
+                                          </span>
+                                        )}
+                                        <MemoizedMarkdown
+                                          content={part.text.replace(
+                                            /^scheduled message: /,
+                                            ""
+                                          )}
+                                        />
+                                      </Card>
+                                      <p
+                                        className={`text-xs text-muted-foreground mt-1 ${
+                                          isUser ? "text-right" : "text-left"
+                                        }`}
+                                      >
+                                        {formatTime(
+                                          new Date(
+                                            m.createdAt as unknown as string
+                                          )
+                                        )}
+                                      </p>
+                                    </div>
+                                  );
+                                }
 
-                      <div className="flex-1">
-                        <div>
-                          {m.parts?.map((part, i) => {
-                            if (part.type === "text") {
-                              return (
-                                // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
-                                <div key={i}>
-                                  <Card
-                                    className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
-                                      isUser
-                                        ? "rounded-br-none"
-                                        : "rounded-bl-none border-assistant-border"
-                                    } ${
-                                      part.text.startsWith("scheduled message")
-                                        ? "border-accent/50"
-                                        : ""
-                                    } relative`}
-                                  >
-                                    {part.text.startsWith(
-                                      "scheduled message"
-                                    ) && (
-                                      <span className="absolute -top-3 -left-2 text-base">
-                                        🕒
-                                      </span>
-                                    )}
-                                    <MemoizedMarkdown
-                                      content={part.text.replace(
-                                        /^scheduled message: /,
-                                        ""
-                                      )}
+                                if (part.type === "tool-invocation") {
+                                  const toolInvocation = part.toolInvocation;
+                                  const toolCallId = toolInvocation.toolCallId;
+                                  const needsConfirmation =
+                                    toolsRequiringConfirmation.includes(
+                                      toolInvocation.toolName as
+                                        | keyof typeof generalTools
+                                        | keyof typeof campaignTools
+                                        | keyof typeof pdfTools
+                                    );
+
+                                  // Skip rendering the card when debug is off
+                                  if (!showDebug) return null;
+
+                                  return (
+                                    <ToolInvocationCard
+                                      // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here as the array is static
+                                      key={`${toolCallId}-${i}`}
+                                      toolInvocation={toolInvocation}
+                                      toolCallId={toolCallId}
+                                      needsConfirmation={needsConfirmation}
+                                      addToolResult={addToolResult}
+                                      showDebug={showDebug}
                                     />
-                                  </Card>
-                                  <p
-                                    className={`text-xs text-muted-foreground mt-1 ${
-                                      isUser ? "text-right" : "text-left"
-                                    }`}
-                                  >
-                                    {formatTime(
-                                      new Date(m.createdAt as unknown as string)
-                                    )}
-                                  </p>
-                                </div>
-                              );
-                            }
-
-                            if (part.type === "tool-invocation") {
-                              const toolInvocation = part.toolInvocation;
-                              const toolCallId = toolInvocation.toolCallId;
-                              const needsConfirmation =
-                                toolsRequiringConfirmation.includes(
-                                  toolInvocation.toolName as
-                                    | keyof typeof generalTools
-                                    | keyof typeof campaignTools
-                                    | keyof typeof pdfTools
-                                );
-
-                              // Skip rendering the card when debug is off
-                              if (!showDebug) return null;
-
-                              return (
-                                <ToolInvocationCard
-                                  // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here as the array is static
-                                  key={`${toolCallId}-${i}`}
-                                  toolInvocation={toolInvocation}
-                                  toolCallId={toolCallId}
-                                  needsConfirmation={needsConfirmation}
-                                  addToolResult={addToolResult}
-                                  showDebug={showDebug}
-                                />
-                              );
-                            }
-                            return null;
-                          })}
+                                  );
+                                }
+                                return null;
+                              })}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
+                  );
+                })}
+
+              {/* Thinking Spinner - shown when agent is processing */}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="w-full">
+                    <Card className="p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 rounded-bl-none border-assistant-border">
+                      <ThinkingSpinner />
+                    </Card>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              )}
+            </div>
 
-          {/* Chat-specific sections */}
-          {/* PDF Upload Section */}
-          <div className="px-4 py-2 border-t border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900">
-            <PdfUploadAgent />
-          </div>
-
-          {/* Input Area */}
-          <form
-            onSubmit={handleFormSubmit}
-            className="p-3 bg-neutral-50 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
-          >
-            <div className="flex items-center gap-2">
-              <div className="flex-1 relative">
-                <Textarea
-                  disabled={pendingToolCallConfirmation}
-                  placeholder={
-                    pendingToolCallConfirmation
-                      ? "Please respond to the tool confirmation above..."
-                      : "What knowledge do you seek today?"
-                  }
-                  className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-base ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900"
-                  value={agentInput}
-                  onChange={(e) => {
-                    handleAgentInputChange(e);
-                    // Auto-resize the textarea
-                    e.target.style.height = "auto";
-                    e.target.style.height = `${e.target.scrollHeight}px`;
-                    setTextareaHeight(`${e.target.scrollHeight}px`);
-                  }}
-                  onKeyDown={handleKeyDown}
-                  rows={2}
-                  style={{ height: textareaHeight }}
-                />
-                <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
-                  {isLoading ? (
-                    <button
-                      type="button"
-                      onClick={stop}
-                      className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                      aria-label="Stop generation"
-                    >
-                      <Stop size={16} />
-                    </button>
-                  ) : (
-                    <button
-                      type="submit"
-                      className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                      disabled={
-                        pendingToolCallConfirmation || !agentInput.trim()
-                      }
-                      aria-label="Send message"
-                    >
-                      <PaperPlaneRight size={16} />
-                    </button>
-                  )}
+            {/* Input Area */}
+            <form
+              onSubmit={handleFormSubmit}
+              className="p-3 bg-neutral-50 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
+            >
+              <div className="flex items-center gap-2">
+                <div className="flex-1 relative">
+                  <Textarea
+                    disabled={pendingToolCallConfirmation}
+                    placeholder={
+                      pendingToolCallConfirmation
+                        ? "Please respond to the tool confirmation above..."
+                        : "What knowledge do you seek today?"
+                    }
+                    className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-base ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900"
+                    value={agentInput}
+                    onChange={(e) => {
+                      handleAgentInputChange(e);
+                      // Auto-resize the textarea
+                      e.target.style.height = "auto";
+                      e.target.style.height = `${e.target.scrollHeight}px`;
+                      setTextareaHeight(`${e.target.scrollHeight}px`);
+                    }}
+                    onKeyDown={handleKeyDown}
+                    rows={2}
+                    style={{ height: textareaHeight }}
+                  />
+                  <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
+                    {isLoading ? (
+                      <button
+                        type="button"
+                        onClick={stop}
+                        className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
+                        aria-label="Stop generation"
+                      >
+                        <Stop size={16} />
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
+                        disabled={
+                          pendingToolCallConfirmation || !agentInput.trim()
+                        }
+                        aria-label="Send message"
+                      >
+                        <PaperPlaneRight size={16} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       </div>
 
