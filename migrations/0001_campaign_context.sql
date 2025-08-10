@@ -1,68 +1,74 @@
--- Migration to add campaign context and character information storage
--- This enables the campaign planner to store and retrieve context for intelligent suggestions
+-- migration to add campaign context and character information storage
+-- this enables the campaign planner to store and retrieve context for intelligent suggestions
 
--- Campaign context table for storing text-based campaign information
-CREATE TABLE IF NOT EXISTS campaign_context (
-  id TEXT PRIMARY KEY,
-  campaign_id TEXT NOT NULL,
-  context_type TEXT NOT NULL, -- 'character_backstory', 'world_description', 'campaign_notes', 'session_notes', etc.
-  title TEXT NOT NULL,
-  content TEXT NOT NULL,
-  metadata TEXT, -- JSON metadata for additional context
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+-- campaign context table for storing text-based campaign information
+create table if not exists campaign_context (
+  id text primary key,
+  campaign_id text not null,
+  context_type text not null, -- 'character_backstory', 'world_description', 'campaign_notes', 'session_notes', etc.
+  title text not null,
+  content text not null,
+  metadata text, -- json metadata for additional context
+  created_at datetime default current_timestamp,
+  updated_at datetime default current_timestamp,
+  foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
--- Character information table for storing player character details
-CREATE TABLE IF NOT EXISTS campaign_characters (
-  id TEXT PRIMARY KEY,
-  campaign_id TEXT NOT NULL,
-  character_name TEXT NOT NULL,
-  character_class TEXT,
-  character_level INTEGER DEFAULT 1,
-  character_race TEXT,
-  backstory TEXT,
-  personality_traits TEXT,
-  goals TEXT,
-  relationships TEXT, -- JSON array of relationships with other characters/NPCs
-  metadata TEXT, -- JSON metadata for additional character info
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+-- character information table for storing player character details
+create table if not exists campaign_characters (
+  id text primary key,
+  campaign_id text not null,
+  character_name text not null,
+  character_class text,
+  character_level integer default 1,
+  character_race text,
+  backstory text,
+  personality_traits text,
+  goals text,
+  relationships text, -- json array of relationships with other characters/npcs
+  metadata text, -- json metadata for additional character info
+  created_at datetime default current_timestamp,
+  updated_at datetime default current_timestamp,
+  foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
--- Campaign planning sessions table for tracking planning conversations
-CREATE TABLE IF NOT EXISTS campaign_planning_sessions (
-  id TEXT PRIMARY KEY,
-  campaign_id TEXT NOT NULL,
-  session_type TEXT NOT NULL, -- 'initial_setup', 'character_creation', 'session_planning', 'world_building', etc.
-  summary TEXT,
-  key_decisions TEXT, -- JSON array of key decisions made
-  next_steps TEXT, -- JSON array of next steps identified
-  resource_suggestions TEXT, -- JSON array of suggested resources
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+-- campaign planning sessions table for tracking planning conversations
+create table if not exists campaign_planning_sessions (
+  id text primary key,
+  campaign_id text not null,
+  session_type text not null, -- 'initial_setup', 'character_creation', 'session_planning', 'world_building', etc.
+  summary text,
+  key_decisions text, -- json array of key decisions made
+  next_steps text, -- json array of next steps identified
+  resource_suggestions text, -- json array of suggested resources
+  created_at datetime default current_timestamp,
+  foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
--- Campaign context chunks for RAG (similar to pdf_chunks but for campaign context)
-CREATE TABLE IF NOT EXISTS campaign_context_chunks (
-  id TEXT PRIMARY KEY,
-  campaign_id TEXT NOT NULL,
-  context_id TEXT NOT NULL,
-  chunk_text TEXT NOT NULL,
-  chunk_index INTEGER NOT NULL,
-  embedding_id TEXT, -- Vectorize ID for similarity search
-  metadata TEXT, -- JSON metadata
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
-  FOREIGN KEY (context_id) REFERENCES campaign_context(id) ON DELETE CASCADE
+-- campaign context chunks for rag (similar to pdf_chunks but for campaign context)
+create table if not exists campaign_context_chunks (
+  id text primary key,
+  campaign_id text not null,
+  context_id text not null,
+  chunk_text text not null,
+  chunk_index integer not null,
+  embedding_id text, -- vectorize id for similarity search
+  metadata text, -- json metadata
+  created_at datetime default current_timestamp,
+  foreign key (campaign_id) references campaigns(id) on delete cascade,
+  foreign key (context_id) references campaign_context(id) on delete cascade
 );
 
--- Indexes for efficient querying
-CREATE INDEX IF NOT EXISTS idx_campaign_context_campaign_id ON campaign_context(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_campaign_context_type ON campaign_context(context_type);
-CREATE INDEX IF NOT EXISTS idx_campaign_characters_campaign_id ON campaign_characters(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_campaign_planning_sessions_campaign_id ON campaign_planning_sessions(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_campaign_context_chunks_campaign_id ON campaign_context_chunks(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_campaign_context_chunks_context_id ON campaign_context_chunks(context_id); 
+-- indexes for efficient querying
+create index if not exists idx_campaign_context_campaign_id 
+  on campaign_context(campaign_id);
+create index if not exists idx_campaign_context_type 
+  on campaign_context(context_type);
+create index if not exists idx_campaign_characters_campaign_id 
+  on campaign_characters(campaign_id);
+create index if not exists idx_campaign_planning_sessions_campaign_id 
+  on campaign_planning_sessions(campaign_id);
+create index if not exists idx_campaign_context_chunks_campaign_id 
+  on campaign_context_chunks(campaign_id);
+create index if not exists idx_campaign_context_chunks_context_id 
+  on campaign_context_chunks(context_id); 
