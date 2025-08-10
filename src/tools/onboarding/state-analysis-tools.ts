@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { AssessmentService } from "../../services/assessment-service";
+import { getAssessmentService } from "../../services/service-factory";
 import type { Campaign, CampaignResource } from "../../types/campaign";
 import { commonSchemas, createToolError, createToolSuccess } from "../utils";
 
@@ -83,7 +83,7 @@ export const analyzeUserStateTool = tool({
         );
       }
 
-      const assessmentService = new AssessmentService(env.DB);
+      const assessmentService = getAssessmentService(env);
       const userState = await assessmentService.analyzeUserState(username);
 
       return createToolSuccess(
@@ -124,7 +124,7 @@ export const getCampaignHealthTool = tool({
         );
       }
 
-      const assessmentService = new AssessmentService(env.DB);
+      const assessmentService = getAssessmentService(env);
       // Note: This would need campaign and resources data, simplified for now
       const campaignHealth = await assessmentService.getCampaignHealth(
         campaignId,
@@ -170,7 +170,7 @@ export const getUserActivityTool = tool({
         );
       }
 
-      const assessmentService = new AssessmentService(env.DB);
+      const assessmentService = getAssessmentService(env);
       const userActivity = await assessmentService.getUserActivity(username);
 
       return createToolSuccess(

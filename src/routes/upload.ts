@@ -5,8 +5,7 @@ import { Hono } from "hono";
 import type { Env } from "../middleware/auth";
 import { requireUserJwt } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
-
-import { UploadService } from "../services/upload-service";
+import { getUploadService } from "../services/service-factory";
 
 const upload = new Hono<{
   Bindings: Env;
@@ -27,7 +26,7 @@ upload.post("/start", async (c) => {
       return c.json({ error: "Filename and fileSize are required" }, 400);
     }
 
-    const uploadService = new UploadService(c.env);
+    const uploadService = getUploadService(c.env);
     const result = await uploadService.startUpload(
       userId,
       filename,
@@ -73,7 +72,7 @@ upload.post("/part", async (c) => {
       );
     }
 
-    const uploadService = new UploadService(c.env);
+    const uploadService = getUploadService(c.env);
     const arrayBuffer = await file.arrayBuffer();
     const result = await uploadService.uploadPart(
       sessionId,
@@ -112,7 +111,7 @@ upload.post("/complete", async (c) => {
       return c.json({ error: "sessionId is required" }, 400);
     }
 
-    const uploadService = new UploadService(c.env);
+    const uploadService = getUploadService(c.env);
     const { fileKey, metadata } = await uploadService.completeUpload(sessionId);
 
     // AutoRAG will automatically index content from the R2 bucket
@@ -206,7 +205,7 @@ upload.post("/complete", async (c) => {
 upload.get("/progress/:sessionId", async (c) => {
   try {
     const sessionId = c.req.param("sessionId");
-    const uploadService = new UploadService(c.env);
+    const uploadService = getUploadService(c.env);
     const progress = await uploadService.getProgress(sessionId);
 
     return c.json({
@@ -223,7 +222,7 @@ upload.get("/progress/:sessionId", async (c) => {
 upload.delete("/session/:sessionId", async (c) => {
   try {
     const sessionId = c.req.param("sessionId");
-    const uploadService = new UploadService(c.env);
+    const uploadService = getUploadService(c.env);
     await uploadService.cleanupSession(sessionId);
 
     return c.json({ success: true });

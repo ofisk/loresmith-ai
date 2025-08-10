@@ -57,6 +57,8 @@ import type { AgentType } from "./services/agent-router";
 import type { AuthEnv } from "./services/auth-service";
 import { AuthService } from "./services/auth-service";
 import { ModelManager } from "./services/model-manager";
+import { getAutoRAGService } from "./services/service-factory";
+import { completeProgress } from "./services/progress";
 
 interface Env extends AuthEnv {
   ADMIN_SECRET?: string;
@@ -518,16 +520,8 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
         `[PDF Queue] Processing message for file: ${message.body.fileKey}`
       );
 
-      // Import progress tracking
-      const { completeProgress } = await import("./services/progress");
-
       // Create RAG service instance with progress tracking
-      const { AutoRAGService } = await import("./services/autorag-service");
-      const ragService = new AutoRAGService(
-        env.DB,
-        env.AI,
-        message.body.openaiApiKey
-      );
+      const ragService = getAutoRAGService(env);
 
       // Update status to processing
       await env.DB.prepare(
@@ -575,9 +569,6 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
         `[PDF Queue] Error processing ${message.body.fileKey}:`,
         error
       );
-
-      // Import progress tracking for error handling
-      const { completeProgress } = await import("./services/progress");
 
       // Determine specific error message
       let errorMessage = "PDF processing failed";

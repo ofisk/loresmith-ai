@@ -4,8 +4,7 @@
 import { Hono } from "hono";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
-import { RAGService } from "../services/rag-service";
-import { StorageService } from "../services/storage-service";
+import { getRagService, getStorageService } from "../services/service-factory";
 import type { SearchQuery } from "../types/upload";
 import { requireUserJwt } from "../middleware/auth";
 
@@ -22,7 +21,7 @@ library.get("/files", async (c) => {
     const limit = parseInt(c.req.query("limit") || "20");
     const offset = parseInt(c.req.query("offset") || "0");
 
-    const ragService = new RAGService(c.env);
+    const ragService = getRagService(c.env);
     const files = await ragService.searchFiles({
       query: "",
       userId,
@@ -68,7 +67,7 @@ library.get("/search", async (c) => {
       includeSemantic,
     };
 
-    const ragService = new RAGService(c.env);
+    const ragService = getRagService(c.env);
     const results = await ragService.searchFiles(searchQuery);
 
     console.log(`[Library] Search results:`, {
@@ -98,7 +97,7 @@ library.get("/files/:fileId", async (c) => {
     const fileId = c.req.param("fileId");
     const userId = c.get("userAuth")?.username || "anonymous";
 
-    const ragService = new RAGService(c.env);
+    const ragService = getRagService(c.env);
     const metadata = await ragService.getFileMetadata(fileId, userId);
 
     if (!metadata) {
@@ -121,7 +120,7 @@ library.put("/files/:fileId", async (c) => {
     const userId = c.get("userAuth")?.username || "anonymous";
     const updates = await c.req.json();
 
-    const ragService = new RAGService(c.env);
+    const ragService = getRagService(c.env);
     const success = await ragService.updateFileMetadata(
       fileId,
       userId,
@@ -151,7 +150,7 @@ library.delete("/files/:fileId", async (c) => {
     const userId = c.get("userAuth")?.username || "anonymous";
 
     // Get file metadata first
-    const ragService = new RAGService(c.env);
+    const ragService = getRagService(c.env);
     const metadata = await ragService.getFileMetadata(fileId, userId);
 
     if (!metadata) {
@@ -189,7 +188,7 @@ library.get("/files/:fileId/download", async (c) => {
     const fileId = c.req.param("fileId");
     const userId = c.get("userAuth")?.username || "anonymous";
 
-    const ragService = new RAGService(c.env);
+    const ragService = getRagService(c.env);
     const metadata = await ragService.getFileMetadata(fileId, userId);
 
     if (!metadata) {
@@ -213,7 +212,7 @@ library.post("/files/:fileId/regenerate", async (c) => {
     const fileId = c.req.param("fileId");
     const userId = c.get("userAuth")?.username || "anonymous";
 
-    const ragService = new RAGService(c.env);
+    const ragService = getRagService(c.env);
     const metadata = await ragService.getFileMetadata(fileId, userId);
 
     if (!metadata) {
@@ -259,7 +258,7 @@ library.get("/storage-usage", async (c) => {
       return c.json({ error: "Authentication required" }, 401);
     }
 
-    const storageService = new StorageService(c.env);
+    const storageService = getStorageService(c.env);
     const usage = await storageService.getUserStorageUsage(
       userAuth.username,
       userAuth.isAdmin || false

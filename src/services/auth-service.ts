@@ -1,6 +1,8 @@
 import type { JWTPayload } from "jose";
 import { jwtVerify, SignJWT } from "jose";
+import type { Env } from "../middleware/auth";
 import { ERROR_MESSAGES, JWT_STORAGE_KEY } from "../constants";
+import { getAuthService } from "./service-factory";
 
 export interface AuthPayload extends JWTPayload {
   type: "user-auth";
@@ -43,7 +45,7 @@ export interface AuthContext {
  * - Error handling
  */
 export class AuthService {
-  constructor(private env: AuthEnv) {}
+  constructor(private env: Env) {}
 
   /**
    * Get JWT secret from environment
@@ -218,7 +220,7 @@ export class AuthService {
     authHeader: string | null | undefined,
     env: any
   ): Promise<AuthPayload | null> {
-    const authService = new AuthService(env);
+    const authService = getAuthService(env);
     return authService.extractAuthFromHeader(authHeader);
   }
 

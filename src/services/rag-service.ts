@@ -3,6 +3,7 @@
 // Updated to work with AutoRAG for enhanced content processing
 
 import type { Env } from "../middleware/auth";
+import { getAutoRAGService } from "./service-factory";
 import type { FileMetadata, SearchQuery, SearchResult } from "../types/upload";
 
 export class RAGService {
@@ -39,14 +40,8 @@ export class RAGService {
       // Use AutoRAG for enhanced metadata generation if available
       let result: { description: string; tags: string[] };
       try {
-        if (this.env.AUTORAG) {
-          const { AutoRAGService } = await import(
-            "../services/autorag-service"
-          );
-          const autoRagService = new AutoRAGService(
-            this.env.DB,
-            this.env.AUTORAG
-          );
+        if (this.env.AI) {
+          const autoRagService = getAutoRAGService(this.env);
 
           // Use AutoRAG for intelligent metadata generation
           const semanticResult = await autoRagService.generateSemanticMetadata(
@@ -141,7 +136,7 @@ export class RAGService {
   private async extractPdfText(buffer: ArrayBuffer): Promise<string> {
     try {
       // Use AutoRAG's text extraction if available
-      if (this.env.AUTORAG) {
+      if (this.env.AI) {
         // AutoRAG handles PDF content directly - no extraction needed
         return `PDF content processed by AutoRAG (${buffer.byteLength} bytes)`;
       }
