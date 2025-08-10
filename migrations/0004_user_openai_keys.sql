@@ -1,13 +1,14 @@
--- Migration: Add user_openai_keys table for storing OpenAI API keys
--- Created: 2024-12-28
+-- migration: add user_openai_keys table for storing openai api keys
+-- created: 2024-12-28
 
-CREATE TABLE IF NOT EXISTS user_openai_keys (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL UNIQUE,
-    api_key TEXT NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+create table if not exists user_openai_keys (
+    id integer primary key autoincrement,
+    username text not null unique,
+    api_key text not null,
+    created_at datetime not null default current_timestamp,
+    updated_at datetime not null default current_timestamp
 );
 
--- Create index for faster lookups by username
-CREATE INDEX IF NOT EXISTS idx_user_openai_keys_username ON user_openai_keys(username); 
+-- create index for faster lookups by username
+create index if not exists idx_user_openai_keys_username 
+  on user_openai_keys(username); 

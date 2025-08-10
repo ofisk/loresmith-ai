@@ -35,6 +35,7 @@ import {
   handleGetGmResources,
 } from "./routes/external-resources";
 import { library } from "./routes/library";
+import { notifications } from "./routes/notifications";
 import {
   handleGetNextActions,
   handleGetStateAnalysis,
@@ -458,6 +459,9 @@ app.delete("/campaigns", requireUserJwt, handleDeleteAllCampaigns);
 // Library Routes
 app.route("/library", library);
 
+// Notification Routes
+app.route("/notifications", notifications);
+
 // Progress WebSocket
 app.get("/progress", handleProgressWebSocket);
 
@@ -621,6 +625,27 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
         );
       }
 
+      // Note: AutoRAG indexing is already handled by the processPdfFromR2 method above
+      // The ragService.processPdfFromR2() call already performs:
+      // 1. Content extraction and processing
+      // 2. AutoRAG indexing for semantic search
+      // 3. Metadata generation
+      // No additional indexing step is needed.
+      console.log(
+        `[PDF Queue] AutoRAG indexing was completed as part of PDF processing for ${message.body.fileKey}`
+      );
+
+      // Create completion notification
+      const { NotificationService } = await import(
+        "./services/notification-service"
+      );
+      const notificationService = new NotificationService(env);
+      await notificationService.notifyFileProcessingComplete(
+        message.body.username,
+        message.body.metadata?.file_name || message.body.fileKey,
+        message.body.fileKey
+      );
+
       // Complete progress tracking
       completeProgress(
         message.body.fileKey,
@@ -676,6 +701,25 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
           message.body.username
         )
         .run();
+
+      // Create error notification
+      try {
+        const { NotificationService } = await import(
+          "./services/notification-service"
+        );
+        const notificationService = new NotificationService(env);
+        await notificationService.notifyFileProcessingError(
+          message.body.username,
+          message.body.metadata?.file_name || message.body.fileKey,
+          message.body.fileKey,
+          errorDetails || errorMessage
+        );
+      } catch (notificationError) {
+        console.error(
+          `[PDF Queue] Failed to create error notification:`,
+          notificationError
+        );
+      }
 
       // Complete progress tracking with error
       completeProgress(message.body.fileKey, false, errorMessage);

@@ -1,28 +1,33 @@
--- Create file_metadata table for storing file information
-CREATE TABLE IF NOT EXISTS file_metadata (
-  id TEXT PRIMARY KEY,
-  file_key TEXT NOT NULL,
-  user_id TEXT NOT NULL,
-  filename TEXT NOT NULL,
-  file_size INTEGER NOT NULL,
-  content_type TEXT NOT NULL,
-  description TEXT,
-  tags TEXT NOT NULL DEFAULT '[]',
-  status TEXT NOT NULL DEFAULT 'uploaded',
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  vector_id TEXT
+-- create file_metadata table for storing file information
+create table if not exists file_metadata (
+  id text primary key,
+  file_key text not null,
+  user_id text not null,
+  filename text not null,
+  file_size integer not null,
+  content_type text not null,
+  description text,
+  tags text not null default '[]',
+  status text not null default 'uploaded',
+  created_at text not null,
+  updated_at text not null,
+  vector_id text
 );
 
--- Create indexes for efficient querying
-CREATE INDEX IF NOT EXISTS idx_file_metadata_user_id ON file_metadata(user_id);
-CREATE INDEX IF NOT EXISTS idx_file_metadata_status ON file_metadata(status);
-CREATE INDEX IF NOT EXISTS idx_file_metadata_created_at ON file_metadata(created_at);
-CREATE INDEX IF NOT EXISTS idx_file_metadata_filename ON file_metadata(filename);
-CREATE INDEX IF NOT EXISTS idx_file_metadata_tags ON file_metadata(tags);
+-- create indexes for efficient querying
+create index if not exists idx_file_metadata_user_id 
+  on file_metadata(user_id);
+create index if not exists idx_file_metadata_status 
+  on file_metadata(status);
+create index if not exists idx_file_metadata_created_at 
+  on file_metadata(created_at);
+create index if not exists idx_file_metadata_filename 
+  on file_metadata(filename);
+create index if not exists idx_file_metadata_tags 
+  on file_metadata(tags);
 
--- Create full-text search index for search functionality
-CREATE VIRTUAL TABLE IF NOT EXISTS file_metadata_fts USING fts5(
+-- create full-text search index for search functionality
+create virtual table if not exists file_metadata_fts using fts5(
   filename,
   description,
   tags,
@@ -30,20 +35,23 @@ CREATE VIRTUAL TABLE IF NOT EXISTS file_metadata_fts USING fts5(
   content_rowid='rowid'
 );
 
--- Create triggers to keep FTS index in sync
-CREATE TRIGGER IF NOT EXISTS file_metadata_ai AFTER INSERT ON file_metadata BEGIN
-  INSERT INTO file_metadata_fts(rowid, filename, description, tags) 
-  VALUES (new.rowid, new.filename, new.description, new.tags);
-END;
+-- create triggers to keep fts index in sync
+create trigger if not exists file_metadata_ai after insert 
+  on file_metadata begin
+  insert into file_metadata_fts(rowid, filename, description, tags) 
+  values (new.rowid, new.filename, new.description, new.tags);
+end;
 
-CREATE TRIGGER IF NOT EXISTS file_metadata_ad AFTER DELETE ON file_metadata BEGIN
-  INSERT INTO file_metadata_fts(file_metadata_fts, rowid, filename, description, tags) 
-  VALUES('delete', old.rowid, old.filename, old.description, old.tags);
-END;
+create trigger if not exists file_metadata_ad after delete 
+  on file_metadata begin
+  insert into file_metadata_fts(file_metadata_fts, rowid, filename, description, tags) 
+  values('delete', old.rowid, old.filename, old.description, old.tags);
+end;
 
-CREATE TRIGGER IF NOT EXISTS file_metadata_au AFTER UPDATE ON file_metadata BEGIN
-  INSERT INTO file_metadata_fts(file_metadata_fts, rowid, filename, description, tags) 
-  VALUES('delete', old.rowid, old.filename, old.description, old.tags);
-  INSERT INTO file_metadata_fts(rowid, filename, description, tags) 
-  VALUES (new.rowid, new.filename, new.description, new.tags);
-END; 
+create trigger if not exists file_metadata_au after update 
+  on file_metadata begin
+  insert into file_metadata_fts(file_metadata_fts, rowid, filename, description, tags) 
+  values('delete', old.rowid, old.filename, old.description, old.tags);
+  insert into file_metadata_fts(rowid, filename, description, tags) 
+  values (new.rowid, new.filename, new.description, new.tags);
+end; 
