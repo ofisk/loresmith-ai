@@ -35,7 +35,6 @@ import {
   handleGetGmResources,
 } from "./routes/external-resources";
 import { library } from "./routes/library";
-import { notifications } from "./routes/notifications";
 import {
   handleGetNextActions,
   handleGetStateAnalysis,
@@ -459,9 +458,6 @@ app.delete("/campaigns", requireUserJwt, handleDeleteAllCampaigns);
 // Library Routes
 app.route("/library", library);
 
-// Notification Routes
-app.route("/notifications", notifications);
-
 // Progress WebSocket
 app.get("/progress", handleProgressWebSocket);
 
@@ -509,38 +505,6 @@ app.get(
   handleGetGmResources
 );
 
-// Static file serving for the React app
-app.get("*", async (c) => {
-  const url = new URL(c.req.url);
-  const path = url.pathname;
-
-  // Serve index.html for the root path
-  if (path === "/") {
-    return c.env.ASSETS.fetch(new Request("https://example.com/index.html"));
-  }
-
-  // Try to serve static assets
-  try {
-    const assetResponse = await c.env.ASSETS.fetch(c.req.raw);
-    if (assetResponse.status === 200) {
-      return assetResponse;
-    }
-  } catch (_error) {
-    console.log("Asset not found:", path);
-  }
-
-  // Fallback to agent routing
-  if (!process.env.OPENAI_API_KEY) {
-    console.error(
-      "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
-    );
-  }
-  return (
-    (await routeAgentRequest(c.req.raw, c.env as any, { cors: true })) ||
-    new Response("Not found", { status: 404 })
-  );
-});
-
 // Main app export
 const appExport = app;
 
@@ -582,7 +546,7 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
       );
 
       // Process the PDF
-      const result = await ragService.processPdfFromR2(
+      await ragService.processPdfFromR2(
         message.body.fileKey,
         message.body.username,
         env.FILE_BUCKET,
@@ -592,38 +556,6 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
       console.log(
         `[PDF Queue] PDF processing completed for ${message.body.fileKey}`
       );
-
-      // Update status to processed
-      await env.DB.prepare(
-        "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ? AND username = ?"
-      )
-        .bind(
-          "processed",
-          new Date().toISOString(),
-          message.body.fileKey,
-          message.body.username
-        )
-        .run();
-
-      // Update metadata if suggestions were generated
-      if (result.suggestedMetadata) {
-        await env.DB.prepare(
-          "UPDATE pdf_files SET description = ?, tags = ?, updated_at = ? WHERE file_key = ? AND username = ?"
-        )
-          .bind(
-            result.suggestedMetadata.description,
-            JSON.stringify(result.suggestedMetadata.tags),
-            new Date().toISOString(),
-            message.body.fileKey,
-            message.body.username
-          )
-          .run();
-
-        console.log(
-          `[PDF Queue] Updated metadata for ${message.body.fileKey}:`,
-          result.suggestedMetadata
-        );
-      }
 
       // Note: AutoRAG indexing is already handled by the processPdfFromR2 method above
       // The ragService.processPdfFromR2() call already performs:
@@ -635,24 +567,8 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
         `[PDF Queue] AutoRAG indexing was completed as part of PDF processing for ${message.body.fileKey}`
       );
 
-      // Create completion notification
-      const { NotificationService } = await import(
-        "./services/notification-service"
-      );
-      const notificationService = new NotificationService(env);
-      await notificationService.notifyFileProcessingComplete(
-        message.body.username,
-        message.body.metadata?.file_name || message.body.fileKey,
-        message.body.fileKey
-      );
-
       // Complete progress tracking
-      completeProgress(
-        message.body.fileKey,
-        true,
-        undefined,
-        result.suggestedMetadata
-      );
+      completeProgress(message.body.fileKey, true);
       console.log(`[PDF Queue] Successfully processed ${message.body.fileKey}`);
     } catch (error) {
       console.error(
@@ -702,25 +618,6 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
         )
         .run();
 
-      // Create error notification
-      try {
-        const { NotificationService } = await import(
-          "./services/notification-service"
-        );
-        const notificationService = new NotificationService(env);
-        await notificationService.notifyFileProcessingError(
-          message.body.username,
-          message.body.metadata?.file_name || message.body.fileKey,
-          message.body.fileKey,
-          errorDetails || errorMessage
-        );
-      } catch (notificationError) {
-        console.error(
-          `[PDF Queue] Failed to create error notification:`,
-          notificationError
-        );
-      }
-
       // Complete progress tracking with error
       completeProgress(message.body.fileKey, false, errorMessage);
 
@@ -753,3 +650,37 @@ export default {
 
 // Also export the queue function directly for compatibility
 export { queueHandler as queue };
+
+// Static file serving for the React app - MUST BE LAST
+app.get("*", async (c) => {
+  const url = new URL(c.req.url);
+  const path = url.pathname;
+
+  // Serve index.html for the root path
+  if (path === "/") {
+    console.log("Printing context environment");
+    console.log(JSON.stringify(c.env, null, 2));
+    return c.env.ASSETS.fetch(new Request("https://example.com/index.html"));
+  }
+
+  // Try to serve static assets
+  try {
+    const assetResponse = await c.env.ASSETS.fetch(c.req.raw);
+    if (assetResponse.status === 200) {
+      return assetResponse;
+    }
+  } catch (_error) {
+    console.log("Asset not found:", path);
+  }
+
+  // Fallback to agent routing
+  if (!process.env.OPENAI_API_KEY) {
+    console.error(
+      "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
+    );
+  }
+  return (
+    (await routeAgentRequest(c.req.raw, c.env as any, { cors: true })) ||
+    new Response("Not found", { status: 404 })
+  );
+});

@@ -4,6 +4,7 @@ import { AutoRAGService } from "../services/autorag-service";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { PDF_SCHEMA } from "../types/pdf";
+import { StorageService } from "../services/storage-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{
@@ -23,6 +24,24 @@ export async function handleGenerateUploadUrl(c: ContextWithAuth) {
 
     if (!userAuth || !userAuth.username) {
       return c.json({ error: "User authentication required" }, 401);
+    }
+
+    // Check storage limits before allowing upload
+    const storageService = new StorageService(c.env);
+    const uploadCheck = await storageService.canUploadFile(
+      userAuth.username,
+      fileSize,
+      userAuth.isAdmin || false
+    );
+
+    if (!uploadCheck.canUpload) {
+      return c.json(
+        {
+          error: uploadCheck.reason || "Storage limit exceeded",
+          storageUsage: uploadCheck.currentUsage,
+        },
+        413
+      ); // 413 Payload Too Large
     }
 
     // Generate a consistent file key based on filename to avoid duplicates

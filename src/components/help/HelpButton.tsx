@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button } from "../button/Button";
 import { Card } from "../card/Card";
 import { MemoizedMarkdown } from "../memoized-markdown";
+import { JWT_STORAGE_KEY } from "../../constants";
 
 interface HelpResponse {
   message: string;
@@ -47,7 +48,7 @@ export function HelpButton({ onActionClick }: HelpButtonProps) {
 
     setIsLoading(true);
     try {
-      const jwt = localStorage.getItem("loresmith-jwt");
+      const jwt = localStorage.getItem(JWT_STORAGE_KEY);
       const response = await fetch("/onboarding/welcome-guidance", {
         method: "GET",
         headers: {

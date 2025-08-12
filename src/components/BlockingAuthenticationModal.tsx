@@ -66,8 +66,8 @@ export function BlockingAuthenticationModal({
 
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
           Present your credentials to enter the halls of LoreSmith. You'll need
-          the sacred admin key and your own OpenAI API key to unlock these
-          ancient gates.
+          your own OpenAI API key to unlock these ancient gates. Providing the
+          sacred admin key grants unlimited storage access.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -86,14 +86,15 @@ export function BlockingAuthenticationModal({
 
           <FormField
             id="adminKey"
-            label="Admin Key"
-            placeholder="Enter the sacred key..."
+            label="Admin Key (Optional)"
+            placeholder="Enter the sacred key for the infinite vault..."
             value={adminKey}
             onValueChange={(value, _isValid) => setAdminKey(value)}
             disabled={false}
           >
             <p className="text-xs text-gray-500 mt-1">
-              Seek the administrator for the key to unlock these halls.
+              Optional: Opens the infinite vault. Without it, you have 20MB
+              limit.
             </p>
           </FormField>
 
@@ -146,7 +147,7 @@ export function BlockingAuthenticationModal({
               type="submit"
               disabled={
                 isLoading ||
-                !adminKey.trim() ||
+                !currentUsername.trim() ||
                 (!isOpenAIKeyDisabled && !openaiApiKey.trim())
               }
             >
@@ -174,6 +175,10 @@ export function BlockingAuthenticationModal({
             <li>Converse with wise AI agents about your grand campaigns</li>
             <li>
               Upload and manage ancient scrolls (PDFs) for your D&D adventures
+            </li>
+            <li>
+              <strong>Storage Limits:</strong> 20MB for regular users, unlimited
+              for admin users
             </li>
           </ul>
         </div>

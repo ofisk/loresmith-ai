@@ -30,8 +30,8 @@ import { BlockingAuthenticationModal } from "./components/BlockingAuthentication
 
 import { USER_MESSAGES } from "./constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
-import { useNotifications } from "./hooks/useNotifications";
 import { AuthService } from "./services/auth-service";
+import { JWT_STORAGE_KEY } from "./constants";
 
 import type { campaignTools } from "./tools/campaign";
 import type { generalTools } from "./tools/general";
@@ -89,12 +89,11 @@ export default function Chat() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [username, setUsername] = useState<string>("");
   const [storedOpenAIKey, setStoredOpenAIKey] = useState<string>("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Get stored JWT for user operations
   const getStoredJwt = useCallback((): string | null => {
-    const jwt = localStorage.getItem("loresmith-jwt");
-    console.log("[App] getStoredJwt() returns:", jwt);
-    return jwt;
+    return localStorage.getItem(JWT_STORAGE_KEY);
   }, []);
 
   // Check for stored OpenAI key
@@ -109,19 +108,27 @@ export default function Chat() {
       };
       if (response.ok && result.hasKey) {
         setStoredOpenAIKey(result.apiKey || "");
+        setIsAuthenticated(true);
       } else {
         // No stored key found, show the auth modal immediately
         console.log("[App] No stored OpenAI key found for user:", username);
         console.log("[App] Showing auth modal immediately");
         setShowAuthModal(true);
+        setIsAuthenticated(false);
       }
     } catch (error) {
       console.error("Error checking stored OpenAI key:", error);
       // Show modal on error as well
       console.log("[App] Error checking stored key, showing auth modal");
       setShowAuthModal(true);
+      setIsAuthenticated(false);
     }
   }, []);
+
+  // Log authentication state changes for debugging
+  useEffect(() => {
+    console.log("[App] Authentication state changed:", isAuthenticated);
+  }, [isAuthenticated]);
 
   // Check authentication status on mount
   useEffect(() => {
@@ -138,6 +145,7 @@ export default function Chat() {
             // JWT expired, show auth modal
             console.log("[App] JWT expired, showing auth modal");
             setShowAuthModal(true);
+            setIsAuthenticated(false);
           } else {
             // JWT valid, check if we have stored OpenAI key
             console.log("[App] JWT valid, checking stored OpenAI key");
@@ -148,11 +156,13 @@ export default function Chat() {
         console.error("Error parsing JWT:", error);
         console.log("[App] Error parsing JWT, showing auth modal");
         setShowAuthModal(true);
+        setIsAuthenticated(false);
       }
     } else {
       // No JWT, show auth modal
       console.log("[App] No JWT, showing auth modal");
       setShowAuthModal(true);
+      setIsAuthenticated(false);
     }
   }, [checkStoredOpenAIKey, getStoredJwt]);
 
@@ -165,14 +175,6 @@ export default function Chat() {
       // Show a toast notification when JWT expires
       toast.error(USER_MESSAGES.SESSION_EXPIRED);
     },
-  });
-
-  // Background notification polling for file processing completion
-  useNotifications({
-    jwt: getStoredJwt(),
-    pollingInterval: 30000, // Check every 30 seconds
-    showToasts: true, // Show toast notifications when files are processed
-    autoMarkAsRead: true, // Auto-mark notifications as read when shown
   });
 
   // Handle authentication submission
@@ -189,7 +191,7 @@ export default function Chat() {
         },
         body: JSON.stringify({
           username,
-          adminSecret: adminKey,
+          adminSecret: adminKey?.trim() || undefined, // Make admin key optional
           openaiApiKey,
         }),
       });
@@ -207,10 +209,25 @@ export default function Chat() {
         // Update stored OpenAI key
         setStoredOpenAIKey(openaiApiKey);
 
+        // Set authentication state
+        setIsAuthenticated(true);
+
         // Close modal
         setShowAuthModal(false);
 
-        toast.success("Authentication successful");
+        // Show success message with admin status
+        const payload = JSON.parse(atob(result.token?.split(".")[1] || ""));
+        const isAdmin = payload.isAdmin || false;
+
+        if (isAdmin) {
+          toast.success(
+            "Authentication successful! Admin access granted with unlimited storage."
+          );
+        } else {
+          toast.success(
+            "Authentication successful! You have 20MB storage limit."
+          );
+        }
       } else {
         throw new Error(result.error || "Authentication failed");
       }
@@ -524,7 +541,10 @@ export default function Chat() {
         <Toaster position="top-right" />
         <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-[1400px] flex shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
           {/* Resource Side Panel */}
-          <ResourceSidePanel />
+          <ResourceSidePanel
+            isAuthenticated={isAuthenticated}
+            username={username}
+          />
 
           {/* Main Chat Area */}
           <div className="flex-1 flex flex-col">

@@ -4,6 +4,7 @@
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { API_CONFIG } from "../../shared";
+import { JWT_STORAGE_KEY } from "../../constants";
 import type { SearchResult } from "../../types/upload";
 
 interface FileLibraryProps {
@@ -36,7 +37,7 @@ export const FileLibrary: React.FC<FileLibraryProps> = ({
         `${API_CONFIG.getApiBaseUrl()}/library/search?${params}`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+            Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
           },
         }
       );
@@ -82,7 +83,7 @@ export const FileLibrary: React.FC<FileLibraryProps> = ({
         `${API_CONFIG.getApiBaseUrl()}/library/files/${fileId}/download`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+            Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
           },
         }
       );
@@ -106,7 +107,7 @@ export const FileLibrary: React.FC<FileLibraryProps> = ({
           {
             method: "DELETE",
             headers: {
-              Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+              Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
             },
           }
         );
@@ -140,7 +141,7 @@ export const FileLibrary: React.FC<FileLibraryProps> = ({
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+            Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
           },
           body: JSON.stringify({
             description: editingMetadata.description,
@@ -175,7 +176,7 @@ export const FileLibrary: React.FC<FileLibraryProps> = ({
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+            Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
           },
         }
       );
