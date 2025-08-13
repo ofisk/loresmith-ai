@@ -6,6 +6,10 @@ import path from "path";
 
 export default defineConfig({
   plugins: [cloudflare(), react(), tailwindcss()],
+  optimizeDeps: {
+    include: ["nanoid"],
+    force: true,
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -36,16 +40,18 @@ export default defineConfig({
     rollupOptions: {
       external: ["cloudflare:email", "cloudflare:workers"],
       output: {
+        format: "es",
         manualChunks: (id) => {
-          // Simplified chunking to avoid React/AI vendor conflicts
+          // Separate agents package to avoid nanoid hoisting issues
           if (id.includes("node_modules")) {
-            // Keep React and AI in the same vendor chunk to avoid loading race conditions
+            if (id.includes("agents")) {
+              return "agents-vendor";
+            }
             if (
               id.includes("react") ||
               id.includes("react-dom") ||
               id.includes("@ai-sdk") ||
-              id.includes("ai") ||
-              id.includes("agents")
+              id.includes("ai")
             ) {
               return "react-ai-vendor";
             }

@@ -127,18 +127,23 @@ export class Chat extends AIChatAgent<Env> {
 
       // Initialize all agents dynamically using the registry
       const registeredAgentTypes =
-        AgentRegistryService.getRegisteredAgentTypes();
+        await AgentRegistryService.getRegisteredAgentTypes();
 
       for (const agentType of registeredAgentTypes) {
-        const agentInstance = AgentRegistryService.createAgentInstance(
-          agentType as AgentType,
-          this.ctx,
-          this.env,
-          modelManager.getModel()
+        // Get the agent class and create an instance
+        const agentClass = await AgentRegistryService.getAgentClass(
+          agentType as AgentType
         );
+        if (agentClass) {
+          const agentInstance = new agentClass(
+            this.ctx,
+            this.env,
+            modelManager.getModel()
+          );
 
-        // Store agent instances in the Map
-        this.agents.set(agentType, agentInstance);
+          // Store agent instances in the Map
+          this.agents.set(agentType, agentInstance);
+        }
       }
 
       console.log(
