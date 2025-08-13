@@ -1,4 +1,4 @@
-import { AIChatAgent } from "agents/ai-chat-agent";
+import { SimpleChatAgent } from "./simple-chat-agent";
 import {
   createDataStreamResponse,
   type StreamTextOnFinishCallback,
@@ -23,18 +23,20 @@ interface MessageData {
  * This class serves as the foundation for all specialized AI agents in the LoreSmith AI system.
  * It handles common operations like JWT extraction, message processing, and tool management.
  *
- * @extends AIChatAgent<Env> - Extends the AI chat agent with environment-specific functionality
+ * @extends SimpleChatAgent<Env> - Extends the simple chat agent with environment-specific functionality
  *
  * @example
  * ```typescript
  * class CampaignAgent extends BaseAgent {
  *   constructor(ctx: DurableObjectState, env: Env, model: any) {
- *     super(ctx, env, model, campaignTools, CAMPAIGN_SYSTEM_PROMPT);
+ *     super(ctx, env);
+ *     this.model = model;
+ *     this.tools = campaignTools;
  *   }
  * }
  * ```
  */
-export abstract class BaseAgent extends AIChatAgent<Env> {
+export abstract class BaseAgent extends SimpleChatAgent<Env> {
   /** The AI model instance used for generating responses */
   protected model: any;
 
@@ -56,7 +58,6 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
    * @param env - The environment containing Cloudflare bindings (R2, Durable Objects, etc.)
    * @param model - The AI model instance for generating responses
    * @param tools - Collection of tools available to this agent
-   * @param systemPrompt - The system prompt that defines agent behavior
    */
   constructor(
     ctx: DurableObjectState,
@@ -149,7 +150,7 @@ export abstract class BaseAgent extends AIChatAgent<Env> {
           // If the message has tool invocations, check if they're all complete
           if (message.toolInvocations && message.toolInvocations.length > 0) {
             return message.toolInvocations.every(
-              (invocation) =>
+              (invocation: any) =>
                 invocation.state === "result" && invocation.result !== undefined
             );
           }

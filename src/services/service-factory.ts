@@ -16,6 +16,7 @@ import { AgentRouter } from "./agent-router";
 // Service factory class with per-request caching
 export class ServiceFactory {
   private static services = new Map<string, any>();
+  private static agentRegistryService: AgentRegistryService | null = null;
 
   // Clear services (called between requests to prevent memory leaks)
   static clearCache(): void {
@@ -94,9 +95,21 @@ export class ServiceFactory {
     return ServiceFactory.services.get(key);
   }
 
-  // Get or create AgentRegistryService (static class, no instance needed)
-  static getAgentRegistryService(): typeof AgentRegistryService {
-    return AgentRegistryService;
+  /**
+   * Get agent registry service
+   */
+  static getAgentRegistryService(_env: Env): AgentRegistryService {
+    if (!ServiceFactory.agentRegistryService) {
+      ServiceFactory.agentRegistryService = new AgentRegistryService();
+    }
+    return ServiceFactory.agentRegistryService;
+  }
+
+  /**
+   * Initialize agent registry (async)
+   */
+  static async initializeAgentRegistry(_env: Env): Promise<void> {
+    await AgentRegistryService.initialize();
   }
 
   // Get or create AgentRouter (static class, no instance needed)
@@ -127,7 +140,10 @@ export const getCampaignService = (env: Env) =>
 
 export const getModelManager = () => ServiceFactory.getModelManager();
 
-export const getAgentRegistryService = () =>
-  ServiceFactory.getAgentRegistryService();
+export const getAgentRegistryService = (env: Env) =>
+  ServiceFactory.getAgentRegistryService(env);
+
+export const initializeAgentRegistry = (env: Env) =>
+  ServiceFactory.initializeAgentRegistry(env);
 
 export const getAgentRouter = () => ServiceFactory.getAgentRouter();
