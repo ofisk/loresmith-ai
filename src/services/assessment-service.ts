@@ -1,4 +1,5 @@
 import type { D1Database } from "@cloudflare/workers-types";
+import type { Env } from "../middleware/auth";
 import type { ModuleAnalysis } from "../tools/campaign-context/assessment-core";
 import type { Campaign, CampaignResource } from "../types/campaign";
 
@@ -46,7 +47,11 @@ export interface ToolRecommendation {
 }
 
 export class AssessmentService {
-  constructor(private db: D1Database) {}
+  private db: D1Database;
+
+  constructor(env: Env) {
+    this.db = env.DB;
+  }
 
   /**
    * Analyze user's current state for contextual guidance

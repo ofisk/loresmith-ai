@@ -3,6 +3,8 @@ import { jwtVerify } from "jose";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { AuthService } from "../services/auth-service";
+import { getAuthService, getAutoRAGService } from "../services/service-factory";
+import { AgentRouter } from "../services/agent-router";
 
 // Helper to set user auth context
 export function setUserAuth(c: Context, payload: AuthPayload) {
@@ -32,7 +34,7 @@ export async function requireUserJwt(
   );
 
   try {
-    const authService = new AuthService(c.env);
+    const authService = getAuthService(c.env);
     const jwtSecret = await authService.getJwtSecret();
     console.log("[requireUserJwt] JWT secret length:", jwtSecret.length);
 
@@ -74,14 +76,11 @@ export async function determineAgent(
     ? AuthService.extractUsernameFromMessage(lastUserMessage)
     : null;
 
-  const { AgentRouter } = await import("../services/agent-router");
-
   // Create RAG service if we have a username
   let ragService = null;
   if (username) {
     try {
-      const { AutoRAGService } = await import("../services/autorag-service");
-      ragService = new AutoRAGService(env.DB, env.AUTORAG);
+      ragService = getAutoRAGService(env);
     } catch (error) {
       console.warn("Failed to initialize AutoRAG service:", error);
     }
@@ -120,7 +119,7 @@ export async function handleAuthenticate(c: Context<{ Bindings: Env }>) {
         : "undefined",
     });
 
-    const authService = new AuthService(c.env);
+    const authService = getAuthService(c.env);
     const result = await authService.authenticateUser({
       username,
       openaiApiKey,

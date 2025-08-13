@@ -1,6 +1,5 @@
 import type { D1Database } from "@cloudflare/workers-types";
-import type { ProcessingProgress, ProcessingStep } from "../types/progress";
-import { PDF_PROCESSING_STEPS } from "../types/progress";
+import type { Env } from "../middleware/auth";
 
 export interface PdfMetadata {
   file_key: string;
@@ -22,84 +21,24 @@ export interface SearchResult {
   source?: string;
 }
 
-export type ProgressCallback = (progress: ProcessingProgress) => void;
-
 export class AutoRAGService {
-  private progressCallback?: ProgressCallback;
+  private db: D1Database;
+  private ai: any;
 
-  constructor(
-    private db: D1Database,
-    private ai: any,
-    _openaiApiKey?: string,
-    progressCallback?: ProgressCallback
-  ) {
-    this.progressCallback = progressCallback;
+  constructor(env: Env) {
+    this.db = env.DB;
+    this.ai = env.AI;
 
     // Debug logging to check if AI binding is available
-    console.log("[AutoRAGService] Constructor called with AI binding:", !!ai);
-    if (!ai) {
+    console.log(
+      "[AutoRAGService] Constructor called with AI binding:",
+      !!this.ai
+    );
+    if (!this.ai) {
       console.warn(
         "[AutoRAGService] AI binding is not available - will use fallback processing"
       );
     }
-  }
-
-  private updateProgress(
-    fileKey: string,
-    username: string,
-    currentStepId: string,
-    stepProgress: number,
-    overallProgress: number,
-    error?: string,
-    stepDetails?: string
-  ) {
-    if (!this.progressCallback) return;
-
-    const steps: ProcessingStep[] = PDF_PROCESSING_STEPS.map((stepDef) => {
-      const step: ProcessingStep = {
-        ...stepDef,
-        status: "pending",
-        progress: 0,
-        startTime: undefined,
-        endTime: undefined,
-      };
-
-      if (stepDef.id === currentStepId) {
-        step.status = error ? "error" : "processing";
-        step.progress = stepProgress;
-        step.startTime = step.startTime || Date.now();
-        if (error) step.error = error;
-        if (stepDetails) step.description = stepDetails;
-      } else if (
-        this.getStepIndex(stepDef.id) < this.getStepIndex(currentStepId)
-      ) {
-        step.status = "completed";
-        step.progress = 100;
-        step.startTime = step.startTime || Date.now();
-        step.endTime = step.endTime || Date.now();
-      }
-
-      return step;
-    });
-
-    const progress: ProcessingProgress = {
-      fileKey,
-      username,
-      overallProgress,
-      currentStep:
-        PDF_PROCESSING_STEPS.find((s) => s.id === currentStepId)?.name ||
-        currentStepId,
-      steps,
-      startTime: Date.now(),
-      status: error ? "error" : "processing",
-      error,
-    };
-
-    this.progressCallback(progress);
-  }
-
-  private getStepIndex(stepId: string): number {
-    return PDF_PROCESSING_STEPS.findIndex((step) => step.id === stepId);
   }
 
   /**
@@ -112,26 +51,7 @@ export class AutoRAGService {
     metadata: Partial<PdfMetadata>
   ): Promise<void> {
     try {
-      this.updateProgress(
-        fileKey,
-        username,
-        "extract",
-        100,
-        20,
-        undefined,
-        "Content extracted successfully"
-      );
-
       // Use AutoRAG to process the content
-      this.updateProgress(
-        fileKey,
-        username,
-        "index",
-        0,
-        40,
-        undefined,
-        "Indexing content with AutoRAG"
-      );
 
       // Add content to AutoRAG with user-specific metadata
       // For now, skip AutoRAG processing since content insertion is not yet implemented
@@ -141,26 +61,7 @@ export class AutoRAGService {
 
       // Skip AutoRAG processing for now
 
-      this.updateProgress(
-        fileKey,
-        username,
-        "index",
-        100,
-        60,
-        undefined,
-        "Content indexed successfully"
-      );
-
       // Generate metadata suggestions using AutoRAG
-      this.updateProgress(
-        fileKey,
-        username,
-        "analyze",
-        0,
-        80,
-        undefined,
-        "Analyzing content for metadata"
-      );
 
       const suggestions = await this.generateSemanticMetadata(
         metadata.file_name || "",
@@ -192,16 +93,6 @@ export class AutoRAGService {
           .bind("processed", fileKey, username)
           .run();
       }
-
-      this.updateProgress(
-        fileKey,
-        username,
-        "analyze",
-        100,
-        100,
-        undefined,
-        "Processing completed successfully"
-      );
     } catch (error) {
       console.error("Error processing PDF with AutoRAG:", error);
 
@@ -217,16 +108,6 @@ export class AutoRAGService {
           username
         )
         .run();
-
-      this.updateProgress(
-        fileKey,
-        username,
-        "analyze",
-        0,
-        100,
-        error instanceof Error ? error.message : "Unknown error",
-        "Processing failed"
-      );
 
       throw error;
     }
@@ -255,15 +136,6 @@ export class AutoRAGService {
         );
         return { suggestedMetadata: undefined };
       }
-      this.updateProgress(
-        fileKey,
-        username,
-        "fetch",
-        0,
-        10,
-        undefined,
-        "Checking for streaming chunks"
-      );
 
       // Check if AutoRAG parts exist from the upload process
       const autoRAGParts = await this.findAutoRAGParts(fileKey, _pdfBucket);
@@ -271,15 +143,6 @@ export class AutoRAGService {
       if (autoRAGParts.length > 0) {
         console.log(
           `[AutoRAGService] Found ${autoRAGParts.length} AutoRAG parts for ${fileKey}`
-        );
-        this.updateProgress(
-          fileKey,
-          username,
-          "fetch",
-          100,
-          20,
-          undefined,
-          "AutoRAG parts found"
         );
 
         // Update database with part information
@@ -289,16 +152,6 @@ export class AutoRAGService {
           )
           .bind("processed", autoRAGParts.length, fileKey, username)
           .run();
-
-        this.updateProgress(
-          fileKey,
-          username,
-          "analyze",
-          100,
-          100,
-          undefined,
-          "AutoRAG parts ready for processing"
-        );
 
         // SECURITY: Never process binary chunks directly - only use filename for metadata
         // This prevents any possibility of executing malicious code from uploaded files
@@ -323,26 +176,6 @@ export class AutoRAGService {
       // If no AutoRAG parts exist, AutoRAG will handle the file normally
       console.log(
         `[AutoRAGService] No AutoRAG parts found for ${fileKey}, AutoRAG will process normally`
-      );
-
-      this.updateProgress(
-        fileKey,
-        username,
-        "fetch",
-        100,
-        20,
-        undefined,
-        "AutoRAG will handle processing"
-      );
-
-      this.updateProgress(
-        fileKey,
-        username,
-        "analyze",
-        100,
-        100,
-        undefined,
-        "File ready for AutoRAG processing"
       );
 
       // Don't generate generic metadata - let AutoRAG handle it naturally

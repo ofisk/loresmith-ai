@@ -1,4 +1,5 @@
-import { AssessmentService } from "../../services/assessment-service";
+import { getAssessmentService } from "../../services/service-factory";
+import type { Env } from "../../middleware/auth";
 import type { Campaign, CampaignResource } from "../../types/campaign";
 import {
   analyzeCampaignHealth,
@@ -15,10 +16,10 @@ export async function assessCampaignHealthTool(
   campaignId: string,
   campaign: Campaign,
   _resources: CampaignResource[],
-  db: any
+  env: Env
 ): Promise<CampaignAssessment> {
   try {
-    const assessmentService = new AssessmentService(db);
+    const assessmentService = getAssessmentService(env);
 
     // Get real campaign data from database
     const resourcesData =
@@ -72,10 +73,10 @@ export async function extractModuleFromPDFTool(
 export async function integrateModuleIntoTool(
   campaignId: string,
   moduleAnalysis: ModuleAnalysis,
-  db: any
+  env: Env
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const assessmentService = new AssessmentService(db);
+    const assessmentService = getAssessmentService(env);
     const success = await assessmentService.storeModuleAnalysis(
       campaignId,
       moduleAnalysis
@@ -103,10 +104,10 @@ export async function getCampaignHealthScoreTool(
   campaignId: string,
   campaign: Campaign,
   resources: CampaignResource[],
-  db: any
+  env: Env
 ): Promise<{ overallScore: number; summary: string; priorityAreas: string[] }> {
   try {
-    const assessmentService = new AssessmentService(db);
+    const assessmentService = getAssessmentService(env);
     const assessment = await assessmentService.getCampaignHealth(
       campaignId,
       campaign,
@@ -134,10 +135,10 @@ export async function getCampaignRecommendationsTool(
   campaignId: string,
   campaign: Campaign,
   resources: CampaignResource[],
-  db: any
+  env: Env
 ): Promise<{ recommendations: Recommendation[]; focusArea: string }> {
   try {
-    const assessmentService = new AssessmentService(db);
+    const assessmentService = getAssessmentService(env);
     const assessment = await assessmentService.getCampaignHealth(
       campaignId,
       campaign,
@@ -208,7 +209,7 @@ export async function analyzeCampaignDimensionTool(
   dimension: "narrative" | "characters" | "plotHooks" | "sessionReadiness",
   campaign: Campaign,
   resources: CampaignResource[],
-  db: any
+  env: Env
 ): Promise<{
   dimension: string;
   score: number;
@@ -216,7 +217,7 @@ export async function analyzeCampaignDimensionTool(
   suggestions: string[];
 }> {
   try {
-    const assessmentService = new AssessmentService(db);
+    const assessmentService = getAssessmentService(env);
     const assessment = await assessmentService.getCampaignHealth(
       campaignId,
       campaign,

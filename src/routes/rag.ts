@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import { AutoRAGService } from "../services/autorag-service";
+import { getAutoRAGService } from "../services/service-factory";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { completeProgress } from "../services/progress";
@@ -19,11 +19,7 @@ export async function handleRagSearch(c: ContextWithAuth) {
       return c.json({ error: "Query is required" }, 400);
     }
 
-    const ragService = new AutoRAGService(
-      c.env.DB,
-      c.env.AUTORAG,
-      userAuth.openaiApiKey
-    );
+    const ragService = getAutoRAGService(c.env);
     const results = await ragService.searchContent(
       userAuth.username,
       query,
@@ -92,11 +88,7 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
         }
 
         // Process with RAG service
-        const ragService = new AutoRAGService(
-          c.env.DB,
-          c.env.AUTORAG,
-          userAuth.openaiApiKey
-        );
+        const ragService = getAutoRAGService(c.env);
         await ragService.processPdfFromR2(
           fileKey,
           userAuth.username,
@@ -190,11 +182,7 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
         }
 
         // Process with RAG service
-        const ragService = new AutoRAGService(
-          c.env.DB,
-          c.env.AUTORAG,
-          userAuth.openaiApiKey
-        );
+        const ragService = getAutoRAGService(c.env);
         await ragService.processPdfFromR2(
           fileKey,
           userAuth.username,
@@ -245,12 +233,7 @@ export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
 
     if (fileKey) {
       // Process specific file
-      const { AutoRAGService } = await import("../services/autorag-service");
-      const ragService = new AutoRAGService(
-        c.env.DB,
-        (c.env as any).AI,
-        userAuth.openaiApiKey
-      );
+      const ragService = getAutoRAGService(c.env);
 
       // Get file metadata
       const file = await c.env.DB.prepare(
@@ -345,7 +328,7 @@ export async function handleGetPdfFilesForRag(c: ContextWithAuth) {
       .all();
 
     // Check for metadata updates from AutoRAG
-    const autoRagService = new AutoRAGService(c.env.DB, (c.env as any).AI);
+    const autoRagService = getAutoRAGService(c.env);
     await autoRagService.getUserPdfs(userAuth.username); // This will trigger metadata updates
 
     return c.json({ files: files.results || [] });
@@ -378,7 +361,7 @@ export async function handleGetPdfChunksForRag(c: ContextWithAuth) {
 export async function handleCheckAutoRAGStatus(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
-    const autoRagService = new AutoRAGService(c.env.DB, (c.env as any).AI);
+    const autoRagService = getAutoRAGService(c.env);
 
     // Get files and trigger metadata updates
     const files = await autoRagService.getUserPdfs(userAuth.username);

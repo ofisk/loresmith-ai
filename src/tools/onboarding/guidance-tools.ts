@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { ToolResult } from "../../constants";
-import { AssessmentService } from "../../services/assessment-service";
+import { getAssessmentService } from "../../services/service-factory";
 import { commonSchemas, createToolError, createToolSuccess } from "../utils";
 import type { ActionSuggestion } from "./state-analysis-tools";
 
@@ -118,7 +118,7 @@ export const suggestNextActionsTool = tool({
         );
       }
 
-      const assessmentService = new AssessmentService(env.DB);
+      const assessmentService = getAssessmentService(env);
       const userState = await assessmentService.analyzeUserState(username);
 
       const actions: ActionSuggestion[] = [];
@@ -199,7 +199,7 @@ export const provideCampaignGuidanceTool = tool({
         );
       }
 
-      const assessmentService = new AssessmentService(env.DB);
+      const assessmentService = getAssessmentService(env);
       const campaignHealth = await assessmentService.getCampaignHealth(
         campaignId,
         {} as any,

@@ -6,7 +6,7 @@ export interface Env extends AuthEnv {
   FILE_BUCKET: R2Bucket;
   DB: D1Database;
   VECTORIZE: VectorizeIndex;
-  AUTORAG: any; // AutoRAG binding
+  AI: Ai;
   Chat: DurableObjectNamespace;
   UserFileTracker: DurableObjectNamespace;
   UploadSession: DurableObjectNamespace;

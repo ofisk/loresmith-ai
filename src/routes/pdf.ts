@@ -1,10 +1,12 @@
 import type { Context } from "hono";
 import { PDF_PROCESSING_CONFIG } from "../constants";
-import { AutoRAGService } from "../services/autorag-service";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { PDF_SCHEMA } from "../types/pdf";
-import { StorageService } from "../services/storage-service";
+import {
+  getStorageService,
+  getAutoRAGService,
+} from "../services/service-factory";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{
@@ -27,7 +29,7 @@ export async function handleGenerateUploadUrl(c: ContextWithAuth) {
     }
 
     // Check storage limits before allowing upload
-    const storageService = new StorageService(c.env);
+    const storageService = getStorageService(c.env);
     const uploadCheck = await storageService.canUploadFile(
       userAuth.username,
       fileSize,
@@ -148,7 +150,78 @@ export async function handleCompleteUpload(c: ContextWithAuth) {
       await multipartUpload.complete(parts);
       console.log("Upload completed for fileKey:", fileKey);
 
-      return c.json({ success: true, fileKey });
+      // AutoRAG will automatically index content from the R2 bucket
+      // No need to create chunks manually - AutoRAG handles text extraction and indexing
+      console.log(
+        `[PDF Upload] AutoRAG will automatically index content from R2 bucket for ${fileKey}`
+      );
+
+      // Always count AutoRAG parts since we always create them
+      const filePathParts = fileKey.split("/");
+      const username = filePathParts[0];
+      const originalFilename =
+        filePathParts[filePathParts.length - 1] || "unknown";
+      const prefix = `${username}/part-`;
+      const objects = await c.env.FILE_BUCKET.list({ prefix });
+      const partCount =
+        objects.objects?.filter(
+          (obj) =>
+            obj.key.includes(`part-`) &&
+            obj.key.includes(originalFilename) &&
+            (obj.key.endsWith(".txt") || obj.key.endsWith(".chunk"))
+        ).length || 0;
+
+      // Leave metadata blank - let AutoRAG generate meaningful metadata
+      const processedMetadata = {
+        description: "",
+        tags: [],
+        vectorId: null,
+      };
+
+      // Also create an entry in the pdf_files table for PDF tools
+      const now = new Date().toISOString();
+      const pdfFileId = crypto.randomUUID();
+
+      // Extract filename from fileKey
+      const filename = fileKey.split("/").pop() || "unknown.pdf";
+
+      try {
+        await c.env.DB.prepare(
+          "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size, chunk_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+          .bind(
+            pdfFileId,
+            fileKey,
+            filename,
+            processedMetadata.description || "",
+            JSON.stringify(processedMetadata.tags || []),
+            userAuth.username,
+            "completed",
+            now,
+            0, // fileSize will be updated by AutoRAG
+            partCount
+          )
+          .run();
+
+        console.log(`[PDF Upload] Created PDF file entry:`, {
+          pdfFileId,
+          fileKey,
+          filename,
+          username: userAuth.username,
+        });
+      } catch (error) {
+        console.error("[PDF Upload] Error creating PDF file entry:", error);
+        // Don't fail the upload if PDF file entry creation fails
+      }
+
+      return c.json({
+        success: true,
+        fileKey,
+        pdfFileId,
+        status: "completed",
+        message:
+          "PDF uploaded successfully. AutoRAG will process and index the content automatically.",
+      });
     } catch (completeError) {
       console.error("Error completing upload:", completeError);
 
@@ -752,11 +825,7 @@ export async function handleAutoGeneratePdfMetadata(c: ContextWithAuth) {
     }
 
     // Process the PDF to extract text and generate metadata
-    const ragService = new AutoRAGService(
-      c.env.DB,
-      c.env.AUTORAG,
-      userAuth.openaiApiKey
-    );
+    const ragService = getAutoRAGService(c.env);
 
     // Create a temporary metadata object for processing
     const tempMetadata = {
@@ -867,7 +936,7 @@ export async function handleGetPdfStats(c: ContextWithAuth) {
 export async function handleProcessMetadataBackground(c: ContextWithAuth) {
   try {
     const userAuth = c.get("userAuth") as AuthPayload;
-    const { fileKey, openaiApiKey } = await c.req.json();
+    const { fileKey } = await c.req.json();
 
     if (!fileKey) {
       return c.json({ error: "File key is required" }, 400);
@@ -912,11 +981,7 @@ export async function handleProcessMetadataBackground(c: ContextWithAuth) {
     }
 
     // Process the PDF to extract text and generate metadata
-    const ragService = new AutoRAGService(
-      c.env.DB,
-      c.env.AUTORAG,
-      openaiApiKey || userAuth.openaiApiKey
-    );
+    const ragService = getAutoRAGService(c.env);
 
     // Create a temporary metadata object for processing
     const tempMetadata = {

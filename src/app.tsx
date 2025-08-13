@@ -140,8 +140,7 @@ export default function Chat() {
         if (payload.username) {
           setUsername(payload.username);
           // Check if JWT is expired
-          const authService = new AuthService({} as any);
-          if (authService.isJwtExpired(jwt)) {
+          if (AuthService.isJwtExpired(jwt)) {
             // JWT expired, show auth modal
             console.log("[App] JWT expired, showing auth modal");
             setShowAuthModal(true);

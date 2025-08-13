@@ -11,8 +11,18 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  define: {
+    global: "globalThis",
+  },
   build: {
     rollupOptions: {
+      external: [
+        "cloudflare:email",
+        "cloudflare:workers",
+        "async_hooks",
+        "node:os",
+        "path",
+      ],
       output: {
         manualChunks: (id) => {
           // Simplified chunking to avoid React/AI vendor conflicts
