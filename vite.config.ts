@@ -7,7 +7,7 @@ import path from "path";
 export default defineConfig({
   plugins: [cloudflare(), react(), tailwindcss()],
   optimizeDeps: {
-    exclude: ["nanoid"],
+    exclude: ["nanoid", "@rollup/rollup-linux-x64-gnu"],
   },
   build: {
     rollupOptions: {
