@@ -1,8 +1,8 @@
-import path from "node:path";
-import { cloudflare } from "@cloudflare/vite-plugin";
-import tailwindcss from "@tailwindcss/vite";
-import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import path from "path";
 
 export default defineConfig({
   plugins: [cloudflare(), react(), tailwindcss()],
@@ -37,13 +37,11 @@ export default defineConfig({
             ) {
               return "react-ai-vendor";
             }
-            // Put other node_modules in a vendor chunk
             return "vendor";
           }
+          return null;
         },
       },
     },
-    // Increase chunk size warning limit
-    chunkSizeWarningLimit: 1000, // 1MB instead of default 500KB
   },
 });
