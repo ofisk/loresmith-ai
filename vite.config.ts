@@ -7,8 +7,7 @@ import path from "path";
 export default defineConfig({
   plugins: [cloudflare(), react(), tailwindcss()],
   optimizeDeps: {
-    include: ["nanoid"],
-    force: true,
+    exclude: ["nanoid"],
   },
   resolve: {
     alias: {
@@ -18,6 +17,8 @@ export default defineConfig({
       "node:os": path.resolve(__dirname, "./src/node-polyfills.ts"),
       path: path.resolve(__dirname, "./src/node-polyfills.ts"),
       os: path.resolve(__dirname, "./src/node-polyfills.ts"),
+      // Redirect nanoid to our custom ID generator
+      nanoid: path.resolve(__dirname, "./src/utils/nanoid"),
     },
   },
   define: {
@@ -42,18 +43,16 @@ export default defineConfig({
       output: {
         format: "es",
         manualChunks: (id) => {
-          // Separate agents package to avoid nanoid hoisting issues
           if (id.includes("node_modules")) {
+            // Separate AI SDK packages to avoid nanoid issues
+            if (id.includes("@ai-sdk") || id.includes("ai")) {
+              return "ai-sdk-vendor";
+            }
             if (id.includes("agents")) {
               return "agents-vendor";
             }
-            if (
-              id.includes("react") ||
-              id.includes("react-dom") ||
-              id.includes("@ai-sdk") ||
-              id.includes("ai")
-            ) {
-              return "react-ai-vendor";
+            if (id.includes("react") || id.includes("react-dom")) {
+              return "react-vendor";
             }
             // Put other node_modules in vendor chunk
             return "vendor";
