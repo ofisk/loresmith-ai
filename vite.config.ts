@@ -9,6 +9,11 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ["nanoid"],
   },
+  build: {
+    rollupOptions: {
+      external: ["cloudflare:email", "cloudflare:workers"],
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -36,30 +41,5 @@ export default defineConfig({
     Buffer: "Uint8Array",
     __dirname: '"/"',
     __filename: '"server.js"',
-  },
-  build: {
-    rollupOptions: {
-      external: ["cloudflare:email", "cloudflare:workers"],
-      output: {
-        format: "es",
-        manualChunks: (id) => {
-          if (id.includes("node_modules")) {
-            // Separate AI SDK packages to avoid nanoid issues
-            if (id.includes("@ai-sdk") || id.includes("ai")) {
-              return "ai-sdk-vendor";
-            }
-            if (id.includes("agents")) {
-              return "agents-vendor";
-            }
-            if (id.includes("react") || id.includes("react-dom")) {
-              return "react-vendor";
-            }
-            // Put other node_modules in vendor chunk
-            return "vendor";
-          }
-          return null;
-        },
-      },
-    },
   },
 });
