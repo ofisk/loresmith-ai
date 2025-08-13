@@ -1,1 +1,8 @@
+# Run lint-staged for formatting
 npx lint-staged
+
+# Run code quality checks
+npm run check
+
+# Run tests
+npm test
