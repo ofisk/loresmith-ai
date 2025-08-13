@@ -25,6 +25,7 @@
     "types": "wrangler types",
     "format": "prettier --write .",
     "check": "prettier . --check && npx @biomejs/biome lint src tests && tsc",
+    "validate": "npm run check && npm test",
     "prepare": "husky"
   },
   "keywords": [

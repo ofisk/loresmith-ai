@@ -52,7 +52,7 @@ export class AuthService {
    */
   async getJwtSecret(): Promise<Uint8Array> {
     // Get secret from local dev vars or Cloudflare secrets store
-    let secret: string;
+    let secret: string | null;
 
     if (typeof this.env.ADMIN_SECRET === "string") {
       // Local development: direct string from .dev.vars
@@ -62,10 +62,26 @@ export class AuthService {
       typeof this.env.ADMIN_SECRET.get === "function"
     ) {
       // Production: Cloudflare secrets store
-      secret = await this.env.ADMIN_SECRET.get();
+      try {
+        secret = await this.env.ADMIN_SECRET.get();
+      } catch (error) {
+        console.warn(
+          "[AuthService] Error accessing Cloudflare secrets store:",
+          error
+        );
+        secret = null;
+      }
     } else {
       // Fallback
-      secret = "default-secret-key";
+      secret = null;
+    }
+
+    // If no secret is available, use a fallback for JWT signing (but admin access will be disabled)
+    if (!secret) {
+      console.warn(
+        "[AuthService] No admin secret available - using fallback secret for JWT signing only"
+      );
+      secret = "fallback-jwt-secret-no-admin-access";
     }
 
     console.log("[AuthService] JWT secret source:", {
