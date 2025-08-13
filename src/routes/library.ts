@@ -5,14 +5,17 @@ import { Hono } from "hono";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { RAGService } from "../services/rag-service";
+import { StorageService } from "../services/storage-service";
 import type { SearchQuery } from "../types/upload";
+import { requireUserJwt } from "../middleware/auth";
 
 const library = new Hono<{
   Bindings: Env;
   Variables: { userAuth: AuthPayload };
 }>();
 
-// Get user's file library
+library.use("*", requireUserJwt);
+
 library.get("/files", async (c) => {
   try {
     const userId = c.get("userAuth")?.username || "anonymous";
@@ -47,7 +50,6 @@ library.get("/files", async (c) => {
   }
 });
 
-// Search files
 library.get("/search", async (c) => {
   try {
     const userId = c.get("userAuth")?.username || "anonymous";
@@ -91,7 +93,6 @@ library.get("/search", async (c) => {
   }
 });
 
-// Get file metadata
 library.get("/files/:fileId", async (c) => {
   try {
     const fileId = c.req.param("fileId");
@@ -114,7 +115,6 @@ library.get("/files/:fileId", async (c) => {
   }
 });
 
-// Update file metadata
 library.put("/files/:fileId", async (c) => {
   try {
     const fileId = c.req.param("fileId");
@@ -145,7 +145,6 @@ library.put("/files/:fileId", async (c) => {
   }
 });
 
-// Delete file
 library.delete("/files/:fileId", async (c) => {
   try {
     const fileId = c.req.param("fileId");
@@ -185,7 +184,6 @@ library.delete("/files/:fileId", async (c) => {
   }
 });
 
-// Get file download URL
 library.get("/files/:fileId/download", async (c) => {
   try {
     const fileId = c.req.param("fileId");
@@ -210,7 +208,6 @@ library.get("/files/:fileId/download", async (c) => {
   }
 });
 
-// Regenerate metadata for a file
 library.post("/files/:fileId/regenerate", async (c) => {
   try {
     const fileId = c.req.param("fileId");
@@ -252,6 +249,34 @@ library.post("/files/:fileId/regenerate", async (c) => {
   } catch (error) {
     console.error("[Library] Error regenerating metadata:", error);
     return c.json({ error: "Failed to regenerate metadata" }, 500);
+  }
+});
+
+library.get("/storage-usage", async (c) => {
+  try {
+    const userAuth = c.get("userAuth");
+    if (!userAuth) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    const storageService = new StorageService(c.env);
+    const usage = await storageService.getUserStorageUsage(
+      userAuth.username,
+      userAuth.isAdmin || false
+    );
+
+    console.log(
+      `[Library] Retrieved storage usage for user: ` +
+        JSON.stringify(userAuth, null, 2)
+    );
+
+    return c.json({
+      success: true,
+      usage,
+    });
+  } catch (error) {
+    console.error("[Library] Error getting storage usage:", error);
+    return c.json({ error: "Failed to get storage usage" }, 500);
   }
 });
 

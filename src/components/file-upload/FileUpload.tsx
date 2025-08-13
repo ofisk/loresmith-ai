@@ -4,6 +4,7 @@
 import type React from "react";
 import { useCallback, useState } from "react";
 import { API_CONFIG } from "../../shared";
+import { JWT_STORAGE_KEY } from "../../constants";
 
 interface FileUploadProps {
   onUploadComplete?: (fileKey: string, metadata: any) => void;
@@ -54,12 +55,12 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+        Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
       },
       body: JSON.stringify({
         filename: file.name,
-        fileSize: file.size,
         contentType: file.type,
+        fileSize: file.size,
       }),
     });
 
@@ -87,7 +88,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+            Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
           },
           body: formData,
         }
@@ -111,7 +112,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+            Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
           },
           body: JSON.stringify({ sessionId }),
         }
@@ -162,7 +163,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           `${API_CONFIG.getApiBaseUrl()}/upload/progress/${sessionId}`,
           {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+              Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
             },
           }
         );
@@ -234,7 +235,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
               {
                 method: "DELETE",
                 headers: {
-                  Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+                  Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
                 },
               }
             );

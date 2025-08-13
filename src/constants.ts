@@ -189,3 +189,6 @@ export const DEFAULTS = {
   FILE_DESCRIPTION: "No description provided",
   TAGS: [] as string[],
 } as const;
+
+// JWT Storage
+export const JWT_STORAGE_KEY = "loresmith-jwt";
