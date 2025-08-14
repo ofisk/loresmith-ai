@@ -31,6 +31,73 @@ export class AsyncLocalStorage<T = any> {
   }
 }
 
+// events polyfill
+export class EventEmitter {
+  private events: Record<string, Function[]> = {};
+
+  on(event: string, listener: Function): this {
+    if (!this.events[event]) {
+      this.events[event] = [];
+    }
+    this.events[event].push(listener);
+    return this;
+  }
+
+  emit(event: string, ...args: any[]): boolean {
+    if (!this.events[event]) return false;
+    this.events[event].forEach((listener) => listener(...args));
+    return true;
+  }
+
+  removeListener(event: string, listener: Function): this {
+    if (this.events[event]) {
+      this.events[event] = this.events[event].filter((l) => l !== listener);
+    }
+    return this;
+  }
+}
+
+// tty polyfill
+export class ReadStream {
+  isTTY = false;
+  columns = 80;
+  rows = 24;
+}
+
+export class WriteStream {
+  isTTY = false;
+  columns = 80;
+  rows = 24;
+}
+
+// stream polyfill
+export class Writable {
+  write(chunk: any, encoding?: string, callback?: Function): boolean {
+    if (callback) callback();
+    return true;
+  }
+}
+
+// process polyfill
+export const process = {
+  platform: "cloudflare",
+  env: {},
+  version: "v18.0.0",
+  versions: {},
+  cwd: () => "/",
+  exit: (code?: number) => {},
+  stdout: null,
+  stderr: null,
+  stdin: null,
+  getBuiltinModule: (name: string) => {
+    // Return appropriate polyfills for built-in modules
+    if (name === "node:async_hooks") {
+      return { AsyncLocalStorage };
+    }
+    return {};
+  },
+};
+
 // os polyfill
 export const EOL = "\n";
 export const platform = "cloudflare";
@@ -162,6 +229,11 @@ export const toNamespacedPath = (p: string): string => p;
 // Default export for compatibility
 export default {
   AsyncLocalStorage,
+  EventEmitter,
+  ReadStream,
+  WriteStream,
+  Writable,
+  process,
   EOL,
   platform,
   arch,
