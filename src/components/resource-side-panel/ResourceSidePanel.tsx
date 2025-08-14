@@ -1,11 +1,11 @@
 import { useState } from "react";
 import {
-  CaretDown,
-  CaretRight,
   FileText,
   Plus,
   CheckCircle,
   XCircle,
+  CaretDownIcon,
+  CaretRightIcon,
 } from "@phosphor-icons/react";
 import { Card } from "../card/Card";
 import { PdfList } from "../pdf-upload/PdfList";
@@ -316,7 +316,11 @@ export function ResourceSidePanel({
               <FileText size={16} className="text-purple-600" />
               <span className="font-medium">Your library</span>
             </div>
-            {isLibraryOpen ? <CaretDown size={16} /> : <CaretRight size={16} />}
+            {isLibraryOpen ? (
+              <CaretDownIcon size={16} className="text-purple-600" />
+            ) : (
+              <CaretRightIcon size={16} className="text-purple-600" />
+            )}
           </button>
 
           {isLibraryOpen && (

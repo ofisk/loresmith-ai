@@ -9,6 +9,7 @@ import type { Campaign } from "../../types/campaign";
 import { Button } from "../button/Button";
 import { Modal } from "../modal/Modal";
 import { MultiSelect } from "../select/MultiSelect";
+import { CaretDown, CaretRight } from "@phosphor-icons/react";
 
 interface PdfFile {
   id: string;
@@ -42,6 +43,7 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
     useState(false);
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
   const [addingToCampaigns, setAddingToCampaigns] = useState(false);
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
 
   const fetchPdfCampaigns = useCallback(async (files: PdfFile[]) => {
     try {
@@ -264,12 +266,21 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
     setIsAddToCampaignModalOpen(true);
   };
 
+  const toggleFileExpansion = (fileKey: string) => {
+    const newExpanded = new Set(expandedFiles);
+    if (newExpanded.has(fileKey)) {
+      newExpanded.delete(fileKey);
+    } else {
+      newExpanded.add(fileKey);
+    }
+    setExpandedFiles(newExpanded);
+  };
+
   useEffect(() => {
     fetchFiles();
     fetchCampaigns();
   }, [fetchFiles, fetchCampaigns]);
 
-  // Refresh when refreshTrigger changes
   useEffect(() => {
     if (refreshTrigger) {
       fetchFiles();
@@ -301,97 +312,118 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
             className="p-4 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800"
           >
             <div className="flex flex-col h-full">
-              {/* Title on its own line */}
-              <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between">
                 <h4
-                  className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-help"
+                  className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-help flex-1 mr-3"
                   title={file.file_name}
                 >
                   {file.file_name}
                 </h4>
+                <button
+                  onClick={() => toggleFileExpansion(file.file_key)}
+                  type="button"
+                  className="flex-shrink-0 p-1 rounded-md hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors duration-200"
+                >
+                  {expandedFiles.has(file.file_key) ? (
+                    <CaretDown size={16} className="text-purple-600" />
+                  ) : (
+                    <CaretRight size={16} className="text-purple-600" />
+                  )}
+                </button>
               </div>
 
-              {/* Upload time and size on separate lines */}
-              <div className="mt-4 text-xs space-y-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Uploaded:
-                  </span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
-                    {new Date(file.created_at)
-                      .toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "2-digit",
-                        hour: "numeric",
-                        minute: "2-digit",
-                        hour12: true,
-                      })
-                      .replace(",", "")
-                      .replace(" PM", "p")
-                      .replace(" AM", "a")}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Size:
-                  </span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
-                    {file.file_size
-                      ? (file.file_size / 1024 / 1024).toFixed(2)
-                      : "Unknown"}{" "}
-                    MB
-                  </span>
-                </div>
-              </div>
-
-              {/* Description and tags */}
-              {file.description && (
-                <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
-                  {file.description}
-                </p>
-              )}
-              {file.tags && file.tags !== "[]" && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {JSON.parse(file.tags).map((tag: string) => (
-                    <span
-                      key={tag}
-                      className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded"
-                    >
-                      {tag}
+              <div
+                className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                  expandedFiles.has(file.file_key)
+                    ? "max-h-96 opacity-100"
+                    : "max-h-0 opacity-0"
+                }`}
+              >
+                <div className="mt-4 text-xs space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Uploaded:
                     </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Campaigns section */}
-              {file.campaigns && file.campaigns.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                    Linked campaigns:
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {file.campaigns.map((campaign) => (
-                      <span
-                        key={campaign.campaignId}
-                        className="px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded"
-                      >
-                        {campaign.name}
-                      </span>
-                    ))}
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {new Date(file.created_at)
+                        .toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "2-digit",
+                          hour: "numeric",
+                          minute: "2-digit",
+                          hour12: true,
+                        })
+                        .replace(",", "")
+                        .replace(" PM", "p")
+                        .replace(" AM", "a")}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Size:
+                    </span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {file.file_size
+                        ? (file.file_size / 1024 / 1024).toFixed(2)
+                        : "Unknown"}{" "}
+                      MB
+                    </span>
                   </div>
                 </div>
-              )}
 
-              {/* Add to Campaign button positioned at bottom right */}
-              <div className="flex justify-end mt-3">
-                <Button
-                  onClick={() => openAddToCampaignModal(file)}
-                  variant="secondary"
-                  size="sm"
-                >
-                  Add to campaign
-                </Button>
+                {/* Description and tags */}
+                {file.description && (
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      {file.description}
+                    </p>
+                  </div>
+                )}
+                {file.tags && file.tags !== "[]" && (
+                  <div className="mt-3">
+                    <div className="flex flex-wrap gap-1">
+                      {JSON.parse(file.tags).map((tag: string) => (
+                        <span
+                          key={tag}
+                          className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Campaigns section */}
+                {file.campaigns && file.campaigns.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      Linked campaigns:
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {file.campaigns.map((campaign) => (
+                        <span
+                          key={campaign.campaignId}
+                          className="px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded"
+                        >
+                          {campaign.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Add to Campaign button positioned at bottom right */}
+                <div className="flex justify-end mt-4">
+                  <Button
+                    onClick={() => openAddToCampaignModal(file)}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    Add to campaign
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
