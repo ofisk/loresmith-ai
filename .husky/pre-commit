@@ -4,5 +4,8 @@ npx lint-staged
 # Run code quality checks
 npm run check
 
+# Build the project to ensure dist directory exists for tests
+npm run build
+
 # Run tests
 npm test
