@@ -294,72 +294,97 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Resource library</h3>
       <div className="space-y-3">
         {files.map((file) => (
           <div
             key={file.file_key}
             className="p-4 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800"
           >
-            <div className="flex justify-between items-start">
+            <div className="flex flex-col h-full">
+              {/* Title on its own line */}
               <div className="flex-1 min-w-0">
                 <h4
-                  className="font-medium text-gray-900 dark:text-gray-100 truncate cursor-help"
+                  className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-help"
                   title={file.file_name}
                 >
                   {file.file_name}
                 </h4>
-                <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  <span>
-                    Size:{" "}
+              </div>
+
+              {/* Upload time and size on separate lines */}
+              <div className="mt-4 text-xs space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Uploaded:
+                  </span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                    {new Date(file.created_at)
+                      .toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "2-digit",
+                        hour: "numeric",
+                        minute: "2-digit",
+                        hour12: true,
+                      })
+                      .replace(",", "")
+                      .replace(" PM", "p")
+                      .replace(" AM", "a")}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Size:
+                  </span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
                     {file.file_size
                       ? (file.file_size / 1024 / 1024).toFixed(2)
                       : "Unknown"}{" "}
                     MB
                   </span>
-                  <span>•</span>
-                  <span>
-                    Uploaded: {new Date(file.created_at).toLocaleString()}
-                  </span>
                 </div>
-                {file.description && (
-                  <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
-                    {file.description}
+              </div>
+
+              {/* Description and tags */}
+              {file.description && (
+                <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
+                  {file.description}
+                </p>
+              )}
+              {file.tags && file.tags !== "[]" && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {JSON.parse(file.tags).map((tag: string) => (
+                    <span
+                      key={tag}
+                      className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Campaigns section */}
+              {file.campaigns && file.campaigns.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    Linked campaigns:
                   </p>
-                )}
-                {file.tags && file.tags !== "[]" && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {JSON.parse(file.tags).map((tag: string) => (
+                  <div className="flex flex-wrap gap-1">
+                    {file.campaigns.map((campaign) => (
                       <span
-                        key={tag}
-                        className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded"
+                        key={campaign.campaignId}
+                        className="px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded"
                       >
-                        {tag}
+                        {campaign.name}
                       </span>
                     ))}
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* Display campaigns this PDF belongs to */}
-                {file.campaigns && file.campaigns.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                      Linked campaigns:
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {file.campaigns.map((campaign) => (
-                        <span
-                          key={campaign.campaignId}
-                          className="px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded"
-                        >
-                          {campaign.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="flex-shrink-0 ml-4">
+              {/* Add to Campaign button positioned at bottom right */}
+              <div className="flex justify-end mt-3">
                 <Button
                   onClick={() => openAddToCampaignModal(file)}
                   variant="secondary"
