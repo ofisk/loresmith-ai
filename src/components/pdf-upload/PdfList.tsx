@@ -9,6 +9,7 @@ import type { Campaign } from "../../types/campaign";
 import { Button } from "../button/Button";
 import { Modal } from "../modal/Modal";
 import { MultiSelect } from "../select/MultiSelect";
+import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 
 interface PdfFile {
   id: string;
@@ -42,16 +43,15 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
     useState(false);
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
   const [addingToCampaigns, setAddingToCampaigns] = useState(false);
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
 
   const fetchPdfCampaigns = useCallback(async (files: PdfFile[]) => {
     try {
       const jwt = getStoredJwt();
 
-      // For each file, fetch which campaigns it belongs to
       const filesWithCampaigns = await Promise.all(
         files.map(async (file) => {
           try {
-            // Get all campaigns for this user
             const {
               response: campaignsResponse,
               jwtExpired: campaignsJwtExpired,
@@ -211,7 +211,6 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
     try {
       const jwt = getStoredJwt();
 
-      // Add resource to each selected campaign
       const promises = selectedCampaigns.map((campaignId) =>
         authenticatedFetchWithExpiration(
           API_CONFIG.buildUrl(
@@ -232,7 +231,6 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
 
       const results = await Promise.allSettled(promises);
 
-      // Check if any requests failed
       const failedRequests = results.filter(
         (result) => result.status === "rejected"
       );
@@ -242,12 +240,10 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
           `Failed to add resource to ${failedRequests.length} campaign(s)`
         );
       } else {
-        // Close modal and reset state
         setIsAddToCampaignModalOpen(false);
         setSelectedFile(null);
         setSelectedCampaigns([]);
 
-        // Refresh the files to update campaign information
         fetchFiles();
       }
     } catch (err) {
@@ -264,12 +260,21 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
     setIsAddToCampaignModalOpen(true);
   };
 
+  const toggleFileExpansion = (fileKey: string) => {
+    const newExpanded = new Set(expandedFiles);
+    if (newExpanded.has(fileKey)) {
+      newExpanded.delete(fileKey);
+    } else {
+      newExpanded.add(fileKey);
+    }
+    setExpandedFiles(newExpanded);
+  };
+
   useEffect(() => {
     fetchFiles();
     fetchCampaigns();
   }, [fetchFiles, fetchCampaigns]);
 
-  // Refresh when refreshTrigger changes
   useEffect(() => {
     if (refreshTrigger) {
       fetchFiles();
@@ -277,7 +282,7 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
   }, [refreshTrigger, fetchFiles]);
 
   if (loading) {
-    return <div>Loading PDF files...</div>;
+    return <div>Seeking...</div>;
   }
 
   if (error) {
@@ -287,62 +292,104 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
   if (files.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
-        No PDF files uploaded yet.
+        The library shelves are empty.
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Resource library</h3>
       <div className="space-y-3">
         {files.map((file) => (
           <div
             key={file.file_key}
             className="p-4 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800"
           >
-            <div className="flex justify-between items-start">
-              <div className="flex-1 min-w-0">
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between">
                 <h4
-                  className="font-medium text-gray-900 dark:text-gray-100 truncate cursor-help"
+                  className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-help flex-1 mr-3"
                   title={file.file_name}
                 >
                   {file.file_name}
                 </h4>
-                <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  <span>
-                    Size:{" "}
-                    {file.file_size
-                      ? (file.file_size / 1024 / 1024).toFixed(2)
-                      : "Unknown"}{" "}
-                    MB
-                  </span>
-                  <span>•</span>
-                  <span>
-                    Uploaded: {new Date(file.created_at).toLocaleString()}
-                  </span>
+                <button
+                  onClick={() => toggleFileExpansion(file.file_key)}
+                  type="button"
+                  className="flex-shrink-0 p-1 rounded-md hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors duration-200"
+                >
+                  {expandedFiles.has(file.file_key) ? (
+                    <CaretDownIcon size={16} className="text-purple-600" />
+                  ) : (
+                    <CaretRightIcon size={16} className="text-purple-600" />
+                  )}
+                </button>
+              </div>
+
+              <div
+                className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                  expandedFiles.has(file.file_key)
+                    ? "max-h-96 opacity-100"
+                    : "max-h-0 opacity-0"
+                }`}
+              >
+                <div className="mt-4 text-xs space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Uploaded:
+                    </span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {new Date(file.created_at)
+                        .toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "2-digit",
+                          hour: "numeric",
+                          minute: "2-digit",
+                          hour12: true,
+                        })
+                        .replace(",", "")
+                        .replace(" PM", "p")
+                        .replace(" AM", "a")}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Size:
+                    </span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {file.file_size
+                        ? (file.file_size / 1024 / 1024).toFixed(2)
+                        : "Unknown"}{" "}
+                      MB
+                    </span>
+                  </div>
                 </div>
+
                 {file.description && (
-                  <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
-                    {file.description}
-                  </p>
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      {file.description}
+                    </p>
+                  </div>
                 )}
                 {file.tags && file.tags !== "[]" && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {JSON.parse(file.tags).map((tag: string) => (
-                      <span
-                        key={tag}
-                        className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded"
-                      >
-                        {tag}
-                      </span>
-                    ))}
+                  <div className="mt-3">
+                    <div className="flex flex-wrap gap-1">
+                      {JSON.parse(file.tags).map((tag: string) => (
+                        <span
+                          key={tag}
+                          className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
 
-                {/* Display campaigns this PDF belongs to */}
                 {file.campaigns && file.campaigns.length > 0 && (
-                  <div className="mt-2">
+                  <div className="mt-3">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                       Linked campaigns:
                     </p>
@@ -358,21 +405,21 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
                     </div>
                   </div>
                 )}
-              </div>
-              <div className="flex-shrink-0 ml-4">
-                <Button
-                  onClick={() => openAddToCampaignModal(file)}
-                  variant="secondary"
-                  size="sm"
-                >
-                  Add to campaign
-                </Button>
+
+                <div className="flex justify-end mt-4">
+                  <Button
+                    onClick={() => openAddToCampaignModal(file)}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    Add to campaign
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
         ))}
 
-        {/* Add to Campaign Modal */}
         <Modal
           isOpen={isAddToCampaignModalOpen}
           onClose={() => setIsAddToCampaignModalOpen(false)}
@@ -392,7 +439,6 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
               </div>
             ) : (
               <>
-                {/* Show which campaigns the file is already in */}
                 {selectedFile?.campaigns &&
                   selectedFile.campaigns.length > 0 && (
                     <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/10 rounded-md">
