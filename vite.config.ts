@@ -7,7 +7,7 @@ import path from "path";
 export default defineConfig({
   plugins: [cloudflare(), react(), tailwindcss()],
   optimizeDeps: {
-    exclude: ["nanoid", "@rollup/rollup-linux-x64-gnu"],
+    exclude: ["nanoid"],
   },
   build: {
     rollupOptions: {
@@ -17,11 +17,6 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      // Redirect Node.js modules to our working polyfills
-      async_hooks: path.resolve(__dirname, "./src/node-polyfills.ts"),
-      "node:os": path.resolve(__dirname, "./src/node-polyfills.ts"),
-      path: path.resolve(__dirname, "./src/node-polyfills.ts"),
-      os: path.resolve(__dirname, "./src/node-polyfills.ts"),
       // Redirect nanoid to our custom ID generator
       nanoid: path.resolve(__dirname, "./src/utils/nanoid"),
     },
