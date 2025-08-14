@@ -9,7 +9,7 @@ import type { Campaign } from "../../types/campaign";
 import { Button } from "../button/Button";
 import { Modal } from "../modal/Modal";
 import { MultiSelect } from "../select/MultiSelect";
-import { CaretDown, CaretRight } from "@phosphor-icons/react";
+import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 
 interface PdfFile {
   id: string;
@@ -49,11 +49,9 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
     try {
       const jwt = getStoredJwt();
 
-      // For each file, fetch which campaigns it belongs to
       const filesWithCampaigns = await Promise.all(
         files.map(async (file) => {
           try {
-            // Get all campaigns for this user
             const {
               response: campaignsResponse,
               jwtExpired: campaignsJwtExpired,
@@ -213,7 +211,6 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
     try {
       const jwt = getStoredJwt();
 
-      // Add resource to each selected campaign
       const promises = selectedCampaigns.map((campaignId) =>
         authenticatedFetchWithExpiration(
           API_CONFIG.buildUrl(
@@ -234,7 +231,6 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
 
       const results = await Promise.allSettled(promises);
 
-      // Check if any requests failed
       const failedRequests = results.filter(
         (result) => result.status === "rejected"
       );
@@ -244,12 +240,10 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
           `Failed to add resource to ${failedRequests.length} campaign(s)`
         );
       } else {
-        // Close modal and reset state
         setIsAddToCampaignModalOpen(false);
         setSelectedFile(null);
         setSelectedCampaigns([]);
 
-        // Refresh the files to update campaign information
         fetchFiles();
       }
     } catch (err) {
@@ -288,7 +282,7 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
   }, [refreshTrigger, fetchFiles]);
 
   if (loading) {
-    return <div>Loading PDF files...</div>;
+    return <div>Seeking...</div>;
   }
 
   if (error) {
@@ -298,7 +292,7 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
   if (files.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
-        No PDF files uploaded yet.
+        The library shelves are empty.
       </div>
     );
   }
@@ -325,9 +319,9 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
                   className="flex-shrink-0 p-1 rounded-md hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors duration-200"
                 >
                   {expandedFiles.has(file.file_key) ? (
-                    <CaretDown size={16} className="text-purple-600" />
+                    <CaretDownIcon size={16} className="text-purple-600" />
                   ) : (
-                    <CaretRight size={16} className="text-purple-600" />
+                    <CaretRightIcon size={16} className="text-purple-600" />
                   )}
                 </button>
               </div>
@@ -372,7 +366,6 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
                   </div>
                 </div>
 
-                {/* Description and tags */}
                 {file.description && (
                   <div className="mt-3">
                     <p className="text-sm text-gray-600 dark:text-gray-300">
@@ -395,7 +388,6 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
                   </div>
                 )}
 
-                {/* Campaigns section */}
                 {file.campaigns && file.campaigns.length > 0 && (
                   <div className="mt-3">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
@@ -414,7 +406,6 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
                   </div>
                 )}
 
-                {/* Add to Campaign button positioned at bottom right */}
                 <div className="flex justify-end mt-4">
                   <Button
                     onClick={() => openAddToCampaignModal(file)}
@@ -429,7 +420,6 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
           </div>
         ))}
 
-        {/* Add to Campaign Modal */}
         <Modal
           isOpen={isAddToCampaignModalOpen}
           onClose={() => setIsAddToCampaignModalOpen(false)}
@@ -449,7 +439,6 @@ export function PdfList({ refreshTrigger }: PdfListProps) {
               </div>
             ) : (
               <>
-                {/* Show which campaigns the file is already in */}
                 {selectedFile?.campaigns &&
                   selectedFile.campaigns.length > 0 && (
                     <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/10 rounded-md">
