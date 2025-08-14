@@ -7,6 +7,7 @@ import path from "path";
 export default defineConfig({
   plugins: [cloudflare(), react(), tailwindcss()],
   build: {
+    ssr: false,
     rollupOptions: {
       external: [
         "cloudflare:email",
