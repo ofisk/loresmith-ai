@@ -6,6 +6,9 @@ import path from "path";
 
 export default defineConfig({
   plugins: [cloudflare(), react(), tailwindcss()],
+  ssr: {
+    noExternal: ["agents", "ai"],
+  },
   build: {
     rollupOptions: {
       external: [
