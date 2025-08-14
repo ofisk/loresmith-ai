@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useId } from "react";
 import { USER_MESSAGES } from "../../constants";
 import { authenticatedFetchWithExpiration } from "../../services/auth-service";
 import { API_CONFIG } from "../../shared";
@@ -9,6 +9,7 @@ export function CreateCampaignForm({
   onCancel,
   defaultName = "",
 }: CreateCampaignFormProps) {
+  const campaignNameId = useId();
   const [name, setName] = useState(defaultName);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,13 +58,13 @@ export function CreateCampaignForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label
-          htmlFor="campaign-name"
+          htmlFor={campaignNameId}
           className="block text-sm font-medium mb-2"
         >
           Campaign Name
         </label>
         <input
-          id="campaign-name"
+          id={campaignNameId}
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}

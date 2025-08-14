@@ -44,8 +44,12 @@ export class EventEmitter {
   }
 
   emit(event: string, ...args: any[]): boolean {
-    if (!this.events[event]) return false;
-    this.events[event].forEach((listener) => listener(...args));
+    if (!this.events[event]) {
+      return false;
+    }
+    this.events[event].forEach((listener) => {
+      listener(...args);
+    });
     return true;
   }
 
@@ -72,7 +76,7 @@ export class WriteStream {
 
 // stream polyfill
 export class Writable {
-  write(chunk: any, encoding?: string, callback?: Function): boolean {
+  write(_chunk: any, _encoding?: string, callback?: Function): boolean {
     if (callback) callback();
     return true;
   }
@@ -85,7 +89,7 @@ export const process = {
   version: "v18.0.0",
   versions: {},
   cwd: () => "/",
-  exit: (code?: number) => {},
+  exit: (_code?: number) => {},
   stdout: null,
   stderr: null,
   stdin: null,

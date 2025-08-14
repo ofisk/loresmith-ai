@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useId } from "react";
 import toast from "react-hot-toast";
 import { API_CONFIG } from "../../shared";
 import { Button } from "../button/Button";
@@ -22,6 +22,9 @@ export function CharacterSheetUpload({
   campaignId,
   onCharacterSheetAdded,
 }: CharacterSheetUploadProps) {
+  const characterSheetFileId = useId();
+  const characterNameId = useId();
+  const descriptionId = useId();
   const [fileName, setFileName] = useState("");
   const [fileType, setFileType] = useState<
     "pdf" | "docx" | "doc" | "txt" | "json"
@@ -216,11 +219,11 @@ export function CharacterSheetUpload({
           <div className="space-y-4">
             <div>
               <Label
-                htmlFor="character-sheet-file"
+                htmlFor={characterSheetFileId}
                 title="Character Sheet File"
               />
               <input
-                id="character-sheet-file"
+                id={characterSheetFileId}
                 type="file"
                 accept=".pdf,.docx,.doc,.txt,.json"
                 onChange={handleFileSelect}
@@ -245,7 +248,7 @@ export function CharacterSheetUpload({
             <div>
               <Label htmlFor="characterName" title="Character Name" />
               <Input
-                id="characterName"
+                id={characterNameId}
                 value={characterName}
                 onChange={(e) => setCharacterName(e.target.value)}
                 placeholder="Enter character name"
@@ -256,7 +259,7 @@ export function CharacterSheetUpload({
             <div>
               <Label htmlFor="description" title="Description (Optional)" />
               <textarea
-                id="description"
+                id={descriptionId}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Optional description of the character sheet"

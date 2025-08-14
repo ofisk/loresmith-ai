@@ -3,22 +3,26 @@
 // Updated to work with AutoRAG for enhanced content processing
 
 import type { Env } from "../middleware/auth";
-import { getAutoRAGService } from "./service-factory";
 import type { FileMetadata, SearchQuery, SearchResult } from "../types/upload";
+import { BaseRAGService } from "./base-rag-service";
 
-export class RAGService {
-  constructor(private env: Env) {}
+export class LibraryRAGService extends BaseRAGService {
+  private ai: any;
 
-  /**
-   * Process uploaded file for metadata generation
-   */
+  constructor(env: Env) {
+    super(env.DB, env.VECTORIZE, env.OPENAI_API_KEY || "");
+    this.ai = env.AI;
+    this.env = env;
+  }
+
+  private env: Env;
+
   async processFile(metadata: FileMetadata): Promise<{
     description: string;
     tags: string[];
     vectorId?: string;
   }> {
     try {
-      // Get file from R2
       const file = await this.env.FILE_BUCKET.get(metadata.fileKey);
       if (!file) {
         throw new Error("File not found in R2");
@@ -29,7 +33,7 @@ export class RAGService {
 
       if (!text) {
         console.log(
-          `[RAGService] No text extracted from file: ${metadata.fileKey}`
+          `[LibraryRAGService] No text extracted from file: ${metadata.fileKey}`
         );
         return {
           description: "",
@@ -37,18 +41,15 @@ export class RAGService {
         };
       }
 
-      // Use AutoRAG for enhanced metadata generation if available
+      // Use AI for enhanced metadata generation if available
       let result: { description: string; tags: string[] };
       try {
-        if (this.env.AI) {
-          const autoRagService = getAutoRAGService(this.env);
-
-          // Use AutoRAG for intelligent metadata generation
-          const semanticResult = await autoRagService.generateSemanticMetadata(
+        if (this.ai) {
+          // Generate semantic metadata using AI
+          const semanticResult = await this.generateSemanticMetadata(
             metadata.filename,
             metadata.fileKey,
-            metadata.userId,
-            1 // partCount - using 1 as default since we don't have the actual count here
+            metadata.userId
           );
 
           if (semanticResult) {
@@ -61,16 +62,15 @@ export class RAGService {
             };
           }
         } else {
-          // No AutoRAG available - leave metadata blank
           result = {
             description: "",
             tags: [],
           };
         }
-      } catch (autoRagError) {
+      } catch (aiError) {
         console.warn(
-          "AutoRAG processing failed, falling back to basic processing:",
-          autoRagError
+          "AI processing failed, falling back to basic processing:",
+          aiError
         );
         result = {
           description: "",
@@ -81,7 +81,7 @@ export class RAGService {
       // Store embeddings for search (simplified for AutoRAG)
       const vectorId = await this.storeEmbeddings(text, metadata.id);
 
-      console.log(`[RAGService] Processed file:`, {
+      console.log(`[LibraryRAGService] Processed file:`, {
         fileKey: metadata.fileKey,
         description: result.description,
         tags: result.tags,
@@ -94,7 +94,7 @@ export class RAGService {
       };
     } catch (error) {
       console.error(
-        `[RAGService] Error processing file ${metadata.fileKey}:`,
+        `[LibraryRAGService] Error processing file ${metadata.fileKey}:`,
         error
       );
       return {
@@ -104,9 +104,6 @@ export class RAGService {
     }
   }
 
-  /**
-   * Extract text from different file types
-   */
   private async extractText(
     file: R2ObjectBody,
     contentType: string
@@ -130,9 +127,6 @@ export class RAGService {
     return null;
   }
 
-  /**
-   * Extract text from PDF (simplified for AutoRAG compatibility)
-   */
   private async extractPdfText(buffer: ArrayBuffer): Promise<string> {
     try {
       // Use AutoRAG's text extraction if available
@@ -194,9 +188,6 @@ export class RAGService {
     }
   }
 
-  /**
-   * Store embeddings for semantic search
-   */
   private async storeEmbeddings(
     _text: string,
     metadataId: string
@@ -206,9 +197,6 @@ export class RAGService {
     return `vector_${metadataId}`;
   }
 
-  /**
-   * Search files by keyword and semantic similarity
-   */
   async searchFiles(query: SearchQuery): Promise<SearchResult[]> {
     const {
       query: searchQuery,
@@ -276,11 +264,11 @@ export class RAGService {
       if (includeSemantic && searchQuery.trim()) {
         // This would use the vector database for semantic search
         console.log(
-          `[RAGService] Semantic search not yet implemented for query: ${searchQuery}`
+          `[LibraryRAGService] Semantic search not yet implemented for query: ${searchQuery}`
         );
       }
 
-      console.log(`[RAGService] Search results:`, {
+      console.log(`[LibraryRAGService] Search results:`, {
         query: searchQuery,
         userId,
         resultsCount: searchResults.length,
@@ -288,14 +276,11 @@ export class RAGService {
 
       return searchResults;
     } catch (error) {
-      console.error(`[RAGService] Search error:`, error);
+      console.error(`[LibraryRAGService] Search error:`, error);
       return [];
     }
   }
 
-  /**
-   * Get file metadata by ID
-   */
   async getFileMetadata(
     fileId: string,
     userId: string
@@ -333,14 +318,11 @@ export class RAGService {
         vectorId: result.vector_id as string | undefined,
       };
     } catch (error) {
-      console.error(`[RAGService] Error getting file metadata:`, error);
+      console.error(`[LibraryRAGService] Error getting file metadata:`, error);
       return null;
     }
   }
 
-  /**
-   * Update file metadata
-   */
   async updateFileMetadata(
     fileId: string,
     userId: string,
@@ -384,11 +366,232 @@ export class RAGService {
         .bind(...params)
         .run();
 
-      console.log(`[RAGService] Updated file metadata:`, { fileId, updates });
+      console.log(`[LibraryRAGService] Updated file metadata:`, {
+        fileId,
+        updates,
+      });
       return true;
     } catch (error) {
-      console.error(`[RAGService] Error updating file metadata:`, error);
+      console.error(`[LibraryRAGService] Error updating file metadata:`, error);
       return false;
+    }
+  }
+
+  async generateSemanticMetadata(
+    fileName: string,
+    fileKey: string,
+    username: string
+  ): Promise<{ description: string; tags: string[] } | undefined> {
+    try {
+      console.log(
+        `[LibraryRAGService] Starting semantic metadata generation for ${fileName}`
+      );
+
+      // Check if AI binding is available
+      if (!this.ai) {
+        console.warn(
+          "[LibraryRAGService] AI binding not available for semantic metadata generation"
+        );
+        return undefined;
+      }
+
+      console.log(
+        `[LibraryRAGService] AI binding available, proceeding with semantic analysis`
+      );
+
+      // Generate metadata from filename analysis
+      const semanticPrompt = `
+Analyze the document filename "${fileName}" and generate meaningful metadata.
+
+Based on the filename, generate:
+1. A descriptive summary of what this document likely contains (not just "PDF document")
+2. Relevant tags that describe the topics, themes, or content type based on the filename
+3. Suggestions for how this document might be useful
+
+Focus on extracting meaning from the filename structure and common naming patterns.
+
+Document filename: ${fileName}
+File key: ${fileKey}
+Username: ${username}
+
+Please provide the response in this exact format:
+DESCRIPTION: [your description here]
+TAGS: [tag1, tag2, tag3]
+SUGGESTIONS: [suggestion1, suggestion2, suggestion3]
+`;
+
+      try {
+        console.log(
+          `[LibraryRAGService] Sending semantic prompt to AI:`,
+          semanticPrompt
+        );
+        const response = await this.ai.run(semanticPrompt);
+        console.log(
+          `[LibraryRAGService] Semantic analysis response:`,
+          response
+        );
+
+        // Parse the response to extract metadata
+        const lines = response.split("\n");
+        let description: string | undefined;
+        let tags: string[] | undefined;
+
+        for (const line of lines) {
+          if (line.startsWith("DESCRIPTION:")) {
+            const desc = line.replace("DESCRIPTION:", "").trim();
+            if (desc) {
+              description = desc;
+            }
+          } else if (line.startsWith("TAGS:")) {
+            const tagsMatch = line.match(/TAGS:\s*\[(.*?)\]/);
+            if (tagsMatch) {
+              const parsedTags = tagsMatch[1]
+                .split(",")
+                .map((tag: string) => tag.trim().replace(/['"]/g, ""));
+              if (parsedTags.length > 0) {
+                tags = parsedTags;
+              }
+            }
+          }
+        }
+
+        // Only return metadata if we have meaningful content
+        if (description && tags && tags.length > 0) {
+          return {
+            description,
+            tags,
+          };
+        }
+
+        return undefined;
+      } catch (error) {
+        console.error(
+          `[LibraryRAGService] Semantic analysis failed for ${fileName}:`,
+          error
+        );
+        return undefined;
+      }
+    } catch (error) {
+      console.error(
+        `[LibraryRAGService] Error in generateSemanticMetadata:`,
+        error
+      );
+      return undefined;
+    }
+  }
+
+  protected async updateStatus(
+    identifier: string,
+    status: string
+  ): Promise<void> {
+    try {
+      await this.env.DB.prepare(
+        "UPDATE file_metadata SET status = ? WHERE id = ?"
+      )
+        .bind(status, identifier)
+        .run();
+    } catch (error) {
+      console.error(`[LibraryRAGService] Error updating status:`, error);
+    }
+  }
+
+  async getUserPdfs(username: string): Promise<any[]> {
+    try {
+      const result = await this.env.DB.prepare(
+        "SELECT * FROM pdf_files WHERE username = ? ORDER BY created_at DESC"
+      )
+        .bind(username)
+        .all();
+
+      return result.results || [];
+    } catch (error) {
+      console.error(`[LibraryRAGService] Error getting user PDFs:`, error);
+      return [];
+    }
+  }
+
+  async searchContent(
+    _username: string,
+    query: string,
+    _limit: number = 10
+  ): Promise<any[]> {
+    try {
+      if (!this.ai) {
+        console.warn(
+          "[LibraryRAGService] AI binding not available for search, returning empty results"
+        );
+        return [];
+      }
+
+      // For now, return empty results as full search is not yet implemented
+      // This can be enhanced when vector search is implemented
+      console.log(
+        `[LibraryRAGService] Semantic search not yet implemented for query: ${query}`
+      );
+      return [];
+    } catch (error) {
+      console.error(`[LibraryRAGService] Search error:`, error);
+      return [];
+    }
+  }
+
+  async processPdfFromR2(
+    fileKey: string,
+    username: string,
+    fileBucket: any,
+    metadata: any
+  ): Promise<{ suggestedMetadata?: { description: string; tags: string[] } }> {
+    try {
+      // Get file from R2
+      const file = await fileBucket.get(fileKey);
+      if (!file) {
+        throw new Error("File not found in R2");
+      }
+
+      // Extract text based on file type
+      const text = await this.extractText(file, "application/pdf");
+
+      if (!text) {
+        console.log(
+          `[LibraryRAGService] No text extracted from file: ${fileKey}`
+        );
+        return {};
+      }
+
+      // Generate semantic metadata using AI
+      const semanticResult = await this.generateSemanticMetadata(
+        metadata.filename || fileKey,
+        fileKey,
+        username
+      );
+
+      if (semanticResult) {
+        return {
+          suggestedMetadata: {
+            description: semanticResult.description,
+            tags: semanticResult.tags,
+          },
+        };
+      }
+
+      return {};
+    } catch (error) {
+      console.error(
+        `[LibraryRAGService] Error processing PDF from R2: ${fileKey}`,
+        error
+      );
+      return {};
+    }
+  }
+
+  protected async getChunksByIds(_ids: string[]): Promise<any[]> {
+    try {
+      // For now, return empty array as chunks are not yet implemented
+      // This can be enhanced when chunk storage is implemented
+      return [];
+    } catch (error) {
+      console.error(`[LibraryRAGService] Error getting chunks:`, error);
+      return [];
     }
   }
 }

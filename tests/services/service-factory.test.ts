@@ -179,17 +179,17 @@ describe("ServiceFactory", () => {
     });
   });
 
-  describe("getAutoRAGService", () => {
-    it("should create new AutoRAGService instance on first call", () => {
-      const autoRAGService = ServiceFactory.getAutoRAGService(mockEnv);
+  describe("getLibraryRagService", () => {
+    it("should create new LibraryRAGService instance on first call", () => {
+      const libraryRagService = ServiceFactory.getLibraryRagService(mockEnv);
 
-      // Note: AutoRAGService is not mocked, so we test the factory method exists
-      expect(autoRAGService).toBeDefined();
+      // Note: LibraryRAGService is not mocked, so we test the factory method exists
+      expect(libraryRagService).toBeDefined();
     });
 
-    it("should return cached AutoRAGService instance on subsequent calls", () => {
-      const firstCall = ServiceFactory.getAutoRAGService(mockEnv);
-      const secondCall = ServiceFactory.getAutoRAGService(mockEnv);
+    it("should return cached LibraryRAGService instance on subsequent calls", () => {
+      const firstCall = ServiceFactory.getLibraryRagService(mockEnv);
+      const secondCall = ServiceFactory.getLibraryRagService(mockEnv);
 
       expect(firstCall).toBe(secondCall);
     });
@@ -197,8 +197,8 @@ describe("ServiceFactory", () => {
     it("should create new instance with different environment", () => {
       const differentEnv = { ...mockEnv, AI: undefined };
 
-      const firstService = ServiceFactory.getAutoRAGService(mockEnv);
-      const secondService = ServiceFactory.getAutoRAGService(differentEnv);
+      const firstService = ServiceFactory.getLibraryRagService(mockEnv);
+      const secondService = ServiceFactory.getLibraryRagService(differentEnv);
 
       expect(firstService).not.toBe(secondService);
     });

@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import { getAutoRAGService } from "../services/service-factory";
+import { getLibraryRagService } from "../services/service-factory";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { completeProgress } from "../services/progress";
@@ -19,7 +19,7 @@ export async function handleRagSearch(c: ContextWithAuth) {
       return c.json({ error: "Query is required" }, 400);
     }
 
-    const ragService = getAutoRAGService(c.env);
+    const ragService = getLibraryRagService(c.env);
     const results = await ragService.searchContent(
       userAuth.username,
       query,
@@ -88,7 +88,7 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
         }
 
         // Process with RAG service
-        const ragService = getAutoRAGService(c.env);
+        const ragService = getLibraryRagService(c.env);
         await ragService.processPdfFromR2(
           fileKey,
           userAuth.username,
@@ -182,7 +182,7 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
         }
 
         // Process with RAG service
-        const ragService = getAutoRAGService(c.env);
+        const ragService = getLibraryRagService(c.env);
         await ragService.processPdfFromR2(
           fileKey,
           userAuth.username,
@@ -233,7 +233,7 @@ export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
 
     if (fileKey) {
       // Process specific file
-      const ragService = getAutoRAGService(c.env);
+      const ragService = getLibraryRagService(c.env);
 
       // Get file metadata
       const file = await c.env.DB.prepare(
@@ -327,9 +327,9 @@ export async function handleGetPdfFilesForRag(c: ContextWithAuth) {
       .bind(userAuth.username)
       .all();
 
-    // Check for metadata updates from AutoRAG
-    const autoRagService = getAutoRAGService(c.env);
-    await autoRagService.getUserPdfs(userAuth.username); // This will trigger metadata updates
+    // Check for metadata updates from LibraryRAG
+    const ragService = getLibraryRagService(c.env);
+    await ragService.getUserPdfs(userAuth.username); // This will trigger metadata updates
 
     return c.json({ files: files.results || [] });
   } catch (error) {
@@ -361,10 +361,14 @@ export async function handleGetPdfChunksForRag(c: ContextWithAuth) {
 export async function handleCheckAutoRAGStatus(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
-    const autoRagService = getAutoRAGService(c.env);
+    // Get files from database directly
+    const filesResult = await c.env.DB.prepare(
+      "SELECT * FROM pdf_files WHERE username = ? ORDER BY created_at DESC"
+    )
+      .bind(userAuth.username)
+      .all();
 
-    // Get files and trigger metadata updates
-    const files = await autoRagService.getUserPdfs(userAuth.username);
+    const files = filesResult.results || [];
 
     // Count files by status
     const uploaded = files.filter((f) => f.status === "uploaded").length;

@@ -2,7 +2,7 @@
 // Includes search, metadata editing, and file operations
 
 import type React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useId } from "react";
 import { API_CONFIG } from "../../shared";
 import { JWT_STORAGE_KEY } from "../../constants";
 import type { SearchResult } from "../../types/upload";
@@ -16,6 +16,8 @@ export const FileLibrary: React.FC<FileLibraryProps> = ({
   onFileSelect,
   onFileDelete,
 }) => {
+  const descriptionId = useId();
+  const tagsId = useId();
   const [files, setFiles] = useState<SearchResult[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -347,13 +349,13 @@ export const FileLibrary: React.FC<FileLibraryProps> = ({
 
             <div className="mb-4">
               <label
-                htmlFor="description"
+                htmlFor={descriptionId}
                 className="block text-sm font-medium text-gray-700 mb-2"
               >
                 Description
               </label>
               <textarea
-                id="description"
+                id={descriptionId}
                 value={editingMetadata.description}
                 onChange={(e) =>
                   setEditingMetadata({
@@ -367,13 +369,13 @@ export const FileLibrary: React.FC<FileLibraryProps> = ({
             </div>
             <div className="mb-4">
               <label
-                htmlFor="tags"
+                htmlFor={tagsId}
                 className="block text-sm font-medium text-gray-700 mb-2"
               >
                 Tags (comma-separated)
               </label>
               <input
-                id="tags"
+                id={tagsId}
                 type="text"
                 value={editingMetadata.tags.join(", ")}
                 onChange={(e) =>

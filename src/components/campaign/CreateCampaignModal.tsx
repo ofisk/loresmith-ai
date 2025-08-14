@@ -1,5 +1,5 @@
 import type React from "react";
-import { useState } from "react";
+import { useState, useId } from "react";
 import { useFormSubmissionWithData } from "../../hooks/useFormSubmission";
 import type {
   CreateCampaignRequest,
@@ -20,6 +20,7 @@ export function CreateCampaignModal({
   onClose,
   onCampaignCreated,
 }: CreateCampaignModalProps) {
+  const campaignNameId = useId();
   const [formData, setFormData] = useState<CreateCampaignRequest>({
     name: "",
   });
@@ -93,11 +94,11 @@ export function CreateCampaignModal({
     >
       <div className="space-y-4">
         <div>
-          <Label htmlFor="campaign-name" title="Campaign Name">
+          <Label htmlFor={campaignNameId} title="Campaign Name">
             Campaign Name
           </Label>
           <Input
-            id="campaign-name"
+            id={campaignNameId}
             type="text"
             value={formData.name}
             onChange={(e) => handleInputChange("name", e.target.value)}

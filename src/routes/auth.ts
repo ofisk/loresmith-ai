@@ -3,7 +3,10 @@ import { jwtVerify } from "jose";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { AuthService } from "../services/auth-service";
-import { getAuthService, getAutoRAGService } from "../services/service-factory";
+import {
+  getAuthService,
+  getLibraryRagService,
+} from "../services/service-factory";
 import { AgentRouter } from "../services/agent-router";
 
 // Helper to set user auth context
@@ -80,7 +83,7 @@ export async function determineAgent(
   let ragService = null;
   if (username) {
     try {
-      ragService = getAutoRAGService(env);
+      ragService = getLibraryRagService(env);
     } catch (error) {
       console.warn("Failed to initialize AutoRAG service:", error);
     }

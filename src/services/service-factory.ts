@@ -3,15 +3,15 @@
 
 import type { Env } from "../middleware/auth";
 import { AssessmentService } from "./assessment-service";
-import { AutoRAGService } from "./autorag-service";
 import { AuthService } from "./auth-service";
-import { RAGService } from "./rag-service";
+import { LibraryRAGService } from "./rag-service";
 import { UploadService } from "./upload-service";
 import { StorageService } from "./storage-service";
 import { CampaignService } from "./campaign-service";
 import { ModelManager } from "./model-manager";
 import { AgentRegistryService } from "./agent-registry";
 import { AgentRouter } from "./agent-router";
+import { CampaignRAGService } from "../lib/campaignRag";
 
 // Service factory class with per-request caching
 export class ServiceFactory {
@@ -27,21 +27,6 @@ export class ServiceFactory {
     const key = `assessment-${env.ADMIN_SECRET ? "has-admin" : "no-admin"}`;
     if (!ServiceFactory.services.has(key)) {
       ServiceFactory.services.set(key, new AssessmentService(env));
-    }
-    return ServiceFactory.services.get(key);
-  }
-
-  // Get or create AutoRAGService
-  static getAutoRAGService(env: Env): AutoRAGService {
-    // Create a more unique key based on environment content
-    const envHash = JSON.stringify({
-      hasAi: !!env.AI,
-      hasAdmin: !!env.ADMIN_SECRET,
-      hasDb: !!env.DB,
-    });
-    const key = `autorag-${envHash}`;
-    if (!ServiceFactory.services.has(key)) {
-      ServiceFactory.services.set(key, new AutoRAGService(env));
     }
     return ServiceFactory.services.get(key);
   }
@@ -63,11 +48,11 @@ export class ServiceFactory {
     return ServiceFactory.services.get(key);
   }
 
-  // Get or create RAGService
-  static getRagService(env: Env): RAGService {
-    const key = `rag-${env.AI ? "has-ai" : "no-ai"}`;
+  // Get or create LibraryRAGService
+  static getLibraryRagService(env: Env): LibraryRAGService {
+    const key = `library-rag-${env.AI ? "has-ai" : "no-ai"}-${env.DB ? "has-db" : "no-db"}-${env.VECTORIZE ? "has-vectorize" : "no-vectorize"}`;
     if (!ServiceFactory.services.has(key)) {
-      ServiceFactory.services.set(key, new RAGService(env));
+      ServiceFactory.services.set(key, new LibraryRAGService(env));
     }
     return ServiceFactory.services.get(key);
   }
@@ -140,8 +125,20 @@ export class ServiceFactory {
   /**
    * Initialize agent registry (async)
    */
-  static async initializeAgentRegistry(env: Env): Promise<void> {
+  static async initializeAgentRegistry(_env: Env): Promise<void> {
     await AgentRegistryService.initialize();
+  }
+
+  // Get or create CampaignRAGService
+  static getCampaignRAGService(env: Env): CampaignRAGService {
+    const key = `campaign-rag-${env.DB ? "has-db" : "no-db"}-${env.VECTORIZE ? "has-vectorize" : "no-vectorize"}-${env.OPENAI_API_KEY ? "has-openai" : "no-openai"}`;
+    if (!ServiceFactory.services.has(key)) {
+      ServiceFactory.services.set(
+        key,
+        new CampaignRAGService(env.DB, env.VECTORIZE, env.OPENAI_API_KEY || "")
+      );
+    }
+    return ServiceFactory.services.get(key);
   }
 
   // Get or create AgentRouter (static class, no instance needed)
@@ -158,12 +155,10 @@ export class ServiceFactory {
 export const getAssessmentService = (env: Env) =>
   ServiceFactory.getAssessmentService(env);
 
-export const getAutoRAGService = (env: Env) =>
-  ServiceFactory.getAutoRAGService(env);
-
 export const getAuthService = (env: Env) => ServiceFactory.getAuthService(env);
 
-export const getRagService = (env: Env) => ServiceFactory.getRagService(env);
+export const getLibraryRagService = (env: Env) =>
+  ServiceFactory.getLibraryRagService(env);
 
 export const getUploadService = (env: Env) =>
   ServiceFactory.getUploadService(env);
@@ -182,5 +177,8 @@ export const getAgentRegistryService = (env: Env) =>
 
 export const initializeAgentRegistry = (env: Env) =>
   ServiceFactory.initializeAgentRegistry(env);
+
+export const getCampaignRAGService = (env: Env) =>
+  ServiceFactory.getCampaignRAGService(env);
 
 export const getAgentRouter = (env: Env) => ServiceFactory.getAgentRouter(env);

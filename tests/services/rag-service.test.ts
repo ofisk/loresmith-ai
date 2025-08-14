@@ -1,19 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { RAGService } from "../../src/services/rag-service";
-import type {
-  FileMetadata,
-  SearchQuery,
-  SearchResult,
-} from "../../src/types/upload";
+import { LibraryRAGService } from "../../src/services/rag-service";
+import type { FileMetadata, SearchQuery } from "../../src/types/upload";
+
+// Mock AI service
+const mockAI = {
+  run: vi.fn(),
+};
 
 // Mock environment
 const mockEnv = {
   FILE_BUCKET: {
     get: vi.fn(),
   },
-  AI: {
-    // Mock AI service
-  },
+  AI: mockAI,
   DB: {
     prepare: vi.fn().mockReturnThis(),
     bind: vi.fn().mockReturnThis(),
@@ -23,26 +22,12 @@ const mockEnv = {
   },
 } as any;
 
-// Mock AutoRAG service
-vi.mock("../../src/services/service-factory", () => ({
-  getAutoRAGService: vi.fn().mockReturnValue({
-    generateSemanticMetadata: vi.fn(),
-  }),
-}));
-
-describe("RAGService", () => {
-  let ragService: RAGService;
-  let mockAutoRAGService: any;
+describe("LibraryRAGService", () => {
+  let ragService: LibraryRAGService;
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    ragService = new RAGService(mockEnv);
-
-    // Get the mocked AutoRAG service
-    const { getAutoRAGService } = await import(
-      "../../src/services/service-factory"
-    );
-    mockAutoRAGService = getAutoRAGService(mockEnv);
+    ragService = new LibraryRAGService(mockEnv);
   });
 
   describe("processFile", () => {
@@ -67,11 +52,10 @@ describe("RAGService", () => {
       };
       mockEnv.FILE_BUCKET.get.mockResolvedValue(mockFile);
 
-      // Mock AutoRAG response
-      mockAutoRAGService.generateSemanticMetadata.mockResolvedValue({
-        description: "A test PDF document",
-        tags: ["test", "document", "pdf"],
-      });
+      // Mock AI response
+      mockAI.run.mockResolvedValue(
+        "DESCRIPTION: A test PDF document\nTAGS: [test, document, pdf]\nSUGGESTIONS: [useful for testing]"
+      );
 
       const result = await ragService.processFile(mockFileMetadata);
 
@@ -81,11 +65,8 @@ describe("RAGService", () => {
       expect(mockEnv.FILE_BUCKET.get).toHaveBeenCalledWith(
         "uploads/test-file.pdf"
       );
-      expect(mockAutoRAGService.generateSemanticMetadata).toHaveBeenCalledWith(
-        "test-file.pdf",
-        "uploads/test-file.pdf",
-        "user-123",
-        1
+      expect(mockAI.run).toHaveBeenCalledWith(
+        expect.stringContaining("test-file.pdf")
       );
     });
 
@@ -105,10 +86,8 @@ describe("RAGService", () => {
       };
       mockEnv.FILE_BUCKET.get.mockResolvedValue(mockFile);
 
-      // Mock AutoRAG failure
-      mockAutoRAGService.generateSemanticMetadata.mockRejectedValue(
-        new Error("AutoRAG error")
-      );
+      // Mock AI failure
+      mockAI.run.mockRejectedValue(new Error("AI error"));
 
       const result = await ragService.processFile(mockFileMetadata);
 
@@ -119,7 +98,7 @@ describe("RAGService", () => {
 
     it("should work without AI service available", async () => {
       const envWithoutAI = { ...mockEnv, AI: undefined };
-      const ragServiceWithoutAI = new RAGService(envWithoutAI);
+      const ragServiceWithoutAI = new LibraryRAGService(envWithoutAI);
 
       const mockFile = {
         arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
@@ -462,10 +441,9 @@ describe("RAGService", () => {
 
       // Test PDF extraction through the processFile method
       mockEnv.FILE_BUCKET.get.mockResolvedValue(mockFile);
-      mockAutoRAGService.generateSemanticMetadata.mockResolvedValue({
-        description: "PDF content",
-        tags: ["pdf"],
-      });
+      mockAI.run.mockResolvedValue(
+        "DESCRIPTION: PDF content\nTAGS: [pdf]\nSUGGESTIONS: [useful for testing]"
+      );
 
       const result = await ragService.processFile({
         id: "file-123",
@@ -494,10 +472,9 @@ describe("RAGService", () => {
       };
 
       mockEnv.FILE_BUCKET.get.mockResolvedValue(mockFile);
-      mockAutoRAGService.generateSemanticMetadata.mockResolvedValue({
-        description: "Text file content",
-        tags: ["text"],
-      });
+      mockAI.run.mockResolvedValue(
+        "DESCRIPTION: Text file content\nTAGS: [text]\nSUGGESTIONS: [useful for testing]"
+      );
 
       const result = await ragService.processFile({
         id: "file-123",
@@ -526,10 +503,9 @@ describe("RAGService", () => {
       };
 
       mockEnv.FILE_BUCKET.get.mockResolvedValue(mockFile);
-      mockAutoRAGService.generateSemanticMetadata.mockResolvedValue({
-        description: "JSON file content",
-        tags: ["json"],
-      });
+      mockAI.run.mockResolvedValue(
+        "DESCRIPTION: JSON file content\nTAGS: [json]\nSUGGESTIONS: [useful for testing]"
+      );
 
       const result = await ragService.processFile({
         id: "file-123",
@@ -555,10 +531,7 @@ describe("RAGService", () => {
       };
 
       mockEnv.FILE_BUCKET.get.mockResolvedValue(mockFile);
-      mockAutoRAGService.generateSemanticMetadata.mockResolvedValue({
-        description: "",
-        tags: [],
-      });
+      mockAI.run.mockResolvedValue("DESCRIPTION: \nTAGS: []\nSUGGESTIONS: []");
 
       const result = await ragService.processFile({
         id: "file-123",
@@ -586,10 +559,9 @@ describe("RAGService", () => {
       };
 
       mockEnv.FILE_BUCKET.get.mockResolvedValue(mockFile);
-      mockAutoRAGService.generateSemanticMetadata.mockResolvedValue({
-        description: "Test content",
-        tags: ["test"],
-      });
+      mockAI.run.mockResolvedValue(
+        "DESCRIPTION: Test content\nTAGS: [test]\nSUGGESTIONS: [useful for testing]"
+      );
 
       const result = await ragService.processFile({
         id: "file-123",
@@ -614,10 +586,9 @@ describe("RAGService", () => {
       };
 
       mockEnv.FILE_BUCKET.get.mockResolvedValue(mockFile);
-      mockAutoRAGService.generateSemanticMetadata.mockResolvedValue({
-        description: "Test content",
-        tags: ["test"],
-      });
+      mockAI.run.mockResolvedValue(
+        "DESCRIPTION: Test content\nTAGS: [test]\nSUGGESTIONS: [useful for testing]"
+      );
 
       const result = await ragService.processFile({
         id: "file-123",

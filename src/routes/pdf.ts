@@ -5,7 +5,7 @@ import type { AuthPayload } from "../services/auth-service";
 import { PDF_SCHEMA } from "../types/pdf";
 import {
   getStorageService,
-  getAutoRAGService,
+  getLibraryRagService,
 } from "../services/service-factory";
 
 // Extend the context to include userAuth
@@ -280,7 +280,7 @@ export async function handleUploadPart(c: ContextWithAuth) {
       const formData = await c.req.formData();
       fileKey = formData.get("fileKey") as string;
       uploadId = formData.get("uploadId") as string;
-      partNumber = parseInt(formData.get("partNumber") as string);
+      partNumber = parseInt(formData.get("partNumber") as string, 10);
       file = formData.get("file") as File;
 
       console.log("[handleUploadPart] Received FormData:", {
@@ -825,7 +825,7 @@ export async function handleAutoGeneratePdfMetadata(c: ContextWithAuth) {
     }
 
     // Process the PDF to extract text and generate metadata
-    const ragService = getAutoRAGService(c.env);
+    const ragService = getLibraryRagService(c.env);
 
     // Create a temporary metadata object for processing
     const tempMetadata = {
@@ -981,7 +981,7 @@ export async function handleProcessMetadataBackground(c: ContextWithAuth) {
     }
 
     // Process the PDF to extract text and generate metadata
-    const ragService = getAutoRAGService(c.env);
+    const ragService = getLibraryRagService(c.env);
 
     // Create a temporary metadata object for processing
     const tempMetadata = {

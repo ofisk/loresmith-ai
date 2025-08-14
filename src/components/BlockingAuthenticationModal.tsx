@@ -1,5 +1,5 @@
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useId } from "react";
 import { PrimaryActionButton } from "./button";
 import { FormField } from "./input/FormField";
 import { Modal } from "./modal/Modal";
@@ -21,6 +21,9 @@ export function BlockingAuthenticationModal({
   storedOpenAIKey,
   onSubmit,
 }: BlockingAuthenticationModalProps) {
+  const usernameId = useId();
+  const adminKeyId = useId();
+  const openaiKeyId = useId();
   const [currentUsername, setCurrentUsername] = useState("");
   const [adminKey, setAdminKey] = useState("");
   const [openaiApiKey, setOpenaiApiKey] = useState("");
@@ -72,7 +75,7 @@ export function BlockingAuthenticationModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormField
-            id="username"
+            id={usernameId}
             label="Username"
             placeholder="Speak your name..."
             value={currentUsername}
@@ -85,7 +88,7 @@ export function BlockingAuthenticationModal({
           </FormField>
 
           <FormField
-            id="adminKey"
+            id={adminKeyId}
             label="Admin Key (Optional)"
             placeholder="Enter the sacred key for the infinite vault..."
             value={adminKey}
@@ -99,7 +102,7 @@ export function BlockingAuthenticationModal({
           </FormField>
 
           <FormField
-            id="openaiKey"
+            id={openaiKeyId}
             label="OpenAI API Key"
             placeholder="Enter OpenAI's spell..."
             value={isOpenAIKeyDisabled ? openaiKeyDisplay : openaiApiKey}

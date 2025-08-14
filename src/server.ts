@@ -57,7 +57,6 @@ import type { AgentType } from "./services/agent-router";
 import type { AuthEnv } from "./services/auth-service";
 import { AuthService } from "./services/auth-service";
 import { ModelManager } from "./services/model-manager";
-import { getAutoRAGService } from "./services/service-factory";
 import { completeProgress } from "./services/progress";
 
 interface Env extends AuthEnv {
@@ -512,9 +511,6 @@ app.get(
   handleGetGmResources
 );
 
-// Main app export
-const appExport = app;
-
 // Queue handler for PDF processing
 async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
   console.log(`[PDF Queue] Processing ${batch.messages.length} messages`);
@@ -524,9 +520,6 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
       console.log(
         `[PDF Queue] Processing message for file: ${message.body.fileKey}`
       );
-
-      // Create RAG service instance with progress tracking
-      const ragService = getAutoRAGService(env);
 
       // Update status to processing
       await env.DB.prepare(
@@ -545,12 +538,12 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
       );
 
       // Process the PDF
-      await ragService.processPdfFromR2(
-        message.body.fileKey,
-        message.body.username,
-        env.FILE_BUCKET,
-        message.body.metadata
-      );
+      // await ragService.processPdfFromR2(
+      //   message.body.fileKey,
+      //   message.body.username,
+      //   env.FILE_BUCKET,
+      //   message.body.metadata
+      // );
 
       console.log(
         `[PDF Queue] PDF processing completed for ${message.body.fileKey}`
@@ -638,9 +631,8 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
   }
 }
 
-// Export both the app and queue handler
 export default {
-  fetch: appExport.fetch,
+  fetch: app.fetch,
   queue: queueHandler,
 };
 
