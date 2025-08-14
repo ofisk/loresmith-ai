@@ -8,7 +8,24 @@ export default defineConfig({
   plugins: [cloudflare(), react(), tailwindcss()],
   build: {
     rollupOptions: {
-      external: ["cloudflare:email", "cloudflare:workers"],
+      external: [
+        "cloudflare:email",
+        "cloudflare:workers",
+        "node:fs",
+        "node:path",
+        "node:os",
+        "node:crypto",
+        "fs",
+        "path",
+        "os",
+        "crypto",
+      ],
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom"],
+          ai: ["ai", "agents"],
+        },
+      },
     },
   },
   resolve: {
