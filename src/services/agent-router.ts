@@ -182,7 +182,7 @@ Examples:
 
       return {
         agent: agent as AgentType,
-        confidence: parseInt(confidenceStr) || 50,
+        confidence: parseInt(confidenceStr, 10) || 50,
         reason: reason || "LLM-based routing",
       };
     } catch (error) {

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useId } from "react";
 import { Button, PrimaryActionButton } from "@/components/button";
 import { FormField } from "@/components/input/FormField";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
@@ -36,6 +36,9 @@ export const PdfUpload = ({
   jwtUsername,
   uploadProgress,
 }: PdfUploadProps) => {
+  const pdfFilenameId = useId();
+  const pdfDescriptionId = useId();
+  const pdfTagsId = useId();
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [filename, setFilename] = useState("");
@@ -250,7 +253,7 @@ export const PdfUpload = ({
         {/* Form Fields */}
         <div className="space-y-4">
           <FormField
-            id="pdf-filename"
+            id={pdfFilenameId}
             label="Filename"
             placeholder="Name this mighty tome…"
             value={filename}
@@ -258,7 +261,7 @@ export const PdfUpload = ({
             disabled={loading}
           />
           <FormField
-            id="pdf-description"
+            id={pdfDescriptionId}
             label="Description (optional)"
             placeholder="Describe the perils and promises within..."
             value={description}
@@ -266,7 +269,7 @@ export const PdfUpload = ({
             disabled={loading}
           />
           <FormField
-            id="pdf-tags"
+            id={pdfTagsId}
             label="Tags (optional)"
             placeholder="Mark this tome with its arcane keywords…"
             value={tagInput}

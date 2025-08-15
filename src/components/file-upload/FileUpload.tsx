@@ -2,7 +2,7 @@
 // Supports large files, concurrent uploads, and progress tracking
 
 import type React from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useId } from "react";
 import { API_CONFIG } from "../../shared";
 import { JWT_STORAGE_KEY } from "../../constants";
 
@@ -30,6 +30,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   allowedTypes = ["application/pdf", "text/plain", "application/json"],
   multiple = false,
 }) => {
+  const fileUploadId = useId();
   const [uploads, setUploads] = useState<Map<string, UploadProgress>>(
     new Map()
   );
@@ -309,11 +310,11 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           multiple={multiple}
           accept={allowedTypes.join(",")}
           className="hidden"
-          id="file-upload"
+          id={fileUploadId}
           disabled={isUploading}
         />
         <label
-          htmlFor="file-upload"
+          htmlFor={fileUploadId}
           className={`cursor-pointer block ${
             isUploading ? "opacity-50 cursor-not-allowed" : ""
           }`}

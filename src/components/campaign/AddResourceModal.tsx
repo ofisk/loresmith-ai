@@ -1,5 +1,5 @@
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useId } from "react";
 import toast from "react-hot-toast";
 import { API_CONFIG } from "../../shared";
 import type {
@@ -22,6 +22,9 @@ export function AddResourceModal({
   pdf,
   campaigns = [],
 }: AddResourceModalProps) {
+  const campaignIdId = useId();
+  const resourceNameId = useId();
+  const resourceIdId = useId();
   const [selectedCampaignId, setSelectedCampaignId] = useState(campaignId);
   const [resourceType, setResourceType] = useState<ResourceType>("pdf");
   const [resourceName, setResourceName] = useState("");
@@ -159,7 +162,7 @@ export function AddResourceModal({
               <div>
                 <Label htmlFor="campaign" title="Campaign" />
                 <select
-                  id="campaign"
+                  id={campaignIdId}
                   className="btn btn-secondary interactive relative appearance-none truncate bg-no-repeat focus:outline-none add-size-base !pr-9 add-focus"
                   style={{
                     backgroundImage: "url(/assets/caret.svg)",
@@ -198,7 +201,7 @@ export function AddResourceModal({
             <div>
               <Label htmlFor="resourceName" title="Resource Name (Optional)" />
               <Input
-                id="resourceName"
+                id={resourceNameId}
                 type="text"
                 value={resourceName}
                 onValueChange={(value) => setResourceName(value)}
@@ -212,7 +215,7 @@ export function AddResourceModal({
             <div>
               <Label htmlFor="resourceId" title="Resource ID" />
               <Input
-                id="resourceId"
+                id={resourceIdId}
                 type="text"
                 value={resourceId}
                 onValueChange={(value) => setResourceId(value)}

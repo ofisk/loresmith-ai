@@ -19,7 +19,7 @@ export abstract class BaseRAGService {
   constructor(
     protected db: D1Database,
     protected vectorize: VectorizeIndex,
-    protected openaiApiKey?: string
+    protected openaiApiKey: string
   ) {
     this.dbUtils = new DatabaseUtils(db);
   }

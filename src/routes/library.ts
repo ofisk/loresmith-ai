@@ -4,7 +4,10 @@
 import { Hono } from "hono";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
-import { getRagService, getStorageService } from "../services/service-factory";
+import {
+  getLibraryRagService,
+  getStorageService,
+} from "../services/service-factory";
 import type { SearchQuery } from "../types/upload";
 import { requireUserJwt } from "../middleware/auth";
 
@@ -18,10 +21,10 @@ library.use("*", requireUserJwt);
 library.get("/files", async (c) => {
   try {
     const userId = c.get("userAuth")?.username || "anonymous";
-    const limit = parseInt(c.req.query("limit") || "20");
-    const offset = parseInt(c.req.query("offset") || "0");
+    const limit = parseInt(c.req.query("limit") || "20", 10);
+    const offset = parseInt(c.req.query("offset") || "0", 10);
 
-    const ragService = getRagService(c.env);
+    const ragService = getLibraryRagService(c.env);
     const files = await ragService.searchFiles({
       query: "",
       userId,
@@ -53,8 +56,8 @@ library.get("/search", async (c) => {
   try {
     const userId = c.get("userAuth")?.username || "anonymous";
     const query = c.req.query("q") || "";
-    const limit = parseInt(c.req.query("limit") || "20");
-    const offset = parseInt(c.req.query("offset") || "0");
+    const limit = parseInt(c.req.query("limit") || "20", 10);
+    const offset = parseInt(c.req.query("offset") || "0", 10);
     const includeTags = c.req.query("includeTags") !== "false";
     const includeSemantic = c.req.query("includeSemantic") !== "false";
 
@@ -67,7 +70,7 @@ library.get("/search", async (c) => {
       includeSemantic,
     };
 
-    const ragService = getRagService(c.env);
+    const ragService = getLibraryRagService(c.env);
     const results = await ragService.searchFiles(searchQuery);
 
     console.log(`[Library] Search results:`, {
@@ -97,7 +100,7 @@ library.get("/files/:fileId", async (c) => {
     const fileId = c.req.param("fileId");
     const userId = c.get("userAuth")?.username || "anonymous";
 
-    const ragService = getRagService(c.env);
+    const ragService = getLibraryRagService(c.env);
     const metadata = await ragService.getFileMetadata(fileId, userId);
 
     if (!metadata) {
@@ -120,7 +123,7 @@ library.put("/files/:fileId", async (c) => {
     const userId = c.get("userAuth")?.username || "anonymous";
     const updates = await c.req.json();
 
-    const ragService = getRagService(c.env);
+    const ragService = getLibraryRagService(c.env);
     const success = await ragService.updateFileMetadata(
       fileId,
       userId,
@@ -150,7 +153,7 @@ library.delete("/files/:fileId", async (c) => {
     const userId = c.get("userAuth")?.username || "anonymous";
 
     // Get file metadata first
-    const ragService = getRagService(c.env);
+    const ragService = getLibraryRagService(c.env);
     const metadata = await ragService.getFileMetadata(fileId, userId);
 
     if (!metadata) {
@@ -188,7 +191,7 @@ library.get("/files/:fileId/download", async (c) => {
     const fileId = c.req.param("fileId");
     const userId = c.get("userAuth")?.username || "anonymous";
 
-    const ragService = getRagService(c.env);
+    const ragService = getLibraryRagService(c.env);
     const metadata = await ragService.getFileMetadata(fileId, userId);
 
     if (!metadata) {
@@ -212,7 +215,7 @@ library.post("/files/:fileId/regenerate", async (c) => {
     const fileId = c.req.param("fileId");
     const userId = c.get("userAuth")?.username || "anonymous";
 
-    const ragService = getRagService(c.env);
+    const ragService = getLibraryRagService(c.env);
     const metadata = await ragService.getFileMetadata(fileId, userId);
 
     if (!metadata) {

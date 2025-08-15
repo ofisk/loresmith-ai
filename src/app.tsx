@@ -11,7 +11,7 @@ import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import type React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useId } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import loresmith from "@/assets/loresmith.png";
 
@@ -76,6 +76,7 @@ function getSessionId(): string {
 }
 
 export default function Chat() {
+  const chatContainerId = useId();
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     // Check localStorage first, default to dark if not found
     const savedTheme = localStorage.getItem("theme");
@@ -599,7 +600,7 @@ export default function Chat() {
 
             {/* Main Content Area */}
             <div
-              id="chat-container"
+              id={chatContainerId}
               className="flex-1 overflow-y-auto px-6 py-4 space-y-4 pb-32 max-h-[calc(100vh-10rem)]"
             >
               {agentMessages.length === 0 && (

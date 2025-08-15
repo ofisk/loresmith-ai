@@ -8,7 +8,7 @@ A comprehensive file upload and library system built with Cloudflare Workers, R2
 
 1. **UploadSessionDO** - Durable Object for managing upload sessions
 2. **UploadService** - Service for handling multipart uploads to R2
-3. **RAGService** - Service for metadata generation and search
+3. **LibraryRAGService** - Service for metadata generation and search
 4. **FileUpload** - React component for file uploads
 5. **FileLibrary** - React component for file management
 

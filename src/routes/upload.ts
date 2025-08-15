@@ -60,7 +60,7 @@ upload.post("/part", async (c) => {
   try {
     const formData = await c.req.formData();
     const sessionId = formData.get("sessionId") as string;
-    const partNumber = parseInt(formData.get("partNumber") as string);
+    const partNumber = parseInt(formData.get("partNumber") as string, 10);
     const file = formData.get("file") as File;
     const enableAutoRAGChunking =
       formData.get("enableAutoRAGChunking") === "true";

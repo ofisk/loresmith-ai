@@ -56,8 +56,8 @@ class TestBaseAgent extends BaseAgent {
 
   // Implement abstract method for testing
   async onChatMessage(
-    onFinish: any,
-    options?: { abortSignal?: AbortSignal }
+    _onFinish: any,
+    _options?: { abortSignal?: AbortSignal }
   ): Promise<Response> {
     return new Response("Test response");
   }

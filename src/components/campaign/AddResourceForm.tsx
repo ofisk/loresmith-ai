@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useId } from "react";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
 import { Button } from "../button/Button";
@@ -26,6 +26,8 @@ export function AddResourceForm({
   className,
   onResourceAdded,
 }: AddResourceFormProps) {
+  const resourceIdId = useId();
+  const resourceNameId = useId();
   const [resourceType, setResourceType] = useState<ResourceType>("pdf");
   const [resourceId, setResourceId] = useState("");
   const [resourceName, setResourceName] = useState("");
@@ -125,7 +127,7 @@ export function AddResourceForm({
             Resource ID
           </Label>
           <Input
-            id="resourceId"
+            id={resourceIdId}
             type="text"
             value={resourceId}
             onValueChange={setResourceId}
@@ -147,7 +149,7 @@ export function AddResourceForm({
             Resource Name (Optional)
           </Label>
           <Input
-            id="resourceName"
+            id={resourceNameId}
             type="text"
             value={resourceName}
             onValueChange={setResourceName}
