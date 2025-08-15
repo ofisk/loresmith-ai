@@ -8,6 +8,7 @@ import {
   getLibraryRagService,
 } from "../services/service-factory";
 import { AgentRouter } from "../services/agent-router";
+import { getDAOFactory } from "../dao";
 
 // Helper to set user auth context
 export function setUserAuth(c: Context, payload: AuthPayload) {
@@ -142,12 +143,9 @@ export async function handleAuthenticate(c: Context<{ Bindings: Env }>) {
       "[handleAuthenticate] Storing OpenAI API key in database for user:",
       username
     );
-    await c.env.DB.prepare(
-      `INSERT OR REPLACE INTO user_openai_keys (username, api_key, updated_at) 
-       VALUES (?, ?, CURRENT_TIMESTAMP)`
-    )
-      .bind(username, openaiApiKey)
-      .run();
+
+    const daoFactory = getDAOFactory(c.env);
+    await daoFactory.storeOpenAIKey(username, openaiApiKey);
 
     console.log("[handleAuthenticate] OpenAI API key stored successfully");
 
@@ -168,16 +166,13 @@ export async function handleGetOpenAIKey(c: Context<{ Bindings: Env }>) {
       return c.json({ error: "Username is required" }, 400);
     }
 
-    const result = await c.env.DB.prepare(
-      "SELECT api_key FROM user_openai_keys WHERE username = ?"
-    )
-      .bind(username)
-      .first<{ api_key: string }>();
+    const daoFactory = getDAOFactory(c.env);
+    const apiKey = await daoFactory.getOpenAIKey(username);
 
-    if (result) {
+    if (apiKey) {
       return c.json({
         hasKey: true,
-        apiKey: result.api_key,
+        apiKey,
       });
     } else {
       return c.json({
@@ -199,12 +194,8 @@ export async function handleStoreOpenAIKey(c: Context<{ Bindings: Env }>) {
       return c.json({ error: "Username and API key are required" }, 400);
     }
 
-    await c.env.DB.prepare(
-      `INSERT OR REPLACE INTO user_openai_keys (username, api_key, updated_at) 
-       VALUES (?, ?, CURRENT_TIMESTAMP)`
-    )
-      .bind(username, apiKey)
-      .run();
+    const daoFactory = getDAOFactory(c.env);
+    await daoFactory.storeOpenAIKey(username, apiKey);
 
     return c.json({
       success: true,
@@ -225,9 +216,8 @@ export async function handleDeleteOpenAIKey(c: Context<{ Bindings: Env }>) {
       return c.json({ error: "Username is required" }, 400);
     }
 
-    await c.env.DB.prepare("DELETE FROM user_openai_keys WHERE username = ?")
-      .bind(username)
-      .run();
+    const daoFactory = getDAOFactory(c.env);
+    await daoFactory.deleteOpenAIKey(username);
 
     return c.json({
       success: true,
@@ -343,10 +333,18 @@ export async function handleSetOpenAIApiKey(c: Context<{ Bindings: Env }>) {
 //TODO: ofisk - check back
 export async function handleCheckUserOpenAIKey(c: Context<{ Bindings: Env }>) {
   try {
-    // Check if the user has a stored API key in the durable object
-    // For now, we'll assume they don't have one since the durable object
-    // doesn't expose this information through its fetch method
-    return c.json({ success: false, hasUserStoredKey: false });
+    const username = c.req.query("username");
+    if (!username) {
+      return c.json({ error: "Username is required" }, 400);
+    }
+
+    const daoFactory = getDAOFactory(c.env);
+    const hasKey = await daoFactory.hasOpenAIKey(username);
+
+    return c.json({
+      success: true,
+      hasUserStoredKey: hasKey,
+    });
   } catch (error) {
     console.error("Error checking user OpenAI key:", error);
     return c.json({ success: false, hasUserStoredKey: false });
