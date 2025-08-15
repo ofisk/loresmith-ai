@@ -13,7 +13,7 @@ export interface AuthPayload extends JWTPayload {
 
 export interface AuthEnv {
   OPENAI_API_KEY?: string;
-  ADMIN_SECRET?: any; // JsRpcPromise from Secrets Store
+  ADMIN_SECRET?: string | { get(): Promise<string> };
   Chat: DurableObjectNamespace;
 }
 
