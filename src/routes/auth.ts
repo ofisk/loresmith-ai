@@ -340,6 +340,7 @@ export async function handleSetOpenAIApiKey(c: Context<{ Bindings: Env }>) {
 }
 
 // Check if user has OpenAI key in session
+//TODO: ofisk - check back
 export async function handleCheckUserOpenAIKey(c: Context<{ Bindings: Env }>) {
   try {
     // Check if the user has a stored API key in the durable object
@@ -349,5 +350,20 @@ export async function handleCheckUserOpenAIKey(c: Context<{ Bindings: Env }>) {
   } catch (error) {
     console.error("Error checking user OpenAI key:", error);
     return c.json({ success: false, hasUserStoredKey: false });
+  }
+}
+
+// Logout endpoint - clears stored JWT tokens
+//TODO: ofisk - check back
+export async function handleLogout(c: Context<{ Bindings: Env }>) {
+  try {
+    // This endpoint just returns success - the client should clear local storage
+    return c.json({
+      success: true,
+      message: "Logout successful. Please clear your browser's local storage.",
+    });
+  } catch (error) {
+    console.error("Logout error:", error);
+    return c.json({ error: "Internal server error" }, 500);
   }
 }

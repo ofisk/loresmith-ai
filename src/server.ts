@@ -15,6 +15,7 @@ import {
   handleCheckUserOpenAIKey,
   handleDeleteOpenAIKey,
   handleGetOpenAIKey,
+  handleLogout,
   handleSetOpenAIApiKey,
   handleStoreOpenAIKey,
   requireUserJwt,
@@ -409,6 +410,7 @@ app.post("/chat/set-openai-key", handleSetOpenAIApiKey);
 
 // Authentication and OpenAI Key Management Routes
 app.post("/authenticate", handleAuthenticate);
+app.post("/logout", handleLogout);
 app.get("/get-openai-key", handleGetOpenAIKey);
 app.post("/store-openai-key", handleStoreOpenAIKey);
 app.delete("/delete-openai-key", handleDeleteOpenAIKey);

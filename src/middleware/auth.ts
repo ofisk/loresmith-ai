@@ -31,20 +31,48 @@ export async function requireUserJwt(
     `${authHeader?.substring(0, 20)}...`
   );
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  const bearerTokenRegex = /^Bearer\s+(.+)$/i;
+  const match = authHeader?.match(bearerTokenRegex);
+
+  if (!match) {
     return c.json({ error: "Authorization header required" }, 401);
   }
 
-  const token = authHeader.substring(7);
+  const token = match[1];
   console.log("[requireUserJwt] Token:", `${token.substring(0, 20)}...`);
 
   try {
-    // Get secret from Secrets Store
-    const secret = c.env.ADMIN_SECRET
-      ? await c.env.ADMIN_SECRET.get()
-      : "default-secret-key";
+    // Get secret - handle both local development and production
+    let secret: string;
+
+    if (typeof c.env.ADMIN_SECRET === "string") {
+      // Local development: direct string from .dev.vars
+      secret = c.env.ADMIN_SECRET;
+      console.log(
+        "[requireUserJwt] Using local environment variable for verification"
+      );
+    } else if (
+      c.env.ADMIN_SECRET &&
+      typeof c.env.ADMIN_SECRET.get === "function"
+    ) {
+      // Production: Cloudflare secrets store
+      try {
+        secret = await c.env.ADMIN_SECRET.get();
+        console.log("[requireUserJwt] Using Secrets Store for verification");
+      } catch (error) {
+        console.warn("[requireUserJwt] Error accessing Secrets Store:", error);
+        secret = "fallback-jwt-secret-no-admin-access";
+        console.log("[requireUserJwt] Using fallback secret for verification");
+      }
+    } else {
+      // Fallback
+      secret = "fallback-jwt-secret-no-admin-access";
+      console.log("[requireUserJwt] Using fallback secret for verification");
+    }
+
+    console.log("secret: " + JSON.stringify(secret));
     const jwtSecret = new TextEncoder().encode(secret);
-    console.log("[requireUserJwt] Using Secrets Store for verification");
+    console.log("[requireUserJwt] JWT secret length:", jwtSecret.length);
 
     const { payload } = await jwtVerify(token, jwtSecret);
     console.log("[requireUserJwt] JWT payload:", payload);

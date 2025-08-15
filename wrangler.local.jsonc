@@ -1,0 +1,96 @@
+/**
+ * Local development configuration for Wrangler
+ * This configuration removes the secrets store binding so ADMIN_SECRET can be used from .dev.vars
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "loresmith-ai",
+  "main": "src/server.ts",
+  "compatibility_date": "2025-05-07",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "nodejs_compat_populate_process_env",
+  ],
+  "assets": {
+    "directory": "dist/client",
+  },
+  "vars": {
+    // For local development, ADMIN_SECRET comes from .dev.vars file
+    "VITE_API_URL": "http://localhost:8787",
+    "CORS_ALLOWED_ORIGINS": "http://localhost:5173,http://localhost:5174",
+    "ADMIN_SECRET": "pk_live_f3a97cd6e28b476cb9c4e8a24f7b9aa1",
+  },
+  // Explicitly disable secrets store bindings for local development
+  "secrets_store_secrets": [],
+  "durable_objects": {
+    "bindings": [
+      { "name": "Chat", "class_name": "Chat" },
+      { "name": "UserFileTracker", "class_name": "UserFileTracker" },
+      { "name": "UploadSession", "class_name": "UploadSessionDO" },
+    ],
+  },
+  "r2_buckets": [
+    {
+      "binding": "FILE_BUCKET",
+      "bucket_name": "loresmith-files",
+      "preview_bucket_name": "loresmith-files",
+    },
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "loresmith-db",
+      "database_id": "bc158293-b4b4-4b21-b549-e5d011c0af3e",
+    },
+  ],
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "loresmith-embeddings",
+    },
+  ],
+  "ai": {
+    "binding": "AI",
+  },
+  "queues": {
+    "producers": [
+      {
+        "queue": "pdf-processing-queue",
+        "binding": "PDF_PROCESSING_QUEUE",
+      },
+      {
+        "queue": "pdf-processing-dlq",
+        "binding": "PDF_PROCESSING_DLQ",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["Chat", "UserFileTracker"],
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["CampaignManager"],
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": [],
+    },
+    {
+      "tag": "v4",
+      "deleted_classes": ["CampaignManager"],
+    },
+    {
+      "tag": "v5",
+      "new_classes": ["UploadSessionDO"],
+    },
+    {
+      "tag": "v6",
+      "new_classes": [],
+    },
+  ],
+  "observability": {
+    "enabled": true,
+  },
+}
