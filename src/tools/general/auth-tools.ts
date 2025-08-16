@@ -45,13 +45,13 @@ export const validateAdminKey = tool({
       // If we have environment, work directly with the database
       if (env) {
         // Validate admin key against stored value
-        const storedKey = env.ADMIN_KEY || process.env.ADMIN_KEY;
+        const storedKey = env.ADMIN_SECRET || process.env.ADMIN_SECRET;
 
         if (!storedKey) {
           console.error("[validateAdminKey] No admin key configured");
           return createToolError(
-            USER_MESSAGES.INVALID_ADMIN_KEY,
-            "Admin key not configured",
+            USER_MESSAGES.INVALID_ADMIN_SECRET,
+            "Admin secret not configured",
             500,
             toolCallId
           );
@@ -60,15 +60,15 @@ export const validateAdminKey = tool({
         if (adminKey === storedKey) {
           console.log("[validateAdminKey] Admin key validated successfully");
           return createToolSuccess(
-            USER_MESSAGES.ADMIN_KEY_VALIDATED,
+            USER_MESSAGES.ADMIN_SECRET_VALIDATED,
             { authenticated: true },
             toolCallId
           );
         } else {
           console.log("[validateAdminKey] Invalid admin key provided");
           return createToolError(
-            USER_MESSAGES.INVALID_ADMIN_KEY,
-            "Invalid admin key",
+            USER_MESSAGES.INVALID_ADMIN_SECRET,
+            "Invalid admin secret",
             401,
             toolCallId
           );
@@ -94,7 +94,7 @@ export const validateAdminKey = tool({
           return createToolError(authError, null, 401, toolCallId);
         }
         return createToolError(
-          USER_MESSAGES.INVALID_ADMIN_KEY,
+          USER_MESSAGES.INVALID_ADMIN_SECRET,
           `HTTP ${response.status}: ${await response.text()}`,
           401,
           toolCallId
@@ -103,7 +103,7 @@ export const validateAdminKey = tool({
 
       const result = await response.json();
       return createToolSuccess(
-        USER_MESSAGES.ADMIN_KEY_VALIDATED,
+        USER_MESSAGES.ADMIN_SECRET_VALIDATED,
         result,
         toolCallId
       );

@@ -269,11 +269,19 @@ export class Chat extends AIChatAgent<Env> {
         .reverse()
         .find((msg) => msg.role === "user");
 
+      console.log(
+        "[Chat] Last user message:",
+        lastUserMessage ? "found" : "not found"
+      );
+
       const username = lastUserMessage
         ? AuthService.extractUsernameFromMessage(lastUserMessage)
         : null;
 
+      console.log("[Chat] Extracted username:", username);
+
       if (!username) {
+        console.log("[Chat] No username found, throwing authentication error");
         throw new Error("Unable to determine user. Please authenticate again.");
       }
 
@@ -648,8 +656,6 @@ app.get("*", async (c) => {
 
   // Serve index.html for the root path
   if (path === "/") {
-    console.log("Printing context environment");
-    console.log(JSON.stringify(c.env, null, 2));
     return c.env.ASSETS.fetch(new Request("https://example.com/index.html"));
   }
 

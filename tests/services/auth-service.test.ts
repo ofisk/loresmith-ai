@@ -77,7 +77,7 @@ describe("AuthService", () => {
       const secret = await noAdminAuthService.getJwtSecret();
       expect(secret).toBeInstanceOf(Uint8Array);
       expect(new TextDecoder().decode(secret)).toBe(
-        "fallback-jwt-secret-no-admin-access"
+        "fallback-jwt-secret-for-non-admin-users"
       );
     });
 
@@ -101,7 +101,7 @@ describe("AuthService", () => {
       const secret = await errorAuthService.getJwtSecret();
       expect(secret).toBeInstanceOf(Uint8Array);
       expect(new TextDecoder().decode(secret)).toBe(
-        "fallback-jwt-secret-no-admin-access"
+        "fallback-jwt-secret-for-non-admin-users"
       );
     });
   });
