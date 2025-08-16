@@ -12,6 +12,10 @@ import { ModelManager } from "./model-manager";
 import { AgentRegistryService } from "./agent-registry";
 import { AgentRouter } from "./agent-router";
 import { CampaignRAGService } from "../lib/campaignRag";
+import { PDFProcessingService } from "./pdf-processing-service";
+import { MetadataService } from "./metadata-service";
+import { ErrorHandlingService } from "./error-handling-service";
+import { AutoRAGChunksDAO } from "./autorag-chunks-dao";
 
 // Service factory class with per-request caching
 export class ServiceFactory {
@@ -70,6 +74,42 @@ export class ServiceFactory {
     const key = `upload-${env.DB ? "has-db" : "no-db"}`;
     if (!ServiceFactory.services.has(key)) {
       ServiceFactory.services.set(key, new UploadService(env));
+    }
+    return ServiceFactory.services.get(key);
+  }
+
+  // Get or create PDFProcessingService
+  static getPDFProcessingService(env: Env): PDFProcessingService {
+    const key = `pdf-processing-${env.DB ? "has-db" : "no-db"}-${env.AI ? "has-ai" : "no-ai"}`;
+    if (!ServiceFactory.services.has(key)) {
+      ServiceFactory.services.set(key, new PDFProcessingService(env));
+    }
+    return ServiceFactory.services.get(key);
+  }
+
+  // Get or create MetadataService
+  static getMetadataService(env: Env): MetadataService {
+    const key = `metadata-${env.AI ? "has-ai" : "no-ai"}`;
+    if (!ServiceFactory.services.has(key)) {
+      ServiceFactory.services.set(key, new MetadataService(env));
+    }
+    return ServiceFactory.services.get(key);
+  }
+
+  // Get or create ErrorHandlingService (stateless, can be reused)
+  static getErrorHandlingService(): ErrorHandlingService {
+    const key = "error-handling";
+    if (!ServiceFactory.services.has(key)) {
+      ServiceFactory.services.set(key, new ErrorHandlingService());
+    }
+    return ServiceFactory.services.get(key);
+  }
+
+  // Get or create AutoRAGChunksDAO
+  static getAutoRAGChunksDAO(env: Env): AutoRAGChunksDAO {
+    const key = `autorag-chunks-${env.DB ? "has-db" : "no-db"}`;
+    if (!ServiceFactory.services.has(key)) {
+      ServiceFactory.services.set(key, new AutoRAGChunksDAO(env.DB));
     }
     return ServiceFactory.services.get(key);
   }
@@ -170,6 +210,15 @@ export const getLibraryRagService = (env: Env) =>
 
 export const getUploadService = (env: Env) =>
   ServiceFactory.getUploadService(env);
+
+export const getPDFProcessingService = (env: Env) =>
+  ServiceFactory.getPDFProcessingService(env);
+
+export const getMetadataService = (env: Env) =>
+  ServiceFactory.getMetadataService(env);
+
+export const getErrorHandlingService = () =>
+  ServiceFactory.getErrorHandlingService();
 
 export const getStorageService = (env: Env) =>
   ServiceFactory.getStorageService(env);

@@ -12,14 +12,12 @@ const upload = new Hono<{
   Variables: { userAuth: AuthPayload };
 }>();
 
-// Apply authentication middleware to all upload routes
 upload.use("*", requireUserJwt);
 
 // Start a new upload session
 upload.post("/start", async (c) => {
   try {
-    const { filename, fileSize, contentType, enableAutoRAGChunking } =
-      await c.req.json();
+    const { filename, fileSize, contentType } = await c.req.json();
     const userId = c.get("userAuth")?.username || "anonymous";
 
     if (!filename || !fileSize) {
@@ -31,8 +29,7 @@ upload.post("/start", async (c) => {
       userId,
       filename,
       fileSize,
-      contentType,
-      enableAutoRAGChunking || false
+      contentType
     );
 
     console.log(`[Upload] Started upload session:`, {
@@ -45,7 +42,6 @@ upload.post("/start", async (c) => {
       sessionId: result.sessionId,
       uploadId: result.uploadId,
       fileKey: result.fileKey,
-      chunkSize: 5 * 1024 * 1024, // 5MB chunks
       totalParts: result.totalParts,
       autoRAGChunking: result.autoRAGChunking,
     });
@@ -62,8 +58,6 @@ upload.post("/part", async (c) => {
     const sessionId = formData.get("sessionId") as string;
     const partNumber = parseInt(formData.get("partNumber") as string, 10);
     const file = formData.get("file") as File;
-    const enableAutoRAGChunking =
-      formData.get("enableAutoRAGChunking") === "true";
 
     if (!sessionId || !partNumber || !file) {
       return c.json(
@@ -77,8 +71,7 @@ upload.post("/part", async (c) => {
     const result = await uploadService.uploadPart(
       sessionId,
       partNumber,
-      arrayBuffer,
-      enableAutoRAGChunking
+      arrayBuffer
     );
 
     console.log(`[Upload] Uploaded part:`, {
@@ -114,11 +107,7 @@ upload.post("/complete", async (c) => {
     const uploadService = getUploadService(c.env);
     const { fileKey, metadata } = await uploadService.completeUpload(sessionId);
 
-    // AutoRAG will automatically index content from the R2 bucket
-    // No need to create chunks manually - AutoRAG handles text extraction and indexing
-    console.log(
-      `[Upload] AutoRAG will automatically index content from R2 bucket for ${fileKey}`
-    );
+    console.log(`[Upload] AutoRAG processing will be triggered for ${fileKey}`);
 
     // Always count AutoRAG parts since we always create them
     const parts = fileKey.split("/");
@@ -184,6 +173,30 @@ upload.post("/complete", async (c) => {
       description: processedMetadata.description,
       tags: processedMetadata.tags,
     });
+
+    const userAuth = c.get("userAuth");
+    if (userAuth) {
+      console.log(`[Upload] Triggering AutoRAG processing for: ${fileKey}`);
+      await c.env.PDF_PROCESSING_QUEUE.send({
+        fileKey: fileKey,
+        username: userAuth.username,
+        openaiApiKey: userAuth.openaiApiKey,
+        metadata: {
+          description: processedMetadata.description || "",
+          tags: processedMetadata.tags || [],
+          filename:
+            metadata.filename || fileKey.split("/").pop() || "unknown.pdf",
+          file_size: metadata.fileSize || 0,
+          status: "processing" as const,
+          created_at: new Date().toISOString(),
+        },
+      });
+      console.log(`[Upload] AutoRAG processing queued for: ${fileKey}`);
+    } else {
+      console.warn(
+        `[Upload] No user auth found, skipping AutoRAG processing for: ${fileKey}`
+      );
+    }
 
     return c.json({
       success: true,

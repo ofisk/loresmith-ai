@@ -1,0 +1,1 @@
+ALTER TABLE pdf_files ADD COLUMN chunk_count INTEGER DEFAULT NULL;

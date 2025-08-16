@@ -3,19 +3,20 @@
 
 import type { Env } from "../middleware/auth";
 import type { FileMetadata, UploadPart, UploadSession } from "../types/upload";
+import { ServiceFactory } from "./service-factory";
+import { PDF_PROCESSING_CONFIG } from "../constants";
 
 export class UploadService {
   constructor(private env: Env) {}
 
   /**
-   * Start a multipart upload session with optional AutoRAG chunking
+   * Start a multipart upload session with AutoRAG chunking
    */
   async startUpload(
     userId: string,
     filename: string,
     fileSize: number,
-    contentType: string = "application/octet-stream",
-    _enableAutoRAGChunking: boolean = false // Deprecated parameter, always enabled
+    contentType: string = "application/octet-stream"
   ): Promise<{
     sessionId: string;
     uploadId: string;
@@ -23,11 +24,9 @@ export class UploadService {
     totalParts: number;
     autoRAGChunking: boolean;
   }> {
-    // Generate unique file key
     const timestamp = Date.now();
     const fileKey = `${userId}/${timestamp}-${filename}`;
 
-    // Create multipart upload in R2
     const multipartUpload = await this.env.FILE_BUCKET.createMultipartUpload(
       fileKey,
       {
@@ -35,11 +34,9 @@ export class UploadService {
       }
     );
 
-    // Calculate total parts needed (5MB chunks)
-    const chunkSize = 5 * 1024 * 1024; // 5MB
+    const chunkSize = PDF_PROCESSING_CONFIG.CHUNK_SIZE;
     const totalParts = Math.ceil(fileSize / chunkSize);
 
-    // Create session in Durable Object
     const sessionId = `${userId}-${timestamp}`;
     const sessionStub = this.env.UploadSession.idFromName(sessionId);
     const sessionObj = this.env.UploadSession.get(sessionStub);
@@ -87,10 +84,8 @@ export class UploadService {
   async uploadPart(
     sessionId: string,
     partNumber: number,
-    chunk: ArrayBuffer,
-    _enableAutoRAGChunking: boolean = false // Deprecated parameter, always enabled
+    chunk: ArrayBuffer
   ): Promise<{ etag: string; size: number; autoRAGChunks?: string[] }> {
-    // Get session from Durable Object
     const sessionStub = this.env.UploadSession.idFromName(sessionId);
     const sessionObj = this.env.UploadSession.get(sessionStub);
 
@@ -282,8 +277,8 @@ export class UploadService {
 
   /**
    * Create AutoRAG part file from uploaded part
-   * Note: PDF text extraction is not possible from binary chunks
-   * This method creates placeholder parts that will be processed later
+   * Each multipart chunk is already AutoRAG-optimized (1MB)
+   * Store chunk metadata in database instead of R2
    */
   private async createAutoRAGPartFromUpload(
     chunk: ArrayBuffer,
@@ -292,33 +287,40 @@ export class UploadService {
     userId: string
   ): Promise<string[]> {
     try {
-      // PDF files are binary and cannot be processed as text chunks
-      // Instead, we'll create a placeholder part that indicates the full file needs processing
       const originalFilename = fileKey.split("/").pop() || "unknown";
       const partKey = `${userId}/part-${partNumber}-${originalFilename}.chunk`;
 
-      // Store the binary chunk as-is for later processing
       await this.env.FILE_BUCKET.put(partKey, chunk, {
         httpMetadata: {
           contentType: "application/octet-stream",
         },
-        customMetadata: {
-          original_file: fileKey,
-          part_number: partNumber.toString(),
-          username: userId,
-          autoRAG_part: "true",
-          file_type: "pdf_chunk",
-          security: "binary_data_only",
-        },
+      });
+
+      const chunksDAO = ServiceFactory.getAutoRAGChunksDAO(this.env);
+      const chunkId = `${fileKey}-part-${partNumber}`;
+      await chunksDAO.insertChunk({
+        id: chunkId,
+        fileKey,
+        username: userId,
+        chunkKey: partKey,
+        partNumber,
+        chunkSize: chunk.byteLength,
+        originalFilename,
       });
 
       console.log(
-        `[UploadService] Created PDF chunk part ${partNumber} for ${fileKey}`
+        `[UploadService] Created AutoRAG chunk for part ${partNumber} of ${fileKey}:`,
+        {
+          partKey,
+          chunkSize: chunk.byteLength,
+          chunkId,
+        }
       );
+
       return [partKey];
     } catch (error) {
       console.error(
-        `[UploadService] Error creating PDF chunk part ${partNumber}:`,
+        `[UploadService] Error creating AutoRAG chunk for part ${partNumber}:`,
         error
       );
       return [];
