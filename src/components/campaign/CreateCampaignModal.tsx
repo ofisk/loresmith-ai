@@ -8,6 +8,7 @@ import type {
 import { Input } from "../input/Input";
 import { Label } from "../label/Label";
 import { FormModal } from "../ui/FormModal";
+import { API_CONFIG } from "../../shared";
 
 export interface CreateCampaignModalProps {
   isOpen: boolean;
@@ -28,7 +29,7 @@ export function CreateCampaignModal({
   const submitCampaign = async (
     data: CreateCampaignRequest
   ): Promise<CreateCampaignResponse> => {
-    const response = await fetch("/api/campaigns", {
+    const response = await fetch(API_CONFIG.buildUrl("/api/campaigns"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

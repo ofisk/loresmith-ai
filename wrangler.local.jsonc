@@ -15,10 +15,9 @@
     "directory": "dist/client",
   },
   "vars": {
-    // For local development, ADMIN_SECRET comes from .dev.vars file
     "VITE_API_URL": "http://localhost:8787",
     "CORS_ALLOWED_ORIGINS": "http://localhost:5173,http://localhost:5174",
-    "ADMIN_SECRET": "pk_live_f3a97cd6e28b476cb9c4e8a24f7b9aa1",
+    // ADMIN_SECRET and OPENAI_API_KEY are loaded from .dev.vars file
   },
   // Explicitly disable secrets store bindings for local development
   "secrets_store_secrets": [],

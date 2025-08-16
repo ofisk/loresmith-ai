@@ -32,6 +32,7 @@ import { USER_MESSAGES } from "./constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
 import { AuthService } from "./services/auth-service";
 import { JWT_STORAGE_KEY } from "./constants";
+import { API_CONFIG } from "./shared";
 
 import type { campaignTools } from "./tools/campaign";
 import type { generalTools } from "./tools/general";
@@ -184,17 +185,20 @@ export default function Chat() {
     openaiApiKey: string
   ) => {
     try {
-      const response = await fetch("/authenticate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username,
-          adminSecret: adminKey?.trim() || undefined, // Make admin key optional
-          openaiApiKey,
-        }),
-      });
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username,
+            adminSecret: adminKey?.trim() || undefined, // Make admin key optional
+            openaiApiKey,
+          }),
+        }
+      );
 
       const result = (await response.json()) as {
         success?: boolean;

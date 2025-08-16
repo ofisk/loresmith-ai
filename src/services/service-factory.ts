@@ -42,6 +42,14 @@ export class ServiceFactory {
       hasAi: !!env.AI,
     });
     const key = `auth-${envHash}`;
+
+    console.log("[ServiceFactory] Creating/getting AuthService:", {
+      key,
+      hasAdmin: !!env.ADMIN_SECRET,
+      adminType: typeof env.ADMIN_SECRET,
+      processEnvAdmin: process.env.ADMIN_SECRET ? "present" : "not present",
+    });
+
     if (!ServiceFactory.services.has(key)) {
       ServiceFactory.services.set(key, new AuthService(env));
     }

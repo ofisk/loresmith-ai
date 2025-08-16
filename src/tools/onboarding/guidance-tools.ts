@@ -100,14 +100,32 @@ Let's get you started! What would you like to do first?`,
 export const suggestNextActionsTool = tool({
   description: "Suggest next actions based on user state",
   parameters: z.object({
-    username: z.string().describe("The username to suggest actions for"),
     jwt: commonSchemas.jwt,
   }),
-  execute: async (
-    { username, jwt: _jwt },
-    context?: any
-  ): Promise<ToolResult> => {
+  execute: async ({ jwt }, context?: any): Promise<ToolResult> => {
     try {
+      // Extract username from JWT
+      if (!jwt) {
+        return createToolError(
+          "No JWT provided",
+          "Authentication token is required",
+          400,
+          context?.toolCallId || "unknown"
+        );
+      }
+
+      const payload = JSON.parse(atob(jwt.split(".")[1]));
+      const username = payload.username;
+
+      if (!username) {
+        return createToolError(
+          "No username found in JWT",
+          "Unable to extract username from authentication token",
+          400,
+          context?.toolCallId || "unknown"
+        );
+      }
+
       const env = context?.env;
       if (!env) {
         return createToolError(
