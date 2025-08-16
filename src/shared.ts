@@ -111,7 +111,7 @@ export const API_CONFIG = {
         `/character-sheets/${characterSheetId}`,
     },
     AUTH: {
-      AUTHENTICATE: "/auth/authenticate",
+      AUTHENTICATE: "/authenticate",
     },
     CHAT: {
       SET_OPENAI_KEY: "/chat/set-openai-key",

@@ -1,8 +1,9 @@
 import type { Context } from "hono";
 import { jwtVerify } from "jose";
 import type { AuthEnv, AuthPayload } from "../services/auth-service";
+import { getEnvVar, type EnvWithSecrets } from "../lib/env-utils";
 
-export interface Env extends AuthEnv {
+export interface Env extends AuthEnv, EnvWithSecrets {
   FILE_BUCKET: R2Bucket;
   DB: D1Database;
   VECTORIZE: VectorizeIndex;
@@ -25,6 +26,7 @@ export async function requireUserJwt(
   c: Context<{ Bindings: Env }>,
   next: () => Promise<void>
 ): Promise<Response | undefined> {
+  console.log("[requireUserJwt] Middleware called for:", c.req.path);
   const authHeader = c.req.header("Authorization");
   console.log(
     "[requireUserJwt] Auth header:",
@@ -42,47 +44,56 @@ export async function requireUserJwt(
   console.log("[requireUserJwt] Token:", `${token.substring(0, 20)}...`);
 
   try {
-    // Get secret - handle both local development and production
+    // For JWT verification, we need to try the same secret that was used for signing
     let secret: string;
 
-    if (typeof c.env.ADMIN_SECRET === "string") {
-      // Local development: direct string from .dev.vars
-      secret = c.env.ADMIN_SECRET;
-      console.log(
-        "[requireUserJwt] Using local environment variable for verification"
+    console.log("[requireUserJwt] Environment debug:", {
+      hasEnv: !!c.env,
+      adminSecretType: typeof c.env.ADMIN_SECRET,
+      adminSecretKeys: c.env.ADMIN_SECRET
+        ? Object.keys(c.env.ADMIN_SECRET)
+        : "null",
+      processEnvAdmin: process.env.ADMIN_SECRET ? "present" : "not present",
+    });
+
+    try {
+      secret = await getEnvVar(c.env, "ADMIN_SECRET");
+    } catch (error) {
+      // If ADMIN_SECRET is not available, use the same fallback as the auth service
+      console.warn(
+        "[requireUserJwt] ADMIN_SECRET not available, using fallback for verification"
       );
-    } else if (
-      c.env.ADMIN_SECRET &&
-      typeof c.env.ADMIN_SECRET.get === "function"
-    ) {
-      // Production: Cloudflare secrets store
-      try {
-        secret = await c.env.ADMIN_SECRET.get();
-        console.log("[requireUserJwt] Using Secrets Store for verification");
-      } catch (error) {
-        console.warn("[requireUserJwt] Error accessing Secrets Store:", error);
-        secret = "fallback-jwt-secret-no-admin-access";
-        console.log("[requireUserJwt] Using fallback secret for verification");
-      }
-    } else {
-      // Fallback
-      secret = "fallback-jwt-secret-no-admin-access";
-      console.log("[requireUserJwt] Using fallback secret for verification");
+      secret = "fallback-jwt-secret-for-non-admin-users";
     }
 
-    console.log("secret: " + JSON.stringify(secret));
     const jwtSecret = new TextEncoder().encode(secret);
     console.log("[requireUserJwt] JWT secret length:", jwtSecret.length);
 
     const { payload } = await jwtVerify(token, jwtSecret);
-    console.log("[requireUserJwt] JWT payload:", payload);
+    console.log(
+      "[requireUserJwt] JWT payload: { type:",
+      payload.type,
+      ", username:",
+      payload.username,
+      ", isAdmin:",
+      payload.isAdmin,
+      " }"
+    );
 
     if (payload.type !== "user-auth") {
       return c.json({ error: "Invalid token type" }, 401);
     }
 
     const userAuth = payload as AuthPayload;
-    console.log("[requireUserJwt] User auth set:", userAuth);
+    console.log(
+      "[requireUserJwt] User auth set: { type:",
+      userAuth.type,
+      ", username:",
+      userAuth.username,
+      ", isAdmin:",
+      userAuth.isAdmin,
+      " }"
+    );
 
     setUserAuth(c, userAuth);
     await next();

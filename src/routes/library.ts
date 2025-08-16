@@ -268,8 +268,7 @@ library.get("/storage-usage", async (c) => {
     );
 
     console.log(
-      `[Library] Retrieved storage usage for user: ` +
-        JSON.stringify(userAuth, null, 2)
+      `[Library] Retrieved storage usage for user: { type: ${userAuth.type}, username: ${userAuth.username}, isAdmin: ${userAuth.isAdmin} }`
     );
 
     return c.json({
