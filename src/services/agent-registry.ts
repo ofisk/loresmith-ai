@@ -64,7 +64,7 @@ export class AgentRegistryService {
   /**
    * Initialize the agent registry with all available agents
    */
-  static initialize() {
+  static async initialize() {
     if (AgentRegistryService.initialized) {
       return;
     }
@@ -134,40 +134,76 @@ export class AgentRegistryService {
   }
 
   /**
+   * Get agent class by type
+   */
+  static async getAgentClass(agentType: AgentType) {
+    if (!AgentRegistryService.initialized) {
+      await AgentRegistryService.initialize();
+    }
+
+    const { AgentRouter } = await import("./agent-router");
+    const agentInfo = AgentRouter.getAgentRegistry()[agentType];
+    return agentInfo?.agentClass;
+  }
+
+  /**
+   * Get agent tools by type
+   */
+  static async getAgentTools(agentType: AgentType) {
+    if (!AgentRegistryService.initialized) {
+      await AgentRegistryService.initialize();
+    }
+
+    const { AgentRouter } = await import("./agent-router");
+    return AgentRouter.getAgentTools(agentType);
+  }
+
+  /**
+   * Get agent system prompt by type
+   */
+  static async getAgentSystemPrompt(agentType: AgentType) {
+    if (!AgentRegistryService.initialized) {
+      await AgentRegistryService.initialize();
+    }
+
+    const { AgentRouter } = await import("./agent-router");
+    return AgentRouter.getAgentSystemPrompt(agentType);
+  }
+
+  /**
+   * Get agent description by type
+   */
+  static async getAgentDescription(agentType: AgentType) {
+    if (!AgentRegistryService.initialized) {
+      await AgentRegistryService.initialize();
+    }
+
+    const { AgentRouter } = await import("./agent-router");
+    return AgentRouter.getAgentDescription(agentType);
+  }
+
+  /**
    * Get all registered agent types
    */
-  static getRegisteredAgentTypes(): string[] {
+  static async getRegisteredAgentTypes() {
+    if (!AgentRegistryService.initialized) {
+      await AgentRegistryService.initialize();
+    }
+
+    const { AgentRouter } = await import("./agent-router");
     return AgentRouter.getRegisteredAgentTypes();
   }
 
   /**
-   * Create an agent instance by type
+   * Check if agent type is registered
    */
-  static createAgentInstance(
-    agentType: string,
-    ctx: DurableObjectState,
-    env: any,
-    model?: any
-  ): any {
-    return AgentRouter.createAgentInstance(agentType, ctx, env, model);
-  }
+  static async isAgentTypeRegistered(agentType: AgentType) {
+    if (!AgentRegistryService.initialized) {
+      await AgentRegistryService.initialize();
+    }
 
-  /**
-   * Get agent information
-   */
-  static getAgentInfo(agentType: AgentType) {
-    const registry = AgentRouter.getAgentRegistry();
-    return registry[agentType];
-  }
-
-  /**
-   * Check if an agent type is registered
-   */
-  static isAgentRegistered(agentType: string): boolean {
-    const registeredTypes = AgentRegistryService.getRegisteredAgentTypes();
+    const { AgentRouter } = await import("./agent-router");
+    const registeredTypes = AgentRouter.getRegisteredAgentTypes();
     return registeredTypes.includes(agentType);
   }
 }
-
-// Auto-initialize when this module is imported
-AgentRegistryService.initialize();

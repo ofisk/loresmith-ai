@@ -29,11 +29,14 @@ export const UPLOAD_CONFIG = {
 // PDF processing constants for large files
 export const PDF_PROCESSING_CONFIG = {
   MAX_PDF_SIZE: 500 * 1024 * 1024, // 500MB limit
-  CHUNK_SIZE: 10 * 1024 * 1024, // 10MB chunks for processing
+  INGEST_CHUNK_SIZE: 5 * 1024 * 1024, // 5MB chunks for processing (reduced from 10MB)
   MAX_TEXT_LENGTH: 5 * 1024 * 1024, // 5MB text limit
   TIMEOUT_SMALL_FILES: 60000, // 1 minute for files < 100MB
   TIMEOUT_LARGE_FILES: 120000, // 2 minutes for files >= 100MB
   LARGE_FILE_THRESHOLD: 100 * 1024 * 1024, // 100MB threshold
+  CHUNK_SIZE: 1024 * 1024, // 1MB chunks (optimal for AutoRAG processing)
+  MAX_CONCURRENT_UPLOADS: 3, // 3 concurrent upload chunks
+  UPLOAD_TIMEOUT_MS: 120000, // 120 second timeout per chunk
 } as const;
 
 // Campaign constants
@@ -86,8 +89,9 @@ export const ERROR_MESSAGES = {
 // User-facing messages
 export const USER_MESSAGES = {
   // Authentication messages
-  INVALID_ADMIN_KEY: "Invalid admin key. Please check your key and try again.",
-  ADMIN_KEY_VALIDATED:
+  INVALID_ADMIN_SECRET:
+    "Invalid admin secret. Please check your secret and try again.",
+  ADMIN_SECRET_VALIDATED:
     "Admin key validated successfully! You now have access to PDF upload and parsing features.",
   SESSION_EXPIRED: "Your session has expired. Please re-authenticate.",
 
@@ -186,3 +190,6 @@ export const DEFAULTS = {
   FILE_DESCRIPTION: "No description provided",
   TAGS: [] as string[],
 } as const;
+
+// JWT Storage
+export const JWT_STORAGE_KEY = "loresmith-jwt";

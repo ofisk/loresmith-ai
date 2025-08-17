@@ -1,13 +1,8 @@
 import { CaretDown, Robot } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Button } from "@/components/button/Button";
-import {
-  AddResourceForm,
-  CampaignDetails,
-  CampaignResourceList,
-  CreateCampaignForm,
-} from "@/components/campaign";
 import { Card } from "@/components/card/Card";
+import { MemoizedMarkdown } from "@/components/memoized-markdown";
 
 import { APPROVAL } from "@/shared";
 
@@ -27,6 +22,7 @@ interface ToolInvocationCardProps {
   toolCallId: string;
   needsConfirmation: boolean;
   addToolResult: (args: { toolCallId: string; result: string }) => void;
+  showDebug?: boolean;
 }
 
 export function ToolInvocationCard({
@@ -34,111 +30,36 @@ export function ToolInvocationCard({
   toolCallId,
   needsConfirmation,
   addToolResult,
+  showDebug = false,
 }: ToolInvocationCardProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  // Render campaign UI components for campaign tools
+  // Campaign UI components have been removed - show basic tool information instead
   const renderCampaignUI = () => {
     if (!needsConfirmation || toolInvocation.state !== "call") {
       return null;
     }
 
-    switch (toolInvocation.toolName) {
-      case "createCampaign": {
-        const { name: extractedName } = toolInvocation.args as {
-          name?: string;
-        };
-        return (
-          <div className="mt-4">
-            <CreateCampaignForm
-              defaultName={extractedName || ""}
-              onSuccess={(campaign) => {
-                addToolResult({
-                  toolCallId,
-                  result: `Campaign created successfully: ${campaign.name} (ID: ${campaign.campaignId})`,
-                });
-              }}
-              onCancel={() => {
-                addToolResult({
-                  toolCallId,
-                  result: "Campaign creation cancelled",
-                });
-              }}
-            />
-          </div>
-        );
-      }
-
-      case "listCampaignResources": {
-        const { campaignId } = toolInvocation.args as { campaignId: string };
-        return (
-          <div className="mt-4">
-            <CampaignResourceList
-              campaignId={campaignId}
-              onResourceRemoved={(resourceId) => {
-                addToolResult({
-                  toolCallId,
-                  result: `Resource ${resourceId} removed from campaign ${campaignId}`,
-                });
-              }}
-            />
-          </div>
-        );
-      }
-
-      case "addResourceToCampaign": {
-        const { campaignId: addCampaignId } = toolInvocation.args as {
-          campaignId: string;
-          resourceType: string;
-          resourceId: string;
-          resourceName?: string;
-        };
-        return (
-          <div className="mt-4">
-            <AddResourceForm
-              campaignId={addCampaignId}
-              onResourceAdded={(_resource) => {
-                addToolResult({
-                  toolCallId,
-                  result: `Resource added successfully to campaign ${addCampaignId}`,
-                });
-              }}
-            />
-          </div>
-        );
-      }
-
-      case "showCampaignDetails": {
-        const { campaignId: detailsCampaignId } = toolInvocation.args as {
-          campaignId: string;
-        };
-        return (
-          <div className="mt-4">
-            <CampaignDetails campaignId={detailsCampaignId} />
-            <div className="flex gap-2 mt-4">
-              <Button
-                variant="destructive"
-                size="base"
-                onClick={() => {
-                  addToolResult({
-                    toolCallId,
-                    result: JSON.stringify({
-                      action: "deleteCampaign",
-                      campaignId: detailsCampaignId,
-                    }),
-                  });
-                }}
-              >
-                Delete Campaign
-              </Button>
-            </div>
-          </div>
-        );
-      }
-
-      default:
-        return null;
+    // For campaign tools, show a message that the UI components have been removed
+    if (
+      toolInvocation.toolName.includes("Campaign") ||
+      toolInvocation.toolName.includes("campaign") ||
+      toolInvocation.toolName === "createCampaign" ||
+      toolInvocation.toolName === "listCampaignResources" ||
+      toolInvocation.toolName === "addResourceToCampaign" ||
+      toolInvocation.toolName === "showCampaignDetails"
+    ) {
+      return (
+        <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
+          <p className="text-sm text-yellow-800 dark:text-yellow-200">
+            Campaign management UI has been simplified. Use the AI agent to
+            manage campaigns.
+          </p>
+        </div>
+      );
     }
+
+    return null;
   };
 
   return (
@@ -220,37 +141,46 @@ export function ToolInvocationCard({
               </div>
             )}
 
-          {!needsConfirmation && toolInvocation.state === "result" && (
-            <div className="mt-3 border-t border-[#F48120]/10 pt-3">
-              <h5 className="text-xs font-medium mb-1 text-muted-foreground">
-                Result:
-              </h5>
-              <pre className="bg-background/80 p-2 rounded-md text-xs overflow-auto whitespace-pre-wrap break-words max-w-[450px]">
-                {(() => {
-                  const result = toolInvocation.result;
-                  if (typeof result === "object" && result.content) {
-                    return result.content
-                      .map((item: { type: string; text: string }) => {
-                        if (
-                          item.type === "text" &&
-                          item.text.startsWith("\n~ Page URL:")
-                        ) {
-                          const lines = item.text.split("\n").filter(Boolean);
-                          return lines
-                            .map(
-                              (line: string) => `- ${line.replace("\n~ ", "")}`
-                            )
-                            .join("\n");
-                        }
-                        return item.text;
-                      })
-                      .join("\n");
-                  }
-                  return JSON.stringify(result, null, 2);
-                })()}
-              </pre>
-            </div>
-          )}
+          {!needsConfirmation &&
+            toolInvocation.state === "result" &&
+            showDebug && (
+              <div className="mt-3 border-t border-[#F48120]/10 pt-3">
+                <h5 className="text-xs font-medium mb-1 text-muted-foreground">
+                  Result:
+                </h5>
+                <div className="bg-background/80 p-2 rounded-md text-xs overflow-auto max-w-[450px]">
+                  {(() => {
+                    const result = toolInvocation.result;
+                    if (typeof result === "object" && result.content) {
+                      const resultText = result.content
+                        .map((item: { type: string; text: string }) => {
+                          if (
+                            item.type === "text" &&
+                            item.text.startsWith("\n~ Page URL:")
+                          ) {
+                            const lines = item.text.split("\n").filter(Boolean);
+                            return lines
+                              .map(
+                                (line: string) =>
+                                  `- ${line.replace("\n~ ", "")}`
+                              )
+                              .join("\n");
+                          }
+                          return item.text;
+                        })
+                        .join("\n");
+
+                      return <MemoizedMarkdown content={resultText} />;
+                    }
+                    return (
+                      <pre className="whitespace-pre-wrap break-words">
+                        {JSON.stringify(result, null, 2)}
+                      </pre>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
         </div>
       </div>
     </Card>

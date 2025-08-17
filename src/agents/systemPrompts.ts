@@ -77,6 +77,8 @@ ${toolMappings}
 ## Workflow Guidelines:
 ${workflowGuidelines}${importantNotes}${specialization}
 
+**IMPORTANT**: After using tools, always provide a helpful response to the user explaining what you found and what they should do next.
+
 You are focused, efficient, and always prioritize helping users effectively.`;
 }
 

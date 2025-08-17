@@ -1,22 +1,24 @@
-import { AssessmentService } from "../../services/assessment-service";
-import type {
-  ActionSuggestion,
-  CampaignHealthSummary,
-  ToolRecommendation,
-} from "./state-analysis-tools";
+import { tool } from "ai";
+import { z } from "zod";
+import type { ToolResult } from "../../constants";
+import { getAssessmentService } from "../../services/service-factory";
+import { commonSchemas, createToolError, createToolSuccess } from "../utils";
+import type { ActionSuggestion } from "./state-analysis-tools";
 
 /**
  * Tool: Provide welcome guidance for first-time users
  */
-export async function provideWelcomeGuidanceTool(): Promise<{
-  message: string;
-  primaryAction: ActionSuggestion;
-  secondaryActions: ActionSuggestion[];
-  externalTools: ToolRecommendation[];
-}> {
-  try {
-    return {
-      message: `Welcome to LoreSmith AI! 🎲
+export const provideWelcomeGuidanceTool = tool({
+  description: "Provide welcome guidance for first-time users",
+  parameters: z.object({
+    jwt: commonSchemas.jwt,
+  }),
+  execute: async ({ jwt: _jwt }, context?: any): Promise<ToolResult> => {
+    try {
+      return createToolSuccess(
+        "Welcome guidance provided successfully",
+        {
+          message: `Welcome to LoreSmith AI! 🎲
 
 I'm here to help you become a better Game Master by managing your inspiration library, creating rich campaign contexts, and planning engaging sessions.
 
@@ -26,278 +28,243 @@ I'm here to help you become a better Game Master by managing your inspiration li
 • **Session Planning**: Plan engaging sessions with hooks, encounters, and story beats
 
 Let's get you started! What would you like to do first?`,
-      primaryAction: {
-        title: "Upload Your First Resource",
-        description:
-          "Click the 'Add Resources' button to upload PDFs, images, or documents to your inspiration library",
-        action: "upload_resource",
-        priority: "high",
-        estimatedTime: "5 minutes",
-      },
-      secondaryActions: [
-        {
-          title: "Create Your First Campaign",
-          description:
-            "Set up a campaign and start organizing your story elements",
-          action: "create_campaign",
-          priority: "medium",
-          estimatedTime: "10 minutes",
+          primaryAction: {
+            title: "Upload Your First Resource",
+            description:
+              "Click the 'Add to library' button to upload PDFs, images, or documents to your inspiration library",
+            action: "upload_resource",
+            priority: "high",
+            estimatedTime: "5 minutes",
+          },
+          secondaryActions: [
+            {
+              title: "Create Your First Campaign",
+              description:
+                "Set up a campaign and start organizing your story elements",
+              action: "create_campaign",
+              priority: "medium",
+              estimatedTime: "10 minutes",
+            },
+            {
+              title: "Chat with Me",
+              description:
+                "Tell me about your campaign ideas and I'll help you develop them",
+              action: "start_chat",
+              priority: "medium",
+              estimatedTime: "15 minutes",
+            },
+          ],
+          externalTools: [
+            {
+              name: "DMsGuild",
+              url: "https://www.dmsguild.com",
+              description:
+                "Find adventures, supplements, and campaign resources",
+              category: "content",
+              relevance: "high",
+            },
+            {
+              name: "D&D Beyond",
+              url: "https://www.dndbeyond.com",
+              description: "Access official D&D content and tools",
+              category: "tools",
+              relevance: "high",
+            },
+            {
+              name: "Pinterest",
+              url: "https://www.pinterest.com",
+              description:
+                "Discover maps, character art, and campaign inspiration",
+              category: "inspiration",
+              relevance: "high",
+            },
+          ],
         },
-        {
-          title: "Chat with Me",
-          description:
-            "Tell me about your campaign ideas and I'll help you develop them",
-          action: "start_chat",
-          priority: "medium",
-          estimatedTime: "15 minutes",
-        },
-      ],
-      externalTools: [
-        {
-          name: "DMsGuild",
-          url: "https://www.dmsguild.com",
-          description: "Find adventures, supplements, and campaign resources",
-          category: "content",
-          relevance: "high",
-        },
-        {
-          name: "D&D Beyond",
-          url: "https://www.dndbeyond.com",
-          description: "Access official D&D content and tools",
-          category: "tools",
-          relevance: "high",
-        },
-        {
-          name: "Pinterest",
-          url: "https://www.pinterest.com",
-          description: "Discover maps, character art, and campaign inspiration",
-          category: "inspiration",
-          relevance: "high",
-        },
-      ],
-    };
-  } catch (error) {
-    console.error("Failed to provide welcome guidance:", error);
-    throw new Error("Failed to generate welcome guidance");
-  }
-}
+        context?.toolCallId || "unknown"
+      );
+    } catch (error) {
+      console.error("Failed to provide welcome guidance:", error);
+      return createToolError(
+        "Failed to generate welcome guidance",
+        error instanceof Error ? error.message : "Unknown error",
+        500,
+        context?.toolCallId || "unknown"
+      );
+    }
+  },
+});
 
 /**
  * Tool: Suggest next actions based on user state
  */
-export async function suggestNextActionsTool(
-  username: string,
-  db: any,
-  campaignHealth?: CampaignHealthSummary
-): Promise<{
-  actions: ActionSuggestion[];
-  explanation: string;
-}> {
-  try {
-    const assessmentService = new AssessmentService(db);
-    const userState = await assessmentService.analyzeUserState(username);
+export const suggestNextActionsTool = tool({
+  description: "Suggest next actions based on user state",
+  parameters: z.object({
+    jwt: commonSchemas.jwt,
+  }),
+  execute: async ({ jwt }, context?: any): Promise<ToolResult> => {
+    try {
+      // Extract username from JWT
+      if (!jwt) {
+        return createToolError(
+          "No JWT provided",
+          "Authentication token is required",
+          400,
+          context?.toolCallId || "unknown"
+        );
+      }
 
-    const actions: ActionSuggestion[] = [];
-    let explanation = "";
+      const payload = JSON.parse(atob(jwt.split(".")[1]));
+      const username = payload.username;
 
-    if (userState.isFirstTime) {
-      explanation =
-        "Since you're new to LoreSmith AI, let's start with the basics!";
-      actions.push(
-        {
+      if (!username) {
+        return createToolError(
+          "No username found in JWT",
+          "Unable to extract username from authentication token",
+          400,
+          context?.toolCallId || "unknown"
+        );
+      }
+
+      const env = context?.env;
+      if (!env) {
+        return createToolError(
+          "Environment not available",
+          "Database connection not available",
+          500,
+          context?.toolCallId || "unknown"
+        );
+      }
+
+      const assessmentService = getAssessmentService(env);
+      const userState = await assessmentService.analyzeUserState(username);
+
+      const actions: ActionSuggestion[] = [];
+
+      // Suggest actions based on user state
+      if (userState.isFirstTime) {
+        actions.push({
           title: "Upload Your First Resource",
-          description:
-            "Click the 'Add Resources' button to start building your inspiration library",
+          description: "Start building your inspiration library",
           action: "upload_resource",
           priority: "high",
           estimatedTime: "5 minutes",
-        },
-        {
-          title: "Create Your First Campaign",
-          description: "Set up a campaign to organize your story",
-          action: "create_campaign",
-          priority: "high",
-          estimatedTime: "10 minutes",
-        }
-      );
-    } else if (!userState.hasCampaigns && !userState.hasResources) {
-      explanation =
-        "You haven't created any campaigns or uploaded resources yet. Let's get you started!";
-      actions.push(
-        {
-          title: "Upload Resources",
-          description:
-            "Click the 'Add Resources' button to build your inspiration library with PDFs, images, and documents",
-          action: "upload_resources",
-          priority: "high",
-          estimatedTime: "10 minutes",
-        },
-        {
-          title: "Create a Campaign",
-          description: "Start organizing your story elements",
-          action: "create_campaign",
-          priority: "high",
-          estimatedTime: "15 minutes",
-        }
-      );
-    } else if (userState.hasResources && !userState.hasCampaigns) {
-      explanation =
-        "Great! You have resources but no campaigns yet. Let's organize them into a campaign!";
-      actions.push(
-        {
-          title: "Create a Campaign",
-          description: "Organize your resources into a campaign",
-          action: "create_campaign",
-          priority: "high",
-          estimatedTime: "15 minutes",
-        },
-        {
-          title: "Upload More Resources",
-          description:
-            "Click the 'Add Resources' button to add more inspiration to your library",
-          action: "upload_resources",
-          priority: "medium",
-          estimatedTime: "10 minutes",
-        }
-      );
-    } else if (userState.hasCampaigns && campaignHealth) {
-      explanation = `Your campaign has a health score of ${campaignHealth.overallScore}/100. Let's focus on the areas that need attention!`;
-
-      if (campaignHealth.overallScore < 60) {
-        actions.push({
-          title: "Improve Campaign Health",
-          description: "Focus on the priority areas identified",
-          action: "improve_campaign",
-          priority: "high",
-          estimatedTime: "30 minutes",
         });
-      } else {
-        actions.push(
-          {
-            title: "Plan Next Session",
-            description: "Prepare for your upcoming game session",
-            action: "plan_session",
-            priority: "high",
-            estimatedTime: "20 minutes",
-          },
-          {
-            title: "Add More Resources",
-            description:
-              "Click the 'Add Resources' button to enrich your campaign with new inspiration",
-            action: "upload_resources",
-            priority: "medium",
-            estimatedTime: "10 minutes",
-          }
-        );
       }
-    }
 
-    return { actions, explanation };
-  } catch (error) {
-    console.error("Failed to suggest next actions:", error);
-    throw new Error("Failed to generate action suggestions");
-  }
-}
+      if (!userState.hasCampaigns) {
+        actions.push({
+          title: "Create Your First Campaign",
+          description: "Set up a campaign and start organizing your story",
+          action: "create_campaign",
+          priority: "high",
+          estimatedTime: "10 minutes",
+        });
+      }
+
+      if (userState.hasResources && userState.hasCampaigns) {
+        actions.push({
+          title: "Plan Your Next Session",
+          description: "Use your resources to plan an engaging session",
+          action: "plan_session",
+          priority: "medium",
+          estimatedTime: "15 minutes",
+        });
+      }
+
+      return createToolSuccess(
+        `Next actions suggested successfully for ${username}`,
+        {
+          userState,
+          actions,
+          explanation: `Based on your current state, here are the recommended next steps to enhance your GM experience.`,
+        },
+        context?.toolCallId || "unknown"
+      );
+    } catch (error) {
+      console.error("Failed to suggest next actions:", error);
+      return createToolError(
+        "Failed to suggest next actions",
+        error instanceof Error ? error.message : "Unknown error",
+        500,
+        context?.toolCallId || "unknown"
+      );
+    }
+  },
+});
 
 /**
  * Tool: Provide campaign-specific guidance
  */
-export async function provideCampaignGuidanceTool(
-  _campaignId: string,
-  campaignHealth: CampaignHealthSummary
-): Promise<{
-  guidance: string;
-  priorityActions: ActionSuggestion[];
-  externalTools: ToolRecommendation[];
-}> {
-  try {
-    let guidance = "";
-    const priorityActions: ActionSuggestion[] = [];
-    const externalTools: ToolRecommendation[] = [];
+export const provideCampaignGuidanceTool = tool({
+  description: "Provide campaign-specific guidance based on campaign health",
+  parameters: z.object({
+    campaignId: z.string().describe("The campaign ID to provide guidance for"),
+    jwt: commonSchemas.jwt,
+  }),
+  execute: async (
+    { campaignId, jwt: _jwt },
+    context?: any
+  ): Promise<ToolResult> => {
+    try {
+      const env = context?.env;
+      if (!env) {
+        return createToolError(
+          "Environment not available",
+          "Database connection not available",
+          500,
+          context?.toolCallId || "unknown"
+        );
+      }
 
-    if (campaignHealth.overallScore >= 80) {
-      guidance = `Excellent! Your campaign is in great health (${campaignHealth.overallScore}/100). You're ready to focus on session planning and player engagement.`;
-
-      priorityActions.push(
-        {
-          title: "Plan Next Session",
-          description: "Prepare engaging encounters and story beats",
-          action: "plan_session",
-          priority: "high",
-          estimatedTime: "20 minutes",
-        },
-        {
-          title: "Review Player Characters",
-          description: "Ensure character arcs are progressing well",
-          action: "review_characters",
-          priority: "medium",
-          estimatedTime: "15 minutes",
-        }
+      const assessmentService = getAssessmentService(env);
+      const campaignHealth = await assessmentService.getCampaignHealth(
+        campaignId,
+        {} as any,
+        []
       );
-    } else if (campaignHealth.overallScore >= 60) {
-      guidance = `Your campaign is in good shape (${campaignHealth.overallScore}/100), but there's room for improvement. Let's focus on the priority areas.`;
 
-      priorityActions.push(
+      return createToolSuccess(
+        `Campaign guidance provided successfully for campaign ${campaignId}`,
         {
-          title: "Address Priority Areas",
-          description: "Focus on the areas that need attention",
-          action: "improve_campaign",
-          priority: "high",
-          estimatedTime: "30 minutes",
+          campaignHealth,
+          primaryAction: {
+            title: "Improve Campaign Health",
+            description:
+              "Focus on the priority areas identified in your campaign health assessment",
+            action: "improve_campaign",
+            priority: "high",
+            estimatedTime: "20 minutes",
+          },
+          secondaryActions: [
+            {
+              title: "Add More Resources",
+              description:
+                "Upload additional resources to enrich your campaign",
+              action: "upload_resource",
+              priority: "medium",
+              estimatedTime: "10 minutes",
+            },
+            {
+              title: "Plan Next Session",
+              description: "Use your campaign context to plan the next session",
+              action: "plan_session",
+              priority: "medium",
+              estimatedTime: "15 minutes",
+            },
+          ],
+          explanation: `Your campaign health assessment shows areas for improvement. Focus on the priority areas to enhance your campaign experience.`,
         },
-        {
-          title: "Add More Resources",
-          description:
-            "Click the 'Add Resources' button to enrich your campaign with new inspiration",
-          action: "upload_resources",
-          priority: "medium",
-          estimatedTime: "10 minutes",
-        }
+        context?.toolCallId || "unknown"
       );
-    } else {
-      guidance = `Your campaign needs attention (${campaignHealth.overallScore}/100). Let's focus on the critical areas to improve your campaign health.`;
-
-      priorityActions.push(
-        {
-          title: "Critical Campaign Improvements",
-          description: "Address the most important areas first",
-          action: "critical_improvements",
-          priority: "high",
-          estimatedTime: "45 minutes",
-        },
-        {
-          title: "Review Campaign Foundation",
-          description: "Ensure your campaign has solid fundamentals",
-          action: "review_foundation",
-          priority: "high",
-          estimatedTime: "30 minutes",
-        }
+    } catch (error) {
+      console.error("Failed to provide campaign guidance:", error);
+      return createToolError(
+        "Failed to provide campaign guidance",
+        error instanceof Error ? error.message : "Unknown error",
+        500,
+        context?.toolCallId || "unknown"
       );
     }
-
-    // Add relevant external tools based on campaign health
-    if (campaignHealth.overallScore < 70) {
-      externalTools.push(
-        {
-          name: "DMsGuild - Adventure Hooks",
-          url: "https://www.dmsguild.com/browse.php?keywords=adventure+hooks",
-          description: "Find plot hooks and adventure ideas",
-          category: "content",
-          relevance: "high",
-        },
-        {
-          name: "Reddit - r/DMAcademy",
-          url: "https://www.reddit.com/r/DMAcademy/",
-          description: "Get advice from experienced DMs",
-          category: "community",
-          relevance: "high",
-        }
-      );
-    }
-
-    return { guidance, priorityActions, externalTools };
-  } catch (error) {
-    console.error("Failed to provide campaign guidance:", error);
-    throw new Error("Failed to generate campaign guidance");
-  }
-}
+  },
+});

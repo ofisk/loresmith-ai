@@ -10,24 +10,29 @@ import {
 import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
-import { useCallback, useEffect, useState } from "react";
+import type React from "react";
+import { useCallback, useEffect, useState, useId } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import loresmith from "@/assets/loresmith.png";
-import { Avatar } from "@/components/avatar/Avatar";
+
 // Component imports
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
+import { HelpButton } from "@/components/help/HelpButton";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
-import { PdfUploadAgent } from "@/components/pdf-upload/PdfUploadAgent";
+
 import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
-import { HelpButton } from "@/components/help/HelpButton";
+import { ThinkingSpinner } from "@/components/thinking-spinner";
+import { ResourceSidePanel } from "@/components/resource-side-panel";
 import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
 
 import { USER_MESSAGES } from "./constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
 import { AuthService } from "./services/auth-service";
+import { JWT_STORAGE_KEY } from "./constants";
+import { API_CONFIG } from "./shared";
 
 import type { campaignTools } from "./tools/campaign";
 import type { generalTools } from "./tools/general";
@@ -44,11 +49,8 @@ const toolsRequiringConfirmation: (
   "createCampaign",
 
   // Resource/PDF tools that require confirmation
-  "uploadPdfFile",
   "updatePdfMetadata",
-
-  // General tools that require confirmation
-  "setAdminSecret",
+  "deletePdfFile",
 ];
 
 /**
@@ -75,6 +77,7 @@ function getSessionId(): string {
 }
 
 export default function Chat() {
+  const chatContainerId = useId();
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     // Check localStorage first, default to dark if not found
     const savedTheme = localStorage.getItem("theme");
@@ -88,12 +91,11 @@ export default function Chat() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [username, setUsername] = useState<string>("");
   const [storedOpenAIKey, setStoredOpenAIKey] = useState<string>("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Get stored JWT for user operations
   const getStoredJwt = useCallback((): string | null => {
-    const jwt = localStorage.getItem("loresmith-jwt");
-    console.log("[App] getStoredJwt() returns:", jwt);
-    return jwt;
+    return localStorage.getItem(JWT_STORAGE_KEY);
   }, []);
 
   // Check for stored OpenAI key
@@ -108,19 +110,27 @@ export default function Chat() {
       };
       if (response.ok && result.hasKey) {
         setStoredOpenAIKey(result.apiKey || "");
+        setIsAuthenticated(true);
       } else {
         // No stored key found, show the auth modal immediately
         console.log("[App] No stored OpenAI key found for user:", username);
         console.log("[App] Showing auth modal immediately");
         setShowAuthModal(true);
+        setIsAuthenticated(false);
       }
     } catch (error) {
       console.error("Error checking stored OpenAI key:", error);
       // Show modal on error as well
       console.log("[App] Error checking stored key, showing auth modal");
       setShowAuthModal(true);
+      setIsAuthenticated(false);
     }
   }, []);
+
+  // Log authentication state changes for debugging
+  useEffect(() => {
+    console.log("[App] Authentication state changed:", isAuthenticated);
+  }, [isAuthenticated]);
 
   // Check authentication status on mount
   useEffect(() => {
@@ -132,11 +142,11 @@ export default function Chat() {
         if (payload.username) {
           setUsername(payload.username);
           // Check if JWT is expired
-          const authService = new AuthService({} as any);
-          if (authService.isJwtExpired(jwt)) {
+          if (AuthService.isJwtExpired(jwt)) {
             // JWT expired, show auth modal
             console.log("[App] JWT expired, showing auth modal");
             setShowAuthModal(true);
+            setIsAuthenticated(false);
           } else {
             // JWT valid, check if we have stored OpenAI key
             console.log("[App] JWT valid, checking stored OpenAI key");
@@ -147,11 +157,13 @@ export default function Chat() {
         console.error("Error parsing JWT:", error);
         console.log("[App] Error parsing JWT, showing auth modal");
         setShowAuthModal(true);
+        setIsAuthenticated(false);
       }
     } else {
       // No JWT, show auth modal
       console.log("[App] No JWT, showing auth modal");
       setShowAuthModal(true);
+      setIsAuthenticated(false);
     }
   }, [checkStoredOpenAIKey, getStoredJwt]);
 
@@ -173,17 +185,20 @@ export default function Chat() {
     openaiApiKey: string
   ) => {
     try {
-      const response = await fetch("/authenticate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username,
-          adminSecret: adminKey,
-          openaiApiKey,
-        }),
-      });
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username,
+            adminSecret: adminKey?.trim() || undefined, // Make admin key optional
+            openaiApiKey,
+          }),
+        }
+      );
 
       const result = (await response.json()) as {
         success?: boolean;
@@ -198,10 +213,25 @@ export default function Chat() {
         // Update stored OpenAI key
         setStoredOpenAIKey(openaiApiKey);
 
+        // Set authentication state
+        setIsAuthenticated(true);
+
         // Close modal
         setShowAuthModal(false);
 
-        toast.success("Authentication successful");
+        // Show success message with admin status
+        const payload = JSON.parse(atob(result.token?.split(".")[1] || ""));
+        const isAdmin = payload.isAdmin || false;
+
+        if (isAdmin) {
+          toast.success(
+            "Authentication successful! Admin access granted with unlimited storage."
+          );
+        } else {
+          toast.success(
+            "Authentication successful! You have 20MB storage limit."
+          );
+        }
       } else {
         throw new Error(result.error || "Authentication failed");
       }
@@ -286,17 +316,23 @@ export default function Chat() {
   useEffect(() => {
     // Scroll to bottom once when the page loads with messages
     if (agentMessages.length > 0 && !isLoading) {
-      const chatContainer = document.querySelector(".overflow-y-auto");
+      const chatContainer = document.getElementById("chat-container");
       if (chatContainer) {
         chatContainer.scrollTop = chatContainer.scrollHeight;
       }
     }
   }, [agentMessages.length, isLoading]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change or when agent is responding
   useEffect(() => {
-    // Only scroll when new messages are added, not on initial load
-    // This will be handled by the append function instead
+    const chatContainer = document.getElementById("chat-container");
+    if (chatContainer) {
+      // Smooth scroll to bottom when messages change
+      chatContainer.scrollTo({
+        top: chatContainer.scrollHeight,
+        behavior: "smooth",
+      });
+    }
   }, []);
 
   // Debug modal state changes
@@ -317,7 +353,15 @@ export default function Chat() {
     });
     setInput("");
     // Scroll to bottom after user sends a message
-    setTimeout(() => {}, 100);
+    setTimeout(() => {
+      const chatContainer = document.getElementById("chat-container");
+      if (chatContainer) {
+        chatContainer.scrollTo({
+          top: chatContainer.scrollHeight,
+          behavior: "smooth",
+        });
+      }
+    }, 100);
   };
 
   // Enhanced clear history function that creates a new session
@@ -340,18 +384,60 @@ export default function Chat() {
     switch (action) {
       case "upload_resource":
         response =
-          "To upload resources to your inspiration library, look for the **'Add Resources'** button in the interface. This button will open a modal where you can upload PDF files and other resources. You can also drag and drop files directly onto the upload area for a quick upload experience.";
+          "## 📁 Uploading Resources\n\n" +
+          "To upload resources to your inspiration library:\n\n" +
+          "1. **Look for the 'Add to library' button** in the interface\n" +
+          "2. **Click the button** to open the upload modal\n" +
+          "3. **Drag and drop files** directly onto the upload area for quick upload\n" +
+          "4. **Select files** from your computer if you prefer\n\n" +
+          "**Supported file types:** PDF files, images, and other documents\n\n" +
+          "Once uploaded, your resources will be available in your inspiration library for campaign planning!";
         break;
       case "create_campaign":
         response =
-          "To create a new campaign, look for the **'Create Campaign'** button. This will help you set up a new campaign with a name, description, and other details to organize your resources and planning.";
+          "## 🎲 Creating a Campaign\n\n" +
+          "To create a new campaign:\n\n" +
+          "1. **Look for the 'Create Campaign' button** in the interface\n" +
+          "2. **Click the button** to open the campaign creation form\n" +
+          "3. **Enter campaign details** including:\n" +
+          "- Campaign name\n" +
+          "- Description\n" +
+          "- Setting details\n" +
+          "4. **Save your campaign** to start organizing your resources\n\n" +
+          "**Benefits:** Campaigns help you organize your resources, plan sessions, and track your story development!";
         break;
       case "start_chat":
         response =
-          "You can start chatting with me right here! Just type your questions about campaign ideas, world building, character development, or any other GM topics. I'm here to help you develop your campaign ideas and provide guidance.";
+          "## 💬 Starting a Chat\n\n" +
+          "You can start chatting with me right here! Just type your questions about:\n\n" +
+          "**Campaign Ideas:**\n" +
+          "- World building concepts\n" +
+          "- Plot development\n" +
+          "- Character creation\n\n" +
+          "**GM Topics:**\n" +
+          "- Session planning\n" +
+          "- Encounter design\n" +
+          "- Story pacing\n\n" +
+          "**Tips:**\n" +
+          "- Be specific with your questions\n" +
+          "- Share your campaign context\n" +
+          "- Ask for examples or suggestions\n\n" +
+          "I'm here to help you develop your campaign ideas and provide guidance!";
         break;
       default:
-        response = `I can help you with various tasks. For uploading resources, look for the 'Add Resources' button. For creating campaigns, use the 'Create Campaign' button. Or just start chatting with me about your campaign ideas!`;
+        response =
+          "## 🎯 Getting Started\n\n" +
+          "I can help you with various tasks:\n\n" +
+          "**📁 Upload Resources:**\n" +
+          "- Look for the 'Add to library' button\n" +
+          "- Upload PDFs, images, and documents\n\n" +
+          "**🎲 Create Campaigns:**\n" +
+          "- Use the 'Create Campaign' button\n" +
+          "- Organize your story elements\n\n" +
+          "**💬 Start Chatting:**\n" +
+          "- Just type your questions here\n" +
+          "- Ask about campaign ideas, world building, or GM topics\n\n" +
+          "**💡 Pro Tip:** Be specific with your questions to get the most helpful responses!";
     }
 
     // Add the help response as an assistant message
@@ -411,7 +497,15 @@ export default function Chat() {
     setInput("");
     setTextareaHeight("auto"); // Reset height after submission
     // Scroll to bottom after user sends a message
-    setTimeout(() => {}, 100);
+    setTimeout(() => {
+      const chatContainer = document.getElementById("chat-container");
+      if (chatContainer) {
+        chatContainer.scrollTo({
+          top: chatContainer.scrollHeight,
+          behavior: "smooth",
+        });
+      }
+    }, 100);
   };
 
   // Enhanced key down handler that includes JWT
@@ -433,7 +527,15 @@ export default function Chat() {
       setInput("");
       setTextareaHeight("auto"); // Reset height on Enter submission
       // Scroll to bottom after user sends a message
-      setTimeout(() => {}, 100);
+      setTimeout(() => {
+        const chatContainer = document.getElementById("chat-container");
+        if (chatContainer) {
+          chatContainer.scrollTo({
+            top: chatContainer.scrollHeight,
+            behavior: "smooth",
+          });
+        }
+      }, 100);
     }
   };
 
@@ -441,269 +543,301 @@ export default function Chat() {
     <>
       <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
         <Toaster position="top-right" />
-        <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-lg flex flex-col shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
-          <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
-            <div
-              className="flex items-center justify-center rounded-lg"
-              style={{ width: 28, height: 28 }}
-            >
-              <img
-                src={loresmith}
-                alt="LoreSmith logo"
-                width={28}
-                height={28}
-                className="object-contain"
-              />
-            </div>
+        <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-[1400px] flex shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
+          {/* Resource Side Panel */}
+          <ResourceSidePanel
+            isAuthenticated={isAuthenticated}
+            username={username}
+          />
 
-            <div className="flex-1">
-              <h2 className="font-semibold text-base">LoreSmith</h2>
-            </div>
-
-            <div className="flex items-center gap-2 mr-2">
-              <Bug size={16} />
-              <Toggle
-                toggled={showDebug}
-                aria-label="Toggle debug mode"
-                onClick={() => setShowDebug((prev) => !prev)}
-              />
-            </div>
-
-            <HelpButton onActionClick={handleHelpAction} />
-
-            <Button
-              variant="ghost"
-              size="md"
-              shape="square"
-              className="rounded-full h-9 w-9"
-              onClick={toggleTheme}
-            >
-              {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="md"
-              shape="square"
-              className="rounded-full h-9 w-9"
-              onClick={handleClearHistory}
-            >
-              <Trash size={20} />
-            </Button>
-          </div>
-
-          {/* Main Content Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 max-h-[calc(100vh-10rem)]">
-            {agentMessages.length === 0 && (
-              <div className="h-full flex items-center justify-center">
-                <Card className="p-6 max-w-md mx-auto bg-neutral-100 dark:bg-neutral-900">
-                  <div className="text-left space-y-4">
-                    <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
-                      <img
-                        src={loresmith}
-                        alt="LoreSmith logo"
-                        width={48}
-                        height={48}
-                      />
-                    </div>
-                    <h3 className="font-semibold text-lg">
-                      👋 Welcome to LoreSmith Campaign Planner!
-                    </h3>
-                    <p className="text-muted-foreground text-sm">
-                      Speak your query, and I shall summon the most fitting
-                      agent. Try:
-                    </p>
-                    <div className="flex justify-center gap-2 pt-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="bg-neutral-100 dark:bg-neutral-600"
-                        onClick={() => handleSuggestionSubmit("Get started")}
-                      >
-                        <Lightbulb size={12} />
-                        Get started
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="bg-neutral-100 dark:bg-neutral-600"
-                        onClick={() => handleSuggestionSubmit("Show agents")}
-                      >
-                        Show agents
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
+          {/* Main Chat Area */}
+          <div className="flex-1 flex flex-col">
+            <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
+              <div
+                className="flex items-center justify-center rounded-lg"
+                style={{ width: 28, height: 28 }}
+              >
+                <img
+                  src={loresmith}
+                  alt="LoreSmith logo"
+                  width={28}
+                  height={28}
+                  className="object-contain"
+                />
               </div>
-            )}
 
-            {agentMessages.map((m: Message, index) => {
-              const isUser = m.role === "user";
-              const showAvatar =
-                index === 0 || agentMessages[index - 1]?.role !== m.role;
+              <div className="flex-1">
+                <h2 className="font-semibold text-base">LoreSmith</h2>
+              </div>
 
-              return (
-                <div key={m.id}>
-                  {showDebug && (
-                    <pre className="text-xs text-muted-foreground overflow-scroll">
-                      {JSON.stringify(m, null, 2)}
-                    </pre>
-                  )}
-                  <div
-                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`flex gap-2 max-w-[85%] ${
-                        isUser ? "flex-row-reverse" : "flex-col"
-                      }`}
-                    >
-                      {showAvatar && !isUser ? (
-                        <Avatar username={"LS"} />
-                      ) : (
-                        !isUser && <div className="w-8" />
+              <div className="flex items-center gap-2 mr-2">
+                <Bug size={16} />
+                <Toggle
+                  toggled={showDebug}
+                  aria-label="Toggle debug mode"
+                  onClick={() => setShowDebug((prev) => !prev)}
+                />
+              </div>
+
+              <HelpButton onActionClick={handleHelpAction} />
+
+              <Button
+                variant="ghost"
+                size="md"
+                shape="square"
+                className="rounded-full h-9 w-9"
+                onClick={toggleTheme}
+              >
+                {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="md"
+                shape="square"
+                className="rounded-full h-9 w-9"
+                onClick={handleClearHistory}
+              >
+                <Trash size={20} />
+              </Button>
+            </div>
+
+            {/* Main Content Area */}
+            <div
+              id={chatContainerId}
+              className="flex-1 overflow-y-auto px-6 py-4 space-y-4 pb-32 max-h-[calc(100vh-10rem)]"
+            >
+              {agentMessages.length === 0 && (
+                <div className="h-full flex items-center justify-center">
+                  <Card className="p-6 max-w-2xl mx-auto bg-neutral-100 dark:bg-neutral-900">
+                    <div className="text-left space-y-4">
+                      <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
+                        <img
+                          src={loresmith}
+                          alt="LoreSmith logo"
+                          width={48}
+                          height={48}
+                        />
+                      </div>
+                      <h3 className="font-semibold text-lg">
+                        👋 Welcome to LoreSmith Campaign Planner!
+                      </h3>
+                      <p className="text-muted-foreground text-sm">
+                        Speak your query, and I shall summon the most fitting
+                        agent. Try:
+                      </p>
+                      <div className="flex justify-center gap-2 pt-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="bg-neutral-100 dark:bg-neutral-600"
+                          onClick={() => handleSuggestionSubmit("Get started")}
+                        >
+                          <Lightbulb size={12} />
+                          Get started
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="bg-neutral-100 dark:bg-neutral-600"
+                          onClick={() => handleSuggestionSubmit("Show agents")}
+                        >
+                          Show agents
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+              )}
+
+              {agentMessages
+                .filter((m: Message) => {
+                  // Hide "Get started" messages from display
+                  if (m.role === "user" && m.content === "Get started") {
+                    return false;
+                  }
+                  return true;
+                })
+                .map((m: Message, _index) => {
+                  const isUser = m.role === "user";
+
+                  return (
+                    <div key={m.id}>
+                      {showDebug && (
+                        <pre className="text-xs text-muted-foreground overflow-scroll">
+                          {JSON.stringify(
+                            {
+                              ...m,
+                              parts: m.parts?.filter(
+                                (part) => part.type !== "tool-invocation"
+                              ),
+                            },
+                            null,
+                            2
+                          )}
+                        </pre>
                       )}
+                      <div
+                        className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+                      >
+                        <div
+                          className={`${
+                            isUser
+                              ? "flex flex-row-reverse gap-2 max-w-[85%]"
+                              : "w-full"
+                          }`}
+                        >
+                          <div className={isUser ? "flex-1" : "w-full"}>
+                            <div>
+                              {m.parts?.map((part, i) => {
+                                if (part.type === "text") {
+                                  return (
+                                    // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
+                                    <div key={i}>
+                                      <Card
+                                        className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
+                                          isUser
+                                            ? "rounded-br-none"
+                                            : "rounded-bl-none border-assistant-border"
+                                        } ${
+                                          part.text.startsWith(
+                                            "scheduled message"
+                                          )
+                                            ? "border-accent/50"
+                                            : ""
+                                        } relative`}
+                                      >
+                                        {part.text.startsWith(
+                                          "scheduled message"
+                                        ) && (
+                                          <span className="absolute -top-3 -left-2 text-base">
+                                            🕒
+                                          </span>
+                                        )}
+                                        <MemoizedMarkdown
+                                          content={part.text.replace(
+                                            /^scheduled message: /,
+                                            ""
+                                          )}
+                                        />
+                                      </Card>
+                                      <p
+                                        className={`text-xs text-muted-foreground mt-1 ${
+                                          isUser ? "text-right" : "text-left"
+                                        }`}
+                                      >
+                                        {formatTime(
+                                          new Date(
+                                            m.createdAt as unknown as string
+                                          )
+                                        )}
+                                      </p>
+                                    </div>
+                                  );
+                                }
 
-                      <div className="flex-1">
-                        <div>
-                          {m.parts?.map((part, i) => {
-                            if (part.type === "text") {
-                              return (
-                                // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
-                                <div key={i}>
-                                  <Card
-                                    className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
-                                      isUser
-                                        ? "rounded-br-none"
-                                        : "rounded-bl-none border-assistant-border"
-                                    } ${
-                                      part.text.startsWith("scheduled message")
-                                        ? "border-accent/50"
-                                        : ""
-                                    } relative`}
-                                  >
-                                    {part.text.startsWith(
-                                      "scheduled message"
-                                    ) && (
-                                      <span className="absolute -top-3 -left-2 text-base">
-                                        🕒
-                                      </span>
-                                    )}
-                                    <MemoizedMarkdown
-                                      id={`${m.id}-${i}`}
-                                      content={part.text.replace(
-                                        /^scheduled message: /,
-                                        ""
-                                      )}
+                                if (part.type === "tool-invocation") {
+                                  const toolInvocation = part.toolInvocation;
+                                  const toolCallId = toolInvocation.toolCallId;
+                                  const needsConfirmation =
+                                    toolsRequiringConfirmation.includes(
+                                      toolInvocation.toolName as
+                                        | keyof typeof generalTools
+                                        | keyof typeof campaignTools
+                                        | keyof typeof pdfTools
+                                    );
+
+                                  // Skip rendering the card when debug is off
+                                  if (!showDebug) return null;
+
+                                  return (
+                                    <ToolInvocationCard
+                                      // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here as the array is static
+                                      key={`${toolCallId}-${i}`}
+                                      toolInvocation={toolInvocation}
+                                      toolCallId={toolCallId}
+                                      needsConfirmation={needsConfirmation}
+                                      addToolResult={addToolResult}
+                                      showDebug={showDebug}
                                     />
-                                  </Card>
-                                  <p
-                                    className={`text-xs text-muted-foreground mt-1 ${
-                                      isUser ? "text-right" : "text-left"
-                                    }`}
-                                  >
-                                    {formatTime(
-                                      new Date(m.createdAt as unknown as string)
-                                    )}
-                                  </p>
-                                </div>
-                              );
-                            }
-
-                            if (part.type === "tool-invocation") {
-                              const toolInvocation = part.toolInvocation;
-                              const toolCallId = toolInvocation.toolCallId;
-                              const needsConfirmation =
-                                toolsRequiringConfirmation.includes(
-                                  toolInvocation.toolName as
-                                    | keyof typeof generalTools
-                                    | keyof typeof campaignTools
-                                    | keyof typeof pdfTools
-                                );
-
-                              // Skip rendering the card in debug mode
-                              if (showDebug) return null;
-
-                              return (
-                                <ToolInvocationCard
-                                  // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here as the array is static
-                                  key={`${toolCallId}-${i}`}
-                                  toolInvocation={toolInvocation}
-                                  toolCallId={toolCallId}
-                                  needsConfirmation={needsConfirmation}
-                                  addToolResult={addToolResult}
-                                />
-                              );
-                            }
-                            return null;
-                          })}
+                                  );
+                                }
+                                return null;
+                              })}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
+                  );
+                })}
+
+              {/* Thinking Spinner - shown when agent is processing */}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="w-full">
+                    <Card className="p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 rounded-bl-none border-assistant-border">
+                      <ThinkingSpinner />
+                    </Card>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              )}
+            </div>
 
-          {/* Chat-specific sections */}
-          {/* PDF Upload Section */}
-          <div className="px-4 py-2 border-t border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900">
-            <PdfUploadAgent messages={agentMessages} append={append} />
-          </div>
-
-          {/* Input Area */}
-          <form
-            onSubmit={handleFormSubmit}
-            className="p-3 bg-neutral-50 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
-          >
-            <div className="flex items-center gap-2">
-              <div className="flex-1 relative">
-                <Textarea
-                  disabled={pendingToolCallConfirmation}
-                  placeholder={
-                    pendingToolCallConfirmation
-                      ? "Please respond to the tool confirmation above..."
-                      : "What knowledge do you seek today?"
-                  }
-                  className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-base ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900"
-                  value={agentInput}
-                  onChange={(e) => {
-                    handleAgentInputChange(e);
-                    // Auto-resize the textarea
-                    e.target.style.height = "auto";
-                    e.target.style.height = `${e.target.scrollHeight}px`;
-                    setTextareaHeight(`${e.target.scrollHeight}px`);
-                  }}
-                  onKeyDown={handleKeyDown}
-                  rows={2}
-                  style={{ height: textareaHeight }}
-                />
-                <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
-                  {isLoading ? (
-                    <button
-                      type="button"
-                      onClick={stop}
-                      className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                      aria-label="Stop generation"
-                    >
-                      <Stop size={16} />
-                    </button>
-                  ) : (
-                    <button
-                      type="submit"
-                      className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                      disabled={
-                        pendingToolCallConfirmation || !agentInput.trim()
-                      }
-                      aria-label="Send message"
-                    >
-                      <PaperPlaneRight size={16} />
-                    </button>
-                  )}
+            {/* Input Area */}
+            <form
+              onSubmit={handleFormSubmit}
+              className="p-3 bg-neutral-50 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
+            >
+              <div className="flex items-center gap-2">
+                <div className="flex-1 relative">
+                  <Textarea
+                    disabled={pendingToolCallConfirmation}
+                    placeholder={
+                      pendingToolCallConfirmation
+                        ? "Please respond to the tool confirmation above..."
+                        : "What knowledge do you seek today?"
+                    }
+                    className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-base ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900"
+                    value={agentInput}
+                    onChange={(e) => {
+                      handleAgentInputChange(e);
+                      // Auto-resize the textarea
+                      e.target.style.height = "auto";
+                      e.target.style.height = `${e.target.scrollHeight}px`;
+                      setTextareaHeight(`${e.target.scrollHeight}px`);
+                    }}
+                    onKeyDown={handleKeyDown}
+                    rows={2}
+                    style={{ height: textareaHeight }}
+                  />
+                  <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
+                    {isLoading ? (
+                      <button
+                        type="button"
+                        onClick={stop}
+                        className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
+                        aria-label="Stop generation"
+                      >
+                        <Stop size={16} />
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
+                        disabled={
+                          pendingToolCallConfirmation || !agentInput.trim()
+                        }
+                        aria-label="Send message"
+                      >
+                        <PaperPlaneRight size={16} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       </div>
 

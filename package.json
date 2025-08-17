@@ -18,6 +18,7 @@
   },
   "scripts": {
     "start": "vite dev",
+    "dev": "wrangler dev --config wrangler.local.jsonc --port 8787 --local",
     "build": "vite build",
     "deploy": "vite build && wrangler deploy",
     "migrate": "./scripts/migrate.sh",
@@ -25,6 +26,7 @@
     "types": "wrangler types",
     "format": "prettier --write .",
     "check": "prettier . --check && npx @biomejs/biome lint src tests && tsc",
+    "validate": "npm run check && npm test",
     "prepare": "husky"
   },
   "keywords": [
@@ -52,9 +54,9 @@
     "prettier": "^3.6.2",
     "tailwindcss": "^4.1.11",
     "typescript": "^5.8.3",
-    "vite": "^7.0.4",
+    "vite": "^6.3.5",
     "vitest": "^3.2.4",
-    "wrangler": "^4.24.3"
+    "wrangler": "^4.30.0"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.23",
@@ -75,6 +77,8 @@
     "hono": "^4.8.5",
     "jose": "^6.0.11",
     "marked": "^16.0.0",
+    "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^5.4.54",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hot-toast": "^2.5.2",
@@ -82,5 +86,13 @@
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.3.1",
     "zod": "^3.25.76"
+  },
+  "overrides": {
+    "rollup": {
+      "@rollup/rollup-linux-x64-gnu": "4.9.5"
+    }
+  },
+  "resolutions": {
+    "@rollup/rollup-linux-x64-gnu": "4.9.5"
   }
 }

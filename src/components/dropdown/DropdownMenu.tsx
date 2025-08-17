@@ -180,6 +180,8 @@ const DropdownMenu = ({
               </DropdownMenuPrimitive.Item>
             );
           }
+          // Default return for unknown item types
+          return null;
         })}
       </DropdownMenuPrimitive.Content>
     </DropdownMenuPrimitive.Portal>

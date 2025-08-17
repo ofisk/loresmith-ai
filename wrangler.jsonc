@@ -12,36 +12,38 @@
     "nodejs_compat_populate_process_env",
   ],
   "assets": {
-    "directory": "public",
+    "directory": "dist/client",
   },
-  // "secrets_store_secrets": [
-  //   {
-  //     "binding": "ADMIN_SECRET",
-  //     "store_id": "69b603107000458b8f1452516860c425",
-  //     "secret_name": "ADMIN_SECRET",
-  //   },
-  // ],
+  "secrets_store_secrets": [
+    {
+      "binding": "ADMIN_SECRET",
+      "store_id": "69b603107000458b8f1452516860c425",
+      "secret_name": "ADMIN_SECRET",
+    },
+  ],
   "vars": {
-    "ADMIN_SECRET": "local-dev-secret",
+    // Environment variables are now managed via .vars file for production
+    // and .dev.vars file for local development
   },
   "durable_objects": {
     "bindings": [
       { "name": "Chat", "class_name": "Chat" },
       { "name": "UserFileTracker", "class_name": "UserFileTracker" },
+      { "name": "UploadSession", "class_name": "UploadSessionDO" },
     ],
   },
   "r2_buckets": [
     {
-      "binding": "PDF_BUCKET",
-      "bucket_name": "loresmith-pdfs",
-      "preview_bucket_name": "loresmith-pdfs",
+      "binding": "FILE_BUCKET",
+      "bucket_name": "loresmith-files",
+      "preview_bucket_name": "loresmith-files",
     },
   ],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "loresmith-db",
-      "database_id": "bc158293-b4b4-4b21-b549-e5d011c0af3e",
+      "database_id": "7a5854a8-9b74-401b-83d0-3e69941feb8d",
     },
   ],
   "vectorize": [
@@ -50,6 +52,21 @@
       "index_name": "loresmith-embeddings",
     },
   ],
+  "ai": {
+    "binding": "AI",
+  },
+  "queues": {
+    "producers": [
+      {
+        "queue": "pdf-processing-queue",
+        "binding": "PDF_PROCESSING_QUEUE",
+      },
+      {
+        "queue": "pdf-processing-dlq",
+        "binding": "PDF_PROCESSING_DLQ",
+      },
+    ],
+  },
   "migrations": [
     {
       "tag": "v1",
@@ -66,6 +83,14 @@
     {
       "tag": "v4",
       "deleted_classes": ["CampaignManager"],
+    },
+    {
+      "tag": "v5",
+      "new_classes": ["UploadSessionDO"],
+    },
+    {
+      "tag": "v6",
+      "new_classes": [],
     },
   ],
   "observability": {

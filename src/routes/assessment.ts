@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import type { Env } from "../middleware/auth";
+import { getAssessmentService } from "../services/service-factory";
 import type { AuthPayload } from "../services/auth-service";
-import { AssessmentService } from "../services/assessment-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -12,7 +12,7 @@ type ContextWithAuth = Context<{ Bindings: Env }> & {
 export async function handleGetUserState(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
-    const assessmentService = new AssessmentService(c.env.DB);
+    const assessmentService = getAssessmentService(c.env);
     const userState = await assessmentService.analyzeUserState(
       userAuth.username
     );
@@ -33,7 +33,7 @@ export async function handleGetAssessmentRecommendations(c: ContextWithAuth) {
       return c.json({ error: "Current module is required" }, 400);
     }
 
-    const assessmentService = new AssessmentService(c.env.DB);
+    const assessmentService = getAssessmentService(c.env);
     const recommendations = await assessmentService.getCampaignHealth(
       currentModule,
       userState,
@@ -51,7 +51,7 @@ export async function handleGetAssessmentRecommendations(c: ContextWithAuth) {
 export async function handleGetUserActivity(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
-    const assessmentService = new AssessmentService(c.env.DB);
+    const assessmentService = getAssessmentService(c.env);
     const activity = await assessmentService.getUserActivity(userAuth.username);
 
     return c.json({ activity });
@@ -70,7 +70,7 @@ export async function handleModuleIntegration(c: ContextWithAuth) {
       return c.json({ error: "Module name is required" }, 400);
     }
 
-    const assessmentService = new AssessmentService(c.env.DB);
+    const assessmentService = getAssessmentService(c.env);
     const result = await assessmentService.storeModuleAnalysis(
       moduleName,
       integrationData

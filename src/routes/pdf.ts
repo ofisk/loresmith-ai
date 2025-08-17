@@ -1,36 +1,87 @@
 import type { Context } from "hono";
+import { PDF_PROCESSING_CONFIG } from "../constants";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
-import { completeProgress } from "../services/progress";
-import { RAGService } from "../lib/rag";
+import { PDF_SCHEMA } from "../types/pdf";
+import {
+  getStorageService,
+  getLibraryRagService,
+} from "../services/service-factory";
 
 // Extend the context to include userAuth
-type ContextWithAuth = Context<{ Bindings: Env }> & {
-  userAuth?: AuthPayload;
-};
+type ContextWithAuth = Context<{
+  Bindings: Env;
+  Variables: { userAuth: AuthPayload };
+}>;
 
 // Generate upload URL for PDF
 export async function handleGenerateUploadUrl(c: ContextWithAuth) {
   try {
-    const userAuth = (c as any).userAuth;
-    const { filename, contentType } = await c.req.json();
+    const userAuth = c.get("userAuth") as AuthPayload;
+    const { filename, contentType, fileSize } = await c.req.json();
 
     if (!filename) {
       return c.json({ error: "Filename is required" }, 400);
     }
 
-    const fileKey = `${userAuth.username}/${Date.now()}-${filename}`;
+    if (!userAuth || !userAuth.username) {
+      return c.json({ error: "User authentication required" }, 401);
+    }
+
+    // Check storage limits before allowing upload
+    const storageService = getStorageService(c.env);
+    const uploadCheck = await storageService.canUploadFile(
+      userAuth.username,
+      fileSize,
+      userAuth.isAdmin || false
+    );
+
+    if (!uploadCheck.canUpload) {
+      return c.json(
+        {
+          error: uploadCheck.reason || "Storage limit exceeded",
+          storageUsage: uploadCheck.currentUsage,
+        },
+        413
+      ); // 413 Payload Too Large
+    }
+
+    // Generate a consistent file key based on filename to avoid duplicates
+    const fileKey = `${userAuth.username}/${filename}`;
 
     // Create a multipart upload session
-    const uploadUrl = await c.env.PDF_BUCKET.createMultipartUpload(fileKey, {
-      httpMetadata: {
-        contentType: contentType || "application/pdf",
-      },
-    });
+    const multipartUpload = await c.env.FILE_BUCKET.createMultipartUpload(
+      fileKey,
+      {
+        httpMetadata: {
+          contentType: contentType || "application/pdf",
+        },
+      }
+    );
+
+    // Calculate number of parts needed
+    const chunkSize = PDF_PROCESSING_CONFIG.CHUNK_SIZE;
+    const totalParts = Math.ceil(fileSize / chunkSize);
+
+    console.log(
+      "[handleGenerateUploadUrl] Generated multipart upload session:",
+      {
+        fileKey,
+        uploadId: multipartUpload.uploadId,
+        chunkSize,
+        totalParts,
+        fileSize,
+        sessionCreatedAt: new Date().toISOString(),
+        sessionKey: multipartUpload.key,
+        sessionUploadId: multipartUpload.uploadId,
+      }
+    );
 
     return c.json({
-      uploadUrl: uploadUrl.uploadId,
+      uploadId: multipartUpload.uploadId,
       fileKey,
+      chunkSize,
+      totalParts,
     });
   } catch (error) {
     console.error("Error generating upload URL:", error);
@@ -43,16 +94,169 @@ export async function handleCompleteUpload(c: ContextWithAuth) {
   try {
     const fileKey = c.req.param("*");
     const { uploadId, parts } = await c.req.json();
+    const userAuth = c.get("userAuth") as AuthPayload;
+
+    console.log("[handleCompleteUpload] Request received:", {
+      fileKey,
+      uploadId,
+      partsCount: parts?.length,
+      hasParts: !!parts,
+      requestHeaders: {
+        contentType: c.req.header("content-type"),
+        authorization: c.req.header("authorization")
+          ? "Bearer [REDACTED]"
+          : "none",
+      },
+    });
 
     if (!uploadId || !parts) {
+      console.error("[handleCompleteUpload] Missing required fields:", {
+        uploadId: !!uploadId,
+        parts: !!parts,
+      });
       return c.json({ error: "Upload ID and parts are required" }, 400);
     }
 
-    // Note: R2Bucket doesn't have completeMultipartUpload method
-    // This would need to be implemented differently for R2
-    console.log("Upload completed for fileKey:", fileKey);
+    if (!userAuth || !userAuth.username) {
+      return c.json({ error: "User authentication required" }, 401);
+    }
 
-    return c.json({ success: true, fileKey });
+    // Complete the multipart upload
+    console.log("[handleCompleteUpload] Attempting to complete upload:", {
+      fileKey,
+      uploadId,
+      partsCount: parts.length,
+      parts: parts.map((p: any) => ({
+        partNumber: p.partNumber,
+        etag: p.etag,
+      })),
+    });
+
+    try {
+      const multipartUpload = c.env.FILE_BUCKET.resumeMultipartUpload(
+        fileKey,
+        uploadId
+      );
+
+      console.log("[handleCompleteUpload] Resumed multipart upload session:", {
+        fileKey,
+        uploadId,
+        sessionResumedAt: new Date().toISOString(),
+        partsCount: parts.length,
+        sessionKey: multipartUpload.key,
+        sessionUploadId: multipartUpload.uploadId,
+      });
+
+      await multipartUpload.complete(parts);
+      console.log("Upload completed for fileKey:", fileKey);
+
+      // AutoRAG will automatically index content from the R2 bucket
+      // No need to create chunks manually - AutoRAG handles text extraction and indexing
+      console.log(
+        `[PDF Upload] AutoRAG will automatically index content from R2 bucket for ${fileKey}`
+      );
+
+      // Always count AutoRAG parts since we always create them
+      const filePathParts = fileKey.split("/");
+      const username = filePathParts[0];
+      const originalFilename =
+        filePathParts[filePathParts.length - 1] || "unknown";
+      const prefix = `${username}/part-`;
+      const objects = await c.env.FILE_BUCKET.list({ prefix });
+      const partCount =
+        objects.objects?.filter(
+          (obj) =>
+            obj.key.includes(`part-`) &&
+            obj.key.includes(originalFilename) &&
+            (obj.key.endsWith(".txt") || obj.key.endsWith(".chunk"))
+        ).length || 0;
+
+      // Leave metadata blank - let AutoRAG generate meaningful metadata
+      const processedMetadata = {
+        description: "",
+        tags: [],
+        vectorId: null,
+      };
+
+      // Also create an entry in the pdf_files table for PDF tools
+      const now = new Date().toISOString();
+      const pdfFileId = crypto.randomUUID();
+
+      // Extract filename from fileKey
+      const filename = fileKey.split("/").pop() || "unknown.pdf";
+
+      try {
+        await c.env.DB.prepare(
+          "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size, chunk_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+          .bind(
+            pdfFileId,
+            fileKey,
+            filename,
+            processedMetadata.description || "",
+            JSON.stringify(processedMetadata.tags || []),
+            userAuth.username,
+            "completed",
+            now,
+            0, // fileSize will be updated by AutoRAG
+            partCount
+          )
+          .run();
+
+        console.log(`[PDF Upload] Created PDF file entry:`, {
+          pdfFileId,
+          fileKey,
+          filename,
+          username: userAuth.username,
+        });
+      } catch (error) {
+        console.error("[PDF Upload] Error creating PDF file entry:", error);
+        // Don't fail the upload if PDF file entry creation fails
+      }
+
+      return c.json({
+        success: true,
+        fileKey,
+        pdfFileId,
+        status: "completed",
+        message:
+          "PDF uploaded successfully. AutoRAG will process and index the content automatically.",
+      });
+    } catch (completeError) {
+      console.error("Error completing upload:", completeError);
+
+      // Check if it's a multipart upload not found error
+      if (
+        completeError instanceof Error &&
+        completeError.message &&
+        completeError.message.includes("does not exist")
+      ) {
+        console.error("Multipart upload session expired or invalid");
+
+        // Check if the file already exists (parts were uploaded but session expired)
+        try {
+          const existingFile = await c.env.FILE_BUCKET.head(fileKey);
+          if (existingFile) {
+            console.log(
+              "File already exists, upload was successful despite session expiry"
+            );
+            return c.json({ success: true, fileKey });
+          }
+        } catch (_headError) {
+          console.log("File does not exist, upload failed");
+        }
+
+        return c.json(
+          {
+            error: "Upload session expired. Please try uploading again.",
+            code: "UPLOAD_EXPIRED",
+          },
+          400
+        );
+      }
+
+      return c.json({ error: "Internal server error" }, 500);
+    }
   } catch (error) {
     console.error("Error completing upload:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -61,25 +265,121 @@ export async function handleCompleteUpload(c: ContextWithAuth) {
 
 // Upload a part of a multipart upload
 export async function handleUploadPart(c: ContextWithAuth) {
-  try {
-    const { fileKey, uploadId, partNumber, file } = await c.req.json();
+  let fileKey: string | undefined;
+  let uploadId: string | undefined;
+  let partNumber: number | undefined;
+  let fileBuffer: Uint8Array;
+  let file: any;
 
-    if (!fileKey || !uploadId || !partNumber || !file) {
-      return c.json(
-        { error: "File key, upload ID, part number, and file are required" },
-        400
-      );
+  try {
+    // Check if the request is FormData or JSON
+    const contentType = c.req.header("content-type") || "";
+
+    if (contentType.includes("multipart/form-data")) {
+      // Handle FormData with optimized processing
+      const formData = await c.req.formData();
+      fileKey = formData.get("fileKey") as string;
+      uploadId = formData.get("uploadId") as string;
+      partNumber = parseInt(formData.get("partNumber") as string, 10);
+      file = formData.get("file") as File;
+
+      console.log("[handleUploadPart] Received FormData:", {
+        fileKey,
+        uploadId,
+        partNumber,
+        hasFile: !!file,
+        fileName: file?.name,
+        fileSize: file?.size,
+      });
+
+      if (!fileKey || !uploadId || !partNumber || !file) {
+        return c.json(
+          { error: "File key, upload ID, part number, and file are required" },
+          400
+        );
+      }
+
+      // Optimize buffer conversion for better performance
+      const arrayBuffer = await file.arrayBuffer();
+      fileBuffer = new Uint8Array(arrayBuffer);
+    } else {
+      // Handle JSON (legacy support) - simplified for better performance
+      const requestData = await c.req.json();
+      fileKey = requestData.fileKey;
+      uploadId = requestData.uploadId;
+      partNumber = requestData.partNumber;
+      file = requestData.file;
+
+      console.log("[handleUploadPart] Received JSON data:", {
+        fileKey,
+        uploadId,
+        partNumber,
+        hasFile: !!file,
+        fileType: typeof file,
+        fileLength: file ? file.length : 0,
+        fileIsArray: Array.isArray(file),
+      });
+
+      if (!fileKey || !uploadId || !partNumber || !file) {
+        return c.json(
+          { error: "File key, upload ID, part number, and file are required" },
+          400
+        );
+      }
+
+      // Optimized buffer conversion
+      if (Array.isArray(file)) {
+        fileBuffer = new Uint8Array(file);
+      } else if (file && typeof file === "object" && file.data) {
+        fileBuffer = new Uint8Array(file.data);
+      } else if (file && typeof file === "object" && file.byteLength) {
+        fileBuffer = new Uint8Array(file);
+      } else {
+        fileBuffer = new Uint8Array(file);
+      }
     }
 
-    // Convert the file data back to a buffer
-    const fileBuffer = new Uint8Array(file);
+    // Validate buffer before processing
+    if (!fileBuffer || fileBuffer.length === 0) {
+      return c.json({ error: "Invalid file data received" }, 400);
+    }
 
-    // Upload the part to R2
-    await c.env.PDF_BUCKET.put(fileKey, fileBuffer, {
-      httpMetadata: {
-        contentType: "application/pdf",
-      },
+    console.log("[handleUploadPart] File buffer details:", {
+      bufferLength: fileBuffer.length,
+      bufferIsEmpty: fileBuffer.length === 0,
+      firstFewBytes: fileBuffer.slice(0, 10),
+      originalFileType: typeof file,
+      originalFileKeys: file ? Object.keys(file) : [],
     });
+
+    // Resume the multipart upload and upload the part with optimized error handling
+    const multipartUpload = c.env.FILE_BUCKET.resumeMultipartUpload(
+      fileKey,
+      uploadId
+    );
+
+    console.log("[handleUploadPart] Resumed multipart upload for part:", {
+      fileKey,
+      uploadId,
+      partNumber,
+      resumedAt: new Date().toISOString(),
+      sessionKey: multipartUpload.key,
+      sessionUploadId: multipartUpload.uploadId,
+    });
+
+    // Add timeout for large chunks
+    const uploadPromise = multipartUpload.uploadPart(partNumber, fileBuffer);
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(
+        () => reject(new Error("Upload timeout")),
+        PDF_PROCESSING_CONFIG.UPLOAD_TIMEOUT_MS
+      );
+    });
+
+    const uploadedPart = (await Promise.race([
+      uploadPromise,
+      timeoutPromise,
+    ])) as any;
 
     console.log(`Uploaded part ${partNumber} for fileKey:`, fileKey);
 
@@ -87,87 +387,336 @@ export async function handleUploadPart(c: ContextWithAuth) {
       success: true,
       fileKey,
       partNumber,
+      etag: uploadedPart.etag,
     });
   } catch (error) {
     console.error("Error uploading part:", error);
+
+    // Enhanced error handling with specific error types
+    if (error instanceof Error) {
+      if (error.message.includes("does not exist")) {
+        console.error(
+          "Multipart upload session not found for fileKey:",
+          fileKey,
+          "uploadId:",
+          uploadId
+        );
+        return c.json(
+          {
+            error: "Upload session not found. Please try uploading again.",
+            code: "UPLOAD_NOT_FOUND",
+            details: {
+              fileKey,
+              uploadId,
+              partNumber,
+            },
+          },
+          400
+        );
+      }
+
+      if (error.message.includes("Upload timeout")) {
+        console.error("Upload timeout for part:", partNumber);
+        return c.json(
+          {
+            error: "Upload timeout. Please try again.",
+            code: "UPLOAD_TIMEOUT",
+            details: {
+              fileKey,
+              uploadId,
+              partNumber,
+            },
+          },
+          408
+        );
+      }
+    }
+
     return c.json({ error: "Internal server error" }, 500);
   }
 }
 
-// Ingest PDF for processing
-export async function handleIngestPdf(c: ContextWithAuth) {
+// Shared function for PDF processing
+async function processPdfFile(
+  c: ContextWithAuth,
+  fileKey: string,
+  options: {
+    isRetry?: boolean;
+    filename?: string;
+    description?: string;
+    tags?: string[];
+    fileSize?: number;
+  } = {}
+): Promise<{
+  success: boolean;
+  fileId?: string;
+  message: string;
+  error?: string;
+}> {
+  const userAuth = c.get("userAuth") as AuthPayload;
+  const { isRetry = false, filename, description, tags, fileSize } = options;
+
   try {
-    const userAuth = (c as any).userAuth;
-    const { fileKey, filename, description, tags, fileSize } =
-      await c.req.json();
-
-    if (!fileKey || !filename) {
-      return c.json({ error: "File key and filename are required" }, 400);
-    }
-
     // Verify the fileKey belongs to the authenticated user
-    // File keys can be either "username/filename" or "uploads/username/filename"
     if (
       !fileKey.startsWith(`${userAuth.username}/`) &&
       !fileKey.startsWith(`uploads/${userAuth.username}/`)
     ) {
-      return c.json({ error: "Access denied to this file" }, 403);
+      return {
+        success: false,
+        error: "Access denied to this file",
+        message: "Access denied to this file",
+      };
     }
 
-    // Store file metadata in database
-    const fileId = crypto.randomUUID();
-    const now = new Date().toISOString();
-
-    await c.env.DB.prepare(
-      "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    )
-      .bind(
-        fileId,
-        fileKey,
-        filename,
-        description || "",
-        tags ? JSON.stringify(tags) : "[]",
-        userAuth.username,
-        "processing",
-        now,
-        fileSize || 0
+    // For retry operations, validate the file exists and is in error status
+    if (isRetry) {
+      const file = await c.env.DB.prepare(
+        "SELECT * FROM pdf_files WHERE file_key = ? AND username = ?"
       )
-      .run();
+        .bind(fileKey, userAuth.username)
+        .first();
 
-    // Start processing in background
-    setTimeout(async () => {
+      if (!file) {
+        return {
+          success: false,
+          error: "File not found",
+          message: "File not found in database",
+        };
+      }
+
+      if (file.status !== "error") {
+        return {
+          success: false,
+          error: "File is not in error status",
+          message: `Current status: ${file.status}`,
+        };
+      }
+    }
+
+    // Get file size from R2 if not provided
+    let actualFileSize = fileSize;
+    if (!actualFileSize) {
       try {
-        // Get file from R2
-        const file = await c.env.PDF_BUCKET.get(fileKey);
-        if (!file) {
-          throw new Error("File not found in R2");
+        console.log(
+          `[PDF Processing] Attempting to get file from R2: ${fileKey}`
+        );
+        const file = await c.env.FILE_BUCKET.get(fileKey);
+        if (file) {
+          actualFileSize = file.size;
+          console.log(
+            `[PDF Processing] File found in R2, size: ${actualFileSize} bytes`
+          );
+        } else {
+          console.log(`[PDF Processing] File not found in R2: ${fileKey}`);
         }
-
-        // Process the PDF (simplified for now)
-        // Update database status
-        await c.env.DB.prepare(
-          "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ?"
-        )
-          .bind("completed", new Date().toISOString(), fileKey)
-          .run();
-
-        completeProgress(fileKey, true);
       } catch (error) {
-        console.error("Error processing PDF:", error);
-        completeProgress(fileKey, false, (error as Error).message);
+        console.warn("Could not get file size from R2:", error);
+      }
+    }
 
-        // Update database status
+    // For new ingestions, create/update database record
+    let fileId: string | undefined;
+    if (!isRetry) {
+      const existingFile = await c.env.DB.prepare(
+        "SELECT id FROM pdf_files WHERE file_key = ? AND username = ?"
+      )
+        .bind(fileKey, userAuth.username)
+        .first();
+
+      const now = new Date().toISOString();
+
+      if (existingFile) {
+        // Update existing file
         await c.env.DB.prepare(
-          "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ?"
+          "UPDATE pdf_files SET file_name = ?, description = ?, tags = ?, status = ?, updated_at = ?, file_size = ? WHERE file_key = ? AND username = ?"
         )
-          .bind("error", new Date().toISOString(), fileKey)
+          .bind(
+            filename || fileKey.split("/").pop() || "unknown.pdf",
+            description || "",
+            tags ? JSON.stringify(tags) : "[]",
+            "processing",
+            now,
+            actualFileSize || 0,
+            fileKey,
+            userAuth.username
+          )
+          .run();
+        fileId = existingFile.id as string;
+      } else {
+        // Insert new file
+        fileId = crypto.randomUUID();
+        await c.env.DB.prepare(
+          "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+          .bind(
+            fileId,
+            fileKey,
+            filename || fileKey.split("/").pop() || "unknown.pdf",
+            description || "",
+            tags ? JSON.stringify(tags) : "[]",
+            userAuth.username,
+            "processing",
+            now,
+            actualFileSize || 0
+          )
           .run();
       }
-    }, 100);
+    } else {
+      // For retries, update status to processing
+      await c.env.DB.prepare(
+        "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ? AND username = ?"
+      )
+        .bind(
+          "processing",
+          new Date().toISOString(),
+          fileKey,
+          userAuth.username
+        )
+        .run();
+    }
 
-    return c.json({ success: true, fileKey, fileId });
+    // Check if we have an OpenAI API key for processing
+    if (!userAuth.openaiApiKey) {
+      console.warn("No OpenAI API key available for PDF processing");
+      await c.env.DB.prepare(
+        "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ?"
+      )
+        .bind("error", new Date().toISOString(), fileKey)
+        .run();
+
+      return {
+        success: false,
+        error: "OpenAI API key required for processing",
+        message: "PDF processing requires an OpenAI API key for text analysis.",
+      };
+    }
+
+    // Check for AutoRAG parts instead of the original file
+    console.log(`[PDF Processing] Checking for AutoRAG parts: ${fileKey}`);
+    const parts = fileKey.split("/");
+    const username = parts[0];
+    const originalFilename = parts[parts.length - 1] || "unknown";
+    const prefix = `${username}/part-`;
+    const objects = await c.env.FILE_BUCKET.list({ prefix });
+    const partCount =
+      objects.objects?.filter(
+        (obj) =>
+          obj.key.includes(`part-`) &&
+          obj.key.includes(originalFilename) &&
+          (obj.key.endsWith(".txt") || obj.key.endsWith(".chunk"))
+      ).length || 0;
+
+    if (partCount === 0) {
+      console.error(`[PDF Processing] No AutoRAG parts found for: ${fileKey}`);
+      return {
+        success: false,
+        error: "No AutoRAG parts found in storage",
+        message: "The uploaded file parts could not be found in R2 storage",
+      };
+    }
+    console.log(
+      `[PDF Processing] Found ${partCount} AutoRAG parts for: ${fileKey}`
+    );
+
+    // Send to PDF processing queue
+    console.log(`[PDF Processing] Sending to queue for processing: ${fileKey}`);
+    await c.env.PDF_PROCESSING_QUEUE.send({
+      fileKey: fileKey,
+      username: userAuth.username,
+      openaiApiKey: userAuth.openaiApiKey,
+      metadata: {
+        description: description || "",
+        tags: tags || [],
+        filename: filename || fileKey.split("/").pop() || "unknown.pdf",
+        file_size: actualFileSize || 0,
+        status: "processing" as const,
+        created_at: new Date().toISOString(),
+      },
+    });
+
+    console.log(
+      `[PDF Processing] Successfully queued ${fileKey} for processing`
+    );
+
+    return {
+      success: true,
+      fileId,
+      message: isRetry
+        ? "PDF processing retry initiated successfully."
+        : "File uploaded successfully. Processing will continue in the background.",
+    };
   } catch (error) {
-    console.error("Error ingesting PDF:", error);
+    console.error(`[PDF Processing] Error processing ${fileKey}:`, error);
+    return {
+      success: false,
+      error: `Failed to process PDF: ${error}`,
+      message: "An error occurred during PDF processing",
+    };
+  }
+}
+
+// Process PDF file (ingest new or retry failed)
+export async function handleProcessPdf(c: ContextWithAuth) {
+  try {
+    const userAuth = c.get("userAuth") as AuthPayload;
+    const {
+      fileKey,
+      operation = "ingest",
+      filename,
+      description,
+      tags,
+      fileSize,
+    } = await c.req.json();
+
+    if (!fileKey) {
+      return c.json({ error: "File key is required" }, 400);
+    }
+
+    if (!userAuth || !userAuth.username) {
+      return c.json({ error: "User authentication required" }, 401);
+    }
+
+    // Validate operation
+    if (operation !== "ingest" && operation !== "retry") {
+      return c.json({ error: "Operation must be 'ingest' or 'retry'" }, 400);
+    }
+
+    // For ingest operations, filename is required
+    if (operation === "ingest" && !filename) {
+      return c.json(
+        { error: "Filename is required for ingest operations" },
+        400
+      );
+    }
+
+    const result = await processPdfFile(c, fileKey, {
+      isRetry: operation === "retry",
+      filename,
+      description,
+      tags,
+      fileSize,
+    });
+
+    if (!result.success) {
+      return c.json(
+        {
+          success: false,
+          error: result.error,
+          details: result.message,
+        },
+        result.error?.includes("not found") ? 404 : 500
+      );
+    }
+
+    return c.json({
+      success: true,
+      fileKey,
+      fileId: result.fileId,
+      message: result.message,
+    });
+  } catch (error) {
+    console.error("Error processing PDF:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
@@ -175,10 +724,14 @@ export async function handleIngestPdf(c: ContextWithAuth) {
 // Get PDF files for user
 export async function handleGetPdfFiles(c: ContextWithAuth) {
   try {
-    const userAuth = (c as any).userAuth;
+    const userAuth = c.get("userAuth") as AuthPayload;
+
+    if (!userAuth || !userAuth.username) {
+      return c.json({ error: "User authentication required" }, 401);
+    }
 
     const files = await c.env.DB.prepare(
-      "SELECT id, file_key, file_name, description, tags, status, created_at, updated_at FROM pdf_files WHERE username = ? ORDER BY created_at DESC"
+      `SELECT ${PDF_SCHEMA.COLUMNS.ID}, ${PDF_SCHEMA.COLUMNS.FILE_KEY}, ${PDF_SCHEMA.COLUMNS.FILE_NAME}, ${PDF_SCHEMA.COLUMNS.DESCRIPTION}, ${PDF_SCHEMA.COLUMNS.TAGS}, ${PDF_SCHEMA.COLUMNS.STATUS}, ${PDF_SCHEMA.COLUMNS.CREATED_AT}, ${PDF_SCHEMA.COLUMNS.UPDATED_AT}, ${PDF_SCHEMA.COLUMNS.FILE_SIZE} FROM ${PDF_SCHEMA.TABLE_NAME} WHERE ${PDF_SCHEMA.COLUMNS.USERNAME} = ? ORDER BY ${PDF_SCHEMA.COLUMNS.CREATED_AT} DESC`
     )
       .bind(userAuth.username)
       .all();
@@ -193,11 +746,15 @@ export async function handleGetPdfFiles(c: ContextWithAuth) {
 // Update PDF metadata
 export async function handleUpdatePdfMetadata(c: ContextWithAuth) {
   try {
-    const userAuth = (c as any).userAuth;
+    const userAuth = c.get("userAuth") as AuthPayload;
     const { fileKey, description, tags } = await c.req.json();
 
     if (!fileKey) {
       return c.json({ error: "File key is required" }, 400);
+    }
+
+    if (!userAuth || !userAuth.username) {
+      return c.json({ error: "User authentication required" }, 401);
     }
 
     // Verify the fileKey belongs to the authenticated user
@@ -231,11 +788,15 @@ export async function handleUpdatePdfMetadata(c: ContextWithAuth) {
 // Auto-generate metadata for an existing PDF file
 export async function handleAutoGeneratePdfMetadata(c: ContextWithAuth) {
   try {
-    const userAuth = (c as any).userAuth;
+    const userAuth = c.get("userAuth") as AuthPayload;
     const { fileKey } = await c.req.json();
 
     if (!fileKey) {
       return c.json({ error: "File key is required" }, 400);
+    }
+
+    if (!userAuth || !userAuth.username) {
+      return c.json({ error: "User authentication required" }, 401);
     }
 
     // Verify the fileKey belongs to the authenticated user
@@ -258,17 +819,13 @@ export async function handleAutoGeneratePdfMetadata(c: ContextWithAuth) {
     }
 
     // Get the file from R2
-    const object = await c.env.PDF_BUCKET.get(fileKey);
+    const object = await c.env.FILE_BUCKET.get(fileKey);
     if (!object) {
       return c.json({ error: "File not found in storage" }, 404);
     }
 
     // Process the PDF to extract text and generate metadata
-    const ragService = new RAGService(
-      c.env.DB,
-      c.env.VECTORIZE,
-      userAuth.openaiApiKey
-    );
+    const ragService = getLibraryRagService(c.env);
 
     // Create a temporary metadata object for processing
     const tempMetadata = {
@@ -286,7 +843,7 @@ export async function handleAutoGeneratePdfMetadata(c: ContextWithAuth) {
     const processedResult = await ragService.processPdfFromR2(
       fileKey,
       userAuth.username,
-      c.env.PDF_BUCKET,
+      c.env.FILE_BUCKET,
       tempMetadata
     );
 
@@ -325,7 +882,11 @@ export async function handleAutoGeneratePdfMetadata(c: ContextWithAuth) {
 // Get PDF processing stats
 export async function handleGetPdfStats(c: ContextWithAuth) {
   try {
-    const userAuth = (c as any).userAuth;
+    const userAuth = c.get("userAuth") as AuthPayload;
+
+    if (!userAuth || !userAuth.username) {
+      return c.json({ error: "User authentication required" }, 401);
+    }
 
     // Get status-based stats
     const stats = await c.env.DB.prepare(
@@ -367,6 +928,172 @@ export async function handleGetPdfStats(c: ContextWithAuth) {
     });
   } catch (error) {
     console.error("Error fetching PDF stats:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+}
+
+// Background processing for PDF metadata generation
+export async function handleProcessMetadataBackground(c: ContextWithAuth) {
+  try {
+    const userAuth = c.get("userAuth") as AuthPayload;
+    const { fileKey } = await c.req.json();
+
+    if (!fileKey) {
+      return c.json({ error: "File key is required" }, 400);
+    }
+
+    if (!userAuth || !userAuth.username) {
+      return c.json({ error: "User authentication required" }, 401);
+    }
+
+    // Verify the fileKey belongs to the authenticated user
+    if (
+      !fileKey.startsWith(`${userAuth.username}/`) &&
+      !fileKey.startsWith(`uploads/${userAuth.username}/`)
+    ) {
+      return c.json({ error: "Access denied to this file" }, 403);
+    }
+
+    console.log(
+      "[handleProcessMetadataBackground] Starting background processing for:",
+      fileKey
+    );
+
+    // Get the file from the database
+    const file = await c.env.DB.prepare(
+      "SELECT * FROM pdf_files WHERE file_key = ? AND username = ?"
+    )
+      .bind(fileKey, userAuth.username)
+      .first();
+
+    if (!file) {
+      return c.json({ error: "File not found" }, 404);
+    }
+
+    // Re-pull the file from R2 (this is the key improvement)
+    console.log(
+      "[handleProcessMetadataBackground] Re-pulling file from R2:",
+      fileKey
+    );
+    const object = await c.env.FILE_BUCKET.get(fileKey);
+    if (!object) {
+      return c.json({ error: "File not found in storage" }, 404);
+    }
+
+    // Process the PDF to extract text and generate metadata
+    const ragService = getLibraryRagService(c.env);
+
+    // Create a temporary metadata object for processing
+    const tempMetadata = {
+      description: "",
+      tags: [],
+      filename: file.file_name as string,
+      file_size: (file.file_size as number) || 0,
+      status:
+        (file.status as "uploaded" | "processing" | "processed" | "error") ||
+        "uploaded",
+      created_at: file.created_at as string,
+    };
+
+    // Process the PDF to generate metadata (this happens outside Durable Object context)
+    console.log(
+      "[handleProcessMetadataBackground] Processing PDF for metadata generation"
+    );
+    const processedResult = await ragService.processPdfFromR2(
+      fileKey,
+      userAuth.username,
+      c.env.FILE_BUCKET,
+      tempMetadata
+    );
+
+    // Extract the suggested metadata
+    const suggestedMetadata = processedResult.suggestedMetadata;
+    console.log(
+      "[handleProcessMetadataBackground] Processed result:",
+      processedResult
+    );
+    if (!suggestedMetadata) {
+      console.error(
+        "[handleProcessMetadataBackground] No suggested metadata generated"
+      );
+      return c.json({ error: "Failed to generate metadata" }, 500);
+    }
+
+    // Update the database with the auto-generated metadata
+    await c.env.DB.prepare(
+      "UPDATE pdf_files SET description = ?, tags = ? WHERE file_key = ? AND username = ?"
+    )
+      .bind(
+        suggestedMetadata.description || "",
+        JSON.stringify(suggestedMetadata.tags || []),
+        fileKey,
+        userAuth.username
+      )
+      .run();
+
+    console.log(
+      "[handleProcessMetadataBackground] Successfully updated metadata for:",
+      fileKey
+    );
+
+    return c.json({
+      message: "Background metadata processing completed successfully",
+      data: {
+        fileKey,
+        description: suggestedMetadata.description,
+        tags: suggestedMetadata.tags,
+      },
+    });
+  } catch (error) {
+    console.error("[handleProcessMetadataBackground] Error:", error);
+    return c.json(
+      { error: `Failed to process metadata in background: ${error}` },
+      500
+    );
+  }
+}
+
+// Get PDF processing status
+export async function handleGetPdfStatus(c: ContextWithAuth) {
+  try {
+    const userAuth = c.get("userAuth") as AuthPayload;
+    const fileKey = c.req.param("*");
+
+    if (!fileKey) {
+      return c.json({ error: "File key is required" }, 400);
+    }
+
+    if (!userAuth || !userAuth.username) {
+      return c.json({ error: "User authentication required" }, 401);
+    }
+
+    // Verify the fileKey belongs to the authenticated user
+    if (
+      !fileKey.startsWith(`${userAuth.username}/`) &&
+      !fileKey.startsWith(`uploads/${userAuth.username}/`)
+    ) {
+      return c.json({ error: "Access denied to this file" }, 403);
+    }
+
+    const file = await c.env.DB.prepare(
+      "SELECT status, created_at, updated_at, file_size FROM pdf_files WHERE file_key = ? AND username = ?"
+    )
+      .bind(fileKey, userAuth.username)
+      .first();
+
+    if (!file) {
+      return c.json({ error: "File not found" }, 404);
+    }
+
+    return c.json({
+      fileKey,
+      status: file.status,
+      createdAt: file.created_at,
+      updatedAt: file.updated_at,
+      fileSize: file.file_size,
+    });
+  } catch (error) {
+    console.error("Error getting PDF status:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }

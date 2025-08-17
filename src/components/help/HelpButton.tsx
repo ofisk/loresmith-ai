@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Button } from "../button/Button";
 import { Card } from "../card/Card";
 import { MemoizedMarkdown } from "../memoized-markdown";
+import { JWT_STORAGE_KEY } from "../../constants";
+import { API_CONFIG } from "../../shared";
 
 interface HelpResponse {
   message: string;
@@ -47,14 +49,17 @@ export function HelpButton({ onActionClick }: HelpButtonProps) {
 
     setIsLoading(true);
     try {
-      const jwt = localStorage.getItem("loresmith-jwt");
-      const response = await fetch("/onboarding/welcome-guidance", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-          "Content-Type": "application/json",
-        },
-      });
+      const jwt = localStorage.getItem(JWT_STORAGE_KEY);
+      const response = await fetch(
+        API_CONFIG.buildUrl("/onboarding/welcome-guidance"),
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -108,10 +113,7 @@ export function HelpButton({ onActionClick }: HelpButtonProps) {
               </div>
 
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <MemoizedMarkdown
-                  content={helpData.message}
-                  id="help-message"
-                />
+                <MemoizedMarkdown content={helpData.message} />
               </div>
 
               <div className="space-y-3">

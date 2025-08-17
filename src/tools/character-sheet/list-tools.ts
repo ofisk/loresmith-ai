@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../constants";
 import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
+import { AUTH_CODES } from "../../shared";
 import { createToolError, createToolSuccess } from "../utils";
 
 // Character sheet listing tools
@@ -21,6 +22,11 @@ export const listCharacterSheets = tool({
   execute: async ({ campaignId, jwt }, context?: any): Promise<ToolResult> => {
     console.log("[Tool] listCharacterSheets received JWT:", jwt);
     console.log("[Tool] listCharacterSheets context:", context);
+
+    // Extract toolCallId from context
+    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[listCharacterSheets] Using toolCallId:", toolCallId);
+
     try {
       // Check if we have access to the environment through context
       const env = context?.env;
@@ -58,9 +64,14 @@ export const listCharacterSheets = tool({
           .first();
 
         if (!campaignResult) {
-          return createToolError("Campaign not found", {
-            error: "Campaign not found",
-          });
+          return createToolError(
+            "Campaign not found",
+            {
+              error: "Campaign not found",
+            },
+            AUTH_CODES.ERROR,
+            toolCallId
+          );
         }
 
         // For now, return a simple response since character sheets are not stored in the database yet
@@ -75,7 +86,8 @@ export const listCharacterSheets = tool({
           {
             characterSheets: [],
             campaignId,
-          }
+          },
+          toolCallId
         );
       } else {
         // Fall back to HTTP API
@@ -95,13 +107,20 @@ export const listCharacterSheets = tool({
         if (!response.ok) {
           const authError = handleAuthError(response);
           if (authError) {
-            return createToolError(authError, {
-              error: `HTTP ${response.status}`,
-            });
+            return createToolError(
+              authError,
+              {
+                error: `HTTP ${response.status}`,
+              },
+              AUTH_CODES.ERROR,
+              toolCallId
+            );
           }
           return createToolError(
             `Failed to list character sheets: ${response.status}`,
-            { error: `HTTP ${response.status}` }
+            { error: `HTTP ${response.status}` },
+            AUTH_CODES.ERROR,
+            toolCallId
           );
         }
 
@@ -118,14 +137,17 @@ export const listCharacterSheets = tool({
 
         return createToolSuccess(
           `Found ${result.characterSheets.length} character sheet(s) for campaign ${campaignId}`,
-          { characterSheets: result.characterSheets }
+          { characterSheets: result.characterSheets },
+          toolCallId
         );
       }
     } catch (error) {
       console.error("Error listing character sheets:", error);
       return createToolError(
         `Failed to list character sheets: ${error instanceof Error ? error.message : String(error)}`,
-        { error: error instanceof Error ? error.message : String(error) }
+        { error: error instanceof Error ? error.message : String(error) },
+        AUTH_CODES.ERROR,
+        toolCallId
       );
     }
   },

@@ -1,8 +1,14 @@
 import type { Context } from "hono";
-import { AuthService } from "../services/auth-service";
+import { jwtVerify } from "jose";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
-import { jwtVerify } from "jose";
+import { AuthService } from "../services/auth-service";
+import {
+  getAuthService,
+  getLibraryRagService,
+} from "../services/service-factory";
+import { AgentRouter } from "../services/agent-router";
+import { getDAOFactory } from "../dao";
 
 // Helper to set user auth context
 export function setUserAuth(c: Context, payload: AuthPayload) {
@@ -32,7 +38,7 @@ export async function requireUserJwt(
   );
 
   try {
-    const authService = new AuthService(c.env);
+    const authService = getAuthService(c.env);
     const jwtSecret = await authService.getJwtSecret();
     console.log("[requireUserJwt] JWT secret length:", jwtSecret.length);
 
@@ -74,16 +80,13 @@ export async function determineAgent(
     ? AuthService.extractUsernameFromMessage(lastUserMessage)
     : null;
 
-  const { AgentRouter } = await import("../services/agent-router");
-
   // Create RAG service if we have a username
   let ragService = null;
   if (username) {
     try {
-      const { RAGService } = await import("../lib/rag");
-      ragService = new RAGService(env.DB, env.VECTORIZE);
+      ragService = getLibraryRagService(env);
     } catch (error) {
-      console.log("[AgentRouter] Could not initialize RAG service:", error);
+      console.warn("Failed to initialize AutoRAG service:", error);
     }
   }
 
@@ -103,15 +106,12 @@ export async function determineAgent(
 
 // User Authentication Route (returns JWT)
 export async function handleAuthenticate(c: Context<{ Bindings: Env }>) {
+  console.log("[handleAuthenticate] Authentication endpoint called - START");
+  console.log("[handleAuthenticate] Request URL:", c.req.url);
+  console.log("[handleAuthenticate] Request method:", c.req.method);
   try {
     const { username, openaiApiKey, adminSecret } = await c.req.json();
     const sessionId = c.req.header("X-Session-ID") || "default";
-
-    console.log(
-      "[auth/authenticate] Server environment:",
-      JSON.stringify(process.env, null, 2)
-    );
-    console.log("[auth/authenticate] c.env:", JSON.stringify(c.env, null, 2));
 
     console.log("[auth/authenticate] Request received:", {
       username,
@@ -120,7 +120,7 @@ export async function handleAuthenticate(c: Context<{ Bindings: Env }>) {
         : "undefined",
     });
 
-    const authService = new AuthService(c.env);
+    const authService = getAuthService(c.env);
     const result = await authService.authenticateUser({
       username,
       openaiApiKey,
@@ -140,12 +140,9 @@ export async function handleAuthenticate(c: Context<{ Bindings: Env }>) {
       "[handleAuthenticate] Storing OpenAI API key in database for user:",
       username
     );
-    await c.env.DB.prepare(
-      `INSERT OR REPLACE INTO user_openai_keys (username, api_key, updated_at) 
-       VALUES (?, ?, CURRENT_TIMESTAMP)`
-    )
-      .bind(username, openaiApiKey)
-      .run();
+
+    const daoFactory = getDAOFactory(c.env);
+    await daoFactory.storeOpenAIKey(username, openaiApiKey);
 
     console.log("[handleAuthenticate] OpenAI API key stored successfully");
 
@@ -166,16 +163,13 @@ export async function handleGetOpenAIKey(c: Context<{ Bindings: Env }>) {
       return c.json({ error: "Username is required" }, 400);
     }
 
-    const result = await c.env.DB.prepare(
-      "SELECT api_key FROM user_openai_keys WHERE username = ?"
-    )
-      .bind(username)
-      .first<{ api_key: string }>();
+    const daoFactory = getDAOFactory(c.env);
+    const apiKey = await daoFactory.getOpenAIKey(username);
 
-    if (result) {
+    if (apiKey) {
       return c.json({
         hasKey: true,
-        apiKey: result.api_key,
+        apiKey,
       });
     } else {
       return c.json({
@@ -197,12 +191,8 @@ export async function handleStoreOpenAIKey(c: Context<{ Bindings: Env }>) {
       return c.json({ error: "Username and API key are required" }, 400);
     }
 
-    await c.env.DB.prepare(
-      `INSERT OR REPLACE INTO user_openai_keys (username, api_key, updated_at) 
-       VALUES (?, ?, CURRENT_TIMESTAMP)`
-    )
-      .bind(username, apiKey)
-      .run();
+    const daoFactory = getDAOFactory(c.env);
+    await daoFactory.storeOpenAIKey(username, apiKey);
 
     return c.json({
       success: true,
@@ -223,9 +213,8 @@ export async function handleDeleteOpenAIKey(c: Context<{ Bindings: Env }>) {
       return c.json({ error: "Username is required" }, 400);
     }
 
-    await c.env.DB.prepare("DELETE FROM user_openai_keys WHERE username = ?")
-      .bind(username)
-      .run();
+    const daoFactory = getDAOFactory(c.env);
+    await daoFactory.deleteOpenAIKey(username);
 
     return c.json({
       success: true,
@@ -338,14 +327,38 @@ export async function handleSetOpenAIApiKey(c: Context<{ Bindings: Env }>) {
 }
 
 // Check if user has OpenAI key in session
+//TODO: ofisk - check back
 export async function handleCheckUserOpenAIKey(c: Context<{ Bindings: Env }>) {
   try {
-    // Check if the user has a stored API key in the durable object
-    // For now, we'll assume they don't have one since the durable object
-    // doesn't expose this information through its fetch method
-    return c.json({ success: false, hasUserStoredKey: false });
+    const username = c.req.query("username");
+    if (!username) {
+      return c.json({ error: "Username is required" }, 400);
+    }
+
+    const daoFactory = getDAOFactory(c.env);
+    const hasKey = await daoFactory.hasOpenAIKey(username);
+
+    return c.json({
+      success: true,
+      hasUserStoredKey: hasKey,
+    });
   } catch (error) {
     console.error("Error checking user OpenAI key:", error);
     return c.json({ success: false, hasUserStoredKey: false });
+  }
+}
+
+// Logout endpoint - clears stored JWT tokens
+//TODO: ofisk - check back
+export async function handleLogout(c: Context<{ Bindings: Env }>) {
+  try {
+    // This endpoint just returns success - the client should clear local storage
+    return c.json({
+      success: true,
+      message: "Logout successful. Please clear your browser's local storage.",
+    });
+  } catch (error) {
+    console.error("Logout error:", error);
+    return c.json({ error: "Internal server error" }, 500);
   }
 }
