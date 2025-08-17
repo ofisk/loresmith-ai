@@ -3,6 +3,7 @@ import { jwtVerify, SignJWT } from "jose";
 import type { Env } from "../middleware/auth";
 import { ERROR_MESSAGES, JWT_STORAGE_KEY } from "../constants";
 import { getAuthService } from "./service-factory";
+import { getDAOFactory } from "../dao";
 import { getEnvVar } from "../lib/env-utils";
 
 export interface AuthPayload extends JWTPayload {
@@ -513,12 +514,8 @@ export class AuthService {
     username: string
   ): Promise<string | null> {
     try {
-      const result = await db
-        .prepare(`SELECT api_key FROM user_openai_keys WHERE username = ?`)
-        .bind(username)
-        .first();
-
-      return (result as any)?.api_key || null;
+      const daoFactory = getDAOFactory({ DB: db });
+      return await daoFactory.userDAO.getOpenAIKey(username);
     } catch (error) {
       console.error("Error getting user OpenAI key from DB:", error);
       return null;
