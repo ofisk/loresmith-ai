@@ -1,12 +1,6 @@
 import { CaretDown, Robot } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Button } from "@/components/button/Button";
-import {
-  AddResourceForm,
-  CampaignDetails,
-  CampaignResourceList,
-  CreateCampaignForm,
-} from "@/components/campaign";
 import { Card } from "@/components/card/Card";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 
@@ -40,108 +34,32 @@ export function ToolInvocationCard({
 }: ToolInvocationCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Render campaign UI components for campaign tools
+  // Campaign UI components have been removed - show basic tool information instead
   const renderCampaignUI = () => {
     if (!needsConfirmation || toolInvocation.state !== "call") {
       return null;
     }
 
-    switch (toolInvocation.toolName) {
-      case "createCampaign": {
-        const { name: extractedName } = toolInvocation.args as {
-          name?: string;
-        };
-        return (
-          <div className="mt-4">
-            <CreateCampaignForm
-              defaultName={extractedName || ""}
-              onSuccess={(campaign) => {
-                addToolResult({
-                  toolCallId,
-                  result: `Campaign created successfully: ${campaign.name} (ID: ${campaign.campaignId})`,
-                });
-              }}
-              onCancel={() => {
-                addToolResult({
-                  toolCallId,
-                  result: "Campaign creation cancelled",
-                });
-              }}
-            />
-          </div>
-        );
-      }
-
-      case "listCampaignResources": {
-        const { campaignId } = toolInvocation.args as { campaignId: string };
-        return (
-          <div className="mt-4">
-            <CampaignResourceList
-              campaignId={campaignId}
-              onResourceRemoved={(resourceId) => {
-                addToolResult({
-                  toolCallId,
-                  result: `Resource ${resourceId} removed from campaign ${campaignId}`,
-                });
-              }}
-            />
-          </div>
-        );
-      }
-
-      case "addResourceToCampaign": {
-        const { campaignId: addCampaignId } = toolInvocation.args as {
-          campaignId: string;
-          resourceType: string;
-          resourceId: string;
-          resourceName?: string;
-        };
-        return (
-          <div className="mt-4">
-            <AddResourceForm
-              campaignId={addCampaignId}
-              onResourceAdded={(_resource) => {
-                addToolResult({
-                  toolCallId,
-                  result: `Resource added successfully to campaign ${addCampaignId}`,
-                });
-              }}
-            />
-          </div>
-        );
-      }
-
-      case "showCampaignDetails": {
-        const { campaignId: detailsCampaignId } = toolInvocation.args as {
-          campaignId: string;
-        };
-        return (
-          <div className="mt-4">
-            <CampaignDetails campaignId={detailsCampaignId} />
-            <div className="flex gap-2 mt-4">
-              <Button
-                variant="destructive"
-                size="base"
-                onClick={() => {
-                  addToolResult({
-                    toolCallId,
-                    result: JSON.stringify({
-                      action: "deleteCampaign",
-                      campaignId: detailsCampaignId,
-                    }),
-                  });
-                }}
-              >
-                Delete Campaign
-              </Button>
-            </div>
-          </div>
-        );
-      }
-
-      default:
-        return null;
+    // For campaign tools, show a message that the UI components have been removed
+    if (
+      toolInvocation.toolName.includes("Campaign") ||
+      toolInvocation.toolName.includes("campaign") ||
+      toolInvocation.toolName === "createCampaign" ||
+      toolInvocation.toolName === "listCampaignResources" ||
+      toolInvocation.toolName === "addResourceToCampaign" ||
+      toolInvocation.toolName === "showCampaignDetails"
+    ) {
+      return (
+        <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
+          <p className="text-sm text-yellow-800 dark:text-yellow-200">
+            Campaign management UI has been simplified. Use the AI agent to
+            manage campaigns.
+          </p>
+        </div>
+      );
     }
+
+    return null;
   };
 
   return (

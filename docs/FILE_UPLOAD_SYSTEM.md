@@ -9,8 +9,6 @@ A comprehensive file upload and library system built with Cloudflare Workers, R2
 1. **UploadSessionDO** - Durable Object for managing upload sessions
 2. **UploadService** - Service for handling multipart uploads to R2
 3. **LibraryRAGService** - Service for metadata generation and search
-4. **FileUpload** - React component for file uploads
-5. **FileLibrary** - React component for file management
 
 ### Data Flow
 
@@ -144,24 +142,6 @@ CREATE TABLE file_metadata (
 ```
 
 ## Usage Examples
-
-### Upload a File
-
-```typescript
-import { FileUpload } from './components/file-upload/FileUpload';
-
-<FileUpload
-  onUploadComplete={(fileKey, metadata) => {
-    console.log('Upload completed:', fileKey, metadata);
-  }}
-  onUploadError={(error) => {
-    console.error('Upload failed:', error);
-  }}
-  maxFileSize={100 * 1024 * 1024} // 100MB
-  allowedTypes={['application/pdf', 'text/plain']}
-  multiple={true}
-/>
-```
 
 ### Browse Library
 
