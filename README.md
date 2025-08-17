@@ -222,8 +222,24 @@ npm run deploy
 
 ### Environment Variables
 
+#### Local Development (`.dev.vars`)
+
+For local development, create a `.dev.vars` file with the following variables:
+
 - `OPENAI_API_KEY`: Your OpenAI API key for AI chat functionality (local development only - not used in production)
 - `ADMIN_SECRET`: Secret key for file upload authentication
+- `VITE_API_URL`: API URL for local development (default: `http://localhost:8787`)
+- `CORS_ALLOWED_ORIGINS`: CORS origins for local development (default: `http://localhost:5173,http://localhost:5174`)
+
+#### Production (`.vars`)
+
+For production deployment, the `.vars` file contains the following variables:
+
+- `VITE_API_URL`: Production API URL (e.g., `https://ofisk.tech`)
+- `CORS_ALLOWED_ORIGINS`: Production CORS origins (e.g., `https://ofisk.tech`)
+- `OPENAI_API_KEY`: Optional default OpenAI API key (commented out by default - users provide their own)
+
+**Note**: The `.vars` file is automatically ignored by git for security. The `ADMIN_SECRET` is managed via Cloudflare Secrets Store in production and should not be included in the `.vars` file.
 
 ### Cloudflare Resources
 
