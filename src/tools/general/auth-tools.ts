@@ -18,7 +18,7 @@ function getEnvFromContext(context: any): any {
 // Tool to validate admin key
 export const validateAdminKey = tool({
   description:
-    "Validate the admin key for accessing PDF upload and processing features",
+    "Validate the admin key for accessing file upload and processing features",
   parameters: z.object({
     adminKey: z.string().describe("The admin key to validate"),
     jwt: z

@@ -28,7 +28,7 @@ export async function assessCampaignHealthTool(
     // Convert database resources to CampaignResource format
     const campaignResources: CampaignResource[] = resourcesData.map(
       (resource: any) => ({
-        type: "pdf" as const,
+        type: "file" as const,
         id: resource.id,
         name: resource.file_name,
       })

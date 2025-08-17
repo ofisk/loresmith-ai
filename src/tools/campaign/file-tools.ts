@@ -4,11 +4,11 @@ import { API_CONFIG, type ToolResult } from "../../constants";
 import { AUTH_CODES } from "../../shared";
 import { commonSchemas, createToolError, createToolSuccess } from "../utils";
 
-// PDF library tools
+// file library tools
 
-export const searchPdfLibrary = tool({
+export const searchFileLibrary = tool({
   description:
-    "Search through the user's PDF library for resources relevant to campaign planning, world-building, or specific topics",
+    "Search through the user's file library for resources relevant to campaign planning, world-building, or specific topics",
   parameters: z.object({
     query: z
       .string()
@@ -27,15 +27,15 @@ export const searchPdfLibrary = tool({
     { query, context, limit = 5, jwt },
     aiContext?: any
   ): Promise<ToolResult> => {
-    console.log("[Tool] searchPdfLibrary received query:", query);
-    console.log("[Tool] searchPdfLibrary aiContext:", aiContext);
+    console.log("[Tool] searchFileLibrary received query:", query);
+    console.log("[Tool] searchFileLibrary aiContext:", aiContext);
 
     // Extract toolCallId from AI SDK context
     const toolCallId = aiContext?.toolCallId || "unknown";
-    console.log("[searchPdfLibrary] Using toolCallId:", toolCallId);
+    console.log("[searchFileLibrary] Using toolCallId:", toolCallId);
 
     try {
-      console.log("[searchPdfLibrary] Using JWT:", jwt);
+      console.log("[searchFileLibrary] Using JWT:", jwt);
 
       const searchPayload = {
         query: context ? `${query} ${context}` : query,
@@ -54,12 +54,12 @@ export const searchPdfLibrary = tool({
         }
       );
 
-      console.log("[searchPdfLibrary] Response status:", response.status);
+      console.log("[searchFileLibrary] Response status:", response.status);
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("[searchPdfLibrary] Error response:", errorText);
+        console.error("[searchFileLibrary] Error response:", errorText);
         return createToolError(
-          `Failed to search PDF library: ${response.status} - ${errorText}`,
+          `Failed to search file library: ${response.status} - ${errorText}`,
           { error: `HTTP ${response.status}` },
           AUTH_CODES.ERROR,
           toolCallId
@@ -82,7 +82,7 @@ export const searchPdfLibrary = tool({
 
       if (!result.results || result.results.length === 0) {
         return createToolSuccess(
-          "No relevant resources found in your PDF library for this query.",
+          "No relevant resources found in your file library for this query.",
           { results: [], empty: true },
           toolCallId
         );
@@ -117,7 +117,7 @@ export const searchPdfLibrary = tool({
         .slice(0, limit);
 
       return createToolSuccess(
-        `Found ${sortedResults.length} relevant resources in your PDF library: ${sortedResults.map((r: any) => r.fileName).join(", ")}`,
+        `Found ${sortedResults.length} relevant resources in your file library: ${sortedResults.map((r: any) => r.fileName).join(", ")}`,
         {
           results: sortedResults,
           empty: false,
@@ -127,9 +127,9 @@ export const searchPdfLibrary = tool({
         toolCallId
       );
     } catch (error) {
-      console.error("Error searching PDF library:", error);
+      console.error("Error searching file library:", error);
       return createToolError(
-        `Failed to search PDF library: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to search file library: ${error instanceof Error ? error.message : String(error)}`,
         { error: error instanceof Error ? error.message : String(error) },
         AUTH_CODES.ERROR,
         toolCallId
@@ -138,25 +138,25 @@ export const searchPdfLibrary = tool({
   },
 });
 
-export const getPdfLibraryStats = tool({
+export const getFileLibraryStats = tool({
   description:
-    "Get statistics about the user's PDF library to understand available resources",
+    "Get statistics about the user's file library to understand available resources",
   parameters: z.object({
     jwt: commonSchemas.jwt,
   }),
   execute: async ({ jwt }, context?: any): Promise<ToolResult> => {
-    console.log("[Tool] getPdfLibraryStats received JWT:", jwt);
-    console.log("[Tool] getPdfLibraryStats context:", context);
+    console.log("[Tool] getFileLibraryStats received JWT:", jwt);
+    console.log("[Tool] getFileLibraryStats context:", context);
 
     // Extract toolCallId from context
     const toolCallId = context?.toolCallId || "unknown";
-    console.log("[getPdfLibraryStats] Using toolCallId:", toolCallId);
+    console.log("[getFileLibraryStats] Using toolCallId:", toolCallId);
 
     try {
-      console.log("[getPdfLibraryStats] Using JWT:", jwt);
+      console.log("[getFileLibraryStats] Using JWT:", jwt);
 
       const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.RAG.PDFS),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.RAG.FILES),
         {
           method: "GET",
           headers: {
@@ -165,12 +165,12 @@ export const getPdfLibraryStats = tool({
         }
       );
 
-      console.log("[getPdfLibraryStats] Response status:", response.status);
+      console.log("[getFileLibraryStats] Response status:", response.status);
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("[getPdfLibraryStats] Error response:", errorText);
+        console.error("[getFileLibraryStats] Error response:", errorText);
         return createToolError(
-          `Failed to get PDF library stats: ${response.status} - ${errorText}`,
+          `Failed to get file library stats: ${response.status} - ${errorText}`,
           { error: `HTTP ${response.status}` },
           AUTH_CODES.ERROR,
           toolCallId
@@ -191,7 +191,7 @@ export const getPdfLibraryStats = tool({
 
       if (!result.pdfs || result.pdfs.length === 0) {
         return createToolSuccess(
-          "Your PDF library is empty. Consider uploading some D&D resources to get started with campaign planning!",
+          "Your file library is empty. Consider uploading some D&D resources to get started with campaign planning!",
           { pdfs: [], empty: true },
           toolCallId
         );
@@ -249,7 +249,7 @@ export const getPdfLibraryStats = tool({
       );
 
       return createToolSuccess(
-        `Your PDF library contains ${totalFiles} files (${processedFiles} processed) with ${(totalSize / 1024 / 1024).toFixed(1)}MB of content. Available categories: ${Object.entries(
+        `Your file library contains ${totalFiles} files (${processedFiles} processed) with ${(totalSize / 1024 / 1024).toFixed(1)}MB of content. Available categories: ${Object.entries(
           categories
         )
           .map(([cat, count]) => `${cat} (${count})`)
@@ -267,9 +267,9 @@ export const getPdfLibraryStats = tool({
         toolCallId
       );
     } catch (error) {
-      console.error("Error getting PDF library stats:", error);
+      console.error("Error getting file library stats:", error);
       return createToolError(
-        `Failed to get PDF library stats: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get file library stats: ${error instanceof Error ? error.message : String(error)}`,
         { error: error instanceof Error ? error.message : String(error) },
         AUTH_CODES.ERROR,
         toolCallId

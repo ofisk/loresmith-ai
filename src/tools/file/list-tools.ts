@@ -1,14 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../constants";
-import type { PdfFileResponse } from "../../types/pdf";
-import { pdfFileHelpers } from "../../types/pdf";
+import type { FileResponse } from "../../types/file";
+import { fileHelpers } from "../../types/file";
 import { createToolError, createToolSuccess } from "../utils";
 
-// PDF listing tools
+// File listing tools
 
-export const listPdfFiles = tool({
-  description: "List all uploaded PDF files for the current user",
+export const listFiles = tool({
+  description: "List all uploaded files for the current user",
   parameters: z.object({
     jwt: z
       .string()
@@ -17,15 +17,15 @@ export const listPdfFiles = tool({
       .describe("JWT token for authentication"),
   }),
   execute: async ({ jwt }, context?: any): Promise<ToolResult> => {
-    console.log("[Tool] listPdfFiles received JWT:", jwt);
-    console.log("[Tool] listPdfFiles context:", context);
+    console.log("[Tool] listFiles received JWT:", jwt);
+    console.log("[Tool] listFiles context:", context);
 
     // Extract toolCallId from context
     const toolCallId = context?.toolCallId || "unknown";
-    console.log("[listPdfFiles] Using toolCallId:", toolCallId);
+    console.log("[listFiles] Using toolCallId:", toolCallId);
 
     try {
-      console.log("[listPdfFiles] Using JWT:", jwt);
+      console.log("[listFiles] Using JWT:", jwt);
 
       // Extract username from JWT
       let username = "default";
@@ -33,17 +33,17 @@ export const listPdfFiles = tool({
         try {
           const payload = JSON.parse(atob(jwt.split(".")[1]));
           username = payload.username || "default";
-          console.log("[listPdfFiles] Extracted username from JWT:", username);
+          console.log("[listFiles] Extracted username from JWT:", username);
         } catch (error) {
           console.error("Error parsing JWT:", error);
         }
       }
 
-      console.log("[listPdfFiles] Listing files for username:", username);
+      console.log("[listFiles] Listing files for username:", username);
 
       // Call the server endpoint to get actual files
       const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.FILES),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.FILES),
         {
           method: "GET",
           headers: {
@@ -55,27 +55,27 @@ export const listPdfFiles = tool({
 
       if (!response.ok) {
         return createToolError(
-          "Failed to list PDF files",
+          "Failed to list files",
           `HTTP ${response.status}: ${await response.text()}`,
           500,
           toolCallId
         );
       }
 
-      const result = (await response.json()) as PdfFileResponse;
+      const result = (await response.json()) as FileResponse;
 
       if (!result.files || result.files.length === 0) {
         return createToolSuccess(
-          `No PDF files found for user "${username}". Upload some PDFs to get started!`,
+          `No files found for user "${username}". Upload something to get started!`,
           { files: [], count: 0, username },
           toolCallId
         );
       }
 
-      const fileList = pdfFileHelpers.formatFileList(result.files);
+      const fileList = fileHelpers.formatFileList(result.files);
 
       return createToolSuccess(
-        `📄 Found ${result.files.length} PDF file(s) for user "${username}":\n${fileList}`,
+        `📄 Found ${result.files.length} file(s) for user "${username}":\n${fileList}`,
         {
           files: result.files,
           count: result.files.length,
@@ -84,27 +84,24 @@ export const listPdfFiles = tool({
         toolCallId
       );
     } catch (error) {
-      console.error("Error listing PDF files:", error);
-      return createToolError("Error listing PDF files", error, 500, toolCallId);
+      console.error("Error listing files:", error);
+      return createToolError("Error listing files", error, 500, toolCallId);
     }
   },
 });
 
 // Execution functions for confirmation-required tools
-export const deletePdfFileExecution = async (
+export const deleteFileExecution = async (
   { fileKey, jwt }: { fileKey: string; jwt?: string | null },
   context?: any
 ): Promise<ToolResult> => {
-  console.log(
-    "[deletePdfFileExecution] Starting deletion for fileKey:",
-    fileKey
-  );
+  console.log("[deleteFileExecution] Starting deletion for fileKey:", fileKey);
 
   const toolCallId = context?.toolCallId || "unknown";
 
   try {
     if (!fileKey) {
-      console.error("[deletePdfFileExecution] No fileKey provided");
+      console.error("[deleteFileExecution] No fileKey provided");
       return createToolError(
         "No file key provided for deletion",
         "Missing fileKey",
@@ -131,7 +128,7 @@ export const deletePdfFileExecution = async (
     if (!response.ok) {
       const errorText = await response.text();
       console.error(
-        "[deletePdfFileExecution] Delete failed with status:",
+        "[deleteFileExecution] Delete failed with status:",
         response.status
       );
 
@@ -145,7 +142,7 @@ export const deletePdfFileExecution = async (
       }
 
       return createToolError(
-        "Failed to delete PDF file",
+        "Failed to delete file",
         `HTTP ${response.status}: ${errorText}`,
         500,
         toolCallId
@@ -154,7 +151,7 @@ export const deletePdfFileExecution = async (
 
     // Verify the file was actually deleted by trying to list files
     const listResponse = await fetch(
-      `${API_CONFIG.getApiBaseUrl()}/pdf/files`,
+      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.FILES),
       {
         headers: jwt ? { Authorization: `Bearer ${jwt}` } : {},
       }
@@ -175,7 +172,7 @@ export const deletePdfFileExecution = async (
 
           if (fileStillExists) {
             console.warn(
-              "[deletePdfFileExecution] File was not actually deleted from database"
+              "[deleteFileExecution] File was not actually deleted from database"
             );
             return createToolError(
               "File deletion reported success but file still exists in database",
@@ -187,7 +184,7 @@ export const deletePdfFileExecution = async (
         }
       } catch (verificationError) {
         console.warn(
-          "[deletePdfFileExecution] Could not verify deletion:",
+          "[deleteFileExecution] Could not verify deletion:",
           verificationError
         );
         // Don't fail the deletion if verification fails
@@ -200,7 +197,7 @@ export const deletePdfFileExecution = async (
       toolCallId
     );
   } catch (error) {
-    console.error("[deletePdfFileExecution] Unexpected error:", error);
+    console.error("[deleteFileExecution] Unexpected error:", error);
     return createToolError(
       "Unexpected error during file deletion",
       error,
@@ -210,22 +207,22 @@ export const deletePdfFileExecution = async (
   }
 };
 
-export const deletePdfFile = tool({
+export const deleteFile = tool({
   description:
-    "Delete a specific PDF file for the current user. This action requires confirmation before execution.",
+    "Delete a specific file for the current user. This action requires confirmation before execution.",
   parameters: z.object({
-    fileKey: z.string().describe("The file key of the PDF to delete"),
+    fileKey: z.string().describe("The file key of the file to delete"),
     jwt: z
       .string()
       .nullable()
       .optional()
       .describe("JWT token for authentication"),
   }),
-  execute: deletePdfFileExecution,
+  execute: deleteFileExecution,
 });
 
-export const getPdfStats = tool({
-  description: "Get statistics about uploaded PDF files",
+export const getFileStats = tool({
+  description: "Get statistics about uploaded files",
   parameters: z.object({
     jwt: z
       .string()
@@ -234,15 +231,15 @@ export const getPdfStats = tool({
       .describe("JWT token for authentication"),
   }),
   execute: async ({ jwt }, context?: any): Promise<ToolResult> => {
-    console.log("[Tool] getPdfStats received JWT:", jwt);
-    console.log("[Tool] getPdfStats context:", context);
+    console.log("[Tool] getFileStats received JWT:", jwt);
+    console.log("[Tool] getFileStats context:", context);
 
     // Extract toolCallId from context
     const toolCallId = context?.toolCallId || "unknown";
-    console.log("[getPdfStats] Using toolCallId:", toolCallId);
+    console.log("[getFileStats] Using toolCallId:", toolCallId);
 
     try {
-      console.log("[getPdfStats] Using JWT:", jwt);
+      console.log("[getFileStats] Using JWT:", jwt);
 
       // Extract username from JWT
       let username = "default";
@@ -250,17 +247,17 @@ export const getPdfStats = tool({
         try {
           const payload = JSON.parse(atob(jwt.split(".")[1]));
           username = payload.username || "default";
-          console.log("[getPdfStats] Extracted username from JWT:", username);
+          console.log("[getFileStats] Extracted username from JWT:", username);
         } catch (error) {
           console.error("Error parsing JWT:", error);
         }
       }
 
-      console.log("[getPdfStats] Getting stats for username:", username);
+      console.log("[getFileStats] Getting stats for username:", username);
 
       // Call the server endpoint to get actual stats
       const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.STATS),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.STATS),
         {
           method: "GET",
           headers: {
@@ -272,7 +269,7 @@ export const getPdfStats = tool({
 
       if (!response.ok) {
         return createToolError(
-          "Failed to get PDF stats",
+          "Failed to get file stats",
           `HTTP ${response.status}: ${await response.text()}`,
           500,
           toolCallId
@@ -303,8 +300,13 @@ export const getPdfStats = tool({
         toolCallId
       );
     } catch (error) {
-      console.error("Error getting PDF stats:", error);
-      return createToolError("Error getting PDF stats", error, 500, toolCallId);
+      console.error("Error getting file stats:", error);
+      return createToolError(
+        "Error getting file stats",
+        error,
+        500,
+        toolCallId
+      );
     }
   },
 });

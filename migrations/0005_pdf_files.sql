@@ -1,7 +1,7 @@
--- add pdf_files table for rag and pdf functionality
--- this table is used by the rag and pdf routes for file management
+-- add files table for rag and file functionality
+-- this table is used by the rag and file routes for file management
 
-create table if not exists pdf_files (
+create table if not exists files (
   id text primary key,
   file_key text not null,
   file_name text not null,
@@ -13,10 +13,10 @@ create table if not exists pdf_files (
   updated_at datetime default current_timestamp
 );
 
--- create indexes for pdf_files table
-create index if not exists idx_pdf_files_username 
-  on pdf_files(username);
-create index if not exists idx_pdf_files_file_key 
-  on pdf_files(file_key);
-create index if not exists idx_pdf_files_status 
-  on pdf_files(status); 
+-- create indexes for files table
+create index if not exists idx_files_username 
+  on files(username);
+create index if not exists idx_files_file_key 
+  on files(file_key);
+create index if not exists idx_files_status 
+  on files(status); 

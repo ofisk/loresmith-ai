@@ -3,6 +3,8 @@ import { getLibraryRagService } from "../services/service-factory";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { completeProgress } from "../services/progress";
+import { FileDAO } from "../dao/file-dao";
+import { getDAOFactory } from "../dao/dao-factory";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -33,8 +35,8 @@ export async function handleRagSearch(c: ContextWithAuth) {
   }
 }
 
-// Process PDF for RAG
-export async function handleProcessPdfForRag(c: ContextWithAuth) {
+// Process file for RAG
+export async function handleProcessFileForRag(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
     const { fileKey, filename, description, tags } = await c.req.json();
@@ -45,7 +47,6 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
 
     // Store file metadata in database
     const fileId = crypto.randomUUID();
-    const now = new Date().toISOString();
 
     // Get file size from R2
     let fileSize = 0;
@@ -62,21 +63,17 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
       console.warn("Could not get file size from R2:", error);
     }
 
-    await c.env.DB.prepare(
-      "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    )
-      .bind(
-        fileId,
-        fileKey,
-        filename,
-        description || "",
-        tags ? JSON.stringify(tags) : "[]",
-        userAuth.username,
-        "processing",
-        now,
-        fileSize
-      )
-      .run();
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    await fileDAO.createFileRecord(
+      fileId,
+      fileKey,
+      filename,
+      description || "",
+      tags ? JSON.stringify(tags) : "[]",
+      userAuth.username,
+      "processing",
+      fileSize
+    );
 
     // Start processing in background
     setTimeout(async () => {
@@ -89,7 +86,7 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
 
         // Process with RAG service
         const ragService = getLibraryRagService(c.env);
-        await ragService.processPdfFromR2(
+        await ragService.processFileFromR2(
           fileKey,
           userAuth.username,
           c.env.FILE_BUCKET,
@@ -104,35 +101,27 @@ export async function handleProcessPdfForRag(c: ContextWithAuth) {
         );
 
         // Update database status and file size
-        await c.env.DB.prepare(
-          "UPDATE pdf_files SET status = ?, updated_at = ?, file_size = ? WHERE file_key = ?"
-        )
-          .bind("completed", new Date().toISOString(), file.size, fileKey)
-          .run();
+        await fileDAO.updateFileRecord(fileKey, "completed", file.size);
 
         completeProgress(fileKey, true);
       } catch (error) {
-        console.error("Error processing PDF for RAG:", error);
+        console.error("Error processing file for RAG:", error);
         completeProgress(fileKey, false, (error as Error).message);
 
         // Update database status
-        await c.env.DB.prepare(
-          "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ?"
-        )
-          .bind("error", new Date().toISOString(), fileKey)
-          .run();
+        await fileDAO.updateFileRecord(fileKey, "error");
       }
     }, 100);
 
     return c.json({ success: true, fileKey, fileId });
   } catch (error) {
-    console.error("Error processing PDF for RAG:", error);
+    console.error("Error processing file for RAG:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
 
-// Process PDF from R2 for RAG
-export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
+// Process file from R2 for RAG
+export async function handleProcessFileFromR2ForRag(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
     const { fileKey, filename, description, tags } = await c.req.json();
@@ -143,7 +132,6 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
 
     // Store file metadata in database
     const fileId = crypto.randomUUID();
-    const now = new Date().toISOString();
 
     // Get file size from R2
     let fileSize = 0;
@@ -156,21 +144,17 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
       console.warn("Could not get file size from R2:", error);
     }
 
-    await c.env.DB.prepare(
-      "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    )
-      .bind(
-        fileId,
-        fileKey,
-        filename,
-        description || "",
-        tags ? JSON.stringify(tags) : "[]",
-        userAuth.username,
-        "processing",
-        now,
-        fileSize
-      )
-      .run();
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    await fileDAO.createFileRecord(
+      fileId,
+      fileKey,
+      filename,
+      description || "",
+      tags ? JSON.stringify(tags) : "[]",
+      userAuth.username,
+      "processing",
+      fileSize
+    );
 
     // Start processing in background
     setTimeout(async () => {
@@ -183,7 +167,7 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
 
         // Process with RAG service
         const ragService = getLibraryRagService(c.env);
-        await ragService.processPdfFromR2(
+        await ragService.processFileFromR2(
           fileKey,
           userAuth.username,
           c.env.FILE_BUCKET,
@@ -198,34 +182,26 @@ export async function handleProcessPdfFromR2ForRag(c: ContextWithAuth) {
         );
 
         // Update database status and file size
-        await c.env.DB.prepare(
-          "UPDATE pdf_files SET status = ?, updated_at = ?, file_size = ? WHERE file_key = ?"
-        )
-          .bind("completed", new Date().toISOString(), file.size, fileKey)
-          .run();
+        await fileDAO.updateFileRecord(fileKey, "completed", file.size);
 
         completeProgress(fileKey, true);
       } catch (error) {
-        console.error("Error processing PDF from R2 for RAG:", error);
+        console.error("Error processing file from R2 for RAG:", error);
         completeProgress(fileKey, false, (error as Error).message);
 
         // Update database status
-        await c.env.DB.prepare(
-          "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ?"
-        )
-          .bind("error", new Date().toISOString(), fileKey)
-          .run();
+        await fileDAO.updateFileRecord(fileKey, "error");
       }
     }, 100);
 
     return c.json({ success: true, fileKey, fileId });
   } catch (error) {
-    console.error("Error processing PDF from R2 for RAG:", error);
+    console.error("Error processing file from R2 for RAG:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
 
-// Update PDF metadata for RAG
+// Update file metadata for RAG
 export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
@@ -236,11 +212,8 @@ export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
       const ragService = getLibraryRagService(c.env);
 
       // Get file metadata
-      const file = await c.env.DB.prepare(
-        "SELECT * FROM pdf_files WHERE file_key = ? AND username = ?"
-      )
-        .bind(fileKey, userAuth.username)
-        .first();
+      const fileDAO = getDAOFactory(c.env).fileDAO;
+      const file = await fileDAO.getFileForRag(fileKey, userAuth.username);
 
       if (!file) {
         return c.json({ error: "File not found" }, 404);
@@ -249,7 +222,7 @@ export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
       // Run processing in background
       setTimeout(async () => {
         try {
-          await ragService.processPdfFromR2(
+          await ragService.processFileFromR2(
             fileKey,
             userAuth.username,
             c.env.FILE_BUCKET,
@@ -291,68 +264,61 @@ export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
   }
 }
 
-export async function handleUpdatePdfMetadataForRag(c: ContextWithAuth) {
+export async function handleUpdateFileMetadataForRag(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
     const fileKey = c.req.param("fileKey");
     const { description, tags } = await c.req.json();
 
-    await c.env.DB.prepare(
-      "UPDATE pdf_files SET description = ?, tags = ?, updated_at = ? WHERE file_key = ? AND username = ?"
-    )
-      .bind(
-        description || "",
-        tags ? JSON.stringify(tags) : "[]",
-        new Date().toISOString(),
-        fileKey,
-        userAuth.username
-      )
-      .run();
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    await fileDAO.updateFileMetadataForRag(
+      fileKey,
+      userAuth.username,
+      description || "",
+      tags ? JSON.stringify(tags) : "[]"
+    );
 
     return c.json({ success: true });
   } catch (error) {
-    console.error("Error updating PDF metadata for RAG:", error);
+    console.error("Error updating file metadata for RAG:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
 
-// Get PDF files for RAG
-export async function handleGetPdfFilesForRag(c: ContextWithAuth) {
+// Get files for RAG
+export async function handleGetFilesForRag(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
 
-    const files = await c.env.DB.prepare(
-      "SELECT id, file_key, file_name, description, tags, status, created_at, updated_at, file_size FROM pdf_files WHERE username = ? ORDER BY created_at DESC"
-    )
-      .bind(userAuth.username)
-      .all();
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const files = await fileDAO.getFilesForRag(userAuth.username);
 
     // Check for metadata updates from LibraryRAG
     const ragService = getLibraryRagService(c.env);
-    await ragService.getUserPdfs(userAuth.username); // This will trigger metadata updates
+    await ragService.getUserFiles(userAuth.username); // This will trigger metadata updates
 
-    return c.json({ files: files.results || [] });
+    return c.json({ files });
   } catch (error) {
-    console.error("Error fetching PDF files for RAG:", error);
+    console.error("Error fetching files for RAG:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
 
-// Get PDF chunks for RAG
-export async function handleGetPdfChunksForRag(c: ContextWithAuth) {
+// Get file chunks for RAG
+export async function handleGetFileChunksForRag(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
     const fileKey = c.req.param("fileKey");
 
-    const chunks = await c.env.DB.prepare(
-      "SELECT id, file_key, chunk_text, chunk_index, created_at FROM pdf_chunks WHERE file_key = ? AND username = ? ORDER BY chunk_index"
-    )
-      .bind(fileKey, userAuth.username)
-      .all();
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const chunks = await fileDAO.getFileChunksForRag(
+      fileKey,
+      userAuth.username
+    );
 
-    return c.json({ chunks: chunks.results || [] });
+    return c.json({ chunks });
   } catch (error) {
-    console.error("Error fetching PDF chunks for RAG:", error);
+    console.error("Error fetching file chunks for RAG:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
@@ -361,32 +327,17 @@ export async function handleGetPdfChunksForRag(c: ContextWithAuth) {
 export async function handleCheckAutoRAGStatus(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
-    // Get files from database directly
-    const filesResult = await c.env.DB.prepare(
-      "SELECT * FROM pdf_files WHERE username = ? ORDER BY created_at DESC"
-    )
-      .bind(userAuth.username)
-      .all();
 
-    const files = filesResult.results || [];
-
-    // Count files by status
-    const uploaded = files.filter((f) => f.status === "uploaded").length;
-    const processed = files.filter((f) => f.status === "processed").length;
-    const processing = files.filter((f) => f.status === "processing").length;
-    const error = files.filter((f) => f.status === "error").length;
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const stats = await fileDAO.getFileStatsForRag(userAuth.username);
 
     return c.json({
       success: true,
-      uploaded,
-      processed,
-      processing,
-      error,
-      total: files.length,
+      ...stats,
       message:
-        uploaded > 0
-          ? `${uploaded} files uploaded and waiting for AutoRAG indexing`
-          : processed > 0
+        stats.uploaded > 0
+          ? `${stats.uploaded} files uploaded and waiting for AutoRAG indexing`
+          : stats.processed > 0
             ? "All files have been indexed and processed"
             : "No files found",
     });
@@ -396,52 +347,50 @@ export async function handleCheckAutoRAGStatus(c: ContextWithAuth) {
   }
 }
 
-// Delete PDF for RAG
-export async function handleDeletePdfForRag(c: ContextWithAuth) {
+export const handleDeleteFileForRag = async (c: any) => {
   try {
     const userAuth = (c as any).userAuth;
     const fileKey = c.req.param("fileKey");
-    console.log("[handleDeletePdfForRag] Starting deletion process");
-    console.log("[handleDeletePdfForRag] Received fileKey:", fileKey);
-    console.log("[handleDeletePdfForRag] User:", userAuth.username);
-    console.log("[handleDeletePdfForRag] Request URL:", c.req.url);
-    console.log("[handleDeletePdfForRag] Request path:", c.req.path);
+    console.log("[handleDeleteFileForRag] Starting deletion process");
+    console.log("[handleDeleteFileForRag] Received fileKey:", fileKey);
+    console.log("[handleDeleteFileForRag] User:", userAuth.username);
+    console.log("[handleDeleteFileForRag] Request URL:", c.req.url);
+    console.log("[handleDeleteFileForRag] Request path:", c.req.path);
 
     if (!fileKey) {
-      console.error("[handleDeletePdfForRag] No fileKey provided");
+      console.error("[handleDeleteFileForRag] No fileKey provided");
       return c.json({ error: "No file key provided" }, 400);
     }
 
-    // Check if file exists before deletion
-    const existingFile = await c.env.DB.prepare(
-      "SELECT file_key, file_name FROM pdf_files WHERE file_key = ? AND username = ?"
-    )
-      .bind(fileKey, userAuth.username)
-      .first();
+    // Initialize DAO
+    const fileDAO = new FileDAO(c.env.DB);
 
-    console.log("[handleDeletePdfForRag] Existing file check:", existingFile);
+    // Check if file exists before deletion
+    const existingFile = await fileDAO.getFileMetadata(fileKey);
+
+    console.log("[handleDeleteFileForRag] Existing file check:", existingFile);
 
     // If file doesn't exist in database, try to clean up any remaining chunks
     if (!existingFile) {
       console.log(
-        "[handleDeletePdfForRag] File not found in database, cleaning up chunks"
+        "[handleDeleteFileForRag] File not found in database, cleaning up chunks"
       );
 
       // Delete any remaining chunks from database
-      const chunksResult = await c.env.DB.prepare(
-        "DELETE FROM pdf_chunks WHERE file_key = ? AND username = ?"
-      )
-        .bind(fileKey, userAuth.username)
-        .run();
-      console.log("[handleDeletePdfForRag] Cleaned up chunks:", chunksResult);
+      try {
+        await fileDAO.deleteFile(fileKey, userAuth.username);
+        console.log("[handleDeleteFileForRag] Cleaned up chunks");
+      } catch (error) {
+        console.log("[handleDeleteFileForRag] Cleanup failed:", error);
+      }
 
       // Try to delete from R2 anyway (in case it still exists)
       try {
         await c.env.FILE_BUCKET.delete(fileKey);
-        console.log("[handleDeletePdfForRag] R2 cleanup completed");
+        console.log("[handleDeleteFileForRag] R2 cleanup completed");
       } catch (error) {
         console.log(
-          "[handleDeletePdfForRag] R2 cleanup failed (file may not exist):",
+          "[handleDeleteFileForRag] R2 cleanup failed (file may not exist):",
           error
         );
       }
@@ -452,49 +401,40 @@ export async function handleDeletePdfForRag(c: ContextWithAuth) {
       });
     }
 
-    console.log("[handleDeletePdfForRag] Deleting from R2 bucket:", fileKey);
-    // Delete from R2
-    await c.env.FILE_BUCKET.delete(fileKey);
-    console.log("[handleDeletePdfForRag] R2 deletion completed");
+    console.log("[handleDeleteFileForRag] Deleting from R2 bucket:", fileKey);
+    // Delete from R2 - handle failures gracefully
+    try {
+      await c.env.FILE_BUCKET.delete(fileKey);
+      console.log("[handleDeleteFileForRag] R2 deletion completed");
+    } catch (error) {
+      console.log(
+        "[handleDeleteFileForRag] R2 deletion failed (file may not exist):",
+        error
+      );
+      // Continue with database cleanup even if R2 deletion fails
+    }
 
-    console.log("[handleDeletePdfForRag] Deleting chunks from database");
-    // Delete chunks from database
-    const chunksResult = await c.env.DB.prepare(
-      "DELETE FROM pdf_chunks WHERE file_key = ? AND username = ?"
-    )
-      .bind(fileKey, userAuth.username)
-      .run();
-    console.log("[handleDeletePdfForRag] Chunks deleted:", chunksResult);
-
-    console.log("[handleDeletePdfForRag] Deleting file metadata from database");
-    // Delete file metadata from database
-    const fileResult = await c.env.DB.prepare(
-      "DELETE FROM pdf_files WHERE file_key = ? AND username = ?"
-    )
-      .bind(fileKey, userAuth.username)
-      .run();
-    console.log("[handleDeletePdfForRag] File metadata deleted:", fileResult);
+    console.log("[handleDeleteFileForRag] Deleting from database using DAO");
+    // Delete all related data using DAO
+    await fileDAO.deleteFile(fileKey, userAuth.username);
+    console.log("[handleDeleteFileForRag] Database deletion completed");
 
     // Verify deletion
-    const verifyFile = await c.env.DB.prepare(
-      "SELECT file_key FROM pdf_files WHERE file_key = ? AND username = ?"
-    )
-      .bind(fileKey, userAuth.username)
-      .first();
+    const verifyFile = await fileDAO.getFileMetadata(fileKey);
 
-    console.log("[handleDeletePdfForRag] Verification check:", verifyFile);
+    console.log("[handleDeleteFileForRag] Verification check:", verifyFile);
 
     if (verifyFile) {
       console.error(
-        "[handleDeletePdfForRag] File still exists after deletion!"
+        "[handleDeleteFileForRag] File still exists after deletion!"
       );
       return c.json({ error: "File deletion failed" }, 500);
     }
 
-    console.log("[handleDeletePdfForRag] Deletion successful");
+    console.log("[handleDeleteFileForRag] Deletion successful");
     return c.json({ success: true });
   } catch (error) {
-    console.error("Error deleting PDF for RAG:", error);
+    console.error("Error deleting file for RAG:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
-}
+};

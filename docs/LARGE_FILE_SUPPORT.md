@@ -1,14 +1,14 @@
-# Large File Support for D&D PDFs
+# Large File Support for D&D Documents
 
 ## Overview
 
-Loresmith AI now supports large PDF files (up to 500MB) specifically designed to handle D&D rulebooks, campaign guides, and other large gaming PDFs that typically range from 100-300MB.
+Loresmith AI now supports large document files (up to 500MB) specifically designed to handle D&D rulebooks, campaign guides, and other large gaming documents that typically range from 100-300MB.
 
 ## Implementation Details
 
 ### File Size Limits
 
-- **Maximum PDF Size**: 500MB (configurable in `src/constants.ts`)
+- **Maximum Document Size**: 500MB (configurable in `src/constants.ts`)
 - **Chunk Processing**: 10MB chunks to prevent memory issues
 - **Text Extraction Limit**: 5MB of extracted text for processing
 - **Timeout**: 2 minutes for large files (≥100MB), 1 minute for smaller files
@@ -17,11 +17,11 @@ Loresmith AI now supports large PDF files (up to 500MB) specifically designed to
 
 #### 1. Chunked Processing
 
-Large PDFs are processed in 10MB chunks to prevent memory pressure:
+Large documents are processed in 10MB chunks to prevent memory pressure:
 
 ```typescript
-const chunkSize = PDF_PROCESSING_CONFIG.INGEST_CHUNK_SIZE; // 10MB
-const totalChunks = Math.ceil(pdfString.length / chunkSize);
+const chunkSize = FILE_PROCESSING_CONFIG.INGEST_CHUNK_SIZE; // 10MB
+const totalChunks = Math.ceil(fileString.length / chunkSize);
 ```
 
 #### 2. Adaptive Timeouts
@@ -33,8 +33,8 @@ const totalChunks = Math.ceil(pdfString.length / chunkSize);
 #### 3. Memory Protection
 
 - **Text truncation**: Extracted text limited to 5MB
-- **Chunked extraction**: PDF content processed in manageable pieces
-- **Error handling**: Graceful degradation for corrupted or unreadable PDFs
+- **Chunked extraction**: Document content processed in manageable pieces
+- **Error handling**: Graceful degradation for corrupted or unreadable documents
 
 #### 4. Event Loop Protection
 
@@ -47,8 +47,8 @@ const totalChunks = Math.ceil(pdfString.length / chunkSize);
 All limits are configurable in `src/constants.ts`:
 
 ```typescript
-export const PDF_PROCESSING_CONFIG = {
-  MAX_PDF_SIZE: 500 * 1024 * 1024, // 500MB limit
+export const FILE_PROCESSING_CONFIG = {
+  MAX_FILE_SIZE: 500 * 1024 * 1024, // 500MB limit
   INGEST_CHUNK_SIZE: 10 * 1024 * 1024, // 10MB chunks for processing
   MAX_TEXT_LENGTH: 5 * 1024 * 1024, // 5MB text limit
   TIMEOUT_SMALL_FILES: 60000, // 1 minute for files < 100MB
@@ -59,7 +59,7 @@ export const PDF_PROCESSING_CONFIG = {
 
 ## Performance Optimizations
 
-### For Large PDFs (>100MB):
+### For Large Documents (>100MB):
 
 1. **Larger chunks**: 2000 characters instead of 1000
 2. **More overlap**: 300 characters for better context
@@ -68,7 +68,7 @@ export const PDF_PROCESSING_CONFIG = {
 
 ### Memory Management:
 
-1. **Streaming approach**: Process PDFs in chunks
+1. **Streaming approach**: Process documents in chunks
 2. **Text truncation**: Limit extracted text to 5MB
 3. **Garbage collection**: Automatic cleanup of processed chunks
 4. **Error recovery**: Graceful handling of memory issues
@@ -86,16 +86,16 @@ export const PDF_PROCESSING_CONFIG = {
 
 - **Monitor memory usage** during large file processing
 - **Adjust timeouts** based on server capacity
-- **Test with various PDF sizes** to ensure stability
+- **Test with various document sizes** to ensure stability
 - **Consider implementing resumable uploads** for very large files
 
 ## Troubleshooting
 
 ### Common Issues:
 
-1. **"PDF too large" error**
+1. **"Document too large" error**
    - File exceeds 500MB limit
-   - Solution: Compress PDF or split into smaller files
+   - Solution: Compress document or split into smaller files
 
 2. **Processing timeout**
    - File takes longer than 2 minutes to process
@@ -106,15 +106,15 @@ export const PDF_PROCESSING_CONFIG = {
    - Solution: Reduce chunk size or increase server memory
 
 4. **Text extraction fails**
-   - PDF is corrupted or image-based
+   - Document is corrupted or image-based
    - Solution: Use OCR tools or provide manual description
 
 ## Future Enhancements
 
 1. **Resumable uploads**: Support for interrupted uploads
 2. **Background processing**: Queue-based processing for large files
-3. **OCR integration**: Better text extraction from image-based PDFs
-4. **Compression**: Automatic PDF compression before processing
+3. **OCR integration**: Better text extraction from image-based documents
+4. **Compression**: Automatic document compression before processing
 5. **Progress indicators**: UI feedback during processing
 
 ## References

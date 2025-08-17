@@ -19,8 +19,8 @@ This document outlines the optimal storage strategy for different types of data 
 
 - ✅ Campaigns and campaign metadata
 - ✅ Campaign resources and relationships
-- ✅ PDF chunks for RAG processing
-- ✅ PDF metadata and search indexes
+- ✅ File chunks for RAG processing
+- ✅ File metadata and search indexes
 - ✅ Campaign context and character data
 
 **Schema:**
@@ -29,8 +29,8 @@ This document outlines the optimal storage strategy for different types of data 
 -- Core tables
 campaigns (id, username, name, description, status, metadata, created_at, updated_at)
 campaign_resources (id, campaign_id, file_key, file_name, description, tags, status, created_at)
-pdf_chunks (id, file_key, username, chunk_text, chunk_index, embedding_id, metadata, created_at)
-pdf_metadata (file_key, username, file_name, description, tags, file_size, status, created_at)
+file_chunks (id, file_key, username, chunk_text, chunk_index, embedding_id, metadata, created_at)
+file_metadata (file_key, username, file_name, description, tags, file_size, status, created_at)
 campaign_context (id, campaign_id, context_type, title, content, metadata, created_at)
 campaign_characters (id, campaign_id, character_name, backstory, metadata, created_at, updated_at)
 ```
@@ -39,14 +39,14 @@ campaign_characters (id, campaign_id, character_name, backstory, metadata, creat
 
 **Best for:**
 
-- Large files (PDFs, images, videos)
+- Large files (documents, images, videos)
 - Binary data that doesn't need querying
 - Static assets
 - Data that needs to be served directly to clients
 
 **Current Usage:**
 
-- ✅ PDF files (primary storage)
+- ✅ Document files (primary storage)
 - ✅ File metadata as separate objects
 - ✅ Character sheet files
 - ✅ Images and other binary assets
@@ -54,7 +54,7 @@ campaign_characters (id, campaign_id, character_name, backstory, metadata, creat
 **Structure:**
 
 ```
-uploads/{username}/{filename} - PDF files
+uploads/{username}/{filename} - Document files
 uploads/{username}/{filename}.metadata - File metadata
 ```
 

@@ -78,7 +78,7 @@ export const addResourceToCampaign = tool({
     resourceId: z.string().describe("The ID of the resource to add"),
     resourceType: z
       .string()
-      .describe("The type of resource (e.g., 'pdf', 'character-sheet')"),
+      .describe("The type of resource (e.g., 'document', 'character-sheet')"),
     jwt: commonSchemas.jwt,
   }),
   execute: async (

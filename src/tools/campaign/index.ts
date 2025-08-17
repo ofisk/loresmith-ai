@@ -6,7 +6,7 @@ import {
   listCampaigns,
   showCampaignDetails,
 } from "./core-tools";
-import { getPdfLibraryStats, searchPdfLibrary } from "./pdf-tools";
+import { getFileLibraryStats, searchFileLibrary } from "./file-tools";
 import { generateSessionHooks, planSession } from "./planning-tools";
 import {
   addResourceToCampaign,
@@ -29,9 +29,9 @@ export {
   addResourceToCampaign,
   removeResourceFromCampaign,
   listCampaignResources,
-  // Campaign PDF tools
-  getPdfLibraryStats,
-  searchPdfLibrary,
+  // Campaign file tools
+  getFileLibraryStats,
+  searchFileLibrary,
 };
 export { CampaignTool } from "./utils";
 
@@ -45,8 +45,8 @@ export const campaignTools = {
   listCampaignResources,
   addResourceToCampaign,
   removeResourceFromCampaign,
-  searchPdfLibrary,
-  getPdfLibraryStats,
+  searchFileLibrary,
+  getFileLibraryStats,
   planSession,
   generateSessionHooks,
 };

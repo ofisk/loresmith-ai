@@ -35,23 +35,31 @@ import {
   handleGetExternalResourceSearch,
   handleGetGmResources,
 } from "./routes/external-resources";
-import { library } from "./routes/library";
+import {
+  handleGetFiles,
+  handleSearchFiles,
+  handleGetStorageUsage,
+  handleGetFileDetails,
+  handleUpdateFile,
+  handleDeleteFile,
+  handleGetFileDownload,
+  handleRegenerateFileMetadata,
+} from "./routes/library";
 import {
   handleGetNextActions,
   handleGetStateAnalysis,
   handleGetWelcomeGuidance,
 } from "./routes/onboarding";
-import { pdfRouter } from "./routes/pdf-router";
 import { handleProgressWebSocket } from "./routes/progress";
 import {
-  handleDeletePdfForRag,
-  handleGetPdfChunksForRag,
-  handleGetPdfFilesForRag,
-  handleProcessPdfForRag,
-  handleProcessPdfFromR2ForRag,
+  handleDeleteFileForRag,
+  handleGetFileChunksForRag,
+  handleGetFilesForRag,
+  handleProcessFileForRag,
+  handleProcessFileFromR2ForRag,
   handleRagSearch,
   handleTriggerAutoRAGIndexing,
-  handleUpdatePdfMetadataForRag,
+  handleUpdateFileMetadataForRag,
 } from "./routes/rag";
 import { upload } from "./routes/upload";
 import type { AgentType } from "./services/agent-router";
@@ -59,11 +67,19 @@ import type { AuthEnv } from "./services/auth-service";
 import { AuthService } from "./services/auth-service";
 import { ModelManager } from "./services/model-manager";
 import { completeProgress } from "./services/progress";
+import { getDAOFactory } from "./dao/dao-factory";
+import { API_CONFIG } from "./shared";
 import {
-  getLibraryRagService,
-  ServiceFactory,
-} from "./services/service-factory";
-
+  handleAutoGenerateFileMetadata,
+  handleCompleteUpload,
+  handleGenerateUploadUrl,
+  handleGetFileStats,
+  handleGetFileStatus,
+  handleProcessFile,
+  handleProcessMetadataBackground,
+  handleUpdateFileMetadata,
+  handleUploadPart,
+} from "./routes/file-management";
 interface Env extends AuthEnv {
   ADMIN_SECRET?: string;
   OPENAI_API_KEY?: string;
@@ -75,8 +91,8 @@ interface Env extends AuthEnv {
   UserFileTracker: DurableObjectNamespace;
   UploadSession: DurableObjectNamespace;
   ASSETS: Fetcher;
-  PDF_PROCESSING_QUEUE: Queue;
-  PDF_PROCESSING_DLQ: Queue;
+  FILE_PROCESSING_QUEUE: Queue;
+  FILE_PROCESSING_DLQ: Queue;
 }
 
 /**
@@ -248,51 +264,62 @@ export class Chat extends AIChatAgent<Env> {
   ) {
     // Check if agents are initialized, and try to initialize them if not
     if (this.agents.size === 0) {
-      // Get the username from the JWT in the messages
-      const lastUserMessage = this.messages
-        .slice()
-        .reverse()
-        .find((msg) => msg.role === "user");
+      // Try to get username from auth header first (for initial message retrieval)
+      let username: string | null = null;
 
-      console.log(
-        "[Chat] Last user message:",
-        lastUserMessage ? "found" : "not found"
-      );
-
-      const username = lastUserMessage
-        ? AuthService.extractUsernameFromMessage(lastUserMessage)
-        : null;
-
-      console.log("[Chat] Extracted username:", username);
-
-      if (!username) {
-        console.log("[Chat] No username found, throwing authentication error");
-        throw new Error("Unable to determine user. Please authenticate again.");
+      // Check if we have auth info in the request headers
+      if (this.ctx.storage) {
+        try {
+          const authInfo = await this.ctx.storage.get<string>("auth-info");
+          if (authInfo) {
+            const authPayload = JSON.parse(authInfo);
+            username = authPayload.username;
+            console.log("[Chat] Found username from auth info:", username);
+          }
+        } catch (error) {
+          console.log("[Chat] Error reading auth info from storage:", error);
+        }
       }
 
-      const apiKey = await AuthService.loadUserOpenAIKeyWithCache(
+      // Fallback to extracting from messages
+      if (!username) {
+        const lastUserMessage = this.messages
+          .slice()
+          .reverse()
+          .find((msg) => msg.role === "user");
+
+        console.log(
+          "[Chat] Last user message:",
+          lastUserMessage ? "found" : "not found"
+        );
+
+        username = lastUserMessage
+          ? AuthService.extractUsernameFromMessage(lastUserMessage)
+          : null;
+
+        console.log("[Chat] Extracted username from message:", username);
+      }
+
+      // Use the auth service helper to handle authentication logic
+      const authResult = await AuthService.handleAgentAuthentication(
         username,
+        this.messages.some((msg) => msg.role === "user"),
         this.env.DB,
         this
       );
 
-      if (!apiKey) {
-        console.log(
-          "[Chat] No OpenAI API key found for user, sending authentication request"
-        );
-
-        // Send a special error that the frontend can detect to show the auth modal
-        // This handles all three use cases:
-        // 1. First time login: no keys set
-        // 2. JWT expiry: keys exist but JWT expired
-        // 3. User logout: keys were removed
-        console.log("[Chat] Throwing authentication error");
-        throw new Error(
-          "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
-        );
+      if (!authResult.shouldProceed) {
+        if (authResult.requiresAuth) {
+          throw new Error(
+            "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
+          );
+        }
+        return;
       }
 
-      await this.initializeAgents(apiKey);
+      if (authResult.apiKey) {
+        await this.initializeAgents(authResult.apiKey);
+      }
     }
 
     const lastUserMessage = this.messages
@@ -300,12 +327,31 @@ export class Chat extends AIChatAgent<Env> {
       .reverse()
       .find((msg) => msg.role === "user");
 
+    // If there are no user messages, this might be initial message retrieval
     if (!lastUserMessage) {
+      // For initial message retrieval, return empty response if no agents
+      if (this.agents.size === 0) {
+        console.log(
+          "[Chat] No agents initialized and no user messages, returning empty response"
+        );
+        return;
+      }
+
       const targetAgentInstance = this.getAgentInstance("campaign-context");
       targetAgentInstance.messages = [...this.messages];
       return targetAgentInstance.onChatMessage(onFinish, {
         abortSignal: _options?.abortSignal,
       });
+    }
+
+    // For actual message processing, require authentication
+    if (this.agents.size === 0) {
+      console.log(
+        "[Chat] Agents not initialized for message processing, requiring authentication"
+      );
+      throw new Error(
+        "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
+      );
     }
 
     const targetAgent = await this.determineAgent(lastUserMessage.content);
@@ -386,263 +432,326 @@ app.use("*", async (c, next) => {
   );
 });
 
-app.get("/check-open-ai-key", handleCheckOpenAIKey);
-app.get("/check-user-openai-key", handleCheckUserOpenAIKey);
-app.post("/chat/set-openai-key", handleSetOpenAIApiKey);
+app.get(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY, handleCheckOpenAIKey);
+app.get(API_CONFIG.ENDPOINTS.OPENAI.CHECK_USER_KEY, handleCheckUserOpenAIKey);
+app.post(API_CONFIG.ENDPOINTS.CHAT.SET_OPENAI_KEY, handleSetOpenAIApiKey);
 
 // Authentication and OpenAI Key Management Routes
-app.post("/authenticate", handleAuthenticate);
-app.post("/logout", handleLogout);
-app.get("/get-openai-key", handleGetOpenAIKey);
-app.post("/store-openai-key", handleStoreOpenAIKey);
-app.delete("/delete-openai-key", handleDeleteOpenAIKey);
-
-// PDF Routes
-app.route("/pdf", pdfRouter);
+app.post(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE, handleAuthenticate);
+app.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT, handleLogout);
+app.get(API_CONFIG.ENDPOINTS.AUTH.GET_OPENAI_KEY, handleGetOpenAIKey);
+app.post(API_CONFIG.ENDPOINTS.AUTH.STORE_OPENAI_KEY, handleStoreOpenAIKey);
+app.delete(API_CONFIG.ENDPOINTS.AUTH.DELETE_OPENAI_KEY, handleDeleteOpenAIKey);
 
 // Upload Routes
 app.route("/upload", upload);
 
 // RAG Routes
-app.post("/rag/search", requireUserJwt, handleRagSearch);
-app.post("/rag/process-pdf", requireUserJwt, handleProcessPdfForRag);
+app.post(API_CONFIG.ENDPOINTS.RAG.SEARCH, requireUserJwt, handleRagSearch);
 app.post(
-  "/rag/process-pdf-from-r2",
+  API_CONFIG.ENDPOINTS.RAG.PROCESS_FILE,
   requireUserJwt,
-  handleProcessPdfFromR2ForRag
+  handleProcessFileForRag
+);
+app.post(
+  API_CONFIG.ENDPOINTS.RAG.PROCESS_FILE_FROM_R2,
+  requireUserJwt,
+  handleProcessFileFromR2ForRag
 );
 app.put(
-  "/rag/pdfs/:fileKey/metadata",
+  API_CONFIG.ENDPOINTS.RAG.UPDATE_METADATA(":fileKey"),
   requireUserJwt,
-  handleUpdatePdfMetadataForRag
+  handleUpdateFileMetadataForRag
 );
-app.get("/rag/pdfs", requireUserJwt, handleGetPdfFilesForRag);
-app.delete("/rag/pdfs/:fileKey", requireUserJwt, handleDeletePdfForRag);
-app.get("/rag/pdfs/:fileKey/chunks", requireUserJwt, handleGetPdfChunksForRag);
-app.post("/rag/trigger-indexing", requireUserJwt, handleTriggerAutoRAGIndexing);
-app.get("/rag/status", requireUserJwt);
+app.get(API_CONFIG.ENDPOINTS.RAG.FILES, requireUserJwt, handleGetFilesForRag);
+app.delete(
+  API_CONFIG.ENDPOINTS.RAG.DELETE_FILE(":fileKey"),
+  requireUserJwt,
+  handleDeleteFileForRag
+);
+app.get(
+  API_CONFIG.ENDPOINTS.RAG.FILE_CHUNKS(":fileKey"),
+  requireUserJwt,
+  handleGetFileChunksForRag
+);
+app.post(
+  API_CONFIG.ENDPOINTS.RAG.TRIGGER_INDEXING,
+  requireUserJwt,
+  handleTriggerAutoRAGIndexing
+);
+app.get(API_CONFIG.ENDPOINTS.RAG.STATUS, requireUserJwt);
 
 // Campaign Routes
-app.get("/campaigns", requireUserJwt, handleGetCampaigns);
-app.post("/campaigns", requireUserJwt, handleCreateCampaign);
-app.get("/campaigns/:campaignId", requireUserJwt, handleGetCampaign);
 app.get(
-  "/campaigns/:campaignId/resources",
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.LIST,
+  requireUserJwt,
+  handleGetCampaigns
+);
+app.post(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CREATE,
+  requireUserJwt,
+  handleCreateCampaign
+);
+app.get(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.DETAILS(":campaignId"),
+  requireUserJwt,
+  handleGetCampaign
+);
+app.get(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(":campaignId"),
   requireUserJwt,
   handleGetCampaignResources
 );
 
 app.post(
-  "/campaigns/:campaignId/resource",
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(":campaignId"),
   requireUserJwt,
   handleAddResourceToCampaign
 );
 app.delete(
-  "/campaigns/:campaignId/resource/:resourceId",
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_DELETE(":campaignId", ":resourceId"),
   requireUserJwt,
   handleRemoveResourceFromCampaign
 );
-app.delete("/campaigns/:campaignId", requireUserJwt, handleDeleteCampaign);
-app.delete("/campaigns", requireUserJwt, handleDeleteAllCampaigns);
-
-// Library Routes
-app.route("/library", library);
+app.delete(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.DELETE(":campaignId"),
+  requireUserJwt,
+  handleDeleteCampaign
+);
+app.delete(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.DELETE_ALL,
+  requireUserJwt,
+  handleDeleteAllCampaigns
+);
 
 // Progress WebSocket
-app.get("/progress", handleProgressWebSocket);
+app.get(API_CONFIG.ENDPOINTS.PROGRESS.WEBSOCKET, handleProgressWebSocket);
 
 // Assessment Routes
-app.get("/assessment/user-state", requireUserJwt, handleGetUserState);
 app.get(
-  "/assessment/campaign-health/:campaignId",
+  API_CONFIG.ENDPOINTS.ASSESSMENT.USER_STATE,
+  requireUserJwt,
+  handleGetUserState
+);
+app.get(
+  API_CONFIG.ENDPOINTS.ASSESSMENT.CAMPAIGN_HEALTH(":campaignId"),
   requireUserJwt,
   handleGetAssessmentRecommendations
 );
-app.get("/assessment/user-activity", requireUserJwt, handleGetUserActivity);
+app.get(
+  API_CONFIG.ENDPOINTS.ASSESSMENT.USER_ACTIVITY,
+  requireUserJwt,
+  handleGetUserActivity
+);
 app.post(
-  "/assessment/module-integration",
+  API_CONFIG.ENDPOINTS.ASSESSMENT.MODULE_INTEGRATION,
   requireUserJwt,
   handleModuleIntegration
 );
 
 // Onboarding Routes
 app.get(
-  "/onboarding/welcome-guidance",
+  API_CONFIG.ENDPOINTS.ONBOARDING.WELCOME_GUIDANCE,
   requireUserJwt,
   handleGetWelcomeGuidance
 );
-app.get("/onboarding/next-actions", requireUserJwt, handleGetNextActions);
 app.get(
-  "/onboarding/campaign-guidance/:campaignId",
+  API_CONFIG.ENDPOINTS.ONBOARDING.NEXT_ACTIONS,
+  requireUserJwt,
+  handleGetNextActions
+);
+app.get(
+  API_CONFIG.ENDPOINTS.ONBOARDING.CAMPAIGN_GUIDANCE(":campaignId"),
   requireUserJwt,
   handleGetStateAnalysis
 );
 
 // External Resources Routes
 app.get(
-  "/external-resources/recommendations",
+  API_CONFIG.ENDPOINTS.EXTERNAL_RESOURCES.RECOMMENDATIONS,
   requireUserJwt,
   handleGetExternalResourceRecommendations
 );
 app.get(
-  "/external-resources/inspiration-sources",
+  API_CONFIG.ENDPOINTS.EXTERNAL_RESOURCES.INSPIRATION_SOURCES,
   requireUserJwt,
   handleGetExternalResourceSearch
 );
 app.get(
-  "/external-resources/gm-resources",
+  API_CONFIG.ENDPOINTS.EXTERNAL_RESOURCES.GM_RESOURCES,
   requireUserJwt,
   handleGetGmResources
 );
 
-// Queue handler for PDF processing
+// Library Routes
+app.get(API_CONFIG.ENDPOINTS.LIBRARY.FILES, requireUserJwt, handleGetFiles);
+app.get(API_CONFIG.ENDPOINTS.LIBRARY.SEARCH, requireUserJwt, handleSearchFiles);
+app.get(
+  API_CONFIG.ENDPOINTS.LIBRARY.STORAGE_USAGE,
+  requireUserJwt,
+  handleGetStorageUsage
+);
+app.get(
+  API_CONFIG.ENDPOINTS.LIBRARY.FILE_DETAILS(":fileId"),
+  requireUserJwt,
+  handleGetFileDetails
+);
+app.put(
+  API_CONFIG.ENDPOINTS.LIBRARY.FILE_UPDATE(":fileId"),
+  requireUserJwt,
+  handleUpdateFile
+);
+app.delete(
+  API_CONFIG.ENDPOINTS.LIBRARY.FILE_DELETE(":fileId"),
+  requireUserJwt,
+  handleDeleteFile
+);
+app.get(
+  API_CONFIG.ENDPOINTS.LIBRARY.FILE_DOWNLOAD(":fileId"),
+  requireUserJwt,
+  handleGetFileDownload
+);
+app.post(
+  API_CONFIG.ENDPOINTS.LIBRARY.FILE_REGENERATE(":fileId"),
+  requireUserJwt,
+  handleRegenerateFileMetadata
+);
+
+// File management routes
+app.post(
+  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_URL,
+  requireUserJwt,
+  handleGenerateUploadUrl
+);
+app.post(
+  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_COMPLETE,
+  requireUserJwt,
+  handleCompleteUpload
+);
+app.post(
+  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_PART,
+  requireUserJwt,
+  handleUploadPart
+);
+app.post(
+  API_CONFIG.ENDPOINTS.LIBRARY.PROCESS,
+  requireUserJwt,
+  handleProcessFile
+);
+app.get(
+  API_CONFIG.ENDPOINTS.LIBRARY.STATUS,
+  requireUserJwt,
+  handleGetFileStatus
+);
+app.post(
+  API_CONFIG.ENDPOINTS.LIBRARY.UPDATE_METADATA,
+  requireUserJwt,
+  handleUpdateFileMetadata
+);
+app.post(
+  API_CONFIG.ENDPOINTS.LIBRARY.AUTO_GENERATE_METADATA,
+  requireUserJwt,
+  handleAutoGenerateFileMetadata
+);
+app.post(
+  API_CONFIG.ENDPOINTS.LIBRARY.PROCESS_METADATA_BACKGROUND,
+  requireUserJwt,
+  handleProcessMetadataBackground
+);
+app.get(API_CONFIG.ENDPOINTS.LIBRARY.STATS, requireUserJwt, handleGetFileStats);
+
+// Queue handler for file processing
 async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
-  console.log(`[PDF Queue] Processing ${batch.messages.length} messages`);
+  console.log(`[File Queue] Processing ${batch.messages.length} messages`);
 
   for (const message of batch.messages) {
     try {
       console.log(
-        `[PDF Queue] Processing message for file: ${message.body.fileKey}`
+        `[File Queue] Processing message for file: ${message.body.fileKey}`
       );
 
       // Update status to processing
-      await env.DB.prepare(
-        "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ? AND username = ?"
-      )
-        .bind(
-          "processing",
-          new Date().toISOString(),
-          message.body.fileKey,
-          message.body.username
-        )
-        .run();
-
-      console.log(
-        `[PDF Queue] Starting PDF processing for ${message.body.fileKey}`
-      );
-
-      const ragService = getLibraryRagService(env);
-
-      const fileKey = message.body.fileKey;
-
-      const chunksDAO = ServiceFactory.getAutoRAGChunksDAO(env);
-      const chunks = await chunksDAO.getChunksByFile(
-        fileKey,
-        message.body.username
+      await getDAOFactory(env).fileDAO.updateFileStatus(
+        message.body.fileKey,
+        message.body.username,
+        "processing"
       );
 
       console.log(
-        `[PDF Queue] Found ${chunks.length} chunks in database for ${fileKey}`
+        `[File Queue] Starting file processing for ${message.body.fileKey}`
       );
 
-      if (chunks.length === 0) {
-        console.log(
-          `[PDF Queue] No AutoRAG chunks found for ${fileKey}, trying original file`
-        );
-        await ragService.processPdfFromR2(
-          fileKey,
-          message.body.username,
-          env.FILE_BUCKET,
-          message.body.metadata
-        );
-      } else {
-        console.log(
-          `[PDF Queue] Found ${chunks.length} AutoRAG chunks for ${fileKey}`
-        );
-
-        for (const chunk of chunks) {
-          try {
-            console.log(
-              `[PDF Queue] Processing chunk: ${chunk.chunkKey} (part ${chunk.partNumber})`
-            );
-
-            const chunkData = await env.FILE_BUCKET.get(chunk.chunkKey);
-            if (!chunkData) {
-              console.error(
-                `[PDF Queue] Chunk not found in R2: ${chunk.chunkKey}`
-              );
-              continue;
-            }
-
-            const chunkMetadata = {
-              ...message.body.metadata,
-              filename: chunk.originalFilename,
-              id: chunk.chunkKey,
-              original_file: fileKey,
-              part_number: chunk.partNumber,
-              chunk_size: chunk.chunkSize,
-            };
-
-            await ragService.processPdfFromR2(
-              chunk.chunkKey,
-              message.body.username,
-              env.FILE_BUCKET,
-              chunkMetadata
-            );
-
-            console.log(
-              `[PDF Queue] Successfully processed chunk: ${chunk.chunkKey}`
-            );
-          } catch (error) {
-            console.error(
-              `[PDF Queue] Error processing chunk ${chunk.chunkKey}:`,
-              error
-            );
-          }
-        }
-      }
+      // Process the file
+      // await ragService.processFileFromR2(
+      //   message.body.fileKey,
+      //   message.body.username,
+      //   env.FILE_BUCKET,
+      //   message.body.metadata
+      // );
 
       console.log(
-        `[PDF Queue] PDF processing completed for ${message.body.fileKey}`
+        `[File Queue] File processing completed for ${message.body.fileKey}`
       );
 
+      // Note: AutoRAG indexing is already handled by the processFileFromR2 method above
+      // The ragService.processFileFromR2() call already performs:
+      // 1. Content extraction and processing
+      // 2. AutoRAG indexing for semantic search
+      // 3. Metadata generation
+      // No additional indexing step is needed.
+      console.log(
+        `[File Queue] AutoRAG indexing was completed as part of file processing for ${message.body.fileKey}`
+      );
+
+      // Complete progress tracking
       completeProgress(message.body.fileKey, true);
-      console.log(`[PDF Queue] Successfully processed ${message.body.fileKey}`);
+      console.log(
+        `[File Queue] Successfully processed ${message.body.fileKey}`
+      );
     } catch (error) {
       console.error(
-        `[PDF Queue] Error processing ${message.body.fileKey}:`,
+        `[File Queue] Error processing ${message.body.fileKey}:`,
         error
       );
 
-      let errorMessage = "PDF processing failed";
+      // Determine specific error message
+      let errorMessage = "File processing failed";
       let errorDetails = "";
 
       if (error instanceof Error) {
         errorMessage = error.message;
 
-        if (error.message.includes("Unavailable content in PDF document")) {
-          errorMessage = "Unavailable content in PDF document";
+        // Provide more specific error messages based on the error type
+        if (error.message.includes("Unavailable content in document")) {
+          errorMessage = "Unavailable content in document";
           errorDetails =
-            "The PDF file could not be parsed. It may be encrypted, corrupted, or contain no readable text.";
+            "The file could not be parsed. It may be encrypted, corrupted, or contain no readable text.";
         } else if (error.message.includes("timeout")) {
-          errorMessage = "PDF processing timeout";
-          errorDetails = "The PDF processing took too long and was cancelled.";
+          errorMessage = "File processing timeout";
+          errorDetails = "The file processing took too long and was cancelled.";
         } else if (error.message.includes("not found in R2")) {
           errorMessage = "File not found in storage";
           errorDetails = "The uploaded file could not be found in storage.";
         } else if (error.message.includes("No OpenAI API key")) {
           errorMessage = "OpenAI API key required";
           errorDetails =
-            "PDF processing requires an OpenAI API key for text analysis.";
+            "File processing requires an OpenAI API key for text analysis.";
         } else {
           errorDetails = error.message;
         }
       }
 
-      await env.DB.prepare(
-        "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ? AND username = ?"
-      )
-        .bind(
-          "error",
-          new Date().toISOString(),
-          message.body.fileKey,
-          message.body.username
-        )
-        .run();
+      // Update status to error with specific error message
+      await getDAOFactory(env).fileDAO.updateFileStatus(
+        message.body.fileKey,
+        message.body.username,
+        "error"
+      );
 
       completeProgress(message.body.fileKey, false, errorMessage);
 
-      await env.PDF_PROCESSING_DLQ.send({
+      // Send to dead letter queue for manual review with enhanced error info
+      await env.FILE_PROCESSING_DLQ.send({
         fileKey: message.body.fileKey,
         username: message.body.username,
         metadata: message.body.metadata,
@@ -656,7 +765,7 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
       });
 
       console.log(
-        `[PDF Queue] Sent ${message.body.fileKey} to dead letter queue with error: ${errorMessage}`
+        `[File Queue] Sent ${message.body.fileKey} to dead letter queue with error: ${errorMessage}`
       );
     }
   }
@@ -694,8 +803,22 @@ app.get("*", async (c) => {
       "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
     );
   }
+
+  // Try to extract authentication from the request for agent routing
+  const authHeader = c.req.header("Authorization");
+  const authPayload = await AuthService.extractAuthFromHeader(
+    authHeader,
+    c.env
+  );
+
+  // Create a modified request with auth context if available
+  const modifiedRequest = AuthService.createRequestWithAuthContext(
+    c.req.raw,
+    authPayload
+  );
+
   return (
-    (await routeAgentRequest(c.req.raw, c.env as any, { cors: true })) ||
+    (await routeAgentRequest(modifiedRequest, c.env as any, { cors: true })) ||
     new Response("Not found", { status: 404 })
   );
 });

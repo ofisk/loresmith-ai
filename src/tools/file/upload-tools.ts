@@ -20,12 +20,11 @@ function getEnvFromContext(context: any): any {
   return null;
 }
 
-// Tool to generate PDF upload URL
-export const generatePdfUploadUrl = tool({
-  description:
-    "Generate a secure upload URL for uploading PDF files to the system",
+// Tool to generate file upload URL
+export const generateFileUploadUrl = tool({
+  description: "Generate a secure upload URL for uploading files to the system",
   parameters: z.object({
-    fileName: z.string().describe("The name of the PDF file to upload"),
+    fileName: z.string().describe("The name of the file to upload"),
     fileSize: z.number().describe("The size of the file in bytes"),
     jwt: commonSchemas.jwt,
   }),
@@ -64,7 +63,7 @@ export const generatePdfUploadUrl = tool({
 
         // Generate upload URL using the new multipart upload system
         const response = await fetch(
-          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.UPLOAD_URL),
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_URL),
           {
             method: "POST",
             headers: {
@@ -90,7 +89,7 @@ export const generatePdfUploadUrl = tool({
 
         const result = (await response.json()) as any;
         const uploadUrl = API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.PDF.UPLOAD_URL
+          API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_URL
         );
         const fileKey = result.fileKey;
 
@@ -111,7 +110,7 @@ export const generatePdfUploadUrl = tool({
 
       // Otherwise, make HTTP request
       const response = await authenticatedFetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.UPLOAD_URL),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_URL),
         {
           method: "POST",
           jwt,
@@ -153,11 +152,11 @@ export const generatePdfUploadUrl = tool({
   },
 });
 
-// Tool to complete PDF upload
-export const completePdfUpload = tool({
-  description: "Complete the PDF upload process and process the uploaded file",
+// Tool to complete file upload
+export const completeFileUpload = tool({
+  description: "Complete the file upload process and process the uploaded file",
   parameters: z.object({
-    fileKey: z.string().describe("The file key of the uploaded PDF"),
+    fileKey: z.string().describe("The file key of the uploaded file"),
     jwt: commonSchemas.jwt,
   }),
   execute: async ({ fileKey, jwt }, context?: any): Promise<ToolResult> => {
@@ -209,7 +208,7 @@ export const completePdfUpload = tool({
 
       // Otherwise, make HTTP request
       const response = await authenticatedFetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.UPLOAD),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_COMPLETE),
         {
           method: "POST",
           jwt,
@@ -270,7 +269,7 @@ async function processPdfTool(
   try {
     // Make HTTP request to process PDF
     const response = await authenticatedFetch(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.PROCESS),
+      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.PROCESS),
       {
         method: "POST",
         jwt,
@@ -312,11 +311,11 @@ async function processPdfTool(
   }
 }
 
-export const processPdfFile = tool({
+export const processFile = tool({
   description:
-    "Process a PDF file for text extraction and content processing. Can be used for initial ingestion or retrying failed processing.",
+    "Process a file for text extraction and content processing. Can be used for initial ingestion or retrying failed processing.",
   parameters: z.object({
-    fileKey: z.string().describe("The file key of the PDF to process"),
+    fileKey: z.string().describe("The file key of the file to process"),
     jwt: commonSchemas.jwt,
     operation: z
       .enum(["ingest", "retry"])
@@ -327,11 +326,11 @@ export const processPdfFile = tool({
       .string()
       .optional()
       .describe("Filename (required for ingest operations)"),
-    description: z.string().optional().describe("Description of the PDF file"),
+    description: z.string().optional().describe("Description of the file"),
     tags: z
       .array(z.string())
       .optional()
-      .describe("Tags for categorizing the PDF file"),
+      .describe("Tags for categorizing the file"),
   }),
   execute: async (
     { fileKey, jwt, operation, filename, description, tags },
@@ -350,7 +349,7 @@ export const processPdfFile = tool({
     if (operation === "ingest" && !filename) {
       return createToolError(
         "Filename is required for ingest operations",
-        "Please provide a filename when ingesting a new PDF file",
+        "Please provide a filename when ingesting a new file",
         400,
         context?.toolCallId || "unknown"
       );

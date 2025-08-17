@@ -23,7 +23,7 @@ export const provideWelcomeGuidanceTool = tool({
 I'm here to help you become a better Game Master by managing your inspiration library, creating rich campaign contexts, and planning engaging sessions.
 
 **What I can help you with:**
-• **Inspiration Library**: Upload and organize PDFs, maps, character art, and other resources
+• **Inspiration Library**: Upload and organize documents, maps, character art, and other resources
 • **Campaign Context**: Create detailed worlds, NPCs, and story elements
 • **Session Planning**: Plan engaging sessions with hooks, encounters, and story beats
 
@@ -31,7 +31,7 @@ Let's get you started! What would you like to do first?`,
           primaryAction: {
             title: "Upload Your First Resource",
             description:
-              "Click the 'Add to library' button to upload PDFs, images, or documents to your inspiration library",
+              "Click the 'Add to library' button to upload documents, images, or other files to your inspiration library",
             action: "upload_resource",
             priority: "high",
             estimatedTime: "5 minutes",

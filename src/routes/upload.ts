@@ -109,20 +109,6 @@ upload.post("/complete", async (c) => {
 
     console.log(`[Upload] AutoRAG processing will be triggered for ${fileKey}`);
 
-    // Always count AutoRAG parts since we always create them
-    const parts = fileKey.split("/");
-    const username = parts[0];
-    const originalFilename = parts[parts.length - 1] || "unknown";
-    const prefix = `${username}/part-`;
-    const objects = await c.env.FILE_BUCKET.list({ prefix });
-    const partCount =
-      objects.objects?.filter(
-        (obj) =>
-          obj.key.includes(`part-`) &&
-          obj.key.includes(originalFilename) &&
-          (obj.key.endsWith(".txt") || obj.key.endsWith(".chunk"))
-      ).length || 0;
-
     // Leave metadata blank - let AutoRAG generate meaningful metadata
     const processedMetadata = {
       description: "",
@@ -130,19 +116,19 @@ upload.post("/complete", async (c) => {
       vectorId: null,
     };
 
-    // Also create an entry in the pdf_files table for PDF tools
+    // Also create an entry in the files table for file tools
     const now = new Date().toISOString();
-    const pdfFileId = crypto.randomUUID();
+    const fileId = crypto.randomUUID();
 
     // Extract filename from fileKey
     const filename = fileKey.split("/").pop() || metadata.filename;
 
     try {
       await c.env.DB.prepare(
-        "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size, chunk_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO files (id, file_key, file_name, description, tags, username, status, created_at, file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
       )
         .bind(
-          pdfFileId,
+          fileId,
           fileKey,
           filename,
           processedMetadata.description || "",
@@ -150,20 +136,19 @@ upload.post("/complete", async (c) => {
           userId,
           "completed",
           now,
-          metadata.fileSize || 0,
-          partCount
+          metadata.fileSize || 0
         )
         .run();
 
-      console.log(`[Upload] Created PDF file entry:`, {
-        pdfFileId,
+      console.log(`[Upload] Created file entry:`, {
+        fileId,
         fileKey,
         filename,
         userId,
       });
     } catch (error) {
-      console.error("[Upload] Error creating PDF file entry:", error);
-      // Don't fail the upload if PDF file entry creation fails
+      console.error("[Upload] Error creating file entry:", error);
+      // Don't fail the upload if file entry creation fails
     }
 
     console.log(`[Upload] Completed upload:`, {
@@ -177,7 +162,7 @@ upload.post("/complete", async (c) => {
     const userAuth = c.get("userAuth");
     if (userAuth) {
       console.log(`[Upload] Triggering AutoRAG processing for: ${fileKey}`);
-      await c.env.PDF_PROCESSING_QUEUE.send({
+      await c.env.FILE_PROCESSING_QUEUE.send({
         fileKey: fileKey,
         username: userAuth.username,
         openaiApiKey: userAuth.openaiApiKey,

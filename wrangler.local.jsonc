@@ -54,12 +54,12 @@
   "queues": {
     "producers": [
       {
-        "queue": "pdf-processing-queue",
-        "binding": "PDF_PROCESSING_QUEUE",
+        "queue": "file-processing-queue",
+        "binding": "FILE_PROCESSING_QUEUE",
       },
       {
-        "queue": "pdf-processing-dlq",
-        "binding": "PDF_PROCESSING_DLQ",
+        "queue": "file-processing-dlq",
+        "binding": "FILE_PROCESSING_DLQ",
       },
     ],
   },

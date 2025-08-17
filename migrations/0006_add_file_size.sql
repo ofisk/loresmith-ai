@@ -1,4 +1,4 @@
--- add file_size column to pdf_files table
+-- add file_size column to files table
 -- this column stores the file size in bytes for statistics calculation
 
-alter table pdf_files add column file_size integer default 0; 
+alter table files add column file_size integer default 0; 

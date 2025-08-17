@@ -36,21 +36,21 @@ import { API_CONFIG } from "./shared";
 
 import type { campaignTools } from "./tools/campaign";
 import type { generalTools } from "./tools/general";
-import type { pdfTools } from "./tools/pdf";
+import type { fileTools } from "./tools/file";
 
 // List of tools that require human confirmation
 // NOTE: this should match the keys in the executions object in tools.ts
 const toolsRequiringConfirmation: (
   | keyof typeof generalTools
   | keyof typeof campaignTools
-  | keyof typeof pdfTools
+  | keyof typeof fileTools
 )[] = [
   // Campaign tools that require confirmation
   "createCampaign",
 
-  // Resource/PDF tools that require confirmation
-  "updatePdfMetadata",
-  "deletePdfFile",
+  // Resource tools that require confirmation
+  "updateFileMetadata",
+  "deleteFile",
 ];
 
 /**
@@ -470,7 +470,7 @@ export default function Chat() {
           part.toolInvocation.toolName as
             | keyof typeof generalTools
             | keyof typeof campaignTools
-            | keyof typeof pdfTools
+            | keyof typeof fileTools
         )
     )
   );
@@ -744,7 +744,7 @@ export default function Chat() {
                                       toolInvocation.toolName as
                                         | keyof typeof generalTools
                                         | keyof typeof campaignTools
-                                        | keyof typeof pdfTools
+                                        | keyof typeof fileTools
                                     );
 
                                   // Skip rendering the card when debug is off

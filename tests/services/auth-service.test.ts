@@ -13,8 +13,8 @@ const mockEnv = {
   UserFileTracker: {} as DurableObjectNamespace,
   UploadSession: {} as DurableObjectNamespace,
   ASSETS: {} as any,
-  PDF_PROCESSING_QUEUE: {} as any,
-  PDF_PROCESSING_DLQ: {} as any,
+  FILE_PROCESSING_QUEUE: {} as any,
+  FILE_PROCESSING_DLQ: {} as any,
 };
 
 // Mock environment with Cloudflare secrets store
@@ -30,8 +30,8 @@ const mockCloudflareEnv = {
   UserFileTracker: {} as DurableObjectNamespace,
   UploadSession: {} as DurableObjectNamespace,
   ASSETS: {} as any,
-  PDF_PROCESSING_QUEUE: {} as any,
-  PDF_PROCESSING_DLQ: {} as any,
+  FILE_PROCESSING_QUEUE: {} as any,
+  FILE_PROCESSING_DLQ: {} as any,
 };
 
 // Mock environment without admin secret
@@ -45,8 +45,8 @@ const mockNoAdminEnv = {
   UserFileTracker: {} as DurableObjectNamespace,
   UploadSession: {} as DurableObjectNamespace,
   ASSETS: {} as any,
-  PDF_PROCESSING_QUEUE: {} as any,
-  PDF_PROCESSING_DLQ: {} as any,
+  FILE_PROCESSING_QUEUE: {} as any,
+  FILE_PROCESSING_DLQ: {} as any,
 };
 
 describe("AuthService", () => {
@@ -94,8 +94,8 @@ describe("AuthService", () => {
         UserFileTracker: {} as DurableObjectNamespace,
         UploadSession: {} as DurableObjectNamespace,
         ASSETS: {} as any,
-        PDF_PROCESSING_QUEUE: {} as any,
-        PDF_PROCESSING_DLQ: {} as any,
+        FILE_PROCESSING_QUEUE: {} as any,
+        FILE_PROCESSING_DLQ: {} as any,
       };
       const errorAuthService = new AuthService(errorEnv);
       const secret = await errorAuthService.getJwtSecret();

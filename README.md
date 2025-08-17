@@ -8,7 +8,7 @@ Features:
 
 - Conversational AI chat with campaign management
 - Campaign creation and management with resource mapping
-- File upload and processing (current limit: 200MB)
+- File upload and processing (current limit: 500MB)
 - Supports character management via [DND Beyond](https://www.dndbeyond.com/)
 - Maintains character state and helps plan character journeys
 - RAG (Retrieval-Augmented Generation) for campaign content
@@ -127,7 +127,6 @@ chmod +x scripts/migrate-local.sh
 ```
 
 This will create all necessary tables including `user_openai_keys`, `campaigns`, `file_metadata`, etc.
-TODO: aniham this isn't a correct description, but we need to run a big migration to change tables to not include pdf in them
 
 #### 3. Start the Cloudflare Worker server
 
@@ -244,7 +243,6 @@ For production deployment, the `.vars` file contains the following variables:
 ### Cloudflare Resources
 
 - **R2 Bucket**: `loresmith-files` for file storage
-  TODO aniham this is wrong also should rename to files eventually in R2
 - **Durable Objects**: `Chat` and `SessionFileTracker` for state management
 - **Workers**: Main application deployment
 
@@ -314,7 +312,7 @@ Uploaded files are processed through a secure pipeline:
 For detailed information about specific aspects of the project, see:
 
 - **[Storage Strategy](docs/STORAGE_STRATEGY.md)** - Comprehensive guide to data storage architecture using Cloudflare D1, R2, and Durable Objects
-- **[Large File Support](docs/LARGE_FILE_SUPPORT.md)** - Details on handling large files (up to 500MB) for D&D rulebooks and campaign guides
+- **[Large File Support](docs/LARGE_FILE_SUPPORT.md)** - Details on handling large document files (up to 500MB) for D&D rulebooks and campaign guides
 - **[Model Configuration](docs/MODEL_CONFIGURATION.md)** - Guide to configuring and changing AI models used throughout the application
 - **[Testing Guide](docs/TESTING_GUIDE.md)** - Comprehensive testing documentation and campaign workflow test suite
 

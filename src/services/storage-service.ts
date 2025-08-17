@@ -1,4 +1,5 @@
 import type { Env } from "../middleware/auth";
+import { getDAOFactory } from "../dao/dao-factory";
 
 export interface StorageUsage {
   username: string;
@@ -26,21 +27,18 @@ export class StorageService {
     isAdmin: boolean
   ): Promise<StorageUsage> {
     try {
-      // Get total file size for user from database
-      const result = await this.env.DB.prepare(
-        `
-        SELECT 
-          COALESCE(SUM(file_size), 0) as totalBytes,
-          COUNT(*) as fileCount
-        FROM pdf_files 
-        WHERE username = ? AND status != 'error'
-      `
-      )
-        .bind(username)
-        .first();
+      const fileDAO = getDAOFactory(this.env).fileDAO;
 
-      const totalBytes = (result?.totalBytes as number) || 0;
-      const fileCount = (result?.fileCount as number) || 0;
+      // Get all files for the user
+      const files = await fileDAO.getFilesForRag(username);
+
+      // Calculate total bytes and file count (excluding error status)
+      const validFiles = files.filter((file: any) => file.status !== "error");
+      const totalBytes = validFiles.reduce(
+        (sum: number, file: any) => sum + (file.file_size || 0),
+        0
+      );
+      const fileCount = validFiles.length;
 
       // Admin users have unlimited storage
       const limitBytes = isAdmin ? Infinity : this.STORAGE_LIMIT_BYTES;
@@ -121,45 +119,52 @@ export class StorageService {
    */
   async getAllUsersStorageUsage(): Promise<StorageUsage[]> {
     try {
-      const result = await this.env.DB.prepare(
-        `
-        SELECT 
+      const fileDAO = getDAOFactory(this.env).fileDAO;
+
+      // Get all files and group by username
+      const allFiles = await fileDAO.getAllFilesForStorageUsage();
+
+      // Group files by username and calculate usage
+      const userUsageMap = new Map<
+        string,
+        { totalBytes: number; fileCount: number }
+      >();
+
+      allFiles.forEach((file: any) => {
+        if (file.status === "error") return; // Skip error files
+
+        const current = userUsageMap.get(file.username) || {
+          totalBytes: 0,
+          fileCount: 0,
+        };
+        current.totalBytes += file.file_size || 0;
+        current.fileCount += 1;
+        userUsageMap.set(file.username, current);
+      });
+
+      return Array.from(userUsageMap.entries()).map(([username, usage]) => {
+        // Check if user is admin by looking for admin key usage in recent auth
+        // This is a simplified approach - in production you might want a separate admin table
+        const isAdmin = false; // Default to false for now
+
+        const totalBytes = usage.totalBytes;
+        const fileCount = usage.fileCount;
+        const limitBytes = isAdmin ? Infinity : this.STORAGE_LIMIT_BYTES;
+        const remainingBytes = isAdmin
+          ? Infinity
+          : Math.max(0, limitBytes - totalBytes);
+        const usagePercentage = isAdmin ? 0 : (totalBytes / limitBytes) * 100;
+
+        return {
           username,
-          COALESCE(SUM(file_size), 0) as totalBytes,
-          COUNT(*) as fileCount
-        FROM pdf_files 
-        WHERE status != 'error'
-        GROUP BY username
-      `
-      ).all();
-
-      const users = (result.results as any[]) || [];
-
-      return await Promise.all(
-        users.map(async (user) => {
-          // Check if user is admin by looking for admin key usage in recent auth
-          // This is a simplified approach - in production you might want a separate admin table
-          const isAdmin = false; // Default to false for now
-
-          const totalBytes = (user.totalBytes as number) || 0;
-          const fileCount = (user.fileCount as number) || 0;
-          const limitBytes = isAdmin ? Infinity : this.STORAGE_LIMIT_BYTES;
-          const remainingBytes = isAdmin
-            ? Infinity
-            : Math.max(0, limitBytes - totalBytes);
-          const usagePercentage = isAdmin ? 0 : (totalBytes / limitBytes) * 100;
-
-          return {
-            username: user.username,
-            totalBytes,
-            fileCount,
-            isAdmin,
-            limitBytes,
-            remainingBytes,
-            usagePercentage,
-          };
-        })
-      );
+          totalBytes,
+          fileCount,
+          isAdmin,
+          limitBytes,
+          remainingBytes,
+          usagePercentage,
+        };
+      });
     } catch (error) {
       console.error(
         "[StorageService] Error getting all users storage usage:",
