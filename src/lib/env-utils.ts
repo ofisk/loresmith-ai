@@ -73,17 +73,3 @@ export async function getEnvVar(
 export async function getAdminSecret(env: EnvWithSecrets): Promise<string> {
   return getEnvVar(env, "ADMIN_SECRET");
 }
-
-/**
- * Example usage:
- *
- * // Get required environment variable (throws if not found)
- * const adminSecret = await getEnvVar(env, 'ADMIN_SECRET');
- *
- * // Get optional environment variable (returns empty string if not found)
- * const optionalVar = await getEnvVar(env, 'OPTIONAL_VAR', false);
- *
- * // Get any other environment variable
- * const apiKey = await getEnvVar(env, 'OPENAI_API_KEY');
- * const corsOrigins = await getEnvVar(env, 'CORS_ALLOWED_ORIGINS');
- */

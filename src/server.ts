@@ -59,6 +59,10 @@ import type { AuthEnv } from "./services/auth-service";
 import { AuthService } from "./services/auth-service";
 import { ModelManager } from "./services/model-manager";
 import { completeProgress } from "./services/progress";
+import {
+  getLibraryRagService,
+  ServiceFactory,
+} from "./services/service-factory";
 
 interface Env extends AuthEnv {
   ADMIN_SECRET?: string;
@@ -75,8 +79,6 @@ interface Env extends AuthEnv {
   PDF_PROCESSING_DLQ: Queue;
 }
 
-// Progress tracking store (moved to services/progress.ts)
-
 /**
  * Chat Agent implementation that routes to specialized agents based on user intent
  */
@@ -87,11 +89,8 @@ export class Chat extends AIChatAgent<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
 
-    // Initialize agents lazily - only when API key is available
-    // Initialize agents Map (will be populated when agents are created)
     this.agents = new Map();
 
-    // Load user's OpenAI key from storage if available
     this.loadUserOpenAIKey();
   }
 
@@ -111,26 +110,19 @@ export class Chat extends AIChatAgent<Env> {
     }
   }
 
-  /**
-   * Initialize agents with the provided API key
-   */
   private async initializeAgents(apiKey: string) {
     try {
-      // Initialize the global model manager with the user's API key
       const modelManager = ModelManager.getInstance();
       modelManager.initializeModel(apiKey);
 
-      // Import the agent registry to ensure agents are registered
       const { AgentRegistryService } = await import(
         "./services/agent-registry"
       );
 
-      // Initialize all agents dynamically using the registry
       const registeredAgentTypes =
         await AgentRegistryService.getRegisteredAgentTypes();
 
       for (const agentType of registeredAgentTypes) {
-        // Get the agent class and create an instance
         const agentClass = await AgentRegistryService.getAgentClass(
           agentType as AgentType
         );
@@ -155,7 +147,6 @@ export class Chat extends AIChatAgent<Env> {
     }
   }
 
-  // OpenAIKeyCache interface implementation
   getCachedKey(): string | null {
     return this.userOpenAIKey;
   }
@@ -168,10 +159,8 @@ export class Chat extends AIChatAgent<Env> {
    */
   async setUserOpenAIKey(apiKey: string) {
     this.userOpenAIKey = apiKey;
-    // Store the API key in the durable object state
     this.ctx.storage.put("userOpenAIKey", apiKey);
 
-    // Initialize agents with the new API key
     await this.initializeAgents(apiKey);
   }
 
@@ -216,7 +205,6 @@ export class Chat extends AIChatAgent<Env> {
       return this.handleSetUserOpenAIKeyRequest(request);
     }
 
-    // For all other requests, use the parent class implementation
     return super.fetch(request);
   }
 
@@ -225,11 +213,9 @@ export class Chat extends AIChatAgent<Env> {
    * based on keywords and intent in the message and conversation context
    */
   private async determineAgent(userMessage: string): Promise<string> {
-    // Get the model from the global model manager
     const modelManager = ModelManager.getInstance();
     const model = modelManager.getModel();
 
-    // If no model is available, we can't route properly
     if (!model) {
       console.log(
         "[Chat] No model available for agent routing, using default agent"
@@ -237,7 +223,6 @@ export class Chat extends AIChatAgent<Env> {
       return "campaign-context";
     }
 
-    // Call the agent router directly with the model
     const { AgentRouter } = await import("./services/agent-router");
 
     const intent = await AgentRouter.routeMessage(
@@ -246,7 +231,7 @@ export class Chat extends AIChatAgent<Env> {
         .slice(-6)
         .map((msg) => msg.content)
         .join(" "),
-      null, // ragService
+      null,
       model
     );
 
@@ -285,7 +270,6 @@ export class Chat extends AIChatAgent<Env> {
         throw new Error("Unable to determine user. Please authenticate again.");
       }
 
-      // Get API key from database (with caching)
       const apiKey = await AuthService.loadUserOpenAIKeyWithCache(
         username,
         this.env.DB,
@@ -293,7 +277,6 @@ export class Chat extends AIChatAgent<Env> {
       );
 
       if (!apiKey) {
-        // Send a proper error response to the frontend so it can show the auth modal
         console.log(
           "[Chat] No OpenAI API key found for user, sending authentication request"
         );
@@ -309,18 +292,15 @@ export class Chat extends AIChatAgent<Env> {
         );
       }
 
-      // Initialize agents with the API key (already cached)
       await this.initializeAgents(apiKey);
     }
 
-    // Get the last user message to determine routing
     const lastUserMessage = this.messages
       .slice()
       .reverse()
       .find((msg) => msg.role === "user");
 
     if (!lastUserMessage) {
-      // No user message found, use campaign-context agent as fallback
       const targetAgentInstance = this.getAgentInstance("campaign-context");
       targetAgentInstance.messages = [...this.messages];
       return targetAgentInstance.onChatMessage(onFinish, {
@@ -328,17 +308,15 @@ export class Chat extends AIChatAgent<Env> {
       });
     }
 
-    // Determine which agent should handle this request
     const targetAgent = await this.determineAgent(lastUserMessage.content);
     console.log(
       `[Chat] Routing to ${targetAgent} agent for message: "${lastUserMessage.content}"`
     );
 
-    // Copy messages to the target agent
+    // Copy messages  to the target agent
     const targetAgentInstance = this.getAgentInstance(targetAgent);
     targetAgentInstance.messages = [...this.messages];
 
-    // Route to the appropriate specialized agent
     return targetAgentInstance.onChatMessage(onFinish, {
       abortSignal: _options?.abortSignal,
     });
@@ -357,7 +335,6 @@ export class Chat extends AIChatAgent<Env> {
 
     const agentInstance = this.agents.get(targetAgent);
     if (!agentInstance) {
-      // Fallback to first available agent if the requested one doesn't exist
       const firstAgent = this.agents.values().next().value;
       console.warn(`Agent '${targetAgent}' not found, using fallback agent`);
       return firstAgent;
@@ -379,7 +356,6 @@ export class Chat extends AIChatAgent<Env> {
   }
 }
 
-// Export the UserFileTracker Durable Object
 export { UserFileTracker } from "./durable-objects/UserFileTracker";
 export { UploadSessionDO };
 
@@ -388,9 +364,7 @@ export { UploadSessionDO };
  */
 const app = new Hono<{ Bindings: Env }>();
 
-// Global CORS middleware
 app.use("*", async (c, next) => {
-  // Handle preflight OPTIONS requests
   if (c.req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
@@ -547,29 +521,81 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
         `[PDF Queue] Starting PDF processing for ${message.body.fileKey}`
       );
 
-      // Process the PDF
-      // await ragService.processPdfFromR2(
-      //   message.body.fileKey,
-      //   message.body.username,
-      //   env.FILE_BUCKET,
-      //   message.body.metadata
-      // );
+      const ragService = getLibraryRagService(env);
+
+      const fileKey = message.body.fileKey;
+
+      const chunksDAO = ServiceFactory.getAutoRAGChunksDAO(env);
+      const chunks = await chunksDAO.getChunksByFile(
+        fileKey,
+        message.body.username
+      );
+
+      console.log(
+        `[PDF Queue] Found ${chunks.length} chunks in database for ${fileKey}`
+      );
+
+      if (chunks.length === 0) {
+        console.log(
+          `[PDF Queue] No AutoRAG chunks found for ${fileKey}, trying original file`
+        );
+        await ragService.processPdfFromR2(
+          fileKey,
+          message.body.username,
+          env.FILE_BUCKET,
+          message.body.metadata
+        );
+      } else {
+        console.log(
+          `[PDF Queue] Found ${chunks.length} AutoRAG chunks for ${fileKey}`
+        );
+
+        for (const chunk of chunks) {
+          try {
+            console.log(
+              `[PDF Queue] Processing chunk: ${chunk.chunkKey} (part ${chunk.partNumber})`
+            );
+
+            const chunkData = await env.FILE_BUCKET.get(chunk.chunkKey);
+            if (!chunkData) {
+              console.error(
+                `[PDF Queue] Chunk not found in R2: ${chunk.chunkKey}`
+              );
+              continue;
+            }
+
+            const chunkMetadata = {
+              ...message.body.metadata,
+              filename: chunk.originalFilename,
+              id: chunk.chunkKey,
+              original_file: fileKey,
+              part_number: chunk.partNumber,
+              chunk_size: chunk.chunkSize,
+            };
+
+            await ragService.processPdfFromR2(
+              chunk.chunkKey,
+              message.body.username,
+              env.FILE_BUCKET,
+              chunkMetadata
+            );
+
+            console.log(
+              `[PDF Queue] Successfully processed chunk: ${chunk.chunkKey}`
+            );
+          } catch (error) {
+            console.error(
+              `[PDF Queue] Error processing chunk ${chunk.chunkKey}:`,
+              error
+            );
+          }
+        }
+      }
 
       console.log(
         `[PDF Queue] PDF processing completed for ${message.body.fileKey}`
       );
 
-      // Note: AutoRAG indexing is already handled by the processPdfFromR2 method above
-      // The ragService.processPdfFromR2() call already performs:
-      // 1. Content extraction and processing
-      // 2. AutoRAG indexing for semantic search
-      // 3. Metadata generation
-      // No additional indexing step is needed.
-      console.log(
-        `[PDF Queue] AutoRAG indexing was completed as part of PDF processing for ${message.body.fileKey}`
-      );
-
-      // Complete progress tracking
       completeProgress(message.body.fileKey, true);
       console.log(`[PDF Queue] Successfully processed ${message.body.fileKey}`);
     } catch (error) {
@@ -578,14 +604,12 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
         error
       );
 
-      // Determine specific error message
       let errorMessage = "PDF processing failed";
       let errorDetails = "";
 
       if (error instanceof Error) {
         errorMessage = error.message;
 
-        // Provide more specific error messages based on the error type
         if (error.message.includes("Unavailable content in PDF document")) {
           errorMessage = "Unavailable content in PDF document";
           errorDetails =
@@ -605,7 +629,6 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
         }
       }
 
-      // Update status to error with specific error message
       await env.DB.prepare(
         "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ? AND username = ?"
       )
@@ -617,10 +640,8 @@ async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
         )
         .run();
 
-      // Complete progress tracking with error
       completeProgress(message.body.fileKey, false, errorMessage);
 
-      // Send to dead letter queue for manual review with enhanced error info
       await env.PDF_PROCESSING_DLQ.send({
         fileKey: message.body.fileKey,
         username: message.body.username,
@@ -646,10 +667,8 @@ export default {
   queue: queueHandler,
 };
 
-// Also export the queue function directly for compatibility
 export { queueHandler as queue };
 
-// Static file serving for the React app - MUST BE LAST
 app.get("*", async (c) => {
   const url = new URL(c.req.url);
   const path = url.pathname;

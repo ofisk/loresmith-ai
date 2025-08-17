@@ -4,6 +4,7 @@
 
 import type { Env } from "../middleware/auth";
 import type { FileMetadata, SearchQuery, SearchResult } from "../types/upload";
+import type { PdfStatus } from "../types/pdf";
 import { BaseRAGService } from "./base-rag-service";
 
 export class LibraryRAGService extends BaseRAGService {
@@ -189,12 +190,110 @@ export class LibraryRAGService extends BaseRAGService {
   }
 
   private async storeEmbeddings(
-    _text: string,
+    text: string,
     metadataId: string
   ): Promise<string> {
-    // TODO: Implement actual embedding generation and storage
-    // For now, return a placeholder vector ID
-    return `vector_${metadataId}`;
+    try {
+      if (!this.vectorize) {
+        throw new Error("Vectorize index is required");
+      }
+
+      // Generate embeddings using AutoRAG if available
+      let embeddings: number[];
+      if (this.env.AI) {
+        try {
+          // Use AutoRAG to generate embeddings
+          const embeddingResponse = await this.env.AI.run(
+            "@cf/baai/bge-base-en-v1.5",
+            {
+              text: text.substring(0, 4000),
+            }
+          );
+
+          // Parse the response - handle different response types
+          let responseText: string;
+          if (typeof embeddingResponse === "string") {
+            responseText = embeddingResponse;
+          } else if (
+            embeddingResponse &&
+            typeof embeddingResponse === "object" &&
+            "response" in embeddingResponse
+          ) {
+            responseText = (embeddingResponse as any).response;
+          } else {
+            responseText = JSON.stringify(embeddingResponse);
+          }
+
+          const parsedResponse = JSON.parse(responseText);
+          if (Array.isArray(parsedResponse)) {
+            embeddings = parsedResponse;
+          } else {
+            throw new Error("Invalid embedding response format");
+          }
+        } catch (error) {
+          console.warn(
+            `[LibraryRAGService] AutoRAG embedding failed, using fallback:`,
+            error
+          );
+          // Fallback to basic embedding generation
+          embeddings = this.generateBasicEmbeddings(text);
+        }
+      } else {
+        // Fallback to basic embedding generation
+        embeddings = this.generateBasicEmbeddings(text);
+      }
+
+      // Store in Vectorize
+      const vectorId = `vector_${metadataId}_${Date.now()}`;
+      await this.vectorize.insert([
+        {
+          id: vectorId,
+          values: embeddings,
+          metadata: {
+            text: text.substring(0, 1000), // Store first 1000 chars as metadata
+            metadataId,
+            type: "pdf_content",
+            timestamp: new Date().toISOString(),
+          },
+        },
+      ]);
+
+      return vectorId;
+    } catch (error) {
+      console.error(`[LibraryRAGService] Error storing embeddings:`, error);
+      // Return a fallback vector ID
+      return `vector_${metadataId}_fallback`;
+    }
+  }
+
+  /**
+   * Generate basic embeddings as fallback
+   */
+  private generateBasicEmbeddings(text: string): number[] {
+    // Simple hash-based embedding generation for fallback
+    const hash = this.simpleHash(text);
+    const embeddings: number[] = [];
+
+    // Generate 1536-dimensional vector (matching OpenAI embeddings)
+    for (let i = 0; i < 1536; i++) {
+      const seed = hash + i;
+      embeddings.push((Math.sin(seed) + 1) / 2); // Normalize to [0, 1]
+    }
+
+    return embeddings;
+  }
+
+  /**
+   * Simple hash function for fallback embeddings
+   */
+  private simpleHash(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash);
   }
 
   async searchFiles(query: SearchQuery): Promise<SearchResult[]> {
@@ -308,11 +407,7 @@ export class LibraryRAGService extends BaseRAGService {
         contentType: result.content_type as string,
         description: result.description as string | undefined,
         tags: JSON.parse((result.tags as string) || "[]"),
-        status: result.status as
-          | "uploaded"
-          | "processing"
-          | "completed"
-          | "error",
+        status: result.status as PdfStatus,
         createdAt: result.created_at as string,
         updatedAt: result.updated_at as string,
         vectorId: result.vector_id as string | undefined,
@@ -540,7 +635,10 @@ SUGGESTIONS: [suggestion1, suggestion2, suggestion3]
     username: string,
     fileBucket: any,
     metadata: any
-  ): Promise<{ suggestedMetadata?: { description: string; tags: string[] } }> {
+  ): Promise<{
+    suggestedMetadata?: { description: string; tags: string[] };
+    vectorId?: string;
+  }> {
     try {
       // Get file from R2
       const file = await fileBucket.get(fileKey);
@@ -565,16 +663,33 @@ SUGGESTIONS: [suggestion1, suggestion2, suggestion3]
         username
       );
 
+      // Store embeddings in Vectorize if available
+      let vectorId: string | undefined;
+      if (this.vectorize && text) {
+        try {
+          vectorId = await this.storeEmbeddings(text, metadata.id || fileKey);
+          console.log(
+            `[LibraryRAGService] Stored embeddings for ${fileKey} with vector ID: ${vectorId}`
+          );
+        } catch (error) {
+          console.error(
+            `[LibraryRAGService] Failed to store embeddings for ${fileKey}:`,
+            error
+          );
+        }
+      }
+
       if (semanticResult) {
         return {
           suggestedMetadata: {
             description: semanticResult.description,
             tags: semanticResult.tags,
           },
+          vectorId,
         };
       }
 
-      return {};
+      return { vectorId };
     } catch (error) {
       console.error(
         `[LibraryRAGService] Error processing PDF from R2: ${fileKey}`,

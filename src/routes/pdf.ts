@@ -60,7 +60,7 @@ export async function handleGenerateUploadUrl(c: ContextWithAuth) {
     );
 
     // Calculate number of parts needed
-    const chunkSize = PDF_PROCESSING_CONFIG.UPLOAD_CHUNK_SIZE;
+    const chunkSize = PDF_PROCESSING_CONFIG.CHUNK_SIZE;
     const totalParts = Math.ceil(fileSize / chunkSize);
 
     console.log(

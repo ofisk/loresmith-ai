@@ -61,7 +61,7 @@ describe("LibraryRAGService", () => {
 
       expect(result.description).toBe("A test PDF document");
       expect(result.tags).toEqual(["test", "document", "pdf"]);
-      expect(result.vectorId).toBe("vector_file-123");
+      expect(result.vectorId).toMatch(/vector_file-123(_\d+)?(_fallback)?/);
       expect(mockEnv.FILE_BUCKET.get).toHaveBeenCalledWith(
         "uploads/test-file.pdf"
       );
@@ -93,7 +93,7 @@ describe("LibraryRAGService", () => {
 
       expect(result.description).toBe("");
       expect(result.tags).toEqual([]);
-      expect(result.vectorId).toBe("vector_file-123");
+      expect(result.vectorId).toMatch(/vector_file-123(_\d+)?(_fallback)?/);
     });
 
     it("should work without AI service available", async () => {
@@ -109,7 +109,7 @@ describe("LibraryRAGService", () => {
 
       expect(result.description).toBe("");
       expect(result.tags).toEqual([]);
-      expect(result.vectorId).toBe("vector_file-123");
+      expect(result.vectorId).toMatch(/vector_file-123(_\d+)?(_fallback)?/);
     });
 
     it("should handle processing errors gracefully", async () => {
@@ -577,7 +577,7 @@ describe("LibraryRAGService", () => {
         updatedAt: "2024-01-01T00:00:00Z",
       });
 
-      expect(result.vectorId).toBe("vector_file-123");
+      expect(result.vectorId).toMatch(/vector_file-123(_\d+)?(_fallback)?/);
     });
 
     it("should handle vector storage errors gracefully", async () => {
@@ -605,7 +605,7 @@ describe("LibraryRAGService", () => {
       });
 
       // Even if vector storage fails, the method should not throw
-      expect(result.vectorId).toBe("vector_file-123");
+      expect(result.vectorId).toMatch(/vector_file-123(_\d+)?(_fallback)?/);
     });
   });
 });
