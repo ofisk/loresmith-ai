@@ -8,7 +8,7 @@ Features:
 
 - Conversational AI chat with campaign management
 - Campaign creation and management with resource mapping
-- PDF campaign upload and processing (current limit: 200MB)
+- File upload and processing (current limit: 200MB)
 - Supports character management via [DND Beyond](https://www.dndbeyond.com/)
 - Maintains character state and helps plan character journeys
 - RAG (Retrieval-Augmented Generation) for campaign content
@@ -20,7 +20,7 @@ Features:
 
 - **Cloudflare Workers**: Serverless backend with global edge deployment
 - **Durable Objects**: Persistent state management for chat sessions
-- **R2 Storage**: Scalable object storage for PDF files
+- **R2 Storage**: Scalable object storage for uploaded files
 - **React Frontend**: Modern, responsive user interface
 - **AI SDK**: Integration with OpenAI and other AI providers
 
@@ -53,7 +53,7 @@ Then edit `.dev.vars` and provide your credentials:
 
 ```env
 OPENAI_API_KEY=your_openai_api_key  # Optional - users can provide their own
-ADMIN_SECRET=your_admin_secret_for_pdf_uploads
+ADMIN_SECRET=your_admin_secret_for_file_uploads
 ```
 
 ### OpenAI API Key Configuration
@@ -126,7 +126,8 @@ chmod +x scripts/migrate-local.sh
 ./scripts/migrate-local.sh
 ```
 
-This will create all necessary tables including `user_openai_keys`, `campaigns`, `pdf_files`, etc.
+This will create all necessary tables including `user_openai_keys`, `campaigns`, `file_metadata`, etc.
+TODO: aniham this isn't a correct description, but we need to run a big migration to change tables to not include pdf in them
 
 #### 3. Start the Cloudflare Worker server
 
@@ -226,7 +227,7 @@ npm run deploy
 For local development, create a `.dev.vars` file with the following variables:
 
 - `OPENAI_API_KEY`: Your OpenAI API key for AI chat functionality (local development only - not used in production)
-- `ADMIN_SECRET`: Secret key for PDF upload authentication
+- `ADMIN_SECRET`: Secret key for file upload authentication
 - `VITE_API_URL`: API URL for local development (default: `http://localhost:8787`)
 - `CORS_ALLOWED_ORIGINS`: CORS origins for local development (default: `http://localhost:5173,http://localhost:5174`)
 
@@ -242,46 +243,19 @@ For production deployment, the `.vars` file contains the following variables:
 
 ### Cloudflare Resources
 
-- **R2 Bucket**: `loresmith-pdfs` for file storage
+- **R2 Bucket**: `loresmith-files` for file storage
+  TODO aniham this is wrong also should rename to files eventually in R2
 - **Durable Objects**: `Chat` and `SessionFileTracker` for state management
 - **Workers**: Main application deployment
 
 ## Development
-
-### Project Structure
-
-```
-src/
-├── app.tsx                # Main React application
-├── server.ts              # Cloudflare Worker entry point
-├── tools.ts               # AI tool definitions
-├── utils.ts               # Utility functions
-├── shared.ts              # Shared types and constants
-├── agents/                # Agent implementations
-│   └── campaign.ts        # Campaign management agent
-├── components/            # React components
-│   ├── campaign/          # Campaign management UI
-│   ├── pdf-upload/        # PDF upload functionality
-│   ├── button/            # UI components
-│   └── ...
-├── durable-objects/       # Durable Object implementations
-├── hooks/                 # React hooks
-├── types/                 # TypeScript type definitions
-└── styles.css             # Global styles
-
-tests/
-├── campaign/              # Campaign functionality tests
-├── pdf/                   # PDF upload tests
-├── tools/                 # Tool definition tests
-└── chat/                  # Chat functionality tests
-```
 
 ### Campaign Management
 
 The application includes comprehensive campaign management functionality:
 
 - **Campaign Creation**: Create new campaigns with custom names
-- **Resource Management**: Add PDF resources to campaigns
+- **Resource Management**: Add resources to campaigns
 - **Character Integration**: Link D&D Beyond characters to campaigns
 - **AI-Powered Planning**: Get AI suggestions for campaign development
 
@@ -310,12 +284,12 @@ In production, the system uses Cloudflare Secrets Store for secure secret manage
 - JWT tokens are signed and verified using the same secret source
 - All authentication is handled securely at the edge
 
-### PDF Processing
+### File Processing
 
-PDF files are processed through a secure pipeline:
+Uploaded files are processed through a secure pipeline:
 
 1. **Upload**: Files are uploaded directly to R2 storage via presigned URLs
-2. **Processing**: PDFs are parsed and indexed for RAG functionality
+2. **Processing**: Files are parsed and indexed for RAG functionality
 3. **Metadata**: Users can add descriptions and tags to uploaded files
 4. **Campaign Integration**: Files can be associated with specific campaigns
 
@@ -340,7 +314,7 @@ PDF files are processed through a secure pipeline:
 For detailed information about specific aspects of the project, see:
 
 - **[Storage Strategy](docs/STORAGE_STRATEGY.md)** - Comprehensive guide to data storage architecture using Cloudflare D1, R2, and Durable Objects
-- **[Large File Support](docs/LARGE_FILE_SUPPORT.md)** - Details on handling large PDF files (up to 500MB) for D&D rulebooks and campaign guides
+- **[Large File Support](docs/LARGE_FILE_SUPPORT.md)** - Details on handling large files (up to 500MB) for D&D rulebooks and campaign guides
 - **[Model Configuration](docs/MODEL_CONFIGURATION.md)** - Guide to configuring and changing AI models used throughout the application
 - **[Testing Guide](docs/TESTING_GUIDE.md)** - Comprehensive testing documentation and campaign workflow test suite
 
