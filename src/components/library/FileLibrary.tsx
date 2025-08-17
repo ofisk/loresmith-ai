@@ -241,7 +241,7 @@ export const FileLibrary: React.FC<FileLibraryProps> = ({
         {files.map((file) => (
           <button
             key={file.id}
-            className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer text-left w-full"
+            className="bg-white border border-gray-200 rounded-lg p-2 hover:shadow-md transition-shadow cursor-pointer text-left w-full"
             onClick={() => handleFileClick(file)}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {

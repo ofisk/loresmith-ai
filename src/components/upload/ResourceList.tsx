@@ -350,7 +350,7 @@ export function ResourceList({
       {files.map((file) => (
         <div
           key={file.file_key}
-          className="p-4 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800"
+          className="p-2 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800"
         >
           <div className="flex flex-col h-full">
             <div className="flex items-center justify-between">
