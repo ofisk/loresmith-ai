@@ -311,6 +311,9 @@ export class LibraryRAGService extends BaseRAGService {
       // Get all files for the user
       const files = await fileDAO.getFilesForRag(userId);
 
+      // Debug: Log the raw file data
+      console.log(`[LibraryRAGService] Raw files from database:`, files);
+
       // Filter files based on search query
       let filteredFiles = files;
       if (searchQuery.trim()) {
@@ -331,15 +334,28 @@ export class LibraryRAGService extends BaseRAGService {
       // Apply pagination
       const paginatedFiles = filteredFiles.slice(offset, offset + limit);
 
-      const searchResults: SearchResult[] = paginatedFiles.map((file: any) => ({
-        id: file.id,
-        fileKey: file.file_key,
-        filename: file.file_name,
-        description: file.description,
-        tags: JSON.parse(file.tags || "[]"),
-        fileSize: file.file_size,
-        createdAt: file.created_at,
-      }));
+      const searchResults: SearchResult[] = paginatedFiles.map((file: any) => {
+        // Debug: Log each file being mapped
+        console.log(`[LibraryRAGService] Mapping file:`, {
+          id: file.id,
+          file_key: file.file_key,
+          file_name: file.file_name,
+          description: file.description,
+          tags: file.tags,
+          file_size: file.file_size,
+          created_at: file.created_at,
+        });
+
+        return {
+          id: file.id,
+          file_key: file.file_key,
+          file_name: file.file_name,
+          description: file.description,
+          tags: JSON.parse(file.tags || "[]"),
+          file_size: file.file_size,
+          created_at: file.created_at,
+        };
+      });
 
       // TODO: Add semantic search using vector embeddings
       if (includeSemantic && searchQuery.trim()) {

@@ -84,7 +84,7 @@ export function ResourceSidePanel({
       }));
 
       const startResponse = await authenticatedFetchWithExpiration(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_URL),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_START),
         {
           method: "POST",
           jwt,

@@ -5,7 +5,7 @@ import { Hono, type Context } from "hono";
 import type { AuthPayload } from "../services/auth-service";
 import {
   getLibraryRagService,
-  getStorageService,
+  getLibraryService,
 } from "../services/service-factory";
 import type { SearchQuery } from "../types/upload";
 import { requireUserJwt } from "../middleware/auth";
@@ -116,8 +116,8 @@ export const handleGetStorageUsage = async (
       return c.json({ error: "Authentication required" }, 401);
     }
 
-    const storageService = getStorageService(c.env);
-    const usage = await storageService.getUserStorageUsage(
+    const libraryService = getLibraryService(c.env);
+    const usage = await libraryService.getUserStorageUsage(
       userAuth.username,
       userAuth.isAdmin || false
     );

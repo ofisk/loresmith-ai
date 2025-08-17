@@ -1,7 +1,7 @@
-import type { D1Database } from "@cloudflare/workers-types";
 import type { Env } from "../middleware/auth";
 import type { ModuleAnalysis } from "../tools/campaign-context/assessment-core";
 import type { Campaign, CampaignResource } from "../types/campaign";
+import { AssessmentDAO, type ActivityType } from "../dao/assessment-dao";
 
 export interface UserState {
   isFirstTime: boolean;
@@ -14,15 +14,7 @@ export interface UserState {
   totalSessionTime: number;
 }
 
-export interface ActivityType {
-  type:
-    | "campaign_created"
-    | "resource_uploaded"
-    | "character_created"
-    | "session_planned";
-  timestamp: string;
-  details: string;
-}
+export type { ActivityType };
 
 export interface CampaignHealthSummary {
   overallScore: number;
@@ -47,10 +39,10 @@ export interface ToolRecommendation {
 }
 
 export class AssessmentService {
-  private db: D1Database;
+  private assessmentDAO: AssessmentDAO;
 
   constructor(env: Env) {
-    this.db = env.DB;
+    this.assessmentDAO = new AssessmentDAO(env.DB);
   }
 
   /**
@@ -58,75 +50,18 @@ export class AssessmentService {
    */
   async analyzeUserState(username: string): Promise<UserState> {
     try {
-      // Get campaign count
-      const campaignsResult = await this.db
-        .prepare("SELECT COUNT(*) as count FROM campaigns WHERE username = ?")
-        .bind(username)
-        .first<{ count: number }>();
+      // Get campaign and resource counts
+      const campaignCount = await this.assessmentDAO.getCampaignCount(username);
+      const resourceCount = await this.assessmentDAO.getResourceCount(username);
 
-      const campaignCount = campaignsResult?.count || 0;
-
-      // Get resource count
-      const resourcesResult = await this.db
-        .prepare(
-          "SELECT COUNT(*) as count FROM file_metadata WHERE username = ?"
-        )
-        .bind(username)
-        .first<{ count: number }>();
-
-      const resourceCount = resourcesResult?.count || 0;
-
-      // Get recent activity (last 30 days)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const activityResult = await this.db
-        .prepare(
-          `
-          SELECT 
-            'campaign_created' as type,
-            created_at as timestamp,
-            name as details
-          FROM campaigns 
-          WHERE username = ? AND created_at > ?
-          UNION ALL
-          SELECT 
-            'resource_uploaded' as type,
-            created_at as timestamp,
-            file_name as details
-          FROM file_metadata 
-          WHERE username = ? AND created_at > ?
-          ORDER BY timestamp DESC
-          LIMIT 10
-        `
-        )
-        .bind(
-          username,
-          thirtyDaysAgo.toISOString(),
-          username,
-          thirtyDaysAgo.toISOString()
-        )
-        .all<ActivityType>();
-
-      const recentActivity = activityResult.results || [];
+      // Get recent activity
+      const recentActivity =
+        await this.assessmentDAO.getRecentActivity(username);
 
       // Get last login (approximated by last activity)
-      const lastActivityResult = await this.db
-        .prepare(
-          `
-          SELECT MAX(created_at) as last_activity
-          FROM (
-            SELECT created_at FROM campaigns WHERE username = ?
-            UNION ALL
-            SELECT created_at FROM file_metadata WHERE username = ?
-          )
-        `
-        )
-        .bind(username, username)
-        .first<{ last_activity: string }>();
-
       const lastLoginDate =
-        lastActivityResult?.last_activity || new Date().toISOString();
+        (await this.assessmentDAO.getLastActivity(username)) ||
+        new Date().toISOString();
 
       // Calculate total session time (approximated by activity count)
       const totalSessionTime = recentActivity.length * 30; // Rough estimate: 30 minutes per activity
@@ -156,21 +91,11 @@ export class AssessmentService {
     resources: CampaignResource[]
   ): Promise<CampaignHealthSummary> {
     try {
-      // Get campaign context data
-      const contextResult = await this.db
-        .prepare("SELECT * FROM campaign_context WHERE campaign_id = ?")
-        .bind(campaignId)
-        .all();
-
-      const contextData = contextResult.results || [];
-
-      // Get character data
-      const charactersResult = await this.db
-        .prepare("SELECT * FROM campaign_characters WHERE campaign_id = ?")
-        .bind(campaignId)
-        .all();
-
-      const charactersData = charactersResult.results || [];
+      // Get campaign data
+      const contextData =
+        await this.assessmentDAO.getCampaignContext(campaignId);
+      const charactersData =
+        await this.assessmentDAO.getCampaignCharacters(campaignId);
 
       // Calculate health score based on data richness
       const contextCount = contextData.length;
@@ -244,30 +169,7 @@ export class AssessmentService {
    */
   async getUserActivity(username: string): Promise<ActivityType[]> {
     try {
-      const activityResult = await this.db
-        .prepare(
-          `
-          SELECT 
-            'campaign_created' as type,
-            created_at as timestamp,
-            name as details
-          FROM campaigns 
-          WHERE username = ?
-          UNION ALL
-          SELECT 
-            'resource_uploaded' as type,
-            created_at as timestamp,
-            file_name as details
-          FROM pdf_metadata 
-          WHERE username = ?
-          ORDER BY timestamp DESC
-          LIMIT 20
-        `
-        )
-        .bind(username, username)
-        .all<ActivityType>();
-
-      return activityResult.results || [];
+      return await this.assessmentDAO.getUserActivity(username);
     } catch (error) {
       console.error("Failed to get user activity:", error);
       throw new Error("Failed to retrieve user activity");
@@ -282,149 +184,39 @@ export class AssessmentService {
     moduleAnalysis: ModuleAnalysis
   ): Promise<boolean> {
     try {
-      // Store NPCs
-      for (const npc of moduleAnalysis.extractedElements.npcs) {
-        await this.db
-          .prepare(
-            `
-            INSERT INTO campaign_context 
-            (id, campaign_id, context_type, title, content, metadata, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-          `
-          )
-          .bind(
-            `npc_${Date.now()}_${Math.random()}`,
-            campaignId,
-            "npc",
-            npc.name,
-            JSON.stringify(npc),
-            JSON.stringify({
-              source: "module",
-              moduleName: moduleAnalysis.moduleName,
-            })
-          )
-          .run();
-      }
+      const { extractedElements, moduleName } = moduleAnalysis;
 
-      // Store locations
-      for (const location of moduleAnalysis.extractedElements.locations) {
-        await this.db
-          .prepare(
-            `
-            INSERT INTO campaign_context 
-            (id, campaign_id, context_type, title, content, metadata, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-          `
-          )
-          .bind(
-            `location_${Date.now()}_${Math.random()}`,
-            campaignId,
-            "location",
-            location.name,
-            JSON.stringify(location),
-            JSON.stringify({
-              source: "module",
-              moduleName: moduleAnalysis.moduleName,
-            })
-          )
-          .run();
-      }
-
-      // Store plot hooks
-      for (const plotHook of moduleAnalysis.extractedElements.plotHooks) {
-        await this.db
-          .prepare(
-            `
-            INSERT INTO campaign_context 
-            (id, campaign_id, context_type, title, content, metadata, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-          `
-          )
-          .bind(
-            `plot_hook_${Date.now()}_${Math.random()}`,
-            campaignId,
-            "plot_hook",
-            plotHook.title,
-            JSON.stringify(plotHook),
-            JSON.stringify({
-              source: "module",
-              moduleName: moduleAnalysis.moduleName,
-            })
-          )
-          .run();
-      }
-
-      // Store story beats
-      for (const storyBeat of moduleAnalysis.extractedElements.storyBeats) {
-        await this.db
-          .prepare(
-            `
-            INSERT INTO campaign_context 
-            (id, campaign_id, context_type, title, content, metadata, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-          `
-          )
-          .bind(
-            `story_beat_${Date.now()}_${Math.random()}`,
-            campaignId,
-            "story_beat",
-            storyBeat.title,
-            JSON.stringify(storyBeat),
-            JSON.stringify({
-              source: "module",
-              moduleName: moduleAnalysis.moduleName,
-            })
-          )
-          .run();
-      }
-
-      // Store key items
-      for (const item of moduleAnalysis.extractedElements.keyItems) {
-        await this.db
-          .prepare(
-            `
-            INSERT INTO campaign_context 
-            (id, campaign_id, context_type, title, content, metadata, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-          `
-          )
-          .bind(
-            `item_${Date.now()}_${Math.random()}`,
-            campaignId,
-            "item",
-            item.name,
-            JSON.stringify(item),
-            JSON.stringify({
-              source: "module",
-              moduleName: moduleAnalysis.moduleName,
-            })
-          )
-          .run();
-      }
-
-      // Store conflicts
-      for (const conflict of moduleAnalysis.extractedElements.conflicts) {
-        await this.db
-          .prepare(
-            `
-            INSERT INTO campaign_context 
-            (id, campaign_id, context_type, title, content, metadata, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-          `
-          )
-          .bind(
-            `conflict_${Date.now()}_${Math.random()}`,
-            campaignId,
-            "conflict",
-            conflict.title,
-            JSON.stringify(conflict),
-            JSON.stringify({
-              source: "module",
-              moduleName: moduleAnalysis.moduleName,
-            })
-          )
-          .run();
-      }
+      // Store all extracted elements using the DAO
+      await this.assessmentDAO.storeNPCs(
+        campaignId,
+        extractedElements.npcs,
+        moduleName
+      );
+      await this.assessmentDAO.storeLocations(
+        campaignId,
+        extractedElements.locations,
+        moduleName
+      );
+      await this.assessmentDAO.storePlotHooks(
+        campaignId,
+        extractedElements.plotHooks,
+        moduleName
+      );
+      await this.assessmentDAO.storeStoryBeats(
+        campaignId,
+        extractedElements.storyBeats,
+        moduleName
+      );
+      await this.assessmentDAO.storeKeyItems(
+        campaignId,
+        extractedElements.keyItems,
+        moduleName
+      );
+      await this.assessmentDAO.storeConflicts(
+        campaignId,
+        extractedElements.conflicts,
+        moduleName
+      );
 
       return true;
     } catch (error) {
@@ -438,14 +230,7 @@ export class AssessmentService {
    */
   async getCampaignContext(campaignId: string): Promise<any[]> {
     try {
-      const contextResult = await this.db
-        .prepare(
-          "SELECT * FROM campaign_context WHERE campaign_id = ? ORDER BY created_at DESC"
-        )
-        .bind(campaignId)
-        .all();
-
-      return contextResult.results || [];
+      return await this.assessmentDAO.getCampaignContextOrdered(campaignId);
     } catch (error) {
       console.error("Failed to get campaign context:", error);
       throw new Error("Failed to retrieve campaign context");
@@ -457,14 +242,7 @@ export class AssessmentService {
    */
   async getCampaignCharacters(campaignId: string): Promise<any[]> {
     try {
-      const charactersResult = await this.db
-        .prepare(
-          "SELECT * FROM campaign_characters WHERE campaign_id = ? ORDER BY created_at DESC"
-        )
-        .bind(campaignId)
-        .all();
-
-      return charactersResult.results || [];
+      return await this.assessmentDAO.getCampaignCharactersOrdered(campaignId);
     } catch (error) {
       console.error("Failed to get campaign characters:", error);
       throw new Error("Failed to retrieve campaign characters");
@@ -476,14 +254,7 @@ export class AssessmentService {
    */
   async getCampaignResources(campaignId: string): Promise<any[]> {
     try {
-      const resourcesResult = await this.db
-        .prepare(
-          "SELECT * FROM campaign_resources WHERE campaign_id = ? ORDER BY created_at DESC"
-        )
-        .bind(campaignId)
-        .all();
-
-      return resourcesResult.results || [];
+      return await this.assessmentDAO.getCampaignResourcesOrdered(campaignId);
     } catch (error) {
       console.error("Failed to get campaign resources:", error);
       throw new Error("Failed to retrieve campaign resources");

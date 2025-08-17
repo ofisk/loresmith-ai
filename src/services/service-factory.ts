@@ -6,16 +6,16 @@ import { AssessmentService } from "./assessment-service";
 import { AuthService } from "./auth-service";
 import { LibraryRAGService } from "./rag-service";
 import { UploadService } from "./upload-service";
-import { StorageService } from "./storage-service";
+import { LibraryService } from "./library-service";
 import { CampaignService } from "./campaign-service";
 import { ModelManager } from "./model-manager";
 import { AgentRegistryService } from "./agent-registry";
 import { AgentRouter } from "./agent-router";
 import { CampaignRAGService } from "../lib/campaignRag";
-import { PDFProcessingService } from "./pdf-processing-service";
 import { MetadataService } from "./metadata-service";
 import { ErrorHandlingService } from "./error-handling-service";
-import { AutoRAGChunksDAO } from "./autorag-chunks-dao";
+import { AutoRAGChunksDAO } from "../dao/autorag-chunks-dao";
+import { getDatabaseKey } from "../dao/dao-factory";
 
 // Service factory class with per-request caching
 export class ServiceFactory {
@@ -78,15 +78,6 @@ export class ServiceFactory {
     return ServiceFactory.services.get(key);
   }
 
-  // Get or create PDFProcessingService
-  static getPDFProcessingService(env: Env): PDFProcessingService {
-    const key = `pdf-processing-${env.DB ? "has-db" : "no-db"}-${env.AI ? "has-ai" : "no-ai"}`;
-    if (!ServiceFactory.services.has(key)) {
-      ServiceFactory.services.set(key, new PDFProcessingService(env));
-    }
-    return ServiceFactory.services.get(key);
-  }
-
   // Get or create MetadataService
   static getMetadataService(env: Env): MetadataService {
     const key = `metadata-${env.AI ? "has-ai" : "no-ai"}`;
@@ -114,32 +105,34 @@ export class ServiceFactory {
     return ServiceFactory.services.get(key);
   }
 
-  // Get or create StorageService
-  static getStorageService(env: Env): StorageService {
+  // Get or create LibraryService
+  static getLibraryService(env: Env): LibraryService {
     // Create a more unique key based on environment content
     const envHash = JSON.stringify({
       hasFileBucket: !!env.FILE_BUCKET,
       hasDb: !!env.DB,
       hasAdmin: !!env.ADMIN_SECRET,
     });
-    const key = `storage-${envHash}`;
+    const key = `library-${envHash}`;
     if (!ServiceFactory.services.has(key)) {
-      ServiceFactory.services.set(key, new StorageService(env));
+      ServiceFactory.services.set(key, new LibraryService(env));
     }
     return ServiceFactory.services.get(key);
   }
 
   // Get or create CampaignService
   static getCampaignService(env: Env): CampaignService {
-    // Create a more unique key based on environment content
+    // Create a more unique key based on environment content and database identity
+    const dbKey = getDatabaseKey(env.DB);
     const envHash = JSON.stringify({
       hasDb: !!env.DB,
       hasAdmin: !!env.ADMIN_SECRET,
       hasFileBucket: !!env.FILE_BUCKET,
+      dbKey,
     });
     const key = `campaign-${envHash}`;
     if (!ServiceFactory.services.has(key)) {
-      ServiceFactory.services.set(key, new CampaignService(env.DB));
+      ServiceFactory.services.set(key, new CampaignService(env));
     }
     return ServiceFactory.services.get(key);
   }
@@ -163,7 +156,9 @@ export class ServiceFactory {
    * Get agent registry service
    */
   static getAgentRegistryService(env: Env): AgentRegistryService {
-    const key = `agent-registry-${env.DB ? "has-db" : "no-db"}`;
+    // Create a more unique key based on database identity
+    const dbKey = getDatabaseKey(env.DB);
+    const key = `agent-registry-${dbKey}`;
     if (!ServiceFactory.services.has(key)) {
       ServiceFactory.services.set(key, new AgentRegistryService());
     }
@@ -211,17 +206,14 @@ export const getLibraryRagService = (env: Env) =>
 export const getUploadService = (env: Env) =>
   ServiceFactory.getUploadService(env);
 
-export const getPDFProcessingService = (env: Env) =>
-  ServiceFactory.getPDFProcessingService(env);
-
 export const getMetadataService = (env: Env) =>
   ServiceFactory.getMetadataService(env);
 
 export const getErrorHandlingService = () =>
   ServiceFactory.getErrorHandlingService();
 
-export const getStorageService = (env: Env) =>
-  ServiceFactory.getStorageService(env);
+export const getLibraryService = (env: Env) =>
+  ServiceFactory.getLibraryService(env);
 
 export const getCampaignService = (env: Env) =>
   ServiceFactory.getCampaignService(env);

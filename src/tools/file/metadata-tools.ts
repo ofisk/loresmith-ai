@@ -1,8 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { API_CONFIG, type ToolResult } from "../../constants";
+import { AUTH_CODES } from "../../shared";
 import { createToolError, createToolSuccess } from "../utils";
-import { AUTH_CODES, type ToolResult } from "../../shared";
-import { API_CONFIG } from "../../shared";
 
 // File metadata tools
 
@@ -31,15 +31,15 @@ export const updateFileMetadata = tool({
     { fileKey, description, tags, fileSize, jwt },
     context?: any
   ): Promise<ToolResult> => {
-    console.log("[Tool] updatePdfMetadata received JWT:", jwt);
-    console.log("[Tool] updatePdfMetadata context:", context);
+    console.log("[Tool] updateFileMetadata received JWT:", jwt);
+    console.log("[Tool] updateFileMetadata context:", context);
 
     // Extract toolCallId from context
     const toolCallId = context?.toolCallId || "unknown";
-    console.log("[updatePdfMetadata] Using toolCallId:", toolCallId);
+    console.log("[updateFileMetadata] Using toolCallId:", toolCallId);
 
     try {
-      console.log("[updatePdfMetadata] Using JWT:", jwt);
+      console.log("[updateFileMetadata] Using JWT:", jwt);
 
       // Extract username from JWT
       let username = "default";
@@ -48,7 +48,7 @@ export const updateFileMetadata = tool({
           const payload = JSON.parse(atob(jwt.split(".")[1]));
           username = payload.username || "default";
           console.log(
-            "[updatePdfMetadata] Extracted username from JWT:",
+            "[updateFileMetadata] Extracted username from JWT:",
             username
           );
         } catch (error) {
@@ -73,26 +73,28 @@ export const updateFileMetadata = tool({
       }
 
       console.log(
-        "[updatePdfMetadata] Updating metadata for fileKey:",
+        "[updateFileMetadata] Updating metadata for fileKey:",
         fileKey
       );
 
       // Make API request to update metadata
       const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPDATE_METADATA),
+        API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.LIBRARY.UPDATE_METADATA(fileKey)
+        ),
         {
-          method: "POST",
+          method: "PUT",
           headers: {
             "Content-Type": "application/json",
             ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
           },
           body: JSON.stringify({
-            fileKey,
-            metadata: { description, tags, fileSize },
+            description,
+            tags,
           }),
         }
       );
-      console.log("[updatePdfMetadata] Response status:", response.status);
+      console.log("[updateFileMetadata] Response status:", response.status);
       if (!response.ok) {
         return createToolError(
           `Failed to update metadata: ${response.status}`,

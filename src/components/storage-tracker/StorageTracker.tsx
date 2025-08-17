@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { HardDrive, Infinity as InfinityIcon } from "@phosphor-icons/react";
+import { useCallback, useEffect, useState } from "react";
 import { API_CONFIG } from "../../shared";
-import { JWT_STORAGE_KEY } from "../../constants";
+import { getStoredJwt } from "../../services/auth-service";
+import { Loader } from "../loader/Loader";
 
 interface StorageUsage {
   username: string;
@@ -13,189 +13,100 @@ interface StorageUsage {
   usagePercentage: number;
 }
 
-interface StorageTrackerProps {
-  className?: string;
-}
-
-export function StorageTracker({ className = "" }: StorageTrackerProps) {
-  const [usage, setUsage] = useState<StorageUsage | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export function StorageTracker() {
+  const [storageUsage, setStorageUsage] = useState<StorageUsage | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchStorageUsage = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
+  const fetchStorageUsage = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        const jwt = localStorage.getItem(JWT_STORAGE_KEY);
-        if (!jwt) {
-          setError("Not authenticated");
-          return;
-        }
-
-        const response = await fetch(
-          `${API_CONFIG.getApiBaseUrl()}/library/storage-usage`,
-          {
-            headers: {
-              Authorization: `Bearer ${jwt}`,
-            },
-          }
-        );
-
-        if (response.ok) {
-          const data = (await response.json()) as { usage: StorageUsage };
-          setUsage(data.usage);
-        } else {
-          setError("Failed to fetch storage usage");
-        }
-      } catch (err) {
-        setError("Error loading storage info");
-        console.error("Error fetching storage usage:", err);
-      } finally {
-        setIsLoading(false);
+      const jwt = getStoredJwt();
+      if (!jwt) {
+        setError("Authentication required");
+        return;
       }
-    };
 
-    fetchStorageUsage();
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.STORAGE_USAGE),
+        {
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+          },
+        }
+      );
 
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchStorageUsage, 30000);
-    return () => clearInterval(interval);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch storage usage: ${response.status}`);
+      }
+
+      const responseData = (await response.json()) as {
+        success: boolean;
+        usage?: StorageUsage;
+      };
+      if (responseData.success && responseData.usage) {
+        setStorageUsage(responseData.usage);
+      } else {
+        throw new Error("Invalid response format");
+      }
+    } catch (err) {
+      console.error("Failed to fetch storage usage:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch storage usage"
+      );
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    fetchStorageUsage();
+  }, [fetchStorageUsage]);
+
   const formatBytes = (bytes: number): string => {
-    if (bytes === 0) {
-      return "0 B";
-    }
-    if (bytes === Infinity) {
-      return "∞";
-    }
+    if (bytes === 0) return "0 B";
     const k = 1024;
     const sizes = ["B", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return `${parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
   };
 
-  const getUsageColor = (percentage: number): string => {
-    if (percentage >= 90) return "text-red-600";
-    if (percentage >= 75) return "text-orange-600";
-    if (percentage >= 50) return "text-yellow-600";
-    return "text-green-600";
-  };
-
-  if (isLoading) {
+  if (loading) {
     return (
-      <div
-        className={`p-4 border-t border-neutral-200 dark:border-neutral-700 ${className}`}
-      >
-        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-          Loading storage info...
-        </div>
+      <div className="flex items-center justify-center p-4">
+        <Loader size={16} />
       </div>
     );
   }
 
-  if (error || !usage) {
-    return (
-      <div
-        className={`p-4 border-t border-neutral-200 dark:border-neutral-700 ${className}`}
-      >
-        <div className="text-sm text-red-600 dark:text-red-400">
-          {error || "Storage info unavailable"}
-        </div>
-      </div>
-    );
+  if (error) {
+    return <div className="text-red-500 text-sm p-2">Error: {error}</div>;
+  }
+
+  if (!storageUsage) {
+    return null;
   }
 
   return (
-    <div
-      className={`p-4 border-t border-neutral-200 dark:border-neutral-700 ${className}`}
-    >
-      <div className="flex items-center gap-2 mb-3">
-        <HardDrive size={16} className="text-purple-600" />
-        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-          Storage Usage
+    <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+        Storage Usage
+      </div>
+      <div className="flex items-center justify-between text-sm">
+        <span>Used: {formatBytes(storageUsage.totalBytes || 0)}</span>
+        <span className="text-gray-500">
+          {(storageUsage.usagePercentage || 0).toFixed(1)}%
         </span>
       </div>
-
-      <div className="space-y-2">
-        {/* Usage Bar */}
-        {!usage.isAdmin && (
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div
-              className={`h-2 rounded-full transition-all duration-300 ${
-                usage.usagePercentage >= 90
-                  ? "bg-red-500"
-                  : usage.usagePercentage >= 75
-                    ? "bg-orange-500"
-                    : usage.usagePercentage >= 50
-                      ? "bg-yellow-500"
-                      : "bg-green-500"
-              }`}
-              style={{ width: `${Math.min(usage.usagePercentage, 100)}%` }}
-            />
-          </div>
-        )}
-
-        {/* Usage Text */}
-        <div className="text-xs space-y-1">
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600 dark:text-gray-400">Used:</span>
-            <span className="font-medium text-gray-900 dark:text-gray-100">
-              {formatBytes(usage.totalBytes)}
-            </span>
-          </div>
-
-          {!usage.isAdmin && (
-            <>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600 dark:text-gray-400">Limit:</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {formatBytes(usage.limitBytes)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600 dark:text-gray-400">
-                  Remaining:
-                </span>
-                <span
-                  className={`font-medium ${getUsageColor(usage.usagePercentage)}`}
-                >
-                  {formatBytes(usage.remainingBytes)}
-                </span>
-              </div>
-            </>
-          )}
-
-          {usage.isAdmin && (
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600 dark:text-gray-400">Limit:</span>
-              <span className="font-medium text-purple-600 flex items-center gap-1">
-                <InfinityIcon size={12} />
-                Unlimited
-              </span>
-            </div>
-          )}
-
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600 dark:text-gray-400">Files:</span>
-            <span className="font-medium text-gray-900 dark:text-gray-100">
-              {usage.fileCount}
-            </span>
-          </div>
-        </div>
-
-        {/* Admin Badge */}
-        {usage.isAdmin && (
-          <div className="mt-2">
-            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-              <InfinityIcon size={10} className="mr-1" />
-              Admin Access
-            </span>
-          </div>
-        )}
+      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+        <div
+          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+          style={{
+            width: `${Math.min(storageUsage.usagePercentage || 0, 100)}%`,
+          }}
+        />
       </div>
     </div>
   );

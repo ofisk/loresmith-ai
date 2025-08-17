@@ -59,9 +59,7 @@ import {
   handleProcessFileFromR2ForRag,
   handleRagSearch,
   handleTriggerAutoRAGIndexing,
-  handleUpdateFileMetadataForRag,
 } from "./routes/rag";
-import { upload } from "./routes/upload";
 import type { AgentType } from "./services/agent-router";
 import type { AuthEnv } from "./services/auth-service";
 import { AuthService } from "./services/auth-service";
@@ -71,15 +69,19 @@ import { getDAOFactory } from "./dao/dao-factory";
 import { API_CONFIG } from "./shared";
 import {
   handleAutoGenerateFileMetadata,
-  handleCompleteUpload,
-  handleGenerateUploadUrl,
   handleGetFileStats,
   handleGetFileStatus,
   handleProcessFile,
   handleProcessMetadataBackground,
-  handleUpdateFileMetadata,
-  handleUploadPart,
+  handleUpdateFileMetadataConsolidated,
 } from "./routes/file-management";
+import {
+  handleUploadStart,
+  handleUploadPart,
+  handleUploadComplete,
+  handleUploadProgress,
+  handleUploadSessionCleanup,
+} from "./routes/upload";
 interface Env extends AuthEnv {
   ADMIN_SECRET?: string;
   OPENAI_API_KEY?: string;
@@ -443,9 +445,6 @@ app.get(API_CONFIG.ENDPOINTS.AUTH.GET_OPENAI_KEY, handleGetOpenAIKey);
 app.post(API_CONFIG.ENDPOINTS.AUTH.STORE_OPENAI_KEY, handleStoreOpenAIKey);
 app.delete(API_CONFIG.ENDPOINTS.AUTH.DELETE_OPENAI_KEY, handleDeleteOpenAIKey);
 
-// Upload Routes
-app.route("/upload", upload);
-
 // RAG Routes
 app.post(API_CONFIG.ENDPOINTS.RAG.SEARCH, requireUserJwt, handleRagSearch);
 app.post(
@@ -459,9 +458,9 @@ app.post(
   handleProcessFileFromR2ForRag
 );
 app.put(
-  API_CONFIG.ENDPOINTS.RAG.UPDATE_METADATA(":fileKey"),
+  API_CONFIG.ENDPOINTS.LIBRARY.UPDATE_METADATA(":fileKey"),
   requireUserJwt,
-  handleUpdateFileMetadataForRag
+  handleUpdateFileMetadataConsolidated
 );
 app.get(API_CONFIG.ENDPOINTS.RAG.FILES, requireUserJwt, handleGetFilesForRag);
 app.delete(
@@ -617,22 +616,6 @@ app.post(
   handleRegenerateFileMetadata
 );
 
-// File management routes
-app.post(
-  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_URL,
-  requireUserJwt,
-  handleGenerateUploadUrl
-);
-app.post(
-  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_COMPLETE,
-  requireUserJwt,
-  handleCompleteUpload
-);
-app.post(
-  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_PART,
-  requireUserJwt,
-  handleUploadPart
-);
 app.post(
   API_CONFIG.ENDPOINTS.LIBRARY.PROCESS,
   requireUserJwt,
@@ -642,11 +625,6 @@ app.get(
   API_CONFIG.ENDPOINTS.LIBRARY.STATUS,
   requireUserJwt,
   handleGetFileStatus
-);
-app.post(
-  API_CONFIG.ENDPOINTS.LIBRARY.UPDATE_METADATA,
-  requireUserJwt,
-  handleUpdateFileMetadata
 );
 app.post(
   API_CONFIG.ENDPOINTS.LIBRARY.AUTO_GENERATE_METADATA,
@@ -659,6 +637,33 @@ app.post(
   handleProcessMetadataBackground
 );
 app.get(API_CONFIG.ENDPOINTS.LIBRARY.STATS, requireUserJwt, handleGetFileStats);
+
+// Upload routes
+app.post(
+  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_START,
+  requireUserJwt,
+  handleUploadStart
+);
+app.post(
+  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_PART,
+  requireUserJwt,
+  handleUploadPart
+);
+app.post(
+  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_COMPLETE,
+  requireUserJwt,
+  handleUploadComplete
+);
+app.get(
+  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_PROGRESS(":sessionId"),
+  requireUserJwt,
+  handleUploadProgress
+);
+app.delete(
+  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_SESSION(":sessionId"),
+  requireUserJwt,
+  handleUploadSessionCleanup
+);
 
 // Queue handler for file processing
 async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {

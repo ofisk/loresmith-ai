@@ -42,17 +42,14 @@ export const searchFileLibrary = tool({
         limit,
       };
 
-      const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.RAG.SEARCH),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-          },
-          body: JSON.stringify(searchPayload),
-        }
-      );
+      const response = await fetch(API_CONFIG.ENDPOINTS.RAG.SEARCH, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+        },
+        body: JSON.stringify(searchPayload),
+      });
 
       console.log("[searchFileLibrary] Response status:", response.status);
       if (!response.ok) {

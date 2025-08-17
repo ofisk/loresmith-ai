@@ -79,12 +79,3 @@ export interface File {
   uploaded: string;
   status: string;
 }
-
-export interface AddResourceModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onAddResource: (resource: CampaignResource) => void;
-  campaignId: string;
-  file?: File;
-  campaigns?: CampaignData[];
-}

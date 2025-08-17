@@ -48,12 +48,12 @@ export interface UploadProgress {
 
 export interface SearchResult {
   id: string;
-  fileKey: string;
-  filename: string;
+  file_key: string;
+  file_name: string;
   description?: string;
   tags: string[];
-  fileSize: number;
-  createdAt: string;
+  file_size: number;
+  created_at: string;
   score?: number; // For semantic search
 }
 

@@ -244,18 +244,6 @@ export interface AccordionItem {
 }
 
 /**
- * Dropdown menu item
- */
-export interface DropdownMenuItem {
-  key: string;
-  label: string;
-  onClick: () => void;
-  icon?: ReactNode;
-  disabled?: boolean;
-  divider?: boolean;
-}
-
-/**
  * Context menu item
  */
 export interface ContextMenuItem {

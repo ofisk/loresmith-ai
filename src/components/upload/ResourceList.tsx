@@ -17,7 +17,7 @@ interface ResourceFile {
   file_name: string;
   file_size: number;
   description?: string;
-  tags?: string;
+  tags?: string[];
   status: string;
   created_at: string;
   updated_at: string;
@@ -31,13 +31,11 @@ interface ResourceListProps {
   refreshTrigger?: number;
 }
 
-// Utility function to display filename starting after first dash
-function getDisplayName(filename: string): string {
-  const dashIndex = filename.indexOf("-");
-  if (dashIndex === -1) {
-    return filename; // No dash found, return original name
+function getDisplayName(filename: string | undefined | null): string {
+  if (!filename) {
+    return "Unknown file";
   }
-  return filename.substring(dashIndex + 1);
+  return filename;
 }
 
 export function ResourceList({
@@ -310,6 +308,26 @@ export function ResourceList({
     fetchCampaigns();
   }, [fetchResources, fetchCampaigns]);
 
+  // Listen for file change events from the AI agent
+  useEffect(() => {
+    const handleFileChange = (event: CustomEvent) => {
+      if (event.detail?.type === "file-changed") {
+        console.log("[ResourceList] File change detected, refreshing...");
+        fetchResources();
+      }
+    };
+
+    // Listen for custom file change events
+    window.addEventListener("file-changed", handleFileChange as EventListener);
+
+    return () => {
+      window.removeEventListener(
+        "file-changed",
+        handleFileChange as EventListener
+      );
+    };
+  }, [fetchResources]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
@@ -421,10 +439,10 @@ export function ResourceList({
                     </p>
                   </div>
                 )}
-                {file.tags && file.tags !== "[]" && (
+                {file.tags && file.tags.length > 0 && (
                   <div className="mt-3">
                     <div className="flex flex-wrap gap-1">
-                      {JSON.parse(file.tags).map((tag: string) => (
+                      {file.tags.map((tag: string) => (
                         <span
                           key={tag}
                           className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded"

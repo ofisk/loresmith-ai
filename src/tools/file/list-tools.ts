@@ -4,6 +4,10 @@ import { API_CONFIG, type ToolResult } from "../../constants";
 import type { FileResponse } from "../../types/file";
 import { fileHelpers } from "../../types/file";
 import { createToolError, createToolSuccess } from "../utils";
+import {
+  getLibraryRagService,
+  getLibraryService,
+} from "../../services/service-factory";
 
 // File listing tools
 
@@ -22,6 +26,7 @@ export const listFiles = tool({
 
     // Extract toolCallId from context
     const toolCallId = context?.toolCallId || "unknown";
+    const env = context?.env;
     console.log("[listFiles] Using toolCallId:", toolCallId);
 
     try {
@@ -41,9 +46,67 @@ export const listFiles = tool({
 
       console.log("[listFiles] Listing files for username:", username);
 
-      // Call the server endpoint to get actual files
+      // Check if we're running in the Worker environment (have access to env bindings)
+      // This determines whether we can make direct service calls or need HTTP requests
+      if (env?.DB) {
+        console.log(
+          "[listFiles] Running in Worker environment, calling database directly"
+        );
+
+        // Call the library service directly
+        const ragService = getLibraryRagService(env);
+        const files = await ragService.searchFiles({
+          query: "",
+          userId: username,
+          limit: 20,
+          offset: 0,
+        });
+
+        console.log("[listFiles] Direct database call result:", files);
+
+        if (!files || files.length === 0) {
+          return createToolSuccess(
+            `No files found for user "${username}". Upload something to get started!`,
+            { files: [], count: 0, username },
+            toolCallId
+          );
+        }
+
+        // Convert SearchResult[] to File[] format for compatibility
+        const fileList = files
+          .map(
+            (file) =>
+              `- ${file.file_name} (${(file.file_size / 1024 / 1024).toFixed(2)} MB)`
+          )
+          .join("\n");
+
+        return createToolSuccess(
+          `📄 Found ${files.length} file(s) for user "${username}":\n${fileList}`,
+          {
+            files: files,
+            count: files.length,
+            username,
+          },
+          toolCallId
+        );
+      }
+
+      // Fallback to HTTP call when not running in Worker environment
+      // This could be browser, Node.js, or other environments without env bindings
+      console.log(
+        "[listFiles] Running in non-Worker environment, making HTTP call"
+      );
+      console.log(
+        "[listFiles] JWT being used:",
+        jwt ? `${jwt.substring(0, 20)}...` : "null"
+      );
+      console.log(
+        "[listFiles] Endpoint being called:",
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.FILES, env)
+      );
+
       const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.FILES),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.FILES, env),
         {
           method: "GET",
           headers: {
@@ -52,6 +115,9 @@ export const listFiles = tool({
           },
         }
       );
+
+      console.log("[listFiles] Response status:", response.status);
+      console.log("[listFiles] Response ok:", response.ok);
 
       if (!response.ok) {
         return createToolError(
@@ -63,6 +129,9 @@ export const listFiles = tool({
       }
 
       const result = (await response.json()) as FileResponse;
+      console.log("[listFiles] Response body:", result);
+      console.log("[listFiles] Files array:", result.files);
+      console.log("[listFiles] Files length:", result.files?.length || 0);
 
       if (!result.files || result.files.length === 0) {
         return createToolSuccess(
@@ -98,6 +167,7 @@ export const deleteFileExecution = async (
   console.log("[deleteFileExecution] Starting deletion for fileKey:", fileKey);
 
   const toolCallId = context?.toolCallId || "unknown";
+  const env = context?.env;
 
   try {
     if (!fileKey) {
@@ -110,7 +180,59 @@ export const deleteFileExecution = async (
       );
     }
 
-    const deleteUrl = `${API_CONFIG.getApiBaseUrl()}/rag/pdfs/${encodeURIComponent(fileKey)}`;
+    // Check if we're running in the Worker environment (have access to env bindings)
+    if (env?.DB) {
+      console.log(
+        "[deleteFileExecution] Running in Worker environment, calling database directly"
+      );
+
+      // Extract username from JWT for database operations
+      let username = "anonymous";
+      if (jwt) {
+        try {
+          const payload = JSON.parse(atob(jwt.split(".")[1]));
+          username = payload.username || "anonymous";
+        } catch (error) {
+          console.warn(
+            "[deleteFileExecution] Failed to parse JWT, using anonymous:",
+            error
+          );
+        }
+      }
+
+      // Get the library service for direct database access
+      const libraryService = getLibraryService(env);
+
+      // Delete the file using the service
+      const deleteResult = await libraryService.deleteFile(fileKey, username);
+
+      if (deleteResult.success) {
+        return createToolSuccess(
+          `Successfully deleted file: ${fileKey}`,
+          { status: "deleted", fileKey, username },
+          toolCallId
+        );
+      } else {
+        return createToolError(
+          "Failed to delete file from database",
+          deleteResult.error || "Unknown error",
+          500,
+          toolCallId
+        );
+      }
+    }
+
+    // Fallback to HTTP call when not running in Worker environment
+    // This could be browser, Node.js, or other environments without env bindings
+    console.log(
+      "[deleteFileExecution] Running in non-Worker environment, making HTTP call"
+    );
+
+    const deleteUrl = API_CONFIG.buildUrl(
+      API_CONFIG.ENDPOINTS.RAG.DELETE_FILE(fileKey),
+      env
+    );
+    console.log("[deleteFileExecution] Delete URL:", deleteUrl);
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -120,6 +242,7 @@ export const deleteFileExecution = async (
       headers.Authorization = `Bearer ${jwt}`;
     }
 
+    console.log("[deleteFileExecution] Making DELETE request to:", deleteUrl);
     const response = await fetch(deleteUrl, {
       method: "DELETE",
       headers,
@@ -151,7 +274,7 @@ export const deleteFileExecution = async (
 
     // Verify the file was actually deleted by trying to list files
     const listResponse = await fetch(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.FILES),
+      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.FILES, env),
       {
         headers: jwt ? { Authorization: `Bearer ${jwt}` } : {},
       }

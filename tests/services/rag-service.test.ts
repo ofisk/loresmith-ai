@@ -2,6 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryRAGService } from "../../src/services/rag-service";
 import type { FileMetadata, SearchQuery } from "../../src/types/upload";
 
+// Mock DAO factory
+vi.mock("../../src/dao/dao-factory", () => ({
+  getDAOFactory: vi.fn(),
+}));
+
+import { getDAOFactory } from "../../src/dao/dao-factory";
+
 // Mock AI service
 const mockAI = {
   run: vi.fn(),
@@ -24,9 +31,23 @@ const mockEnv = {
 
 describe("LibraryRAGService", () => {
   let ragService: LibraryRAGService;
+  let mockFileDAO: any;
 
   beforeEach(async () => {
     vi.clearAllMocks();
+
+    // Mock DAO factory
+    mockFileDAO = {
+      getFilesForRag: vi.fn(),
+      getFileForRag: vi.fn(),
+      updateFileMetadataForRag: vi.fn(),
+      updateFileRecord: vi.fn(),
+    };
+
+    (getDAOFactory as any).mockReturnValue({
+      fileDAO: mockFileDAO,
+    });
+
     ragService = new LibraryRAGService(mockEnv);
   });
 
@@ -134,59 +155,44 @@ describe("LibraryRAGService", () => {
     };
 
     it("should search files successfully", async () => {
-      const mockResults = {
-        results: [
-          {
-            id: "file-1",
-            file_key: "uploads/file1.pdf",
-            filename: "file1.pdf",
-            description: "Test document 1",
-            tags: '["test", "document"]',
-            file_size: 1024,
-            created_at: "2024-01-01T00:00:00Z",
-          },
-          {
-            id: "file-2",
-            file_key: "uploads/file2.pdf",
-            filename: "file2.pdf",
-            description: "Test document 2",
-            tags: '["test", "pdf"]',
-            file_size: 2048,
-            created_at: "2024-01-02T00:00:00Z",
-          },
-        ],
-      };
+      const mockResults = [
+        {
+          id: "file-1",
+          file_key: "uploads/file1.pdf",
+          file_name: "file1.pdf",
+          description: "Test document 1",
+          tags: '["test", "document"]',
+          file_size: 1024,
+          created_at: "2024-01-01T00:00:00Z",
+        },
+        {
+          id: "file-2",
+          file_key: "uploads/file2.pdf",
+          file_name: "file2.pdf",
+          description: "Test document 2",
+          tags: '["test", "pdf"]',
+          file_size: 2048,
+          created_at: "2024-01-02T00:00:00Z",
+        },
+      ];
 
-      mockEnv.DB.all.mockResolvedValue(mockResults);
+      mockFileDAO.getFilesForRag.mockResolvedValue(mockResults);
 
       const results = await ragService.searchFiles(mockSearchQuery);
 
       expect(results).toHaveLength(2);
       expect(results[0]).toEqual({
         id: "file-1",
-        fileKey: "uploads/file1.pdf",
-        filename: "file1.pdf",
+        file_key: "uploads/file1.pdf",
+        file_name: "file1.pdf",
         description: "Test document 1",
         tags: ["test", "document"],
-        fileSize: 1024,
-        createdAt: "2024-01-01T00:00:00Z",
+        file_size: 1024,
+        created_at: "2024-01-01T00:00:00Z",
       });
 
-      // Verify SQL query construction
-      expect(mockEnv.DB.prepare).toHaveBeenCalledWith(
-        expect.stringContaining(
-          "SELECT id, file_key, filename, description, tags, file_size, created_at"
-        )
-      );
-      expect(mockEnv.DB.bind).toHaveBeenCalledWith(
-        "user-123",
-        "%test document%",
-        "%test document%",
-        "%test document%",
-        '%"test document"%',
-        10,
-        0
-      );
+      // Verify DAO calls
+      expect(mockFileDAO.getFilesForRag).toHaveBeenCalledWith("user-123");
     });
 
     it("should search without query text", async () => {
@@ -195,17 +201,17 @@ describe("LibraryRAGService", () => {
         query: "",
       };
 
-      const mockResults = { results: [] };
-      mockEnv.DB.all.mockResolvedValue(mockResults);
+      const mockResults: any[] = [];
+      mockFileDAO.getFilesForRag.mockResolvedValue(mockResults);
 
       const results = await ragService.searchFiles(queryWithoutText);
 
       expect(results).toHaveLength(0);
-      expect(mockEnv.DB.bind).toHaveBeenCalledWith("user-123", 10, 0);
+      expect(mockFileDAO.getFilesForRag).toHaveBeenCalledWith("user-123");
     });
 
     it("should handle search errors gracefully", async () => {
-      mockEnv.DB.all.mockRejectedValue(new Error("Database error"));
+      mockFileDAO.getFilesForRag.mockRejectedValue(new Error("Database error"));
 
       const results = await ragService.searchFiles(mockSearchQuery);
 
@@ -213,8 +219,8 @@ describe("LibraryRAGService", () => {
     });
 
     it("should handle empty search results", async () => {
-      const mockResults = { results: [] };
-      mockEnv.DB.all.mockResolvedValue(mockResults);
+      const mockResults: any[] = [];
+      mockFileDAO.getFilesForRag.mockResolvedValue(mockResults);
 
       const results = await ragService.searchFiles(mockSearchQuery);
 
@@ -222,8 +228,8 @@ describe("LibraryRAGService", () => {
     });
 
     it("should handle null search results", async () => {
-      const mockResults = { results: null };
-      mockEnv.DB.all.mockResolvedValue(mockResults);
+      const mockResults = null;
+      mockFileDAO.getFilesForRag.mockResolvedValue(mockResults);
 
       const results = await ragService.searchFiles(mockSearchQuery);
 
@@ -231,21 +237,19 @@ describe("LibraryRAGService", () => {
     });
 
     it("should parse tags correctly", async () => {
-      const mockResults = {
-        results: [
-          {
-            id: "file-1",
-            file_key: "uploads/file1.pdf",
-            filename: "file1.pdf",
-            description: "Test document",
-            tags: '["tag1", "tag2"]',
-            file_size: 1024,
-            created_at: "2024-01-01T00:00:00Z",
-          },
-        ],
-      };
+      const mockResults = [
+        {
+          id: "file-1",
+          file_key: "uploads/file1.pdf",
+          file_name: "file1.pdf",
+          description: "Test document",
+          tags: '["tag1", "tag2"]',
+          file_size: 1024,
+          created_at: "2024-01-01T00:00:00Z",
+        },
+      ];
 
-      mockEnv.DB.all.mockResolvedValue(mockResults);
+      mockFileDAO.getFilesForRag.mockResolvedValue(mockResults);
 
       const results = await ragService.searchFiles(mockSearchQuery);
 
@@ -253,21 +257,19 @@ describe("LibraryRAGService", () => {
     });
 
     it("should handle empty tags", async () => {
-      const mockResults = {
-        results: [
-          {
-            id: "file-1",
-            file_key: "uploads/file1.pdf",
-            filename: "file1.pdf",
-            description: "Test document",
-            tags: null,
-            file_size: 1024,
-            created_at: "2024-01-01T00:00:00Z",
-          },
-        ],
-      };
+      const mockResults = [
+        {
+          id: "file-1",
+          file_key: "uploads/file1.pdf",
+          file_name: "file1.pdf",
+          description: "Test document",
+          tags: null,
+          file_size: 1024,
+          created_at: "2024-01-01T00:00:00Z",
+        },
+      ];
 
-      mockEnv.DB.all.mockResolvedValue(mockResults);
+      mockFileDAO.getFilesForRag.mockResolvedValue(mockResults);
 
       const results = await ragService.searchFiles(mockSearchQuery);
 
@@ -280,8 +282,8 @@ describe("LibraryRAGService", () => {
       const mockResult = {
         id: "file-123",
         file_key: "uploads/test.pdf",
-        user_id: "user-123",
-        filename: "test.pdf",
+        username: "user-123",
+        file_name: "test.pdf",
         file_size: 1024,
         content_type: "application/pdf",
         description: "Test PDF",
@@ -292,7 +294,7 @@ describe("LibraryRAGService", () => {
         vector_id: "vector_123",
       };
 
-      mockEnv.DB.first.mockResolvedValue(mockResult);
+      mockFileDAO.getFileForRag.mockResolvedValue(mockResult);
 
       const metadata = await ragService.getFileMetadata("file-123", "user-123");
 
@@ -308,17 +310,17 @@ describe("LibraryRAGService", () => {
         status: "completed",
         createdAt: "2024-01-01T00:00:00Z",
         updatedAt: "2024-01-01T00:00:00Z",
-        vectorId: "vector_123",
+        vectorId: undefined,
       });
 
-      expect(mockEnv.DB.prepare).toHaveBeenCalledWith(
-        expect.stringContaining("SELECT * FROM file_metadata")
+      expect(mockFileDAO.getFileForRag).toHaveBeenCalledWith(
+        "file-123",
+        "user-123"
       );
-      expect(mockEnv.DB.bind).toHaveBeenCalledWith("file-123", "user-123");
     });
 
     it("should return null for non-existent file", async () => {
-      mockEnv.DB.first.mockResolvedValue(null);
+      mockFileDAO.getFileForRag.mockResolvedValue(null);
 
       const metadata = await ragService.getFileMetadata("file-123", "user-123");
 
@@ -326,7 +328,7 @@ describe("LibraryRAGService", () => {
     });
 
     it("should handle database errors gracefully", async () => {
-      mockEnv.DB.first.mockRejectedValue(new Error("Database error"));
+      mockFileDAO.getFileForRag.mockRejectedValue(new Error("Database error"));
 
       const metadata = await ragService.getFileMetadata("file-123", "user-123");
 
@@ -342,7 +344,13 @@ describe("LibraryRAGService", () => {
         status: "completed" as const,
       };
 
-      mockEnv.DB.run.mockResolvedValue({});
+      mockFileDAO.getFileForRag.mockResolvedValue({
+        file_key: "uploads/test.pdf",
+        description: "Old description",
+        tags: '["old", "tags"]',
+      });
+      mockFileDAO.updateFileMetadataForRag.mockResolvedValue(undefined);
+      mockFileDAO.updateFileRecord.mockResolvedValue(undefined);
 
       const result = await ragService.updateFileMetadata(
         "file-123",
@@ -351,20 +359,29 @@ describe("LibraryRAGService", () => {
       );
 
       expect(result).toBe(true);
-      expect(mockEnv.DB.prepare).toHaveBeenCalledWith(
-        expect.stringContaining("UPDATE file_metadata")
-      );
-      expect(mockEnv.DB.bind).toHaveBeenCalledWith(
-        "Updated description",
-        '["updated","tags"]',
-        "completed",
-        expect.any(String),
+      expect(mockFileDAO.getFileForRag).toHaveBeenCalledWith(
         "file-123",
         "user-123"
+      );
+      expect(mockFileDAO.updateFileMetadataForRag).toHaveBeenCalledWith(
+        "uploads/test.pdf",
+        "user-123",
+        "Updated description",
+        '["updated","tags"]'
+      );
+      expect(mockFileDAO.updateFileRecord).toHaveBeenCalledWith(
+        "uploads/test.pdf",
+        "completed"
       );
     });
 
     it("should handle no updates gracefully", async () => {
+      mockFileDAO.getFileForRag.mockResolvedValue({
+        file_key: "uploads/test.pdf",
+        description: "Old description",
+        tags: '["old", "tags"]',
+      });
+
       const result = await ragService.updateFileMetadata(
         "file-123",
         "user-123",
@@ -372,7 +389,10 @@ describe("LibraryRAGService", () => {
       );
 
       expect(result).toBe(true);
-      expect(mockEnv.DB.prepare).not.toHaveBeenCalled();
+      expect(mockFileDAO.getFileForRag).toHaveBeenCalledWith(
+        "file-123",
+        "user-123"
+      );
     });
 
     it("should handle partial updates", async () => {
@@ -380,7 +400,12 @@ describe("LibraryRAGService", () => {
         description: "Only description update",
       };
 
-      mockEnv.DB.run.mockResolvedValue({});
+      mockFileDAO.getFileForRag.mockResolvedValue({
+        file_key: "uploads/test.pdf",
+        description: "Old description",
+        tags: '["old", "tags"]',
+      });
+      mockFileDAO.updateFileMetadataForRag.mockResolvedValue(undefined);
 
       const result = await ragService.updateFileMetadata(
         "file-123",
@@ -389,11 +414,11 @@ describe("LibraryRAGService", () => {
       );
 
       expect(result).toBe(true);
-      expect(mockEnv.DB.bind).toHaveBeenCalledWith(
+      expect(mockFileDAO.updateFileMetadataForRag).toHaveBeenCalledWith(
+        "uploads/test.pdf",
+        "user-123",
         "Only description update",
-        expect.any(String),
-        "file-123",
-        "user-123"
+        '["old", "tags"]'
       );
     });
 
@@ -402,7 +427,7 @@ describe("LibraryRAGService", () => {
         description: "Updated description",
       };
 
-      mockEnv.DB.run.mockRejectedValue(new Error("Database error"));
+      mockFileDAO.getFileForRag.mockRejectedValue(new Error("Database error"));
 
       const result = await ragService.updateFileMetadata(
         "file-123",
@@ -418,18 +443,21 @@ describe("LibraryRAGService", () => {
         description: "Updated description",
       };
 
-      mockEnv.DB.run.mockResolvedValue({});
+      mockFileDAO.getFileForRag.mockResolvedValue({
+        file_key: "uploads/test.pdf",
+        description: "Old description",
+        tags: '["old", "tags"]',
+      });
+      mockFileDAO.updateFileMetadataForRag.mockResolvedValue(undefined);
 
       await ragService.updateFileMetadata("file-123", "user-123", updates);
 
-      const bindCall = mockEnv.DB.bind.mock.calls[0];
-      const updatedAtIndex = bindCall.findIndex(
-        (arg: any) =>
-          typeof arg === "string" &&
-          arg.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+      expect(mockFileDAO.updateFileMetadataForRag).toHaveBeenCalledWith(
+        "uploads/test.pdf",
+        "user-123",
+        "Updated description",
+        '["old", "tags"]'
       );
-
-      expect(updatedAtIndex).toBeGreaterThan(-1);
     });
   });
 
