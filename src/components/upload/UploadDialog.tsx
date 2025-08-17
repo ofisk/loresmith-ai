@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Button } from "@/components/button/Button";
 import { cn } from "@/lib/utils";
-import { PdfUpload } from "./PdfUpload";
+import { ResourceUpload } from "./ResourceUpload";
 
 // Add animation styles
 const modalAnimation = `
@@ -74,7 +74,7 @@ export const UploadDialog = ({
               </p>
             </div>
           </div>
-          <PdfUpload
+          <ResourceUpload
             onUpload={onUpload}
             loading={loading}
             className="border-0 p-0 shadow-none"

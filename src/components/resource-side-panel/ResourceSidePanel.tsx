@@ -8,9 +8,9 @@ import {
   XCircle,
 } from "@phosphor-icons/react";
 import { Card } from "../card/Card";
-import { PdfList } from "../pdf-upload/PdfList";
+import { ResourceList } from "../upload/ResourceList";
 import { Modal } from "../modal/Modal";
-import { PdfUpload } from "../pdf-upload/PdfUpload";
+import { ResourceUpload } from "../upload/ResourceUpload";
 import { StorageTracker } from "../storage-tracker";
 import {
   getStoredJwt,
@@ -322,7 +322,7 @@ export function ResourceSidePanel({
           {isLibraryOpen && (
             <div className="border-t border-neutral-200 dark:border-neutral-700 h-96 overflow-hidden">
               {isAuthenticated ? (
-                <PdfList refreshTrigger={refreshTrigger} />
+                <ResourceList refreshTrigger={refreshTrigger} />
               ) : (
                 <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
                   Please log in to view your library
@@ -398,7 +398,7 @@ export function ResourceSidePanel({
           )}
 
           {/* Upload Form */}
-          <PdfUpload
+          <ResourceUpload
             onUpload={handleUpload}
             loading={isUploading}
             className="border-0 p-0 shadow-none"
