@@ -454,7 +454,7 @@ export function ResourceList({
                   </div>
                 )}
 
-                <div className="mt-4 flex gap-2">
+                <div className="mt-4 space-y-2">
                   <Button
                     onClick={() => {
                       setSelectedFile(file);
@@ -462,9 +462,20 @@ export function ResourceList({
                     }}
                     variant="secondary"
                     size="sm"
-                    className="flex-1"
+                    className="w-full !text-purple-600 dark:!text-purple-400 hover:!text-purple-700 dark:hover:!text-purple-300 border-purple-200 dark:border-purple-700 hover:border-purple-300 dark:hover:border-purple-600"
                   >
-                    Add to Campaign
+                    Add to campaign
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      // TODO: Implement edit functionality
+                      console.log("Edit file:", file.file_key);
+                    }}
+                    variant="secondary"
+                    size="sm"
+                    className="w-full text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                  >
+                    Edit
                   </Button>
                 </div>
               </div>
@@ -485,10 +496,30 @@ export function ResourceList({
 
           {campaigns.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              <p>No campaigns available.</p>
-              <p className="text-sm mt-2">
-                Create a campaign first to add to library.
+              <p className="font-medium text-gray-700 dark:text-gray-300 mb-3">
+                You haven't created any campaigns yet
               </p>
+              <div className="text-sm text-gray-500 dark:text-gray-400 space-y-2">
+                <p>
+                  To create a campaign, chat with the LoreSmith agent! Simply
+                  ask something like:
+                </p>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-left">
+                  <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    💬 Try asking:
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    "Create a new D&D campaign called [Campaign Name]"
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    "Help me start a new campaign about [theme/idea]"
+                  </p>
+                </div>
+                <p className="mt-3">
+                  LoreSmith will help you design the campaign together and then
+                  you can add resources to it!
+                </p>
+              </div>
             </div>
           ) : (
             <>
