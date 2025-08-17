@@ -68,11 +68,32 @@ export interface ToolRecommendation {
 export const analyzeUserStateTool = tool({
   description: "Analyze user's current state for contextual guidance",
   parameters: z.object({
-    username: z.string().describe("The username to analyze"),
     jwt: commonSchemas.jwt,
   }),
-  execute: async ({ username, jwt: _jwt }, context?: any) => {
+  execute: async ({ jwt }, context?: any) => {
     try {
+      // Extract username from JWT
+      if (!jwt) {
+        return createToolError(
+          "No JWT provided",
+          "Authentication token is required",
+          400,
+          context?.toolCallId || "unknown"
+        );
+      }
+
+      const payload = JSON.parse(atob(jwt.split(".")[1]));
+      const username = payload.username;
+
+      if (!username) {
+        return createToolError(
+          "No username found in JWT",
+          "Unable to extract username from authentication token",
+          400,
+          context?.toolCallId || "unknown"
+        );
+      }
+
       const env = context?.env;
       if (!env) {
         return createToolError(
@@ -155,11 +176,32 @@ export const getCampaignHealthTool = tool({
 export const getUserActivityTool = tool({
   description: "Get user activity for personalized guidance",
   parameters: z.object({
-    username: z.string().describe("The username to get activity for"),
     jwt: commonSchemas.jwt,
   }),
-  execute: async ({ username, jwt: _jwt }, context?: any) => {
+  execute: async ({ jwt }, context?: any) => {
     try {
+      // Extract username from JWT
+      if (!jwt) {
+        return createToolError(
+          "No JWT provided",
+          "Authentication token is required",
+          400,
+          context?.toolCallId || "unknown"
+        );
+      }
+
+      const payload = JSON.parse(atob(jwt.split(".")[1]));
+      const username = payload.username;
+
+      if (!username) {
+        return createToolError(
+          "No username found in JWT",
+          "Unable to extract username from authentication token",
+          400,
+          context?.toolCallId || "unknown"
+        );
+      }
+
       const env = context?.env;
       if (!env) {
         return createToolError(

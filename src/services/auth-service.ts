@@ -4,6 +4,7 @@ import type { Env } from "../middleware/auth";
 import { ERROR_MESSAGES, JWT_STORAGE_KEY } from "../constants";
 import { getAuthService } from "./service-factory";
 import { getDAOFactory } from "../dao";
+import { getEnvVar } from "../lib/env-utils";
 
 export interface AuthPayload extends JWTPayload {
   type: "user-auth";
@@ -52,37 +53,27 @@ export class AuthService {
    * Get JWT secret from environment
    */
   async getJwtSecret(): Promise<Uint8Array> {
-    // Get secret from local dev vars or Cloudflare secrets store
-    let secret: string | null;
+    // For JWT signing, we need a secret. If ADMIN_SECRET is not available, use a fallback
+    let secret: string;
 
-    if (typeof this.env.ADMIN_SECRET === "string") {
-      // Local development: direct string from .dev.vars
-      secret = this.env.ADMIN_SECRET;
-    } else if (
-      this.env.ADMIN_SECRET &&
-      typeof this.env.ADMIN_SECRET.get === "function"
-    ) {
-      // Production: Cloudflare secrets store
-      try {
-        secret = await this.env.ADMIN_SECRET.get();
-      } catch (error) {
-        console.warn(
-          "[AuthService] Error accessing Cloudflare secrets store:",
-          error
-        );
-        secret = null;
-      }
-    } else {
-      // Fallback
-      secret = null;
-    }
+    console.log("[AuthService] Environment debug:", {
+      hasEnv: !!this.env,
+      adminSecretType: typeof this.env.ADMIN_SECRET,
+      adminSecretKeys: this.env.ADMIN_SECRET
+        ? Object.keys(this.env.ADMIN_SECRET)
+        : "null",
+      processEnvAdmin: process.env.ADMIN_SECRET ? "present" : "not present",
+    });
 
-    // If no secret is available, use a fallback for JWT signing (but admin access will be disabled)
-    if (!secret) {
+    try {
+      secret = await getEnvVar(this.env, "ADMIN_SECRET");
+    } catch (_error) {
+      // If ADMIN_SECRET is not available, use a fallback secret for JWT signing
+      // This allows non-admin users to still authenticate
       console.warn(
-        "[AuthService] No admin secret available - using fallback secret for JWT signing only"
+        "[AuthService] ADMIN_SECRET not available, using fallback for JWT signing"
       );
-      secret = "fallback-jwt-secret-no-admin-access";
+      secret = "fallback-jwt-secret-for-non-admin-users";
     }
 
     console.log("[AuthService] JWT secret source:", {
@@ -124,19 +115,12 @@ export class AuthService {
       let validAdminKey: string | null = null;
 
       try {
-        if (typeof this.env.ADMIN_SECRET === "string") {
-          // Local development: direct string from .dev.vars
-          validAdminKey = this.env.ADMIN_SECRET;
-        } else if (
-          this.env.ADMIN_SECRET &&
-          typeof this.env.ADMIN_SECRET.get === "function"
-        ) {
-          // Production: Cloudflare secrets store
-          validAdminKey = await this.env.ADMIN_SECRET.get();
-        }
-        // If ADMIN_SECRET is undefined/null, validAdminKey remains null
-      } catch (error) {
-        console.warn("[AuthService] Error accessing ADMIN_SECRET:", error);
+        // Use the same utility function for consistency
+        validAdminKey = await getEnvVar(this.env, "ADMIN_SECRET");
+      } catch (_error) {
+        console.warn(
+          "[AuthService] ADMIN_SECRET not available - admin access disabled"
+        );
         // Continue with validAdminKey as null - user will not get admin access
       }
 
@@ -470,9 +454,24 @@ export class AuthService {
    * Utility function to parse JWT and extract username
    */
   static parseJwtForUsername(jwt: string): string | null {
+    console.log(
+      "[AuthService] parseJwtForUsername called with JWT:",
+      jwt ? `${jwt.substring(0, 20)}...` : "null"
+    );
     try {
       const payload = JSON.parse(atob(jwt.split(".")[1]));
-      return payload.username || null;
+      console.log(
+        "[AuthService] JWT payload: { type:",
+        payload.type,
+        ", username:",
+        payload.username,
+        ", isAdmin:",
+        payload.isAdmin,
+        " }"
+      );
+      const username = payload.username || null;
+      console.log("[AuthService] Extracted username:", username);
+      return username;
     } catch (error) {
       console.error("Error parsing JWT for username:", error);
       return null;
@@ -483,13 +482,27 @@ export class AuthService {
    * Utility function to extract username from message data
    */
   static extractUsernameFromMessage(message: any): string | null {
+    console.log("[AuthService] extractUsernameFromMessage called with:", {
+      hasMessage: !!message,
+      hasData: !!message?.data,
+      dataType: typeof message?.data,
+      hasJwt:
+        message?.data &&
+        typeof message.data === "object" &&
+        "jwt" in message.data,
+    });
+
     if (
       message?.data &&
       typeof message.data === "object" &&
       "jwt" in message.data
     ) {
+      console.log(
+        "[AuthService] JWT found in message data, parsing for username"
+      );
       return AuthService.parseJwtForUsername((message.data as any).jwt);
     }
+    console.log("[AuthService] No JWT found in message data");
     return null;
   }
 

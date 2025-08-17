@@ -13,10 +13,10 @@ const sanitizeFilename = (filename: string): string => {
     .replace(/[^\w\-_.]/g, "_") // Replace any other non-alphanumeric chars except -_.
     .replace(/_+/g, "_") // Replace multiple underscores with single
     .replace(/^_+|_+$/g, "") // Remove leading/trailing underscores
-    .replace(/\.pdf$/i, ".pdf"); // Ensure .pdf extension is lowercase
+    .replace(/\.(pdf|txt|doc|docx)$/i, (match) => match.toLowerCase()); // Ensure file extensions are lowercase
 };
 
-interface PdfUploadProps {
+interface ResourceUploadProps {
   onUpload: (
     file: File,
     filename: string,
@@ -29,16 +29,16 @@ interface PdfUploadProps {
   uploadProgress?: ProcessingProgress | null;
 }
 
-export const PdfUpload = ({
+export const ResourceUpload = ({
   onUpload,
   loading = false,
   className,
   jwtUsername,
   uploadProgress,
-}: PdfUploadProps) => {
-  const pdfFilenameId = useId();
-  const pdfDescriptionId = useId();
-  const pdfTagsId = useId();
+}: ResourceUploadProps) => {
+  const resourceFilenameId = useId();
+  const resourceDescriptionId = useId();
+  const resourceTagsId = useId();
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [filename, setFilename] = useState("");
@@ -67,7 +67,14 @@ export const PdfUpload = ({
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
-    const validFiles = files.filter((file) => file.type === "application/pdf");
+    const validFiles = files.filter(
+      (file) =>
+        file.type === "application/pdf" ||
+        file.type === "text/plain" ||
+        file.type === "application/msword" ||
+        file.type ===
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    );
 
     if (validFiles.length > 0) {
       setSelectedFiles(validFiles);
@@ -103,7 +110,14 @@ export const PdfUpload = ({
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault();
     const files = Array.from(event.dataTransfer.files);
-    const validFiles = files.filter((file) => file.type === "application/pdf");
+    const validFiles = files.filter(
+      (file) =>
+        file.type === "application/pdf" ||
+        file.type === "text/plain" ||
+        file.type === "application/msword" ||
+        file.type ===
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    );
 
     if (validFiles.length > 0) {
       setSelectedFiles(validFiles);
@@ -203,7 +217,7 @@ export const PdfUpload = ({
               loading && "opacity-50 pointer-events-none",
               className
             )}
-            aria-label="Upload PDF file"
+            aria-label="Upload resource file"
             onClick={() => fileInputRef.current?.click()}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -223,7 +237,7 @@ export const PdfUpload = ({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf"
+              accept=".pdf,.txt,.doc,.docx"
               onChange={handleFileSelect}
               className="hidden"
               multiple
@@ -243,7 +257,8 @@ export const PdfUpload = ({
                   Click to select or drag and drop
                 </div>
                 <div className="text-ob-base-200 text-sm">
-                  Supported resource types: PDF (more coming soon)
+                  Supported resource types: PDF and other files (more coming
+                  soon)
                 </div>
               </div>
             )}
@@ -253,7 +268,7 @@ export const PdfUpload = ({
         {/* Form Fields */}
         <div className="space-y-4">
           <FormField
-            id={pdfFilenameId}
+            id={resourceFilenameId}
             label="Filename"
             placeholder="Name this mighty tome…"
             value={filename}
@@ -261,7 +276,7 @@ export const PdfUpload = ({
             disabled={loading}
           />
           <FormField
-            id={pdfDescriptionId}
+            id={resourceDescriptionId}
             label="Description (optional)"
             placeholder="Describe the perils and promises within..."
             value={description}
@@ -269,7 +284,7 @@ export const PdfUpload = ({
             disabled={loading}
           />
           <FormField
-            id={pdfTagsId}
+            id={resourceTagsId}
             label="Tags (optional)"
             placeholder="Mark this tome with its arcane keywords…"
             value={tagInput}

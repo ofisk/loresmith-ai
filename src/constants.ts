@@ -89,8 +89,9 @@ export const ERROR_MESSAGES = {
 // User-facing messages
 export const USER_MESSAGES = {
   // Authentication messages
-  INVALID_ADMIN_KEY: "Invalid admin key. Please check your key and try again.",
-  ADMIN_KEY_VALIDATED:
+  INVALID_ADMIN_SECRET:
+    "Invalid admin secret. Please check your secret and try again.",
+  ADMIN_SECRET_VALIDATED:
     "Admin key validated successfully! You now have access to PDF upload and parsing features.",
   SESSION_EXPIRED: "Your session has expired. Please re-authenticate.",
 
