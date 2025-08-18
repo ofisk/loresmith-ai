@@ -238,18 +238,6 @@ export class AuthService {
   /**
    * Create authentication headers for API requests
    */
-  createAuthHeaders(jwt?: string | null): Record<string, string> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-
-    if (jwt) {
-      headers.Authorization = `Bearer ${jwt}`;
-    }
-
-    return headers;
-  }
-
   static createAuthHeaders(jwt?: string | null): Record<string, string> {
     return {
       Authorization: jwt ? `Bearer ${jwt}` : "",
@@ -260,11 +248,6 @@ export class AuthService {
   /**
    * Create authentication headers from stored JWT
    */
-  createAuthHeadersFromStorage(): Record<string, string> {
-    const jwt = AuthService.getStoredJwt();
-    return AuthService.createAuthHeaders(jwt);
-  }
-
   static createAuthHeadersFromStorage(): Record<string, string> {
     const jwt = AuthService.getStoredJwt();
     return AuthService.createAuthHeaders(jwt);
@@ -273,17 +256,6 @@ export class AuthService {
   /**
    * Check if JWT is expired
    */
-  isJwtExpired(jwt: string): boolean {
-    try {
-      const payload = JSON.parse(atob(jwt.split(".")[1]));
-      const exp = payload.exp * 1000; // Convert to milliseconds
-      return Date.now() >= exp;
-    } catch (error) {
-      console.error("[AuthService] Error checking JWT expiration:", error);
-      return true; // Consider expired if we can't parse
-    }
-  }
-
   static isJwtExpired(jwt: string): boolean {
     try {
       const payload = JSON.parse(atob(jwt.split(".")[1]));
@@ -327,7 +299,7 @@ export class AuthService {
     options: RequestInit & { jwt?: string | null } = {}
   ): Promise<{ response: Response; jwtExpired: boolean }> {
     const { jwt, ...fetchOptions } = options;
-    const headers = this.createAuthHeaders(jwt);
+    const headers = AuthService.createAuthHeaders(jwt);
 
     // Merge with any existing headers
     if (fetchOptions.headers) {
@@ -429,7 +401,7 @@ export class AuthService {
     headers: Record<string, string>;
   } {
     return {
-      headers: this.createAuthHeaders(jwt),
+      headers: AuthService.createAuthHeaders(jwt),
     };
   }
 
@@ -605,6 +577,72 @@ export class AuthService {
         }
       );
     }
+  }
+
+  /**
+   * Create a modified request with authentication context for agent routing
+   * This adds auth info to headers so the agent can access it
+   */
+  static createRequestWithAuthContext(
+    originalRequest: Request,
+    authPayload: AuthPayload | null
+  ): Request {
+    if (!authPayload) {
+      return originalRequest;
+    }
+
+    // Add auth info to headers for the agent to access
+    const headers = new Headers(originalRequest.headers);
+    headers.set("X-User-Auth", JSON.stringify(authPayload));
+
+    return new Request(originalRequest.url, {
+      method: originalRequest.method,
+      headers,
+      body: originalRequest.body,
+    });
+  }
+
+  /**
+   * Handle agent authentication for initial message retrieval vs message processing
+   * This allows initial message retrieval without auth but requires auth for processing
+   */
+  static async handleAgentAuthentication(
+    username: string | null,
+    hasUserMessages: boolean,
+    db: D1Database,
+    cache: {
+      getCachedKey(): string | null;
+      setCachedKey(key: string): Promise<void>;
+      clearCachedKey(): Promise<void>;
+    }
+  ): Promise<{
+    shouldProceed: boolean;
+    apiKey: string | null;
+    requiresAuth: boolean;
+  }> {
+    // For initial message retrieval, allow the request to proceed without authentication
+    if (!username) {
+      console.log(
+        "[AuthService] No username found for initial message retrieval, allowing request to proceed"
+      );
+      return { shouldProceed: true, apiKey: null, requiresAuth: false };
+    }
+
+    const apiKey = await AuthService.loadUserOpenAIKeyWithCache(
+      username,
+      db,
+      cache
+    );
+
+    // If no API key and we have user messages, require authentication
+    if (!apiKey && hasUserMessages) {
+      console.log(
+        "[AuthService] No OpenAI API key found for message processing, requiring authentication"
+      );
+      return { shouldProceed: false, apiKey: null, requiresAuth: true };
+    }
+
+    return { shouldProceed: true, apiKey, requiresAuth: false };
   }
 }
 

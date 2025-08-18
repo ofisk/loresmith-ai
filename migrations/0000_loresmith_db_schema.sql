@@ -12,7 +12,7 @@ create table if not exists campaigns (
   updated_at datetime default current_timestamp
 );
 
--- campaign resources (pdfs associated with campaigns)
+-- campaign resources (files associated with campaigns)
 create table if not exists campaign_resources (
   id text primary key,
   campaign_id text not null,
@@ -25,8 +25,8 @@ create table if not exists campaign_resources (
   foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
--- pdf content chunks for rag
-create table if not exists pdf_chunks (
+-- file content chunks for rag
+create table if not exists file_chunks (
   id text primary key,
   file_key text not null,
   username text not null,
@@ -37,8 +37,8 @@ create table if not exists pdf_chunks (
   created_at datetime default current_timestamp
 );
 
--- pdf metadata for search
-create table if not exists pdf_metadata (
+-- file metadata for search
+create table if not exists file_metadata (
   file_key text primary key,
   username text not null,
   file_name text not null,
@@ -56,9 +56,9 @@ create index if not exists idx_campaign_resources_campaign_id
   on campaign_resources(campaign_id);
 create index if not exists idx_campaign_resources_file_key 
   on campaign_resources(file_key);
-create index if not exists idx_pdf_chunks_username 
-  on pdf_chunks(username);
-create index if not exists idx_pdf_chunks_file_key 
-  on pdf_chunks(file_key);
-create index if not exists idx_pdf_metadata_username 
-  on pdf_metadata(username); 
+create index if not exists idx_file_chunks_username 
+  on file_chunks(username);
+create index if not exists idx_file_chunks_file_key 
+  on file_chunks(file_key);
+create index if not exists idx_file_metadata_username 
+  on file_metadata(username); 

@@ -267,4 +267,169 @@ export class FileDAO extends BaseDAOClass {
     `;
     return await this.queryAll<FileMetadata>(sql, [username, limit]);
   }
+
+  async updateFileStatus(
+    fileKey: string,
+    username: string,
+    status: string,
+    fileSize?: number
+  ): Promise<void> {
+    let sql: string;
+    let params: any[];
+
+    if (fileSize !== undefined) {
+      sql = `
+        UPDATE file_metadata 
+        SET status = ?, updated_at = ?, file_size = ? 
+        WHERE file_key = ? AND username = ?
+      `;
+      params = [status, new Date().toISOString(), fileSize, fileKey, username];
+    } else {
+      sql = `
+        UPDATE file_metadata 
+        SET status = ?, updated_at = ? 
+        WHERE file_key = ? AND username = ?
+      `;
+      params = [status, new Date().toISOString(), fileKey, username];
+    }
+
+    await this.execute(sql, params);
+  }
+
+  // Methods for the 'files' table (used by RAG functionality)
+
+  async createFileRecord(
+    id: string,
+    fileKey: string,
+    fileName: string,
+    description: string,
+    tags: string,
+    username: string,
+    status: string,
+    fileSize: number
+  ): Promise<void> {
+    const sql = `
+      INSERT INTO files (id, file_key, file_name, description, tags, username, status, created_at, file_size) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    await this.execute(sql, [
+      id,
+      fileKey,
+      fileName,
+      description,
+      tags,
+      username,
+      status,
+      new Date().toISOString(),
+      fileSize,
+    ]);
+  }
+
+  async updateFileRecord(
+    fileKey: string,
+    status: string,
+    fileSize?: number
+  ): Promise<void> {
+    let sql: string;
+    let params: any[];
+
+    if (fileSize !== undefined) {
+      sql = `
+        UPDATE files 
+        SET status = ?, updated_at = ?, file_size = ? 
+        WHERE file_key = ?
+      `;
+      params = [status, new Date().toISOString(), fileSize, fileKey];
+    } else {
+      sql = `
+        UPDATE files 
+        SET status = ?, updated_at = ? 
+        WHERE file_key = ?
+      `;
+      params = [status, new Date().toISOString(), fileKey];
+    }
+
+    await this.execute(sql, params);
+  }
+
+  async updateFileMetadataForRag(
+    fileKey: string,
+    username: string,
+    description: string,
+    tags: string
+  ): Promise<void> {
+    const sql = `
+      UPDATE files 
+      SET description = ?, tags = ?, updated_at = ? 
+      WHERE file_key = ? AND username = ?
+    `;
+    await this.execute(sql, [
+      description,
+      tags,
+      new Date().toISOString(),
+      fileKey,
+      username,
+    ]);
+  }
+
+  async getFilesForRag(username: string): Promise<any[]> {
+    const sql = `
+      SELECT id, file_key, file_name, description, tags, status, created_at, updated_at, file_size 
+      FROM files 
+      WHERE username = ? 
+      ORDER BY created_at DESC
+    `;
+    return await this.queryAll(sql, [username]);
+  }
+
+  async getFileForRag(fileKey: string, username: string): Promise<any | null> {
+    const sql = `
+      SELECT * FROM files 
+      WHERE file_key = ? AND username = ?
+    `;
+    return await this.queryFirst(sql, [fileKey, username]);
+  }
+
+  async getFileChunksForRag(fileKey: string, username: string): Promise<any[]> {
+    const sql = `
+      SELECT id, file_key, chunk_text, chunk_index, created_at 
+      FROM pdf_chunks 
+      WHERE file_key = ? AND username = ? 
+      ORDER BY chunk_index
+    `;
+    return await this.queryAll(sql, [fileKey, username]);
+  }
+
+  async getFileStatsForRag(username: string): Promise<any> {
+    const sql = `
+      SELECT * FROM files 
+      WHERE username = ? 
+      ORDER BY created_at DESC
+    `;
+    const files = await this.queryAll(sql, [username]);
+
+    const uploaded = files.filter((f: any) => f.status === "uploaded").length;
+    const processed = files.filter((f: any) => f.status === "processed").length;
+    const processing = files.filter(
+      (f: any) => f.status === "processing"
+    ).length;
+    const error = files.filter((f: any) => f.status === "error").length;
+
+    return {
+      uploaded,
+      processed,
+      processing,
+      error,
+      total: files.length,
+    };
+  }
+
+  async getAllFilesForStorageUsage(): Promise<any[]> {
+    const sql = `
+      SELECT username, file_size, status 
+      FROM files 
+      ORDER BY created_at DESC
+    `;
+    return await this.queryAll(sql, []);
+  }
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { upload } from "../../src/routes/upload";
-import { PDF_PROCESSING_CONFIG } from "../../src/constants";
+import { FILE_PROCESSING_CONFIG } from "../../src/constants";
 
 // Mock service factory
 vi.mock("../../src/services/service-factory", () => ({
@@ -79,7 +79,7 @@ describe("Upload Routes", () => {
         },
         body: JSON.stringify({
           filename: "test-file.pdf",
-          fileSize: PDF_PROCESSING_CONFIG.CHUNK_SIZE,
+          fileSize: FILE_PROCESSING_CONFIG.CHUNK_SIZE,
           contentType: "application/pdf",
           enableAutoRAGChunking: true,
         }),
@@ -90,7 +90,7 @@ describe("Upload Routes", () => {
       expect(mockUploadService.startUpload).toHaveBeenCalledWith(
         "testuser",
         "test-file.pdf",
-        PDF_PROCESSING_CONFIG.CHUNK_SIZE,
+        FILE_PROCESSING_CONFIG.CHUNK_SIZE,
         "application/pdf"
       );
 
@@ -107,7 +107,7 @@ describe("Upload Routes", () => {
           Authorization: "Bearer test-jwt",
         },
         body: JSON.stringify({
-          fileSize: PDF_PROCESSING_CONFIG.CHUNK_SIZE,
+          fileSize: FILE_PROCESSING_CONFIG.CHUNK_SIZE,
         }),
       });
 
@@ -150,7 +150,7 @@ describe("Upload Routes", () => {
         },
         body: JSON.stringify({
           filename: "test-file.pdf",
-          fileSize: PDF_PROCESSING_CONFIG.CHUNK_SIZE,
+          fileSize: FILE_PROCESSING_CONFIG.CHUNK_SIZE,
         }),
       });
 

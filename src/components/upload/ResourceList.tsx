@@ -207,7 +207,7 @@ export function ResourceList({
 
       const { response: resourcesResponse, jwtExpired: resourcesJwtExpired } =
         await authenticatedFetchWithExpiration(
-          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.FILES),
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.FILES),
           { jwt }
         );
 

@@ -58,7 +58,7 @@ export const MODEL_CONFIG = {
 The models are automatically used throughout the codebase:
 
 - **Chat agents** use `PRIMARY` model
-- **PDF metadata generation** uses `ANALYSIS` model
+- **File metadata generation** uses `ANALYSIS` model
 - **Content analysis** uses `ANALYSIS` model
 
 No code changes needed - just update the constants and restart the application!

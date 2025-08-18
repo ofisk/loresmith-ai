@@ -4,8 +4,8 @@
 
 import type { Env } from "../middleware/auth";
 import type { FileMetadata, SearchQuery, SearchResult } from "../types/upload";
-import type { PdfStatus } from "../types/pdf";
 import { BaseRAGService } from "./base-rag-service";
+import { getDAOFactory } from "../dao/dao-factory";
 
 export class LibraryRAGService extends BaseRAGService {
   private ai: any;
@@ -112,7 +112,7 @@ export class LibraryRAGService extends BaseRAGService {
     const buffer = await file.arrayBuffer();
 
     if (contentType.includes("pdf")) {
-      return await this.extractPdfText(buffer);
+      return await this.extractFileText(buffer);
     } else if (contentType.includes("text")) {
       return new TextDecoder().decode(buffer);
     } else if (contentType.includes("json")) {
@@ -128,18 +128,18 @@ export class LibraryRAGService extends BaseRAGService {
     return null;
   }
 
-  private async extractPdfText(buffer: ArrayBuffer): Promise<string> {
+  private async extractFileText(buffer: ArrayBuffer): Promise<string> {
     try {
       // Use AutoRAG's text extraction if available
       if (this.env.AI) {
-        // AutoRAG handles PDF content directly - no extraction needed
-        return `PDF content processed by AutoRAG (${buffer.byteLength} bytes)`;
+        // AutoRAG handles file content directly - no extraction needed
+        return `File content processed by AutoRAG (${buffer.byteLength} bytes)`;
       }
 
       // Fallback to basic text extraction
       const uint8Array = new Uint8Array(buffer);
       const decoder = new TextDecoder("utf-8", { fatal: false });
-      const pdfString = decoder.decode(uint8Array);
+      const fileString = decoder.decode(uint8Array);
 
       // Simple text extraction patterns
       const textPatterns = [
@@ -151,7 +151,7 @@ export class LibraryRAGService extends BaseRAGService {
       let extractedText = "";
 
       for (const pattern of textPatterns) {
-        const matches = pdfString.match(pattern) || [];
+        const matches = fileString.match(pattern) || [];
         for (const match of matches) {
           let text = match;
           if (pattern.source.includes("\\(")) {
@@ -181,11 +181,11 @@ export class LibraryRAGService extends BaseRAGService {
 
       return (
         extractedText.replace(/\s+/g, " ").trim() ||
-        `PDF content extracted (${buffer.byteLength} bytes)`
+        `File content extracted (${buffer.byteLength} bytes)`
       );
     } catch (error) {
-      console.error("Error extracting PDF text:", error);
-      return `PDF content extracted (${buffer.byteLength} bytes)`;
+      console.error("Error extracting file text:", error);
+      return `File content extracted (${buffer.byteLength} bytes)`;
     }
   }
 
@@ -302,62 +302,44 @@ export class LibraryRAGService extends BaseRAGService {
       userId,
       limit = 20,
       offset = 0,
-      includeTags = true,
       includeSemantic = true,
     } = query;
 
     try {
-      // Build search SQL
-      let sql = `
-        SELECT id, file_key, filename, description, tags, file_size, created_at
-        FROM file_metadata 
-        WHERE user_id = ?
-      `;
+      const fileDAO = getDAOFactory(this.env).fileDAO;
 
-      const params: any[] = [userId];
+      // Get all files for the user
+      const files = await fileDAO.getFilesForRag(userId);
 
-      // Add keyword search
+      // Filter files based on search query
+      let filteredFiles = files;
       if (searchQuery.trim()) {
-        sql += ` AND (
-          filename LIKE ? OR 
-          description LIKE ? OR 
-          tags LIKE ?
-        )`;
-        const likeQuery = `%${searchQuery}%`;
-        params.push(likeQuery, likeQuery, likeQuery);
+        const searchLower = searchQuery.toLowerCase();
+        filteredFiles = files.filter((file: any) => {
+          const filename = (file.file_name || "").toLowerCase();
+          const description = (file.description || "").toLowerCase();
+          const tags = (file.tags || "[]").toLowerCase();
+
+          return (
+            filename.includes(searchLower) ||
+            description.includes(searchLower) ||
+            tags.includes(searchLower)
+          );
+        });
       }
 
-      // Add tag-based search if enabled
-      if (includeTags && searchQuery.trim()) {
-        // Search for tags that contain the query
-        const tagQuery = `%"${searchQuery}"%`;
-        if (!searchQuery.trim()) {
-          sql += ` AND tags LIKE ?`;
-          params.push(tagQuery);
-        } else {
-          sql += ` OR tags LIKE ?`;
-          params.push(tagQuery);
-        }
-      }
+      // Apply pagination
+      const paginatedFiles = filteredFiles.slice(offset, offset + limit);
 
-      sql += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-      params.push(limit, offset);
-
-      const result = await this.env.DB.prepare(sql)
-        .bind(...params)
-        .all();
-
-      const searchResults: SearchResult[] = (result.results || []).map(
-        (row: any) => ({
-          id: row.id,
-          fileKey: row.file_key,
-          filename: row.filename,
-          description: row.description,
-          tags: JSON.parse(row.tags || "[]"),
-          fileSize: row.file_size,
-          createdAt: row.created_at,
-        })
-      );
+      const searchResults: SearchResult[] = paginatedFiles.map((file: any) => ({
+        id: file.id,
+        fileKey: file.file_key,
+        filename: file.file_name,
+        description: file.description,
+        tags: JSON.parse(file.tags || "[]"),
+        fileSize: file.file_size,
+        createdAt: file.created_at,
+      }));
 
       // TODO: Add semantic search using vector embeddings
       if (includeSemantic && searchQuery.trim()) {
@@ -381,18 +363,12 @@ export class LibraryRAGService extends BaseRAGService {
   }
 
   async getFileMetadata(
-    fileId: string,
-    userId: string
+    fileKey: string,
+    username: string
   ): Promise<FileMetadata | null> {
     try {
-      const result = await this.env.DB.prepare(
-        `
-        SELECT * FROM file_metadata 
-        WHERE id = ? AND user_id = ?
-      `
-      )
-        .bind(fileId, userId)
-        .first();
+      const fileDAO = getDAOFactory(this.env).fileDAO;
+      const result = await fileDAO.getFileForRag(fileKey, username);
 
       if (!result) {
         return null;
@@ -401,16 +377,16 @@ export class LibraryRAGService extends BaseRAGService {
       return {
         id: result.id as string,
         fileKey: result.file_key as string,
-        userId: result.user_id as string,
-        filename: result.filename as string,
+        userId: result.username as string,
+        filename: result.file_name as string,
         fileSize: result.file_size as number,
-        contentType: result.content_type as string,
+        contentType: "application/pdf", // Default since column doesn't exist
         description: result.description as string | undefined,
         tags: JSON.parse((result.tags as string) || "[]"),
-        status: result.status as PdfStatus,
+        status: result.status as string,
         createdAt: result.created_at as string,
         updatedAt: result.updated_at as string,
-        vectorId: result.vector_id as string | undefined,
+        vectorId: undefined, // Column doesn't exist
       };
     } catch (error) {
       console.error(`[LibraryRAGService] Error getting file metadata:`, error);
@@ -424,42 +400,32 @@ export class LibraryRAGService extends BaseRAGService {
     updates: Partial<FileMetadata>
   ): Promise<boolean> {
     try {
-      const setClauses: string[] = [];
-      const params: any[] = [];
+      const fileDAO = getDAOFactory(this.env).fileDAO;
 
-      if (updates.description !== undefined) {
-        setClauses.push("description = ?");
-        params.push(updates.description);
+      // Get the file to find the file_key
+      const file = await fileDAO.getFileForRag(fileId, userId);
+      if (!file) {
+        console.error(`[LibraryRAGService] File not found for update:`, {
+          fileId,
+          userId,
+        });
+        return false;
       }
 
-      if (updates.tags !== undefined) {
-        setClauses.push("tags = ?");
-        params.push(JSON.stringify(updates.tags));
+      // Update description and tags if provided
+      if (updates.description !== undefined || updates.tags !== undefined) {
+        await fileDAO.updateFileMetadataForRag(
+          file.file_key,
+          userId,
+          updates.description || file.description || "",
+          updates.tags ? JSON.stringify(updates.tags) : file.tags || "[]"
+        );
       }
 
+      // Update status if provided
       if (updates.status !== undefined) {
-        setClauses.push("status = ?");
-        params.push(updates.status);
+        await fileDAO.updateFileRecord(file.file_key, updates.status);
       }
-
-      if (setClauses.length === 0) {
-        return true;
-      }
-
-      setClauses.push("updated_at = ?");
-      params.push(new Date().toISOString());
-
-      params.push(fileId, userId);
-
-      const sql = `
-        UPDATE file_metadata 
-        SET ${setClauses.join(", ")}
-        WHERE id = ? AND user_id = ?
-      `;
-
-      await this.env.DB.prepare(sql)
-        .bind(...params)
-        .run();
 
       console.log(`[LibraryRAGService] Updated file metadata:`, {
         fileId,
@@ -580,27 +546,21 @@ SUGGESTIONS: [suggestion1, suggestion2, suggestion3]
     status: string
   ): Promise<void> {
     try {
-      await this.env.DB.prepare(
-        "UPDATE file_metadata SET status = ? WHERE id = ?"
-      )
-        .bind(status, identifier)
-        .run();
+      const fileDAO = getDAOFactory(this.env).fileDAO;
+      // Note: This method needs to be updated to work with the files table
+      // For now, we'll use the existing updateFileRecord method
+      await fileDAO.updateFileRecord(identifier, status);
     } catch (error) {
       console.error(`[LibraryRAGService] Error updating status:`, error);
     }
   }
 
-  async getUserPdfs(username: string): Promise<any[]> {
+  async getUserFiles(username: string): Promise<any[]> {
     try {
-      const result = await this.env.DB.prepare(
-        "SELECT * FROM pdf_files WHERE username = ? ORDER BY created_at DESC"
-      )
-        .bind(username)
-        .all();
-
-      return result.results || [];
+      const fileDAO = getDAOFactory(this.env).fileDAO;
+      return await fileDAO.getFilesForRag(username);
     } catch (error) {
-      console.error(`[LibraryRAGService] Error getting user PDFs:`, error);
+      console.error(`[LibraryRAGService] Error getting user files:`, error);
       return [];
     }
   }
@@ -630,7 +590,7 @@ SUGGESTIONS: [suggestion1, suggestion2, suggestion3]
     }
   }
 
-  async processPdfFromR2(
+  async processFileFromR2(
     fileKey: string,
     username: string,
     fileBucket: any,
@@ -692,7 +652,7 @@ SUGGESTIONS: [suggestion1, suggestion2, suggestion3]
       return { vectorId };
     } catch (error) {
       console.error(
-        `[LibraryRAGService] Error processing PDF from R2: ${fileKey}`,
+        `[LibraryRAGService] Error processing file from R2: ${fileKey}`,
         error
       );
       return {};

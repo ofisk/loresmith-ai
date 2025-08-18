@@ -12,8 +12,8 @@ export interface Env extends AuthEnv, EnvWithSecrets {
   UserFileTracker: DurableObjectNamespace;
   UploadSession: DurableObjectNamespace;
   ASSETS: Fetcher;
-  PDF_PROCESSING_QUEUE: Queue;
-  PDF_PROCESSING_DLQ: Queue;
+  FILE_PROCESSING_QUEUE: Queue;
+  FILE_PROCESSING_DLQ: Queue;
 }
 
 // Set user authentication data in context

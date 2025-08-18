@@ -127,7 +127,6 @@ export const getCampaignSuggestions = tool({
         );
       }
 
-      // Otherwise, make HTTP request
       const response = await authenticatedFetch(
         API_CONFIG.buildUrl(
           API_CONFIG.ENDPOINTS.CAMPAIGNS.SUGGESTIONS(campaignId)
@@ -284,7 +283,6 @@ export const assessCampaignReadiness = tool({
         );
       }
 
-      // Otherwise, make HTTP request
       const response = await authenticatedFetch(
         API_CONFIG.buildUrl(
           API_CONFIG.ENDPOINTS.CAMPAIGNS.READINESS(campaignId)

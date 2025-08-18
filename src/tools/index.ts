@@ -6,7 +6,7 @@
  *
  * Tool Categories:
  * - Campaign Management: Create, list, and manage campaigns
- * - PDF Processing: Upload, list, and process PDF files
+ * - File Processing: Upload, list, and process files
  * - General Utilities: Authentication and system tools
  */
 
@@ -14,8 +14,8 @@
 import { campaignTools as importedCampaignTools } from "./campaign";
 // General tools for authentication and utilities
 import { generalTools } from "./general";
-// PDF-related tools for file management
-import { pdfTools as importedPdfTools } from "./pdf";
+// File-related tools for file management
+import { fileTools as importedFileTools } from "./file";
 
 /**
  * Export all available tools
@@ -27,7 +27,7 @@ import { pdfTools as importedPdfTools } from "./pdf";
  */
 export const tools = {
   ...generalTools,
-  ...importedPdfTools,
+  ...importedFileTools,
   ...importedCampaignTools,
 };
 
@@ -69,7 +69,7 @@ export const executions = {
   addResourceToCampaign: async (
     params: {
       campaignId: string;
-      resourceType: "pdf" | "character" | "note" | "image";
+      resourceType: "document" | "character" | "note" | "image";
       resourceId: string;
       resourceName?: string;
       jwt?: string;
@@ -103,35 +103,35 @@ export const executions = {
       context || ({} as ToolExecutionOptions)
     );
   },
-  listPdfFiles: async (
+  listFiles: async (
     params: { jwt?: string },
     context?: ToolExecutionOptions
   ) => {
-    return await importedPdfTools.listPdfFiles.execute(
+    return await importedFileTools.listFiles.execute(
       params,
       context || ({} as ToolExecutionOptions)
     );
   },
-  getPdfStats: async (
+  getFileStats: async (
     params: { jwt?: string },
     context?: ToolExecutionOptions
   ) => {
-    return await importedPdfTools.getPdfStats.execute(
+    return await importedFileTools.getFileStats.execute(
       params,
       context || ({} as ToolExecutionOptions)
     );
   },
-  deletePdfFile: async (
+  deleteFile: async (
     params: { fileKey: string; jwt?: string },
     context?: ToolExecutionOptions
   ) => {
-    console.log("[Tool Index] deletePdfFile called with params:", params);
+    console.log("[Tool Index] deleteFile called with params:", params);
     console.log("[Tool Index] fileKey from params:", params.fileKey);
     console.log("[Tool Index] jwt from params:", params.jwt);
 
     // Import the execution logic directly
-    const { deletePdfFileExecution } = await import("./pdf/list-tools");
-    return await deletePdfFileExecution(
+    const { deleteFileExecution } = await import("./file/list-tools");
+    return await deleteFileExecution(
       params,
       context || ({} as ToolExecutionOptions)
     );

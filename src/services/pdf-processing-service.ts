@@ -1,6 +1,6 @@
 import type { Env } from "../middleware/auth";
 import type { FileMetadata } from "../types/upload";
-import type { PdfStatus } from "../types/pdf";
+import { getDAOFactory } from "../dao/dao-factory";
 import { getLibraryRagService } from "./service-factory";
 
 export interface ProcessingResult {
@@ -51,7 +51,7 @@ export class PDFProcessingService {
 
       // Process the file using RAG service
       const ragService = getLibraryRagService(this.env);
-      const result = await ragService.processPdfFromR2(
+      const result = await ragService.processFileFromR2(
         fileKey,
         username,
         this.env.FILE_BUCKET,
@@ -93,24 +93,18 @@ export class PDFProcessingService {
    */
   async updateProcessingStatus(
     fileKey: string,
-    status: PdfStatus,
-    errorMessage?: string
+    status: string,
+    _errorMessage?: string
   ): Promise<void> {
     try {
-      const updateData: any = {
-        status,
-        updated_at: new Date().toISOString(),
-      };
+      const fileDAO = getDAOFactory(this.env).fileDAO;
+      await fileDAO.updateFileRecord(fileKey, status);
 
-      if (errorMessage) {
-        updateData.error_message = errorMessage;
-      }
-
-      await this.env.DB.prepare(
-        "UPDATE pdf_files SET status = ?, updated_at = ?, error_message = ? WHERE file_key = ?"
-      )
-        .bind(status, updateData.updated_at, errorMessage || null, fileKey)
-        .run();
+      // Note: error_message column doesn't exist in files table
+      // If error tracking is needed, it should be added to the schema
+      console.log(
+        `[PDFProcessingService] Updated file status: ${fileKey} -> ${status}`
+      );
     } catch (error) {
       console.error(`[PDFProcessingService] Error updating status:`, error);
     }
@@ -124,11 +118,8 @@ export class PDFProcessingService {
     username: string
   ): Promise<FileMetadata | null> {
     try {
-      const result = await this.env.DB.prepare(
-        "SELECT * FROM pdf_files WHERE file_key = ? AND username = ?"
-      )
-        .bind(fileKey, username)
-        .first();
+      const fileDAO = getDAOFactory(this.env).fileDAO;
+      const result = await fileDAO.getFileForRag(fileKey, username);
 
       if (!result) {
         return null;
@@ -143,7 +134,7 @@ export class PDFProcessingService {
         contentType: "application/pdf",
         description: result.description as string,
         tags: result.tags ? JSON.parse(result.tags as string) : [],
-        status: result.status as PdfStatus,
+        status: result.status as string,
         createdAt: result.created_at as string,
         updatedAt: result.updated_at as string,
       };

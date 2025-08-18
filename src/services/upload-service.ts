@@ -4,7 +4,8 @@
 import type { Env } from "../middleware/auth";
 import type { FileMetadata, UploadPart, UploadSession } from "../types/upload";
 import { ServiceFactory } from "./service-factory";
-import { PDF_PROCESSING_CONFIG } from "../constants";
+import { getDAOFactory } from "../dao/dao-factory";
+import { FILE_PROCESSING_CONFIG } from "../constants";
 
 export class UploadService {
   constructor(private env: Env) {}
@@ -34,7 +35,7 @@ export class UploadService {
       }
     );
 
-    const chunkSize = PDF_PROCESSING_CONFIG.CHUNK_SIZE;
+    const chunkSize = FILE_PROCESSING_CONFIG.CHUNK_SIZE;
     const totalParts = Math.ceil(fileSize / chunkSize);
 
     const sessionId = `${userId}-${timestamp}`;
@@ -198,29 +199,18 @@ export class UploadService {
       updatedAt: new Date().toISOString(),
     };
 
-    // Store metadata in D1
-    await this.env.DB.prepare(
-      `
-      INSERT INTO file_metadata (
-        id, file_key, user_id, filename, file_size, content_type, 
-        description, tags, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `
-    )
-      .bind(
-        metadata.id,
-        metadata.fileKey,
-        metadata.userId,
-        metadata.filename,
-        metadata.fileSize,
-        metadata.contentType,
-        metadata.description || "",
-        JSON.stringify(metadata.tags),
-        metadata.status,
-        metadata.createdAt,
-        metadata.updatedAt
-      )
-      .run();
+    // Store metadata in D1 using DAO
+    const fileDAO = getDAOFactory(this.env).fileDAO;
+    await fileDAO.createFileRecord(
+      metadata.id,
+      metadata.fileKey,
+      metadata.filename,
+      metadata.description || "",
+      JSON.stringify(metadata.tags),
+      metadata.userId,
+      metadata.status,
+      metadata.fileSize
+    );
 
     console.log(`[UploadService] Completed upload:`, {
       sessionId,

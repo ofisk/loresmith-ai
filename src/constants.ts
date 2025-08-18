@@ -16,19 +16,19 @@ export {
 export const APP_CONFIG = {
   NAME: "Loresmith AI",
   VERSION: "1.0.0",
-  DESCRIPTION: "AI-powered campaign management and PDF processing tool",
+  DESCRIPTION: "AI-powered campaign management and planning tool",
 } as const;
 
 // File upload constants
 export const UPLOAD_CONFIG = {
-  MAX_FILE_SIZE: 500 * 1024 * 1024, // 500MB for D&D PDFs
-  ALLOWED_FILE_TYPES: ["application/pdf"],
+  MAX_FILE_SIZE: 500 * 1024 * 1024, // 500MB for files
+  ALLOWED_FILE_TYPES: ["application/pdf"], //TODO: add other file types
   MAX_FILES_PER_USER: 100,
 } as const;
 
-// PDF processing constants for large files
-export const PDF_PROCESSING_CONFIG = {
-  MAX_PDF_SIZE: 500 * 1024 * 1024, // 500MB limit
+// File processing constants for large files
+export const FILE_PROCESSING_CONFIG = {
+  MAX_FILE_SIZE: 500 * 1024 * 1024, // 500MB limit
   INGEST_CHUNK_SIZE: 5 * 1024 * 1024, // 5MB chunks for processing (reduced from 10MB)
   MAX_TEXT_LENGTH: 5 * 1024 * 1024, // 5MB text limit
   TIMEOUT_SMALL_FILES: 60000, // 1 minute for files < 100MB
@@ -69,7 +69,7 @@ export const ERROR_MESSAGES = {
   ACCESS_DENIED:
     "Access denied. You don't have permission to perform this action.",
   FILE_TOO_LARGE: "File is too large. Maximum size is 500MB.",
-  INVALID_FILE_TYPE: "Invalid file type. Only PDF files are allowed.",
+  INVALID_FILE_TYPE: "Invalid file type.",
   CAMPAIGN_NOT_FOUND: "Campaign not found",
   RESOURCE_NOT_FOUND: "Resource not found.",
   UNAUTHORIZED: "You are not authorized to perform this action.",
@@ -92,18 +92,18 @@ export const USER_MESSAGES = {
   INVALID_ADMIN_SECRET:
     "Invalid admin secret. Please check your secret and try again.",
   ADMIN_SECRET_VALIDATED:
-    "Admin key validated successfully! You now have access to PDF upload and parsing features.",
+    "Admin key validated successfully! You now have access to file upload and parsing features.",
   SESSION_EXPIRED: "Your session has expired. Please re-authenticate.",
 
-  // PDF upload messages
-  PDF_FILE_RECEIVED: "PDF file has been received and will be processed.",
-  PDF_FILES_LIST: "Uploaded PDF files:",
-  NO_PDF_FILES:
-    "No PDF files have been uploaded yet. Use the generatePdfUploadUrl tool to upload your first PDF.",
-  PDF_STATS_TITLE: "PDF Upload Statistics for user:",
+  // File upload messages
+  FILE_RECEIVED: "File has been received and will be processed.",
+  FILES_LIST: "Uploaded files:",
+  NO_FILES:
+    "No files have been uploaded yet. Use the generateFileUploadUrl tool to upload your first file.",
+  FILE_STATS_TITLE: "File Upload Statistics for user:",
   UPLOAD_URL_GENERATED: "Upload URL generated successfully for",
   METADATA_UPDATED: "Metadata updated successfully for file",
-  PDF_INGESTION_STARTED: "PDF ingestion started successfully for",
+  FILE_INGESTION_STARTED: "File ingestion started successfully for",
 
   // Campaign messages
   NO_CAMPAIGNS:
@@ -123,7 +123,7 @@ export const USER_MESSAGES = {
 
   // Error messages for users
   FAILED_TO_RETRIEVE_FILES: "Failed to retrieve files",
-  FAILED_TO_RETRIEVE_STATS: "Failed to retrieve PDF stats",
+  FAILED_TO_RETRIEVE_STATS: "Failed to retrieve file stats",
   FAILED_TO_GENERATE_URL: "Failed to generate upload URL",
   FAILED_TO_UPDATE_METADATA: "Failed to update metadata",
   FAILED_TO_TRIGGER_INGESTION: "Failed to trigger ingestion",
@@ -141,7 +141,7 @@ export const USER_MESSAGES = {
   HOOK_FAILED_TO_CREATE_CAMPAIGN: "Failed to create campaign",
   HOOK_FAILED_TO_ADD_RESOURCE: "Failed to add resource",
   HOOK_FAILED_TO_REMOVE_RESOURCE: "Failed to remove resource",
-  HOOK_FAILED_TO_FETCH_PDF_FILES: "Failed to fetch PDF files",
+  HOOK_FAILED_TO_FETCH_FILES: "Failed to fetch files",
 } as const;
 
 // Success messages

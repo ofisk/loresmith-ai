@@ -1,12 +1,12 @@
 import type { Context } from "hono";
-import { PDF_PROCESSING_CONFIG } from "../constants";
+import { FILE_PROCESSING_CONFIG } from "../constants";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
-import { PDF_SCHEMA } from "../types/pdf";
 import {
   getStorageService,
   getLibraryRagService,
 } from "../services/service-factory";
+import { FileDAO } from "../dao/file-dao";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{
@@ -60,7 +60,7 @@ export async function handleGenerateUploadUrl(c: ContextWithAuth) {
     );
 
     // Calculate number of parts needed
-    const chunkSize = PDF_PROCESSING_CONFIG.CHUNK_SIZE;
+    const chunkSize = FILE_PROCESSING_CONFIG.CHUNK_SIZE;
     const totalParts = Math.ceil(fileSize / chunkSize);
 
     console.log(
@@ -178,7 +178,7 @@ export async function handleCompleteUpload(c: ContextWithAuth) {
         vectorId: null,
       };
 
-      // Also create an entry in the pdf_files table for PDF tools
+      // Also create an entry in the files table for file tools
       const now = new Date().toISOString();
       const pdfFileId = crypto.randomUUID();
 
@@ -187,7 +187,7 @@ export async function handleCompleteUpload(c: ContextWithAuth) {
 
       try {
         await c.env.DB.prepare(
-          "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size, chunk_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          "INSERT INTO files (id, file_key, file_name, description, tags, username, status, created_at, file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
           .bind(
             pdfFileId,
@@ -372,7 +372,7 @@ export async function handleUploadPart(c: ContextWithAuth) {
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(
         () => reject(new Error("Upload timeout")),
-        PDF_PROCESSING_CONFIG.UPLOAD_TIMEOUT_MS
+        FILE_PROCESSING_CONFIG.UPLOAD_TIMEOUT_MS
       );
     });
 
@@ -621,7 +621,7 @@ async function processPdfFile(
 
     // Send to PDF processing queue
     console.log(`[PDF Processing] Sending to queue for processing: ${fileKey}`);
-    await c.env.PDF_PROCESSING_QUEUE.send({
+    await c.env.FILE_PROCESSING_QUEUE.send({
       fileKey: fileKey,
       username: userAuth.username,
       openaiApiKey: userAuth.openaiApiKey,
@@ -656,8 +656,7 @@ async function processPdfFile(
   }
 }
 
-// Process PDF file (ingest new or retry failed)
-export async function handleProcessPdf(c: ContextWithAuth) {
+export async function handleProcessFile(c: ContextWithAuth) {
   try {
     const userAuth = c.get("userAuth") as AuthPayload;
     const {
@@ -721,8 +720,7 @@ export async function handleProcessPdf(c: ContextWithAuth) {
   }
 }
 
-// Get PDF files for user
-export async function handleGetPdfFiles(c: ContextWithAuth) {
+export async function handleGetFiles(c: ContextWithAuth) {
   try {
     const userAuth = c.get("userAuth") as AuthPayload;
 
@@ -730,21 +728,17 @@ export async function handleGetPdfFiles(c: ContextWithAuth) {
       return c.json({ error: "User authentication required" }, 401);
     }
 
-    const files = await c.env.DB.prepare(
-      `SELECT ${PDF_SCHEMA.COLUMNS.ID}, ${PDF_SCHEMA.COLUMNS.FILE_KEY}, ${PDF_SCHEMA.COLUMNS.FILE_NAME}, ${PDF_SCHEMA.COLUMNS.DESCRIPTION}, ${PDF_SCHEMA.COLUMNS.TAGS}, ${PDF_SCHEMA.COLUMNS.STATUS}, ${PDF_SCHEMA.COLUMNS.CREATED_AT}, ${PDF_SCHEMA.COLUMNS.UPDATED_AT}, ${PDF_SCHEMA.COLUMNS.FILE_SIZE} FROM ${PDF_SCHEMA.TABLE_NAME} WHERE ${PDF_SCHEMA.COLUMNS.USERNAME} = ? ORDER BY ${PDF_SCHEMA.COLUMNS.CREATED_AT} DESC`
-    )
-      .bind(userAuth.username)
-      .all();
+    const fileDAO = new FileDAO(c.env.DB);
+    const files = await fileDAO.getFilesByUser(userAuth.username);
 
-    return c.json({ files: files.results || [] });
+    return c.json({ files: files || [] });
   } catch (error) {
     console.error("Error fetching PDF files:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
 
-// Update PDF metadata
-export async function handleUpdatePdfMetadata(c: ContextWithAuth) {
+export async function handleUpdateFileMetadata(c: ContextWithAuth) {
   try {
     const userAuth = c.get("userAuth") as AuthPayload;
     const { fileKey, description, tags } = await c.req.json();
@@ -766,17 +760,8 @@ export async function handleUpdatePdfMetadata(c: ContextWithAuth) {
       return c.json({ error: "Access denied to this file" }, 403);
     }
 
-    await c.env.DB.prepare(
-      "UPDATE pdf_files SET description = ?, tags = ?, updated_at = ? WHERE file_key = ? AND username = ?"
-    )
-      .bind(
-        description || "",
-        tags ? JSON.stringify(tags) : "[]",
-        new Date().toISOString(),
-        fileKey,
-        userAuth.username
-      )
-      .run();
+    const fileDAO = new FileDAO(c.env.DB);
+    await fileDAO.updateFileMetadata(fileKey, { description, tags });
 
     return c.json({ success: true });
   } catch (error) {
@@ -785,8 +770,7 @@ export async function handleUpdatePdfMetadata(c: ContextWithAuth) {
   }
 }
 
-// Auto-generate metadata for an existing PDF file
-export async function handleAutoGeneratePdfMetadata(c: ContextWithAuth) {
+export async function handleAutoGenerateFileMetadata(c: ContextWithAuth) {
   try {
     const userAuth = c.get("userAuth") as AuthPayload;
     const { fileKey } = await c.req.json();
@@ -840,7 +824,7 @@ export async function handleAutoGeneratePdfMetadata(c: ContextWithAuth) {
     };
 
     // Process the PDF to generate metadata
-    const processedResult = await ragService.processPdfFromR2(
+    const processedResult = await ragService.processFileFromR2(
       fileKey,
       userAuth.username,
       c.env.FILE_BUCKET,
@@ -874,13 +858,12 @@ export async function handleAutoGeneratePdfMetadata(c: ContextWithAuth) {
       },
     });
   } catch (error) {
-    console.error("[handleAutoGeneratePdfMetadata] Error:", error);
+    console.error("[handleAutoGenerateFileMetadata] Error:", error);
     return c.json({ error: `Failed to auto-generate metadata: ${error}` }, 500);
   }
 }
 
-// Get PDF processing stats
-export async function handleGetPdfStats(c: ContextWithAuth) {
+export async function handleGetFileStats(c: ContextWithAuth) {
   try {
     const userAuth = c.get("userAuth") as AuthPayload;
 
@@ -999,7 +982,7 @@ export async function handleProcessMetadataBackground(c: ContextWithAuth) {
     console.log(
       "[handleProcessMetadataBackground] Processing PDF for metadata generation"
     );
-    const processedResult = await ragService.processPdfFromR2(
+    const processedResult = await ragService.processFileFromR2(
       fileKey,
       userAuth.username,
       c.env.FILE_BUCKET,
@@ -1053,8 +1036,7 @@ export async function handleProcessMetadataBackground(c: ContextWithAuth) {
   }
 }
 
-// Get PDF processing status
-export async function handleGetPdfStatus(c: ContextWithAuth) {
+export async function handleGetFileStatus(c: ContextWithAuth) {
   try {
     const userAuth = c.get("userAuth") as AuthPayload;
     const fileKey = c.req.param("*");

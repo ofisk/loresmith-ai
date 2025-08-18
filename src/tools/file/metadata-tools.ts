@@ -4,20 +4,20 @@ import { createToolError, createToolSuccess } from "../utils";
 import { AUTH_CODES, type ToolResult } from "../../shared";
 import { API_CONFIG } from "../../shared";
 
-// PDF metadata tools
+// File metadata tools
 
-export const updatePdfMetadata = tool({
-  description: "Update metadata for an uploaded PDF file",
+export const updateFileMetadata = tool({
+  description: "Update metadata for an uploaded file",
   parameters: z.object({
-    fileKey: z.string().describe("The file key of the uploaded PDF"),
+    fileKey: z.string().describe("The file key of the uploaded file"),
     description: z
       .string()
       .optional()
-      .describe("Optional description for the PDF file"),
+      .describe("Optional description for the file"),
     tags: z
       .array(z.string())
       .optional()
-      .describe("Optional tags for categorizing the PDF file"),
+      .describe("Optional tags for categorizing the file"),
     fileSize: z
       .number()
       .describe("The actual size of the uploaded file in bytes"),
@@ -79,7 +79,7 @@ export const updatePdfMetadata = tool({
 
       // Make API request to update metadata
       const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.UPDATE_METADATA),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPDATE_METADATA),
         {
           method: "POST",
           headers: {
@@ -118,13 +118,13 @@ export const updatePdfMetadata = tool({
   },
 });
 
-export const autoGeneratePdfMetadata = tool({
+export const autoGenerateFileMetadata = tool({
   description:
-    "Auto-generate description and tags for an existing PDF file based on its content",
+    "Auto-generate description and tags for an existing file based on its content",
   parameters: z.object({
     fileKey: z
       .string()
-      .describe("The file key of the PDF file to auto-generate metadata for"),
+      .describe("The file key of the file to auto-generate metadata for"),
     jwt: z
       .string()
       .nullable()

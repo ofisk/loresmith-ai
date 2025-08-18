@@ -45,7 +45,7 @@ create table if not exists campaign_planning_sessions (
   foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
--- campaign context chunks for rag (similar to pdf_chunks but for campaign context)
+-- campaign context chunks for rag (similar to file_chunks but for campaign context)
 create table if not exists campaign_context_chunks (
   id text primary key,
   campaign_id text not null,

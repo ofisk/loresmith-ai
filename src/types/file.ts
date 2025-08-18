@@ -1,8 +1,8 @@
 /**
- * PDF file schema and types for consistent data handling across the application
+ * File schema and types for consistent data handling across the application
  */
 
-export interface PdfFile {
+export interface File {
   id: string;
   file_key: string;
   file_name: string;
@@ -14,25 +14,25 @@ export interface PdfFile {
   updated_at: string;
 }
 
-export interface PdfFileResponse {
-  files: PdfFile[];
+export interface FileResponse {
+  files: File[];
 }
 
-export interface PdfFileUpload {
+export interface FileUpload {
   fileKey: string;
   fileName: string;
   fileSize: number;
   contentType?: string;
 }
 
-export interface PdfFileMetadata {
+export interface FileMetadata {
   fileKey: string;
   description?: string;
   tags?: string[];
 }
 
-// Helper functions for working with PDF files
-export const pdfFileHelpers = {
+// Helper functions for working with files
+export const fileHelpers = {
   /**
    * Get file size in MB
    */
@@ -61,23 +61,23 @@ export const pdfFileHelpers = {
   /**
    * Format file for display
    */
-  formatFileForDisplay: (file: PdfFile): string => {
-    const sizeMB = pdfFileHelpers.getFileSizeMB(file.file_size);
+  formatFileForDisplay: (file: File): string => {
+    const sizeMB = fileHelpers.getFileSizeMB(file.file_size);
     return `${file.file_name} (${sizeMB} MB)`;
   },
 
   /**
    * Get file list for display
    */
-  formatFileList: (files: PdfFile[]): string => {
+  formatFileList: (files: File[]): string => {
     return files
-      .map((file) => `- ${pdfFileHelpers.formatFileForDisplay(file)}`)
+      .map((file) => `- ${fileHelpers.formatFileForDisplay(file)}`)
       .join("\n");
   },
 };
 
 // Database schema constants
-export const PDF_SCHEMA = {
+export const FILE_SCHEMA = {
   TABLE_NAME: "pdf_files",
   COLUMNS: {
     ID: "id",
@@ -94,7 +94,7 @@ export const PDF_SCHEMA = {
 } as const;
 
 // Status constants
-export const PDF_STATUS = {
+export const FILE_STATUS = {
   UPLOADING: "uploading",
   UPLOADED: "uploaded",
   PROCESSING: "processing",
@@ -102,4 +102,4 @@ export const PDF_STATUS = {
   ERROR: "error",
 } as const;
 
-export type PdfStatus = (typeof PDF_STATUS)[keyof typeof PDF_STATUS];
+export type FileStatus = (typeof FILE_STATUS)[keyof typeof FILE_STATUS];

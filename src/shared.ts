@@ -65,10 +65,15 @@ export const API_CONFIG = {
   ENDPOINTS: {
     CAMPAIGNS: {
       BASE: "/campaigns",
+      LIST: "/campaigns",
+      CREATE: "/campaigns",
+      DETAILS: (campaignId: string) => `/campaigns/${campaignId}`,
+      DELETE: (campaignId: string) => `/campaigns/${campaignId}`,
+      DELETE_ALL: "/campaigns",
       RESOURCES: (campaignId: string) => `/campaigns/${campaignId}/resources`,
       RESOURCE: (campaignId: string) => `/campaigns/${campaignId}/resource`,
-
-      DETAILS: (campaignId: string) => `/campaigns/${campaignId}`,
+      RESOURCE_DELETE: (campaignId: string, resourceId: string) =>
+        `/campaigns/${campaignId}/resource/${resourceId}`,
       CONTEXT: (campaignId: string) => `/campaigns/${campaignId}/context`,
       CHARACTERS: (campaignId: string) => `/campaigns/${campaignId}/characters`,
       SUGGESTIONS: (campaignId: string) =>
@@ -78,6 +83,7 @@ export const API_CONFIG = {
         `/campaigns/${campaignId}/context-search`,
     },
     CHARACTER_SHEETS: {
+      //TODO: character sheets are just files and can be added to campaign context in a generic way (probably). reassess and consider removing
       UPLOAD_URL: "/character-sheets/upload-url",
       PROCESS: (characterSheetId: string) =>
         `/character-sheets/${characterSheetId}/process`,
@@ -87,6 +93,10 @@ export const API_CONFIG = {
     },
     AUTH: {
       AUTHENTICATE: "/authenticate",
+      LOGOUT: "/logout",
+      GET_OPENAI_KEY: "/get-openai-key",
+      STORE_OPENAI_KEY: "/store-openai-key",
+      DELETE_OPENAI_KEY: "/delete-openai-key",
     },
     CHAT: {
       SET_OPENAI_KEY: "/chat/set-openai-key",
@@ -95,25 +105,67 @@ export const API_CONFIG = {
       CHECK_KEY: "/check-open-ai-key",
       CHECK_USER_KEY: "/check-user-openai-key",
     },
-    PDF: {
-      UPLOAD_URL: "/upload/start",
-      UPLOAD: "/upload/complete",
-      UPLOAD_PART: "/upload/part",
-      PROCESS: "/pdf/process",
-      FILES: "/pdf/files",
-      UPDATE_METADATA: "/pdf/update-metadata",
-      AUTO_GENERATE_METADATA: "/pdf/auto-generate-metadata",
-      STATS: "/pdf/stats",
-      DELETE_PDF: (fileKey: string) => `/rag/pdfs/${fileKey}`,
-    },
     RAG: {
       SEARCH: "/rag/search",
-      PROCESS_PDF: "/rag/process-pdf",
-      PROCESS_PDF_FROM_R2: "/rag/process-pdf-from-r2",
-      PDFS: "/rag/pdfs",
-      PDF_CHUNKS: (fileKey: string) => `/rag/pdfs/${fileKey}/chunks`,
-      UPDATE_METADATA: (fileKey: string) => `/rag/pdfs/${fileKey}/metadata`,
-      DELETE_PDF: (fileKey: string) => `/rag/pdfs/${fileKey}`,
+      PROCESS_FILE: "/rag/process-file",
+      PROCESS_FILE_FROM_R2: "/rag/process-file-from-r2",
+      FILES: "/rag/files",
+      FILE_CHUNKS: (fileKey: string) => `/rag/files/${fileKey}/chunks`,
+      UPDATE_METADATA: (fileKey: string) => `/rag/files/${fileKey}/metadata`,
+      DELETE_FILE: (fileKey: string) => `/rag/files/${fileKey}`,
+      TRIGGER_INDEXING: "/rag/trigger-indexing",
+      STATUS: "/rag/status",
+    },
+    LIBRARY: {
+      // Library routes (mounted at /library) - these are full paths including the mount point
+      FILES: "/library/files",
+      SEARCH: "/library/search",
+      FILE_DETAILS: (fileId: string) => `/library/files/${fileId}`,
+      FILE_UPDATE: (fileId: string) => `/library/files/${fileId}`,
+      FILE_DELETE: (fileId: string) => `/library/files/${fileId}`,
+      FILE_DOWNLOAD: (fileId: string) => `/library/files/${fileId}/download`,
+      FILE_REGENERATE: (fileId: string) =>
+        `/library/files/${fileId}/regenerate`,
+      STORAGE_USAGE: "/library/storage-usage",
+
+      // Route patterns for parameterized routes (these are used internally by the server)
+      FILE_DETAILS_PATTERN: "/library/:fileId",
+      FILE_UPDATE_PATTERN: "/library/:fileId",
+      FILE_DELETE_PATTERN: "/library/:fileId",
+      FILE_DOWNLOAD_PATTERN: "/library/:fileId/download",
+      FILE_REGENERATE_PATTERN: "/library/:fileId/regenerate",
+
+      // File management routes (mounted at /library) - consolidated here
+      UPLOAD_URL: "/library/upload-url",
+      UPLOAD_COMPLETE: "/library/upload/complete",
+      UPLOAD_PART: "/library/upload/part",
+      PROCESS: "/library/process",
+      STATUS: "/library/status",
+      UPDATE_METADATA: "/library/update-metadata",
+      AUTO_GENERATE_METADATA: "/library/auto-generate-metadata",
+      PROCESS_METADATA_BACKGROUND: "/library/process-metadata-background",
+      STATS: "/library/stats",
+    },
+    PROGRESS: {
+      WEBSOCKET: "/progress",
+    },
+    ASSESSMENT: {
+      USER_STATE: "/assessment/user-state",
+      USER_ACTIVITY: "/assessment/user-activity",
+      MODULE_INTEGRATION: "/assessment/module-integration",
+      CAMPAIGN_HEALTH: (campaignId: string) =>
+        `/assessment/campaign-health/${campaignId}`,
+    },
+    ONBOARDING: {
+      NEXT_ACTIONS: "/onboarding/next-actions",
+      WELCOME_GUIDANCE: "/onboarding/welcome-guidance",
+      CAMPAIGN_GUIDANCE: (campaignId: string) =>
+        `/onboarding/campaign-guidance/${campaignId}`,
+    },
+    EXTERNAL_RESOURCES: {
+      RECOMMENDATIONS: "/external-resources/recommendations",
+      INSPIRATION_SOURCES: "/external-resources/inspiration-sources",
+      GM_RESOURCES: "/external-resources/gm-resources",
     },
   },
 } as const;

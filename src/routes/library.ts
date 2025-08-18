@@ -1,8 +1,7 @@
 // Library API routes for file management and search
 // Handles file listing, search, metadata updates, and file operations
 
-import { Hono } from "hono";
-import type { Env } from "../middleware/auth";
+import { Hono, type Context } from "hono";
 import type { AuthPayload } from "../services/auth-service";
 import {
   getLibraryRagService,
@@ -18,9 +17,13 @@ const library = new Hono<{
 
 library.use("*", requireUserJwt);
 
-library.get("/files", async (c) => {
+// Handler functions for library routes
+export const handleGetFiles = async (
+  c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
+) => {
   try {
-    const userId = c.get("userAuth")?.username || "anonymous";
+    const userAuth = (c as any).userAuth;
+    const userId = userAuth?.username || "anonymous";
     const limit = parseInt(c.req.query("limit") || "20", 10);
     const offset = parseInt(c.req.query("offset") || "0", 10);
 
@@ -50,11 +53,14 @@ library.get("/files", async (c) => {
     console.error("[Library] Error getting files:", error);
     return c.json({ error: "Failed to get files" }, 500);
   }
-});
+};
 
-library.get("/search", async (c) => {
+export const handleSearchFiles = async (
+  c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
+) => {
   try {
-    const userId = c.get("userAuth")?.username || "anonymous";
+    const userAuth = (c as any).userAuth;
+    const userId = userAuth?.username || "anonymous";
     const query = c.req.query("q") || "";
     const limit = parseInt(c.req.query("limit") || "20", 10);
     const offset = parseInt(c.req.query("offset") || "0", 10);
@@ -93,12 +99,50 @@ library.get("/search", async (c) => {
     console.error("[Library] Error searching files:", error);
     return c.json({ error: "Failed to search files" }, 500);
   }
-});
+};
 
-library.get("/files/:fileId", async (c) => {
+export const handleGetStorageUsage = async (
+  c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
+) => {
+  try {
+    console.log("[handleGetStorageUsage] Starting storage usage request");
+    console.log("[handleGetStorageUsage] Context keys:", Object.keys(c));
+
+    const userAuth = (c as any).userAuth;
+    console.log("[handleGetStorageUsage] Retrieved userAuth:", userAuth);
+
+    if (!userAuth) {
+      console.log("[handleGetStorageUsage] No userAuth found, returning 401");
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    const storageService = getStorageService(c.env);
+    const usage = await storageService.getUserStorageUsage(
+      userAuth.username,
+      userAuth.isAdmin || false
+    );
+
+    console.log(
+      `[Library] Retrieved storage usage for user: { type: ${userAuth.type}, username: ${userAuth.username}, isAdmin: ${userAuth.isAdmin} }`
+    );
+
+    return c.json({
+      success: true,
+      usage,
+    });
+  } catch (error) {
+    console.error("[Library] Error getting storage usage:", error);
+    return c.json({ error: "Failed to get storage usage" }, 500);
+  }
+};
+
+export const handleGetFileDetails = async (
+  c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
+) => {
   try {
     const fileId = c.req.param("fileId");
-    const userId = c.get("userAuth")?.username || "anonymous";
+    const userAuth = (c as any).userAuth;
+    const userId = userAuth?.username || "anonymous";
 
     const ragService = getLibraryRagService(c.env);
     const metadata = await ragService.getFileMetadata(fileId, userId);
@@ -115,12 +159,15 @@ library.get("/files/:fileId", async (c) => {
     console.error("[Library] Error getting file metadata:", error);
     return c.json({ error: "Failed to get file metadata" }, 500);
   }
-});
+};
 
-library.put("/files/:fileId", async (c) => {
+export const handleUpdateFile = async (
+  c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
+) => {
   try {
     const fileId = c.req.param("fileId");
-    const userId = c.get("userAuth")?.username || "anonymous";
+    const userAuth = (c as any).userAuth;
+    const userId = userAuth?.username || "anonymous";
     const updates = await c.req.json();
 
     const ragService = getLibraryRagService(c.env);
@@ -145,12 +192,15 @@ library.put("/files/:fileId", async (c) => {
     console.error("[Library] Error updating file metadata:", error);
     return c.json({ error: "Failed to update file metadata" }, 500);
   }
-});
+};
 
-library.delete("/files/:fileId", async (c) => {
+export const handleDeleteFile = async (
+  c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
+) => {
   try {
     const fileId = c.req.param("fileId");
-    const userId = c.get("userAuth")?.username || "anonymous";
+    const userAuth = (c as any).userAuth;
+    const userId = userAuth?.username || "anonymous";
 
     // Get file metadata first
     const ragService = getLibraryRagService(c.env);
@@ -184,12 +234,15 @@ library.delete("/files/:fileId", async (c) => {
     console.error("[Library] Error deleting file:", error);
     return c.json({ error: "Failed to delete file" }, 500);
   }
-});
+};
 
-library.get("/files/:fileId/download", async (c) => {
+export const handleGetFileDownload = async (
+  c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
+) => {
   try {
     const fileId = c.req.param("fileId");
-    const userId = c.get("userAuth")?.username || "anonymous";
+    const userAuth = (c as any).userAuth;
+    const userId = userAuth?.username || "anonymous";
 
     const ragService = getLibraryRagService(c.env);
     const metadata = await ragService.getFileMetadata(fileId, userId);
@@ -208,12 +261,15 @@ library.get("/files/:fileId/download", async (c) => {
     console.error("[Library] Error generating download URL:", error);
     return c.json({ error: "Failed to generate download URL" }, 500);
   }
-});
+};
 
-library.post("/files/:fileId/regenerate", async (c) => {
+export const handleRegenerateFileMetadata = async (
+  c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
+) => {
   try {
     const fileId = c.req.param("fileId");
-    const userId = c.get("userAuth")?.username || "anonymous";
+    const userAuth = (c as any).userAuth;
+    const userId = userAuth?.username || "anonymous";
 
     const ragService = getLibraryRagService(c.env);
     const metadata = await ragService.getFileMetadata(fileId, userId);
@@ -252,33 +308,4 @@ library.post("/files/:fileId/regenerate", async (c) => {
     console.error("[Library] Error regenerating metadata:", error);
     return c.json({ error: "Failed to regenerate metadata" }, 500);
   }
-});
-
-library.get("/storage-usage", async (c) => {
-  try {
-    const userAuth = c.get("userAuth");
-    if (!userAuth) {
-      return c.json({ error: "Authentication required" }, 401);
-    }
-
-    const storageService = getStorageService(c.env);
-    const usage = await storageService.getUserStorageUsage(
-      userAuth.username,
-      userAuth.isAdmin || false
-    );
-
-    console.log(
-      `[Library] Retrieved storage usage for user: { type: ${userAuth.type}, username: ${userAuth.username}, isAdmin: ${userAuth.isAdmin} }`
-    );
-
-    return c.json({
-      success: true,
-      usage,
-    });
-  } catch (error) {
-    console.error("[Library] Error getting storage usage:", error);
-    return c.json({ error: "Failed to get storage usage" }, 500);
-  }
-});
-
-export { library };
+};

@@ -1,6 +1,6 @@
 // Campaign and Resource Types - Shared between Durable Objects and UI Components
 
-export type ResourceType = "pdf" | "character" | "note" | "image";
+export type ResourceType = "file" | "character" | "note" | "image";
 
 export interface CampaignResource {
   type: ResourceType;
@@ -72,7 +72,7 @@ export interface CreateCampaignFormProps {
   defaultName?: string;
 }
 
-export interface PdfFile {
+export interface File {
   fileKey: string;
   fileName: string;
   fileSize: number;
@@ -85,6 +85,6 @@ export interface AddResourceModalProps {
   onClose: () => void;
   onAddResource: (resource: CampaignResource) => void;
   campaignId: string;
-  pdf?: PdfFile;
+  file?: File;
   campaigns?: CampaignData[];
 }

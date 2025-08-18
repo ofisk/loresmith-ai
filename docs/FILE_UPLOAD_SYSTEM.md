@@ -143,6 +143,24 @@ CREATE TABLE file_metadata (
 
 ## Usage Examples
 
+### Upload a File
+
+```typescript
+import { FileUpload } from './components/file-upload/FileUpload';
+
+<FileUpload
+  onUploadComplete={(fileKey, metadata) => {
+    console.log('Upload completed:', fileKey, metadata);
+  }}
+  onUploadError={(error) => {
+    console.error('Upload failed:', error);
+  }}
+  maxFileSize={100 * 1024 * 1024} // 100MB
+  allowedTypes={['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']}
+  multiple={true}
+/>
+```
+
 ### Browse Library
 
 ```typescript
@@ -162,7 +180,7 @@ import { FileLibrary } from './components/library/FileLibrary';
 
 ### TODO Items
 
-1. **PDF Text Extraction**: Implement actual PDF parsing
+1. **Document Text Extraction**: Implement actual document parsing
 2. **Vector Embeddings**: Add real embedding generation and storage
 3. **Semantic Search**: Implement vector-based search
 4. **File Type Detection**: Add more file type support
@@ -185,7 +203,7 @@ import { FileLibrary } from './components/library/FileLibrary';
 
 ## Migration from Old System
 
-The new system is designed to be backward compatible with the existing PDF upload system. The old PDF routes are preserved while new general-purpose upload routes are added.
+The new system is designed to be backward compatible with the existing document upload system. The old document routes are preserved while new general-purpose upload routes are added.
 
 ### Key Differences
 
@@ -193,7 +211,6 @@ The new system is designed to be backward compatible with the existing PDF uploa
 2. **Concurrent Uploads**: Support for multiple simultaneous uploads
 3. **Metadata Generation**: Automatic tagging and description generation
 4. **Search Capabilities**: Full-text search across all file metadata
-5. **File Types**: Support for any file type, not just PDFs
 
 ## Deployment
 

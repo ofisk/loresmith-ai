@@ -84,7 +84,7 @@ export function ResourceSidePanel({
       }));
 
       const startResponse = await authenticatedFetchWithExpiration(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.UPLOAD_URL),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_URL),
         {
           method: "POST",
           jwt,
@@ -189,7 +189,7 @@ export function ResourceSidePanel({
       formData.append("enableAutoRAGChunking", "true");
 
       const partResponse = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.UPLOAD_PART),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_PART),
         {
           method: "POST",
           headers: {
@@ -222,7 +222,7 @@ export function ResourceSidePanel({
     jwt: string
   ): Promise<void> => {
     const completeResponse = await authenticatedFetchWithExpiration(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.PDF.UPLOAD),
+      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_COMPLETE),
       {
         method: "POST",
         jwt,

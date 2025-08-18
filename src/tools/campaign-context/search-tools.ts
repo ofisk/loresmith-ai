@@ -143,7 +143,6 @@ export const searchCampaignContext = tool({
         );
       }
 
-      // Otherwise, make HTTP request
       const response = await authenticatedFetch(
         API_CONFIG.buildUrl(
           API_CONFIG.ENDPOINTS.CAMPAIGNS.CONTEXT_SEARCH(campaignId)
@@ -293,7 +292,6 @@ export const searchExternalResources = tool({
         );
       }
 
-      // Otherwise, make HTTP request
       const response = await authenticatedFetch(
         API_CONFIG.buildUrl(
           API_CONFIG.ENDPOINTS.CAMPAIGNS.CONTEXT_SEARCH(campaignId)

@@ -67,7 +67,7 @@ export interface PriorityArea {
 }
 
 /**
- * PDF module analysis and extraction
+ * document module analysis and extraction
  */
 export interface ModuleAnalysis {
   campaignId: string;
@@ -326,30 +326,30 @@ async function assessSessionReadiness(
 }
 
 /**
- * Extracts campaign information from uploaded module PDFs
+ * Extracts campaign information from uploaded module documents
  */
 export async function extractModuleInformation(
   campaignId: string,
   pdfContent: string,
   moduleName: string
 ): Promise<ModuleAnalysis> {
-  // Extract NPCs from PDF content
-  const npcs = await extractNPCsFromPDF(pdfContent);
+  // Extract NPCs from document content
+  const npcs = await extractNPCsFromDocument(pdfContent);
 
-  // Extract locations from PDF content
-  const locations = await extractLocationsFromPDF(pdfContent);
+  // Extract locations from document content
+  const locations = await extractLocationsFromDocument(pdfContent);
 
-  // Extract plot hooks from PDF content
-  const plotHooks = await extractPlotHooksFromPDF(pdfContent);
+  // Extract plot hooks from document content
+  const plotHooks = await extractPlotHooksFromDocument(pdfContent);
 
-  // Extract story beats from PDF content
-  const storyBeats = await extractStoryBeatsFromPDF(pdfContent);
+  // Extract story beats from document content
+  const storyBeats = await extractStoryBeatsFromDocument(pdfContent);
 
-  // Extract key items from PDF content
-  const keyItems = await extractKeyItemsFromPDF(pdfContent);
+  // Extract key items from document content
+  const keyItems = await extractKeyItemsFromDocument(pdfContent);
 
-  // Extract conflicts from PDF content
-  const conflicts = await extractConflictsFromPDF(pdfContent);
+  // Extract conflicts from document content
+  const conflicts = await extractConflictsFromDocument(pdfContent);
 
   return {
     campaignId,
@@ -579,39 +579,41 @@ function identifyPriorityAreas(_dimensions: any): PriorityArea[] {
   ];
 }
 
-// PDF extraction helper functions
-async function extractNPCsFromPDF(_content: string): Promise<NPCInfo[]> {
+// document extraction helper functions
+async function extractNPCsFromDocument(_content: string): Promise<NPCInfo[]> {
   // Implementation would use AI to extract NPC information
   return [];
 }
 
-async function extractLocationsFromPDF(
+async function extractLocationsFromDocument(
   _content: string
 ): Promise<LocationInfo[]> {
   // Implementation would use AI to extract location information
   return [];
 }
 
-async function extractPlotHooksFromPDF(
+async function extractPlotHooksFromDocument(
   _content: string
 ): Promise<PlotHookInfo[]> {
   // Implementation would use AI to extract plot hooks
   return [];
 }
 
-async function extractStoryBeatsFromPDF(
+async function extractStoryBeatsFromDocument(
   _content: string
 ): Promise<StoryBeatInfo[]> {
   // Implementation would use AI to extract story beats
   return [];
 }
 
-async function extractKeyItemsFromPDF(_content: string): Promise<ItemInfo[]> {
+async function extractKeyItemsFromDocument(
+  _content: string
+): Promise<ItemInfo[]> {
   // Implementation would use AI to extract key items
   return [];
 }
 
-async function extractConflictsFromPDF(
+async function extractConflictsFromDocument(
   _content: string
 ): Promise<ConflictInfo[]> {
   // Implementation would use AI to extract conflicts

@@ -13,8 +13,8 @@ declare namespace Cloudflare {
 		FILE_BUCKET: R2Bucket;
 		DB: D1Database;
 		ADMIN_SECRET: SecretsStoreSecret;
-		PDF_PROCESSING_QUEUE: Queue;
-		PDF_PROCESSING_DLQ: Queue;
+		FILE_PROCESSING_QUEUE: Queue;
+		FILE_PROCESSING_DLQ: Queue;
 		VECTORIZE: VectorizeIndex;
 		AI: Ai;
 	}

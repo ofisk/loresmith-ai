@@ -69,7 +69,7 @@ export class AssessmentService {
       // Get resource count
       const resourcesResult = await this.db
         .prepare(
-          "SELECT COUNT(*) as count FROM pdf_metadata WHERE username = ?"
+          "SELECT COUNT(*) as count FROM file_metadata WHERE username = ?"
         )
         .bind(username)
         .first<{ count: number }>();
@@ -94,7 +94,7 @@ export class AssessmentService {
             'resource_uploaded' as type,
             created_at as timestamp,
             file_name as details
-          FROM pdf_metadata 
+          FROM file_metadata 
           WHERE username = ? AND created_at > ?
           ORDER BY timestamp DESC
           LIMIT 10
@@ -118,7 +118,7 @@ export class AssessmentService {
           FROM (
             SELECT created_at FROM campaigns WHERE username = ?
             UNION ALL
-            SELECT created_at FROM pdf_metadata WHERE username = ?
+            SELECT created_at FROM file_metadata WHERE username = ?
           )
         `
         )

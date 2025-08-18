@@ -77,8 +77,8 @@ const metadata = await fileDAO.getFileMetadata(fileKey);
 // Get file with all its chunks
 const fileWithChunks = await fileDAO.getFileWithChunks(fileKey);
 
-// Insert PDF chunks
-await fileDAO.insertPDFChunks(chunks);
+// Insert file chunks
+await fileDAO.insertFileChunks(chunks);
 
 // Delete file (database, R2 storage, and vector index)
 await fileDAO.deleteFile(fileKey, r2Bucket, vectorizeIndex);
@@ -181,7 +181,7 @@ await fileDAO.deleteFile(fileKey, r2Bucket, vectorizeIndex);
 
 This method:
 
-1. **Database Cleanup**: Removes file metadata and PDF chunks
+1. **Database Cleanup**: Removes file metadata and file chunks
 2. **R2 Storage**: Deletes the actual file from Cloudflare R2
 3. **Vector Index**: Removes embeddings from the vector database for AutoRAG
 4. **Error Handling**: Gracefully handles failures in any step

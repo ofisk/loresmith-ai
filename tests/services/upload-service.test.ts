@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UploadService } from "../../src/services/upload-service";
 import type { UploadSession } from "../../src/types/upload";
-import { PDF_PROCESSING_CONFIG } from "../../src/constants";
+import { FILE_PROCESSING_CONFIG } from "../../src/constants";
 
 // Mock environment
 const mockEnv = {
@@ -61,7 +61,7 @@ describe("UploadService", () => {
       const result = await uploadService.startUpload(
         "testuser",
         "test-file.pdf",
-        PDF_PROCESSING_CONFIG.CHUNK_SIZE,
+        FILE_PROCESSING_CONFIG.CHUNK_SIZE,
         "application/pdf"
       );
 
@@ -90,7 +90,7 @@ describe("UploadService", () => {
       const result = await uploadService.startUpload(
         "testuser",
         "large-file.pdf",
-        15 * PDF_PROCESSING_CONFIG.CHUNK_SIZE
+        15 * FILE_PROCESSING_CONFIG.CHUNK_SIZE
       );
 
       expect(result.totalParts).toBe(15);

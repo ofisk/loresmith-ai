@@ -175,7 +175,6 @@ export const storeCharacterInfo = tool({
         );
       }
 
-      // Otherwise, make HTTP request
       const response = await authenticatedFetch(
         API_CONFIG.buildUrl(
           API_CONFIG.ENDPOINTS.CAMPAIGNS.CHARACTERS(campaignId)
@@ -386,7 +385,6 @@ export const generateCharacterWithAITool = tool({
         );
       }
 
-      // Otherwise, make HTTP request
       const response = await authenticatedFetch(
         API_CONFIG.buildUrl(
           API_CONFIG.ENDPOINTS.CAMPAIGNS.CHARACTERS(campaignId)

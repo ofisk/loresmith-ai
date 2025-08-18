@@ -70,7 +70,7 @@ Tests for Durable Object and KV storage operations:
 
 - **CampaignData**: Campaign structure validation
 - **CampaignResource**: Resource structure validation
-- **ResourceType**: PDF, character, note, image types
+- **ResourceType**: document, character, note, image types
 - **API Requests/Responses**: Request/response format validation
 
 ### Error Scenarios Tested

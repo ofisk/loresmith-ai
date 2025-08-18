@@ -16,8 +16,6 @@ export interface UploadSession {
   autoRAGChunking?: boolean;
 }
 
-import type { PdfStatus } from "./pdf";
-
 export interface FileMetadata {
   id: string;
   fileKey: string;
@@ -27,7 +25,7 @@ export interface FileMetadata {
   contentType: string;
   description?: string;
   tags: string[];
-  status: PdfStatus;
+  status: string;
   createdAt: string;
   updatedAt: string;
   vectorId?: string; // For RAG indexing
