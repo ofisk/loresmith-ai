@@ -316,16 +316,16 @@ export default function Chat() {
   useEffect(() => {
     // Scroll to bottom once when the page loads with messages
     if (agentMessages.length > 0 && !isLoading) {
-      const chatContainer = document.getElementById("chat-container");
+      const chatContainer = document.getElementById(chatContainerId);
       if (chatContainer) {
         chatContainer.scrollTop = chatContainer.scrollHeight;
       }
     }
-  }, [agentMessages.length, isLoading]);
+  }, [agentMessages.length, isLoading, chatContainerId]);
 
   // Scroll to bottom when messages change or when agent is responding
   useEffect(() => {
-    const chatContainer = document.getElementById("chat-container");
+    const chatContainer = document.getElementById(chatContainerId);
     if (chatContainer) {
       // Smooth scroll to bottom when messages change
       chatContainer.scrollTo({
@@ -333,7 +333,7 @@ export default function Chat() {
         behavior: "smooth",
       });
     }
-  }, []);
+  }, [chatContainerId]);
 
   // Debug modal state changes
   useEffect(() => {
@@ -354,7 +354,7 @@ export default function Chat() {
     setInput("");
     // Scroll to bottom after user sends a message
     setTimeout(() => {
-      const chatContainer = document.getElementById("chat-container");
+      const chatContainer = document.getElementById(chatContainerId);
       if (chatContainer) {
         chatContainer.scrollTo({
           top: chatContainer.scrollHeight,
@@ -498,7 +498,7 @@ export default function Chat() {
     setTextareaHeight("auto"); // Reset height after submission
     // Scroll to bottom after user sends a message
     setTimeout(() => {
-      const chatContainer = document.getElementById("chat-container");
+      const chatContainer = document.getElementById(chatContainerId);
       if (chatContainer) {
         chatContainer.scrollTo({
           top: chatContainer.scrollHeight,
@@ -528,7 +528,7 @@ export default function Chat() {
       setTextareaHeight("auto"); // Reset height on Enter submission
       // Scroll to bottom after user sends a message
       setTimeout(() => {
-        const chatContainer = document.getElementById("chat-container");
+        const chatContainer = document.getElementById(chatContainerId);
         if (chatContainer) {
           chatContainer.scrollTo({
             top: chatContainer.scrollHeight,
