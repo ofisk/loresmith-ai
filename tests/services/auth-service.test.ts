@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthService, type AuthRequest } from "../../src/services/auth-service";
 import { jwtVerify } from "jose";
 
+// Mock process.env to prevent interference with actual environment variables
+const originalEnv = process.env;
+
 // Mock environment
 const mockEnv = {
   ADMIN_SECRET: "test-admin-secret",
@@ -54,7 +57,14 @@ describe("AuthService", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Clear process.env to prevent interference with mock values
+    process.env = {};
     authService = new AuthService(mockEnv);
+  });
+
+  afterEach(() => {
+    // Restore original environment
+    process.env = originalEnv;
   });
 
   describe("getJwtSecret", () => {
@@ -435,6 +445,9 @@ describe("AuthService", () => {
 
   describe("JWT token structure", () => {
     it("should create JWT with correct payload structure", async () => {
+      // Set up the environment to match the expected admin secret
+      process.env.ADMIN_SECRET = "test-admin-secret";
+
       const request: AuthRequest = {
         username: "testuser",
         openaiApiKey: "sk-test-key",

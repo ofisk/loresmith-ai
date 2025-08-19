@@ -22,7 +22,6 @@ import { API_CONFIG } from "../../shared";
 interface ResourceSidePanelProps {
   className?: string;
   isAuthenticated?: boolean;
-  username?: string;
   onLogout?: () => Promise<void>;
   showUserMenu?: boolean;
   setShowUserMenu?: (show: boolean) => void;
@@ -47,7 +46,6 @@ interface UploadProgress {
 export function ResourceSidePanel({
   className = "",
   isAuthenticated = false,
-  username = "",
   onLogout,
   showUserMenu = false,
   setShowUserMenu,
@@ -62,6 +60,23 @@ export function ResourceSidePanel({
     percentage: 0,
     message: "",
   });
+
+  // Helper function to extract username from JWT
+  const getUsernameFromJwt = (): string | null => {
+    try {
+      const jwt = getStoredJwt();
+      if (!jwt) return null;
+
+      const payload = JSON.parse(atob(jwt.split(".")[1]));
+      return payload.username || null;
+    } catch (error) {
+      console.error(
+        "[ResourceSidePanel] Failed to extract username from JWT:",
+        error
+      );
+      return null;
+    }
+  };
 
   const handleUpload = async (
     file: File,
@@ -83,65 +98,51 @@ export function ResourceSidePanel({
         throw new Error("No authentication token found");
       }
 
-      // Step 1: Start upload session
-      setUploadProgress((prev) => ({
-        ...prev,
-        currentStep: "starting",
-        message: "Preparing upload session...",
-      }));
-
-      const startResponse = await authenticatedFetchWithExpiration(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_START),
-        {
-          method: "POST",
-          jwt,
-          body: JSON.stringify({
-            filename: filename,
-            contentType: "application/pdf",
-            fileSize: file.size,
-            enableAutoRAGChunking: true,
-          }),
-        }
-      );
-
-      if (startResponse.jwtExpired) {
-        throw new Error("Authentication expired. Please log in again.");
+      // Extract username from JWT
+      const tenant = getUsernameFromJwt();
+      if (!tenant) {
+        throw new Error("No username/tenant available for upload");
       }
 
-      if (!startResponse.response.ok) {
-        const errorText = await startResponse.response.text();
-        throw new Error(
-          `Failed to start upload: ${startResponse.response.status} ${errorText}`
-        );
-      }
-
-      const startData = (await startResponse.response.json()) as {
-        sessionId: string;
-        uploadId: string;
-        fileKey: string;
-        chunkSize: number;
-        totalParts: number;
-        autoRAGChunking: boolean;
-      };
-
-      // Step 2: Upload file in chunks
+      // Step 1: Upload file directly to storage
       setUploadProgress((prev) => ({
         ...prev,
         currentStep: "uploading",
-        totalParts: startData.totalParts,
-        message: `Uploading file (0/${startData.totalParts} parts)...`,
+        message: "Uploading file to storage...",
       }));
 
-      await uploadFileChunks(file, startData, jwt);
+      console.log("[ResourceSidePanel] Upload request body:", {
+        tenant,
+        originalName: filename,
+        contentType: file.type || "application/pdf",
+        fileSize: file.size,
+      });
 
-      // Step 3: Complete upload
-      setUploadProgress((prev) => ({
-        ...prev,
-        currentStep: "completing",
-        message: "Finalizing upload...",
-      }));
+      // Direct upload to R2 storage
+      const uploadResponse = await authenticatedFetchWithExpiration(
+        API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.UPLOAD.DIRECT(tenant, filename)
+        ),
+        {
+          method: "PUT",
+          jwt,
+          body: file,
+          headers: {
+            "Content-Type": file.type || "application/pdf",
+          },
+        }
+      );
 
-      await completeUpload(startData.sessionId, jwt);
+      if (uploadResponse.jwtExpired) {
+        throw new Error("Authentication expired. Please log in again.");
+      }
+
+      if (!uploadResponse.response.ok) {
+        const errorText = await uploadResponse.response.text();
+        throw new Error(
+          `Upload failed: ${uploadResponse.response.status} ${errorText}`
+        );
+      }
 
       // Success state
       setUploadProgress((prev) => ({
@@ -177,80 +178,6 @@ export function ResourceSidePanel({
     }
   };
 
-  const uploadFileChunks = async (
-    file: File,
-    startData: { sessionId: string; chunkSize: number; totalParts: number },
-    jwt: string
-  ): Promise<void> => {
-    const { sessionId, chunkSize, totalParts } = startData;
-
-    for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
-      const start = (partNumber - 1) * chunkSize;
-      const end = Math.min(start + chunkSize, file.size);
-      const chunk = file.slice(start, end);
-
-      const formData = new FormData();
-      formData.append("sessionId", sessionId);
-      formData.append("partNumber", partNumber.toString());
-      formData.append("file", chunk);
-      formData.append("enableAutoRAGChunking", "true");
-
-      const partResponse = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_PART),
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${jwt}`,
-          },
-          body: formData,
-        }
-      );
-
-      if (!partResponse.ok) {
-        const errorText = await partResponse.text();
-        throw new Error(
-          `Failed to upload part ${partNumber}: ${partResponse.status} ${errorText}`
-        );
-      }
-
-      // Update progress
-      const percentage = Math.round((partNumber / totalParts) * 100);
-      setUploadProgress((prev) => ({
-        ...prev,
-        currentPart: partNumber,
-        percentage,
-        message: `Uploading file (${partNumber}/${totalParts} parts)...`,
-      }));
-    }
-  };
-
-  const completeUpload = async (
-    sessionId: string,
-    jwt: string
-  ): Promise<void> => {
-    const completeResponse = await authenticatedFetchWithExpiration(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_COMPLETE),
-      {
-        method: "POST",
-        jwt,
-        body: JSON.stringify({
-          sessionId: sessionId,
-        }),
-      }
-    );
-
-    if (completeResponse.jwtExpired) {
-      throw new Error("Authentication expired. Please log in again.");
-    }
-
-    if (!completeResponse.response.ok) {
-      const errorText = await completeResponse.response.text();
-      throw new Error(
-        `Failed to complete upload: ${completeResponse.response.status} ${errorText}`
-      );
-    }
-  };
-
   const getStepIcon = (step: UploadStep) => {
     switch (step) {
       case "success":
@@ -279,8 +206,7 @@ export function ResourceSidePanel({
 
   const isUploading =
     uploadProgress.currentStep === "starting" ||
-    uploadProgress.currentStep === "uploading" ||
-    uploadProgress.currentStep === "completing";
+    uploadProgress.currentStep === "uploading";
 
   const showProgress = uploadProgress.currentStep !== "idle";
 
@@ -343,40 +269,43 @@ export function ResourceSidePanel({
       </div>
 
       {/* Username Display and Menu - At the very bottom */}
-      {isAuthenticated && username && onLogout && setShowUserMenu && (
-        <div className="p-3 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
-          <div className="relative user-menu-container">
-            <button
-              type="button"
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-md transition-colors w-full"
-            >
-              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-              <span className="truncate">{username}</span>
-              <CaretDown
-                size={16}
-                className="transition-transform duration-200 ml-auto"
-              />
-            </button>
+      {isAuthenticated &&
+        getUsernameFromJwt() &&
+        onLogout &&
+        setShowUserMenu && (
+          <div className="p-3 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
+            <div className="relative user-menu-container">
+              <button
+                type="button"
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-md transition-colors w-full"
+              >
+                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                <span className="truncate">{getUsernameFromJwt()}</span>
+                <CaretDown
+                  size={16}
+                  className="transition-transform duration-200 ml-auto"
+                />
+              </button>
 
-            {/* Dropdown Menu */}
-            {showUserMenu && (
-              <div className="absolute bottom-full left-0 mb-2 w-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg z-50">
-                <div className="py-1">
-                  <button
-                    type="button"
-                    onClick={onLogout}
-                    className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors flex items-center gap-2"
-                  >
-                    <SignOut size={16} />
-                    Logout
-                  </button>
+              {/* Dropdown Menu */}
+              {showUserMenu && (
+                <div className="absolute bottom-full left-0 mb-2 w-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg z-50">
+                  <div className="py-1">
+                    <button
+                      type="button"
+                      onClick={onLogout}
+                      className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors flex items-center gap-2"
+                    >
+                      <SignOut size={16} />
+                      Logout
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Upload Modal */}
       <Modal
@@ -409,7 +338,7 @@ export function ResourceSidePanel({
                     "Preparing Upload"}
                   {uploadProgress.currentStep === "uploading" &&
                     "Uploading File"}
-                  {uploadProgress.currentStep === "completing" && "Finalizing"}
+
                   {uploadProgress.currentStep === "success" &&
                     "Upload Complete"}
                   {uploadProgress.currentStep === "error" && "Upload Failed"}
@@ -445,7 +374,7 @@ export function ResourceSidePanel({
             onUpload={handleUpload}
             loading={isUploading}
             className="border-0 p-0 shadow-none"
-            jwtUsername={username}
+            jwtUsername={getUsernameFromJwt()}
           />
         </div>
       </Modal>

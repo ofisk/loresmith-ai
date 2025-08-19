@@ -184,14 +184,14 @@ describe("ServiceFactory", () => {
   });
 
   describe("getLibraryRagService", () => {
-    it("should create new LibraryRAGService instance on first call", () => {
+    it("should create new LibraryRagService instance on first call", () => {
       const libraryRagService = ServiceFactory.getLibraryRagService(mockEnv);
 
-      // Note: LibraryRAGService is not mocked, so we test the factory method exists
+      // Note: LibraryRagService is not mocked, so we test the factory method exists
       expect(libraryRagService).toBeDefined();
     });
 
-    it("should return cached LibraryRAGService instance on subsequent calls", () => {
+    it("should return cached LibraryRagService instance on subsequent calls", () => {
       const firstCall = ServiceFactory.getLibraryRagService(mockEnv);
       const secondCall = ServiceFactory.getLibraryRagService(mockEnv);
 
@@ -203,31 +203,6 @@ describe("ServiceFactory", () => {
 
       const firstService = ServiceFactory.getLibraryRagService(mockEnv);
       const secondService = ServiceFactory.getLibraryRagService(differentEnv);
-
-      expect(firstService).not.toBe(secondService);
-    });
-  });
-
-  describe("getUploadService", () => {
-    it("should create new UploadService instance on first call", () => {
-      const uploadService = ServiceFactory.getUploadService(mockEnv);
-
-      // Note: UploadService is not mocked, so we test the factory method exists
-      expect(uploadService).toBeDefined();
-    });
-
-    it("should return cached UploadService instance on subsequent calls", () => {
-      const firstCall = ServiceFactory.getUploadService(mockEnv);
-      const secondCall = ServiceFactory.getUploadService(mockEnv);
-
-      expect(firstCall).toBe(secondCall);
-    });
-
-    it("should create new instance with different environment", () => {
-      const differentEnv = { ...mockEnv, DB: undefined };
-
-      const firstService = ServiceFactory.getUploadService(mockEnv);
-      const secondService = ServiceFactory.getUploadService(differentEnv);
 
       expect(firstService).not.toBe(secondService);
     });

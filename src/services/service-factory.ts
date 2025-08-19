@@ -2,20 +2,18 @@
 // Uses per-request caching to reuse services within the same request context
 
 import type { Env } from "../middleware/auth";
-import { AssessmentService } from "./assessment-service";
 import { AuthService } from "./auth-service";
 import { LibraryRAGService } from "./rag-service";
-import { UploadService } from "./upload-service";
 import { LibraryService } from "./library-service";
 import { CampaignService } from "./campaign-service";
 import { ModelManager } from "./model-manager";
+import { AssessmentService } from "./assessment-service";
+import { MetadataService } from "./metadata-service";
+import { ErrorHandlingService } from "./error-handling-service";
+import { getDatabaseKey } from "../dao/dao-factory";
 import { AgentRegistryService } from "./agent-registry";
 import { AgentRouter } from "./agent-router";
 import { CampaignRAGService } from "../lib/campaignRag";
-import { MetadataService } from "./metadata-service";
-import { ErrorHandlingService } from "./error-handling-service";
-import { AutoRAGChunksDAO } from "../dao/autorag-chunks-dao";
-import { getDatabaseKey } from "../dao/dao-factory";
 
 // Service factory class with per-request caching
 export class ServiceFactory {
@@ -28,11 +26,11 @@ export class ServiceFactory {
 
   // Get or create AssessmentService
   static getAssessmentService(env: Env): AssessmentService {
-    const key = `assessment-${env.ADMIN_SECRET ? "has-admin" : "no-admin"}`;
+    const key = `assessment-${JSON.stringify(env)}`;
     if (!ServiceFactory.services.has(key)) {
       ServiceFactory.services.set(key, new AssessmentService(env));
     }
-    return ServiceFactory.services.get(key);
+    return ServiceFactory.services.get(key) as AssessmentService;
   }
 
   // Get or create AuthService
@@ -69,15 +67,6 @@ export class ServiceFactory {
     return ServiceFactory.services.get(key);
   }
 
-  // Get or create UploadService
-  static getUploadService(env: Env): UploadService {
-    const key = `upload-${env.DB ? "has-db" : "no-db"}`;
-    if (!ServiceFactory.services.has(key)) {
-      ServiceFactory.services.set(key, new UploadService(env));
-    }
-    return ServiceFactory.services.get(key);
-  }
-
   // Get or create MetadataService
   static getMetadataService(env: Env): MetadataService {
     const key = `metadata-${env.AI ? "has-ai" : "no-ai"}`;
@@ -92,15 +81,6 @@ export class ServiceFactory {
     const key = "error-handling";
     if (!ServiceFactory.services.has(key)) {
       ServiceFactory.services.set(key, new ErrorHandlingService());
-    }
-    return ServiceFactory.services.get(key);
-  }
-
-  // Get or create AutoRAGChunksDAO
-  static getAutoRAGChunksDAO(env: Env): AutoRAGChunksDAO {
-    const key = `autorag-chunks-${env.DB ? "has-db" : "no-db"}`;
-    if (!ServiceFactory.services.has(key)) {
-      ServiceFactory.services.set(key, new AutoRAGChunksDAO(env.DB));
     }
     return ServiceFactory.services.get(key);
   }
@@ -202,9 +182,6 @@ export const getAuthService = (env: Env) => ServiceFactory.getAuthService(env);
 
 export const getLibraryRagService = (env: Env) =>
   ServiceFactory.getLibraryRagService(env);
-
-export const getUploadService = (env: Env) =>
-  ServiceFactory.getUploadService(env);
 
 export const getMetadataService = (env: Env) =>
   ServiceFactory.getMetadataService(env);

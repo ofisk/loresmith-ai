@@ -26,19 +26,6 @@ export const UPLOAD_CONFIG = {
   MAX_FILES_PER_USER: 100,
 } as const;
 
-// File processing constants for large files
-export const FILE_PROCESSING_CONFIG = {
-  MAX_FILE_SIZE: 500 * 1024 * 1024, // 500MB limit
-  INGEST_CHUNK_SIZE: 5 * 1024 * 1024, // 5MB chunks for processing (reduced from 10MB)
-  MAX_TEXT_LENGTH: 5 * 1024 * 1024, // 5MB text limit
-  TIMEOUT_SMALL_FILES: 60000, // 1 minute for files < 100MB
-  TIMEOUT_LARGE_FILES: 120000, // 2 minutes for files >= 100MB
-  LARGE_FILE_THRESHOLD: 100 * 1024 * 1024, // 100MB threshold
-  CHUNK_SIZE: 1024 * 1024, // 1MB chunks (optimal for AutoRAG processing)
-  MAX_CONCURRENT_UPLOADS: 3, // 3 concurrent upload chunks
-  UPLOAD_TIMEOUT_MS: 120000, // 120 second timeout per chunk
-} as const;
-
 // Campaign constants
 export const CAMPAIGN_CONFIG = {
   MAX_CAMPAIGNS_PER_USER: 50,
@@ -99,7 +86,7 @@ export const USER_MESSAGES = {
   FILE_RECEIVED: "File has been received and will be processed.",
   FILES_LIST: "Uploaded files:",
   NO_FILES:
-    "No files have been uploaded yet. Use the generateFileUploadUrl tool to upload your first file.",
+    "No files have been uploaded yet. Upload files through the file upload interface.",
   FILE_STATS_TITLE: "File Upload Statistics for user:",
   UPLOAD_URL_GENERATED: "Upload URL generated successfully for",
   METADATA_UPDATED: "Metadata updated successfully for file",

@@ -4,7 +4,7 @@ import type { AuthEnv, AuthPayload } from "../services/auth-service";
 import { getEnvVar, type EnvWithSecrets } from "../lib/env-utils";
 
 export interface Env extends AuthEnv, EnvWithSecrets {
-  FILE_BUCKET: R2Bucket;
+  R2: R2Bucket;
   DB: D1Database;
   VECTORIZE: VectorizeIndex;
   AI: Ai;
@@ -14,6 +14,10 @@ export interface Env extends AuthEnv, EnvWithSecrets {
   ASSETS: Fetcher;
   FILE_PROCESSING_QUEUE: Queue;
   FILE_PROCESSING_DLQ: Queue;
+  AUTORAG_SEARCH_URL: string;
+  R2_ACCESS_KEY_ID: string;
+  R2_SECRET_ACCESS_KEY: string;
+  R2_ACCOUNT_ID: string;
 }
 
 // Set user authentication data in context

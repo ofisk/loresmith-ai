@@ -286,7 +286,7 @@ In production, the system uses Cloudflare Secrets Store for secure secret manage
 
 Uploaded files are processed through a secure pipeline:
 
-1. **Upload**: Files are uploaded directly to R2 storage via presigned URLs
+1. **Upload**: Files are uploaded directly to R2 storage via authenticated endpoints
 2. **Processing**: Files are parsed and indexed for RAG functionality
 3. **Metadata**: Users can add descriptions and tags to uploaded files
 4. **Campaign Integration**: Files can be associated with specific campaigns

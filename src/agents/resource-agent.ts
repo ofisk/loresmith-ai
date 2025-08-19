@@ -28,7 +28,6 @@ const RESOURCE_SYSTEM_PROMPT = buildSystemPrompt({
   ],
   tools: createToolMappingFromObjects(fileTools),
   workflowGuidelines: [
-    "File Upload: When users ask to upload files, call the generateFileUploadUrl tool",
     "File Listing: When users ask to see their files, call the listFiles tool",
     "Processing: The new upload system automatically processes files during upload",
     "Uploaded Files: When users mention they have uploaded a file, use updateFileMetadata if they want to modify metadata",
@@ -40,14 +39,11 @@ const RESOURCE_SYSTEM_PROMPT = buildSystemPrompt({
   importantNotes: [
     "ALWAYS use tools instead of just responding with text",
     "When users ask to see files, IMMEDIATELY call the listFiles tool",
-    "When users ask to upload files, call the generateFileUploadUrl tool",
     "When users ask about file statistics, call the getFileStats tool",
     "When users mention they have uploaded a file, use updateFileMetadata to update metadata if needed",
     "When users ask to auto-generate metadata for existing files, use autoGenerateFileMetadata tool",
     "When users ask to delete files, call the deleteFile tool",
     "When users ask to delete 'all' or 'all resources', ALWAYS call listFiles first to get the current list of files, then call deleteFile for each file individually. NEVER use cached file information.",
-    "Generate upload URL with generateFileUploadUrl",
-    "Upload the file using the provided URL",
     "Update metadata as needed with updateFileMetadata",
     "Auto-generate metadata for existing files with autoGenerateFileMetadata",
     "NEVER try to add files to campaigns - that's handled by the campaign agent",
