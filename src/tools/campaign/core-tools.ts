@@ -87,7 +87,8 @@ export const listCampaigns = tool({
 });
 
 export const createCampaign = tool({
-  description: "Create a new campaign",
+  description:
+    "Create a new campaign with an AI-generated description based on the name",
   parameters: z.object({
     name: z.string(),
     jwt: commonSchemas.jwt,
@@ -101,13 +102,38 @@ export const createCampaign = tool({
     console.log("[createCampaign] Using toolCallId:", toolCallId);
 
     try {
+      // Generate a creative description based on the campaign name
+      const generateDescription = (_campaignName: string): string => {
+        const themes = [
+          "epic fantasy adventure",
+          "dark mystery campaign",
+          "swashbuckling pirate tale",
+          "cosmic horror story",
+          "medieval political intrigue",
+          "post-apocalyptic survival",
+          "steampunk exploration",
+          "underdark expedition",
+          "celestial realm journey",
+          "ancient ruins discovery",
+        ];
+
+        const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+        const intensity = Math.random() > 0.5 ? "thrilling" : "captivating";
+
+        return `A ${intensity} ${randomTheme} where heroes will face incredible challenges, forge lasting bonds, and discover secrets that could change the fate of the world.`;
+      };
+
+      const description = generateDescription(name);
+
+      console.log("[createCampaign] Generated description:", description);
       console.log("[createCampaign] Making API request");
+
       const response = await authenticatedFetch(
         API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
         {
           method: "POST",
           jwt,
-          body: JSON.stringify({ name }),
+          body: JSON.stringify({ name, description }),
         }
       );
 
@@ -135,10 +161,16 @@ export const createCampaign = tool({
       console.log("[createCampaign] API data:", data);
 
       return createToolSuccess(
-        `The campaign "${name}" has been created successfully! Campaign ID: ${data.campaignId} Created At: ${new Date().toLocaleDateString()}`,
+        `Perfect! I've created your campaign "${name}" with a description that captures the essence of your adventure. Here's what I've set up for you:
+
+**Campaign Name:** ${name}
+**Description:** ${description}
+
+Your campaign is now ready and waiting for you to add resources, plan sessions, and bring your story to life! 🎲✨`,
         {
           campaignId: data.campaignId,
           name,
+          description,
           createdAt: new Date().toISOString(),
         },
         toolCallId
