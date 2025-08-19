@@ -281,6 +281,7 @@ export default function Chat() {
     onFinish: (result) => {
       console.log("[App] Agent finished:", result);
       console.log("[App] Result content:", result.content);
+
       // Check if the response indicates authentication is required
       if (result.content?.includes("AUTHENTICATION_REQUIRED:")) {
         console.log(
@@ -289,6 +290,20 @@ export default function Chat() {
         setShowAuthModal(true);
       } else {
         console.log("[App] No authentication required in response");
+      }
+
+      // Check if the agent performed file operations that require UI refresh
+      const content = result.content?.toLowerCase() || "";
+      if (
+        content.includes("deleted") ||
+        content.includes("successfully deleted")
+      ) {
+        console.log("[App] File operation detected, triggering refresh event");
+        window.dispatchEvent(
+          new CustomEvent("file-changed", {
+            detail: { type: "file-changed", operation: "detected" },
+          })
+        );
       }
     },
     onError: (error) => {

@@ -59,7 +59,7 @@ describe("FileDAO", () => {
 
       // Should execute transaction with delete operations
       expect(mockDB.prepare).toHaveBeenCalledWith(
-        "DELETE FROM pdf_chunks WHERE file_key = ?"
+        "DELETE FROM autorag_chunks WHERE file_key = ?"
       );
       expect(mockDB.prepare).toHaveBeenCalledWith(
         "DELETE FROM file_metadata WHERE file_key = ?"
@@ -99,7 +99,7 @@ describe("FileDAO", () => {
 
       // Should execute transaction with delete operations
       expect(mockDB.prepare).toHaveBeenCalledWith(
-        "DELETE FROM pdf_chunks WHERE file_key = ?"
+        "DELETE FROM autorag_chunks WHERE file_key = ?"
       );
       expect(mockDB.prepare).toHaveBeenCalledWith(
         "DELETE FROM file_metadata WHERE file_key = ?"
@@ -143,7 +143,7 @@ describe("FileDAO", () => {
 
       // Should still complete successfully despite R2 error
       expect(mockDB.prepare).toHaveBeenCalledWith(
-        "DELETE FROM pdf_chunks WHERE file_key = ?"
+        "DELETE FROM autorag_chunks WHERE file_key = ?"
       );
       expect(mockDB.prepare).toHaveBeenCalledWith(
         "DELETE FROM file_metadata WHERE file_key = ?"
@@ -190,7 +190,7 @@ describe("FileDAO", () => {
 
       // Should still complete successfully despite vector index error
       expect(mockDB.prepare).toHaveBeenCalledWith(
-        "DELETE FROM pdf_chunks WHERE file_key = ?"
+        "DELETE FROM autorag_chunks WHERE file_key = ?"
       );
       expect(mockDB.prepare).toHaveBeenCalledWith(
         "DELETE FROM file_metadata WHERE file_key = ?"
@@ -234,7 +234,7 @@ describe("FileDAO", () => {
 
       // Should delete from database and R2
       expect(mockDB.prepare).toHaveBeenCalledWith(
-        "DELETE FROM pdf_chunks WHERE file_key = ?"
+        "DELETE FROM autorag_chunks WHERE file_key = ?"
       );
       expect(mockDB.prepare).toHaveBeenCalledWith(
         "DELETE FROM file_metadata WHERE file_key = ?"

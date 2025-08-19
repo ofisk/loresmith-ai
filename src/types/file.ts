@@ -78,7 +78,7 @@ export const fileHelpers = {
 
 // Database schema constants
 export const FILE_SCHEMA = {
-  TABLE_NAME: "pdf_files",
+  TABLE_NAME: "file_metadata",
   COLUMNS: {
     ID: "id",
     FILE_KEY: "file_key",

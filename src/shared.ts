@@ -13,52 +13,60 @@ export const AUTH_CODES = {
 } as const;
 
 // Helper function to get API URL from environment variables
-function getApiUrl(): string {
-  console.log("[getApiUrl] Starting URL resolution");
+function getApiUrl(env?: any): string {
+  // For internal API calls (tools calling the same Worker), use the environment variable
+  // This allows configuration via .vars file for production
 
-  // Try Vite environment (for frontend development)
-  if (
-    typeof import.meta !== "undefined" &&
-    import.meta.env?.VITE_API_URL &&
-    import.meta.env.VITE_API_URL !== "undefined"
-  ) {
-    console.log(
-      "[getApiUrl] Using Vite environment URL:",
-      import.meta.env.VITE_API_URL
-    );
-    return import.meta.env.VITE_API_URL;
+  // First try to get from env object (production/worker environment)
+  if (env?.VITE_API_URL && typeof env.VITE_API_URL === "string") {
+    return env.VITE_API_URL;
   }
 
-  // Try process.env (for Worker context)
+  // Then try to get from process.env (Node.js environment)
   if (
     typeof process !== "undefined" &&
     process.env?.VITE_API_URL &&
     process.env.VITE_API_URL !== "undefined"
   ) {
-    console.log("[getApiUrl] Using process.env URL:", process.env.VITE_API_URL);
     return process.env.VITE_API_URL;
   }
 
-  // Fallback - this should never happen with proper .vars files
-  console.log("[getApiUrl] No environment variable found, using fallback");
-  return "http://localhost:8787";
+  // For browser environment, try to get from window or use fallback
+  if (typeof window !== "undefined") {
+    // In development, the API runs on a different port than the client
+    if (
+      window.location.hostname === "localhost" &&
+      window.location.port === "5173"
+    ) {
+      return "http://localhost:8787";
+    }
+    // In production, use the same origin
+    return window.location.origin;
+  }
+
+  // Fallback for development or when environment variable is not set
+  return "https://ofisk.tech";
 }
 
 // API Configuration - centralized base URL and endpoints
 export const API_CONFIG = {
   // Helper function to get the base URL dynamically
-  getApiBaseUrl: (): string => {
-    return getApiUrl();
+  getApiBaseUrl: (env?: any): string => {
+    return getApiUrl(env);
   },
 
   // Helper function to build full API URLs
-  buildUrl: (endpoint: string): string => {
-    return `${API_CONFIG.getApiBaseUrl()}${endpoint}`;
+  buildUrl: (endpoint: string, env?: any): string => {
+    return `${API_CONFIG.getApiBaseUrl(env)}${endpoint}`;
   },
 
   // Helper function to build campaign-specific URLs
-  buildCampaignUrl: (campaignId: string, endpoint: string): string => {
-    return API_CONFIG.buildUrl(`/campaigns/${campaignId}${endpoint}`);
+  buildCampaignUrl: (
+    campaignId: string,
+    endpoint: string,
+    env?: any
+  ): string => {
+    return API_CONFIG.buildUrl(`/campaigns/${campaignId}${endpoint}`, env);
   },
 
   // API endpoints without /api/ prefix
@@ -111,7 +119,6 @@ export const API_CONFIG = {
       PROCESS_FILE_FROM_R2: "/rag/process-file-from-r2",
       FILES: "/rag/files",
       FILE_CHUNKS: (fileKey: string) => `/rag/files/${fileKey}/chunks`,
-      UPDATE_METADATA: (fileKey: string) => `/rag/files/${fileKey}/metadata`,
       DELETE_FILE: (fileKey: string) => `/rag/files/${fileKey}`,
       TRIGGER_INDEXING: "/rag/trigger-indexing",
       STATUS: "/rag/status",
@@ -136,15 +143,25 @@ export const API_CONFIG = {
       FILE_REGENERATE_PATTERN: "/library/:fileId/regenerate",
 
       // File management routes (mounted at /library) - consolidated here
-      UPLOAD_URL: "/library/upload-url",
-      UPLOAD_COMPLETE: "/library/upload/complete",
-      UPLOAD_PART: "/library/upload/part",
       PROCESS: "/library/process",
       STATUS: "/library/status",
-      UPDATE_METADATA: "/library/update-metadata",
       AUTO_GENERATE_METADATA: "/library/auto-generate-metadata",
       PROCESS_METADATA_BACKGROUND: "/library/process-metadata-background",
       STATS: "/library/stats",
+      FILE: (fileId: string) => `/library/files/${fileId}`,
+
+      // Consolidated file management endpoints
+      UPDATE_METADATA: (fileKey: string) =>
+        `/library/files/${fileKey}/metadata`,
+
+      // Consolidated upload endpoints
+      UPLOAD_START: "/library/upload/start",
+      UPLOAD_PART: "/library/upload/part",
+      UPLOAD_COMPLETE: "/library/upload/complete",
+      UPLOAD_PROGRESS: (sessionId: string) =>
+        `/library/upload/progress/${sessionId}`,
+      UPLOAD_SESSION: (sessionId: string) =>
+        `/library/upload/session/${sessionId}`,
     },
     PROGRESS: {
       WEBSOCKET: "/progress",

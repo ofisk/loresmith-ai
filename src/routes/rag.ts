@@ -264,27 +264,6 @@ export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
   }
 }
 
-export async function handleUpdateFileMetadataForRag(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-    const fileKey = c.req.param("fileKey");
-    const { description, tags } = await c.req.json();
-
-    const fileDAO = getDAOFactory(c.env).fileDAO;
-    await fileDAO.updateFileMetadataForRag(
-      fileKey,
-      userAuth.username,
-      description || "",
-      tags ? JSON.stringify(tags) : "[]"
-    );
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.error("Error updating file metadata for RAG:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-}
-
 // Get files for RAG
 export async function handleGetFilesForRag(c: ContextWithAuth) {
   try {
@@ -378,7 +357,7 @@ export const handleDeleteFileForRag = async (c: any) => {
 
       // Delete any remaining chunks from database
       try {
-        await fileDAO.deleteFile(fileKey, userAuth.username);
+        await fileDAO.deleteFile(fileKey, c.env.FILE_BUCKET);
         console.log("[handleDeleteFileForRag] Cleaned up chunks");
       } catch (error) {
         console.log("[handleDeleteFileForRag] Cleanup failed:", error);
@@ -416,7 +395,7 @@ export const handleDeleteFileForRag = async (c: any) => {
 
     console.log("[handleDeleteFileForRag] Deleting from database using DAO");
     // Delete all related data using DAO
-    await fileDAO.deleteFile(fileKey, userAuth.username);
+    await fileDAO.deleteFile(fileKey, c.env.FILE_BUCKET);
     console.log("[handleDeleteFileForRag] Database deletion completed");
 
     // Verify deletion

@@ -5,7 +5,12 @@ import { CampaignDAO } from "./campaign-dao";
 import { FileDAO } from "./file-dao";
 
 // Cache for DAO factory instances
-const daoFactoryCache = new WeakMap<D1Database, DAOFactory>();
+const daoFactoryCache = new Map<string, DAOFactory>();
+
+// Wrapper to add a stable key to D1Database objects
+interface DatabaseWithKey extends D1Database {
+  _daoKey?: string;
+}
 
 export interface DAOFactory {
   userDAO: UserDAO;
@@ -75,15 +80,44 @@ export class DAOFactoryImpl implements DAOFactory {
   }
 }
 
-export function createDAOFactory(db: D1Database): DAOFactory {
+// Generate a stable key for a D1Database instance
+export function getDatabaseKey(db: D1Database | undefined): string {
+  if (!db) {
+    // For undefined/null databases, generate a unique key
+    return `db-undefined-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  const dbWithKey = db as DatabaseWithKey;
+
+  // If the database already has a key, use it
+  if (dbWithKey._daoKey) {
+    return dbWithKey._daoKey;
+  }
+
+  // Generate a new key and store it on the database object
+  // Use a more stable approach - just use a random string without timestamp
+  const key = `db-${Math.random().toString(36).substr(2, 9)}`;
+  dbWithKey._daoKey = key;
+  return key;
+}
+
+export function createDAOFactory(db: D1Database | undefined): DAOFactory {
+  if (!db) {
+    throw new Error("Cannot create DAO factory with undefined database");
+  }
+
   const factory = new DAOFactoryImpl(db);
-  daoFactoryCache.set(db, factory);
+  const key = getDatabaseKey(db);
+  daoFactoryCache.set(key, factory);
   return factory;
 }
 
-export function getDAOFactory(env: { DB: D1Database }): DAOFactory {
-  if (!daoFactoryCache.has(env.DB)) {
-    return createDAOFactory(env.DB);
+export function getDAOFactory(env: { DB: D1Database | undefined }): DAOFactory {
+  const key = getDatabaseKey(env.DB);
+
+  if (!daoFactoryCache.has(key)) {
+    return createDAOFactory(env.DB!);
   }
-  return daoFactoryCache.get(env.DB)!;
+
+  return daoFactoryCache.get(key)!;
 }

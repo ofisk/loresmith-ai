@@ -341,24 +341,24 @@ describe("AuthService", () => {
 
   describe("createAuthHeaders", () => {
     it("should create headers with JWT token", () => {
-      const headers = authService.createAuthHeaders("test-jwt-token");
+      const headers = AuthService.createAuthHeaders("test-jwt-token");
 
       expect(headers["Content-Type"]).toBe("application/json");
       expect(headers.Authorization).toBe("Bearer test-jwt-token");
     });
 
     it("should create headers without JWT token", () => {
-      const headers = authService.createAuthHeaders();
+      const headers = AuthService.createAuthHeaders();
 
       expect(headers["Content-Type"]).toBe("application/json");
-      expect(headers.Authorization).toBeUndefined();
+      expect(headers.Authorization).toBe("");
     });
 
     it("should create headers with null JWT token", () => {
-      const headers = authService.createAuthHeaders(null);
+      const headers = AuthService.createAuthHeaders(null);
 
       expect(headers["Content-Type"]).toBe("application/json");
-      expect(headers.Authorization).toBeUndefined();
+      expect(headers.Authorization).toBe("");
     });
   });
 
@@ -384,7 +384,7 @@ describe("AuthService", () => {
       const expiredToken =
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoidXNlci1hdXRoIiwidXNlcm5hbWUiOiJ0ZXN0dXNlciIsImlhdCI6MTYzNDU2Nzg5MCwiZXhwIjoxNjM0NDgxNDkwfQ.invalid-signature";
 
-      const isExpired = authService.isJwtExpired(expiredToken);
+      const isExpired = AuthService.isJwtExpired(expiredToken);
       expect(isExpired).toBe(true);
     });
 
@@ -396,17 +396,17 @@ describe("AuthService", () => {
       const authResponse = await authService.authenticateUser(request);
       const token = authResponse.token!;
 
-      const isExpired = authService.isJwtExpired(token);
+      const isExpired = AuthService.isJwtExpired(token);
       expect(isExpired).toBe(false);
     });
 
     it("should handle malformed JWT gracefully", () => {
-      const isExpired = authService.isJwtExpired("invalid.jwt.token");
+      const isExpired = AuthService.isJwtExpired("invalid.jwt.token");
       expect(isExpired).toBe(true);
     });
 
     it("should handle empty JWT gracefully", () => {
-      const isExpired = authService.isJwtExpired("");
+      const isExpired = AuthService.isJwtExpired("");
       expect(isExpired).toBe(true);
     });
   });

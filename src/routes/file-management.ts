@@ -3,10 +3,10 @@ import { FILE_PROCESSING_CONFIG } from "../constants";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import {
-  getStorageService,
+  getLibraryService,
   getLibraryRagService,
 } from "../services/service-factory";
-import { FileDAO } from "../dao/file-dao";
+import { getDAOFactory } from "../dao/dao-factory";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{
@@ -29,8 +29,8 @@ export async function handleGenerateUploadUrl(c: ContextWithAuth) {
     }
 
     // Check storage limits before allowing upload
-    const storageService = getStorageService(c.env);
-    const uploadCheck = await storageService.canUploadFile(
+    const libraryService = getLibraryService(c.env);
+    const uploadCheck = await libraryService.canUploadFile(
       userAuth.username,
       fileSize,
       userAuth.isAdmin || false
@@ -471,11 +471,8 @@ async function processPdfFile(
 
     // For retry operations, validate the file exists and is in error status
     if (isRetry) {
-      const file = await c.env.DB.prepare(
-        "SELECT * FROM pdf_files WHERE file_key = ? AND username = ?"
-      )
-        .bind(fileKey, userAuth.username)
-        .first();
+      const fileDAO = getDAOFactory(c.env).fileDAO;
+      const file = await fileDAO.getFileForRag(fileKey, userAuth.username);
 
       if (!file) {
         return {
@@ -518,72 +515,47 @@ async function processPdfFile(
     // For new ingestions, create/update database record
     let fileId: string | undefined;
     if (!isRetry) {
-      const existingFile = await c.env.DB.prepare(
-        "SELECT id FROM pdf_files WHERE file_key = ? AND username = ?"
-      )
-        .bind(fileKey, userAuth.username)
-        .first();
-
-      const now = new Date().toISOString();
+      const fileDAO = getDAOFactory(c.env).fileDAO;
+      const existingFile = await fileDAO.getFileIdByKeyAndUser(
+        fileKey,
+        userAuth.username
+      );
 
       if (existingFile) {
         // Update existing file
-        await c.env.DB.prepare(
-          "UPDATE pdf_files SET file_name = ?, description = ?, tags = ?, status = ?, updated_at = ?, file_size = ? WHERE file_key = ? AND username = ?"
-        )
-          .bind(
-            filename || fileKey.split("/").pop() || "unknown.pdf",
-            description || "",
-            tags ? JSON.stringify(tags) : "[]",
-            "processing",
-            now,
-            actualFileSize || 0,
-            fileKey,
-            userAuth.username
-          )
-          .run();
+        await fileDAO.updateFileForProcessing(
+          fileKey,
+          userAuth.username,
+          filename || fileKey.split("/").pop() || "unknown.pdf",
+          description || "",
+          tags ? JSON.stringify(tags) : "[]",
+          actualFileSize || 0
+        );
         fileId = existingFile.id as string;
       } else {
         // Insert new file
         fileId = crypto.randomUUID();
-        await c.env.DB.prepare(
-          "INSERT INTO pdf_files (id, file_key, file_name, description, tags, username, status, created_at, file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        )
-          .bind(
-            fileId,
-            fileKey,
-            filename || fileKey.split("/").pop() || "unknown.pdf",
-            description || "",
-            tags ? JSON.stringify(tags) : "[]",
-            userAuth.username,
-            "processing",
-            now,
-            actualFileSize || 0
-          )
-          .run();
+        await fileDAO.insertFileForProcessing(
+          fileId,
+          fileKey,
+          filename || fileKey.split("/").pop() || "unknown.pdf",
+          description || "",
+          tags ? JSON.stringify(tags) : "[]",
+          userAuth.username,
+          actualFileSize || 0
+        );
       }
     } else {
       // For retries, update status to processing
-      await c.env.DB.prepare(
-        "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ? AND username = ?"
-      )
-        .bind(
-          "processing",
-          new Date().toISOString(),
-          fileKey,
-          userAuth.username
-        )
-        .run();
+      const fileDAO = getDAOFactory(c.env).fileDAO;
+      await fileDAO.updateFileStatus(fileKey, userAuth.username, "processing");
     }
 
     // Check if we have an OpenAI API key for processing
     if (!userAuth.openaiApiKey) {
       console.warn("No OpenAI API key available for PDF processing");
-      await c.env.DB.prepare(
-        "UPDATE pdf_files SET status = ?, updated_at = ? WHERE file_key = ?"
-      )
-        .bind("error", new Date().toISOString(), fileKey)
-        .run();
+      const fileDAO = getDAOFactory(c.env).fileDAO;
+      await fileDAO.updateFileStatusByKey(fileKey, "error");
 
       return {
         success: false,
@@ -728,7 +700,7 @@ export async function handleGetFiles(c: ContextWithAuth) {
       return c.json({ error: "User authentication required" }, 401);
     }
 
-    const fileDAO = new FileDAO(c.env.DB);
+    const fileDAO = getDAOFactory(c.env).fileDAO;
     const files = await fileDAO.getFilesByUser(userAuth.username);
 
     return c.json({ files: files || [] });
@@ -738,10 +710,11 @@ export async function handleGetFiles(c: ContextWithAuth) {
   }
 }
 
-export async function handleUpdateFileMetadata(c: ContextWithAuth) {
+export async function handleUpdateFileMetadataConsolidated(c: ContextWithAuth) {
   try {
     const userAuth = c.get("userAuth") as AuthPayload;
-    const { fileKey, description, tags } = await c.req.json();
+    const fileKey = c.req.param("fileKey");
+    const { description, tags } = await c.req.json();
 
     if (!fileKey) {
       return c.json({ error: "File key is required" }, 400);
@@ -752,7 +725,6 @@ export async function handleUpdateFileMetadata(c: ContextWithAuth) {
     }
 
     // Verify the fileKey belongs to the authenticated user
-    // File keys can be either "username/filename" or "uploads/username/filename"
     if (
       !fileKey.startsWith(`${userAuth.username}/`) &&
       !fileKey.startsWith(`uploads/${userAuth.username}/`)
@@ -760,12 +732,36 @@ export async function handleUpdateFileMetadata(c: ContextWithAuth) {
       return c.json({ error: "Access denied to this file" }, 403);
     }
 
-    const fileDAO = new FileDAO(c.env.DB);
-    await fileDAO.updateFileMetadata(fileKey, { description, tags });
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+
+    //TODO: consolidate metadata?
+    // Try to update both tables to ensure consistency
+    // First, try to update the file_metadata table (general file metadata)
+    try {
+      await fileDAO.updateFileMetadata(fileKey, { description, tags });
+    } catch (error) {
+      console.warn(
+        `[handleUpdateFileMetadataConsolidated] Failed to update file_metadata table: ${error}`
+      );
+    }
+
+    // Then, try to update the files table (RAG-specific metadata)
+    try {
+      await fileDAO.updateFileMetadataForRag(
+        fileKey,
+        userAuth.username,
+        description || "",
+        tags ? JSON.stringify(tags) : "[]"
+      );
+    } catch (error) {
+      console.warn(
+        `[handleUpdateFileMetadataConsolidated] Failed to update files table: ${error}`
+      );
+    }
 
     return c.json({ success: true });
   } catch (error) {
-    console.error("Error updating PDF metadata:", error);
+    console.error("Error updating file metadata:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
@@ -792,11 +788,8 @@ export async function handleAutoGenerateFileMetadata(c: ContextWithAuth) {
     }
 
     // Get the file from the database
-    const file = await c.env.DB.prepare(
-      "SELECT * FROM pdf_files WHERE file_key = ? AND username = ?"
-    )
-      .bind(fileKey, userAuth.username)
-      .first();
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const file = await fileDAO.getFileForRag(fileKey, userAuth.username);
 
     if (!file) {
       return c.json({ error: "File not found" }, 404);
@@ -838,16 +831,12 @@ export async function handleAutoGenerateFileMetadata(c: ContextWithAuth) {
     }
 
     // Update the database with the auto-generated metadata
-    await c.env.DB.prepare(
-      "UPDATE pdf_files SET description = ?, tags = ? WHERE file_key = ? AND username = ?"
-    )
-      .bind(
-        suggestedMetadata.description || "",
-        JSON.stringify(suggestedMetadata.tags || []),
-        fileKey,
-        userAuth.username
-      )
-      .run();
+    await fileDAO.updateFileDescriptionAndTags(
+      fileKey,
+      userAuth.username,
+      suggestedMetadata.description || "",
+      JSON.stringify(suggestedMetadata.tags || [])
+    );
 
     return c.json({
       message: "Metadata auto-generated successfully",
@@ -872,23 +861,16 @@ export async function handleGetFileStats(c: ContextWithAuth) {
     }
 
     // Get status-based stats
-    const stats = await c.env.DB.prepare(
-      "SELECT status, COUNT(*) as count FROM pdf_files WHERE username = ? GROUP BY status"
-    )
-      .bind(userAuth.username)
-      .all();
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const stats = await fileDAO.getFileStatsByUser(userAuth.username);
 
     const statsMap = new Map();
-    stats.results?.forEach((row: any) => {
+    stats.forEach((row: any) => {
       statsMap.set(row.status, row.count);
     });
 
     // Get file size statistics
-    const sizeStats = await c.env.DB.prepare(
-      "SELECT SUM(file_size) as total_size, AVG(file_size) as avg_size, COUNT(*) as total_files FROM pdf_files WHERE username = ? AND file_size > 0"
-    )
-      .bind(userAuth.username)
-      .first();
+    const sizeStats = await fileDAO.getFileSizeStatsByUser(userAuth.username);
 
     const totalFiles =
       (statsMap.get("completed") || 0) +
@@ -943,11 +925,8 @@ export async function handleProcessMetadataBackground(c: ContextWithAuth) {
     );
 
     // Get the file from the database
-    const file = await c.env.DB.prepare(
-      "SELECT * FROM pdf_files WHERE file_key = ? AND username = ?"
-    )
-      .bind(fileKey, userAuth.username)
-      .first();
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const file = await fileDAO.getFileForRag(fileKey, userAuth.username);
 
     if (!file) {
       return c.json({ error: "File not found" }, 404);
@@ -1003,16 +982,12 @@ export async function handleProcessMetadataBackground(c: ContextWithAuth) {
     }
 
     // Update the database with the auto-generated metadata
-    await c.env.DB.prepare(
-      "UPDATE pdf_files SET description = ?, tags = ? WHERE file_key = ? AND username = ?"
-    )
-      .bind(
-        suggestedMetadata.description || "",
-        JSON.stringify(suggestedMetadata.tags || []),
-        fileKey,
-        userAuth.username
-      )
-      .run();
+    await fileDAO.updateFileDescriptionAndTags(
+      fileKey,
+      userAuth.username,
+      suggestedMetadata.description || "",
+      JSON.stringify(suggestedMetadata.tags || [])
+    );
 
     console.log(
       "[handleProcessMetadataBackground] Successfully updated metadata for:",
@@ -1057,11 +1032,8 @@ export async function handleGetFileStatus(c: ContextWithAuth) {
       return c.json({ error: "Access denied to this file" }, 403);
     }
 
-    const file = await c.env.DB.prepare(
-      "SELECT status, created_at, updated_at, file_size FROM pdf_files WHERE file_key = ? AND username = ?"
-    )
-      .bind(fileKey, userAuth.username)
-      .first();
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const file = await fileDAO.getFileStatusInfo(fileKey, userAuth.username);
 
     if (!file) {
       return c.json({ error: "File not found" }, 404);

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ServiceFactory } from "../../src/services/service-factory";
 import { AuthService } from "../../src/services/auth-service";
-import { StorageService } from "../../src/services/storage-service";
+import { LibraryService } from "../../src/services/library-service";
 import { CampaignService } from "../../src/services/campaign-service";
 import { ModelManager } from "../../src/services/model-manager";
 import { AgentRegistryService } from "../../src/services/agent-registry";
@@ -50,17 +50,17 @@ describe("ServiceFactory", () => {
     });
   });
 
-  describe("getStorageService", () => {
-    it("should create new StorageService instance on first call", () => {
-      const storageService = ServiceFactory.getStorageService(mockEnv);
+  describe("getLibraryService", () => {
+    it("should create new LibraryService instance on first call", () => {
+      const libraryService = ServiceFactory.getLibraryService(mockEnv);
 
-      expect(storageService).toBeDefined();
-      expect(storageService).toBeInstanceOf(StorageService);
+      expect(libraryService).toBeDefined();
+      expect(libraryService).toBeInstanceOf(LibraryService);
     });
 
-    it("should return cached StorageService instance on subsequent calls", () => {
-      const firstCall = ServiceFactory.getStorageService(mockEnv);
-      const secondCall = ServiceFactory.getStorageService(mockEnv);
+    it("should return cached LibraryService instance on subsequent calls", () => {
+      const firstCall = ServiceFactory.getLibraryService(mockEnv);
+      const secondCall = ServiceFactory.getLibraryService(mockEnv);
 
       expect(firstCall).toBe(secondCall);
     });
@@ -68,8 +68,8 @@ describe("ServiceFactory", () => {
     it("should create new instance with different environment", () => {
       const differentEnv = { ...mockEnv, FILE_BUCKET: undefined };
 
-      const firstService = ServiceFactory.getStorageService(mockEnv);
-      const secondService = ServiceFactory.getStorageService(differentEnv);
+      const firstService = ServiceFactory.getLibraryService(mockEnv);
+      const secondService = ServiceFactory.getLibraryService(differentEnv);
 
       expect(firstService).not.toBe(secondService);
     });
@@ -91,7 +91,9 @@ describe("ServiceFactory", () => {
     });
 
     it("should create new instance with different environment", () => {
-      const differentEnv = { ...mockEnv, DB: undefined };
+      // Create a different database object to test caching behavior
+      const differentDb = { id: "different-db" } as unknown as D1Database;
+      const differentEnv = { ...mockEnv, DB: differentDb };
 
       const firstService = ServiceFactory.getCampaignService(mockEnv);
       const secondService = ServiceFactory.getCampaignService(differentEnv);
@@ -143,7 +145,9 @@ describe("ServiceFactory", () => {
     });
 
     it("should create new instance with different environment", () => {
-      const differentEnv = { ...mockEnv, DB: undefined };
+      // Create a different database object to test caching behavior
+      const differentDb = { id: "different-db-2" } as unknown as D1Database;
+      const differentEnv = { ...mockEnv, DB: differentDb };
 
       const firstService = ServiceFactory.getAgentRegistryService(mockEnv);
       const secondService =
@@ -259,9 +263,9 @@ describe("ServiceFactory", () => {
 
     it("should not share caches between different service types", () => {
       const authService = ServiceFactory.getAuthService(mockEnv);
-      const storageService = ServiceFactory.getStorageService(mockEnv);
+      const libraryService = ServiceFactory.getLibraryService(mockEnv);
 
-      expect(authService).not.toBe(storageService);
+      expect(authService).not.toBe(libraryService);
     });
   });
 
@@ -269,19 +273,19 @@ describe("ServiceFactory", () => {
     it("should handle missing environment properties gracefully", () => {
       const minimalEnv = { ...mockEnv, FILE_BUCKET: undefined };
 
-      expect(() => ServiceFactory.getStorageService(minimalEnv)).not.toThrow();
+      expect(() => ServiceFactory.getLibraryService(minimalEnv)).not.toThrow();
     });
 
     it("should handle undefined environment gracefully", () => {
       // ServiceFactory methods expect valid environments and will throw for invalid ones
       expect(() =>
-        ServiceFactory.getStorageService(undefined as any)
+        ServiceFactory.getLibraryService(undefined as any)
       ).toThrow();
     });
 
     it("should handle null environment gracefully", () => {
       // ServiceFactory methods expect valid environments and will throw for invalid ones
-      expect(() => ServiceFactory.getStorageService(null as any)).toThrow();
+      expect(() => ServiceFactory.getLibraryService(null as any)).toThrow();
     });
   });
 
@@ -289,14 +293,14 @@ describe("ServiceFactory", () => {
     it("should create services lazily", () => {
       // Since we're not mocking the services, we'll test that the methods exist and can be called
       expect(ServiceFactory.getAuthService).toBeDefined();
-      expect(ServiceFactory.getStorageService).toBeDefined();
+      expect(ServiceFactory.getLibraryService).toBeDefined();
 
       // Create services and verify they return instances
       const authService = ServiceFactory.getAuthService(mockEnv);
-      const storageService = ServiceFactory.getStorageService(mockEnv);
+      const libraryService = ServiceFactory.getLibraryService(mockEnv);
 
       expect(authService).toBeDefined();
-      expect(storageService).toBeDefined();
+      expect(libraryService).toBeDefined();
     });
 
     it("should maintain service instances across multiple calls", () => {

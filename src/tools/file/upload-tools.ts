@@ -63,7 +63,7 @@ export const generateFileUploadUrl = tool({
 
         // Generate upload URL using the new multipart upload system
         const response = await fetch(
-          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_URL),
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_START),
           {
             method: "POST",
             headers: {
@@ -89,7 +89,7 @@ export const generateFileUploadUrl = tool({
 
         const result = (await response.json()) as any;
         const uploadUrl = API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_URL
+          API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_START
         );
         const fileKey = result.fileKey;
 
@@ -110,7 +110,7 @@ export const generateFileUploadUrl = tool({
 
       // Otherwise, make HTTP request
       const response = await authenticatedFetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_URL),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_START),
         {
           method: "POST",
           jwt,
@@ -269,7 +269,7 @@ async function processPdfTool(
   try {
     // Make HTTP request to process PDF
     const response = await authenticatedFetch(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.PROCESS),
+      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.RAG.PROCESS_FILE),
       {
         method: "POST",
         jwt,

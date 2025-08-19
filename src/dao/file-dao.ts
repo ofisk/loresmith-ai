@@ -97,6 +97,131 @@ export class FileDAO extends BaseDAOClass {
     await this.execute(sql, values);
   }
 
+  async getFileIdByKeyAndUser(
+    fileKey: string,
+    username: string
+  ): Promise<any | null> {
+    const sql =
+      "SELECT id FROM file_metadata WHERE file_key = ? AND username = ?";
+    return await this.queryFirst(sql, [fileKey, username]);
+  }
+
+  async updateFileForProcessing(
+    fileKey: string,
+    username: string,
+    filename: string,
+    description: string,
+    tags: string,
+    fileSize: number
+  ): Promise<void> {
+    const sql = `
+      UPDATE file_metadata 
+      SET file_name = ?, description = ?, tags = ?, status = ?, file_size = ? 
+      WHERE file_key = ? AND username = ?
+    `;
+    await this.execute(sql, [
+      filename,
+      description,
+      tags,
+      "processing",
+      fileSize,
+      fileKey,
+      username,
+    ]);
+  }
+
+  async insertFileForProcessing(
+    id: string,
+    fileKey: string,
+    filename: string,
+    description: string,
+    tags: string,
+    username: string,
+    fileSize: number
+  ): Promise<void> {
+    const sql = `
+      INSERT INTO file_metadata (id, file_key, file_name, description, tags, username, status, file_size) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    await this.execute(sql, [
+      id,
+      fileKey,
+      filename,
+      description,
+      tags,
+      username,
+      "processing",
+      fileSize,
+    ]);
+  }
+
+  async updateFileStatusByKey(fileKey: string, status: string): Promise<void> {
+    const sql = `
+      UPDATE file_metadata 
+      SET status = ? 
+      WHERE file_key = ?
+    `;
+    await this.execute(sql, [status, fileKey]);
+  }
+
+  async updateFileStatus(
+    fileKey: string,
+    username: string,
+    status: string
+  ): Promise<void> {
+    const sql = `
+      UPDATE file_metadata 
+      SET status = ? 
+      WHERE file_key = ? AND username = ?
+    `;
+    await this.execute(sql, [status, fileKey, username]);
+  }
+
+  async getFileStatsByUser(username: string): Promise<any[]> {
+    const sql = `
+      SELECT status, COUNT(*) as count 
+      FROM file_metadata 
+      WHERE username = ? 
+      GROUP BY status
+    `;
+    return await this.queryAll(sql, [username]);
+  }
+
+  async getFileSizeStatsByUser(username: string): Promise<any> {
+    const sql = `
+      SELECT SUM(file_size) as total_size, AVG(file_size) as avg_size, COUNT(*) as total_files 
+      FROM file_metadata 
+      WHERE username = ? AND file_size > 0
+    `;
+    return await this.queryFirst(sql, [username]);
+  }
+
+  async getFileStatusInfo(
+    fileKey: string,
+    username: string
+  ): Promise<any | null> {
+    const sql = `
+      SELECT status, created_at, updated_at, file_size 
+      FROM file_metadata 
+      WHERE file_key = ? AND username = ?
+    `;
+    return await this.queryFirst(sql, [fileKey, username]);
+  }
+
+  async updateFileDescriptionAndTags(
+    fileKey: string,
+    username: string,
+    description: string,
+    tags: string
+  ): Promise<void> {
+    const sql = `
+      UPDATE file_metadata 
+      SET description = ?, tags = ? 
+      WHERE file_key = ? AND username = ?
+    `;
+    await this.execute(sql, [description, tags, fileKey, username]);
+  }
+
   //TODO: once files are better associated with multiple campaigns (each with their own RAG), we should delete the file from the RAGs as well
   async deleteFile(
     fileKey: string,
@@ -109,7 +234,9 @@ export class FileDAO extends BaseDAOClass {
     // Delete from database first
     await this.transaction([
       () =>
-        this.execute("DELETE FROM pdf_chunks WHERE file_key = ?", [fileKey]),
+        this.execute("DELETE FROM autorag_chunks WHERE file_key = ?", [
+          fileKey,
+        ]),
       () =>
         this.execute("DELETE FROM file_metadata WHERE file_key = ?", [fileKey]),
     ]);
@@ -141,11 +268,11 @@ export class FileDAO extends BaseDAOClass {
     }
   }
 
-  async getPDFChunks(fileKey: string): Promise<PDFChunk[]> {
+  async getFileChunks(fileKey: string): Promise<PDFChunk[]> {
     const sql = `
-      SELECT * FROM pdf_chunks 
+      SELECT * FROM autorag_chunks 
       WHERE file_key = ? 
-      ORDER BY chunk_index
+      ORDER BY part_number
     `;
     return await this.queryAll<PDFChunk>(sql, [fileKey]);
   }
@@ -154,14 +281,14 @@ export class FileDAO extends BaseDAOClass {
     const metadata = await this.getFileMetadata(fileKey);
     if (!metadata) return null;
 
-    const chunks = await this.getPDFChunks(fileKey);
+    const chunks = await this.getFileChunks(fileKey);
     return {
       ...metadata,
       chunks,
     };
   }
 
-  async insertPDFChunks(
+  async insertFileChunks(
     chunks: Array<{
       fileKey: string;
       chunkIndex: number;
@@ -170,35 +297,21 @@ export class FileDAO extends BaseDAOClass {
     }>
   ): Promise<void> {
     const sql = `
-      INSERT INTO pdf_chunks (file_key, chunk_index, content, embedding, created_at)
-      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      INSERT INTO autorag_chunks (id, file_key, username, chunk_key, part_number, chunk_size, original_filename, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `;
 
     await Promise.all(
       chunks.map((chunk) =>
         this.execute(sql, [
+          `${chunk.fileKey}-chunk-${chunk.chunkIndex}`,
           chunk.fileKey,
+          chunk.fileKey.split("/")[0], // Extract username from fileKey
+          `${chunk.fileKey}-chunk-${chunk.chunkIndex}`,
           chunk.chunkIndex,
-          chunk.content,
-          chunk.embedding,
+          chunk.content.length,
+          chunk.fileKey.split("/").pop() || "unknown",
         ])
-      )
-    );
-  }
-
-  async updateChunkEmbeddings(
-    fileKey: string,
-    chunkEmbeddings: Array<{ chunkIndex: number; embedding: string }>
-  ): Promise<void> {
-    const sql = `
-      UPDATE pdf_chunks 
-      SET embedding = ? 
-      WHERE file_key = ? AND chunk_index = ?
-    `;
-
-    await Promise.all(
-      chunkEmbeddings.map(({ chunkIndex, embedding }) =>
-        this.execute(sql, [embedding, fileKey, chunkIndex])
       )
     );
   }
@@ -268,38 +381,10 @@ export class FileDAO extends BaseDAOClass {
     return await this.queryAll<FileMetadata>(sql, [username, limit]);
   }
 
-  async updateFileStatus(
-    fileKey: string,
-    username: string,
-    status: string,
-    fileSize?: number
-  ): Promise<void> {
-    let sql: string;
-    let params: any[];
-
-    if (fileSize !== undefined) {
-      sql = `
-        UPDATE file_metadata 
-        SET status = ?, updated_at = ?, file_size = ? 
-        WHERE file_key = ? AND username = ?
-      `;
-      params = [status, new Date().toISOString(), fileSize, fileKey, username];
-    } else {
-      sql = `
-        UPDATE file_metadata 
-        SET status = ?, updated_at = ? 
-        WHERE file_key = ? AND username = ?
-      `;
-      params = [status, new Date().toISOString(), fileKey, username];
-    }
-
-    await this.execute(sql, params);
-  }
-
   // Methods for the 'files' table (used by RAG functionality)
 
   async createFileRecord(
-    id: string,
+    _id: string,
     fileKey: string,
     fileName: string,
     description: string,
@@ -309,18 +394,16 @@ export class FileDAO extends BaseDAOClass {
     fileSize: number
   ): Promise<void> {
     const sql = `
-      INSERT INTO files (id, file_key, file_name, description, tags, username, status, created_at, file_size) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO file_metadata (file_key, file_name, description, tags, username, status, file_size) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
     await this.execute(sql, [
-      id,
       fileKey,
       fileName,
       description,
       tags,
       username,
       status,
-      new Date().toISOString(),
       fileSize,
     ]);
   }
@@ -335,18 +418,18 @@ export class FileDAO extends BaseDAOClass {
 
     if (fileSize !== undefined) {
       sql = `
-        UPDATE files 
-        SET status = ?, updated_at = ?, file_size = ? 
+        UPDATE file_metadata 
+        SET status = ?, file_size = ? 
         WHERE file_key = ?
       `;
-      params = [status, new Date().toISOString(), fileSize, fileKey];
+      params = [status, fileSize, fileKey];
     } else {
       sql = `
-        UPDATE files 
-        SET status = ?, updated_at = ? 
+        UPDATE file_metadata 
+        SET status = ? 
         WHERE file_key = ?
       `;
-      params = [status, new Date().toISOString(), fileKey];
+      params = [status, fileKey];
     }
 
     await this.execute(sql, params);
@@ -359,23 +442,17 @@ export class FileDAO extends BaseDAOClass {
     tags: string
   ): Promise<void> {
     const sql = `
-      UPDATE files 
-      SET description = ?, tags = ?, updated_at = ? 
+      UPDATE file_metadata 
+      SET description = ?, tags = ? 
       WHERE file_key = ? AND username = ?
     `;
-    await this.execute(sql, [
-      description,
-      tags,
-      new Date().toISOString(),
-      fileKey,
-      username,
-    ]);
+    await this.execute(sql, [description, tags, fileKey, username]);
   }
 
   async getFilesForRag(username: string): Promise<any[]> {
     const sql = `
-      SELECT id, file_key, file_name, description, tags, status, created_at, updated_at, file_size 
-      FROM files 
+      SELECT file_key, file_name, description, tags, status, created_at, file_size 
+      FROM file_metadata 
       WHERE username = ? 
       ORDER BY created_at DESC
     `;
@@ -384,7 +461,7 @@ export class FileDAO extends BaseDAOClass {
 
   async getFileForRag(fileKey: string, username: string): Promise<any | null> {
     const sql = `
-      SELECT * FROM files 
+      SELECT * FROM file_metadata 
       WHERE file_key = ? AND username = ?
     `;
     return await this.queryFirst(sql, [fileKey, username]);
@@ -392,17 +469,17 @@ export class FileDAO extends BaseDAOClass {
 
   async getFileChunksForRag(fileKey: string, username: string): Promise<any[]> {
     const sql = `
-      SELECT id, file_key, chunk_text, chunk_index, created_at 
-      FROM pdf_chunks 
+      SELECT id, file_key, chunk_key, part_number, created_at 
+      FROM autorag_chunks 
       WHERE file_key = ? AND username = ? 
-      ORDER BY chunk_index
+      ORDER BY part_number
     `;
     return await this.queryAll(sql, [fileKey, username]);
   }
 
   async getFileStatsForRag(username: string): Promise<any> {
     const sql = `
-      SELECT * FROM files 
+      SELECT * FROM file_metadata 
       WHERE username = ? 
       ORDER BY created_at DESC
     `;
@@ -427,9 +504,68 @@ export class FileDAO extends BaseDAOClass {
   async getAllFilesForStorageUsage(): Promise<any[]> {
     const sql = `
       SELECT username, file_size, status 
-      FROM files 
+      FROM file_metadata 
       ORDER BY created_at DESC
     `;
     return await this.queryAll(sql, []);
+  }
+
+  async deleteFileForUser(fileKey: string, username: string): Promise<void> {
+    // Delete all related data in a transaction
+    await this.transaction([
+      () =>
+        this.execute(
+          "DELETE FROM autorag_chunks WHERE file_key = ? AND username = ?",
+          [fileKey, username]
+        ),
+      () =>
+        this.execute("DELETE FROM campaign_resources WHERE file_key = ?", [
+          fileKey,
+        ]),
+      () =>
+        this.execute(
+          "DELETE FROM file_metadata WHERE file_key = ? AND username = ?",
+          [fileKey, username]
+        ),
+    ]);
+  }
+
+  async deleteAllFilesForUser(username: string): Promise<void> {
+    // Delete all files and related data for a user
+    await this.transaction([
+      () =>
+        this.execute("DELETE FROM autorag_chunks WHERE username = ?", [
+          username,
+        ]),
+      () =>
+        this.execute(
+          "DELETE FROM campaign_resources WHERE file_key IN (SELECT file_key FROM file_metadata WHERE username = ?)",
+          [username]
+        ),
+      () =>
+        this.execute("DELETE FROM file_metadata WHERE username = ?", [
+          username,
+        ]),
+    ]);
+  }
+
+  async updateFileMetadataForUser(
+    fileKey: string,
+    username: string,
+    description?: string,
+    tags?: string[]
+  ): Promise<void> {
+    const sql = `
+      UPDATE file_metadata 
+      SET description = ?, tags = ?
+      WHERE file_key = ? AND username = ?
+    `;
+
+    await this.execute(sql, [
+      description || "",
+      tags ? JSON.stringify(tags) : "[]",
+      fileKey,
+      username,
+    ]);
   }
 }
