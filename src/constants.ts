@@ -56,7 +56,7 @@ export const AUTH_CONFIG = {
 // UI constants
 export const UI_CONFIG = {
   DEBOUNCE_DELAY_MS: 300,
-  TOAST_DURATION_MS: 5000,
+
   LOADING_TIMEOUT_MS: 30000,
 } as const;
 

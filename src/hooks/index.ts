@@ -19,4 +19,3 @@ export { useMenuNavigation } from "./useMenuNavigation";
 export { useOpenAIKey } from "./useOpenAIKey";
 export { useProcessingProgress } from "./useProcessingProgress";
 export { default as useTheme } from "./useTheme";
-export { useToast } from "./useToast";
