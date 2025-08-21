@@ -12,7 +12,7 @@ import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import type React from "react";
 import { useCallback, useEffect, useState, useId } from "react";
-import { Toaster, toast } from "react-hot-toast";
+
 import loresmith from "@/assets/loresmith.png";
 
 // Component imports
@@ -28,7 +28,6 @@ import { ThinkingSpinner } from "@/components/thinking-spinner";
 import { ResourceSidePanel } from "@/components/resource-side-panel";
 import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
 
-import { USER_MESSAGES } from "./constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
 import { AuthService } from "./services/auth-service";
 import { JWT_STORAGE_KEY } from "./constants";
@@ -174,8 +173,7 @@ export default function Chat() {
   // Handle JWT expiration globally
   useJwtExpiration({
     onExpiration: () => {
-      // Show a toast notification when JWT expires
-      toast.error(USER_MESSAGES.SESSION_EXPIRED);
+      // JWT expired - no annoying toasts needed
     },
   });
 
@@ -219,20 +217,6 @@ export default function Chat() {
 
         // Close modal
         setShowAuthModal(false);
-
-        // Show success message with admin status
-        const payload = JSON.parse(atob(result.token?.split(".")[1] || ""));
-        const isAdmin = payload.isAdmin || false;
-
-        if (isAdmin) {
-          toast.success(
-            "Authentication successful! Admin access granted with unlimited storage."
-          );
-        } else {
-          toast.success(
-            "Authentication successful! You have 20MB storage limit."
-          );
-        }
       } else {
         throw new Error(result.error || "Authentication failed");
       }
@@ -616,7 +600,6 @@ export default function Chat() {
   return (
     <>
       <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
-        <Toaster position="top-right" />
         <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-[1400px] flex shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
           {/* Resource Side Panel */}
           <ResourceSidePanel

@@ -1,5 +1,4 @@
 import { useCallback, useState } from "react";
-import toast from "react-hot-toast";
 
 /**
  * Base hook for managing async operations with loading states, error handling, and success callbacks.
@@ -63,10 +62,6 @@ export function useBaseAsync<T, P extends any[]>(
         setData(result);
         options.onSuccess?.(result);
 
-        if (options.showToast && options.successMessage) {
-          toast.success(options.successMessage);
-        }
-
         return result;
       } catch (err) {
         const errorMessage =
@@ -75,10 +70,6 @@ export function useBaseAsync<T, P extends any[]>(
             : options.errorMessage || "Operation failed";
         setError(errorMessage);
         options.onError?.(errorMessage);
-
-        if (options.showToast) {
-          toast.error(errorMessage);
-        }
 
         throw err;
       } finally {
