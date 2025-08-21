@@ -5,6 +5,7 @@ import {
   FileText,
   Plus,
   CheckCircle,
+  SignOut,
   XCircle,
 } from "@phosphor-icons/react";
 import { Card } from "../card/Card";
@@ -22,6 +23,9 @@ interface ResourceSidePanelProps {
   className?: string;
   isAuthenticated?: boolean;
   username?: string;
+  onLogout?: () => Promise<void>;
+  showUserMenu?: boolean;
+  setShowUserMenu?: (show: boolean) => void;
 }
 
 type UploadStep =
@@ -44,6 +48,9 @@ export function ResourceSidePanel({
   className = "",
   isAuthenticated = false,
   username = "",
+  onLogout,
+  showUserMenu = false,
+  setShowUserMenu,
 }: ResourceSidePanelProps) {
   const [isLibraryOpen, setIsLibraryOpen] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -334,6 +341,42 @@ export function ResourceSidePanel({
 
         {isAuthenticated && <StorageTracker />}
       </div>
+
+      {/* Username Display and Menu - At the very bottom */}
+      {isAuthenticated && username && onLogout && setShowUserMenu && (
+        <div className="p-3 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
+          <div className="relative user-menu-container">
+            <button
+              type="button"
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-md transition-colors w-full"
+            >
+              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+              <span className="truncate">{username}</span>
+              <CaretDown
+                size={16}
+                className="transition-transform duration-200 ml-auto"
+              />
+            </button>
+
+            {/* Dropdown Menu */}
+            {showUserMenu && (
+              <div className="absolute bottom-full left-0 mb-2 w-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg z-50">
+                <div className="py-1">
+                  <button
+                    type="button"
+                    onClick={onLogout}
+                    className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors flex items-center gap-2"
+                  >
+                    <SignOut size={16} />
+                    Logout
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Upload Modal */}
       <Modal

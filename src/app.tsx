@@ -92,6 +92,7 @@ export default function Chat() {
   const [username, setUsername] = useState<string>("");
   const [storedOpenAIKey, setStoredOpenAIKey] = useState<string>("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   // Get stored JWT for user operations
   const getStoredJwt = useCallback((): string | null => {
@@ -259,6 +260,64 @@ export default function Chat() {
     const newTheme = theme === "dark" ? "light" : "dark";
     setTheme(newTheme);
   };
+
+  const handleLogout = async () => {
+    try {
+      // Call the logout endpoint
+      const response = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.LOGOUT),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        // Clear local JWT storage
+        AuthService.clearJwt();
+
+        // Reset authentication state
+        setIsAuthenticated(false);
+        setUsername("");
+        setShowUserMenu(false);
+
+        // Show success message
+        toast.success("Logged out successfully");
+
+        // Optionally show auth modal again
+        setShowAuthModal(true);
+      } else {
+        throw new Error("Logout failed");
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast.error("Logout failed. Please try again.");
+
+      // Force clear local state even if server call failed
+      AuthService.clearJwt();
+      setIsAuthenticated(false);
+      setUsername("");
+      setShowUserMenu(false);
+      setShowAuthModal(true);
+    }
+  };
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        showUserMenu &&
+        !(event.target as Element).closest(".user-menu-container")
+      ) {
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showUserMenu]);
 
   const agent = useAgent({
     agent: "chat",
@@ -563,6 +622,9 @@ export default function Chat() {
           <ResourceSidePanel
             isAuthenticated={isAuthenticated}
             username={username}
+            onLogout={handleLogout}
+            showUserMenu={showUserMenu}
+            setShowUserMenu={setShowUserMenu}
           />
 
           {/* Main Chat Area */}
