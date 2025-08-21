@@ -9,7 +9,7 @@ import { useBaseAsync } from "./useBaseAsync";
  * - Loading states during submission
  * - Error handling and display
  * - Success callbacks
- * - Toast notifications
+
  *
  * @template T - The type of form data
  * @param submitFn - The async function to handle form submission
@@ -49,7 +49,6 @@ export function useFormSubmission<T>(
   options: {
     onSuccess?: () => void;
     onError?: (error: string) => void;
-    showToast?: boolean;
     successMessage?: string;
     errorMessage?: string;
     validate?: (data: T) => string | null;
@@ -79,7 +78,6 @@ export function useFormSubmission<T>(
         setError(error);
         options.onError?.(error);
       },
-      showToast: options.showToast,
       successMessage: options.successMessage,
       errorMessage: options.errorMessage,
     }
@@ -137,7 +135,6 @@ export function useFormSubmissionWithData<T, R>(
   options: {
     onSuccess?: (result: R) => void;
     onError?: (error: string) => void;
-    showToast?: boolean;
     successMessage?: string;
     errorMessage?: string;
     validate?: (data: T) => string | null;
@@ -168,7 +165,6 @@ export function useFormSubmissionWithData<T, R>(
         setError(error);
         options.onError?.(error);
       },
-      showToast: options.showToast,
       successMessage: options.successMessage,
       errorMessage: options.errorMessage,
     }

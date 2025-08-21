@@ -36,7 +36,6 @@ export function useAsyncOperation<T>(
   options: {
     onSuccess?: (result: T) => void;
     onError?: (error: string) => void;
-    showToast?: boolean;
     successMessage?: string;
     errorMessage?: string;
   } = {}
@@ -117,7 +116,6 @@ export function useAsyncVoidOperation(
   options: {
     onSuccess?: () => void;
     onError?: (error: string) => void;
-    showToast?: boolean;
     successMessage?: string;
     errorMessage?: string;
   } = {}

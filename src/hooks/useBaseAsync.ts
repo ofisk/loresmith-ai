@@ -8,7 +8,7 @@ import { useCallback, useState } from "react";
  * - Handling errors
  * - Managing success callbacks
  * - Providing retry functionality
- * - Toast notifications
+
  *
  * @template T - The type of data returned by the operation
  * @template P - The type of parameters for the operation
@@ -25,7 +25,7 @@ import { useCallback, useState } from "react";
  *   {
  *     onSuccess: (data) => console.log('Data loaded:', data),
  *     onError: (error) => console.error('Failed to load data:', error),
- *     showToast: true,
+
  *     successMessage: "Data loaded successfully",
  *     errorMessage: "Failed to load data"
  *   }
@@ -40,7 +40,6 @@ export function useBaseAsync<T, P extends any[]>(
   options: {
     onSuccess?: (result: T) => void;
     onError?: (error: string) => void;
-    showToast?: boolean;
     successMessage?: string;
     errorMessage?: string;
     autoExecute?: boolean;
@@ -120,7 +119,7 @@ export function useBaseAsync<T, P extends any[]>(
  *   {
  *     successMessage: "Item deleted successfully",
  *     errorMessage: "Failed to delete item",
- *     showToast: true
+
  *   }
  * );
  * ```
@@ -130,7 +129,6 @@ export function useBaseAsyncVoid<P extends any[]>(
   options: {
     onSuccess?: () => void;
     onError?: (error: string) => void;
-    showToast?: boolean;
     successMessage?: string;
     errorMessage?: string;
     autoExecute?: boolean;

@@ -268,7 +268,7 @@ export default function Chat() {
         setShowUserMenu(false);
 
         // Show success message
-        toast.success("Logged out successfully");
+        console.log("Logged out successfully");
 
         // Optionally show auth modal again
         setShowAuthModal(true);
@@ -277,7 +277,7 @@ export default function Chat() {
       }
     } catch (error) {
       console.error("Logout error:", error);
-      toast.error("Logout failed. Please try again.");
+      console.error("Logout failed. Please try again.");
 
       // Force clear local state even if server call failed
       AuthService.clearJwt();

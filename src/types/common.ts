@@ -129,16 +129,6 @@ export interface FileUploadConfig {
 }
 
 /**
- * Toast notification configuration
- */
-export interface ToastConfig {
-  type: "success" | "error" | "warning" | "info";
-  message: string;
-  duration?: number;
-  dismissible?: boolean;
-}
-
-/**
  * Action button configuration
  */
 export interface ActionButton {
