@@ -95,8 +95,6 @@ export function useCampaigns() {
       },
       onError: (error) => setError(error),
       errorMessage: USER_MESSAGES.HOOK_FAILED_TO_CREATE_CAMPAIGN,
-      showToast: true,
-      successMessage: `Campaign "${name}" created successfully!`,
     }
   );
 
@@ -120,8 +118,6 @@ export function useCampaigns() {
     {
       onError: (error) => setError(error),
       errorMessage: USER_MESSAGES.HOOK_FAILED_TO_ADD_RESOURCE,
-      showToast: true,
-      successMessage: "Resource added successfully!",
     }
   );
 
@@ -141,8 +137,6 @@ export function useCampaigns() {
     {
       onError: (error) => setError(error),
       errorMessage: USER_MESSAGES.HOOK_FAILED_TO_REMOVE_RESOURCE,
-      showToast: true,
-      successMessage: "Resource removed successfully!",
     }
   );
 

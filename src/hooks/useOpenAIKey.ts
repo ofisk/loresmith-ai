@@ -81,8 +81,7 @@ export function useOpenAIKey(): UseOpenAIKeyReturn {
     },
     {
       onSuccess: () => setHasApiKey(true),
-      showToast: true,
-      successMessage: "API key set successfully!",
+
       errorMessage: "Failed to set API key",
     }
   );
