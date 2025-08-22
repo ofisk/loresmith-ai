@@ -16,6 +16,11 @@ export interface FileMetadata {
   updated_at: string;
 }
 
+// Interface for parsed file metadata (with tags as array)
+export interface ParsedFileMetadata extends Omit<FileMetadata, "tags"> {
+  tags: string[];
+}
+
 export interface PDFChunk {
   id: string;
   file_key: string;
@@ -25,11 +30,68 @@ export interface PDFChunk {
   created_at: string;
 }
 
-export interface FileWithChunks extends FileMetadata {
+export interface FileWithChunks extends ParsedFileMetadata {
   chunks: PDFChunk[];
 }
 
 export class FileDAO extends BaseDAOClass {
+  /**
+   * Helper function to parse tags from JSON string to array
+   * @param tags - The tags field from the database (JSON string or null)
+   * @param fileKey - The file key for error logging
+   * @returns Parsed tags array or empty array if parsing fails
+   */
+  private parseTags(tags: string | null, fileKey: string): string[] {
+    if (!tags) return [];
+
+    try {
+      return JSON.parse(tags);
+    } catch (error) {
+      console.warn(
+        `[FileDAO] Failed to parse tags for file ${fileKey}:`,
+        error
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Helper function to query file metadata and parse tags
+   * @param sql - SQL query to execute
+   * @param params - Query parameters
+   * @returns Parsed file metadata or null if not found
+   */
+  private async queryAndParseFileMetadata(
+    sql: string,
+    params: any[]
+  ): Promise<ParsedFileMetadata | null> {
+    const file = await this.queryFirst<FileMetadata>(sql, params);
+
+    if (!file) return null;
+
+    return {
+      ...file,
+      tags: this.parseTags(file.tags || null, file.file_key),
+    };
+  }
+
+  /**
+   * Helper function to query multiple file metadata records and parse tags
+   * @param sql - SQL query to execute
+   * @param params - Query parameters
+   * @returns Array of parsed file metadata
+   */
+  private async queryAndParseMultipleFileMetadata(
+    sql: string,
+    params: any[]
+  ): Promise<ParsedFileMetadata[]> {
+    const files = await this.queryAll<FileMetadata>(sql, params);
+
+    return files.map((file) => ({
+      ...file,
+      tags: this.parseTags(file.tags || null, file.file_key),
+    }));
+  }
   async createFileMetadata(
     id: string,
     fileKey: string,
@@ -58,23 +120,23 @@ export class FileDAO extends BaseDAOClass {
     ]);
   }
 
-  async getFileMetadata(fileKey: string): Promise<FileMetadata | null> {
+  async getFileMetadata(fileKey: string): Promise<ParsedFileMetadata | null> {
     const sql = "SELECT * FROM file_metadata WHERE file_key = ?";
-    return await this.queryFirst<FileMetadata>(sql, [fileKey]);
+    return this.queryAndParseFileMetadata(sql, [fileKey]);
   }
 
-  async getFileMetadataById(id: string): Promise<FileMetadata | null> {
+  async getFileMetadataById(id: string): Promise<ParsedFileMetadata | null> {
     const sql = "SELECT * FROM file_metadata WHERE id = ?";
-    return await this.queryFirst<FileMetadata>(sql, [id]);
+    return this.queryAndParseFileMetadata(sql, [id]);
   }
 
-  async getFilesByUser(username: string): Promise<FileMetadata[]> {
+  async getFilesByUser(username: string): Promise<ParsedFileMetadata[]> {
     const sql = `
       SELECT * FROM file_metadata 
       WHERE username = ? 
       ORDER BY created_at DESC
     `;
-    return await this.queryAll<FileMetadata>(sql, [username]);
+    return this.queryAndParseMultipleFileMetadata(sql, [username]);
   }
 
   async updateFileMetadata(
@@ -131,7 +193,6 @@ export class FileDAO extends BaseDAOClass {
   }
 
   async insertFileForProcessing(
-    id: string,
     fileKey: string,
     filename: string,
     description: string,
@@ -140,11 +201,10 @@ export class FileDAO extends BaseDAOClass {
     fileSize: number
   ): Promise<void> {
     const sql = `
-      INSERT INTO file_metadata (id, file_key, file_name, description, tags, username, status, file_size) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO file_metadata (file_key, file_name, description, tags, username, status, file_size) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
     await this.execute(sql, [
-      id,
       fileKey,
       filename,
       description,
@@ -316,7 +376,10 @@ export class FileDAO extends BaseDAOClass {
     );
   }
 
-  async searchFiles(query: string, username?: string): Promise<FileMetadata[]> {
+  async searchFiles(
+    query: string,
+    username?: string
+  ): Promise<ParsedFileMetadata[]> {
     let sql = `
       SELECT DISTINCT fm.* 
       FROM file_metadata fm
@@ -333,7 +396,7 @@ export class FileDAO extends BaseDAOClass {
 
     sql += " ORDER BY fm.created_at DESC";
 
-    return await this.queryAll<FileMetadata>(sql, params);
+    return this.queryAndParseMultipleFileMetadata(sql, params);
   }
 
   async getFileCount(username: string): Promise<number> {
@@ -359,26 +422,26 @@ export class FileDAO extends BaseDAOClass {
   async getFilesByType(
     username: string,
     contentType: string
-  ): Promise<FileMetadata[]> {
+  ): Promise<ParsedFileMetadata[]> {
     const sql = `
       SELECT * FROM file_metadata 
       WHERE username = ? AND content_type = ?
       ORDER BY created_at DESC
     `;
-    return await this.queryAll<FileMetadata>(sql, [username, contentType]);
+    return this.queryAndParseMultipleFileMetadata(sql, [username, contentType]);
   }
 
   async getRecentFiles(
     username: string,
     limit: number = 10
-  ): Promise<FileMetadata[]> {
+  ): Promise<ParsedFileMetadata[]> {
     const sql = `
       SELECT * FROM file_metadata 
       WHERE username = ? 
       ORDER BY created_at DESC 
       LIMIT ?
     `;
-    return await this.queryAll<FileMetadata>(sql, [username, limit]);
+    return this.queryAndParseMultipleFileMetadata(sql, [username, limit]);
   }
 
   // Methods for the 'files' table (used by RAG functionality)

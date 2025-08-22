@@ -153,15 +153,6 @@ export const API_CONFIG = {
       // Consolidated file management endpoints
       UPDATE_METADATA: (fileKey: string) =>
         `/library/files/${fileKey}/metadata`,
-
-      // Consolidated upload endpoints
-      UPLOAD_START: "/library/upload/start",
-      UPLOAD_PART: "/library/upload/part",
-      UPLOAD_COMPLETE: "/library/upload/complete",
-      UPLOAD_PROGRESS: (sessionId: string) =>
-        `/library/upload/progress/${sessionId}`,
-      UPLOAD_SESSION: (sessionId: string) =>
-        `/library/upload/session/${sessionId}`,
     },
     PROGRESS: {
       WEBSOCKET: "/progress",
@@ -183,6 +174,33 @@ export const API_CONFIG = {
       RECOMMENDATIONS: "/external-resources/recommendations",
       INSPIRATION_SOURCES: "/external-resources/inspiration-sources",
       GM_RESOURCES: "/external-resources/gm-resources",
+    },
+    UPLOAD: {
+      DIRECT: (tenant: string, filename: string) =>
+        `/upload/direct/${tenant}/${filename}`,
+      STATUS: (tenant: string, filename: string) =>
+        `/upload/status/${tenant}/${filename}`,
+
+      // Large file upload endpoints
+      START_LARGE: "/upload/start-large",
+      UPLOAD_PART: (sessionId: string, partNumber: string) =>
+        `/upload/part/${sessionId}/${partNumber}`,
+      COMPLETE_LARGE: (sessionId: string) =>
+        `/upload/complete-large/${sessionId}`,
+      PROGRESS: (sessionId: string) => `/upload/progress/${sessionId}`,
+      ABORT_LARGE: (sessionId: string) => `/upload/abort-large/${sessionId}`,
+      // Upload session management endpoints
+      SESSION_CREATE: "/upload/session/create",
+      SESSION_GET: "/upload/session/get",
+      SESSION_ADD_PART: "/upload/session/add-part",
+      SESSION_GET_PARTS: "/upload/session/get-parts",
+      SESSION_COMPLETE: "/upload/session/complete",
+      SESSION_DELETE: "/upload/session/delete",
+    },
+    INGESTION: {
+      STATUS: "/ingestion/status",
+      HEALTH: "/ingestion/health",
+      STATS: "/ingestion/stats",
     },
   },
 } as const;

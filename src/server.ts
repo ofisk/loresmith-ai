@@ -36,7 +36,6 @@ import {
   handleGetGmResources,
 } from "./routes/external-resources";
 import {
-  handleGetFiles,
   handleSearchFiles,
   handleGetStorageUsage,
   handleGetFileDetails,
@@ -64,28 +63,31 @@ import type { AgentType } from "./services/agent-router";
 import type { AuthEnv } from "./services/auth-service";
 import { AuthService } from "./services/auth-service";
 import { ModelManager } from "./services/model-manager";
-import { completeProgress } from "./services/progress";
-import { getDAOFactory } from "./dao/dao-factory";
 import { API_CONFIG } from "./shared";
+
 import {
-  handleAutoGenerateFileMetadata,
-  handleGetFileStats,
+  handleDirectUpload,
+  handleUploadStatus,
+  handleGetFiles,
+  handleUpdateFileMetadata,
   handleGetFileStatus,
-  handleProcessFile,
-  handleProcessMetadataBackground,
-  handleUpdateFileMetadataConsolidated,
-} from "./routes/file-management";
-import {
-  handleUploadStart,
+  handleStartLargeUpload,
   handleUploadPart,
-  handleUploadComplete,
-  handleUploadProgress,
-  handleUploadSessionCleanup,
+  handleCompleteLargeUpload,
+  handleGetUploadProgress,
+  handleAbortLargeUpload,
 } from "./routes/upload";
+import {
+  handleIngestionStatus,
+  handleIngestionHealth,
+  handleIngestionStats,
+} from "./api_status";
+import queueConsumer from "./queue_consumer";
+
 interface Env extends AuthEnv {
   ADMIN_SECRET?: string;
   OPENAI_API_KEY?: string;
-  FILE_BUCKET: R2Bucket;
+  R2: R2Bucket;
   DB: D1Database;
   VECTORIZE: VectorizeIndex;
   AI: any; // AI binding for AutoRAG
@@ -95,6 +97,7 @@ interface Env extends AuthEnv {
   ASSETS: Fetcher;
   FILE_PROCESSING_QUEUE: Queue;
   FILE_PROCESSING_DLQ: Queue;
+  AUTORAG_SEARCH_URL: string;
 }
 
 /**
@@ -460,7 +463,7 @@ app.post(
 app.put(
   API_CONFIG.ENDPOINTS.LIBRARY.UPDATE_METADATA(":fileKey"),
   requireUserJwt,
-  handleUpdateFileMetadataConsolidated
+  handleUpdateFileMetadata
 );
 app.get(API_CONFIG.ENDPOINTS.RAG.FILES, requireUserJwt, handleGetFilesForRag);
 app.delete(
@@ -616,172 +619,73 @@ app.post(
   handleRegenerateFileMetadata
 );
 
-app.post(
-  API_CONFIG.ENDPOINTS.LIBRARY.PROCESS,
-  requireUserJwt,
-  handleProcessFile
-);
 app.get(
   API_CONFIG.ENDPOINTS.LIBRARY.STATUS,
   requireUserJwt,
   handleGetFileStatus
 );
-app.post(
-  API_CONFIG.ENDPOINTS.LIBRARY.AUTO_GENERATE_METADATA,
-  requireUserJwt,
-  handleAutoGenerateFileMetadata
-);
-app.post(
-  API_CONFIG.ENDPOINTS.LIBRARY.PROCESS_METADATA_BACKGROUND,
-  requireUserJwt,
-  handleProcessMetadataBackground
-);
-app.get(API_CONFIG.ENDPOINTS.LIBRARY.STATS, requireUserJwt, handleGetFileStats);
 
-// Upload routes
-app.post(
-  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_START,
+app.put(
+  API_CONFIG.ENDPOINTS.UPLOAD.DIRECT(":tenant", ":filename"),
   requireUserJwt,
-  handleUploadStart
+  handleDirectUpload
+);
+app.get(
+  API_CONFIG.ENDPOINTS.UPLOAD.STATUS(":tenant", ":filename"),
+  requireUserJwt,
+  handleUploadStatus
+);
+
+// Large file upload routes
+app.post(
+  API_CONFIG.ENDPOINTS.UPLOAD.START_LARGE,
+  requireUserJwt,
+  handleStartLargeUpload
 );
 app.post(
-  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_PART,
+  API_CONFIG.ENDPOINTS.UPLOAD.UPLOAD_PART(":sessionId", ":partNumber"),
   requireUserJwt,
   handleUploadPart
 );
 app.post(
-  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_COMPLETE,
+  API_CONFIG.ENDPOINTS.UPLOAD.COMPLETE_LARGE(":sessionId"),
   requireUserJwt,
-  handleUploadComplete
+  handleCompleteLargeUpload
 );
 app.get(
-  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_PROGRESS(":sessionId"),
+  API_CONFIG.ENDPOINTS.UPLOAD.PROGRESS(":sessionId"),
   requireUserJwt,
-  handleUploadProgress
+  handleGetUploadProgress
 );
 app.delete(
-  API_CONFIG.ENDPOINTS.LIBRARY.UPLOAD_SESSION(":sessionId"),
+  API_CONFIG.ENDPOINTS.UPLOAD.ABORT_LARGE(":sessionId"),
   requireUserJwt,
-  handleUploadSessionCleanup
+  handleAbortLargeUpload
 );
 
-// Queue handler for file processing
-async function queueHandler(batch: MessageBatch<any>, env: Env): Promise<void> {
-  console.log(`[File Queue] Processing ${batch.messages.length} messages`);
-
-  for (const message of batch.messages) {
-    try {
-      console.log(
-        `[File Queue] Processing message for file: ${message.body.fileKey}`
-      );
-
-      // Update status to processing
-      await getDAOFactory(env).fileDAO.updateFileStatus(
-        message.body.fileKey,
-        message.body.username,
-        "processing"
-      );
-
-      console.log(
-        `[File Queue] Starting file processing for ${message.body.fileKey}`
-      );
-
-      // Process the file
-      // await ragService.processFileFromR2(
-      //   message.body.fileKey,
-      //   message.body.username,
-      //   env.FILE_BUCKET,
-      //   message.body.metadata
-      // );
-
-      console.log(
-        `[File Queue] File processing completed for ${message.body.fileKey}`
-      );
-
-      // Note: AutoRAG indexing is already handled by the processFileFromR2 method above
-      // The ragService.processFileFromR2() call already performs:
-      // 1. Content extraction and processing
-      // 2. AutoRAG indexing for semantic search
-      // 3. Metadata generation
-      // No additional indexing step is needed.
-      console.log(
-        `[File Queue] AutoRAG indexing was completed as part of file processing for ${message.body.fileKey}`
-      );
-
-      // Complete progress tracking
-      completeProgress(message.body.fileKey, true);
-      console.log(
-        `[File Queue] Successfully processed ${message.body.fileKey}`
-      );
-    } catch (error) {
-      console.error(
-        `[File Queue] Error processing ${message.body.fileKey}:`,
-        error
-      );
-
-      // Determine specific error message
-      let errorMessage = "File processing failed";
-      let errorDetails = "";
-
-      if (error instanceof Error) {
-        errorMessage = error.message;
-
-        // Provide more specific error messages based on the error type
-        if (error.message.includes("Unavailable content in document")) {
-          errorMessage = "Unavailable content in document";
-          errorDetails =
-            "The file could not be parsed. It may be encrypted, corrupted, or contain no readable text.";
-        } else if (error.message.includes("timeout")) {
-          errorMessage = "File processing timeout";
-          errorDetails = "The file processing took too long and was cancelled.";
-        } else if (error.message.includes("not found in R2")) {
-          errorMessage = "File not found in storage";
-          errorDetails = "The uploaded file could not be found in storage.";
-        } else if (error.message.includes("No OpenAI API key")) {
-          errorMessage = "OpenAI API key required";
-          errorDetails =
-            "File processing requires an OpenAI API key for text analysis.";
-        } else {
-          errorDetails = error.message;
-        }
-      }
-
-      // Update status to error with specific error message
-      await getDAOFactory(env).fileDAO.updateFileStatus(
-        message.body.fileKey,
-        message.body.username,
-        "error"
-      );
-
-      completeProgress(message.body.fileKey, false, errorMessage);
-
-      // Send to dead letter queue for manual review with enhanced error info
-      await env.FILE_PROCESSING_DLQ.send({
-        fileKey: message.body.fileKey,
-        username: message.body.username,
-        metadata: message.body.metadata,
-        openaiApiKey: message.body.openaiApiKey,
-        error: {
-          message: errorMessage,
-          details: errorDetails,
-          originalError: error instanceof Error ? error.message : String(error),
-          timestamp: new Date().toISOString(),
-        },
-      });
-
-      console.log(
-        `[File Queue] Sent ${message.body.fileKey} to dead letter queue with error: ${errorMessage}`
-      );
-    }
-  }
-}
+// Ingestion status routes
+app.get(
+  API_CONFIG.ENDPOINTS.INGESTION.STATUS,
+  requireUserJwt,
+  handleIngestionStatus
+);
+app.get(
+  API_CONFIG.ENDPOINTS.INGESTION.HEALTH,
+  requireUserJwt,
+  handleIngestionHealth
+);
+app.get(
+  API_CONFIG.ENDPOINTS.INGESTION.STATS,
+  requireUserJwt,
+  handleIngestionStats
+);
 
 export default {
   fetch: app.fetch,
-  queue: queueHandler,
+  queue: queueConsumer.queue,
 };
 
-export { queueHandler as queue };
+export { queueConsumer as queue };
 
 app.get("*", async (c) => {
   const url = new URL(c.req.url);

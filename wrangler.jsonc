@@ -14,16 +14,17 @@
   "assets": {
     "directory": "dist/client",
   },
-  "secrets_store_secrets": [
-    {
-      "binding": "ADMIN_SECRET",
-      "store_id": "69b603107000458b8f1452516860c425",
-      "secret_name": "ADMIN_SECRET",
-    },
-  ],
+
   "vars": {
-    // Environment variables are now managed via .vars file for production
-    // and .dev.vars file for local development
+    "MAX_INDEX_FILE_BYTES": "4194304",
+
+    "AUTORAG_PREFIX": "autorag",
+    "STAGING_PREFIX": "staging",
+    "READINESS_TIMEOUT_SEC": "600",
+    "READINESS_BACKOFF_MS": "2000",
+    "AUTORAG_SEARCH_URL": "https://<autorag-endpoint>/search",
+    "R2_ACCOUNT_ID": "<your-account-id>",
+    "PRODUCTION_URL": "https://ofisk.tech",
   },
   "durable_objects": {
     "bindings": [
@@ -34,7 +35,7 @@
   },
   "r2_buckets": [
     {
-      "binding": "FILE_BUCKET",
+      "binding": "R2",
       "bucket_name": "loresmith-files",
       "preview_bucket_name": "loresmith-files",
     },
@@ -58,12 +59,19 @@
   "queues": {
     "producers": [
       {
-        "queue": "file-processing-queue",
+        "queue": "upload-events",
         "binding": "FILE_PROCESSING_QUEUE",
       },
       {
         "queue": "file-processing-dlq",
         "binding": "FILE_PROCESSING_DLQ",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "upload-events",
+        "max_batch_size": 1,
+        "max_retries": 5,
       },
     ],
   },
