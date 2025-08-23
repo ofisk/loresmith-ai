@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   CaretDown,
   CaretRight,
@@ -7,6 +7,7 @@ import {
   CheckCircle,
   SignOut,
   XCircle,
+  Clock,
 } from "@phosphor-icons/react";
 import { Card } from "../card/Card";
 import { ResourceList } from "../upload/ResourceList";
@@ -16,8 +17,10 @@ import { StorageTracker } from "../storage-tracker";
 import {
   getStoredJwt,
   authenticatedFetchWithExpiration,
+  AuthService,
 } from "../../services/auth-service";
 import { API_CONFIG } from "../../shared";
+import { useAutoRAGPolling } from "../../hooks/useAutoRAGPolling";
 
 interface ResourceSidePanelProps {
   className?: string;
@@ -33,6 +36,7 @@ type UploadStep =
   | "uploading"
   | "completing"
   | "success"
+  | "processing"
   | "error";
 
 interface UploadProgress {
@@ -41,6 +45,14 @@ interface UploadProgress {
   totalParts: number;
   percentage: number;
   message: string;
+  autoragStatus?: string;
+}
+
+interface FileUpload {
+  id: string;
+  filename: string;
+  progress: UploadProgress;
+  isPolling: boolean;
 }
 
 export function ResourceSidePanel({
@@ -53,30 +65,182 @@ export function ResourceSidePanel({
   const [isLibraryOpen, setIsLibraryOpen] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress>({
-    currentStep: "idle",
-    currentPart: 0,
-    totalParts: 0,
-    percentage: 0,
-    message: "",
-  });
+  const [fileUploads, setFileUploads] = useState<Map<string, FileUpload>>(
+    new Map()
+  );
+  const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
 
-  // Helper function to extract username from JWT
-  const getUsernameFromJwt = (): string | null => {
-    try {
-      const jwt = getStoredJwt();
-      if (!jwt) return null;
+  // AutoRAG polling hook
+  const { status: autoragStatus, startPolling } = useAutoRAGPolling();
 
-      const payload = JSON.parse(atob(jwt.split(".")[1]));
-      return payload.username || null;
-    } catch (error) {
-      console.error(
-        "[ResourceSidePanel] Failed to extract username from JWT:",
-        error
-      );
-      return null;
+  // Update upload progress based on AutoRAG status
+  useEffect(() => {
+    if (autoragStatus && currentUploadId) {
+      const currentUpload = fileUploads.get(currentUploadId);
+      if (currentUpload && currentUpload.progress?.currentStep === "success") {
+        if (autoragStatus.status === "ready") {
+          setFileUploads((prev) => {
+            const newMap = new Map(prev);
+            const upload = newMap.get(currentUploadId);
+            if (upload) {
+              newMap.set(currentUploadId, {
+                ...upload,
+                progress: {
+                  ...upload.progress,
+                  currentStep: "processing",
+                  message:
+                    "File uploaded and indexed successfully! Ready for use.",
+                  autoragStatus: "Indexed and ready",
+                },
+                isPolling: false,
+              });
+            }
+            return newMap;
+          });
+
+          // Update database status to processed
+          if (currentUploadId) {
+            const currentUpload = fileUploads.get(currentUploadId);
+            if (currentUpload) {
+              try {
+                const jwt = getStoredJwt();
+                if (jwt) {
+                  // Construct the file_key that was used for R2 upload
+                  const tenant = AuthService.getUsernameFromStoredJwt();
+                  const fileKey = tenant
+                    ? `autorag/${tenant}/${currentUpload.filename}`
+                    : currentUpload.filename;
+
+                  authenticatedFetchWithExpiration(
+                    API_CONFIG.buildUrl(
+                      API_CONFIG.ENDPOINTS.LIBRARY.FILE_UPDATE(fileKey)
+                    ),
+                    {
+                      method: "PUT",
+                      jwt,
+                      body: JSON.stringify({
+                        status: "processed",
+                      }),
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                    }
+                  )
+                    .then((response) => {
+                      if (!response.response.ok) {
+                        console.warn(
+                          "[ResourceSidePanel] Failed to update file status to processed in database"
+                        );
+                      }
+                    })
+                    .catch((error) => {
+                      console.warn(
+                        "[ResourceSidePanel] Failed to update file status to processed in database:",
+                        error
+                      );
+                    });
+                }
+              } catch (error) {
+                console.warn(
+                  "[ResourceSidePanel] Failed to update file status to processed in database:",
+                  error
+                );
+              }
+            }
+          }
+        } else if (autoragStatus.status === "processing") {
+          setFileUploads((prev) => {
+            const newMap = new Map(prev);
+            const upload = newMap.get(currentUploadId);
+            if (upload) {
+              newMap.set(currentUploadId, {
+                ...upload,
+                progress: {
+                  ...upload.progress,
+                  currentStep: "processing",
+                  message:
+                    "File uploaded successfully! AutoRAG is processing and indexing your file...",
+                  autoragStatus: autoragStatus.message,
+                },
+                isPolling: true,
+              });
+            }
+            return newMap;
+          });
+        } else if (autoragStatus.status === "error") {
+          setFileUploads((prev) => {
+            const newMap = new Map(prev);
+            const upload = newMap.get(currentUploadId);
+            if (upload) {
+              newMap.set(currentUploadId, {
+                ...upload,
+                progress: {
+                  ...upload.progress,
+                  currentStep: "error",
+                  message:
+                    "File uploaded but AutoRAG processing failed. Please try again.",
+                  autoragStatus: autoragStatus.message,
+                },
+                isPolling: false,
+              });
+            }
+            return newMap;
+          });
+
+          // Update database status to error
+          if (currentUploadId) {
+            const currentUpload = fileUploads.get(currentUploadId);
+            if (currentUpload) {
+              try {
+                const jwt = getStoredJwt();
+                if (jwt) {
+                  // Construct the file_key that was used for R2 upload
+                  const tenant = AuthService.getUsernameFromStoredJwt();
+                  const fileKey = tenant
+                    ? `autorag/${tenant}/${currentUpload.filename}`
+                    : currentUploadId;
+
+                  authenticatedFetchWithExpiration(
+                    API_CONFIG.buildUrl(
+                      API_CONFIG.ENDPOINTS.LIBRARY.FILE_UPDATE(fileKey)
+                    ),
+                    {
+                      method: "PUT",
+                      jwt,
+                      body: JSON.stringify({
+                        status: "error",
+                      }),
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                    }
+                  )
+                    .then((response) => {
+                      if (!response.response.ok) {
+                        console.warn(
+                          "[ResourceSidePanel] Failed to update file status to error in database"
+                        );
+                      }
+                    })
+                    .catch((error) => {
+                      console.warn(
+                        "[ResourceSidePanel] Failed to update file status to error in database:",
+                        error
+                      );
+                    });
+                }
+              } catch (error) {
+                console.warn(
+                  "[ResourceSidePanel] Failed to update file status to error in database:",
+                  error
+                );
+              }
+            }
+          }
+        }
+      }
     }
-  };
+  }, [autoragStatus, currentUploadId, fileUploads]);
 
   const handleUpload = async (
     file: File,
@@ -84,12 +248,24 @@ export function ResourceSidePanel({
     _description: string,
     _tags: string[]
   ) => {
-    setUploadProgress({
-      currentStep: "starting",
-      currentPart: 0,
-      totalParts: 0,
-      percentage: 0,
-      message: "Starting upload...",
+    const uploadId = `${filename}`;
+    setCurrentUploadId(uploadId);
+
+    setFileUploads((prev) => {
+      const newMap = new Map(prev);
+      newMap.set(uploadId, {
+        id: uploadId,
+        filename,
+        progress: {
+          currentStep: "starting",
+          currentPart: 0,
+          totalParts: 0,
+          percentage: 0,
+          message: "Starting upload...",
+        },
+        isPolling: false,
+      });
+      return newMap;
     });
 
     try {
@@ -99,17 +275,27 @@ export function ResourceSidePanel({
       }
 
       // Extract username from JWT
-      const tenant = getUsernameFromJwt();
+      const tenant = AuthService.getUsernameFromStoredJwt();
       if (!tenant) {
         throw new Error("No username/tenant available for upload");
       }
 
       // Step 1: Upload file directly to storage
-      setUploadProgress((prev) => ({
-        ...prev,
-        currentStep: "uploading",
-        message: "Uploading file to storage...",
-      }));
+      setFileUploads((prev) => {
+        const newMap = new Map(prev);
+        const upload = newMap.get(uploadId);
+        if (upload) {
+          newMap.set(uploadId, {
+            ...upload,
+            progress: {
+              ...upload.progress,
+              currentStep: "uploading",
+              message: "Uploading file to storage...",
+            },
+          });
+        }
+        return newMap;
+      });
 
       console.log("[ResourceSidePanel] Upload request body:", {
         tenant,
@@ -144,37 +330,61 @@ export function ResourceSidePanel({
         );
       }
 
-      // Success state
-      setUploadProgress((prev) => ({
-        ...prev,
-        currentStep: "success",
-        percentage: 100,
-        message: "Upload completed successfully!",
-      }));
+      // Success state - start polling for AutoRAG processing
+      setFileUploads((prev) => {
+        const newMap = new Map(prev);
+        const upload = newMap.get(uploadId);
+        if (upload) {
+          newMap.set(uploadId, {
+            ...upload,
+            progress: {
+              ...upload.progress,
+              currentStep: "success",
+              percentage: 100,
+              message:
+                "Upload completed successfully! Starting AutoRAG processing...",
+              autoragStatus: "Starting processing...",
+            },
+          });
+        }
+        return newMap;
+      });
 
-      // Auto-close modal after showing success
+      // Start polling for AutoRAG status
+      startPolling(tenant, filename);
+
+      // Show processing status for a bit longer, then auto-close
       setTimeout(() => {
         setIsAddModalOpen(false);
         setRefreshTrigger((prev) => prev + 1);
-        // Reset progress state
-        setUploadProgress({
-          currentStep: "idle",
-          currentPart: 0,
-          totalParts: 0,
-          percentage: 0,
-          message: "",
+        // Clean up the upload entry
+        setFileUploads((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(uploadId);
+          return newMap;
         });
-      }, 2000);
+        setCurrentUploadId(null);
+      }, 5000); // Give more time to see the processing status
     } catch (error) {
       console.error("[ResourceSidePanel] Upload error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Failed to upload file";
 
-      setUploadProgress((prev) => ({
-        ...prev,
-        currentStep: "error",
-        message: errorMessage,
-      }));
+      setFileUploads((prev) => {
+        const newMap = new Map(prev);
+        const upload = newMap.get(uploadId);
+        if (upload) {
+          newMap.set(uploadId, {
+            ...upload,
+            progress: {
+              ...upload.progress,
+              currentStep: "error",
+              message: errorMessage,
+            },
+          });
+        }
+        return newMap;
+      });
     }
   };
 
@@ -182,6 +392,8 @@ export function ResourceSidePanel({
     switch (step) {
       case "success":
         return <CheckCircle size={20} className="text-green-500" />;
+      case "processing":
+        return <Clock size={20} className="text-blue-500" />;
       case "error":
         return <XCircle size={20} className="text-red-500" />;
       default:
@@ -194,6 +406,7 @@ export function ResourceSidePanel({
       case "starting":
       case "uploading":
       case "completing":
+      case "processing":
         return "text-blue-600";
       case "success":
         return "text-green-600";
@@ -204,11 +417,19 @@ export function ResourceSidePanel({
     }
   };
 
-  const isUploading =
-    uploadProgress.currentStep === "starting" ||
-    uploadProgress.currentStep === "uploading";
+  // Check if any files are currently uploading (not just polling)
+  const hasActiveUploads = Array.from(fileUploads.values()).some(
+    (upload) =>
+      upload.progress?.currentStep === "starting" ||
+      upload.progress?.currentStep === "uploading"
+  );
 
-  const showProgress = uploadProgress.currentStep !== "idle";
+  // Get the current upload for display (if any)
+  const currentUpload = currentUploadId
+    ? fileUploads.get(currentUploadId)
+    : null;
+  const showProgress =
+    currentUpload && currentUpload.progress?.currentStep !== "idle";
 
   return (
     <div
@@ -270,7 +491,7 @@ export function ResourceSidePanel({
 
       {/* Username Display and Menu - At the very bottom */}
       {isAuthenticated &&
-        getUsernameFromJwt() &&
+        AuthService.getUsernameFromStoredJwt() &&
         onLogout &&
         setShowUserMenu && (
           <div className="p-3 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
@@ -281,7 +502,9 @@ export function ResourceSidePanel({
                 className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-md transition-colors w-full"
               >
                 <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                <span className="truncate">{getUsernameFromJwt()}</span>
+                <span className="truncate">
+                  {AuthService.getUsernameFromStoredJwt()}
+                </span>
                 <CaretDown
                   size={16}
                   className="transition-transform duration-200 ml-auto"
@@ -311,59 +534,69 @@ export function ResourceSidePanel({
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => {
-          if (!isUploading) {
+          // Allow closing if no files are actively uploading
+          // Polling can continue in the background
+          if (!hasActiveUploads) {
             setIsAddModalOpen(false);
-            // Reset progress state when closing
-            setUploadProgress({
-              currentStep: "idle",
-              currentPart: 0,
-              totalParts: 0,
-              percentage: 0,
-              message: "",
-            });
+            // Clean up all upload entries
+            setFileUploads(new Map());
+            setCurrentUploadId(null);
           }
         }}
         cardStyle={{ width: 560, height: 560 }}
       >
         <div className="space-y-4">
           {/* Progress Section */}
-          {showProgress && (
+          {showProgress && currentUpload && (
             <div className="border-b border-gray-200 pb-4">
               <div className="flex items-center gap-3 mb-3">
-                {getStepIcon(uploadProgress.currentStep)}
+                {getStepIcon(currentUpload.progress?.currentStep)}
                 <span
-                  className={`font-medium ${getStepColor(uploadProgress.currentStep)}`}
+                  className={`font-medium ${getStepColor(currentUpload.progress?.currentStep)}`}
                 >
-                  {uploadProgress.currentStep === "starting" &&
+                  {currentUpload.progress?.currentStep === "starting" &&
                     "Preparing Upload"}
-                  {uploadProgress.currentStep === "uploading" &&
+                  {currentUpload.progress?.currentStep === "uploading" &&
                     "Uploading File"}
-
-                  {uploadProgress.currentStep === "success" &&
+                  {currentUpload.progress?.currentStep === "success" &&
                     "Upload Complete"}
-                  {uploadProgress.currentStep === "error" && "Upload Failed"}
+                  {currentUpload.progress?.currentStep === "processing" &&
+                    "Processing with AutoRAG"}
+                  {currentUpload.progress?.currentStep === "error" &&
+                    "Upload Failed"}
                 </span>
               </div>
 
               {/* Progress Bar */}
-              {uploadProgress.currentStep === "uploading" && (
+              {currentUpload.progress?.currentStep === "uploading" && (
                 <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
                   <div
                     className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${uploadProgress.percentage}%` }}
+                    style={{ width: `${currentUpload.progress.percentage}%` }}
                   />
                 </div>
               )}
 
               {/* Status Message */}
-              <p className="text-sm text-gray-600">{uploadProgress.message}</p>
+              <p className="text-sm text-gray-600">
+                {currentUpload.progress?.message}
+              </p>
+
+              {/* AutoRAG Status */}
+              {currentUpload.progress?.currentStep === "processing" &&
+                currentUpload.progress?.autoragStatus && (
+                  <div className="flex items-center gap-2 text-xs text-blue-600">
+                    <Clock size={14} />
+                    <span>{currentUpload.progress?.autoragStatus}</span>
+                  </div>
+                )}
 
               {/* Part Progress for Uploading */}
-              {uploadProgress.currentStep === "uploading" &&
-                uploadProgress.totalParts > 0 && (
+              {currentUpload.progress?.currentStep === "uploading" &&
+                currentUpload.progress?.totalParts > 0 && (
                   <p className="text-xs text-gray-500">
-                    Part {uploadProgress.currentPart} of{" "}
-                    {uploadProgress.totalParts}
+                    Part {currentUpload.progress?.currentPart} of{" "}
+                    {currentUpload.progress?.totalParts}
                   </p>
                 )}
             </div>
@@ -372,9 +605,9 @@ export function ResourceSidePanel({
           {/* Upload Form */}
           <ResourceUpload
             onUpload={handleUpload}
-            loading={isUploading}
+            loading={hasActiveUploads}
             className="border-0 p-0 shadow-none"
-            jwtUsername={getUsernameFromJwt()}
+            jwtUsername={AuthService.getUsernameFromStoredJwt()}
           />
         </div>
       </Modal>

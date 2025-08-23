@@ -373,7 +373,7 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
 export async function handleUploadPart(c: ContextWithAuth) {
   try {
     const sessionId = c.req.param("sessionId");
-    const partNumber = parseInt(c.req.param("partNumber"));
+    const partNumber = parseInt(c.req.param("partNumber"), 10);
     const userAuth = (c as any).userAuth as AuthPayload;
 
     if (!sessionId || !partNumber || partNumber < 1) {
