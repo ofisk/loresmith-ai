@@ -230,11 +230,37 @@ export class FileDAO extends BaseDAOClass {
     status: string
   ): Promise<void> {
     const sql = `
-      UPDATE file_metadata 
-      SET status = ? 
+      UPDATE file_metadata
+      SET status = ?
       WHERE file_key = ? AND username = ?
     `;
     await this.execute(sql, [status, fileKey, username]);
+  }
+
+  async updateFileAutoRAGStatus(
+    fileKey: string,
+    username: string,
+    autoragStatus: string,
+    _autoragMessage?: string
+  ): Promise<void> {
+    const sql = `
+      UPDATE file_metadata
+      SET status = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE file_key = ? AND username = ?
+    `;
+    await this.execute(sql, [autoragStatus, fileKey, username]);
+  }
+
+  async getFilesPendingAutoRAG(
+    username: string
+  ): Promise<ParsedFileMetadata[]> {
+    const sql = `
+      SELECT file_key, file_name, description, tags, username, status, file_size, created_at, updated_at
+      FROM file_metadata
+      WHERE username = ? AND status IN ('uploaded', 'processing')
+      ORDER BY created_at DESC
+    `;
+    return this.queryAndParseMultipleFileMetadata(sql, [username]);
   }
 
   async getFileStatsByUser(username: string): Promise<any[]> {

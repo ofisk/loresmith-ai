@@ -451,6 +451,37 @@ export class AuthService {
   }
 
   /**
+   * Utility function to get username from stored JWT
+   * This combines getting the stored JWT and extracting the username
+   */
+  static getUsernameFromStoredJwt(): string | null {
+    try {
+      const jwt = AuthService.getStoredJwt();
+      if (!jwt) return null;
+      return AuthService.parseJwtForUsername(jwt);
+    } catch (error) {
+      console.error("Error getting username from stored JWT:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Utility function to get full JWT payload from stored JWT
+   * This is useful for components that need more than just the username
+   */
+  static getJwtPayload(): any | null {
+    try {
+      const jwt = AuthService.getStoredJwt();
+      if (!jwt) return null;
+      const payload = JSON.parse(atob(jwt.split(".")[1]));
+      return payload;
+    } catch (error) {
+      console.error("Error getting JWT payload:", error);
+      return null;
+    }
+  }
+
+  /**
    * Utility function to extract username from message data
    */
   static extractUsernameFromMessage(message: any): string | null {

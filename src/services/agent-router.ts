@@ -149,17 +149,19 @@ User message: "${userMessage}"
 ${recentContext ? `Recent context: "${recentContext}"` : ""}
 
 Important routing rules:
-- If the message mentions "uploaded", "file key", "metadata", "ingestion", or "successfully uploaded" → route to "resources"
+- If the message mentions "uploaded", "file key", "metadata", "ingestion", "successfully uploaded", "processing", "indexing", or "AutoRAG" → route to "resources"
 - If the message mentions "campaign" or campaign management → route to "campaign"
 - If the message mentions "character" or character sheets → route to "campaign-context"
 - If the message is asking for help or guidance → route to "onboarding"
-- For file upload completion messages → route to "resources"
+- For file upload completion messages or processing status inquiries → route to "resources"
 
 Respond with only the agent name (${registeredAgents.join(", ")}) and a confidence score 0-100.
 Format: agent_name|confidence|reason
 
 Examples:
 - "I have successfully uploaded the PDF file..." → resources|90|PDF upload completion
+- "Is my file still processing?" → resources|85|File processing status inquiry
+- "When will my uploaded file be searchable?" → resources|90|AutoRAG processing inquiry
 - "show me all campaigns" → campaign|85|Campaign listing request
 - "create a new campaign" → campaign|90|Campaign creation
 - "upload a character sheet" → campaign-context|85|Character sheet upload`;

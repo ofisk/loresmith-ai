@@ -1,5 +1,8 @@
 import { useCallback } from "react";
-import { authenticatedFetchWithExpiration } from "../services/auth-service";
+import {
+  authenticatedFetchWithExpiration,
+  AuthService,
+} from "../services/auth-service";
 
 /**
  * Hook for making authenticated requests with automatic JWT expiration handling.
@@ -26,9 +29,10 @@ import { authenticatedFetchWithExpiration } from "../services/auth-service";
 export function useAuthenticatedRequest() {
   const makeRequest = useCallback(
     async (url: string, options?: RequestInit) => {
+      const jwt = AuthService.getStoredJwt();
       const { response, jwtExpired } = await authenticatedFetchWithExpiration(
         url,
-        options
+        { ...options, jwt }
       );
 
       if (jwtExpired) {

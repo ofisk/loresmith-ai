@@ -3,6 +3,7 @@ import { ERROR_MESSAGES } from "../../constants";
 import {
   authenticatedFetchWithExpiration,
   getStoredJwt,
+  AuthService,
 } from "../../services/auth-service";
 import { API_CONFIG } from "../../shared";
 import type { Campaign } from "../../types/campaign";
@@ -10,6 +11,7 @@ import { Button } from "../button/Button";
 import { Modal } from "../modal/Modal";
 import { MultiSelect } from "../select/MultiSelect";
 import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
+import { FileStatusIndicator } from "./FileStatusIndicator";
 
 interface ResourceFile {
   id: string;
@@ -373,12 +375,19 @@ export function ResourceList({
           >
             <div className="flex flex-col h-full">
               <div className="flex items-center justify-between">
-                <h4
-                  className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-help flex-1 mr-3"
-                  title={getDisplayName(file.file_name)}
-                >
-                  {getDisplayName(file.file_name)}
-                </h4>
+                <div className="flex items-center gap-2 flex-1 mr-3 min-w-0">
+                  <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-help">
+                    {getDisplayName(file.file_name)}
+                  </h4>
+                  {AuthService.getUsernameFromStoredJwt() && (
+                    <FileStatusIndicator
+                      filename={file.file_name}
+                      tenant={AuthService.getUsernameFromStoredJwt()!}
+                      initialStatus={file.status}
+                      className="flex-shrink-0"
+                    />
+                  )}
+                </div>
                 <button
                   onClick={() => toggleFileExpansion(file.file_key)}
                   type="button"

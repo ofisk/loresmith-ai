@@ -135,29 +135,20 @@ export default function Chat() {
   // Check authentication status on mount
   useEffect(() => {
     console.log("[App] useEffect running - checking authentication status");
-    const jwt = getStoredJwt();
-    if (jwt) {
-      try {
-        const payload = JSON.parse(atob(jwt.split(".")[1]));
-        if (payload.username) {
-          setUsername(payload.username);
-          // Check if JWT is expired
-          if (AuthService.isJwtExpired(jwt)) {
-            // JWT expired, show auth modal
-            console.log("[App] JWT expired, showing auth modal");
-            setShowAuthModal(true);
-            setIsAuthenticated(false);
-          } else {
-            // JWT valid, check if we have stored OpenAI key
-            console.log("[App] JWT valid, checking stored OpenAI key");
-            checkStoredOpenAIKey(payload.username);
-          }
-        }
-      } catch (error) {
-        console.error("Error parsing JWT:", error);
-        console.log("[App] Error parsing JWT, showing auth modal");
+    const payload = AuthService.getJwtPayload();
+    if (payload?.username) {
+      setUsername(payload.username);
+      // Check if JWT is expired
+      const jwt = getStoredJwt();
+      if (jwt && AuthService.isJwtExpired(jwt)) {
+        // JWT expired, show auth modal
+        console.log("[App] JWT expired, showing auth modal");
         setShowAuthModal(true);
         setIsAuthenticated(false);
+      } else {
+        // JWT valid, check if we have stored OpenAI key
+        console.log("[App] JWT valid, checking stored OpenAI key");
+        checkStoredOpenAIKey(payload.username);
       }
     } else {
       // No JWT, show auth modal
