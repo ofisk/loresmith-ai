@@ -357,9 +357,9 @@ export function ResourceList({
   if (files.length === 0) {
     return (
       <div className="text-center py-8">
-        <div className="text-gray-500 mb-2">No resources found</div>
+        <div className="text-gray-500 mb-2">The shelves lie bare</div>
         <p className="text-sm text-gray-400">
-          Upload some files to get started
+          Place a scroll upon the archive to awaken it
         </p>
       </div>
     );

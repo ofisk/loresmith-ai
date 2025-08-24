@@ -433,7 +433,7 @@ export function ResourceSidePanel({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4">
         {/* Upload Section */}
         <Card className="p-0">
           <button
@@ -447,7 +447,7 @@ export function ResourceSidePanel({
         </Card>
 
         {/* Resources Section */}
-        <Card className="p-0">
+        <Card className="p-0 -mt-4">
           <button
             type="button"
             onClick={() => setIsLibraryOpen(!isLibraryOpen)}
@@ -463,7 +463,10 @@ export function ResourceSidePanel({
           {isLibraryOpen && (
             <div className="border-t border-neutral-200 dark:border-neutral-700 h-96 overflow-y-auto">
               {isAuthenticated ? (
-                <ResourceList refreshTrigger={refreshTrigger} />
+                <>
+                  <ResourceList refreshTrigger={refreshTrigger} />
+                  <StorageTracker />
+                </>
               ) : (
                 <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
                   Please log in to view your library
@@ -472,8 +475,6 @@ export function ResourceSidePanel({
             </div>
           )}
         </Card>
-
-        {isAuthenticated && <StorageTracker />}
       </div>
 
       {/* Username Display and Menu - At the very bottom */}
