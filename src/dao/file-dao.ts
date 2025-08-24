@@ -103,10 +103,10 @@ export class FileDAO extends BaseDAOClass {
     tags?: string
   ): Promise<void> {
     const sql = `
-      INSERT INTO file_metadata (
-        id, file_key, filename, username, file_size, content_type, 
-        description, tags, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT OR REPLACE INTO file_metadata (
+        id, file_key, filename, username, file_size, content_type,
+        description, tags, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `;
     await this.execute(sql, [
       id,
@@ -201,7 +201,7 @@ export class FileDAO extends BaseDAOClass {
     fileSize: number
   ): Promise<void> {
     const sql = `
-      INSERT INTO file_metadata (file_key, file_name, description, tags, username, status, file_size) 
+      INSERT OR REPLACE INTO file_metadata (file_key, file_name, description, tags, username, status, file_size)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
     await this.execute(sql, [
@@ -483,7 +483,7 @@ export class FileDAO extends BaseDAOClass {
     fileSize: number
   ): Promise<void> {
     const sql = `
-      INSERT INTO file_metadata (file_key, file_name, description, tags, username, status, file_size) 
+      INSERT OR REPLACE INTO file_metadata (file_key, file_name, description, tags, username, status, file_size)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
     await this.execute(sql, [

@@ -1,0 +1,62 @@
+# Production environment variables for Cloudflare Workers
+# This file contains environment variables that will be used in production deployment
+
+# =============================================================================
+# SECURITY WARNING
+# =============================================================================
+# NEVER commit API tokens or secrets to Git!
+# Use Cloudflare Dashboard Environment Variables instead:
+# 1. Go to Workers & Pages → your-worker → Settings → Environment Variables
+# 2. Add sensitive values there (most secure)
+# 3. Or use wrangler secret: wrangler secret put VARIABLE_NAME
+
+# =============================================================================
+# Cloudflare AI Gateway (Optional)
+# =============================================================================
+# https://developers.cloudflare.com/ai-gateway/
+# GATEWAY_BASE_URL=https://gateway.ai.cloudflare.com/v1/..
+
+# =============================================================================
+# Production Environment Variables
+# =============================================================================
+
+# Admin Secret (set in Cloudflare Dashboard Environment Variables)
+# ADMIN_SECRET=your-admin-secret-here
+
+# OpenAI API Key (optional - users can provide their own in production)
+# OPENAI_API_KEY=sk-your-openai-api-key-here
+
+# CORS allowed origins for production
+CORS_ALLOWED_ORIGINS=https://yourdomain.com
+
+# API URL for production
+VITE_API_URL=https://yourdomain.com
+
+# =============================================================================
+# AutoRAG Configuration
+# =============================================================================
+# 
+# SECURITY: Do NOT put API tokens in .vars files for production!
+# Instead, set them in Cloudflare Dashboard Environment Variables:
+# 1. Go to Workers & Pages → your-worker → Settings → Environment Variables
+# 2. Add AUTORAG_API_TOKEN there (most secure)
+# 3. Or use wrangler secret: wrangler secret put AUTORAG_API_TOKEN
+
+# AutoRAG API Configuration
+# Base URL for Cloudflare AutoRAG API (don't change this)
+AUTORAG_API_URL=https://api.cloudflare.com/client/v4
+
+# Your Cloudflare Account ID (found in dashboard URL: dash.cloudflare.com/<account-id>)
+AUTORAG_ACCOUNT_ID=your-cloudflare-account-id-here
+
+# AutoRAG Search URL (your specific AutoRAG service endpoint)
+AUTORAG_SEARCH_URL=https://api.cloudflare.com/client/v4/accounts/your-account-id/autorag/rags/your-rag-name/ai-search
+
+# ⚠️  SECURITY: AutoRAG API Token
+# DO NOT put this in .vars file! Use Cloudflare Dashboard Environment Variables instead.
+# AUTORAG_API_TOKEN=your-autorag-api-token-here
+
+# =============================================================================
+# R2 Storage Configuration
+# =============================================================================
+# R2_ACCOUNT_ID=your-r2-account-id-here

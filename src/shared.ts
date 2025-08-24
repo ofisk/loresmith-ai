@@ -4,6 +4,18 @@ export const APPROVAL = {
   NO: "No, denied.",
 } as const;
 
+// AutoRAG configuration
+export const AUTORAG_CONFIG = {
+  LIBRARY_RAG_ID: "loresmith-library-autorag",
+  buildLibraryAutoRAGUrl: (
+    accountId: string,
+    apiUrl: string,
+    endpoint: string
+  ): string => {
+    return `${apiUrl}/accounts/${accountId}/autorag/rags/${AUTORAG_CONFIG.LIBRARY_RAG_ID}${endpoint}`;
+  },
+} as const;
+
 // Authentication response codes
 export const AUTH_CODES = {
   SUCCESS: 200,
@@ -201,6 +213,14 @@ export const API_CONFIG = {
       STATUS: "/ingestion/status",
       HEALTH: "/ingestion/health",
       STATS: "/ingestion/stats",
+    },
+    AUTORAG: {
+      SYNC: (ragId: string) => `/autorag/rags/${ragId}/sync`,
+      JOB_DETAILS: (ragId: string, jobId: string) =>
+        `/autorag/rags/${ragId}/jobs/${jobId}`,
+      JOB_LOGS: (ragId: string, jobId: string) =>
+        `/autorag/rags/${ragId}/jobs/${jobId}/logs`,
+      JOBS: (ragId: string) => `/autorag/rags/${ragId}/jobs`,
     },
   },
 } as const;

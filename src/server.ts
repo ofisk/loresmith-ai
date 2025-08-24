@@ -10,6 +10,12 @@ import {
   handleModuleIntegration,
 } from "./routes/assessment";
 import {
+  handleAutoRAGSync,
+  handleAutoRAGJobDetails,
+  handleAutoRAGJobLogs,
+  handleAutoRAGJobs,
+} from "./routes/autorag";
+import {
   handleAuthenticate,
   handleCheckOpenAIKey,
   handleCheckUserOpenAIKey,
@@ -98,6 +104,9 @@ interface Env extends AuthEnv {
   FILE_PROCESSING_QUEUE: Queue;
   FILE_PROCESSING_DLQ: Queue;
   AUTORAG_SEARCH_URL: string;
+  AUTORAG_API_URL: string;
+  AUTORAG_ACCOUNT_ID: string;
+  AUTORAG_API_TOKEN: string;
 }
 
 /**
@@ -421,7 +430,8 @@ app.use("*", async (c, next) => {
       status: 204,
       headers: {
         "Access-Control-Allow-Origin": "*", // For dev, or use "http://localhost:5173" for stricter
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Methods":
+          "GET, POST, PUT, DELETE, PATCH, OPTIONS",
         "Access-Control-Allow-Headers":
           "Content-Type, Authorization, X-Session-ID",
         "Access-Control-Max-Age": "86400",
@@ -430,7 +440,10 @@ app.use("*", async (c, next) => {
   }
   await next();
   c.header("Access-Control-Allow-Origin", "*");
-  c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  c.header(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+  );
   c.header(
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization, X-Session-ID"
@@ -482,6 +495,28 @@ app.post(
   handleTriggerAutoRAGIndexing
 );
 app.get(API_CONFIG.ENDPOINTS.RAG.STATUS, requireUserJwt);
+
+// AutoRAG Routes
+app.patch(
+  API_CONFIG.ENDPOINTS.AUTORAG.SYNC(":ragId"),
+  requireUserJwt,
+  handleAutoRAGSync
+);
+app.get(
+  API_CONFIG.ENDPOINTS.AUTORAG.JOB_DETAILS(":ragId", ":jobId"),
+  requireUserJwt,
+  handleAutoRAGJobDetails
+);
+app.get(
+  API_CONFIG.ENDPOINTS.AUTORAG.JOB_LOGS(":ragId", ":jobId"),
+  requireUserJwt,
+  handleAutoRAGJobLogs
+);
+app.get(
+  API_CONFIG.ENDPOINTS.AUTORAG.JOBS(":ragId"),
+  requireUserJwt,
+  handleAutoRAGJobs
+);
 
 // Campaign Routes
 app.get(
