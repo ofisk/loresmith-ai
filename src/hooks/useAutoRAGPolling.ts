@@ -5,26 +5,25 @@ import {
   AuthService,
 } from "../services/auth-service";
 
-export interface AutoRAGStatus {
-  status: "processing" | "ready" | "error" | "not_found";
-  message: string;
-  tenant?: string;
-  doc?: string;
-  type?: "single_file" | "split_file" | "staging";
-  lastUpdate?: string;
-  timestamp?: string;
+export interface AutoRAGJobStatus {
+  id: string;
+  source: string;
+  end_reason?: string;
+  ended_at?: string;
+  last_seen_at?: string;
+  started_at: string;
 }
 
 export interface UseAutoRAGPollingReturn {
-  status: AutoRAGStatus | null;
+  jobStatus: AutoRAGJobStatus | null;
   isPolling: boolean;
-  startPolling: (tenant: string, filename: string) => void;
+  startPolling: (ragId: string, jobId: string) => void;
   stopPolling: () => void;
   error: string | null;
 }
 
 export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
-  const [status, setStatus] = useState<AutoRAGStatus | null>(null);
+  const [jobStatus, setJobStatus] = useState<AutoRAGJobStatus | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -45,13 +44,13 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
     setIsPolling(false);
   }, []);
 
-  const checkStatus = useCallback(
-    async (tenant: string, filename: string) => {
-      console.log("Checking status for", tenant, filename);
+  const checkJobStatus = useCallback(
+    async (ragId: string, jobId: string) => {
+      console.log("Checking job status for", ragId, jobId);
       try {
-        const url = `${API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.INGESTION.STATUS
-        )}?tenant=${encodeURIComponent(tenant)}&doc=${encodeURIComponent(filename)}`;
+        const url = API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.AUTORAG.JOB_DETAILS(ragId, jobId)
+        );
 
         const jwt = AuthService.getStoredJwt();
         const response = await authenticatedFetchWithExpiration(url, {
@@ -73,16 +72,21 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
           );
         }
 
-        const result = (await response.response.json()) as AutoRAGStatus;
-        setStatus(result);
+        const result = (await response.response.json()) as {
+          success: boolean;
+          result: AutoRAGJobStatus;
+        };
+
+        if (!result.success) {
+          throw new Error("Failed to get job status");
+        }
+
+        setJobStatus(result.result);
         setError(null);
 
-        // Stop polling if the file is ready or there's an error
-        if (
-          result.status === "ready" ||
-          result.status === "error" ||
-          result.status === "not_found"
-        ) {
+        // Stop polling if the job has ended
+        if (result.result.ended_at) {
+          console.log("[useAutoRAGPolling] Job ended, stopping polling");
           stopPolling();
         }
       } catch (err) {
@@ -91,17 +95,15 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
           return;
         }
 
-        console.error("[useAutoRAGPolling] Error checking status:", err);
+        console.error("[useAutoRAGPolling] Error checking job status:", err);
         setError(err instanceof Error ? err.message : "Unknown error");
-
-        // Don't stop polling on network errors, just log them
       }
     },
     [stopPolling]
   );
 
   const startPolling = useCallback(
-    (tenant: string, filename: string) => {
+    (ragId: string, jobId: string) => {
       // Stop any existing polling
       stopPolling();
 
@@ -109,19 +111,19 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
       abortControllerRef.current = new AbortController();
 
       // Reset state
-      setStatus(null);
+      setJobStatus(null);
       setError(null);
       setIsPolling(true);
 
       // Check status immediately
-      checkStatus(tenant, filename);
+      checkJobStatus(ragId, jobId);
 
-      // Start polling every second
+      // Start polling every 2 seconds
       intervalRef.current = setInterval(() => {
-        checkStatus(tenant, filename);
-      }, 1000);
+        checkJobStatus(ragId, jobId);
+      }, 2000);
     },
-    [checkStatus, stopPolling]
+    [checkJobStatus, stopPolling]
   );
 
   // Cleanup on unmount
@@ -132,7 +134,7 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
   }, [stopPolling]);
 
   return {
-    status,
+    jobStatus,
     isPolling,
     startPolling,
     stopPolling,

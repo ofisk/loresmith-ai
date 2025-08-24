@@ -19,7 +19,8 @@ import {
   authenticatedFetchWithExpiration,
   AuthService,
 } from "../../services/auth-service";
-import { API_CONFIG } from "../../shared";
+import { AutoRAGService } from "../../services/autorag-service";
+import { API_CONFIG, AUTORAG_CONFIG } from "../../shared";
 import { useAutoRAGPolling } from "../../hooks/useAutoRAGPolling";
 
 interface ResourceSidePanelProps {
@@ -70,15 +71,19 @@ export function ResourceSidePanel({
   );
   const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
 
-  // AutoRAG polling hook
-  const { status: autoragStatus, startPolling } = useAutoRAGPolling();
+  // AutoRAG job polling hook
+  const { jobStatus, startPolling } = useAutoRAGPolling();
 
-  // Update upload progress based on AutoRAG status
+  // Update upload progress based on AutoRAG job status
   useEffect(() => {
-    if (autoragStatus && currentUploadId) {
+    if (jobStatus && currentUploadId) {
       const currentUpload = fileUploads.get(currentUploadId);
-      if (currentUpload && currentUpload.progress?.currentStep === "success") {
-        if (autoragStatus.status === "ready") {
+      if (currentUpload) {
+        if (jobStatus.ended_at) {
+          // Job has completed
+          const isSuccess =
+            !jobStatus.end_reason || jobStatus.end_reason === "completed";
+
           setFileUploads((prev) => {
             const newMap = new Map(prev);
             const upload = newMap.get(currentUploadId);
@@ -87,10 +92,13 @@ export function ResourceSidePanel({
                 ...upload,
                 progress: {
                   ...upload.progress,
-                  currentStep: "processing",
-                  message:
-                    "File uploaded and indexed successfully! Ready for use.",
-                  autoragStatus: "Indexed and ready",
+                  currentStep: isSuccess ? "processing" : "error",
+                  message: isSuccess
+                    ? "File uploaded and indexed successfully! Ready for use."
+                    : `AutoRAG processing failed: ${jobStatus.end_reason}`,
+                  autoragStatus: isSuccess
+                    ? "Indexed and ready"
+                    : `Failed: ${jobStatus.end_reason}`,
                 },
                 isPolling: false,
               });
@@ -98,103 +106,13 @@ export function ResourceSidePanel({
             return newMap;
           });
 
-          // Update database status to processed
+          // Update database status
           if (currentUploadId) {
             const currentUpload = fileUploads.get(currentUploadId);
             if (currentUpload) {
               try {
                 const jwt = getStoredJwt();
                 if (jwt) {
-                  // Construct the file_key that was used for R2 upload
-                  const tenant = AuthService.getUsernameFromStoredJwt();
-                  const fileKey = tenant
-                    ? `autorag/${tenant}/${currentUpload.filename}`
-                    : currentUpload.filename;
-
-                  authenticatedFetchWithExpiration(
-                    API_CONFIG.buildUrl(
-                      API_CONFIG.ENDPOINTS.LIBRARY.FILE_UPDATE(fileKey)
-                    ),
-                    {
-                      method: "PUT",
-                      jwt,
-                      body: JSON.stringify({
-                        status: "processed",
-                      }),
-                      headers: {
-                        "Content-Type": "application/json",
-                      },
-                    }
-                  )
-                    .then((response) => {
-                      if (!response.response.ok) {
-                        console.warn(
-                          "[ResourceSidePanel] Failed to update file status to processed in database"
-                        );
-                      }
-                    })
-                    .catch((error) => {
-                      console.warn(
-                        "[ResourceSidePanel] Failed to update file status to processed in database:",
-                        error
-                      );
-                    });
-                }
-              } catch (error) {
-                console.warn(
-                  "[ResourceSidePanel] Failed to update file status to processed in database:",
-                  error
-                );
-              }
-            }
-          }
-        } else if (autoragStatus.status === "processing") {
-          setFileUploads((prev) => {
-            const newMap = new Map(prev);
-            const upload = newMap.get(currentUploadId);
-            if (upload) {
-              newMap.set(currentUploadId, {
-                ...upload,
-                progress: {
-                  ...upload.progress,
-                  currentStep: "processing",
-                  message:
-                    "File uploaded successfully! AutoRAG is processing and indexing your file...",
-                  autoragStatus: autoragStatus.message,
-                },
-                isPolling: true,
-              });
-            }
-            return newMap;
-          });
-        } else if (autoragStatus.status === "error") {
-          setFileUploads((prev) => {
-            const newMap = new Map(prev);
-            const upload = newMap.get(currentUploadId);
-            if (upload) {
-              newMap.set(currentUploadId, {
-                ...upload,
-                progress: {
-                  ...upload.progress,
-                  currentStep: "error",
-                  message:
-                    "File uploaded but AutoRAG processing failed. Please try again.",
-                  autoragStatus: autoragStatus.message,
-                },
-                isPolling: false,
-              });
-            }
-            return newMap;
-          });
-
-          // Update database status to error
-          if (currentUploadId) {
-            const currentUpload = fileUploads.get(currentUploadId);
-            if (currentUpload) {
-              try {
-                const jwt = getStoredJwt();
-                if (jwt) {
-                  // Construct the file_key that was used for R2 upload
                   const tenant = AuthService.getUsernameFromStoredJwt();
                   const fileKey = tenant
                     ? `autorag/${tenant}/${currentUpload.filename}`
@@ -208,7 +126,7 @@ export function ResourceSidePanel({
                       method: "PUT",
                       jwt,
                       body: JSON.stringify({
-                        status: "error",
+                        status: isSuccess ? "processed" : "error",
                       }),
                       headers: {
                         "Content-Type": "application/json",
@@ -218,29 +136,49 @@ export function ResourceSidePanel({
                     .then((response) => {
                       if (!response.response.ok) {
                         console.warn(
-                          "[ResourceSidePanel] Failed to update file status to error in database"
+                          `[ResourceSidePanel] Failed to update file status to ${isSuccess ? "processed" : "error"} in database`
                         );
                       }
                     })
                     .catch((error) => {
                       console.warn(
-                        "[ResourceSidePanel] Failed to update file status to error in database:",
+                        `[ResourceSidePanel] Failed to update file status to ${isSuccess ? "processed" : "error"} in database:`,
                         error
                       );
                     });
                 }
               } catch (error) {
                 console.warn(
-                  "[ResourceSidePanel] Failed to update file status to error in database:",
+                  `[ResourceSidePanel] Failed to update file status to ${isSuccess ? "processed" : "error"} in database:`,
                   error
                 );
               }
             }
           }
+        } else {
+          // Job is still running
+          setFileUploads((prev) => {
+            const newMap = new Map(prev);
+            const upload = newMap.get(currentUploadId);
+            if (upload) {
+              newMap.set(currentUploadId, {
+                ...upload,
+                progress: {
+                  ...upload.progress,
+                  currentStep: "processing",
+                  message:
+                    "File uploaded successfully! AutoRAG is processing and indexing your file...",
+                  autoragStatus: `Processing... (Started: ${new Date(jobStatus.started_at).toLocaleTimeString()})`,
+                },
+                isPolling: true,
+              });
+            }
+            return newMap;
+          });
         }
       }
     }
-  }, [autoragStatus, currentUploadId, fileUploads]);
+  }, [jobStatus, currentUploadId, fileUploads]);
 
   const handleUpload = async (
     file: File,
@@ -330,7 +268,7 @@ export function ResourceSidePanel({
         );
       }
 
-      // Success state - start polling for AutoRAG processing
+      // Success state - trigger AutoRAG sync and start polling
       setFileUploads((prev) => {
         const newMap = new Map(prev);
         const upload = newMap.get(uploadId);
@@ -342,16 +280,65 @@ export function ResourceSidePanel({
               currentStep: "success",
               percentage: 100,
               message:
-                "Upload completed successfully! Starting AutoRAG processing...",
-              autoragStatus: "Starting processing...",
+                "Upload completed successfully! Triggering AutoRAG sync...",
+              autoragStatus: "Triggering sync...",
             },
           });
         }
         return newMap;
       });
 
-      // Start polling for AutoRAG status
-      startPolling(tenant, filename);
+      // Trigger AutoRAG sync and start polling for job status
+      try {
+        const ragId = AUTORAG_CONFIG.LIBRARY_RAG_ID;
+        const jobId = await AutoRAGService.triggerSync(ragId);
+
+        console.log(
+          "[ResourceSidePanel] AutoRAG sync triggered, job_id:",
+          jobId
+        );
+
+        // Update status to show sync was triggered
+        setFileUploads((prev) => {
+          const newMap = new Map(prev);
+          const upload = newMap.get(uploadId);
+          if (upload) {
+            newMap.set(uploadId, {
+              ...upload,
+              progress: {
+                ...upload.progress,
+                message: "AutoRAG sync triggered! Monitoring processing...",
+                autoragStatus: `Sync started (Job: ${jobId})`,
+              },
+            });
+          }
+          return newMap;
+        });
+
+        // Start polling for job status
+        startPolling(ragId, jobId);
+      } catch (syncError) {
+        console.error("[ResourceSidePanel] AutoRAG sync error:", syncError);
+
+        // Update status to show sync failed
+        setFileUploads((prev) => {
+          const newMap = new Map(prev);
+          const upload = newMap.get(uploadId);
+          if (upload) {
+            newMap.set(uploadId, {
+              ...upload,
+              progress: {
+                ...upload.progress,
+                currentStep: "error",
+                message:
+                  "Upload successful but AutoRAG sync failed. File may not be searchable.",
+                autoragStatus: `Sync failed: ${syncError instanceof Error ? syncError.message : "Unknown error"}`,
+              },
+            });
+          }
+          return newMap;
+        });
+      }
 
       // Show processing status for a bit longer, then auto-close
       setTimeout(() => {

@@ -7,36 +7,43 @@ interface FileStatusIndicatorProps {
   tenant: string;
   className?: string;
   initialStatus?: string;
+  jobId?: string;
+  ragId?: string;
 }
 
 export function FileStatusIndicator({
-  filename,
-  tenant,
   className = "",
   initialStatus = "uploaded",
+  jobId,
+  ragId,
 }: FileStatusIndicatorProps) {
   const [showError, setShowError] = useState(false);
-  const { status, isPolling, startPolling, stopPolling } = useAutoRAGPolling();
+  const { jobStatus, isPolling, startPolling, stopPolling } =
+    useAutoRAGPolling();
 
-  // Only start polling if the file is still pending AutoRAG processing
+  // Start polling if we have job details and the file is still pending
   useEffect(() => {
-    if (initialStatus === "uploaded" || initialStatus === "processing") {
-      startPolling(tenant, filename);
+    if (
+      jobId &&
+      ragId &&
+      (initialStatus === "uploaded" || initialStatus === "processing")
+    ) {
+      startPolling(ragId, jobId);
 
-      // Set a timeout to show error after 1 minute if still polling
+      // Set a timeout to show error after 2 minutes if still polling
       const errorTimeout = setTimeout(() => {
         if (isPolling) {
           setShowError(true);
           stopPolling();
         }
-      }, 60000); // 1 minute
+      }, 120000); // 2 minutes
 
       return () => {
         clearTimeout(errorTimeout);
         stopPolling();
       };
     }
-  }, [filename, tenant, startPolling, stopPolling, isPolling, initialStatus]);
+  }, [jobId, ragId, initialStatus, startPolling, stopPolling, isPolling]);
 
   // Determine what to show based on status
   const statusConfig = {
@@ -70,18 +77,23 @@ export function FileStatusIndicator({
     },
   };
 
-  // Priority: showError > AutoRAG API status > database status > default
-  const currentStatus = showError
-    ? "error"
-    : status?.status === "ready"
-      ? "ready"
-      : status?.status === "error"
-        ? "error"
-        : initialStatus === "processed"
-          ? "processed"
-          : initialStatus === "error"
-            ? "error"
-            : "processing";
+  // Get current status
+  let currentStatus: keyof typeof statusConfig;
+
+  if (showError) {
+    currentStatus = "error";
+  } else if (jobStatus?.ended_at) {
+    // Job completed
+    const isSuccess =
+      !jobStatus.end_reason || jobStatus.end_reason === "completed";
+    currentStatus = isSuccess ? "ready" : "error";
+  } else if (jobStatus?.started_at) {
+    // Job is running
+    currentStatus = "processing";
+  } else {
+    // Fall back to initial status
+    currentStatus = initialStatus === "processed" ? "processed" : "processing";
+  }
 
   const config = statusConfig[currentStatus];
   const IconComponent = config.icon;

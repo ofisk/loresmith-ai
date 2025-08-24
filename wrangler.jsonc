@@ -22,8 +22,6 @@
     "STAGING_PREFIX": "staging",
     "READINESS_TIMEOUT_SEC": "600",
     "READINESS_BACKOFF_MS": "2000",
-    "AUTORAG_SEARCH_URL": "https://<autorag-endpoint>/search",
-    "R2_ACCOUNT_ID": "<your-account-id>",
     "PRODUCTION_URL": "https://ofisk.tech",
   },
   "durable_objects": {

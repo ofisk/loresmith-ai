@@ -54,7 +54,15 @@ Then edit `.dev.vars` and provide your credentials:
 ```env
 OPENAI_API_KEY=your_openai_api_key  # Optional - users can provide their own
 ADMIN_SECRET=your_admin_secret_for_file_uploads
+
+# AutoRAG Configuration (optional for local development)
+AUTORAG_API_URL=https://api.cloudflare.com/client/v4
+AUTORAG_ACCOUNT_ID=your_cloudflare_account_id
+AUTORAG_SEARCH_URL=your_autorag_search_endpoint
+AUTORAG_API_TOKEN=your_autorag_api_token  # Ensure .dev.vars is in .gitignore
 ```
+
+**Security Note**: For production, use Cloudflare Dashboard Environment Variables instead of storing tokens in `.vars` files.
 
 ### OpenAI API Key Configuration
 
@@ -230,6 +238,15 @@ For local development, create a `.dev.vars` file with the following variables:
 - `VITE_API_URL`: API URL for local development (default: `http://localhost:8787`)
 - `CORS_ALLOWED_ORIGINS`: CORS origins for local development (default: `http://localhost:5173,http://localhost:5174`)
 
+**AutoRAG Configuration (Local Development):**
+
+- `AUTORAG_API_URL`: Cloudflare AutoRAG API base URL (default: `https://api.cloudflare.com/client/v4`)
+- `AUTORAG_ACCOUNT_ID`: Your Cloudflare account ID
+- `AUTORAG_SEARCH_URL`: Your AutoRAG service search endpoint
+- `AUTORAG_API_TOKEN`: Your AutoRAG API token (ensure `.dev.vars` is in `.gitignore`)
+
+**Security Note**: For production, use Cloudflare Dashboard Environment Variables instead of storing tokens in `.vars` files.
+
 #### Production (`.vars`)
 
 For production deployment, the `.vars` file contains the following variables:
@@ -238,13 +255,46 @@ For production deployment, the `.vars` file contains the following variables:
 - `CORS_ALLOWED_ORIGINS`: Production CORS origins (e.g., `https://ofisk.tech`)
 - `OPENAI_API_KEY`: Optional default OpenAI API key (commented out by default - users provide their own)
 
-**Note**: The `.vars` file is automatically ignored by git for security. The `ADMIN_SECRET` is managed via Cloudflare Secrets Store in production and should not be included in the `.vars` file.
+**AutoRAG Configuration (Production):**
+
+- `AUTORAG_API_URL`: Cloudflare AutoRAG API base URL (default: `https://api.cloudflare.com/client/v4`)
+- `AUTORAG_ACCOUNT_ID`: Your Cloudflare account ID
+- `AUTORAG_SEARCH_URL`: Your AutoRAG service search endpoint
+- `AUTORAG_API_TOKEN`: **DO NOT put this in .vars file!** Use Cloudflare Dashboard Environment Variables instead.
+
+**Security Note**: The `.vars` file is automatically ignored by git for security. The `ADMIN_SECRET` and `AUTORAG_API_TOKEN` are managed via Cloudflare Secrets Store or Dashboard Environment Variables in production and should not be included in the `.vars` file.
 
 ### Cloudflare Resources
 
 - **R2 Bucket**: `loresmith-files` for file storage
 - **Durable Objects**: `Chat` and `SessionFileTracker` for state management
 - **Workers**: Main application deployment
+- **AI Binding**: Cloudflare AI Gateway for AI model calls
+- **AutoRAG**: Cloudflare AutoRAG service for document processing and search
+
+### AutoRAG Configuration
+
+The application integrates with Cloudflare AutoRAG for enhanced document processing:
+
+#### **Security Best Practices:**
+
+1. **Never commit API tokens to Git** - Use Cloudflare Dashboard Environment Variables
+2. **Local Development**: Store tokens in `.dev.vars` (ensure it's in `.gitignore`)
+3. **Production**: Use Cloudflare Dashboard → Workers & Pages → Settings → Environment Variables
+
+#### **Setup Steps:**
+
+1. **Get Your Account ID**: Found in dashboard URL: `dash.cloudflare.com/<account-id>`
+2. **Create AutoRAG Service**: Set up AutoRAG in your Cloudflare account
+3. **Generate API Token**: Create token with appropriate permissions
+4. **Configure Environment Variables**: Set in Cloudflare Dashboard or local `.dev.vars`
+
+#### **API Endpoints:**
+
+- **Sync**: `PATCH /autorag/rags/{ragId}/sync` - Triggers document processing
+- **Job Status**: `GET /autorag/rags/{ragId}/jobs/{jobId}` - Monitors processing progress
+- **Job Logs**: `GET /autorag/rags/{ragId}/jobs/{jobId}/logs` - Detailed processing logs
+- **Jobs List**: `GET /autorag/rags/{ragId}/jobs` - List all processing jobs
 
 ## Development
 
