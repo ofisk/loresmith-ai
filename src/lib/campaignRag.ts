@@ -225,15 +225,4 @@ export class CampaignRAGService extends BaseRAGService {
 
     return results as unknown as CampaignContextChunk[];
   }
-
-  /**
-   * Update processing status (no-op for campaign RAG)
-   */
-  protected async updateStatus(
-    _identifier: string,
-    _status: string
-  ): Promise<void> {
-    // Campaign RAG doesn't need status tracking
-    // This is a no-op implementation
-  }
 }

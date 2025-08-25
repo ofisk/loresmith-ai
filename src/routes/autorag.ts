@@ -2,6 +2,90 @@ import type { Context } from "hono";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { AUTORAG_CONFIG } from "../shared";
+import { FileAnalysisOrchestrator } from "../services/file-analysis-orchestrator";
+import { FileAnalysisService } from "../services/file-analysis-service";
+import { FileDAO } from "../dao/file-dao";
+
+async function triggerAutoRAGSync(
+  env: any,
+  accountId: string,
+  apiUrl: string
+): Promise<AutoRAGSyncResponse> {
+  const syncUrl = AUTORAG_CONFIG.buildLibraryAutoRAGUrl(
+    accountId,
+    apiUrl,
+    "/sync"
+  );
+  console.log(`[AutoRAG] Calling sync API: ${syncUrl}`);
+
+  const response = await fetch(syncUrl, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.AUTORAG_API_TOKEN}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`AutoRAG sync API failed: ${response.status} ${errorText}`);
+  }
+
+  return (await response.json()) as AutoRAGSyncResponse;
+}
+
+/**
+ * Helper function to trigger file analysis based on available information
+ */
+async function triggerFileAnalysis(
+  username: string,
+  filename: string | undefined,
+  env: any
+): Promise<void> {
+  try {
+    const fileAnalysisService = new FileAnalysisService(env);
+    const fileDAO = new FileDAO(env.DB);
+    const orchestrator = new FileAnalysisOrchestrator(
+      fileAnalysisService,
+      fileDAO
+    );
+
+    // If we have a filename from upload, analyze only that specific file
+    if (filename) {
+      console.log(
+        `[AutoRAG] Filename provided: ${filename}, analyzing only this file`
+      );
+
+      const fileKey = `${username}/${filename}`;
+      orchestrator.analyzeFiles([fileKey], username).catch((error: any) => {
+        console.error(
+          `[AutoRAG] Error triggering file analysis for ${filename}:`,
+          error
+        );
+      });
+      return;
+    }
+
+    // No filename provided - fall back to analyzing all indexed files
+    // In a proper workflow, the filename should be passed through each step
+    console.log(
+      `[AutoRAG] No filename provided, falling back to full analysis`
+    );
+    orchestrator
+      .triggerAnalysisForIndexedFiles(username)
+      .catch((error: any) => {
+        console.error(`[AutoRAG] Error triggering file analysis:`, error);
+      });
+
+    console.log(`[AutoRAG] File analysis triggered for user ${username}`);
+  } catch (analysisError) {
+    console.warn(
+      `[AutoRAG] Could not trigger file analysis after sync:`,
+      analysisError
+    );
+    // Don't fail the sync request if analysis setup fails
+  }
+}
 
 // AutoRAG API response types
 interface AutoRAGSyncResponse {
@@ -63,6 +147,9 @@ export async function handleAutoRAGSync(c: ContextWithAuth) {
     const ragId = c.req.param("ragId");
     const username = (c as any).userAuth.username;
 
+    // Get filename from query params if available (from upload)
+    const filename = c.req.query("filename");
+
     console.log(
       `[AutoRAG] Triggering sync for RAG ID: ${ragId}, user: ${username}`
     );
@@ -75,30 +162,8 @@ export async function handleAutoRAGSync(c: ContextWithAuth) {
       throw new Error("AutoRAG configuration missing: ACCOUNT_ID or API_URL");
     }
 
-    // Use a consistent RAG ID for the library instead of the filename
-    const syncUrl = AUTORAG_CONFIG.buildLibraryAutoRAGUrl(
-      accountId,
-      apiUrl,
-      "/sync"
-    );
-    console.log(`[AutoRAG] Calling sync API: ${syncUrl}`);
-
-    const response = await fetch(syncUrl, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${c.env.AUTORAG_API_TOKEN}`,
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `AutoRAG sync API failed: ${response.status} ${errorText}`
-      );
-    }
-
-    const result = (await response.json()) as AutoRAGSyncResponse;
+    // Trigger AutoRAG sync
+    const result = await triggerAutoRAGSync(c.env, accountId, apiUrl);
     console.log(`[AutoRAG] Sync API response:`, result);
 
     if (!result.success || !result.result?.job_id) {
@@ -108,6 +173,9 @@ export async function handleAutoRAGSync(c: ContextWithAuth) {
     console.log(
       `[AutoRAG] Sync triggered successfully, job_id: ${result.result.job_id}`
     );
+
+    // Automatically trigger file analysis after successful sync
+    await triggerFileAnalysis(username, filename, c.env);
 
     return c.json({
       success: true,

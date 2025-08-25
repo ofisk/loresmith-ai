@@ -11,12 +11,9 @@ export class LibraryRAGService extends BaseRAGService {
   private ai: any;
 
   constructor(env: Env) {
-    super(env.DB, env.VECTORIZE, env.OPENAI_API_KEY || "");
+    super(env.DB, env.VECTORIZE, env.OPENAI_API_KEY || "", env);
     this.ai = env.AI;
-    this.env = env;
   }
-
-  private env: Env;
 
   async processFile(metadata: FileMetadata): Promise<{
     description: string;
@@ -554,20 +551,6 @@ SUGGESTIONS: [suggestion1, suggestion2, suggestion3]
         error
       );
       return undefined;
-    }
-  }
-
-  protected async updateStatus(
-    identifier: string,
-    status: string
-  ): Promise<void> {
-    try {
-      const fileDAO = getDAOFactory(this.env).fileDAO;
-      // Note: This method needs to be updated to work with the files table
-      // For now, we'll use the existing updateFileRecord method
-      await fileDAO.updateFileRecord(identifier, status);
-    } catch (error) {
-      console.error(`[LibraryRAGService] Error updating status:`, error);
     }
   }
 

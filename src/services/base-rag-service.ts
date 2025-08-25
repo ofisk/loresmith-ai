@@ -15,13 +15,16 @@ import { DatabaseUtils } from "../lib/dbUtils";
  */
 export abstract class BaseRAGService {
   protected dbUtils: DatabaseUtils;
+  protected env?: any;
 
   constructor(
     protected db: D1Database,
     protected vectorize: VectorizeIndex,
-    protected openaiApiKey: string
+    protected openaiApiKey: string,
+    env?: any
   ) {
     this.dbUtils = new DatabaseUtils(db);
+    this.env = env;
   }
 
   /**
@@ -111,17 +114,32 @@ export abstract class BaseRAGService {
   }
 
   /**
-   * Update status in database (to be implemented by subclasses)
+   * Update status in database (default implementation, can be overridden by subclasses)
    */
-  protected abstract updateStatus(
+  protected async updateStatus(
     identifier: string,
     status: string
-  ): Promise<void>;
-
-  /**
-   * Get chunks by IDs (to be implemented by subclasses)
-   */
-  protected abstract getChunksByIds(ids: string[]): Promise<any[]>;
+  ): Promise<void> {
+    try {
+      // Try to update file record if fileDAO is available
+      if (this.env && this.env.DB) {
+        const { getDAOFactory } = await import("../dao/dao-factory");
+        const fileDAO = getDAOFactory(this.env).fileDAO;
+        await fileDAO.updateFileRecord(identifier, status);
+      } else {
+        // Fallback to logging if no database access
+        console.log(
+          `[BaseRAGService] Status update for ${identifier}: ${status}`
+        );
+      }
+    } catch (error) {
+      console.error(`[BaseRAGService] Error updating status:`, error);
+      // Fallback to logging on error
+      console.log(
+        `[BaseRAGService] Status update for ${identifier}: ${status}`
+      );
+    }
+  }
 
   /**
    * Validate that the service has required dependencies
@@ -154,5 +172,53 @@ export abstract class BaseRAGService {
    */
   protected logOperation(operation: string, details?: any): void {
     console.log(`[BaseRAGService] ${operation}`, details);
+  }
+
+  /**
+   * Query Cloudflare AutoRAG with a search prompt
+   * This is a generic method that can be used by any service that needs to query AutoRAG
+   */
+  protected async queryAutoRAG(
+    prompt: string,
+    searchUrl: string,
+    apiToken: string,
+    options: {
+      maxResults?: number;
+      includeMetadata?: boolean;
+      includeChunks?: boolean;
+    } = {}
+  ): Promise<any> {
+    if (!searchUrl || !apiToken) {
+      throw new Error("AutoRAG search configuration not available");
+    }
+
+    const {
+      maxResults = 5,
+      includeMetadata = true,
+      includeChunks = false,
+    } = options;
+
+    const response = await fetch(searchUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: prompt,
+        max_results: maxResults,
+        search_options: {
+          include_metadata: includeMetadata,
+          include_chunks: includeChunks,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`AutoRAG search failed: ${response.status} ${errorText}`);
+    }
+
+    return await response.json();
   }
 }

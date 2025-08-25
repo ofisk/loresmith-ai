@@ -222,6 +222,14 @@ export const API_CONFIG = {
         `/autorag/rags/${ragId}/jobs/${jobId}/logs`,
       JOBS: (ragId: string) => `/autorag/rags/${ragId}/jobs`,
     },
+    FILE_ANALYSIS: {
+      BASE: "/file-analysis",
+      ANALYZE: (fileKey: string) => `/file-analysis/analyze/${fileKey}`,
+      STATUS: (fileKey: string) => `/file-analysis/status/${fileKey}`,
+      PENDING: "/file-analysis/pending",
+      RECOMMENDATIONS: "/file-analysis/recommendations",
+      ANALYZE_ALL: "/file-analysis/analyze-all",
+    },
   },
 } as const;
 
