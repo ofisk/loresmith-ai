@@ -731,14 +731,6 @@ export function ResourceSidePanel({
             <button
               type="button"
               onClick={() => setIsCreateCampaignModalOpen(false)}
-              onKeyDown={(e) => {
-                if (e.key === "Tab" && !e.shiftKey) {
-                  e.preventDefault();
-                  (
-                    document.querySelector(`#${campaignNameId}`) as HTMLElement
-                  )?.focus();
-                }
-              }}
               className="w-40 px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
             >
               Cancel
@@ -747,6 +739,14 @@ export function ResourceSidePanel({
               type="button"
               onClick={handleCreateCampaign}
               disabled={!campaignName.trim()}
+              onKeyDown={(e) => {
+                if (e.key === "Tab" && !e.shiftKey) {
+                  e.preventDefault();
+                  (
+                    document.querySelector(`#${campaignNameId}`) as HTMLElement
+                  )?.focus();
+                }
+              }}
               className="w-40 px-3 py-1.5 bg-purple-600 dark:bg-purple-700 text-white rounded hover:bg-purple-700 dark:hover:bg-purple-800 transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-purple-600 dark:disabled:hover:bg-purple-700"
             >
               Create
