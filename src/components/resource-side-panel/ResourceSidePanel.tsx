@@ -1,4 +1,4 @@
-import { useState, useEffect, useId } from "react";
+import { useState, useEffect, useId, useCallback } from "react";
 import {
   CaretDown,
   CaretRight,
@@ -22,6 +22,7 @@ import {
 import { AutoRAGService } from "../../services/autorag-service";
 import { API_CONFIG, AUTORAG_CONFIG } from "../../shared";
 import { useAutoRAGPolling } from "../../hooks/useAutoRAGPolling";
+import type { Campaign } from "../../types/campaign";
 
 interface ResourceSidePanelProps {
   className?: string;
@@ -72,6 +73,9 @@ export function ResourceSidePanel({
   const [isCreateCampaignModalOpen, setIsCreateCampaignModalOpen] =
     useState(false);
   const [campaignName, setCampaignName] = useState("");
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
+  const [campaignsError, setCampaignsError] = useState<string | null>(null);
   const [fileUploads, setFileUploads] = useState<Map<string, FileUpload>>(
     new Map()
   );
@@ -80,21 +84,100 @@ export function ResourceSidePanel({
   // AutoRAG job polling hook
   const { jobStatus, startPolling } = useAutoRAGPolling();
 
+  // Fetch campaigns
+  const fetchCampaigns = useCallback(async () => {
+    if (!isAuthenticated) return;
+
+    try {
+      setCampaignsLoading(true);
+      setCampaignsError(null);
+
+      const jwt = getStoredJwt();
+      if (!jwt) {
+        setCampaignsError("No authentication token available");
+        return;
+      }
+
+      const response = await authenticatedFetchWithExpiration(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
+        { jwt }
+      );
+
+      if (!response.response.ok) {
+        throw new Error(
+          `Failed to fetch campaigns: ${response.response.status}`
+        );
+      }
+
+      const data = (await response.response.json()) as {
+        campaigns: Campaign[];
+      };
+      setCampaigns(data.campaigns || []);
+    } catch (error) {
+      console.error("Failed to fetch campaigns:", error);
+      setCampaignsError(
+        error instanceof Error ? error.message : "Failed to fetch campaigns"
+      );
+    } finally {
+      setCampaignsLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  // Fetch campaigns when campaigns section is opened
+  useEffect(() => {
+    if (isCampaignsOpen && isAuthenticated) {
+      fetchCampaigns();
+    }
+  }, [isCampaignsOpen, isAuthenticated, fetchCampaigns]);
+
   const handleCreateCampaign = async () => {
     if (!campaignName.trim()) return;
 
     try {
-      // TODO: Implement actual campaign creation API call
+      const jwt = getStoredJwt();
+      if (!jwt) {
+        console.error("No JWT token available");
+        return;
+      }
+
       console.log("Creating campaign:", {
         name: campaignName,
         description: "",
       });
 
-      // For now, just close the modal and reset form
+      const response = await authenticatedFetchWithExpiration(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.CREATE),
+        {
+          method: "POST",
+          jwt,
+          body: JSON.stringify({
+            name: campaignName,
+            description: "",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.response.ok) {
+        throw new Error(
+          `Failed to create campaign: ${response.response.status}`
+        );
+      }
+
+      const data = await response.response.json();
+      console.log("Campaign created successfully:", data);
+
+      // Close modal and reset form
       setIsCreateCampaignModalOpen(false);
       setCampaignName("");
 
-      // TODO: Add success notification and refresh campaigns list
+      // Refresh campaigns list
+      await fetchCampaigns();
+
+      // Show success feedback (you can replace this with a proper notification system)
+      console.log("Campaign created successfully!");
     } catch (error) {
       console.error("Failed to create campaign:", error);
       // TODO: Add error notification
@@ -493,14 +576,53 @@ export function ResourceSidePanel({
                       Create campaign
                     </button>
                   </div>
-                  <div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">
-                    <div className="text-gray-500 mb-2">
-                      The war room awaits
+                  {campaignsLoading ? (
+                    <div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">
+                      <div className="text-gray-500 mb-2">
+                        Loading campaigns...
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-400">
-                      Forge your first campaign to begin the adventure
-                    </p>
-                  </div>
+                  ) : campaignsError ? (
+                    <div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">
+                      <div className="text-red-500 mb-2">
+                        Error loading campaigns
+                      </div>
+                      <p className="text-sm text-gray-400">{campaignsError}</p>
+                      <button
+                        type="button"
+                        onClick={fetchCampaigns}
+                        className="mt-2 text-sm text-purple-600 hover:text-purple-700 underline"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  ) : campaigns.length === 0 ? (
+                    <div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">
+                      <div className="text-gray-500 mb-2">
+                        The war room awaits
+                      </div>
+                      <p className="text-sm text-gray-400">
+                        Forge your first campaign to begin the adventure
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="border-t border-neutral-200 dark:border-neutral-700">
+                      {campaigns.map((campaign) => (
+                        <div
+                          key={campaign.campaignId}
+                          className="p-3 border-b border-neutral-200 dark:border-neutral-700 last:border-b-0 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                        >
+                          <div className="font-medium text-gray-900 dark:text-gray-100">
+                            {campaign.name}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            Created{" "}
+                            {new Date(campaign.createdAt).toLocaleString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
