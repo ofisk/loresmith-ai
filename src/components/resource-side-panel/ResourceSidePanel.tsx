@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 import {
   CaretDown,
   CaretRight,
@@ -63,10 +63,15 @@ export function ResourceSidePanel({
   showUserMenu = false,
   setShowUserMenu,
 }: ResourceSidePanelProps) {
+  const campaignNameId = useId();
+  const campaignDescriptionId = useId();
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isCampaignsOpen, setIsCampaignsOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isCreateCampaignModalOpen, setIsCreateCampaignModalOpen] =
+    useState(false);
+  const [campaignName, setCampaignName] = useState("");
   const [fileUploads, setFileUploads] = useState<Map<string, FileUpload>>(
     new Map()
   );
@@ -74,6 +79,27 @@ export function ResourceSidePanel({
 
   // AutoRAG job polling hook
   const { jobStatus, startPolling } = useAutoRAGPolling();
+
+  const handleCreateCampaign = async () => {
+    if (!campaignName.trim()) return;
+
+    try {
+      // TODO: Implement actual campaign creation API call
+      console.log("Creating campaign:", {
+        name: campaignName,
+        description: "",
+      });
+
+      // For now, just close the modal and reset form
+      setIsCreateCampaignModalOpen(false);
+      setCampaignName("");
+
+      // TODO: Add success notification and refresh campaigns list
+    } catch (error) {
+      console.error("Failed to create campaign:", error);
+      // TODO: Add error notification
+    }
+  };
 
   // Update upload progress based on AutoRAG job status
   useEffect(() => {
@@ -460,6 +486,7 @@ export function ResourceSidePanel({
                   <div className="p-3">
                     <button
                       type="button"
+                      onClick={() => setIsCreateCampaignModalOpen(true)}
                       className="w-full px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
                     >
                       <Plus size={14} />
@@ -506,7 +533,7 @@ export function ResourceSidePanel({
                     <button
                       type="button"
                       onClick={() => setIsAddModalOpen(true)}
-                      className="w-full px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+                      className="w-40 px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
                     >
                       <Plus size={14} />
                       Add to library
@@ -647,6 +674,84 @@ export function ResourceSidePanel({
             className="border-0 p-0 shadow-none"
             jwtUsername={AuthService.getUsernameFromStoredJwt()}
           />
+        </div>
+      </Modal>
+
+      {/* Create Campaign Modal */}
+      <Modal
+        isOpen={isCreateCampaignModalOpen}
+        onClose={() => setIsCreateCampaignModalOpen(false)}
+        cardStyle={{ width: 480, height: 400 }}
+      >
+        <div className="space-y-4">
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              Create new campaign
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Set up your campaign details to get started
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label
+                htmlFor={campaignNameId}
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              >
+                Campaign name
+              </label>
+              <input
+                id={campaignNameId}
+                type="text"
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+                placeholder="Enter campaign name"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor={campaignDescriptionId}
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              >
+                Description (optional)
+              </label>
+              <textarea
+                id={campaignDescriptionId}
+                placeholder="Describe your campaign"
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-4 justify-center">
+            <button
+              type="button"
+              onClick={() => setIsCreateCampaignModalOpen(false)}
+              onKeyDown={(e) => {
+                if (e.key === "Tab" && !e.shiftKey) {
+                  e.preventDefault();
+                  (
+                    document.querySelector(`#${campaignNameId}`) as HTMLElement
+                  )?.focus();
+                }
+              }}
+              className="w-40 px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleCreateCampaign}
+              disabled={!campaignName.trim()}
+              className="w-40 px-3 py-1.5 bg-purple-600 dark:bg-purple-700 text-white rounded hover:bg-purple-700 dark:hover:bg-purple-800 transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-purple-600 dark:disabled:hover:bg-purple-700"
+            >
+              Create
+            </button>
+          </div>
         </div>
       </Modal>
     </div>
