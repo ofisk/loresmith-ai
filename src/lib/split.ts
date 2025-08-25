@@ -154,7 +154,7 @@ export class FileSplitter {
         );
 
         const copiedPages = await shardDoc.copyPages(pdfDoc, pageIndices);
-        copiedPages.forEach((page) => {
+        copiedPages.forEach((page: any) => {
           shardDoc.addPage(page);
         });
 

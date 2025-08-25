@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId, useCallback } from "react";
 import {
   CaretDown,
   CaretRight,
@@ -22,6 +22,7 @@ import {
 import { AutoRAGService } from "../../services/autorag-service";
 import { API_CONFIG, AUTORAG_CONFIG } from "../../shared";
 import { useAutoRAGPolling } from "../../hooks/useAutoRAGPolling";
+import type { Campaign } from "../../types/campaign";
 
 interface ResourceSidePanelProps {
   className?: string;
@@ -63,9 +64,18 @@ export function ResourceSidePanel({
   showUserMenu = false,
   setShowUserMenu,
 }: ResourceSidePanelProps) {
-  const [isLibraryOpen, setIsLibraryOpen] = useState(true);
+  const campaignNameId = useId();
+  const campaignDescriptionId = useId();
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [isCampaignsOpen, setIsCampaignsOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isCreateCampaignModalOpen, setIsCreateCampaignModalOpen] =
+    useState(false);
+  const [campaignName, setCampaignName] = useState("");
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
+  const [campaignsError, setCampaignsError] = useState<string | null>(null);
   const [fileUploads, setFileUploads] = useState<Map<string, FileUpload>>(
     new Map()
   );
@@ -73,6 +83,106 @@ export function ResourceSidePanel({
 
   // AutoRAG job polling hook
   const { jobStatus, startPolling } = useAutoRAGPolling();
+
+  // Fetch campaigns
+  const fetchCampaigns = useCallback(async () => {
+    if (!isAuthenticated) return;
+
+    try {
+      setCampaignsLoading(true);
+      setCampaignsError(null);
+
+      const jwt = getStoredJwt();
+      if (!jwt) {
+        setCampaignsError("No authentication token available");
+        return;
+      }
+
+      const response = await authenticatedFetchWithExpiration(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
+        { jwt }
+      );
+
+      if (!response.response.ok) {
+        throw new Error(
+          `Failed to fetch campaigns: ${response.response.status}`
+        );
+      }
+
+      const data = (await response.response.json()) as {
+        campaigns: Campaign[];
+      };
+      setCampaigns(data.campaigns || []);
+    } catch (error) {
+      console.error("Failed to fetch campaigns:", error);
+      setCampaignsError(
+        error instanceof Error ? error.message : "Failed to fetch campaigns"
+      );
+    } finally {
+      setCampaignsLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  // Fetch campaigns when campaigns section is opened
+  useEffect(() => {
+    if (isCampaignsOpen && isAuthenticated) {
+      fetchCampaigns();
+    }
+  }, [isCampaignsOpen, isAuthenticated, fetchCampaigns]);
+
+  const handleCreateCampaign = async () => {
+    if (!campaignName.trim()) return;
+
+    try {
+      const jwt = getStoredJwt();
+      if (!jwt) {
+        console.error("No JWT token available");
+        return;
+      }
+
+      console.log("Creating campaign:", {
+        name: campaignName,
+        description: "",
+      });
+
+      const response = await authenticatedFetchWithExpiration(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.CREATE),
+        {
+          method: "POST",
+          jwt,
+          body: JSON.stringify({
+            name: campaignName,
+            description: "",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.response.ok) {
+        throw new Error(
+          `Failed to create campaign: ${response.response.status}`
+        );
+      }
+
+      const data = await response.response.json();
+      console.log("Campaign created successfully:", data);
+
+      // Close modal and reset form
+      setIsCreateCampaignModalOpen(false);
+      setCampaignName("");
+
+      // Refresh campaigns list
+      await fetchCampaigns();
+
+      // Show success feedback (you can replace this with a proper notification system)
+      console.log("Campaign created successfully!");
+    } catch (error) {
+      console.error("Failed to create campaign:", error);
+      // TODO: Add error notification
+    }
+  };
 
   // Update upload progress based on AutoRAG job status
   useEffect(() => {
@@ -433,21 +543,98 @@ export function ResourceSidePanel({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Upload Section */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {/* Campaigns Section */}
         <Card className="p-0">
           <button
             type="button"
-            onClick={() => setIsAddModalOpen(true)}
-            className="w-full p-3 flex items-center gap-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            onClick={() => setIsCampaignsOpen(!isCampaignsOpen)}
+            className="w-full p-3 flex items-center justify-between text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           >
-            <Plus size={16} className="text-purple-500" />
-            <span className="font-medium">Add to library</span>
+            <div className="flex items-center gap-2">
+              <FileText size={16} className="text-purple-600" />
+              <span className="font-medium">Your campaigns</span>
+            </div>
+            {isCampaignsOpen ? (
+              <CaretDown size={16} />
+            ) : (
+              <CaretRight size={16} />
+            )}
           </button>
+
+          {isCampaignsOpen && (
+            <div className="border-t border-neutral-200 dark:border-neutral-700 h-96 overflow-y-auto">
+              {isAuthenticated ? (
+                <>
+                  <div className="p-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsCreateCampaignModalOpen(true)}
+                      className="w-full px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+                    >
+                      <Plus size={14} />
+                      Create campaign
+                    </button>
+                  </div>
+                  {campaignsLoading ? (
+                    <div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">
+                      <div className="text-gray-500 mb-2">
+                        Loading campaigns...
+                      </div>
+                    </div>
+                  ) : campaignsError ? (
+                    <div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">
+                      <div className="text-red-500 mb-2">
+                        Error loading campaigns
+                      </div>
+                      <p className="text-sm text-gray-400">{campaignsError}</p>
+                      <button
+                        type="button"
+                        onClick={fetchCampaigns}
+                        className="mt-2 text-sm text-purple-600 hover:text-purple-700 underline"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  ) : campaigns.length === 0 ? (
+                    <div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">
+                      <div className="text-gray-500 mb-2">
+                        The war room awaits
+                      </div>
+                      <p className="text-sm text-gray-400">
+                        Forge your first campaign to begin the adventure
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="border-t border-neutral-200 dark:border-neutral-700">
+                      {campaigns.map((campaign) => (
+                        <div
+                          key={campaign.campaignId}
+                          className="p-3 border-b border-neutral-200 dark:border-neutral-700 last:border-b-0 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                        >
+                          <div className="font-medium text-gray-900 dark:text-gray-100">
+                            {campaign.name}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            Created{" "}
+                            {new Date(campaign.createdAt).toLocaleString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                  Please log in to view campaigns
+                </div>
+              )}
+            </div>
+          )}
         </Card>
 
         {/* Resources Section */}
-        <Card className="p-0">
+        <Card className="p-0 border-t border-neutral-200 dark:border-neutral-700">
           <button
             type="button"
             onClick={() => setIsLibraryOpen(!isLibraryOpen)}
@@ -455,7 +642,7 @@ export function ResourceSidePanel({
           >
             <div className="flex items-center gap-2">
               <FileText size={16} className="text-purple-600" />
-              <span className="font-medium">Your library</span>
+              <span className="font-medium">Your resource library</span>
             </div>
             {isLibraryOpen ? <CaretDown size={16} /> : <CaretRight size={16} />}
           </button>
@@ -463,7 +650,22 @@ export function ResourceSidePanel({
           {isLibraryOpen && (
             <div className="border-t border-neutral-200 dark:border-neutral-700 h-96 overflow-y-auto">
               {isAuthenticated ? (
-                <ResourceList refreshTrigger={refreshTrigger} />
+                <>
+                  <div className="p-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddModalOpen(true)}
+                      className="w-40 px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+                    >
+                      <Plus size={14} />
+                      Add to library
+                    </button>
+                  </div>
+                  <div className="border-t border-neutral-200 dark:border-neutral-700">
+                    <ResourceList refreshTrigger={refreshTrigger} />
+                    <StorageTracker />
+                  </div>
+                </>
               ) : (
                 <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
                   Please log in to view your library
@@ -472,8 +674,6 @@ export function ResourceSidePanel({
             </div>
           )}
         </Card>
-
-        {isAuthenticated && <StorageTracker />}
       </div>
 
       {/* Username Display and Menu - At the very bottom */}
@@ -596,6 +796,84 @@ export function ResourceSidePanel({
             className="border-0 p-0 shadow-none"
             jwtUsername={AuthService.getUsernameFromStoredJwt()}
           />
+        </div>
+      </Modal>
+
+      {/* Create Campaign Modal */}
+      <Modal
+        isOpen={isCreateCampaignModalOpen}
+        onClose={() => setIsCreateCampaignModalOpen(false)}
+        cardStyle={{ width: 480, height: 400 }}
+      >
+        <div className="space-y-4">
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              Create new campaign
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Set up your campaign details to get started
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label
+                htmlFor={campaignNameId}
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              >
+                Campaign name
+              </label>
+              <input
+                id={campaignNameId}
+                type="text"
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+                placeholder="Enter campaign name"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor={campaignDescriptionId}
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              >
+                Description (optional)
+              </label>
+              <textarea
+                id={campaignDescriptionId}
+                placeholder="Describe your campaign"
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-4 justify-center">
+            <button
+              type="button"
+              onClick={() => setIsCreateCampaignModalOpen(false)}
+              className="w-40 px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleCreateCampaign}
+              disabled={!campaignName.trim()}
+              onKeyDown={(e) => {
+                if (e.key === "Tab" && !e.shiftKey) {
+                  e.preventDefault();
+                  (
+                    document.querySelector(`#${campaignNameId}`) as HTMLElement
+                  )?.focus();
+                }
+              }}
+              className="w-40 px-3 py-1.5 bg-purple-600 dark:bg-purple-700 text-white rounded hover:bg-purple-700 dark:hover:bg-purple-800 transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-purple-600 dark:disabled:hover:bg-purple-700"
+            >
+              Create
+            </button>
+          </div>
         </div>
       </Modal>
     </div>
