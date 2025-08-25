@@ -63,7 +63,8 @@ export function ResourceSidePanel({
   showUserMenu = false,
   setShowUserMenu,
 }: ResourceSidePanelProps) {
-  const [isLibraryOpen, setIsLibraryOpen] = useState(true);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [isCampaignsOpen, setIsCampaignsOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [fileUploads, setFileUploads] = useState<Map<string, FileUpload>>(
@@ -434,20 +435,57 @@ export function ResourceSidePanel({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
-        {/* Upload Section */}
+        {/* Campaigns Section */}
         <Card className="p-0">
           <button
             type="button"
-            onClick={() => setIsAddModalOpen(true)}
-            className="w-full p-3 flex items-center gap-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            onClick={() => setIsCampaignsOpen(!isCampaignsOpen)}
+            className="w-full p-3 flex items-center justify-between text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           >
-            <Plus size={16} className="text-purple-500" />
-            <span className="font-medium">Add to library</span>
+            <div className="flex items-center gap-2">
+              <FileText size={16} className="text-purple-600" />
+              <span className="font-medium">Your campaigns</span>
+            </div>
+            {isCampaignsOpen ? (
+              <CaretDown size={16} />
+            ) : (
+              <CaretRight size={16} />
+            )}
           </button>
+
+          {isCampaignsOpen && (
+            <div className="border-t border-neutral-200 dark:border-neutral-700 h-96 overflow-y-auto">
+              {isAuthenticated ? (
+                <>
+                  <div className="p-3">
+                    <button
+                      type="button"
+                      className="w-full px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+                    >
+                      <Plus size={14} />
+                      Create campaign
+                    </button>
+                  </div>
+                  <div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">
+                    <div className="text-gray-500 mb-2">
+                      The war room awaits
+                    </div>
+                    <p className="text-sm text-gray-400">
+                      Forge your first campaign to begin the adventure
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                  Please log in to view campaigns
+                </div>
+              )}
+            </div>
+          )}
         </Card>
 
         {/* Resources Section */}
-        <Card className="p-0 -mt-4">
+        <Card className="p-0 border-t border-neutral-200 dark:border-neutral-700">
           <button
             type="button"
             onClick={() => setIsLibraryOpen(!isLibraryOpen)}
@@ -455,7 +493,7 @@ export function ResourceSidePanel({
           >
             <div className="flex items-center gap-2">
               <FileText size={16} className="text-purple-600" />
-              <span className="font-medium">Your library</span>
+              <span className="font-medium">Your resource library</span>
             </div>
             {isLibraryOpen ? <CaretDown size={16} /> : <CaretRight size={16} />}
           </button>
@@ -464,8 +502,20 @@ export function ResourceSidePanel({
             <div className="border-t border-neutral-200 dark:border-neutral-700 h-96 overflow-y-auto">
               {isAuthenticated ? (
                 <>
-                  <ResourceList refreshTrigger={refreshTrigger} />
-                  <StorageTracker />
+                  <div className="p-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddModalOpen(true)}
+                      className="w-full px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+                    >
+                      <Plus size={14} />
+                      Add to library
+                    </button>
+                  </div>
+                  <div className="border-t border-neutral-200 dark:border-neutral-700">
+                    <ResourceList refreshTrigger={refreshTrigger} />
+                    <StorageTracker />
+                  </div>
                 </>
               ) : (
                 <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
