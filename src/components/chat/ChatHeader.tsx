@@ -1,25 +1,26 @@
 import { Bug, Moon, Sun, Trash } from "@phosphor-icons/react";
-import loresmith from "@/assets/loresmith.png";
-import { Button } from "@/components/button/Button";
-import { HelpButton } from "@/components/help/HelpButton";
-import { useTheme } from "@/components/theme/ThemeProvider";
-import { Toggle } from "@/components/toggle/Toggle";
+import loresmith from "../../assets/loresmith.png";
+import { Button } from "../button/Button";
+import { HelpButton } from "../help/HelpButton";
+import { Toggle } from "../toggle/Toggle";
 
 interface ChatHeaderProps {
   showDebug: boolean;
-  setShowDebug: React.Dispatch<React.SetStateAction<boolean>>;
-  onHelpAction: (action: string) => void;
-  onClearHistory: () => void;
+  setShowDebug: (show: boolean) => void;
+  theme: "dark" | "light";
+  toggleTheme: () => void;
+  handleClearHistory: () => void;
+  handleHelpAction: (action: string) => void;
 }
 
 export function ChatHeader({
   showDebug,
   setShowDebug,
-  onHelpAction,
-  onClearHistory,
+  theme,
+  toggleTheme,
+  handleClearHistory,
+  handleHelpAction,
 }: ChatHeaderProps) {
-  const { theme, toggleTheme } = useTheme();
-
   return (
     <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
       <div
@@ -44,11 +45,11 @@ export function ChatHeader({
         <Toggle
           toggled={showDebug}
           aria-label="Toggle debug mode"
-          onClick={() => setShowDebug((prev) => !prev)}
+          onClick={() => setShowDebug(!showDebug)}
         />
       </div>
 
-      <HelpButton onActionClick={onHelpAction} />
+      <HelpButton onActionClick={handleHelpAction} />
 
       <Button
         variant="ghost"
@@ -65,7 +66,7 @@ export function ChatHeader({
         size="md"
         shape="square"
         className="rounded-full h-9 w-9"
-        onClick={onClearHistory}
+        onClick={handleClearHistory}
       >
         <Trash size={20} />
       </Button>

@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { JWT_STORAGE_KEY } from "@/constants";
-import { AuthService } from "@/services/auth-service";
-import { API_CONFIG } from "@/shared";
+import { JWT_STORAGE_KEY } from "../constants";
+import { AuthService } from "../services/auth-service";
+import { API_CONFIG } from "../shared";
 
-export interface AuthContextType {
+export interface AuthenticationState {
   isAuthenticated: boolean;
   username: string;
   storedOpenAIKey: string;
   showAuthModal: boolean;
   showUserMenu: boolean;
+}
+
+export interface AuthenticationActions {
   setShowAuthModal: (show: boolean) => void;
   setShowUserMenu: (show: boolean) => void;
   handleAuthenticationSubmit: (
@@ -18,10 +21,10 @@ export interface AuthContextType {
   ) => Promise<void>;
   handleLogout: () => Promise<void>;
   checkStoredOpenAIKey: (username: string) => Promise<void>;
-  getStoredJwt: () => string | null;
 }
 
-export function useAuth(): AuthContextType {
+export function useAuthentication(): AuthenticationState &
+  AuthenticationActions {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [username, setUsername] = useState<string>("");
   const [storedOpenAIKey, setStoredOpenAIKey] = useState<string>("");
@@ -48,15 +51,15 @@ export function useAuth(): AuthContextType {
         setIsAuthenticated(true);
       } else {
         // No stored key found, show the auth modal immediately
-        console.log("[Auth] No stored OpenAI key found for user:", username);
-        console.log("[Auth] Showing auth modal immediately");
+        console.log("[App] No stored OpenAI key found for user:", username);
+        console.log("[App] Showing auth modal immediately");
         setShowAuthModal(true);
         setIsAuthenticated(false);
       }
     } catch (error) {
       console.error("Error checking stored OpenAI key:", error);
       // Show modal on error as well
-      console.log("[Auth] Error checking stored key, showing auth modal");
+      console.log("[App] Error checking stored key, showing auth modal");
       setShowAuthModal(true);
       setIsAuthenticated(false);
     }
@@ -64,12 +67,12 @@ export function useAuth(): AuthContextType {
 
   // Log authentication state changes for debugging
   useEffect(() => {
-    console.log("[Auth] Authentication state changed:", isAuthenticated);
+    console.log("[App] Authentication state changed:", isAuthenticated);
   }, [isAuthenticated]);
 
   // Check authentication status on mount
   useEffect(() => {
-    console.log("[Auth] useEffect running - checking authentication status");
+    console.log("[App] useEffect running - checking authentication status");
     const payload = AuthService.getJwtPayload();
     if (payload?.username) {
       setUsername(payload.username);
@@ -77,17 +80,17 @@ export function useAuth(): AuthContextType {
       const jwt = getStoredJwt();
       if (jwt && AuthService.isJwtExpired(jwt)) {
         // JWT expired, show auth modal
-        console.log("[Auth] JWT expired, showing auth modal");
+        console.log("[App] JWT expired, showing auth modal");
         setShowAuthModal(true);
         setIsAuthenticated(false);
       } else {
         // JWT valid, check if we have stored OpenAI key
-        console.log("[Auth] JWT valid, checking stored OpenAI key");
+        console.log("[App] JWT valid, checking stored OpenAI key");
         checkStoredOpenAIKey(payload.username);
       }
     } else {
       // No JWT, show auth modal
-      console.log("[Auth] No JWT, showing auth modal");
+      console.log("[App] No JWT, showing auth modal");
       setShowAuthModal(true);
       setIsAuthenticated(false);
     }
@@ -196,6 +199,5 @@ export function useAuth(): AuthContextType {
     handleAuthenticationSubmit,
     handleLogout,
     checkStoredOpenAIKey,
-    getStoredJwt,
   };
 }

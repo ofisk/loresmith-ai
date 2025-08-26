@@ -1,13 +1,15 @@
 import { Lightbulb } from "@phosphor-icons/react";
-import loresmith from "@/assets/loresmith.png";
-import { Button } from "@/components/button/Button";
-import { Card } from "@/components/card/Card";
+import loresmith from "../../assets/loresmith.png";
+import { Button } from "../button/Button";
+import { Card } from "../card/Card";
 
 interface WelcomeMessageProps {
-  onSuggestionSubmit: (suggestion: string) => void;
+  handleSuggestionSubmit: (suggestion: string) => void;
 }
 
-export function WelcomeMessage({ onSuggestionSubmit }: WelcomeMessageProps) {
+export function WelcomeMessage({
+  handleSuggestionSubmit,
+}: WelcomeMessageProps) {
   return (
     <div className="h-full flex items-center justify-center">
       <Card className="p-6 max-w-2xl mx-auto bg-neutral-100 dark:bg-neutral-900">
@@ -26,7 +28,7 @@ export function WelcomeMessage({ onSuggestionSubmit }: WelcomeMessageProps) {
               size="sm"
               variant="secondary"
               className="bg-neutral-100 dark:bg-neutral-600"
-              onClick={() => onSuggestionSubmit("Get started")}
+              onClick={() => handleSuggestionSubmit("Get started")}
             >
               <Lightbulb size={12} />
               Get started
@@ -35,9 +37,8 @@ export function WelcomeMessage({ onSuggestionSubmit }: WelcomeMessageProps) {
               size="sm"
               variant="secondary"
               className="bg-neutral-100 dark:bg-neutral-600"
-              onClick={() => onSuggestionSubmit("Show agents")}
+              onClick={() => handleSuggestionSubmit("Show agents")}
             >
-              <Lightbulb size={12} />
               Show agents
             </Button>
           </div>

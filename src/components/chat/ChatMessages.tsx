@@ -1,34 +1,45 @@
 import type { Message } from "@ai-sdk/react";
-import { Card } from "@/components/card/Card";
-import { MemoizedMarkdown } from "@/components/memoized-markdown";
-import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
-import type { campaignTools } from "@/tools/campaign";
-import type { fileTools } from "@/tools/file";
-import type { generalTools } from "@/tools/general";
+import { toolsRequiringConfirmation } from "../../utils/toolConfirmation";
+import type { generalTools } from "../../tools/general";
+import type { campaignTools } from "../../tools/campaign";
+import type { fileTools } from "../../tools/file";
+import { Card } from "../card/Card";
+import { MemoizedMarkdown } from "../memoized-markdown";
+import { ThinkingSpinner } from "../thinking-spinner";
+import { ToolInvocationCard } from "../tool-invocation-card/ToolInvocationCard";
 
 interface ChatMessagesProps {
   messages: Message[];
+  isLoading: boolean;
   showDebug: boolean;
-  toolsRequiringConfirmation: (
-    | keyof typeof generalTools
-    | keyof typeof campaignTools
-    | keyof typeof fileTools
-  )[];
-  addToolResult: (args: { toolCallId: string; result: any }) => void;
+  addToolResult: ({
+    toolCallId,
+    result,
+  }: {
+    toolCallId: string;
+    result: any;
+  }) => void;
 }
 
 export function ChatMessages({
   messages,
+  isLoading,
   showDebug,
-  toolsRequiringConfirmation,
   addToolResult,
 }: ChatMessagesProps) {
+  // Wrapper function to match the expected signature
+  const handleAddToolResult = (args: {
+    toolCallId: string;
+    result: string;
+  }) => {
+    addToolResult(args);
+  };
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
   return (
-    <>
+    <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 pb-32 max-h-[calc(100vh-10rem)]">
       {messages
         .filter((m: Message) => {
           // Hide "Get started" messages from display
@@ -130,7 +141,7 @@ export function ChatMessages({
                               toolInvocation={toolInvocation}
                               toolCallId={toolCallId}
                               needsConfirmation={needsConfirmation}
-                              addToolResult={(args) => addToolResult(args)}
+                              addToolResult={handleAddToolResult}
                               showDebug={showDebug}
                             />
                           );
@@ -144,6 +155,17 @@ export function ChatMessages({
             </div>
           );
         })}
-    </>
+
+      {/* Thinking Spinner - shown when agent is processing */}
+      {isLoading && (
+        <div className="flex justify-start">
+          <div className="w-full">
+            <Card className="p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 rounded-bl-none border-assistant-border">
+              <ThinkingSpinner />
+            </Card>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
