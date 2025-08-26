@@ -4,7 +4,7 @@ import { BaseDAOClass } from "./base-dao";
 export interface FileMetadata {
   id: string;
   file_key: string;
-  filename: string;
+  file_name: string;
   username: string;
   file_size: number;
   content_type: string;
@@ -47,6 +47,13 @@ export interface FileWithChunks extends ParsedFileMetadata {
 }
 
 export class FileDAO extends BaseDAOClass {
+  // File status constants
+  static readonly STATUS = {
+    PROCESSING: "processing",
+    COMPLETED: "completed",
+    ERROR: "error",
+    UPLOADED: "uploaded",
+  } as const;
   /**
    * Helper function to parse tags from JSON string to array
    * @param tags - The tags field from the database (JSON string or null)
@@ -107,7 +114,7 @@ export class FileDAO extends BaseDAOClass {
   async createFileMetadata(
     id: string,
     fileKey: string,
-    filename: string,
+    file_name: string,
     username: string,
     fileSize: number,
     contentType: string,
@@ -116,14 +123,14 @@ export class FileDAO extends BaseDAOClass {
   ): Promise<void> {
     const sql = `
       INSERT OR REPLACE INTO file_metadata (
-        id, file_key, filename, username, file_size, content_type,
+        id, file_key, file_name, username, file_size, content_type,
         description, tags, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `;
     await this.execute(sql, [
       id,
       fileKey,
-      filename,
+      file_name,
       username,
       fileSize,
       contentType,
@@ -149,6 +156,18 @@ export class FileDAO extends BaseDAOClass {
       ORDER BY created_at DESC
     `;
     return this.queryAndParseMultipleFileMetadata(sql, [username]);
+  }
+
+  async getFilesByStatus(
+    username: string,
+    status: string
+  ): Promise<ParsedFileMetadata[]> {
+    const sql = `
+      SELECT * FROM file_metadata 
+      WHERE username = ? AND status = ?
+      ORDER BY created_at DESC
+    `;
+    return this.queryAndParseMultipleFileMetadata(sql, [username, status]);
   }
 
   async updateFileMetadata(
@@ -183,7 +202,7 @@ export class FileDAO extends BaseDAOClass {
   async updateFileForProcessing(
     fileKey: string,
     username: string,
-    filename: string,
+    file_name: string,
     description: string,
     tags: string,
     fileSize: number
@@ -194,7 +213,7 @@ export class FileDAO extends BaseDAOClass {
       WHERE file_key = ? AND username = ?
     `;
     await this.execute(sql, [
-      filename,
+      file_name,
       description,
       tags,
       "processing",
@@ -206,7 +225,7 @@ export class FileDAO extends BaseDAOClass {
 
   async insertFileForProcessing(
     fileKey: string,
-    filename: string,
+    file_name: string,
     description: string,
     tags: string,
     username: string,
@@ -218,7 +237,7 @@ export class FileDAO extends BaseDAOClass {
     `;
     await this.execute(sql, [
       fileKey,
-      filename,
+      file_name,
       description,
       tags,
       username,
@@ -647,7 +666,89 @@ export class FileDAO extends BaseDAOClass {
         this.execute("DELETE FROM file_metadata WHERE username = ?", [
           username,
         ]),
+      () =>
+        this.execute("DELETE FROM autorag_jobs WHERE username = ?", [username]),
     ]);
+  }
+
+  // AutoRAG Job Tracking Methods
+  async createAutoRAGJob(
+    jobId: string,
+    ragId: string,
+    username: string,
+    fileKey: string,
+    file_name: string
+  ): Promise<void> {
+    const sql = `
+      INSERT INTO autorag_jobs (job_id, rag_id, username, file_key, file_name, status)
+      VALUES (?, ?, ?, ?, ?, 'pending')
+    `;
+    await this.execute(sql, [jobId, ragId, username, fileKey, file_name]);
+  }
+
+  async getPendingAutoRAGJobs(username: string): Promise<any[]> {
+    const sql = `
+      SELECT * FROM autorag_jobs 
+      WHERE username = ? AND status IN ('pending', 'processing')
+      ORDER BY created_at ASC
+    `;
+    return await this.queryAll(sql, [username]);
+  }
+
+  async updateAutoRAGJobStatus(
+    jobId: string,
+    status: string,
+    errorMessage?: string
+  ): Promise<void> {
+    let sql: string;
+    let params: any[];
+
+    if (status === "completed") {
+      sql = `
+        UPDATE autorag_jobs 
+        SET status = ?, completed_at = CURRENT_TIMESTAMP, error_message = ?
+        WHERE job_id = ?
+      `;
+      params = [status, errorMessage || null, jobId];
+    } else {
+      sql = `
+        UPDATE autorag_jobs 
+        SET status = ?, error_message = ?
+        WHERE job_id = ?
+      `;
+      params = [status, errorMessage || null, jobId];
+    }
+
+    await this.execute(sql, params);
+  }
+
+  async updateFileStatusByJobId(
+    jobId: string,
+    newStatus: string
+  ): Promise<void> {
+    // Get the file associated with this job
+    const job = await this.queryFirst(
+      "SELECT file_key, username FROM autorag_jobs WHERE job_id = ?",
+      [jobId]
+    );
+
+    if (job) {
+      // Update the file status
+      await this.updateFileRecord(job.file_key, newStatus);
+    }
+  }
+
+  async getAutoRAGJobByFileKey(
+    fileKey: string,
+    username: string
+  ): Promise<any | null> {
+    const sql = `
+      SELECT * FROM autorag_jobs 
+      WHERE file_key = ? AND username = ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    return await this.queryFirst(sql, [fileKey, username]);
   }
 
   async updateFileMetadataForUser(

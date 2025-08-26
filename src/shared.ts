@@ -110,6 +110,14 @@ export const API_CONFIG = {
           `/campaigns/${campaignId}/autorag/search`,
         SEARCH_REJECTED: (campaignId: string) =>
           `/campaigns/${campaignId}/autorag/search-rejected`,
+        STAGED_SNIPPETS: (campaignId: string) =>
+          `/campaigns/${campaignId}/snippets/staged`,
+        APPROVE_SNIPPETS: (campaignId: string) =>
+          `/campaigns/${campaignId}/snippets/approve`,
+        REJECT_SNIPPETS: (campaignId: string) =>
+          `/campaigns/${campaignId}/snippets/reject`,
+        SEARCH_APPROVED: (campaignId: string) =>
+          `/campaigns/${campaignId}/snippets/approved`,
       },
     },
     CHARACTER_SHEETS: {
@@ -231,6 +239,37 @@ export const API_CONFIG = {
       JOB_LOGS: (ragId: string, jobId: string) =>
         `/autorag/rags/${ragId}/jobs/${jobId}/logs`,
       JOBS: (ragId: string) => `/autorag/rags/${ragId}/jobs`,
+      REFRESH_ALL_FILE_STATUSES: "/autorag/refresh-all-statuses",
+      // AutoRAG API URL construction helpers
+      API: {
+        SEARCH: (
+          accountId: string,
+          ragName: string = "loresmith-library-autorag"
+        ) =>
+          `https://api.cloudflare.com/client/v4/accounts/${accountId}/autorag/rags/${ragName}/search`,
+        SYNC: (
+          accountId: string,
+          ragName: string = "loresmith-library-autorag"
+        ) =>
+          `https://api.cloudflare.com/client/v4/accounts/${accountId}/autorag/rags/${ragName}/sync`,
+        JOBS: (
+          accountId: string,
+          ragName: string = "loresmith-library-autorag"
+        ) =>
+          `https://api.cloudflare.com/client/v4/accounts/${accountId}/autorag/rags/${ragName}/jobs`,
+        JOB_DETAILS: (
+          accountId: string,
+          ragName: string = "loresmith-library-autorag",
+          jobId: string
+        ) =>
+          `https://api.cloudflare.com/client/v4/accounts/${accountId}/autorag/rags/${ragName}/jobs/${jobId}`,
+        JOB_LOGS: (
+          accountId: string,
+          ragName: string = "loresmith-library-autorag",
+          jobId: string
+        ) =>
+          `https://api.cloudflare.com/client/v4/accounts/${accountId}/autorag/rags/${ragName}/jobs/${jobId}/logs`,
+      },
     },
     FILE_ANALYSIS: {
       BASE: "/file-analysis",

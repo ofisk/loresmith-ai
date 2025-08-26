@@ -126,7 +126,7 @@ app.get(
       return c.json({
         pending_files: pendingFiles.map((file) => ({
           file_key: file.file_key,
-          filename: file.filename,
+          filename: file.file_name,
           status: file.analysis_status || "pending",
           created_at: file.created_at,
         })),
@@ -164,7 +164,7 @@ app.post(
       return c.json({
         recommendations: recommendations.map((file) => ({
           file_key: file.file_key,
-          filename: file.filename,
+          filename: file.file_name,
           description: file.description,
           content_summary: file.content_summary,
           content_type_categories: file.content_type_categories,

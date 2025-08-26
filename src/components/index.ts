@@ -3,6 +3,11 @@ export { useAuth } from "./auth/AuthProvider";
 export { BlockingAuthenticationModal } from "./BlockingAuthenticationModal";
 // Existing components
 export { Button } from "./button/Button";
+export { CampaignPage } from "./campaign/CampaignPage";
+// Campaign components
+export { CampaignSnippetDashboard } from "./campaign/CampaignSnippetDashboard";
+export { CampaignSnippetManager } from "./campaign/CampaignSnippetManager";
+export { CampaignSnippetSearch } from "./campaign/CampaignSnippetSearch";
 export { Card } from "./card/Card";
 // Chat components
 export { ChatHeader } from "./chat/ChatHeader";

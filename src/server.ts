@@ -34,12 +34,15 @@ import {
   handleAutoRAGJobLogs,
   handleAutoRAGJobs,
   handleAutoRAGSync,
+  handleRefreshAllFileStatuses,
 } from "./routes/autorag";
 import {
   handleApproveSnippets,
+  handleApproveSnippets as handleApproveSnippetsNew,
+  handleGetStagedSnippets,
   handleRejectSnippets,
-  handleSearchCampaignContent,
-  handleSearchRejectedSnippets,
+  handleRejectSnippets as handleRejectSnippetsNew,
+  handleSearchApprovedSnippets,
 } from "./routes/campaign-autorag";
 import {
   handleAddResourceToCampaign,
@@ -521,6 +524,11 @@ app.get(
   requireUserJwt,
   handleAutoRAGJobs
 );
+app.post(
+  API_CONFIG.ENDPOINTS.AUTORAG.REFRESH_ALL_FILE_STATUSES,
+  requireUserJwt,
+  handleRefreshAllFileStatuses
+);
 
 // File Analysis Routes
 app.route(API_CONFIG.ENDPOINTS.FILE_ANALYSIS.BASE, fileAnalysisRoutes);
@@ -579,17 +587,35 @@ app.post(
   requireUserJwt,
   handleRejectSnippets
 );
-app.post(
-  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.SEARCH(":campaignId"),
-  requireUserJwt,
-  handleSearchCampaignContent
-);
-app.post(
-  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.SEARCH_REJECTED(
+
+// New Campaign AutoRAG Snippet Management Routes
+app.get(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SNIPPETS(
     ":campaignId"
   ),
   requireUserJwt,
-  handleSearchRejectedSnippets
+  handleGetStagedSnippets
+);
+app.post(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.APPROVE_SNIPPETS(
+    ":campaignId"
+  ),
+  requireUserJwt,
+  handleApproveSnippetsNew
+);
+app.post(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.REJECT_SNIPPETS(
+    ":campaignId"
+  ),
+  requireUserJwt,
+  handleRejectSnippetsNew
+);
+app.get(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.SEARCH_APPROVED(
+    ":campaignId"
+  ),
+  requireUserJwt,
+  handleSearchApprovedSnippets
 );
 
 // Progress WebSocket
