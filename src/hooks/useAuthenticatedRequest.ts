@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import {
-  authenticatedFetchWithExpiration,
   AuthService,
+  authenticatedFetchWithExpiration,
 } from "../services/auth-service";
 
 /**

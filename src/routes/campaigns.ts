@@ -1,7 +1,8 @@
 import type { Context } from "hono";
+import { getDAOFactory } from "../dao/dao-factory";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
-import type { Campaign } from "../types/campaign";
+import { CampaignAutoRAG } from "../services/campaign-autorag-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -22,28 +23,16 @@ export async function handleGetCampaigns(c: ContextWithAuth) {
       return c.json({ error: "Authentication required" }, 401);
     }
 
-    const selectQuery = `
-      SELECT 
-        id as campaignId, 
-        name, 
-        description, 
-        username, 
-        created_at as createdAt, 
-        updated_at as updatedAt 
-      FROM campaigns 
-      WHERE username = ? 
-      ORDER BY created_at DESC
-    `;
-
-    const campaigns = await c.env.DB.prepare(selectQuery)
-      .bind(userAuth.username)
-      .all();
-
-    console.log(
-      `[Server] Found ${campaigns.results?.length || 0} campaigns for user ${userAuth.username}`
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
+    const campaigns = await campaignDAO.getCampaignsByUserWithMapping(
+      userAuth.username
     );
 
-    return c.json({ campaigns: campaigns.results || [] });
+    console.log(
+      `[Server] Found ${campaigns.length} campaigns for user ${userAuth.username}`
+    );
+
+    return c.json({ campaigns: campaigns });
   } catch (error) {
     console.error("Error fetching campaigns:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -61,18 +50,44 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
     }
 
     const campaignId = crypto.randomUUID();
+    const campaignRagBasePath = `campaigns/${campaignId}`;
     const now = new Date().toISOString();
 
-    await c.env.DB.prepare(
-      "INSERT INTO campaigns (id, name, description, username, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
-    )
-      .bind(campaignId, name, description || "", userAuth.username, now, now)
-      .run();
+    // Create campaign using DAO
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
+    await campaignDAO.createCampaign(
+      campaignId,
+      name,
+      description || "",
+      userAuth.username,
+      campaignRagBasePath
+    );
+
+    // Initialize CampaignAutoRAG folders
+    try {
+      const campaignAutoRAG = new CampaignAutoRAG(
+        c.env,
+        c.env.AUTORAG_SEARCH_URL,
+        campaignRagBasePath
+      );
+      await campaignAutoRAG.initFolders();
+
+      console.log(
+        `[Server] Initialized CampaignAutoRAG folders for campaign: ${campaignId}`
+      );
+    } catch (autoRagError) {
+      console.error(
+        `[Server] Failed to initialize CampaignAutoRAG for campaign ${campaignId}:`,
+        autoRagError
+      );
+      // Don't fail the campaign creation if AutoRAG initialization fails
+    }
 
     const newCampaign = {
       campaignId,
       name,
       description: description || "",
+      campaignRagBasePath,
       createdAt: now,
       updatedAt: now,
     };
@@ -94,11 +109,11 @@ export async function handleGetCampaign(c: ContextWithAuth) {
     const userAuth = (c as any).userAuth;
     const campaignId = c.req.param("campaignId");
 
-    const campaign = await c.env.DB.prepare(
-      "SELECT id as campaignId, name, description, created_at as createdAt, updated_at as updatedAt FROM campaigns WHERE id = ? AND username = ?"
-    )
-      .bind(campaignId, userAuth.username)
-      .first<Campaign>();
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
+    const campaign = await campaignDAO.getCampaignByIdWithMapping(
+      campaignId,
+      userAuth.username
+    );
 
     if (!campaign) {
       return c.json({ error: "Campaign not found" }, 404);

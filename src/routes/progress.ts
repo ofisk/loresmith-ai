@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import type { Env } from "../middleware/auth";
-import { subscribeToProgress } from "../services/progress";
+import { subscribeToProgress } from "../services/progress-service";
 
 // WebSocket endpoint for progress updates
 export async function handleProgressWebSocket(c: Context<{ Bindings: Env }>) {

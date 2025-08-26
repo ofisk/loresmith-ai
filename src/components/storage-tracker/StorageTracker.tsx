@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { API_CONFIG } from "../../shared";
 import { getStoredJwt } from "../../services/auth-service";
+import { API_CONFIG } from "../../shared";
 import { Loader } from "../loader/Loader";
 
 interface StorageUsage {

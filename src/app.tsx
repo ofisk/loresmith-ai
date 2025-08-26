@@ -11,7 +11,7 @@ import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import type React from "react";
-import { useCallback, useEffect, useState, useId } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import loresmith from "@/assets/loresmith.png";
 
@@ -20,22 +20,20 @@ import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { HelpButton } from "@/components/help/HelpButton";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
-
+import { ResourceSidePanel } from "@/components/resource-side-panel";
 import { Textarea } from "@/components/textarea/Textarea";
+import { ThinkingSpinner } from "@/components/thinking-spinner";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
-import { ThinkingSpinner } from "@/components/thinking-spinner";
-import { ResourceSidePanel } from "@/components/resource-side-panel";
 import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
-
+import { JWT_STORAGE_KEY } from "./constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
 import { AuthService } from "./services/auth-service";
-import { JWT_STORAGE_KEY } from "./constants";
 import { API_CONFIG } from "./shared";
 
 import type { campaignTools } from "./tools/campaign";
-import type { generalTools } from "./tools/general";
 import type { fileTools } from "./tools/file";
+import type { generalTools } from "./tools/general";
 
 // List of tools that require human confirmation
 // NOTE: this should match the keys in the executions object in tools.ts

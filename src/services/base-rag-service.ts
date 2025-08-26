@@ -122,7 +122,7 @@ export abstract class BaseRAGService {
   ): Promise<void> {
     try {
       // Try to update file record if fileDAO is available
-      if (this.env && this.env.DB) {
+      if (this.env?.DB) {
         const { getDAOFactory } = await import("../dao/dao-factory");
         const fileDAO = getDAOFactory(this.env).fileDAO;
         await fileDAO.updateFileRecord(identifier, status);

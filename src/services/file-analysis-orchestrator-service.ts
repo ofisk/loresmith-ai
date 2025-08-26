@@ -1,5 +1,5 @@
-import { FileAnalysisService } from "./file-analysis-service";
-import { FileDAO } from "../dao/file-dao";
+import type { FileDAO } from "../dao/file-dao";
+import type { FileAnalysisService } from "./file-analysis-service";
 
 export interface FileAnalysisOrchestratorConfig {
   autoTriggerAnalysis: boolean;

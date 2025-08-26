@@ -1,14 +1,11 @@
 import type { Context } from "hono";
 import { jwtVerify } from "jose";
+import { getDAOFactory } from "../dao";
+import { AgentRouter } from "../lib/agent-router";
+import { getAuthService, getLibraryRagService } from "../lib/service-factory";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { AuthService } from "../services/auth-service";
-import {
-  getAuthService,
-  getLibraryRagService,
-} from "../services/service-factory";
-import { AgentRouter } from "../services/agent-router";
-import { getDAOFactory } from "../dao";
 
 // Helper to set user auth context
 export function setUserAuth(c: Context, payload: AuthPayload) {

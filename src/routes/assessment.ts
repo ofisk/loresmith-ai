@@ -1,6 +1,6 @@
 import type { Context } from "hono";
+import { getAssessmentService } from "../lib/service-factory";
 import type { Env } from "../middleware/auth";
-import { getAssessmentService } from "../services/service-factory";
 import type { AuthPayload } from "../services/auth-service";
 
 // Extend the context to include userAuth

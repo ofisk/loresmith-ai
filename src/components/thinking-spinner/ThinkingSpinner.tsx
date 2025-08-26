@@ -1,5 +1,5 @@
+import { useEffect, useState } from "react";
 import { Loader } from "../loader/Loader";
-import { useState, useEffect } from "react";
 
 type ThinkingSpinnerProps = {
   className?: string;

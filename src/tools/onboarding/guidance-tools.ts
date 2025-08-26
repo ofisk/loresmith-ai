@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { ToolResult } from "../../constants";
-import { getAssessmentService } from "../../services/service-factory";
+import { getAssessmentService } from "../../lib/service-factory";
 import { commonSchemas, createToolError, createToolSuccess } from "../utils";
 import type { ActionSuggestion } from "./state-analysis-tools";
 

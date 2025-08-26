@@ -1,10 +1,10 @@
 import type { Context } from "hono";
-import { getLibraryRagService } from "../services/service-factory";
+import { getDAOFactory } from "../dao/dao-factory";
+import { FileDAO } from "../dao/file-dao";
+import { getLibraryRagService } from "../lib/service-factory";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
-import { completeProgress } from "../services/progress";
-import { FileDAO } from "../dao/file-dao";
-import { getDAOFactory } from "../dao/dao-factory";
+import { completeProgress } from "../services/progress-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {

@@ -1,14 +1,14 @@
 // Library API routes for file management and search
 // Handles file listing, search, metadata updates, and file operations
 
-import { Hono, type Context } from "hono";
-import type { AuthPayload } from "../services/auth-service";
+import { type Context, Hono } from "hono";
 import {
   getLibraryRagService,
   getLibraryService,
-} from "../services/service-factory";
-import type { SearchQuery } from "../types/upload";
+} from "../lib/service-factory";
 import { requireUserJwt } from "../middleware/auth";
+import type { AuthPayload } from "../services/auth-service";
+import type { SearchQuery } from "../types/upload";
 
 const library = new Hono<{
   Bindings: Env;

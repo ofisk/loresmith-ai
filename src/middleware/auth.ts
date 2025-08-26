@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import { jwtVerify } from "jose";
+import { type EnvWithSecrets, getEnvVar } from "../lib/env-utils";
 import type { AuthEnv, AuthPayload } from "../services/auth-service";
-import { getEnvVar, type EnvWithSecrets } from "../lib/env-utils";
 
 export interface Env extends AuthEnv, EnvWithSecrets {
   R2: R2Bucket;

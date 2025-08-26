@@ -1,16 +1,16 @@
+import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { ERROR_MESSAGES } from "../../constants";
 import {
+  AuthService,
   authenticatedFetchWithExpiration,
   getStoredJwt,
-  AuthService,
 } from "../../services/auth-service";
 import { API_CONFIG } from "../../shared";
 import type { Campaign } from "../../types/campaign";
 import { Button } from "../button/Button";
 import { Modal } from "../modal/Modal";
 import { MultiSelect } from "../select/MultiSelect";
-import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { FileStatusIndicator } from "./FileStatusIndicator";
 
 interface ResourceFile {

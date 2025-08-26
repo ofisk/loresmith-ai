@@ -1,7 +1,7 @@
 import { Lightbulb } from "@phosphor-icons/react";
+import loresmith from "@/assets/loresmith.png";
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
-import loresmith from "@/assets/loresmith.png";
 
 interface WelcomeMessageProps {
   onSuggestionSubmit: (suggestion: string) => void;

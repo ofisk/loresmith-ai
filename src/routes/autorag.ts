@@ -1,10 +1,10 @@
 import type { Context } from "hono";
+import { FileDAO } from "../dao/file-dao";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
-import { AUTORAG_CONFIG } from "../shared";
-import { FileAnalysisOrchestrator } from "../services/file-analysis-orchestrator";
+import { FileAnalysisOrchestrator } from "../services/file-analysis-orchestrator-service";
 import { FileAnalysisService } from "../services/file-analysis-service";
-import { FileDAO } from "../dao/file-dao";
+import { AUTORAG_CONFIG } from "../shared";
 
 async function triggerAutoRAGSync(
   env: any,

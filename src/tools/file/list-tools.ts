@@ -1,13 +1,13 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../constants";
-import type { FileResponse } from "../../types/file";
-import { fileHelpers } from "../../types/file";
-import { createToolError, createToolSuccess } from "../utils";
 import {
   getLibraryRagService,
   getLibraryService,
-} from "../../services/service-factory";
+} from "../../lib/service-factory";
+import type { FileResponse } from "../../types/file";
+import { fileHelpers } from "../../types/file";
+import { createToolError, createToolSuccess } from "../utils";
 
 // File listing tools
 
