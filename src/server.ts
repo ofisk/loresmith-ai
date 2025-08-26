@@ -88,6 +88,7 @@ import {
   handleIngestionHealth,
   handleIngestionStats,
 } from "./api_status";
+import fileAnalysisRoutes from "./routes/file-analysis";
 import queueConsumer from "./queue_consumer";
 
 interface Env extends AuthEnv {
@@ -517,6 +518,9 @@ app.get(
   requireUserJwt,
   handleAutoRAGJobs
 );
+
+// File Analysis Routes
+app.route(API_CONFIG.ENDPOINTS.FILE_ANALYSIS.BASE, fileAnalysisRoutes);
 
 // Campaign Routes
 app.get(

@@ -14,6 +14,18 @@ export interface FileMetadata {
   chunk_count?: number;
   created_at: string;
   updated_at: string;
+  // Enhanced metadata fields for AutoRAG analysis
+  content_summary?: string;
+  key_topics?: string;
+  content_type_categories?: string;
+  difficulty_level?: string;
+  target_audience?: string;
+  campaign_themes?: string;
+  recommended_campaign_types?: string;
+  content_quality_score?: number;
+  last_analyzed_at?: string;
+  analysis_status?: string;
+  analysis_error?: string;
 }
 
 // Interface for parsed file metadata (with tags as array)
@@ -656,5 +668,193 @@ export class FileDAO extends BaseDAOClass {
       fileKey,
       username,
     ]);
+  }
+
+  /**
+   * Update enhanced metadata from AutoRAG analysis
+   */
+  async updateEnhancedMetadata(
+    fileKey: string,
+    username: string,
+    enhancedMetadata: {
+      content_summary?: string;
+      key_topics?: string[];
+      content_type_categories?: string[];
+      difficulty_level?: string;
+      target_audience?: string;
+      campaign_themes?: string[];
+      recommended_campaign_types?: string[];
+      content_quality_score?: number;
+      analysis_status?: string;
+      analysis_error?: string;
+    }
+  ): Promise<void> {
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    // Build dynamic update query
+    if (enhancedMetadata.content_summary !== undefined) {
+      updates.push("content_summary = ?");
+      values.push(enhancedMetadata.content_summary);
+    }
+    if (enhancedMetadata.key_topics !== undefined) {
+      updates.push("key_topics = ?");
+      values.push(JSON.stringify(enhancedMetadata.key_topics));
+    }
+    if (enhancedMetadata.content_type_categories !== undefined) {
+      updates.push("content_type_categories = ?");
+      values.push(JSON.stringify(enhancedMetadata.content_type_categories));
+    }
+    if (enhancedMetadata.difficulty_level !== undefined) {
+      updates.push("difficulty_level = ?");
+      values.push(enhancedMetadata.difficulty_level);
+    }
+    if (enhancedMetadata.target_audience !== undefined) {
+      updates.push("target_audience = ?");
+      values.push(enhancedMetadata.target_audience);
+    }
+    if (enhancedMetadata.campaign_themes !== undefined) {
+      updates.push("campaign_themes = ?");
+      values.push(JSON.stringify(enhancedMetadata.campaign_themes));
+    }
+    if (enhancedMetadata.recommended_campaign_types !== undefined) {
+      updates.push("recommended_campaign_types = ?");
+      values.push(JSON.stringify(enhancedMetadata.recommended_campaign_types));
+    }
+    if (enhancedMetadata.content_quality_score !== undefined) {
+      updates.push("content_quality_score = ?");
+      values.push(enhancedMetadata.content_quality_score);
+    }
+    if (enhancedMetadata.analysis_status !== undefined) {
+      updates.push("analysis_status = ?");
+      values.push(enhancedMetadata.analysis_status);
+    }
+    if (enhancedMetadata.analysis_error !== undefined) {
+      updates.push("analysis_error = ?");
+      values.push(enhancedMetadata.analysis_error);
+    }
+
+    // Always update last_analyzed_at and analysis_status
+    updates.push("last_analyzed_at = CURRENT_TIMESTAMP");
+
+    if (updates.length === 0) return;
+
+    const sql = `
+      UPDATE file_metadata 
+      SET ${updates.join(", ")}
+      WHERE file_key = ? AND username = ?
+    `;
+
+    await this.execute(sql, [...values, fileKey, username]);
+  }
+
+  /**
+   * Get files with enhanced metadata for recommendations
+   */
+  async getFilesForRecommendations(
+    username: string,
+    filters?: {
+      content_type_categories?: string;
+      difficulty_level?: string;
+      target_audience?: string;
+      campaign_themes?: string[];
+      min_quality_score?: number;
+      limit?: number;
+    }
+  ): Promise<ParsedFileMetadata[]> {
+    let sql = `
+      SELECT * FROM file_metadata 
+      WHERE username = ? AND analysis_status = 'completed'
+    `;
+    const values: any[] = [username];
+
+    if (filters?.content_type_categories) {
+      sql += " AND content_type_categories LIKE ?";
+      values.push(`%${filters.content_type_categories}%`);
+    }
+    if (filters?.difficulty_level) {
+      sql += " AND difficulty_level = ?";
+      values.push(filters.difficulty_level);
+    }
+    if (filters?.target_audience) {
+      sql += " AND target_audience = ?";
+      values.push(filters.target_audience);
+    }
+    if (filters?.min_quality_score) {
+      sql += " AND content_quality_score >= ?";
+      values.push(filters.min_quality_score);
+    }
+
+    sql += " ORDER BY content_quality_score DESC, created_at DESC";
+
+    if (filters?.limit) {
+      sql += " LIMIT ?";
+      values.push(filters.limit);
+    }
+
+    const files = await this.queryAll(sql, values);
+
+    // Parse tags and filter by campaign themes if specified
+    let parsedFiles = files.map((file: any) => ({
+      ...file,
+      tags: this.parseTags(file.tags || null, file.file_key),
+      campaign_themes: file.campaign_themes
+        ? JSON.parse(file.campaign_themes)
+        : [],
+      recommended_campaign_types: file.recommended_campaign_types
+        ? JSON.parse(file.recommended_campaign_types)
+        : [],
+      key_topics: file.key_topics ? JSON.parse(file.key_topics) : [],
+      content_type_categories: file.content_type_categories
+        ? JSON.parse(file.content_type_categories)
+        : [],
+    }));
+
+    // Filter by campaign themes if specified
+    if (filters?.campaign_themes && filters.campaign_themes.length > 0) {
+      parsedFiles = parsedFiles.filter((file: any) => {
+        const fileThemes = file.campaign_themes || [];
+        return filters.campaign_themes!.some((theme) =>
+          fileThemes.includes(theme)
+        );
+      });
+    }
+
+    return parsedFiles;
+  }
+
+  /**
+   * Get analysis status for a file
+   */
+  async getAnalysisStatus(
+    fileKey: string,
+    username: string
+  ): Promise<{
+    analysis_status: string;
+    last_analyzed_at?: string;
+    analysis_error?: string;
+  } | null> {
+    const sql = `
+      SELECT analysis_status, last_analyzed_at, analysis_error
+      FROM file_metadata 
+      WHERE file_key = ? AND username = ?
+    `;
+
+    return await this.queryFirst(sql, [fileKey, username]);
+  }
+
+  /**
+   * Get files pending analysis
+   */
+  async getFilesPendingAnalysis(
+    username: string
+  ): Promise<ParsedFileMetadata[]> {
+    const sql = `
+      SELECT * FROM file_metadata 
+      WHERE username = ? AND (analysis_status IS NULL OR analysis_status = 'pending')
+      ORDER BY created_at DESC
+    `;
+
+    return this.queryAndParseMultipleFileMetadata(sql, [username]);
   }
 }
