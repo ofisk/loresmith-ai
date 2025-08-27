@@ -111,28 +111,19 @@ export default function Chat() {
         setIsAuthenticated(true);
       } else {
         // No stored key found, show the auth modal immediately
-        console.log("[App] No stored OpenAI key found for user:", username);
-        console.log("[App] Showing auth modal immediately");
         setShowAuthModal(true);
         setIsAuthenticated(false);
       }
     } catch (error) {
       console.error("Error checking stored OpenAI key:", error);
       // Show modal on error as well
-      console.log("[App] Error checking stored key, showing auth modal");
       setShowAuthModal(true);
       setIsAuthenticated(false);
     }
   }, []);
 
-  // Log authentication state changes for debugging
-  useEffect(() => {
-    console.log("[App] Authentication state changed:", isAuthenticated);
-  }, [isAuthenticated]);
-
   // Check authentication status on mount
   useEffect(() => {
-    console.log("[App] useEffect running - checking authentication status");
     const payload = AuthService.getJwtPayload();
     if (payload?.username) {
       setUsername(payload.username);
@@ -140,17 +131,14 @@ export default function Chat() {
       const jwt = getStoredJwt();
       if (jwt && AuthService.isJwtExpired(jwt)) {
         // JWT expired, show auth modal
-        console.log("[App] JWT expired, showing auth modal");
         setShowAuthModal(true);
         setIsAuthenticated(false);
       } else {
         // JWT valid, check if we have stored OpenAI key
-        console.log("[App] JWT valid, checking stored OpenAI key");
         checkStoredOpenAIKey(payload.username);
       }
     } else {
       // No JWT, show auth modal
-      console.log("[App] No JWT, showing auth modal");
       setShowAuthModal(true);
       setIsAuthenticated(false);
     }
