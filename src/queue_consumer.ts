@@ -1,7 +1,7 @@
-import type { Env } from "./middleware/auth";
-import { FileSplitter } from "./lib/split";
-import { R2Helper } from "./lib/r2";
 import { getDAOFactory } from "./dao/dao-factory";
+import { R2Helper } from "./lib/r2";
+import { FileSplitter } from "./lib/split";
+import type { Env } from "./middleware/auth";
 
 export interface ProcessingMessage {
   bucket: string;

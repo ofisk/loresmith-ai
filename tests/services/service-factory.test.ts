@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ServiceFactory } from "../../src/services/service-factory";
+import { AgentRegistryService } from "../../src/lib/agent-registry";
+import { AgentRouter } from "../../src/lib/agent-router";
+import { ModelManager } from "../../src/lib/model-manager";
+import { ServiceFactory } from "../../src/lib/service-factory";
 import { AuthService } from "../../src/services/auth-service";
-import { LibraryService } from "../../src/services/library-service";
 import { CampaignService } from "../../src/services/campaign-service";
-import { ModelManager } from "../../src/services/model-manager";
-import { AgentRegistryService } from "../../src/services/agent-registry";
-import { AgentRouter } from "../../src/services/agent-router";
+import { LibraryService } from "../../src/services/library-service";
 
 // Mock environment
 const mockEnv = {

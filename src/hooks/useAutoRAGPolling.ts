@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { API_CONFIG } from "../shared";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  authenticatedFetchWithExpiration,
   AuthService,
+  authenticatedFetchWithExpiration,
 } from "../services/auth-service";
+import { API_CONFIG } from "../shared";
 
 export interface AutoRAGJobStatus {
   id: string;

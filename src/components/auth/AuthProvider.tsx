@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { AuthService } from "@/services/auth-service";
 import { JWT_STORAGE_KEY } from "@/constants";
+import { AuthService } from "@/services/auth-service";
 import { API_CONFIG } from "@/shared";
 
 export interface AuthContextType {

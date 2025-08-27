@@ -1,6 +1,6 @@
-import type { Env } from "../middleware/auth";
-import type { CampaignDAO, CampaignCharacter } from "../dao/campaign-dao";
+import type { CampaignCharacter, CampaignDAO } from "../dao/campaign-dao";
 import { getDAOFactory } from "../dao/dao-factory";
+import type { Env } from "../middleware/auth";
 
 export interface CampaignSuggestion {
   id: number;

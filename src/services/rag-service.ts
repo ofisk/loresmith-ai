@@ -2,17 +2,28 @@
 // This service handles text extraction, embedding generation, and semantic search
 // Updated to work with AutoRAG for enhanced content processing
 
+import { getDAOFactory } from "../dao/dao-factory";
 import type { Env } from "../middleware/auth";
 import type { FileMetadata, SearchQuery, SearchResult } from "../types/upload";
+import { AutoRAGClientBase } from "./autorag-client";
 import { BaseRAGService } from "./base-rag-service";
-import { getDAOFactory } from "../dao/dao-factory";
 
 export class LibraryRAGService extends BaseRAGService {
   private ai: any;
+  private autoRagBase: AutoRAGClientBase;
 
   constructor(env: Env) {
     super(env.DB, env.VECTORIZE, env.OPENAI_API_KEY || "", env);
     this.ai = env.AI;
+
+    // Initialize AutoRAG base with library search URL
+    const searchUrl = env.AUTORAG_SEARCH_URL;
+    this.autoRagBase = new (class extends AutoRAGClientBase {
+      protected enforcedFilter(): string | null {
+        // Library RAG doesn't enforce folder filtering - it searches all content
+        return null;
+      }
+    })(env, searchUrl);
   }
 
   async processFile(metadata: FileMetadata): Promise<{
@@ -567,26 +578,28 @@ SUGGESTIONS: [suggestion1, suggestion2, suggestion3]
   async searchContent(
     _username: string,
     query: string,
-    _limit: number = 10
+    limit: number = 10
   ): Promise<any[]> {
     try {
-      if (!this.ai) {
-        console.warn(
-          "[LibraryRAGService] AI binding not available for search, returning empty results"
-        );
-        return [];
-      }
+      console.log(`[LibraryRAGService] Searching content with query: ${query}`);
 
-      // For now, return empty results as full search is not yet implemented
-      // This can be enhanced when vector search is implemented
+      const searchResult = await this.autoRagBase.search(query, { limit });
+
       console.log(
-        `[LibraryRAGService] Semantic search not yet implemented for query: ${query}`
+        `[LibraryRAGService] Search returned ${searchResult.total} results`
       );
-      return [];
+      return searchResult.results;
     } catch (error) {
       console.error(`[LibraryRAGService] Search error:`, error);
       return [];
     }
+  }
+
+  /**
+   * Sync with AutoRAG (delegates to the base)
+   */
+  async sync(): Promise<void> {
+    await this.autoRagBase.sync();
   }
 
   async processFileFromR2(

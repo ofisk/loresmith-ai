@@ -1,10 +1,10 @@
 import type { JWTPayload } from "jose";
 import { jwtVerify, SignJWT } from "jose";
-import type { Env } from "../middleware/auth";
 import { ERROR_MESSAGES, JWT_STORAGE_KEY } from "../constants";
-import { getAuthService } from "./service-factory";
 import { getDAOFactory } from "../dao";
 import { getEnvVar } from "../lib/env-utils";
+import { getAuthService } from "../lib/service-factory";
+import type { Env } from "../middleware/auth";
 
 export interface AuthPayload extends JWTPayload {
   type: "user-auth";

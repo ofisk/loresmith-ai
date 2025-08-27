@@ -101,6 +101,16 @@ export const API_CONFIG = {
       READINESS: (campaignId: string) => `/campaigns/${campaignId}/readiness`,
       CONTEXT_SEARCH: (campaignId: string) =>
         `/campaigns/${campaignId}/context-search`,
+      CAMPAIGN_AUTORAG: {
+        APPROVE: (campaignId: string) =>
+          `/campaigns/${campaignId}/autorag/approve`,
+        REJECT: (campaignId: string) =>
+          `/campaigns/${campaignId}/autorag/reject`,
+        SEARCH: (campaignId: string) =>
+          `/campaigns/${campaignId}/autorag/search`,
+        SEARCH_REJECTED: (campaignId: string) =>
+          `/campaigns/${campaignId}/autorag/search-rejected`,
+      },
     },
     CHARACTER_SHEETS: {
       //TODO: character sheets are just files and can be added to campaign context in a generic way (probably). reassess and consider removing

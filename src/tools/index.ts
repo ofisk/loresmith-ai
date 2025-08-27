@@ -12,10 +12,10 @@
 
 // Campaign-related tools
 import { campaignTools as importedCampaignTools } from "./campaign";
-// General tools for authentication and utilities
-import { generalTools } from "./general";
 // File-related tools for file management
 import { fileTools as importedFileTools } from "./file";
+// General tools for authentication and utilities
+import { generalTools } from "./general";
 
 /**
  * Export all available tools

@@ -1,19 +1,20 @@
 // Service Factory - Provides cached service instances to reduce memory usage and initialization overhead
 // Uses per-request caching to reuse services within the same request context
 
-import type { Env } from "../middleware/auth";
-import { AuthService } from "./auth-service";
-import { LibraryRAGService } from "./rag-service";
-import { LibraryService } from "./library-service";
-import { CampaignService } from "./campaign-service";
-import { ModelManager } from "./model-manager";
-import { AssessmentService } from "./assessment-service";
-import { MetadataService } from "./metadata-service";
-import { ErrorHandlingService } from "./error-handling-service";
 import { getDatabaseKey } from "../dao/dao-factory";
+import type { Env } from "../middleware/auth";
+import { AssessmentService } from "../services/assessment-service";
+import { AuthService } from "../services/auth-service";
+import { CampaignAutoRAG } from "../services/campaign-autorag-service";
+import { CampaignService } from "../services/campaign-service";
+import { ErrorHandlingService } from "../services/error-handling-service";
+import { LibraryService } from "../services/library-service";
+import { MetadataService } from "../services/metadata-service";
+import { LibraryRAGService } from "../services/rag-service";
 import { AgentRegistryService } from "./agent-registry";
 import { AgentRouter } from "./agent-router";
-import { CampaignRAGService } from "../lib/campaignRag";
+import { CampaignRAGService } from "./campaignRag";
+import { ModelManager } from "./model-manager";
 
 // Service factory class with per-request caching
 export class ServiceFactory {
@@ -164,6 +165,23 @@ export class ServiceFactory {
     return ServiceFactory.services.get(key);
   }
 
+  /**
+   * Get campaign AutoRAG service for a specific campaign
+   */
+  static getCampaignAutoRAGService(
+    env: Env,
+    campaignRagBasePath: string
+  ): CampaignAutoRAG {
+    const key = `campaign-auto-rag-${campaignRagBasePath}`;
+    if (!ServiceFactory.services.has(key)) {
+      ServiceFactory.services.set(
+        key,
+        new CampaignAutoRAG(env, env.AUTORAG_SEARCH_URL, campaignRagBasePath)
+      );
+    }
+    return ServiceFactory.services.get(key);
+  }
+
   // Get or create AgentRouter (static class, no instance needed)
   static getAgentRouter(env: Env): typeof AgentRouter {
     const key = `agent-router-${env.DB ? "has-db" : "no-db"}`;
@@ -206,5 +224,10 @@ export const initializeAgentRegistry = (env: Env) =>
 
 export const getCampaignRAGService = (env: Env) =>
   ServiceFactory.getCampaignRAGService(env);
+
+export const getCampaignAutoRAGService = (
+  env: Env,
+  campaignRagBasePath: string
+) => ServiceFactory.getCampaignAutoRAGService(env, campaignRagBasePath);
 
 export const getAgentRouter = (env: Env) => ServiceFactory.getAgentRouter(env);

@@ -1,9 +1,9 @@
 import { Bug, Moon, Sun, Trash } from "@phosphor-icons/react";
+import loresmith from "@/assets/loresmith.png";
 import { Button } from "@/components/button/Button";
 import { HelpButton } from "@/components/help/HelpButton";
-import { Toggle } from "@/components/toggle/Toggle";
 import { useTheme } from "@/components/theme/ThemeProvider";
-import loresmith from "@/assets/loresmith.png";
+import { Toggle } from "@/components/toggle/Toggle";
 
 interface ChatHeaderProps {
   showDebug: boolean;

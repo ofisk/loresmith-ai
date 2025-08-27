@@ -1,7 +1,7 @@
+import { getDAOFactory } from "../dao/dao-factory";
+import { getLibraryRagService } from "../lib/service-factory";
 import type { Env } from "../middleware/auth";
 import type { FileMetadata } from "../types/upload";
-import { getDAOFactory } from "../dao/dao-factory";
-import { getLibraryRagService } from "./service-factory";
 
 export interface StorageUsage {
   username: string;

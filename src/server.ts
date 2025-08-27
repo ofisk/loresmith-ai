@@ -2,19 +2,22 @@ import { routeAgentRequest, type Schedule } from "agents";
 import { AIChatAgent } from "agents/ai-chat-agent";
 import { generateId, type StreamTextOnFinishCallback, type ToolSet } from "ai";
 import { Hono } from "hono";
+import {
+  handleIngestionHealth,
+  handleIngestionStats,
+  handleIngestionStatus,
+} from "./api_status";
 import { UploadSessionDO } from "./durable-objects/upload-session";
+import type { AgentType } from "./lib/agent-router";
+import { AgentRouter } from "./lib/agent-router";
+import { ModelManager } from "./lib/model-manager";
+import queueConsumer from "./queue_consumer";
 import {
   handleGetAssessmentRecommendations,
   handleGetUserActivity,
   handleGetUserState,
   handleModuleIntegration,
 } from "./routes/assessment";
-import {
-  handleAutoRAGSync,
-  handleAutoRAGJobDetails,
-  handleAutoRAGJobLogs,
-  handleAutoRAGJobs,
-} from "./routes/autorag";
 import {
   handleAuthenticate,
   handleCheckOpenAIKey,
@@ -27,13 +30,25 @@ import {
   requireUserJwt,
 } from "./routes/auth";
 import {
+  handleAutoRAGJobDetails,
+  handleAutoRAGJobLogs,
+  handleAutoRAGJobs,
+  handleAutoRAGSync,
+} from "./routes/autorag";
+import {
+  handleApproveSnippets,
+  handleRejectSnippets,
+  handleSearchCampaignContent,
+  handleSearchRejectedSnippets,
+} from "./routes/campaign-autorag";
+import {
+  handleAddResourceToCampaign,
   handleCreateCampaign,
   handleDeleteAllCampaigns,
   handleDeleteCampaign,
   handleGetCampaign,
   handleGetCampaignResources,
   handleGetCampaigns,
-  handleAddResourceToCampaign,
   handleRemoveResourceFromCampaign,
 } from "./routes/campaigns";
 import {
@@ -41,14 +56,15 @@ import {
   handleGetExternalResourceSearch,
   handleGetGmResources,
 } from "./routes/external-resources";
+import fileAnalysisRoutes from "./routes/file-analysis";
 import {
-  handleSearchFiles,
-  handleGetStorageUsage,
-  handleGetFileDetails,
-  handleUpdateFile,
   handleDeleteFile,
+  handleGetFileDetails,
   handleGetFileDownload,
+  handleGetStorageUsage,
   handleRegenerateFileMetadata,
+  handleSearchFiles,
+  handleUpdateFile,
 } from "./routes/library";
 import {
   handleGetNextActions,
@@ -65,31 +81,22 @@ import {
   handleRagSearch,
   handleTriggerAutoRAGIndexing,
 } from "./routes/rag";
-import type { AgentType } from "./services/agent-router";
-import type { AuthEnv } from "./services/auth-service";
-import { AuthService } from "./services/auth-service";
-import { ModelManager } from "./services/model-manager";
-import { API_CONFIG } from "./shared";
 
 import {
-  handleDirectUpload,
-  handleUploadStatus,
-  handleGetFiles,
-  handleUpdateFileMetadata,
-  handleGetFileStatus,
-  handleStartLargeUpload,
-  handleUploadPart,
-  handleCompleteLargeUpload,
-  handleGetUploadProgress,
   handleAbortLargeUpload,
+  handleCompleteLargeUpload,
+  handleDirectUpload,
+  handleGetFileStatus,
+  handleGetFiles,
+  handleGetUploadProgress,
+  handleStartLargeUpload,
+  handleUpdateFileMetadata,
+  handleUploadPart,
+  handleUploadStatus,
 } from "./routes/upload";
-import {
-  handleIngestionStatus,
-  handleIngestionHealth,
-  handleIngestionStats,
-} from "./api_status";
-import fileAnalysisRoutes from "./routes/file-analysis";
-import queueConsumer from "./queue_consumer";
+import type { AuthEnv } from "./services/auth-service";
+import { AuthService } from "./services/auth-service";
+import { API_CONFIG } from "./shared";
 
 interface Env extends AuthEnv {
   ADMIN_SECRET?: string;
@@ -146,9 +153,7 @@ export class Chat extends AIChatAgent<Env> {
       const modelManager = ModelManager.getInstance();
       modelManager.initializeModel(apiKey);
 
-      const { AgentRegistryService } = await import(
-        "./services/agent-registry"
-      );
+      const { AgentRegistryService } = await import("./lib/agent-registry");
 
       const registeredAgentTypes =
         await AgentRegistryService.getRegisteredAgentTypes();
@@ -253,8 +258,6 @@ export class Chat extends AIChatAgent<Env> {
       );
       return "campaign-context";
     }
-
-    const { AgentRouter } = await import("./services/agent-router");
 
     const intent = await AgentRouter.routeMessage(
       userMessage,
@@ -563,6 +566,30 @@ app.delete(
   API_CONFIG.ENDPOINTS.CAMPAIGNS.DELETE_ALL,
   requireUserJwt,
   handleDeleteAllCampaigns
+);
+
+// Campaign AutoRAG Routes
+app.post(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.APPROVE(":campaignId"),
+  requireUserJwt,
+  handleApproveSnippets
+);
+app.post(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.REJECT(":campaignId"),
+  requireUserJwt,
+  handleRejectSnippets
+);
+app.post(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.SEARCH(":campaignId"),
+  requireUserJwt,
+  handleSearchCampaignContent
+);
+app.post(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.SEARCH_REJECTED(
+    ":campaignId"
+  ),
+  requireUserJwt,
+  handleSearchRejectedSnippets
 );
 
 // Progress WebSocket

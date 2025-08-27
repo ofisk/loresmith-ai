@@ -1,7 +1,7 @@
 import type { Context } from "hono";
-import type { Env } from "./middleware/auth";
 import { AutoRAGClient } from "./lib/autorag";
 import { R2Helper } from "./lib/r2";
+import type { Env } from "./middleware/auth";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{

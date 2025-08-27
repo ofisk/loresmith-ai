@@ -1,4 +1,4 @@
-import { getAssessmentService } from "../../services/service-factory";
+import { getAssessmentService } from "../../lib/service-factory";
 import type { Env } from "../../middleware/auth";
 import type { Campaign, CampaignResource } from "../../types/campaign";
 import {

@@ -1,28 +1,28 @@
-import { useState, useEffect, useId, useCallback } from "react";
 import {
   CaretDown,
   CaretRight,
+  CheckCircle,
+  Clock,
   FileText,
   Plus,
-  CheckCircle,
   SignOut,
   XCircle,
-  Clock,
 } from "@phosphor-icons/react";
-import { Card } from "../card/Card";
-import { ResourceList } from "../upload/ResourceList";
-import { Modal } from "../modal/Modal";
-import { ResourceUpload } from "../upload/ResourceUpload";
-import { StorageTracker } from "../storage-tracker";
+import { useCallback, useEffect, useId, useState } from "react";
+import { useAutoRAGPolling } from "../../hooks/useAutoRAGPolling";
 import {
-  getStoredJwt,
-  authenticatedFetchWithExpiration,
   AuthService,
+  authenticatedFetchWithExpiration,
+  getStoredJwt,
 } from "../../services/auth-service";
 import { AutoRAGService } from "../../services/autorag-service";
 import { API_CONFIG, AUTORAG_CONFIG } from "../../shared";
-import { useAutoRAGPolling } from "../../hooks/useAutoRAGPolling";
 import type { Campaign } from "../../types/campaign";
+import { Card } from "../card/Card";
+import { Modal } from "../modal/Modal";
+import { StorageTracker } from "../storage-tracker";
+import { ResourceList } from "../upload/ResourceList";
+import { ResourceUpload } from "../upload/ResourceUpload";
 
 interface ResourceSidePanelProps {
   className?: string;

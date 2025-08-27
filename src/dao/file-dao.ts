@@ -1,5 +1,5 @@
-import { BaseDAOClass } from "./base-dao";
 import type { R2Bucket, VectorizeIndex } from "@cloudflare/workers-types";
+import { BaseDAOClass } from "./base-dao";
 
 export interface FileMetadata {
   id: string;

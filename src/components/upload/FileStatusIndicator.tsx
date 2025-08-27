@@ -1,5 +1,5 @@
+import { CheckCircle, Spinner, XCircle } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
-import { CheckCircle, XCircle, Spinner } from "@phosphor-icons/react";
 import { useAutoRAGPolling } from "../../hooks/useAutoRAGPolling";
 
 interface FileStatusIndicatorProps {

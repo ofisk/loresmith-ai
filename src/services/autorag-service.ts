@@ -2,7 +2,7 @@
 // This service handles sync operations and job tracking
 
 import { API_CONFIG } from "../shared";
-import { authenticatedFetchWithExpiration, AuthService } from "./auth-service";
+import { AuthService, authenticatedFetchWithExpiration } from "./auth-service";
 
 export class AutoRAGService {
   /**

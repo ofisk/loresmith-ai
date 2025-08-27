@@ -5,6 +5,7 @@ export interface Campaign {
   name: string;
   username: string;
   description?: string;
+  campaignRagBasePath?: string;
   created_at: string;
   updated_at: string;
 }
@@ -48,13 +49,20 @@ export class CampaignDAO extends BaseDAOClass {
     id: string,
     name: string,
     username: string,
-    description?: string
+    description?: string,
+    campaignRagBasePath?: string
   ): Promise<void> {
     const sql = `
-      INSERT INTO campaigns (id, name, username, description, created_at, updated_at)
-      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT INTO campaigns (id, name, username, description, campaignRagBasePath, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `;
-    await this.execute(sql, [id, name, username, description]);
+    await this.execute(sql, [
+      id,
+      name,
+      username,
+      description,
+      campaignRagBasePath,
+    ]);
   }
 
   async getCampaignsByUser(username: string): Promise<Campaign[]> {
@@ -66,9 +74,61 @@ export class CampaignDAO extends BaseDAOClass {
     return await this.queryAll<Campaign>(sql, [username]);
   }
 
+  async getCampaignsByUserWithMapping(username: string): Promise<
+    {
+      campaignId: string;
+      name: string;
+      description: string;
+      username: string;
+      campaignRagBasePath: string;
+      createdAt: string;
+      updatedAt: string;
+    }[]
+  > {
+    const sql = `
+      SELECT 
+        id as campaignId, 
+        name, 
+        description, 
+        username, 
+        campaignRagBasePath,
+        created_at as createdAt, 
+        updated_at as updatedAt 
+      FROM campaigns 
+      WHERE username = ? 
+      ORDER BY created_at DESC
+    `;
+    return await this.queryAll(sql, [username]);
+  }
+
   async getCampaignById(campaignId: string): Promise<Campaign | null> {
     const sql = "SELECT * FROM campaigns WHERE id = ?";
     return await this.queryFirst<Campaign>(sql, [campaignId]);
+  }
+
+  async getCampaignByIdWithMapping(
+    campaignId: string,
+    username: string
+  ): Promise<{
+    campaignId: string;
+    name: string;
+    description: string;
+    campaignRagBasePath: string;
+    createdAt: string;
+    updatedAt: string;
+  } | null> {
+    const sql = `
+      SELECT 
+        id as campaignId, 
+        name, 
+        description, 
+        campaignRagBasePath, 
+        created_at as createdAt, 
+        updated_at as updatedAt 
+      FROM campaigns 
+      WHERE id = ? AND username = ?
+    `;
+    return await this.queryFirst(sql, [campaignId, username]);
   }
 
   async getCampaignWithDetails(
@@ -223,5 +283,18 @@ export class CampaignDAO extends BaseDAOClass {
       username,
     ]);
     return result !== null;
+  }
+
+  async getCampaignRagBasePath(
+    username: string,
+    campaignId: string
+  ): Promise<string | null> {
+    const sql =
+      "SELECT campaignRagBasePath FROM campaigns WHERE id = ? AND username = ?";
+    const result = await this.queryFirst<{ campaignRagBasePath: string }>(sql, [
+      campaignId,
+      username,
+    ]);
+    return result?.campaignRagBasePath || null;
   }
 }

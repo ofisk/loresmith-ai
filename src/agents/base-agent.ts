@@ -1,11 +1,11 @@
-import { SimpleChatAgent } from "./simple-chat-agent";
+import { formatDataStreamPart } from "@ai-sdk/ui-utils";
 import {
   createDataStreamResponse,
   type StreamTextOnFinishCallback,
   streamText,
   type ToolSet,
 } from "ai";
-import { formatDataStreamPart } from "@ai-sdk/ui-utils";
+import { SimpleChatAgent } from "./simple-chat-agent";
 
 interface Env {
   ADMIN_SECRET?: string;

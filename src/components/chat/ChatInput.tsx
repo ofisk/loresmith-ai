@@ -1,6 +1,6 @@
 import { PaperPlaneRight, Stop } from "@phosphor-icons/react";
-import { Textarea } from "@/components/textarea/Textarea";
 import { useState } from "react";
+import { Textarea } from "@/components/textarea/Textarea";
 
 interface ChatInputProps {
   value: string;
