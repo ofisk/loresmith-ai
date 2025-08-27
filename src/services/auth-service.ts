@@ -56,15 +56,6 @@ export class AuthService {
     // For JWT signing, we need a secret. If ADMIN_SECRET is not available, use a fallback
     let secret: string;
 
-    console.log("[AuthService] Environment debug:", {
-      hasEnv: !!this.env,
-      adminSecretType: typeof this.env.ADMIN_SECRET,
-      adminSecretKeys: this.env.ADMIN_SECRET
-        ? Object.keys(this.env.ADMIN_SECRET)
-        : "null",
-      processEnvAdmin: process.env.ADMIN_SECRET ? "present" : "not present",
-    });
-
     try {
       secret = await getEnvVar(this.env, "ADMIN_SECRET");
     } catch (_error) {
@@ -76,13 +67,6 @@ export class AuthService {
       secret = "fallback-jwt-secret-for-non-admin-users";
     }
 
-    console.log("[AuthService] JWT secret source:", {
-      hasEnvSecret: !!this.env.ADMIN_SECRET,
-      secretType: typeof this.env.ADMIN_SECRET,
-      secretLength: secret.length,
-      secretPrefix: `${secret.substring(0, 10)}...`,
-      encodedLength: new TextEncoder().encode(secret).length,
-    });
     return new TextEncoder().encode(secret);
   }
 
@@ -92,17 +76,8 @@ export class AuthService {
   async authenticateUser(request: AuthRequest): Promise<AuthResponse> {
     const { username, openaiApiKey, adminSecret } = request;
 
-    console.log("[AuthService] Starting authentication process");
-    console.log("[AuthService] Request data:", {
-      username: username ? `${username.substring(0, 10)}...` : "undefined",
-      hasOpenAIKey: !!openaiApiKey,
-      hasAdminSecret: !!adminSecret,
-      adminSecretLength: adminSecret?.length || 0,
-    });
-
     // Validate required fields
     if (!username || typeof username !== "string" || username.trim() === "") {
-      console.log("[AuthService] Username validation failed");
       return {
         success: false,
         error: "Username is required",
@@ -127,16 +102,6 @@ export class AuthService {
       // Only validate admin status if we have a valid admin key configured
       if (validAdminKey && validAdminKey.trim() !== "") {
         isAdmin = adminSecret.trim() === validAdminKey;
-
-        console.log("[AuthService] Admin key validation:", {
-          adminSecret: adminSecret
-            ? `${adminSecret.substring(0, 4)}...`
-            : "undefined",
-          validAdminKey: validAdminKey
-            ? `${validAdminKey.substring(0, 4)}...`
-            : "undefined",
-          isValid: isAdmin,
-        });
       } else {
         console.log(
           "[AuthService] ADMIN_SECRET not configured - admin access disabled"
@@ -175,7 +140,6 @@ export class AuthService {
       console.log(
         `[AuthService] Authentication successful for user: ${username} (${isAdmin ? "Admin" : "Regular user"})`
       );
-      console.log("[AuthService] JWT token created successfully");
 
       return {
         success: true,
@@ -426,24 +390,9 @@ export class AuthService {
    * Utility function to parse JWT and extract username
    */
   static parseJwtForUsername(jwt: string): string | null {
-    console.log(
-      "[AuthService] parseJwtForUsername called with JWT:",
-      jwt ? `${jwt.substring(0, 20)}...` : "null"
-    );
     try {
       const payload = JSON.parse(atob(jwt.split(".")[1]));
-      console.log(
-        "[AuthService] JWT payload: { type:",
-        payload.type,
-        ", username:",
-        payload.username,
-        ", isAdmin:",
-        payload.isAdmin,
-        " }"
-      );
-      const username = payload.username || null;
-      console.log("[AuthService] Extracted username:", username);
-      return username;
+      return payload.username || null;
     } catch (error) {
       console.error("Error parsing JWT for username:", error);
       return null;
@@ -485,27 +434,13 @@ export class AuthService {
    * Utility function to extract username from message data
    */
   static extractUsernameFromMessage(message: any): string | null {
-    console.log("[AuthService] extractUsernameFromMessage called with:", {
-      hasMessage: !!message,
-      hasData: !!message?.data,
-      dataType: typeof message?.data,
-      hasJwt:
-        message?.data &&
-        typeof message.data === "object" &&
-        "jwt" in message.data,
-    });
-
     if (
       message?.data &&
       typeof message.data === "object" &&
       "jwt" in message.data
     ) {
-      console.log(
-        "[AuthService] JWT found in message data, parsing for username"
-      );
       return AuthService.parseJwtForUsername((message.data as any).jwt);
     }
-    console.log("[AuthService] No JWT found in message data");
     return null;
   }
 
