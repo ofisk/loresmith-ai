@@ -10,20 +10,15 @@ type ContextWithAuth = Context<{ Bindings: Env }> & {
 };
 
 /**
- * Approve snippets from staging
- * POST /campaigns/:campaignId/autorag/approve
+ * Get staged snippets for a campaign
+ * GET /campaigns/:campaignId/snippets/staged
  */
-export async function handleApproveSnippets(c: ContextWithAuth) {
+export async function handleGetStagedSnippets(c: ContextWithAuth) {
   try {
-    const userAuth = (c as any).userAuth;
     const campaignId = c.req.param("campaignId");
-    const { stagingKey, expansions } = await c.req.json();
+    const userAuth = (c as any).userAuth;
 
-    if (!stagingKey) {
-      return c.json({ error: "Staging key is required" }, 400);
-    }
-
-    // Get campaign RAG base path using DAO - this verifies user ownership
+    // Get campaign RAG base path
     const campaignDAO = getDAOFactory(c.env).campaignDAO;
     const campaignRagBasePath = await campaignDAO.getCampaignRagBasePath(
       userAuth.username,
@@ -31,10 +26,48 @@ export async function handleApproveSnippets(c: ContextWithAuth) {
     );
 
     if (!campaignRagBasePath) {
-      return c.json(
-        { error: "Campaign not found or AutoRAG not initialized" },
-        404
-      );
+      return c.json({ error: "Campaign AutoRAG not initialized" }, 404);
+    }
+
+    // Get CampaignAutoRAG service
+    const campaignAutoRAG = getCampaignAutoRAGService(
+      c.env,
+      campaignRagBasePath
+    );
+
+    // Get staged snippets
+    const stagedSnippets = await campaignAutoRAG.getStagedSnippets();
+
+    return c.json({ snippets: stagedSnippets });
+  } catch (error) {
+    console.error("[Server] Error getting staged snippets:", error);
+    return c.json({ error: "Failed to get staged snippets" }, 500);
+  }
+}
+
+/**
+ * Approve snippets
+ * POST /campaigns/:campaignId/snippets/approve
+ */
+export async function handleApproveSnippets(c: ContextWithAuth) {
+  try {
+    const campaignId = c.req.param("campaignId");
+    const userAuth = (c as any).userAuth;
+    const { stagingKey, expansions } = await c.req.json();
+
+    if (!stagingKey) {
+      return c.json({ error: "stagingKey is required" }, 400);
+    }
+
+    // Get campaign RAG base path
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
+    const campaignRagBasePath = await campaignDAO.getCampaignRagBasePath(
+      userAuth.username,
+      campaignId
+    );
+
+    if (!campaignRagBasePath) {
+      return c.json({ error: "Campaign AutoRAG not initialized" }, 404);
     }
 
     // Get CampaignAutoRAG service
@@ -46,39 +79,32 @@ export async function handleApproveSnippets(c: ContextWithAuth) {
     // Approve snippets
     await campaignAutoRAG.approveSnippets(stagingKey, expansions);
 
-    // Trigger sync
-    await campaignAutoRAG.sync();
-
-    console.log(
-      `[CampaignAutoRAG] Approved snippets for campaign: ${campaignId}`
-    );
-
     return c.json({ success: true });
   } catch (error) {
-    console.error("Error approving snippets:", error);
-    return c.json({ error: "Internal server error" }, 500);
+    console.error("[Server] Error approving snippets:", error);
+    return c.json({ error: "Failed to approve snippets" }, 500);
   }
 }
 
 /**
- * Reject snippets from staging
- * POST /campaigns/:campaignId/autorag/reject
+ * Reject snippets
+ * POST /campaigns/:campaignId/snippets/reject
  */
 export async function handleRejectSnippets(c: ContextWithAuth) {
   try {
-    const userAuth = (c as any).userAuth;
     const campaignId = c.req.param("campaignId");
+    const userAuth = (c as any).userAuth;
     const { stagingKey, reason } = await c.req.json();
 
     if (!stagingKey) {
-      return c.json({ error: "Staging key is required" }, 400);
+      return c.json({ error: "stagingKey is required" }, 400);
     }
 
     if (!reason) {
-      return c.json({ error: "Rejection reason is required" }, 400);
+      return c.json({ error: "reason is required" }, 400);
     }
 
-    // Get campaign RAG base path using DAO - this verifies user ownership
+    // Get campaign RAG base path
     const campaignDAO = getDAOFactory(c.env).campaignDAO;
     const campaignRagBasePath = await campaignDAO.getCampaignRagBasePath(
       userAuth.username,
@@ -86,10 +112,7 @@ export async function handleRejectSnippets(c: ContextWithAuth) {
     );
 
     if (!campaignRagBasePath) {
-      return c.json(
-        { error: "Campaign not found or AutoRAG not initialized" },
-        404
-      );
+      return c.json({ error: "Campaign AutoRAG not initialized" }, 404);
     }
 
     // Get CampaignAutoRAG service
@@ -101,35 +124,28 @@ export async function handleRejectSnippets(c: ContextWithAuth) {
     // Reject snippets
     await campaignAutoRAG.rejectSnippets(stagingKey, reason);
 
-    // Trigger sync
-    await campaignAutoRAG.sync();
-
-    console.log(
-      `[CampaignAutoRAG] Rejected snippets for campaign: ${campaignId}`
-    );
-
     return c.json({ success: true });
   } catch (error) {
-    console.error("Error rejecting snippets:", error);
-    return c.json({ error: "Internal server error" }, 500);
+    console.error("[Server] Error rejecting snippets:", error);
+    return c.json({ error: "Failed to reject snippets" }, 500);
   }
 }
 
 /**
- * Search campaign content (approved only)
- * POST /campaigns/:campaignId/autorag/search
+ * Search approved snippets
+ * GET /campaigns/:campaignId/snippets/approved
  */
-export async function handleSearchCampaignContent(c: ContextWithAuth) {
+export async function handleSearchApprovedSnippets(c: ContextWithAuth) {
   try {
-    const userAuth = (c as any).userAuth;
     const campaignId = c.req.param("campaignId");
-    const { query, limit = 10 } = await c.req.json();
+    const { query } = c.req.query();
+    const userAuth = (c as any).userAuth;
 
     if (!query) {
-      return c.json({ error: "Query is required" }, 400);
+      return c.json({ error: "query parameter is required" }, 400);
     }
 
-    // Get campaign RAG base path using DAO - this verifies user ownership
+    // Get campaign RAG base path
     const campaignDAO = getDAOFactory(c.env).campaignDAO;
     const campaignRagBasePath = await campaignDAO.getCampaignRagBasePath(
       userAuth.username,
@@ -137,10 +153,7 @@ export async function handleSearchCampaignContent(c: ContextWithAuth) {
     );
 
     if (!campaignRagBasePath) {
-      return c.json(
-        { error: "Campaign not found or AutoRAG not initialized" },
-        404
-      );
+      return c.json({ error: "Campaign AutoRAG not initialized" }, 404);
     }
 
     // Get CampaignAutoRAG service
@@ -149,64 +162,12 @@ export async function handleSearchCampaignContent(c: ContextWithAuth) {
       campaignRagBasePath
     );
 
-    // Search content (automatically filtered to approved)
-    const results = await campaignAutoRAG.search(query, { limit });
+    // Search approved snippets
+    const searchResults = await campaignAutoRAG.search(query);
 
-    console.log(
-      `[CampaignAutoRAG] Search returned ${results.total} results for campaign: ${campaignId}`
-    );
-
-    return c.json({ results: results.results, total: results.total });
+    return c.json({ results: searchResults });
   } catch (error) {
-    console.error("Error searching campaign content:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-}
-
-/**
- * Search rejected snippets (admin/QA only)
- * POST /campaigns/:campaignId/autorag/search-rejected
- */
-export async function handleSearchRejectedSnippets(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-    const campaignId = c.req.param("campaignId");
-    const { query, limit = 10 } = await c.req.json();
-
-    if (!query) {
-      return c.json({ error: "Query is required" }, 400);
-    }
-
-    // Get campaign RAG base path using DAO - this verifies user ownership
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    const campaignRagBasePath = await campaignDAO.getCampaignRagBasePath(
-      userAuth.username,
-      campaignId
-    );
-
-    if (!campaignRagBasePath) {
-      return c.json(
-        { error: "Campaign not found or AutoRAG not initialized" },
-        404
-      );
-    }
-
-    // Get CampaignAutoRAG service
-    const campaignAutoRAG = getCampaignAutoRAGService(
-      c.env,
-      campaignRagBasePath
-    );
-
-    // Search rejected content
-    const results = await campaignAutoRAG.searchRejected(query, { limit });
-
-    console.log(
-      `[CampaignAutoRAG] Rejected search returned ${results.total} results for campaign: ${campaignId}`
-    );
-
-    return c.json({ results: results.results, total: results.total });
-  } catch (error) {
-    console.error("Error searching rejected snippets:", error);
-    return c.json({ error: "Internal server error" }, 500);
+    console.error("[Server] Error searching approved snippets:", error);
+    return c.json({ error: "Failed to search snippets" }, 500);
   }
 }

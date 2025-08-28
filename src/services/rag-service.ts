@@ -362,6 +362,7 @@ export class LibraryRAGService extends BaseRAGService {
           tags: JSON.parse(file.tags || "[]"),
           file_size: file.file_size,
           created_at: file.created_at,
+          status: file.status,
         };
       });
 

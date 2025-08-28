@@ -330,6 +330,31 @@ export function ResourceList({
     };
   }, [fetchResources]);
 
+  // Listen for file status update events from FileStatusIndicator
+  useEffect(() => {
+    const handleFileStatusUpdate = (event: CustomEvent) => {
+      if (event.detail?.updatedCount > 0) {
+        console.log(
+          "[ResourceList] File status update detected, refreshing..."
+        );
+        fetchResources();
+      }
+    };
+
+    // Listen for file status update events
+    window.addEventListener(
+      "file-status-updated",
+      handleFileStatusUpdate as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "file-status-updated",
+        handleFileStatusUpdate as EventListener
+      );
+    };
+  }, [fetchResources]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
@@ -381,7 +406,6 @@ export function ResourceList({
                   </h4>
                   {AuthService.getUsernameFromStoredJwt() && (
                     <FileStatusIndicator
-                      filename={file.file_name}
                       tenant={AuthService.getUsernameFromStoredJwt()!}
                       initialStatus={file.status}
                       className="flex-shrink-0"

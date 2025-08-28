@@ -5,6 +5,7 @@ import type { AuthPayload } from "../services/auth-service";
 import { FileAnalysisOrchestrator } from "../services/file-analysis-orchestrator-service";
 import { FileAnalysisService } from "../services/file-analysis-service";
 import { AUTORAG_CONFIG } from "../shared";
+import { API_CONFIG } from "../shared";
 
 async function triggerAutoRAGSync(
   env: any,
@@ -173,6 +174,51 @@ export async function handleAutoRAGSync(c: ContextWithAuth) {
     console.log(
       `[AutoRAG] Sync triggered successfully, job_id: ${result.result.job_id}`
     );
+
+    // Store the job in the autorag_jobs table for tracking
+    try {
+      const fileDAO = new FileDAO(c.env.DB);
+
+      if (filename) {
+        // Specific file upload - track the job for this file
+        const fileKey = `autorag/${username}/${filename}`;
+        await fileDAO.createAutoRAGJob(
+          result.result.job_id,
+          ragId,
+          username,
+          fileKey,
+          filename
+        );
+        console.log(
+          `[AutoRAG] Job ${result.result.job_id} stored for file ${filename}`
+        );
+      } else {
+        // Full sync - track the job for all processing files
+        const processingFiles = await fileDAO.getFilesByStatus(
+          username,
+          FileDAO.STATUS.PROCESSING
+        );
+        console.log(
+          `[AutoRAG] Full sync job ${result.result.job_id} - tracking ${processingFiles.length} processing files`
+        );
+
+        for (const file of processingFiles) {
+          await fileDAO.createAutoRAGJob(
+            result.result.job_id,
+            ragId,
+            username,
+            file.file_key,
+            file.file_name
+          );
+          console.log(
+            `[AutoRAG] Job ${result.result.job_id} stored for file ${file.file_name}`
+          );
+        }
+      }
+    } catch (jobError) {
+      console.error(`[AutoRAG] Failed to store job tracking:`, jobError);
+      // Don't fail the sync request if job tracking fails
+    }
 
     // Automatically trigger file analysis after successful sync
     await triggerFileAnalysis(username, filename, c.env);
@@ -396,6 +442,233 @@ export async function handleAutoRAGJobs(c: ContextWithAuth) {
       {
         success: false,
         error: `Failed to get jobs: ${error instanceof Error ? error.message : "Unknown error"}`,
+      },
+      500
+    );
+  }
+}
+
+/**
+ * Check the status of a single AutoRAG job and update file status accordingly
+ */
+async function checkSingleJobStatus(
+  job: any,
+  env: any
+): Promise<{ status: string; updated: boolean }> {
+  const fileDAO = new FileDAO(env.DB);
+
+  // Call the Cloudflare AutoRAG API to check job status
+  const accountId = env.AUTORAG_ACCOUNT_ID;
+  const apiUrl = env.AUTORAG_API_URL;
+
+  if (!accountId || !apiUrl) {
+    throw new Error("AutoRAG configuration missing: ACCOUNT_ID or API_URL");
+  }
+
+  const jobDetailsUrl = API_CONFIG.ENDPOINTS.AUTORAG.API.JOB_DETAILS(
+    accountId,
+    job.rag_id,
+    job.job_id
+  );
+
+  console.log(
+    `[AutoRAG] Checking job: ${job.job_id} for file: ${job.file_name}`
+  );
+  console.log(`[AutoRAG] Job details URL: ${jobDetailsUrl}`);
+
+  try {
+    const jobResponse = await fetch(jobDetailsUrl, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.AUTORAG_API_TOKEN}`,
+      },
+    });
+
+    console.log(`[AutoRAG] Job response status: ${jobResponse.status}`);
+
+    if (jobResponse.ok) {
+      const jobResult = (await jobResponse.json()) as any;
+      console.log(`[AutoRAG] Job result:`, JSON.stringify(jobResult, null, 2));
+
+      // Extract job status from the response
+      const jobStatus = jobResult.result?.status || jobResult.status;
+      console.log(`[AutoRAG] Job ${job.job_id} status: ${jobStatus}`);
+
+      // Update job status in our database
+      await fileDAO.updateAutoRAGJobStatus(job.job_id, jobStatus);
+
+      // Map AutoRAG job status to our file status
+      let fileStatus = "processing";
+      let updated = false;
+
+      if (jobStatus === "completed" || jobStatus === "success") {
+        fileStatus = "completed";
+        updated = true;
+      } else if (jobStatus === "failed" || jobStatus === "error") {
+        fileStatus = "error";
+        updated = true;
+      }
+
+      // Update file status if it changed
+      if (updated) {
+        await fileDAO.updateFileStatusByJobId(job.job_id, fileStatus);
+        console.log(
+          `[AutoRAG] Updated file ${job.file_name} to status: ${fileStatus}`
+        );
+      }
+
+      return { status: fileStatus, updated };
+    } else {
+      const errorText = await jobResponse.text();
+      console.error(
+        `[AutoRAG] Job check failed: ${jobResponse.status} - ${errorText}`
+      );
+
+      // Mark job as failed if we can't reach the API
+      await fileDAO.updateAutoRAGJobStatus(
+        job.job_id,
+        "error",
+        `API Error: ${jobResponse.status}`
+      );
+      return { status: "error", updated: true };
+    }
+  } catch (error) {
+    console.error(`[AutoRAG] Error checking job ${job.job_id}:`, error);
+
+    // Mark job as failed on exception
+    await fileDAO.updateAutoRAGJobStatus(
+      job.job_id,
+      "error",
+      `Exception: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
+    return { status: "error", updated: true };
+  }
+}
+
+/**
+ * Refresh all file statuses for a user
+ * This endpoint checks all processing files and updates their status based on AutoRAG completion
+ */
+export async function handleRefreshAllFileStatuses(c: ContextWithAuth) {
+  try {
+    const { username } = await c.req.json();
+
+    if (!username) {
+      return c.json({ error: "Username is required" }, 400);
+    }
+
+    console.log(`[AutoRAG] Refreshing all file statuses for user: ${username}`);
+
+    const fileDAO = new FileDAO(c.env.DB);
+
+    // Get all pending AutoRAG jobs for this user
+    const pendingJobs = await fileDAO.getPendingAutoRAGJobs(username);
+
+    console.log(
+      `[AutoRAG] Found ${pendingJobs.length} pending jobs for user ${username}`
+    );
+
+    if (pendingJobs.length === 0) {
+      // Check for files stuck in processing status without job tracking
+      const processingFiles = await fileDAO.getFilesByStatus(
+        username,
+        FileDAO.STATUS.PROCESSING
+      );
+
+      if (processingFiles.length > 0) {
+        console.log(
+          `[AutoRAG] Found ${processingFiles.length} files stuck in processing status without job tracking`
+        );
+
+        // For files without job tracking, mark them as failed if they've been processing for more than 5 minutes
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        let updatedCount = 0;
+
+        for (const file of processingFiles) {
+          const fileCreatedAt = new Date(file.created_at);
+          if (fileCreatedAt < fiveMinutesAgo) {
+            // File has been processing for more than 5 minutes, mark as failed
+            await fileDAO.updateFileStatusByKey(
+              file.file_key,
+              FileDAO.STATUS.ERROR
+            );
+            console.log(
+              `[AutoRAG] Marked file ${file.file_name} as failed (stuck in processing for >5 minutes without job tracking)`
+            );
+            updatedCount++;
+          }
+        }
+
+        if (updatedCount > 0) {
+          return c.json({
+            success: true,
+            message: `Marked ${updatedCount} files as failed (stuck in processing status without job tracking)`,
+            updatedCount,
+            autoFailed: true,
+          });
+        }
+      }
+
+      return c.json({
+        success: true,
+        message: "No pending jobs need status refresh",
+        updatedCount: 0,
+      });
+    }
+
+    const results: Array<{
+      filename: string;
+      jobId: string;
+      oldStatus: string;
+      newStatus: string;
+      message: string;
+      updated: boolean;
+    }> = [];
+
+    for (const job of pendingJobs) {
+      try {
+        const result = await checkSingleJobStatus(job, c.env);
+        results.push({
+          filename: job.file_name,
+          jobId: job.job_id,
+          oldStatus: job.status,
+          newStatus: result.status,
+          message: result.updated ? "Status updated" : "Status unchanged",
+          updated: result.updated,
+        });
+      } catch (error) {
+        console.error(`[AutoRAG] Error checking job ${job.job_id}:`, error);
+        results.push({
+          filename: job.file_name,
+          jobId: job.job_id,
+          oldStatus: job.status,
+          newStatus: "error",
+          message: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+          updated: false,
+        });
+      }
+    }
+
+    const updatedCount = results.filter((r) => r.updated).length;
+
+    console.log(
+      `[AutoRAG] Updated ${updatedCount} out of ${pendingJobs.length} jobs for user ${username}`
+    );
+
+    return c.json({
+      success: true,
+      message: `Refreshed ${pendingJobs.length} jobs`,
+      results,
+      updatedCount,
+      totalChecked: pendingJobs.length,
+    });
+  } catch (error) {
+    console.error("[AutoRAG] Error refreshing file statuses:", error);
+    return c.json(
+      {
+        success: false,
+        error: `Failed to refresh file statuses: ${error instanceof Error ? error.message : "Unknown error"}`,
       },
       500
     );

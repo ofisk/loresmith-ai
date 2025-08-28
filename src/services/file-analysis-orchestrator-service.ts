@@ -76,7 +76,7 @@ export class FileAnalysisOrchestrator {
       // Perform the analysis
       const analysisRequest = {
         fileKey,
-        filename: file.filename,
+        filename: file.file_name,
         description: file.description,
         tags: file.tags,
         username,

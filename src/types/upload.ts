@@ -54,6 +54,7 @@ export interface SearchResult {
   tags: string[];
   file_size: number;
   created_at: string;
+  status: string;
   score?: number; // For semantic search
 }
 

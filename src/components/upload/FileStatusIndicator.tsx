@@ -1,14 +1,16 @@
 import { CheckCircle, Spinner, XCircle } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAutoRAGPolling } from "../../hooks/useAutoRAGPolling";
+import { API_CONFIG } from "../../shared";
+import { JWT_STORAGE_KEY } from "../../constants";
+import { FileDAO } from "../../dao/file-dao";
 
 interface FileStatusIndicatorProps {
-  filename: string;
-  tenant: string;
   className?: string;
   initialStatus?: string;
   jobId?: string;
   ragId?: string;
+  tenant: string;
 }
 
 export function FileStatusIndicator({
@@ -16,6 +18,7 @@ export function FileStatusIndicator({
   initialStatus = "uploaded",
   jobId,
   ragId,
+  tenant,
 }: FileStatusIndicatorProps) {
   const [showError, setShowError] = useState(false);
   const { jobStatus, isPolling, startPolling, stopPolling } =
@@ -26,7 +29,8 @@ export function FileStatusIndicator({
     if (
       jobId &&
       ragId &&
-      (initialStatus === "uploaded" || initialStatus === "processing")
+      (initialStatus === FileDAO.STATUS.UPLOADED ||
+        initialStatus === FileDAO.STATUS.PROCESSING)
     ) {
       startPolling(ragId, jobId);
 
@@ -45,30 +49,82 @@ export function FileStatusIndicator({
     }
   }, [jobId, ragId, initialStatus, startPolling, stopPolling, isPolling]);
 
+  // Manual refresh function to check AutoRAG status
+  const handleRefresh = useCallback(async () => {
+    try {
+      const jwt = localStorage.getItem(JWT_STORAGE_KEY);
+      if (!jwt) {
+        throw new Error("No JWT token available");
+      }
+
+      // Use the new refresh all statuses endpoint from API_CONFIG
+      const response = await fetch(
+        API_CONFIG.ENDPOINTS.AUTORAG.REFRESH_ALL_FILE_STATUSES,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${jwt}`,
+          },
+          body: JSON.stringify({
+            username: tenant,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const result = (await response.json()) as {
+          success: boolean;
+          updatedCount: number;
+          results: Array<{ filename: string; updated: boolean }>;
+        };
+
+        if (result.success && result.updatedCount > 0) {
+          console.log(
+            `[FileStatusIndicator] Updated ${result.updatedCount} file statuses`
+          );
+          // Trigger a custom event to refresh the ResourceList data instead of page reload
+          window.dispatchEvent(
+            new CustomEvent("file-status-updated", {
+              detail: { updatedCount: result.updatedCount },
+            })
+          );
+        } else {
+          console.log("[FileStatusIndicator] No file statuses were updated");
+        }
+      }
+    } catch (error) {
+      console.error("Error checking file status:", error);
+    }
+  }, [tenant]);
+
+  // Automatically refresh file statuses on component mount for processing files
+  useEffect(() => {
+    if (
+      initialStatus === FileDAO.STATUS.PROCESSING ||
+      initialStatus === FileDAO.STATUS.UPLOADED
+    ) {
+      handleRefresh();
+    }
+  }, [handleRefresh, initialStatus]); // Include dependencies
+
   // Determine what to show based on status
   const statusConfig = {
-    error: {
+    [FileDAO.STATUS.ERROR]: {
       icon: XCircle,
       color: "text-red-500",
       text: "Failed",
       title: "Processing failed",
       spinning: false,
     },
-    ready: {
+    [FileDAO.STATUS.COMPLETED]: {
       icon: CheckCircle,
       color: "text-green-500",
-      text: "Ready",
-      title: "File indexed and ready",
+      text: "Completed",
+      title: "File processing completed",
       spinning: false,
     },
-    processed: {
-      icon: CheckCircle,
-      color: "text-green-500",
-      text: "Ready",
-      title: "File indexed and ready",
-      spinning: false,
-    },
-    processing: {
+    [FileDAO.STATUS.PROCESSING]: {
       icon: Spinner,
       color: "text-blue-500",
       text: "Processing",
@@ -81,18 +137,24 @@ export function FileStatusIndicator({
   let currentStatus: keyof typeof statusConfig;
 
   if (showError) {
-    currentStatus = "error";
+    currentStatus = FileDAO.STATUS.ERROR;
   } else if (jobStatus?.ended_at) {
     // Job completed
     const isSuccess =
       !jobStatus.end_reason || jobStatus.end_reason === "completed";
-    currentStatus = isSuccess ? "ready" : "error";
+    currentStatus = isSuccess ? FileDAO.STATUS.COMPLETED : FileDAO.STATUS.ERROR;
   } else if (jobStatus?.started_at) {
     // Job is running
-    currentStatus = "processing";
+    currentStatus = FileDAO.STATUS.PROCESSING;
   } else {
     // Fall back to initial status
-    currentStatus = initialStatus === "processed" ? "processed" : "processing";
+    if (initialStatus === FileDAO.STATUS.COMPLETED) {
+      currentStatus = FileDAO.STATUS.COMPLETED;
+    } else if (initialStatus === FileDAO.STATUS.ERROR) {
+      currentStatus = FileDAO.STATUS.ERROR;
+    } else {
+      currentStatus = FileDAO.STATUS.PROCESSING;
+    }
   }
 
   const config = statusConfig[currentStatus];

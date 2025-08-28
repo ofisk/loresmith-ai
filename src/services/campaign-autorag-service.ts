@@ -192,6 +192,51 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
   }
 
   /**
+   * Get staged snippets
+   */
+  async getStagedSnippets(): Promise<any[]> {
+    console.log(
+      `[CampaignAutoRAG] Getting staged snippets from: ${this.campaignRagBasePath}/staging/`
+    );
+
+    try {
+      const stagingFolder = `${this.campaignRagBasePath}/staging/`;
+      const listResult = await this.env.R2.list({
+        prefix: stagingFolder,
+        limit: 1000,
+      });
+
+      const stagedSnippets = [];
+
+      for (const object of listResult.objects) {
+        try {
+          const content = await this.r2Helper.get(object.key);
+          if (content) {
+            const data = JSON.parse(new TextDecoder().decode(content));
+            stagedSnippets.push({
+              key: object.key,
+              ...data,
+            });
+          }
+        } catch (error) {
+          console.warn(
+            `[CampaignAutoRAG] Error reading staged snippet ${object.key}:`,
+            error
+          );
+        }
+      }
+
+      console.log(
+        `[CampaignAutoRAG] Found ${stagedSnippets.length} staged snippets`
+      );
+      return stagedSnippets;
+    } catch (error) {
+      console.error(`[CampaignAutoRAG] Error getting staged snippets:`, error);
+      return [];
+    }
+  }
+
+  /**
    * Get campaign RAG base path
    */
   getCampaignRagBasePath(): string {
