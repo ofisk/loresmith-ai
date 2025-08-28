@@ -240,7 +240,7 @@ export async function handleCheckOpenAIKey(c: Context<{ Bindings: Env }>) {
 
     // Get the API key from D1 database
     const result = await c.env.DB.prepare(
-      `SELECT api_key FROM user_openai_keys WHERE username = ?`
+      `select api_key from user_openai_keys where username = ?`
     )
       .bind(username)
       .first();

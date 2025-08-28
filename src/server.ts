@@ -38,11 +38,8 @@ import {
 } from "./routes/autorag";
 import {
   handleApproveSnippets,
-  handleApproveSnippets as handleApproveSnippetsNew,
   handleGetStagedSnippets,
   handleRejectSnippets,
-  handleRejectSnippets as handleRejectSnippetsNew,
-  handleSearchApprovedSnippets,
 } from "./routes/campaign-autorag";
 import {
   handleAddResourceToCampaign,
@@ -114,9 +111,6 @@ interface Env extends AuthEnv {
   ASSETS: Fetcher;
   FILE_PROCESSING_QUEUE: Queue;
   FILE_PROCESSING_DLQ: Queue;
-  AUTORAG_SEARCH_URL: string;
-  AUTORAG_API_URL: string;
-  AUTORAG_ACCOUNT_ID: string;
   AUTORAG_API_TOKEN: string;
 }
 
@@ -432,6 +426,9 @@ export { UploadSessionDO };
 const app = new Hono<{ Bindings: Env }>();
 
 app.use("*", async (c, next) => {
+  // Log all incoming requests for debugging
+  console.log(`[Server] ${c.req.method} ${c.req.path} - request received`);
+
   if (c.req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
@@ -601,21 +598,14 @@ app.post(
     ":campaignId"
   ),
   requireUserJwt,
-  handleApproveSnippetsNew
+  handleApproveSnippets
 );
 app.post(
   API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.REJECT_SNIPPETS(
     ":campaignId"
   ),
   requireUserJwt,
-  handleRejectSnippetsNew
-);
-app.get(
-  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.SEARCH_APPROVED(
-    ":campaignId"
-  ),
-  requireUserJwt,
-  handleSearchApprovedSnippets
+  handleRejectSnippets
 );
 
 // Progress WebSocket

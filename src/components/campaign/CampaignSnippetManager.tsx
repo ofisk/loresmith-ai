@@ -59,6 +59,7 @@ export const CampaignSnippetManager: React.FC<CampaignSnippetManagerProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Fetch staged snippets
   const fetchStagedSnippets = useCallback(async () => {
@@ -192,6 +193,46 @@ export const CampaignSnippetManager: React.FC<CampaignSnippetManagerProps> = ({
     fetchStagedSnippets();
   }, [fetchStagedSnippets]);
 
+  // Listen for resource-added-to-campaign events to refresh snippets
+  useEffect(() => {
+    const handleResourceAdded = (event: CustomEvent) => {
+      const { campaignIds, fileKey, fileName } = event.detail;
+
+      // Check if this snippet manager is for one of the affected campaigns
+      if (campaignIds.includes(campaignId)) {
+        console.log(
+          `[CampaignSnippetManager] Resource added to campaign ${campaignId}, refreshing snippets...`,
+          {
+            fileKey,
+            fileName,
+            campaignIds,
+          }
+        );
+
+        // Wait a bit for snippets to be generated, then refresh
+        setTimeout(() => {
+          setRefreshing(true);
+          fetchStagedSnippets().finally(() => {
+            setRefreshing(false);
+          });
+        }, 2000); // 2 second delay to allow snippet generation to complete
+      }
+    };
+
+    // Listen for custom resource-added-to-campaign events
+    window.addEventListener(
+      "resource-added-to-campaign",
+      handleResourceAdded as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "resource-added-to-campaign",
+        handleResourceAdded as EventListener
+      );
+    };
+  }, [campaignId, fetchStagedSnippets]);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center p-8">
@@ -231,10 +272,20 @@ export const CampaignSnippetManager: React.FC<CampaignSnippetManagerProps> = ({
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold">Staged Snippets</h3>
-        <Button onClick={fetchStagedSnippets} variant="secondary" size="sm">
-          Refresh
-        </Button>
+        <div className="flex space-x-2">
+          <Button onClick={fetchStagedSnippets} variant="secondary" size="sm">
+            Refresh
+          </Button>
+        </div>
       </div>
+
+      {refreshing && (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-blue-700 text-sm">
+            🔄 Refreshing snippets... New snippets may appear shortly.
+          </p>
+        </div>
+      )}
 
       {stagedSnippets.map((group) => (
         <Card key={group.key} className="p-6">

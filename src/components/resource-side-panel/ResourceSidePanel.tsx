@@ -220,49 +220,9 @@ export function ResourceSidePanel({
           if (currentUploadId) {
             const currentUpload = fileUploads.get(currentUploadId);
             if (currentUpload) {
-              try {
-                const jwt = getStoredJwt();
-                if (jwt) {
-                  const tenant = AuthService.getUsernameFromStoredJwt();
-                  const fileKey = tenant
-                    ? `autorag/${tenant}/${currentUpload.filename}`
-                    : currentUploadId;
-
-                  authenticatedFetchWithExpiration(
-                    API_CONFIG.buildUrl(
-                      API_CONFIG.ENDPOINTS.LIBRARY.FILE_UPDATE(fileKey)
-                    ),
-                    {
-                      method: "PUT",
-                      jwt,
-                      body: JSON.stringify({
-                        status: isSuccess ? "processed" : "error",
-                      }),
-                      headers: {
-                        "Content-Type": "application/json",
-                      },
-                    }
-                  )
-                    .then((response) => {
-                      if (!response.response.ok) {
-                        console.warn(
-                          `[ResourceSidePanel] Failed to update file status to ${isSuccess ? "processed" : "error"} in database`
-                        );
-                      }
-                    })
-                    .catch((error) => {
-                      console.warn(
-                        `[ResourceSidePanel] Failed to update file status to ${isSuccess ? "processed" : "error"} in database:`,
-                        error
-                      );
-                    });
-                }
-              } catch (error) {
-                console.warn(
-                  `[ResourceSidePanel] Failed to update file status to ${isSuccess ? "processed" : "error"} in database:`,
-                  error
-                );
-              }
+              console.log(
+                `[ResourceSidePanel] File ${currentUpload.filename} processing completed with status: ${isSuccess ? "success" : "error"}`
+              );
             }
           }
         } else {

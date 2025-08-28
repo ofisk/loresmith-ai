@@ -45,6 +45,11 @@ echo "   For now, only database data has been cleared"
 echo "🧠 Clearing Vectorize embeddings..."
 wrangler vectorize delete loresmith-embeddings --force 2>/dev/null || echo "ℹ️  No embeddings to clear or index doesn't exist"
 
+# Step 4: Recreate Vectorize index
+echo "🔄 Recreating Vectorize index..."
+wrangler vectorize create loresmith-embeddings --dimensions=1536 --metric=cosine
+echo "✅ Vectorize index recreated successfully"
+
 echo ""
 echo "🎉 Production data clearing completed successfully!"
 echo ""
@@ -57,7 +62,7 @@ echo ""
 echo "✅ What was preserved:"
 echo "  - Database table structures and schemas"
 echo "  - R2 bucket configuration"
-echo "  - Vectorize index configuration"
+echo "  - Vectorize index configuration (recreated)"
 echo "  - All indexes and foreign key relationships"
 echo ""
 echo "The application is now ready for fresh data while maintaining all infrastructure."

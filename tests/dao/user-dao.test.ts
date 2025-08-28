@@ -24,7 +24,7 @@ describe("UserDAO", () => {
       await userDAO.storeOpenAIKey("testuser", "sk-test-key");
 
       expect(mockPrepare).toHaveBeenCalledWith(
-        expect.stringContaining("INSERT OR REPLACE")
+        expect.stringContaining("insert or replace")
       );
       expect(mockBind).toHaveBeenCalledWith("testuser", "sk-test-key");
       expect(mockRun).toHaveBeenCalled();
@@ -53,7 +53,7 @@ describe("UserDAO", () => {
 
       expect(result).toBe("sk-test-key");
       expect(mockPrepare).toHaveBeenCalledWith(
-        "SELECT api_key FROM user_openai_keys WHERE username = ?"
+        "select api_key from user_openai_keys where username = ?"
       );
       expect(mockBind).toHaveBeenCalledWith("testuser");
     });

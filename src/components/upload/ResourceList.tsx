@@ -251,29 +251,48 @@ export function ResourceList({
       // Add to each selected campaign
       await Promise.all(
         selectedCampaigns.map(async (campaignId) => {
+          const url = API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(campaignId)
+          );
+          const body = {
+            type: "pdf",
+            id: selectedFile.file_key,
+            name: selectedFile.file_name,
+          };
+
+          console.log("[ResourceList] Adding resource to campaign:", {
+            campaignId,
+            url,
+            body,
+            selectedFile: {
+              file_key: selectedFile.file_key,
+              file_name: selectedFile.file_name,
+            },
+          });
+
           const { response: addResponse, jwtExpired: addJwtExpired } =
-            await authenticatedFetchWithExpiration(
-              API_CONFIG.buildUrl(
-                API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(campaignId)
-              ),
-              {
-                method: "POST",
-                jwt,
-                body: JSON.stringify({
-                  type: "pdf",
-                  id: selectedFile.file_key,
-                  name: selectedFile.file_name,
-                }),
-              }
-            );
+            await authenticatedFetchWithExpiration(url, {
+              method: "POST",
+              jwt,
+              body: JSON.stringify(body),
+            });
 
           if (addJwtExpired) {
             throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
           }
 
+          console.log("[ResourceList] Campaign response:", {
+            campaignId,
+            status: addResponse.status,
+            ok: addResponse.ok,
+            statusText: addResponse.statusText,
+          });
+
           if (!addResponse.ok) {
+            const errorText = await addResponse.text();
+            console.error("[ResourceList] Campaign error response:", errorText);
             throw new Error(
-              `Failed to add resource to campaign ${campaignId}: ${addResponse.status}`
+              `Failed to add resource to campaign ${campaignId}: ${addResponse.status} - ${errorText}`
             );
           }
         })
@@ -283,6 +302,18 @@ export function ResourceList({
       await fetchResources();
       setSelectedCampaigns([]);
       setIsAddToCampaignModalOpen(false);
+
+      // Dispatch custom event to notify snippet components to refresh
+      // This will trigger snippet list refresh in any open campaign snippet managers
+      window.dispatchEvent(
+        new CustomEvent("resource-added-to-campaign", {
+          detail: {
+            campaignIds: selectedCampaigns,
+            fileKey: selectedFile.file_key,
+            fileName: selectedFile.file_name,
+          },
+        })
+      );
     } catch (err) {
       console.error("Failed to add resource to campaigns:", err);
       setError(
@@ -354,6 +385,22 @@ export function ResourceList({
       );
     };
   }, [fetchResources]);
+
+  // Log modal state when it opens
+  useEffect(() => {
+    if (isAddToCampaignModalOpen && selectedFile) {
+      console.log("[ResourceList] Modal opened with state:", {
+        selectedFile: {
+          fileKey: selectedFile.file_key,
+          fileName: selectedFile.file_name,
+          existingCampaigns: selectedFile.campaigns,
+        },
+        campaignsCount: campaigns.length,
+        campaigns: campaigns.map((c) => ({ id: c.campaignId, name: c.name })),
+        selectedCampaigns,
+      });
+    }
+  }, [isAddToCampaignModalOpen, selectedFile, campaigns, selectedCampaigns]);
 
   if (loading) {
     return (
@@ -508,6 +555,14 @@ export function ResourceList({
                 <div className="mt-4 space-y-2">
                   <Button
                     onClick={() => {
+                      console.log(
+                        "[ResourceList] Add to campaign button clicked for file:",
+                        {
+                          fileKey: file.file_key,
+                          fileName: file.file_name,
+                          existingCampaigns: file.campaigns,
+                        }
+                      );
                       setSelectedFile(file);
                       setIsAddToCampaignModalOpen(true);
                     }}
@@ -635,7 +690,23 @@ export function ResourceList({
                   Cancel
                 </Button>
                 <Button
-                  onClick={handleAddToCampaigns}
+                  onClick={() => {
+                    console.log(
+                      "[ResourceList] Add button clicked with state:",
+                      {
+                        selectedCampaigns,
+                        campaignsCount: campaigns.length,
+                        availableCampaigns: campaigns.filter(
+                          (campaign) =>
+                            !selectedFile?.campaigns?.some(
+                              (c) => c.campaignId === campaign.campaignId
+                            )
+                        ).length,
+                        selectedFileCampaigns: selectedFile?.campaigns,
+                      }
+                    );
+                    handleAddToCampaigns();
+                  }}
                   disabled={
                     selectedCampaigns.length === 0 ||
                     campaigns.filter(

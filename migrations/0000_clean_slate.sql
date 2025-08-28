@@ -2,171 +2,171 @@
 -- This replaces all the previous migrations with a single, clean schema
 
 -- Drop all existing tables (in dependency order)
-DROP TABLE IF EXISTS autorag_chunks;
-DROP TABLE IF EXISTS campaign_resources;
-DROP TABLE IF EXISTS campaign_context_chunks;
-DROP TABLE IF EXISTS campaign_characters;
-DROP TABLE IF EXISTS campaign_context;
-DROP TABLE IF EXISTS campaign_planning_sessions;
-DROP TABLE IF EXISTS character_sheets;
-DROP TABLE IF EXISTS user_notifications;
-DROP TABLE IF EXISTS user_openai_keys;
-DROP TABLE IF EXISTS file_chunks;
-DROP TABLE IF EXISTS file_metadata;
-DROP TABLE IF EXISTS files;
-DROP TABLE IF EXISTS campaigns;
+drop table if exists autorag_chunks;
+drop table if exists campaign_resources;
+drop table if exists campaign_context_chunks;
+drop table if exists campaign_characters;
+drop table if exists campaign_context;
+drop table if exists campaign_planning_sessions;
+drop table if exists character_sheets;
+drop table if exists user_notifications;
+drop table if exists user_openai_keys;
+drop table if exists file_chunks;
+drop table if exists file_metadata;
+drop table if exists files;
+drop table if exists campaigns;
 
 -- Create campaigns table
-CREATE TABLE campaigns (
-  id TEXT PRIMARY KEY,
-  username TEXT NOT NULL,
-  name TEXT NOT NULL,
-  description TEXT,
-  status TEXT DEFAULT 'active',
-  metadata TEXT, -- json metadata
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+create table campaigns (
+  id text primary key,
+  username text not null,
+  name text not null,
+  description text,
+  status text default 'active',
+  metadata text, -- json metadata
+  created_at datetime default current_timestamp,
+  updated_at datetime default current_timestamp
 );
 
 -- Create campaign resources (files associated with campaigns)
-CREATE TABLE campaign_resources (
-  id TEXT PRIMARY KEY,
-  campaign_id TEXT NOT NULL,
-  file_key TEXT NOT NULL,
-  file_name TEXT NOT NULL,
-  description TEXT,
-  tags TEXT, -- json array
-  status TEXT DEFAULT 'active',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+create table campaign_resources (
+  id text primary key,
+  campaign_id text not null,
+  file_key text not null,
+  file_name text not null,
+  description text,
+  tags text, -- json array
+  status text default 'active',
+  created_at datetime default current_timestamp,
+  foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
 -- Create file metadata for search (main file storage)
-CREATE TABLE file_metadata (
-  file_key TEXT PRIMARY KEY,
-  username TEXT NOT NULL,
-  file_name TEXT NOT NULL,
-  description TEXT,
-  tags TEXT, -- json array
-  file_size INTEGER,
-  status TEXT DEFAULT 'uploaded',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+create table file_metadata (
+  file_key text primary key,
+  username text not null,
+  file_name text not null,
+  description text,
+  tags text, -- json array
+  file_size integer,
+  status text default 'uploaded',
+  created_at datetime default current_timestamp
 );
 
 -- Create file content chunks for rag
-CREATE TABLE file_chunks (
-  id TEXT PRIMARY KEY,
-  file_key TEXT NOT NULL,
-  username TEXT NOT NULL,
-  chunk_text TEXT NOT NULL,
-  chunk_index INTEGER NOT NULL,
-  embedding_id TEXT, -- vectorize id (nullable for now)
-  metadata TEXT, -- json metadata
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+create table file_chunks (
+  id text primary key,
+  file_key text not null,
+  username text not null,
+  chunk_text text not null,
+  chunk_index integer not null,
+  embedding_id text, -- vectorize id (nullable for now)
+  metadata text, -- json metadata
+  created_at datetime default current_timestamp
 );
 
 -- Create autorag_chunks table for storing chunk metadata
-CREATE TABLE autorag_chunks (
-  id TEXT PRIMARY KEY,
-  file_key TEXT NOT NULL,
-  username TEXT NOT NULL,
-  chunk_key TEXT NOT NULL,
-  part_number INTEGER NOT NULL,
-  chunk_size INTEGER NOT NULL,
-  original_filename TEXT NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+create table autorag_chunks (
+  id text primary key,
+  file_key text not null,
+  username text not null,
+  chunk_key text not null,
+  part_number integer not null,
+  chunk_size integer not null,
+  original_filename text not null,
+  created_at datetime default current_timestamp
 );
 
 -- Create campaign context table
-CREATE TABLE campaign_context (
-  id TEXT PRIMARY KEY,
-  campaign_id TEXT NOT NULL,
-  context_type TEXT NOT NULL,
-  title TEXT NOT NULL,
-  content TEXT NOT NULL,
-  metadata TEXT, -- json metadata
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+create table campaign_context (
+  id text primary key,
+  campaign_id text not null,
+  context_type text not null,
+  title text not null,
+  content text not null,
+  metadata text, -- json metadata
+  created_at datetime default current_timestamp,
+  updated_at datetime default current_timestamp,
+  foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
 -- Create campaign characters table
-CREATE TABLE campaign_characters (
-  id TEXT PRIMARY KEY,
-  campaign_id TEXT NOT NULL,
-  character_name TEXT NOT NULL,
-  character_data TEXT NOT NULL, -- json string containing character info
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+create table campaign_characters (
+  id text primary key,
+  campaign_id text not null,
+  character_name text not null,
+  character_data text not null, -- json string containing character info
+  created_at datetime default current_timestamp,
+  updated_at datetime default current_timestamp,
+  foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
 -- Create campaign planning sessions table
-CREATE TABLE campaign_planning_sessions (
-  id TEXT PRIMARY KEY,
-  campaign_id TEXT NOT NULL,
-  session_type TEXT NOT NULL,
-  session_data TEXT NOT NULL, -- json string containing session info
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+create table campaign_planning_sessions (
+  id text primary key,
+  campaign_id text not null,
+  session_type text not null,
+  session_data text not null, -- json string containing session info
+  created_at datetime default current_timestamp,
+  foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
 -- Create campaign context chunks table
-CREATE TABLE campaign_context_chunks (
-  id TEXT PRIMARY KEY,
-  context_id TEXT NOT NULL,
-  chunk_text TEXT NOT NULL,
-  chunk_index INTEGER NOT NULL,
-  embedding_id TEXT, -- vectorize id (nullable for now)
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (context_id) REFERENCES campaign_context(id) ON DELETE CASCADE
+create table campaign_context_chunks (
+  id text primary key,
+  context_id text not null,
+  chunk_text text not null,
+  chunk_index integer not null,
+  embedding_id text, -- vectorize id (nullable for now)
+  created_at datetime default current_timestamp,
+  foreign key (context_id) references campaign_context(id) on delete cascade
 );
 
 -- Create character sheets table
-CREATE TABLE character_sheets (
-  id TEXT PRIMARY KEY,
-  campaign_id TEXT NOT NULL,
-  character_name TEXT NOT NULL,
-  character_data TEXT NOT NULL, -- json string containing character sheet data
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+create table character_sheets (
+  id text primary key,
+  campaign_id text not null,
+  character_name text not null,
+  character_data text not null, -- json string containing character sheet data
+  created_at datetime default current_timestamp,
+  updated_at datetime default current_timestamp,
+  foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
 -- Create user OpenAI keys table
-CREATE TABLE user_openai_keys (
-  id TEXT PRIMARY KEY,
-  username TEXT NOT NULL UNIQUE,
-  api_key TEXT NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+create table user_openai_keys (
+  id text primary key,
+  username text not null unique,
+  api_key text not null,
+  created_at datetime default current_timestamp,
+  updated_at datetime default current_timestamp
 );
 
 -- Create user notifications table
-CREATE TABLE user_notifications (
-  id TEXT PRIMARY KEY,
-  username TEXT NOT NULL,
-  notification_type TEXT NOT NULL,
-  title TEXT NOT NULL,
-  message TEXT NOT NULL,
-  is_read BOOLEAN DEFAULT FALSE,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+create table user_notifications (
+  id text primary key,
+  username text not null,
+  notification_type text not null,
+  title text not null,
+  message text not null,
+  is_read boolean default false,
+  created_at datetime default current_timestamp
 );
 
 -- Create all indexes
-CREATE INDEX IF NOT EXISTS idx_campaigns_username ON campaigns(username);
-CREATE INDEX IF NOT EXISTS idx_campaign_resources_campaign_id ON campaign_resources(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_campaign_resources_file_key ON campaign_resources(file_key);
-CREATE INDEX IF NOT EXISTS idx_file_chunks_username ON file_chunks(username);
-CREATE INDEX IF NOT EXISTS idx_file_chunks_file_key ON file_chunks(file_key);
-CREATE INDEX IF NOT EXISTS idx_file_metadata_username ON file_metadata(username);
-CREATE INDEX IF NOT EXISTS idx_autorag_chunks_file_key ON autorag_chunks(file_key);
-CREATE INDEX IF NOT EXISTS idx_autorag_chunks_username ON autorag_chunks(username);
-CREATE INDEX IF NOT EXISTS idx_autorag_chunks_chunk_key ON autorag_chunks(chunk_key);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_autorag_chunks_unique_chunk ON autorag_chunks(file_key, part_number);
-CREATE INDEX IF NOT EXISTS idx_campaign_context_campaign_id ON campaign_context(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_campaign_characters_campaign_id ON campaign_characters(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_campaign_planning_sessions_campaign_id ON campaign_planning_sessions(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_campaign_context_chunks_context_id ON campaign_context_chunks(context_id);
-CREATE INDEX IF NOT EXISTS idx_character_sheets_campaign_id ON character_sheets(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_user_notifications_username ON user_notifications(username);
+create index if not exists idx_campaigns_username on campaigns(username);
+create index if not exists idx_campaign_resources_campaign_id on campaign_resources(campaign_id);
+create index if not exists idx_campaign_resources_file_key on campaign_resources(file_key);
+create index if not exists idx_file_chunks_username on file_chunks(username);
+create index if not exists idx_file_chunks_file_key on file_chunks(file_key);
+create index if not exists idx_file_metadata_username on file_metadata(username);
+create index if not exists idx_autorag_chunks_file_key on autorag_chunks(file_key);
+create index if not exists idx_autorag_chunks_username on autorag_chunks(username);
+create index if not exists idx_autorag_chunks_chunk_key on autorag_chunks(chunk_key);
+create unique index if not exists idx_autorag_chunks_unique_chunk on autorag_chunks(file_key, part_number);
+create index if not exists idx_campaign_context_campaign_id on campaign_context(campaign_id);
+create index if not exists idx_campaign_characters_campaign_id on campaign_characters(campaign_id);
+create index if not exists idx_campaign_planning_sessions_campaign_id on campaign_planning_sessions(campaign_id);
+create index if not exists idx_campaign_context_chunks_context_id on campaign_context_chunks(context_id);
+create index if not exists idx_character_sheets_campaign_id on character_sheets(campaign_id);
+create index if not exists idx_user_notifications_username on user_notifications(username);

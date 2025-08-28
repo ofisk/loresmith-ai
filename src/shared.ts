@@ -7,12 +7,8 @@ export const APPROVAL = {
 // AutoRAG configuration
 export const AUTORAG_CONFIG = {
   LIBRARY_RAG_ID: "loresmith-library-autorag",
-  buildLibraryAutoRAGUrl: (
-    accountId: string,
-    apiUrl: string,
-    endpoint: string
-  ): string => {
-    return `${apiUrl}/accounts/${accountId}/autorag/rags/${AUTORAG_CONFIG.LIBRARY_RAG_ID}${endpoint}`;
+  buildLibraryAutoRAGUrl: (baseUrl: string, endpoint: string): string => {
+    return `${baseUrl}${endpoint}`;
   },
 } as const;
 
@@ -57,7 +53,8 @@ function getApiUrl(env?: any): string {
   }
 
   // Fallback for development or when environment variable is not set
-  return "https://ofisk.tech";
+  // Use the Worker URL instead of the domain that's not configured
+  return "https://loresmith-ai.oren-t-fisk.workers.dev";
 }
 
 // API Configuration - centralized base URL and endpoints

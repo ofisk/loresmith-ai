@@ -13,15 +13,10 @@ const mockEnv: Env = {
   DB: {} as any,
   VECTORIZE: {} as any,
   AI: {} as any,
-  AUTORAG_SEARCH_URL: "https://test-autorag.com/search",
-  AUTORAG_API_URL: "https://test-autorag.com/api",
-  AUTORAG_ACCOUNT_ID: "test-account",
+  AUTORAG_BASE_URL: "https://test-autorag.com",
   AUTORAG_API_TOKEN: "test-token",
   OPENAI_API_KEY: "test-openai-key",
   ADMIN_SECRET: "test-admin-secret",
-  R2_ACCESS_KEY_ID: "test-r2-key",
-  R2_SECRET_ACCESS_KEY: "test-r2-secret",
-  R2_ACCOUNT_ID: "test-r2-account",
   Chat: {} as any,
   UserFileTracker: {} as any,
   UploadSession: {} as any,
@@ -37,7 +32,7 @@ describe("CampaignAutoRAG", () => {
     vi.clearAllMocks();
     campaignAutoRAG = new CampaignAutoRAG(
       mockEnv,
-      mockEnv.AUTORAG_SEARCH_URL,
+      mockEnv.AUTORAG_BASE_URL as string,
       "campaigns/test-campaign-123"
     );
   });

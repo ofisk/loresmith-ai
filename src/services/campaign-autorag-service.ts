@@ -35,8 +35,8 @@ export interface RejectedSnippet {
 export class CampaignAutoRAG extends AutoRAGClientBase {
   private campaignRagBasePath: string;
 
-  constructor(env: Env, searchUrl: string, campaignRagBasePath: string) {
-    super(env, searchUrl);
+  constructor(env: Env, baseUrl: string, campaignRagBasePath: string) {
+    super(env, baseUrl);
     this.campaignRagBasePath = campaignRagBasePath;
   }
 

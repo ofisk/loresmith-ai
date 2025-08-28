@@ -8,6 +8,24 @@ export interface AutoRAGSearchResult {
   total: number;
 }
 
+export interface AutoRAGAISearchResult {
+  response: string;
+  search_query: string;
+  data: Array<{
+    file_id: string;
+    filename: string;
+    score: number;
+    attributes: Record<string, string | number | boolean | null>;
+    content: Array<{
+      type: "text";
+      text: string;
+    }>;
+  }>;
+  has_more: boolean;
+  next_page: string | null;
+  object: string;
+}
+
 export interface AutoRAGStatus {
   status: "ready" | "processing" | "delayed";
   message: string;
@@ -17,7 +35,35 @@ export interface AutoRAGStatus {
 }
 
 export class AutoRAGClient {
-  constructor(private searchUrl: string) {}
+  private searchUrl: string;
+  private aiSearchUrl: string;
+  private apiToken: string;
+
+  constructor(baseUrl: string, apiToken: string) {
+    if (!baseUrl) {
+      throw new Error(
+        `AutoRAGClient constructor called with undefined or empty baseUrl. This usually means the AUTORAG_BASE_URL environment variable is not set.`
+      );
+    }
+    if (!apiToken) {
+      throw new Error(
+        `AutoRAGClient constructor called with undefined or empty apiToken. This usually means the AUTORAG_API_TOKEN environment variable is not set.`
+      );
+    }
+
+    // Remove trailing slash if present
+    const cleanBaseUrl = baseUrl.replace(/\/$/, "");
+    this.searchUrl = `${cleanBaseUrl}/search`;
+    this.aiSearchUrl = `${cleanBaseUrl}/ai-search`;
+    this.apiToken = apiToken;
+
+    console.log(`[AutoRAGClient] Constructed URLs:`, {
+      baseUrl,
+      cleanBaseUrl,
+      searchUrl: this.searchUrl,
+      aiSearchUrl: this.aiSearchUrl,
+    });
+  }
 
   /**
    * Search AutoRAG with a query
@@ -51,6 +97,7 @@ export class AutoRAGClient {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiToken}`,
         },
       }
     );
@@ -63,6 +110,61 @@ export class AutoRAGClient {
 
     const result = await response.json();
     return result as AutoRAGSearchResult;
+  }
+
+  /**
+   * AI Search with AutoRAG using a detailed prompt
+   * This method sends a detailed prompt to AutoRAG and gets structured content back
+   */
+  async aiSearch(
+    prompt: string,
+    options: {
+      max_results?: number;
+      ranking_options?: {
+        ranker?: string;
+        score_threshold?: number;
+      };
+      rewrite_query?: boolean;
+    } = {}
+  ): Promise<AutoRAGAISearchResult> {
+    const {
+      max_results = 20,
+      ranking_options = {},
+      rewrite_query = false,
+    } = options;
+
+    console.log(
+      `[AutoRAGClient] Making AI Search request to: ${this.aiSearchUrl}`
+    );
+    console.log(`[AutoRAGClient] AI Search payload:`, {
+      query: prompt.substring(0, 100) + "...",
+      max_num_results: max_results,
+      ranking_options,
+      rewrite_query,
+    });
+
+    const response = await fetch(this.aiSearchUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiToken}`,
+      },
+      body: JSON.stringify({
+        query: prompt,
+        max_results: max_results,
+        ranking_options,
+        rewrite_query,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `AutoRAG AI search failed: ${response.status} ${response.statusText}`
+      );
+    }
+
+    const result = await response.json();
+    return result as AutoRAGAISearchResult;
   }
 
   /**
