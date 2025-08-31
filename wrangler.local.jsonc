@@ -23,7 +23,7 @@
     "STAGING_PREFIX": "staging",
     "READINESS_TIMEOUT_SEC": "600",
     "READINESS_BACKOFF_MS": "2000",
-    "AUTORAG_SEARCH_URL": "https://<autorag-endpoint>/search",
+    "AUTORAG_BASE_URL": "https://api.cloudflare.com/client/v4/accounts/f67932e71175b3ee7c945c6bb84c5259/autorag/rags/loresmith-library-autorag",
     // ADMIN_SECRET and OPENAI_API_KEY are loaded from .dev.vars file
   },
   // Explicitly disable secrets store bindings for local development

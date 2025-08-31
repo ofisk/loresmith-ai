@@ -22,7 +22,8 @@
     "STAGING_PREFIX": "staging",
     "READINESS_TIMEOUT_SEC": "600",
     "READINESS_BACKOFF_MS": "2000",
-    "PRODUCTION_URL": "https://ofisk.tech",
+    "PRODUCTION_URL": "https://loresmith-ai.oren-t-fisk.workers.dev",
+    "AUTORAG_BASE_URL": "https://api.cloudflare.com/client/v4/accounts/f67932e71175b3ee7c945c6bb84c5259/autorag/rags/loresmith-library-autorag",
   },
   "durable_objects": {
     "bindings": [

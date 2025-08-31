@@ -96,14 +96,15 @@ export const addResourceToCampaign = tool({
       console.log("[addResourceToCampaign] Making API request");
       const response = await authenticatedFetch(
         API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(campaignId)
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(campaignId)
         ),
         {
           method: "POST",
           jwt,
           body: JSON.stringify({
-            resourceId,
-            resourceType,
+            type: resourceType,
+            id: resourceId,
+            name: resourceId,
           }),
         }
       );

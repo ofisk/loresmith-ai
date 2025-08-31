@@ -29,7 +29,11 @@ export async function handleIngestionStatus(c: ContextWithAuth) {
     }
 
     const r2Helper = new R2Helper(c.env);
-    const autoragClient = new AutoRAGClient(c.env.AUTORAG_SEARCH_URL);
+    const apiToken =
+      typeof c.env.AUTORAG_API_TOKEN === "string"
+        ? c.env.AUTORAG_API_TOKEN
+        : await c.env.AUTORAG_API_TOKEN.get();
+    const autoragClient = new AutoRAGClient(c.env.AUTORAG_BASE_URL, apiToken);
 
     // Check if manifest exists for the document
     const manifestKey = `autorag/${tenant}/manifests/${doc}.manifest.json`;
@@ -150,7 +154,11 @@ export async function handleIngestionStatus(c: ContextWithAuth) {
  */
 export async function handleIngestionHealth(c: ContextWithAuth) {
   try {
-    const autoragClient = new AutoRAGClient(c.env.AUTORAG_SEARCH_URL);
+    const apiToken =
+      typeof c.env.AUTORAG_API_TOKEN === "string"
+        ? c.env.AUTORAG_API_TOKEN
+        : await c.env.AUTORAG_API_TOKEN.get();
+    const autoragClient = new AutoRAGClient(c.env.AUTORAG_BASE_URL, apiToken);
     const health = await autoragClient.getHealth();
 
     return c.json({

@@ -8,6 +8,7 @@ import { AuthService } from "../services/auth-service";
 import { CampaignAutoRAG } from "../services/campaign-autorag-service";
 import { CampaignService } from "../services/campaign-service";
 import { ErrorHandlingService } from "../services/error-handling-service";
+import { LibraryAutoRAGClient } from "../services/library-autorag-client";
 import { LibraryService } from "../services/library-service";
 import { MetadataService } from "../services/metadata-service";
 import { LibraryRAGService } from "../services/rag-service";
@@ -176,9 +177,42 @@ export class ServiceFactory {
     if (!ServiceFactory.services.has(key)) {
       ServiceFactory.services.set(
         key,
-        new CampaignAutoRAG(env, env.AUTORAG_SEARCH_URL, campaignRagBasePath)
+        new CampaignAutoRAG(env, env.AUTORAG_BASE_URL, campaignRagBasePath)
       );
     }
+    return ServiceFactory.services.get(key);
+  }
+
+  /**
+   * Get library AutoRAG service for searching library content
+   */
+  static getLibraryAutoRAGService(env: Env): LibraryAutoRAGClient {
+    console.log(`[ServiceFactory] getLibraryAutoRAGService called with env:`, {
+      hasAutoragBaseUrl: !!env.AUTORAG_BASE_URL,
+      autoragBaseUrl: env.AUTORAG_BASE_URL,
+      envKeys: Object.keys(env).filter((key) => key.includes("AUTORAG")),
+    });
+
+    const key = `library-auto-rag-${env.AUTORAG_BASE_URL}`;
+    console.log(`[ServiceFactory] Getting library AutoRAG service: ${key}`);
+    if (!ServiceFactory.services.has(key)) {
+      if (!env.AUTORAG_BASE_URL) {
+        throw new Error(
+          `AUTORAG_BASE_URL environment variable is not set. Available AUTORAG env vars: ${Object.keys(
+            env
+          )
+            .filter((key) => key.includes("AUTORAG"))
+            .join(", ")}`
+        );
+      }
+
+      console.log(`[ServiceFactory] Setting library AutoRAG service: ${key}`);
+      ServiceFactory.services.set(
+        key,
+        new LibraryAutoRAGClient(env, env.AUTORAG_BASE_URL)
+      );
+    }
+    console.log(`[ServiceFactory] Returning library AutoRAG service: ${key}`);
     return ServiceFactory.services.get(key);
   }
 
@@ -229,5 +263,8 @@ export const getCampaignAutoRAGService = (
   env: Env,
   campaignRagBasePath: string
 ) => ServiceFactory.getCampaignAutoRAGService(env, campaignRagBasePath);
+
+export const getLibraryAutoRAGService = (env: Env) =>
+  ServiceFactory.getLibraryAutoRAGService(env);
 
 export const getAgentRouter = (env: Env) => ServiceFactory.getAgentRouter(env);

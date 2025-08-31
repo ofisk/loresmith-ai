@@ -216,8 +216,8 @@ export const handleDeleteFile = async (
     // Delete from D1
     await c.env.DB.prepare(
       `
-      DELETE FROM file_metadata 
-      WHERE id = ? AND user_id = ?
+            delete from file_metadata
+      where id = ? and user_id = ?
     `
     )
       .bind(fileId, userId)

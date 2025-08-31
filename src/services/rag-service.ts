@@ -5,25 +5,17 @@
 import { getDAOFactory } from "../dao/dao-factory";
 import type { Env } from "../middleware/auth";
 import type { FileMetadata, SearchQuery, SearchResult } from "../types/upload";
-import { AutoRAGClientBase } from "./autorag-client";
 import { BaseRAGService } from "./base-rag-service";
+
+// LLM model configuration
+const LLM_MODEL = "@cf/meta/llama-3.1-8b-instruct";
 
 export class LibraryRAGService extends BaseRAGService {
   private ai: any;
-  private autoRagBase: AutoRAGClientBase;
 
   constructor(env: Env) {
     super(env.DB, env.VECTORIZE, env.OPENAI_API_KEY || "", env);
     this.ai = env.AI;
-
-    // Initialize AutoRAG base with library search URL
-    const searchUrl = env.AUTORAG_SEARCH_URL;
-    this.autoRagBase = new (class extends AutoRAGClientBase {
-      protected enforcedFilter(): string | null {
-        // Library RAG doesn't enforce folder filtering - it searches all content
-        return null;
-      }
-    })(env, searchUrl);
   }
 
   async processFile(metadata: FileMetadata): Promise<{
@@ -584,12 +576,194 @@ SUGGESTIONS: [suggestion1, suggestion2, suggestion3]
     try {
       console.log(`[LibraryRAGService] Searching content with query: ${query}`);
 
-      const searchResult = await this.autoRagBase.search(query, { limit });
+      // Use Cloudflare AI binding instead of external AutoRAG service
+      if (this.env.AI) {
+        try {
+          console.log(
+            `[LibraryRAGService] Using Cloudflare AI for content generation`
+          );
 
-      console.log(
-        `[LibraryRAGService] Search returned ${searchResult.total} results`
-      );
-      return searchResult.results;
+          // Generate structured content using AI - break into multiple focused queries
+          const contentTypes = [
+            "monsters",
+            "npcs",
+            "spells",
+            "items",
+            "traps",
+            "hazards",
+            "conditions",
+            "vehicles",
+            "env_effects",
+            "hooks",
+            "plot_lines",
+            "quests",
+            "scenes",
+            "locations",
+            "lairs",
+            "factions",
+            "deities",
+            "backgrounds",
+            "feats",
+            "subclasses",
+            "rules",
+            "downtime",
+            "tables",
+            "encounter_tables",
+            "treasure_tables",
+            "maps",
+            "handouts",
+            "puzzles",
+            "timelines",
+            "travel",
+          ];
+
+          const allResults: any[] = [];
+
+          // Query each content type individually to avoid truncation
+          for (const contentType of contentTypes) {
+            try {
+              console.log(`[LibraryRAGService] Querying for ${contentType}...`);
+
+              const typeSpecificPrompt = `You are extracting ${contentType} from RPG text.
+
+TASK
+From the provided text, identify and synthesize ALL relevant ${contentType} and output a JSON object. Return ONLY valid JSON (no comments, no markdown).
+
+CONTEXT & HINTS
+- Focus specifically on ${contentType} content
+- Look for typical cues that indicate ${contentType}
+- Normalize names (title case), keep dice notation and DCs
+- Prefer concise, prep-usable summaries over flavor text
+
+OUTPUT RULES
+- Output one JSON object with the structure: { "${contentType}": [...] }
+- Each ${contentType} should have: id, type:"${contentType}", name, summary, tags, source
+- Do not invent rules outside the text; summarize faithfully
+- Keep summary short (≤ 500 chars)
+
+SPEC for ${contentType}:
+- id: stable slug (lowercase kebab)
+- type: "${contentType}"
+- name: string
+- summary: 1–5 sentence DM-usable summary
+- tags: array of short tags
+- source: { doc, pages?, anchor? }
+
+RETURN ONLY JSON in this format:
+{
+  "${contentType}": [
+    {
+      "id": "example_id",
+      "type": "${contentType}",
+      "name": "Example Name",
+      "summary": "Brief description",
+      "tags": ["tag1", "tag2"],
+      "source": { "doc": "document_id" }
+    }
+  ]
+}`;
+
+              const aiResponse = await this.env.AI.run(LLM_MODEL, {
+                messages: [
+                  {
+                    role: "system",
+                    content: typeSpecificPrompt,
+                  },
+                  {
+                    role: "user",
+                    content: query,
+                  },
+                ],
+                max_tokens: 2000,
+                temperature: 0.1,
+              });
+
+              // Parse the AI response for this content type
+              const responseText = aiResponse.response as string;
+              console.log(
+                `[LibraryRAGService] ${contentType} response: ${responseText.substring(0, 200)}...`
+              );
+
+              // Clean up the response - remove markdown formatting if present
+              let cleanResponse = responseText;
+              if (responseText.includes("```json")) {
+                cleanResponse = responseText
+                  .replace(/```json\n?/g, "")
+                  .replace(/```\n?/g, "")
+                  .trim();
+              } else if (responseText.includes("```")) {
+                cleanResponse = responseText.replace(/```\n?/g, "").trim();
+              }
+
+              // Extract only the JSON part
+              const jsonMatch = cleanResponse.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                cleanResponse = jsonMatch[0];
+              }
+
+              try {
+                const parsedContent = JSON.parse(cleanResponse);
+                if (
+                  parsedContent[contentType] &&
+                  Array.isArray(parsedContent[contentType])
+                ) {
+                  // Convert to search result format
+                  parsedContent[contentType].forEach(
+                    (item: any, index: number) => {
+                      if (item && typeof item === "object") {
+                        allResults.push({
+                          id:
+                            item.id || `${contentType}_${index}_${Date.now()}`,
+                          score: 0.9 - index * 0.01,
+                          metadata: {
+                            entityType: contentType,
+                            ...item,
+                          },
+                          text:
+                            item.summary ||
+                            item.description ||
+                            item.name ||
+                            JSON.stringify(item),
+                        });
+                      }
+                    }
+                  );
+                  console.log(
+                    `[LibraryRAGService] Extracted ${parsedContent[contentType].length} ${contentType}`
+                  );
+                }
+              } catch (parseError) {
+                console.warn(
+                  `[LibraryRAGService] Failed to parse ${contentType} response:`,
+                  parseError
+                );
+                // Continue with other content types
+              }
+            } catch (typeError) {
+              console.warn(
+                `[LibraryRAGService] Error querying ${contentType}:`,
+                typeError
+              );
+              // Continue with other content types
+            }
+          }
+
+          console.log(
+            `[LibraryRAGService] Generated ${allResults.length} total structured content items`
+          );
+          return allResults;
+        } catch (aiError) {
+          console.warn(`[LibraryRAGService] AI generation failed:`, aiError);
+          // Return empty results if AI fails
+          return [];
+        }
+      } else {
+        // No AI binding available, return empty results
+        console.warn(
+          `[LibraryRAGService] No AI binding available for content generation`
+        );
+        return [];
+      }
     } catch (error) {
       console.error(`[LibraryRAGService] Search error:`, error);
       return [];
@@ -600,7 +774,8 @@ SUGGESTIONS: [suggestion1, suggestion2, suggestion3]
    * Sync with AutoRAG (delegates to the base)
    */
   async sync(): Promise<void> {
-    await this.autoRagBase.sync();
+    // No external AutoRAG service to sync with
+    console.log(`[LibraryRAGService] No external AutoRAG service to sync with`);
   }
 
   async processFileFromR2(

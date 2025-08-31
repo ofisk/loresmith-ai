@@ -3,6 +3,7 @@ import { CampaignDAO } from "./campaign-dao";
 import { FileDAO } from "./file-dao";
 import type { UserStorageUsage } from "./user-dao";
 import { UserDAO } from "./user-dao";
+import { StagedSnippetsDAO } from "./staged-snippets-dao";
 
 // Cache for DAO factory instances
 const daoFactoryCache = new Map<string, DAOFactory>();
@@ -16,6 +17,7 @@ export interface DAOFactory {
   userDAO: UserDAO;
   campaignDAO: CampaignDAO;
   fileDAO: FileDAO;
+  stagedSnippetsDAO: StagedSnippetsDAO;
 
   // Convenience methods for common operations
   storeOpenAIKey(username: string, apiKey: string): Promise<void>;
@@ -29,11 +31,13 @@ export class DAOFactoryImpl implements DAOFactory {
   public readonly userDAO: UserDAO;
   public readonly campaignDAO: CampaignDAO;
   public readonly fileDAO: FileDAO;
+  public readonly stagedSnippetsDAO: StagedSnippetsDAO;
 
   constructor(db: D1Database) {
     this.userDAO = new UserDAO(db);
     this.campaignDAO = new CampaignDAO(db);
     this.fileDAO = new FileDAO(db);
+    this.stagedSnippetsDAO = new StagedSnippetsDAO(db);
   }
 
   // Convenience methods for common operations

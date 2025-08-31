@@ -1,5 +1,10 @@
 import { BaseRAGService } from "./base-rag-service";
 
+const AUTORAG_ENDPOINTS = {
+  SEARCH: "/search",
+  AI_SEARCH: "/ai-search",
+} as const;
+
 export interface FileAnalysisResult {
   content_summary: string;
   key_topics: string[];
@@ -28,7 +33,7 @@ export class FileAnalysisService extends BaseRAGService {
     // We only need the AutoRAG query capability
     super(null as any, null as any, "", env);
     this.apiToken = env.AUTORAG_API_TOKEN;
-    this.searchUrl = env.AUTORAG_SEARCH_URL;
+    this.searchUrl = `${env.AUTORAG_BASE_URL}${AUTORAG_ENDPOINTS.SEARCH}`;
   }
 
   /**

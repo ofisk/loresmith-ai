@@ -7,7 +7,7 @@ interface CampaignSnippetDashboardProps {
   campaignId: string;
 }
 
-type TabType = "staged" | "search";
+type TabType = "staged" | "approved";
 
 export const CampaignSnippetDashboard: React.FC<
   CampaignSnippetDashboardProps
@@ -21,8 +21,8 @@ export const CampaignSnippetDashboard: React.FC<
       description: "Review and approve/reject generated snippets",
     },
     {
-      id: "search" as TabType,
-      label: "Search Approved",
+      id: "approved" as TabType,
+      label: "Approved Snippets",
       description: "Search through approved campaign snippets",
     },
   ];
@@ -71,7 +71,7 @@ export const CampaignSnippetDashboard: React.FC<
           />
         )}
 
-        {activeTab === "search" && (
+        {activeTab === "approved" && (
           <CampaignSnippetSearch campaignId={campaignId} />
         )}
       </div>

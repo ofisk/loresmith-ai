@@ -5,17 +5,22 @@ import type { AuthPayload } from "../services/auth-service";
 import { FileAnalysisOrchestrator } from "../services/file-analysis-orchestrator-service";
 import { FileAnalysisService } from "../services/file-analysis-service";
 import { AUTORAG_CONFIG } from "../shared";
-import { API_CONFIG } from "../shared";
+
+const AUTORAG_ENDPOINTS = {
+  SYNC: "/sync",
+  JOBS: "/jobs",
+  JOB_DETAILS: "/jobs/{jobId}",
+  JOB_LOGS: "/jobs/{jobId}/logs",
+  LOGS: "/logs",
+} as const;
 
 async function triggerAutoRAGSync(
   env: any,
-  accountId: string,
-  apiUrl: string
+  baseUrl: string
 ): Promise<AutoRAGSyncResponse> {
   const syncUrl = AUTORAG_CONFIG.buildLibraryAutoRAGUrl(
-    accountId,
-    apiUrl,
-    "/sync"
+    baseUrl,
+    AUTORAG_ENDPOINTS.SYNC
   );
   console.log(`[AutoRAG] Calling sync API: ${syncUrl}`);
 
@@ -156,15 +161,14 @@ export async function handleAutoRAGSync(c: ContextWithAuth) {
     );
 
     // Call the Cloudflare AutoRAG sync API
-    const accountId = c.env.AUTORAG_ACCOUNT_ID;
-    const apiUrl = c.env.AUTORAG_API_URL;
+    const baseUrl = c.env.AUTORAG_BASE_URL;
 
-    if (!accountId || !apiUrl) {
-      throw new Error("AutoRAG configuration missing: ACCOUNT_ID or API_URL");
+    if (!baseUrl) {
+      throw new Error("AutoRAG configuration missing: AUTORAG_BASE_URL");
     }
 
     // Trigger AutoRAG sync
-    const result = await triggerAutoRAGSync(c.env, accountId, apiUrl);
+    const result = await triggerAutoRAGSync(c.env, baseUrl);
     console.log(`[AutoRAG] Sync API response:`, result);
 
     if (!result.success || !result.result?.job_id) {
@@ -257,17 +261,15 @@ export async function handleAutoRAGJobDetails(c: ContextWithAuth) {
     );
 
     // Call the Cloudflare AutoRAG job details API
-    const accountId = c.env.AUTORAG_ACCOUNT_ID;
-    const apiUrl = c.env.AUTORAG_API_URL;
+    const baseUrl = c.env.AUTORAG_BASE_URL;
 
-    if (!accountId || !apiUrl) {
-      throw new Error("AutoRAG configuration missing: ACCOUNT_ID or API_URL");
+    if (!baseUrl) {
+      throw new Error("AutoRAG configuration missing: AUTORAG_BASE_URL");
     }
 
     const jobDetailsUrl = AUTORAG_CONFIG.buildLibraryAutoRAGUrl(
-      accountId,
-      apiUrl,
-      `/jobs/${jobId}`
+      baseUrl,
+      AUTORAG_ENDPOINTS.JOB_DETAILS.replace("{jobId}", jobId)
     );
     console.log(`[AutoRAG] Calling job details API: ${jobDetailsUrl}`);
 
@@ -328,17 +330,15 @@ export async function handleAutoRAGJobLogs(c: ContextWithAuth) {
     );
 
     // Call the Cloudflare AutoRAG job logs API
-    const accountId = c.env.AUTORAG_ACCOUNT_ID;
-    const apiUrl = c.env.AUTORAG_API_URL;
+    const baseUrl = c.env.AUTORAG_BASE_URL;
 
-    if (!accountId || !apiUrl) {
-      throw new Error("AutoRAG configuration missing: ACCOUNT_ID or API_URL");
+    if (!baseUrl) {
+      throw new Error("AutoRAG configuration missing: AUTORAG_BASE_URL");
     }
 
     const jobLogsUrl = AUTORAG_CONFIG.buildLibraryAutoRAGUrl(
-      accountId,
-      apiUrl,
-      `/jobs/${jobId}/logs`
+      baseUrl,
+      AUTORAG_ENDPOINTS.JOB_LOGS.replace("{jobId}", jobId)
     );
     console.log(`[AutoRAG] Calling job logs API: ${jobLogsUrl}`);
 
@@ -395,17 +395,15 @@ export async function handleAutoRAGJobs(c: ContextWithAuth) {
     );
 
     // Call the Cloudflare AutoRAG jobs API
-    const accountId = c.env.AUTORAG_ACCOUNT_ID;
-    const apiUrl = c.env.AUTORAG_API_URL;
+    const baseUrl = c.env.AUTORAG_BASE_URL;
 
-    if (!accountId || !apiUrl) {
-      throw new Error("AutoRAG configuration missing: ACCOUNT_ID or API_URL");
+    if (!baseUrl) {
+      throw new Error("AutoRAG configuration missing: AUTORAG_BASE_URL");
     }
 
     const jobsUrl = AUTORAG_CONFIG.buildLibraryAutoRAGUrl(
-      accountId,
-      apiUrl,
-      "/jobs"
+      baseUrl,
+      AUTORAG_ENDPOINTS.JOBS
     );
     console.log(`[AutoRAG] Calling jobs API: ${jobsUrl}`);
 
@@ -458,17 +456,15 @@ async function checkSingleJobStatus(
   const fileDAO = new FileDAO(env.DB);
 
   // Call the Cloudflare AutoRAG API to check job status
-  const accountId = env.AUTORAG_ACCOUNT_ID;
-  const apiUrl = env.AUTORAG_API_URL;
+  const baseUrl = env.AUTORAG_BASE_URL;
 
-  if (!accountId || !apiUrl) {
-    throw new Error("AutoRAG configuration missing: ACCOUNT_ID or API_URL");
+  if (!baseUrl) {
+    throw new Error("AutoRAG configuration missing: AUTORAG_BASE_URL");
   }
 
-  const jobDetailsUrl = API_CONFIG.ENDPOINTS.AUTORAG.API.JOB_DETAILS(
-    accountId,
-    job.rag_id,
-    job.job_id
+  const jobDetailsUrl = AUTORAG_CONFIG.buildLibraryAutoRAGUrl(
+    baseUrl,
+    AUTORAG_ENDPOINTS.JOB_DETAILS.replace("{jobId}", job.job_id)
   );
 
   console.log(
@@ -492,8 +488,32 @@ async function checkSingleJobStatus(
       console.log(`[AutoRAG] Job result:`, JSON.stringify(jobResult, null, 2));
 
       // Extract job status from the response
-      const jobStatus = jobResult.result?.status || jobResult.status;
+      let jobStatus = jobResult.result?.status || jobResult.status;
+
+      // If no explicit status field, determine status from other fields
+      if (!jobStatus) {
+        if (jobResult.result?.ended_at) {
+          // Job has ended, check if it was successful
+          if (jobResult.result?.end_reason === null) {
+            jobStatus = "completed";
+          } else {
+            jobStatus = "failed";
+          }
+        } else if (jobResult.result?.started_at) {
+          // Job has started but not ended
+          jobStatus = "processing";
+        } else {
+          // Job hasn't started yet
+          jobStatus = "pending";
+        }
+      }
+
       console.log(`[AutoRAG] Job ${job.job_id} status: ${jobStatus}`);
+
+      // Ensure jobStatus is never undefined
+      if (!jobStatus) {
+        jobStatus = "unknown";
+      }
 
       // Update job status in our database
       await fileDAO.updateAutoRAGJobStatus(job.job_id, jobStatus);

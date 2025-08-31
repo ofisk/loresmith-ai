@@ -53,8 +53,8 @@ export class CampaignDAO extends BaseDAOClass {
     campaignRagBasePath?: string
   ): Promise<void> {
     const sql = `
-      INSERT INTO campaigns (id, name, username, description, campaignRagBasePath, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      insert into campaigns (id, name, username, description, campaignRagBasePath, created_at, updated_at)
+      values (?, ?, ?, ?, ?, current_timestamp, current_timestamp)
     `;
     await this.execute(sql, [
       id,
@@ -67,9 +67,9 @@ export class CampaignDAO extends BaseDAOClass {
 
   async getCampaignsByUser(username: string): Promise<Campaign[]> {
     const sql = `
-      SELECT * FROM campaigns 
-      WHERE username = ? 
-      ORDER BY updated_at DESC
+      select * from campaigns 
+      where username = ? 
+      order by updated_at desc
     `;
     return await this.queryAll<Campaign>(sql, [username]);
   }
@@ -86,7 +86,7 @@ export class CampaignDAO extends BaseDAOClass {
     }[]
   > {
     const sql = `
-      SELECT 
+      select 
         id as campaignId, 
         name, 
         description, 
@@ -94,15 +94,15 @@ export class CampaignDAO extends BaseDAOClass {
         campaignRagBasePath,
         created_at as createdAt, 
         updated_at as updatedAt 
-      FROM campaigns 
-      WHERE username = ? 
-      ORDER BY created_at DESC
+      from campaigns 
+      where username = ? 
+      order by created_at desc
     `;
     return await this.queryAll(sql, [username]);
   }
 
   async getCampaignById(campaignId: string): Promise<Campaign | null> {
-    const sql = "SELECT * FROM campaigns WHERE id = ?";
+    const sql = "select * from campaigns where id = ?";
     return await this.queryFirst<Campaign>(sql, [campaignId]);
   }
 
@@ -118,15 +118,15 @@ export class CampaignDAO extends BaseDAOClass {
     updatedAt: string;
   } | null> {
     const sql = `
-      SELECT 
+      select 
         id as campaignId, 
         name, 
         description, 
         campaignRagBasePath, 
         created_at as createdAt, 
         updated_at as updatedAt 
-      FROM campaigns 
-      WHERE id = ? AND username = ?
+      from campaigns 
+      where id = ? and username = ?
     `;
     return await this.queryFirst(sql, [campaignId, username]);
   }
@@ -160,9 +160,9 @@ export class CampaignDAO extends BaseDAOClass {
       .join(", ");
 
     const sql = `
-      UPDATE campaigns 
-      SET ${setClause}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      update campaigns 
+      set ${setClause}, updated_at = current_timestamp
+      where id = ?
     `;
 
     const values = [...Object.values(updates), campaignId];
@@ -172,26 +172,26 @@ export class CampaignDAO extends BaseDAOClass {
   async deleteCampaign(campaignId: string): Promise<void> {
     await this.transaction([
       () =>
-        this.execute("DELETE FROM campaign_context WHERE campaign_id = ?", [
+        this.execute("delete from campaign_context where campaign_id = ?", [
           campaignId,
         ]),
       () =>
-        this.execute("DELETE FROM campaign_characters WHERE campaign_id = ?", [
+        this.execute("delete from campaign_characters where campaign_id = ?", [
           campaignId,
         ]),
       () =>
-        this.execute("DELETE FROM campaign_resources WHERE campaign_id = ?", [
+        this.execute("delete from campaign_resources where campaign_id = ?", [
           campaignId,
         ]),
-      () => this.execute("DELETE FROM campaigns WHERE id = ?", [campaignId]),
+      () => this.execute("delete from campaigns where id = ?", [campaignId]),
     ]);
   }
 
   async getCampaignContext(campaignId: string): Promise<CampaignContext[]> {
     const sql = `
-      SELECT * FROM campaign_context 
-      WHERE campaign_id = ? 
-      ORDER BY created_at DESC
+      select * from campaign_context 
+      where campaign_id = ? 
+      order by created_at desc
     `;
     return await this.queryAll<CampaignContext>(sql, [campaignId]);
   }
@@ -202,8 +202,8 @@ export class CampaignDAO extends BaseDAOClass {
     content: string
   ): Promise<void> {
     const sql = `
-      INSERT INTO campaign_context (campaign_id, context_type, content, created_at, updated_at)
-      VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      insert into campaign_context (campaign_id, context_type, content, created_at, updated_at)
+      values (?, ?, ?, current_timestamp, current_timestamp)
     `;
     await this.execute(sql, [campaignId, contextType, content]);
   }
@@ -212,9 +212,9 @@ export class CampaignDAO extends BaseDAOClass {
     campaignId: string
   ): Promise<CampaignCharacter[]> {
     const sql = `
-      SELECT * FROM campaign_characters 
-      WHERE campaign_id = ? 
-      ORDER BY created_at DESC
+      select * from campaign_characters 
+      where campaign_id = ? 
+      order by created_at desc
     `;
     return await this.queryAll<CampaignCharacter>(sql, [campaignId]);
   }
@@ -225,17 +225,17 @@ export class CampaignDAO extends BaseDAOClass {
     characterData: string
   ): Promise<void> {
     const sql = `
-      INSERT INTO campaign_characters (campaign_id, character_name, character_data, created_at, updated_at)
-      VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      insert into campaign_characters (campaign_id, character_name, character_data, created_at, updated_at)
+      values (?, ?, ?, current_timestamp, current_timestamp)
     `;
     await this.execute(sql, [campaignId, characterName, characterData]);
   }
 
   async getCampaignResources(campaignId: string): Promise<CampaignResource[]> {
     const sql = `
-      SELECT * FROM campaign_resources 
-      WHERE campaign_id = ? 
-      ORDER BY created_at DESC
+      select * from campaign_resources 
+      where campaign_id = ? 
+      order by created_at desc
     `;
     return await this.queryAll<CampaignResource>(sql, [campaignId]);
   }
@@ -247,8 +247,8 @@ export class CampaignDAO extends BaseDAOClass {
     resourceName?: string
   ): Promise<void> {
     const sql = `
-      INSERT INTO campaign_resources (campaign_id, resource_type, resource_id, resource_name, created_at, updated_at)
-      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      insert into campaign_resources (campaign_id, resource_type, resource_id, resource_name, created_at, updated_at)
+      values (?, ?, ?, ?, current_timestamp, current_timestamp)
     `;
     await this.execute(sql, [
       campaignId,
@@ -263,12 +263,12 @@ export class CampaignDAO extends BaseDAOClass {
     resourceId: string
   ): Promise<void> {
     const sql =
-      "DELETE FROM campaign_resources WHERE campaign_id = ? AND resource_id = ?";
+      "delete from campaign_resources where campaign_id = ? and resource_id = ?";
     await this.execute(sql, [campaignId, resourceId]);
   }
 
   async getCampaignCount(username: string): Promise<number> {
-    const sql = "SELECT COUNT(*) as count FROM campaigns WHERE username = ?";
+    const sql = "select count(*) as count from campaigns where username = ?";
     const result = await this.queryFirst<{ count: number }>(sql, [username]);
     return result?.count || 0;
   }
@@ -277,7 +277,7 @@ export class CampaignDAO extends BaseDAOClass {
     username: string,
     campaignId: string
   ): Promise<boolean> {
-    const sql = "SELECT 1 FROM campaigns WHERE id = ? AND username = ?";
+    const sql = "select 1 from campaigns where id = ? and username = ?";
     const result = await this.queryFirst<{ 1: number }>(sql, [
       campaignId,
       username,
@@ -290,7 +290,7 @@ export class CampaignDAO extends BaseDAOClass {
     campaignId: string
   ): Promise<string | null> {
     const sql =
-      "SELECT campaignRagBasePath FROM campaigns WHERE id = ? AND username = ?";
+      "select campaignRagBasePath from campaigns where id = ? and username = ?";
     const result = await this.queryFirst<{ campaignRagBasePath: string }>(sql, [
       campaignId,
       username,

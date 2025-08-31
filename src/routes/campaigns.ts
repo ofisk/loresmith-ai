@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "../dao/dao-factory";
-import { AutoRAGClient } from "../lib/autorag";
-import { getCampaignAutoRAGService } from "../lib/service-factory";
+import { getLibraryAutoRAGService } from "../lib/service-factory";
+import { parseSnippetCandidates } from "../lib/snippet-parser";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { CampaignAutoRAG } from "../services/campaign-autorag-service";
@@ -57,19 +57,31 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
 
     // Create campaign using DAO
     const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    await campaignDAO.createCampaign(
-      campaignId,
-      name,
-      description || "",
-      userAuth.username,
-      campaignRagBasePath
-    );
+    console.log(`[Server] Creating campaign in database: ${campaignId}`);
+    try {
+      await campaignDAO.createCampaign(
+        campaignId,
+        name,
+        userAuth.username,
+        description || "",
+        campaignRagBasePath
+      );
+      console.log(
+        `[Server] Campaign created successfully in database: ${campaignId}`
+      );
+    } catch (dbError) {
+      console.error(
+        `[Server] Database error creating campaign ${campaignId}:`,
+        dbError
+      );
+      throw dbError;
+    }
 
     // Initialize CampaignAutoRAG folders
     try {
       const campaignAutoRAG = new CampaignAutoRAG(
         c.env,
-        c.env.AUTORAG_SEARCH_URL,
+        c.env.AUTORAG_BASE_URL,
         campaignRagBasePath
       );
       await campaignAutoRAG.initFolders();
@@ -98,7 +110,7 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
       `[Server] Created campaign: ${campaignId} for user ${userAuth.username}`
     );
 
-    return c.json({ campaign: newCampaign }, 201);
+    return c.json({ success: true, campaign: newCampaign }, 201);
   } catch (error) {
     console.error("Error creating campaign:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -135,7 +147,7 @@ export async function handleGetCampaignResources(c: ContextWithAuth) {
 
     // Query campaign resources directly from D1 database
     const resources = await c.env.DB.prepare(
-      "SELECT id, campaign_id, file_key, file_name, description, tags, status, created_at FROM campaign_resources WHERE campaign_id = ?"
+      "select id, campaign_id, file_key, file_name, description, tags, status, created_at from campaign_resources where campaign_id = ?"
     )
       .bind(campaignId)
       .all();
@@ -158,7 +170,7 @@ export async function handleDeleteCampaign(c: ContextWithAuth) {
 
     // First, check if the campaign exists and belongs to the user
     const campaign = await c.env.DB.prepare(
-      "SELECT id, name, username FROM campaigns WHERE id = ? AND username = ?"
+      "select id, name, username from campaigns where id = ? and username = ?"
     )
       .bind(campaignId, userAuth.username)
       .first<{ id: string; name: string; username: string }>();
@@ -174,7 +186,7 @@ export async function handleDeleteCampaign(c: ContextWithAuth) {
 
     // Delete campaign resources first (due to foreign key constraints)
     await c.env.DB.prepare(
-      "DELETE FROM campaign_resources WHERE campaign_id = ?"
+      "delete from campaign_resources where campaign_id = ?"
     )
       .bind(campaignId)
       .run();
@@ -185,7 +197,7 @@ export async function handleDeleteCampaign(c: ContextWithAuth) {
 
     // Delete the campaign
     await c.env.DB.prepare(
-      "DELETE FROM campaigns WHERE id = ? AND username = ?"
+      "delete from campaigns where id = ? and username = ?"
     )
       .bind(campaignId, userAuth.username)
       .run();
@@ -213,7 +225,7 @@ export async function handleDeleteAllCampaigns(c: ContextWithAuth) {
 
     // First, get all campaigns for the user
     const campaigns = await c.env.DB.prepare(
-      "SELECT id, name FROM campaigns WHERE username = ?"
+      "select id, name from campaigns where username = ?"
     )
       .bind(userAuth.username)
       .all<{ id: string; name: string }>();
@@ -232,7 +244,7 @@ export async function handleDeleteAllCampaigns(c: ContextWithAuth) {
 
     // Delete campaign resources first (due to foreign key constraints)
     await c.env.DB.prepare(
-      "DELETE FROM campaign_resources WHERE campaign_id IN (SELECT id FROM campaigns WHERE username = ?)"
+      "delete from campaign_resources where campaign_id in (select id from campaigns where username = ?)"
     )
       .bind(userAuth.username)
       .run();
@@ -242,7 +254,7 @@ export async function handleDeleteAllCampaigns(c: ContextWithAuth) {
     );
 
     // Delete all campaigns for the user
-    await c.env.DB.prepare("DELETE FROM campaigns WHERE username = ?")
+    await c.env.DB.prepare("delete from campaigns where username = ?")
       .bind(userAuth.username)
       .run();
 
@@ -279,7 +291,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 
     // First, check if the campaign exists and belongs to the user
     const campaign = await c.env.DB.prepare(
-      "SELECT id, name, username FROM campaigns WHERE id = ? AND username = ?"
+      "select id, name, username from campaigns where id = ? and username = ?"
     )
       .bind(campaignId, userAuth.username)
       .first<{ id: string; name: string; username: string }>();
@@ -295,7 +307,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 
     // Check if resource already exists in this campaign
     const existingResource = await c.env.DB.prepare(
-      "SELECT id, file_name FROM campaign_resources WHERE campaign_id = ? AND file_key = ?"
+      "select id, file_name from campaign_resources where campaign_id = ? and file_key = ?"
     )
       .bind(campaignId, id)
       .first<{ id: string; file_name: string }>();
@@ -329,7 +341,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
     const now = new Date().toISOString();
 
     await c.env.DB.prepare(
-      "INSERT INTO campaign_resources (id, campaign_id, file_key, file_name, description, tags, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "insert into campaign_resources (id, campaign_id, file_key, file_name, description, tags, status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
       .bind(
         resourceId,
@@ -346,246 +358,266 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 
     console.log(`[Server] Added resource ${id} to campaign ${campaignId}`);
 
-    // Generate campaign snippets in background
-    setTimeout(async () => {
-      try {
-        // Get campaign RAG base path
-        const campaignDAO = getDAOFactory(c.env).campaignDAO;
-        const campaignRagBasePath = await campaignDAO.getCampaignRagBasePath(
-          userAuth.username,
-          campaignId
+    // Generate snippets for the newly added resource
+    try {
+      console.log(`[Server] Generating snippets for campaign: ${campaignId}`);
+
+      const campaignDAO = getDAOFactory(c.env).campaignDAO;
+      const campaignRagBasePath = await campaignDAO.getCampaignRagBasePath(
+        userAuth.username,
+        campaignId
+      );
+      if (!campaignRagBasePath) {
+        console.warn(
+          `[Server] Campaign AutoRAG not initialized for campaign: ${campaignId}`
         );
-
-        if (!campaignRagBasePath) {
-          console.log(
-            `[Server] Campaign AutoRAG not initialized for campaign: ${campaignId}`
-          );
-          return;
-        }
-
-        // Get CampaignAutoRAG service
-        const campaignAutoRAG = getCampaignAutoRAGService(
-          c.env,
-          campaignRagBasePath
-        );
-
-        // Check if file has been processed by library RAG
-        const fileDAO = getDAOFactory(c.env).fileDAO;
-        const fileRecord = await fileDAO.getFileForRag(id, userAuth.username);
-
-        if (fileRecord && fileRecord.status === "completed") {
-          console.log(
-            `[Server] Generating snippets for file: ${id} in campaign: ${campaignId}`
-          );
-
-          // Query LibraryAutoRAG to extract structured content from the file
-          const autoRagClient = new AutoRAGClient(c.env.AUTORAG_SEARCH_URL);
-          const snippets = [];
-
-          // Define detailed prompts for each primitive type
-          const primitiveQueries = [
-            {
-              type: "monster",
-              prompt: `Find monster and creature stat blocks in ${name || id}. Look for patterns like Armor Class, Hit Points, Speed, ability scores (STR/DEX/CON/INT/WIS/CHA), Challenge Rating, traits, actions, legendary actions, and spellcasting. Extract complete stat blocks with name, type, size, alignment, AC, HP, speed, ability scores, saves/skills, senses, languages, CR, traits, actions, bonus actions, legendary actions, lair actions, reactions, and spellcasting details.`,
-            },
-            {
-              type: "npc",
-              prompt: `Find NPC descriptions and character information in ${name || id}. Look for non-statblock characters with names, roles, factions, goals, secrets, bonds, quirks, appearance descriptions, talking points, motivations, and relationships. Focus on characters that drive story or provide quest hooks.`,
-            },
-            {
-              type: "spell",
-              prompt: `Find spell descriptions in ${name || id}. Look for spell headers with level and school (e.g., "1st-level evocation"), casting time, range, components, duration, class lists, spell text, and "At Higher Levels" sections. Extract complete spell information including name, level, school, casting time, range, components, duration, classes, text, and at-higher-levels effects.`,
-            },
-            {
-              type: "magic_item",
-              prompt: `Find magic items, artifacts, and consumables in ${name || id}. Look for items marked as "Wondrous item", "Weapon", "Armor", "Potion", "Scroll", etc. with rarity indicators (Common, Uncommon, Rare, Very Rare, Legendary), attunement requirements, properties, charges, activation methods, curses, and variants. Extract complete item descriptions.`,
-            },
-            {
-              type: "trap",
-              prompt: `Find traps and hazards in ${name || id}. Look for sections with headings like "Trigger", "Effect", "Countermeasures", DC numbers, damage types, reset mechanisms, and danger ratings. Extract complete trap descriptions with trigger conditions, effects, detection/disarm methods, and countermeasures.`,
-            },
-            {
-              type: "location",
-              prompt: `Find locations, sites, rooms, buildings, dungeons, and regions in ${name || id}. Look for numbered areas (e.g., "Area 12"), boxed read-aloud text, overview descriptions, keyed areas, inhabitants, features, hazards, treasure, clues, map references, and travel information. Extract complete location descriptions.`,
-            },
-            {
-              type: "lair",
-              prompt: `Find lair descriptions in ${name || id}. Look for lair actions, regional effects, lair features, treasure hoards, encounter tables, and lair-specific mechanics. Extract complete lair information including owner, features, lair actions, regional effects, and treasure.`,
-            },
-            {
-              type: "faction",
-              prompt: `Find factions and organizations in ${name || id}. Look for groups with names, purposes, assets, notable NPCs, ranks, secrets, fronts/clocks, and relationships to other factions. Extract complete faction information including structure and goals.`,
-            },
-            {
-              type: "deity",
-              prompt: `Find deities, patrons, and divine powers in ${name || id}. Look for divine beings with domains, tenets, boons, edicts, anathema, rites, favored items/spells, and symbols. Extract complete deity information including worship practices and divine influence.`,
-            },
-            {
-              type: "plot_hook",
-              prompt: `Find plot hooks and adventure starters in ${name || id}. Look for imperative phrasing like "The party is asked to...", "A villager begs...", or "The characters discover...". Extract hooks with who/where/why, stakes, and leads to other content.`,
-            },
-            {
-              type: "quest",
-              prompt: `Find quests and side quests in ${name || id}. Look for objectives, steps/scenes, success/failure outcomes, rewards, XP/milestones, involved NPCs/locations/monsters, and prerequisites. Extract complete quest structures.`,
-            },
-            {
-              type: "scene",
-              prompt: `Find scenes and encounters in ${name || id}. Look for structured encounters with titles, types (combat/social/exploration/skill challenge), setup, goals, participants, terrain/map references, tactics, scaling notes, outcomes, treasure, and next-scenes. Extract complete scene descriptions.`,
-            },
-            {
-              type: "clue",
-              prompt: `Find clues and secrets in ${name || id}. Look for information that points to NPCs, places, or scenes, with delivery methods (handouts, skill checks, rumors) and redundancy options. Extract clues with their connections and revelation methods.`,
-            },
-            {
-              type: "table",
-              prompt: `Find random tables in ${name || id}. Look for tables with dice notation (d20, d100), column headers, and structured results. Extract complete tables including title, dice range, results, and usage notes.`,
-            },
-            {
-              type: "background",
-              prompt: `Find character backgrounds in ${name || id}. Look for backgrounds with proficiencies, languages/tools, equipment, features, and suggested characteristics. Extract complete background information.`,
-            },
-            {
-              type: "feat",
-              prompt: `Find feats in ${name || id}. Look for feats with prerequisites, effect text, scaling mechanics, and tags. Extract complete feat descriptions including requirements and benefits.`,
-            },
-            {
-              type: "subclass",
-              prompt: `Find subclasses and class options in ${name || id}. Look for subclasses with parent class/species, level features, spell list additions, restrictions, and flavor text. Extract complete subclass information.`,
-            },
-            {
-              type: "downtime",
-              prompt: `Find downtime activities and crafting rules in ${name || id}. Look for activities with requirements, procedures, checks/DCs, time/cost, outcomes, and complications. Extract complete downtime activity descriptions.`,
-            },
-            {
-              type: "timeline",
-              prompt: `Find timelines and clocks in ${name || id}. Look for structured time systems with phases/segments, trigger events, consequences per tick, and reset/advance rules. Extract complete timeline mechanics.`,
-            },
-            {
-              type: "travel",
-              prompt: `Find travel routes in ${name || id}. Look for routes with origin/destination, distance/time, encounter table links, costs, and checkpoints. Extract complete travel route information.`,
-            },
-          ];
-
-          // Query LibraryAutoRAG for each primitive type
-          for (const query of primitiveQueries) {
-            try {
-              const searchResults = await autoRagClient.search(query.prompt, {
-                limit: 2,
-                folder: `autorag/${userAuth.username}/${id}`,
-              });
-
-              if (searchResults.results && searchResults.results.length > 0) {
-                for (const result of searchResults.results) {
-                  const snippet = {
-                    id: crypto.randomUUID(),
-                    text: result.text,
-                    metadata: {
-                      fileKey: id,
-                      fileName: name || id,
-                      source: "library_rag",
-                      campaignId: campaignId,
-                      entityType: query.type,
-                      confidence: result.score || 0.8,
-                      sourceRef: result.metadata || {},
-                      query: query.prompt,
-                    },
-                    sourceRef: {
-                      fileKey: id,
-                      meta: {
-                        fileName: name || id,
-                        campaignId: campaignId,
-                        entityType: query.type,
-                        chunkId: result.id,
-                        score: result.score,
-                      },
-                    },
-                  };
-
-                  snippets.push(snippet);
-                }
-              }
-            } catch (searchError) {
-              console.warn(
-                `[Server] Error searching for ${query.type} in file ${id}:`,
-                searchError
-              );
-              // Continue with other entity types
-            }
-          }
-
-          // If no specific entities found, try a general content extraction
-          if (snippets.length === 0) {
-            try {
-              const generalResults = await autoRagClient.search(
-                `Extract meaningful content from ${name || id} that could be useful for a D&D campaign. Look for any structured information, descriptions, rules, or narrative content.`,
-                {
-                  limit: 3,
-                  folder: `autorag/${userAuth.username}/${id}`,
-                }
-              );
-
-              if (generalResults.results && generalResults.results.length > 0) {
-                for (const result of generalResults.results) {
-                  const snippet = {
-                    id: crypto.randomUUID(),
-                    text: result.text,
-                    metadata: {
-                      fileKey: id,
-                      fileName: name || id,
-                      source: "library_rag",
-                      campaignId: campaignId,
-                      entityType: "general_content",
-                      confidence: result.score || 0.7,
-                      sourceRef: result.metadata || {},
-                    },
-                    sourceRef: {
-                      fileKey: id,
-                      meta: {
-                        fileName: name || id,
-                        campaignId: campaignId,
-                        entityType: "general_content",
-                        chunkId: result.id,
-                        score: result.score,
-                      },
-                    },
-                  };
-
-                  snippets.push(snippet);
-                }
-              }
-            } catch (generalError) {
-              console.warn(
-                `[Server] Error extracting general content from file ${id}:`,
-                generalError
-              );
-            }
-          }
-
-          // Save snippet candidates to staging
-          await campaignAutoRAG.saveSnippetCandidates(
-            {
-              fileKey: id,
-              meta: { fileName: name || id, campaignId: campaignId },
-            },
-            snippets
-          );
-
-          console.log(
-            `[Server] Generated ${snippets.length} snippets for campaign: ${campaignId}`
+        // Continue without snippet generation
+      } else {
+        const resources = await campaignDAO.getCampaignResources(campaignId);
+        if (!resources || resources.length === 0) {
+          console.warn(
+            `[Server] No resources found in campaign: ${campaignId}`
           );
         } else {
+          // Get the most recently added resource (the one that triggered this call)
+          const resource = resources[resources.length - 1];
+          console.log(`[Server] Generating snippets for resource:`, resource);
+
+          console.log(`[Server] Getting library AutoRAG service`);
+          const libraryAutoRAG = getLibraryAutoRAGService(c.env);
+          console.log(`[Server] Library AutoRAG:`, libraryAutoRAG);
+
+          const structuredExtractionPrompt = `You are extracting Dungeon Master prep data from RPG text.
+
+TASK
+From the provided text, identify and synthesize ALL relevant game-ready "primitives" and output a SINGLE JSON object that strictly follows the schema in the SPEC below. Return ONLY valid JSON (no comments, no markdown). If a field is unknown, omit it. Prefer concise, prep-usable summaries over flavor text.
+
+CONTEXT & HINTS
+- Typical cues:
+  - Monsters/Creatures: "Armor Class", "Hit Points", STR/DEX/CON/INT/WIS/CHA line, "Challenge".
+  - Spells: "1st-level <school>", casting time, range, components, duration, "At Higher Levels".
+  - Magic Items: rarity, type, "requires attunement".
+  - Traps/Hazards: Trigger/Effect/DCs/Countermeasures.
+  - Scenes/Rooms: numbered keys (e.g., "Area 12"), read-aloud boxed text, GM notes.
+  - Hooks/Quests: imperative requests with stakes and links to NPCs/locations.
+  - Tables: a dice column (d20/d100), range → result rows.
+- Keep "rejected" campaign content out of results if the snippet indicates rejection (e.g., metadata flags).
+- Normalize names (title case), keep dice notation and DCs.
+- Include lightweight relationships in \`relations[]\` to connect items (e.g., a scene that contains a monster).
+
+OUTPUT RULES
+- Output one JSON object with the top-level keys exactly as in SPEC.
+- Each array can be empty, but must exist.
+- Do not invent rules outside the text; summarize faithfully.
+- Keep \`summary\` and \`one_line\` short (≤ 240 chars each).
+- Output plain JSON without any markdown formatting.
+
+INPUT VARIABLES
+- campaignId: ${campaignId}
+- source: { "doc": "${resource.resource_name || resource.id}", "pages": "", "anchor": "" }
+
+SPEC (fields not listed under a type are optional; always include common fields if known)
+COMMON FIELDS (for every primitive):
+- id: stable slug (lowercase kebab). If absent, slugify name + short hash.
+- type: one of the defined types.
+- name (or title for scenes): string.
+- one_line: ultra-brief pitch.
+- summary: 1–3 sentence DM-usable summary.
+- tags: array of short tags.
+- source: { doc, pages?, anchor? }
+- relations: array of { rel, target_id }.
+
+TYPES & REQUIRED MINIMUM FIELDS
+- monsters[]: { id, type:"monster", name, summary, cr?, ac?, hp?, abilities?: {str, dex, con, int, wis, cha}, actions?, traits?, spellcasting?, tags?, source, relations? }
+- npcs[]: { id, type:"npc", name, role?, goals?, secrets?, quirks?, relationships?, statblock_ref?, summary, tags?, source, relations? }
+- spells[]: { id, type:"spell", name, level, school, casting_time, range, components, duration, classes?, text, tags?, source }
+- items[]: { id, type:"item", name, rarity?, item_type?, attunement?, properties?, charges?, curse?, text, tags?, source }
+- traps[]: { id, type:"trap", name, trigger, effect, dcs?, detect_disarm?, reset?, tags?, source }
+- hazards[]: { id, type:"hazard", name, effect, dcs?, countermeasures?, tags?, source }
+- conditions[]: { id, type:"condition", name, effects, cure?, tags?, source }
+- vehicles[]: { id, type:"vehicle", name, stats?: {ac?, hp?, speed?, capacity?}, crew?, actions?, traits?, tags?, source }
+- env_effects[]: { id, type:"env_effect", name, triggers?, effects, duration?, counters?, tags?, source }
+- hooks[]: { id, type:"hook", name, text, leads_to?: string[], stakes?, tags?, source, relations? }
+- plot_lines[]: { id, type:"plot_line", title, premise, beats?: string[], dependencies?: string[], resolutions?: string[], tags?, source, relations? }
+- quests[]: { id, type:"quest", title, objective, steps?: string[], rewards?, xp_or_milestone?, involved?: string[], prerequisites?: string[], tags?, source, relations? }
+- scenes[]: { id, type:"scene", title, scene_type?: "combat"|"social"|"exploration"|"skill", setup, goal?, participants?: string[], map_ref?, tactics?, scaling?, outcomes?, treasure?, next_scenes?: string[], read_aloud?, tags?, source, relations? }
+- locations[]: { id, type:"location", name, kind?: "room"|"site"|"region"|"city"|"dungeon_level", overview, keyed_areas?: string[], inhabitants?: string[], features?: string[], hazards?: string[], treasure?, map_refs?, travel?, tags?, source, relations? }
+- lairs[]: { id, type:"lair", owner, features?: string[], lair_actions?: string[], regional_effects?: string[], treasure?, tags?, source, relations? }
+- factions[]: { id, type:"faction", name, purpose, assets?, notable_npcs?: string[], ranks?, secrets?, relationships?, tags?, source, relations? }
+- deities[]: { id, type:"deity", name, domains?, tenets?, boons?, edicts?, anathema?, rites?, favored_items?, symbol?, tags?, source }
+- backgrounds[]: { id, type:"background", name, proficiencies?, tools?, languages?, equipment?, feature?, suggested_traits?, tags?, source }
+- feats[]: { id, type:"feat", name, prerequisites?, effect, scaling?, tags?, source }
+- subclasses[]: { id, type:"subclass", name, parent_class, level_features: { [level:number]: string }, spell_list_adds?, restrictions?, tags?, source }
+- rules[]: { id, type:"rule", name, modifies?, text, examples?, safety_notes?, tags?, source }
+- downtime[]: { id, type:"downtime", name, requirements?, procedure, checks?, time_cost?, outcomes?, complications?, tags?, source }
+- tables[]: { id, type:"table", title, dice, rows: [{range:string, result:string}], usage_notes?, tags?, source }
+- encounter_tables[]: { id, type:"encounter_table", environment?, level_band?, dice, rows:[{range:string, result:string}], notes?, tags?, source }
+- treasure_tables[]: { id, type:"treasure_table", tier_or_cr?, rows:[{range:string, result:string}], notes?, tags?, source }
+- maps[]: { id, type:"map", title, scale?, grid?, keyed?: string[], player_version?: boolean?, file_refs?: string[], tags?, source }
+- handouts[]: { id, type:"handout", title, delivery?, text_or_art_ref, when_to_reveal?, redactions?, tags?, source }
+- puzzles[]: { id, type:"puzzle", prompt, solution, hints?: string[], failure_stakes?, bypass_methods?, tags?, source }
+- timelines[]: { id, type:"timeline", title, phases?: string[], triggers?: string[], consequences?: string[], reset_rules?, tags?, source }
+- travel[]: { id, type:"travel", route, distance?, time?, encounters_table_ref?, costs?, checkpoints?, tags?, source }
+
+TOP-LEVEL RETURN SHAPE (all keys required, arrays may be empty)
+{
+  "meta": { "campaignId": string, "source": { "doc": string, "pages"?: string, "anchor"?: string } },
+  "monsters": [], "npcs": [], "spells": [], "items": [],
+  "traps": [], "hazards": [], "conditions": [], "vehicles": [], "env_effects": [],
+  "hooks": [], "plot_lines": [], "quests": [], "scenes": [],
+  "locations": [], "lairs": [], "factions": [], "deities": [],
+  "backgrounds": [], "feats": [], "subclasses": [], "rules": [], "downtime": [],
+  "tables": [], "encounter_tables": [], "treasure_tables": [],
+  "maps": [], "handouts": [], "puzzles": [],
+  "timelines": [], "travel": []
+}
+
+RETURN ONLY JSON.`;
+
           console.log(
-            `[Server] File ${id} not yet processed by library RAG, skipping snippet generation`
+            `[Server] Extracting structured content from ${resource.id}`
           );
+
+          // Call AutoRAG AI Search with the detailed prompt
+          const aiSearchResult = await libraryAutoRAG.aiSearch(
+            structuredExtractionPrompt,
+            {
+              max_results: 20,
+              rewrite_query: false,
+            }
+          );
+
+          console.log(
+            `[Server] AutoRAG AI Search completed for ${resource.id}`
+          );
+          // Type assertion to handle the actual API response structure
+          const actualResult = aiSearchResult as any;
+
+          console.log(`[Server] AI Search result structure:`, {
+            hasResponse: !!actualResult.response,
+            hasResult: !!actualResult.result,
+            hasSuccess: !!actualResult.success,
+            responseType: typeof actualResult.response,
+            resultType: typeof actualResult.result,
+            resultKeys: Object.keys(actualResult),
+          });
+
+          // Handle the actual API response structure
+          let aiResponse: string;
+          if (actualResult.response) {
+            aiResponse = actualResult.response;
+          } else if (
+            actualResult.result &&
+            typeof actualResult.result === "string"
+          ) {
+            aiResponse = actualResult.result;
+          } else if (actualResult.result && actualResult.result.response) {
+            aiResponse = actualResult.result.response;
+          } else {
+            console.warn(
+              `[Server] AI Search result has no accessible response property`
+            );
+            console.log(`[Server] Full AI Search result:`, actualResult);
+            return; // Skip snippet generation if no response
+          }
+
+          console.log(
+            `[Server] AI Response: ${aiResponse.substring(0, 200)}...`
+          );
+
+          // Parse the AI response to extract structured content
+          try {
+            const parsedContent = JSON.parse(aiResponse);
+
+            console.log(`[Server] Parsed AI Search response structure:`, {
+              keys: Object.keys(parsedContent),
+              hasMeta: !!parsedContent.meta,
+              contentTypes: Object.keys(parsedContent).filter(
+                (key) => key !== "meta" && Array.isArray(parsedContent[key])
+              ),
+            });
+
+            if (parsedContent && typeof parsedContent === "object") {
+              // Convert the structured content to snippet candidates
+              const snippetCandidates = parseSnippetCandidates(
+                parsedContent,
+                resource,
+                campaignId
+              );
+
+              if (snippetCandidates.length > 0) {
+                console.log(
+                  `[Server] Generated ${snippetCandidates.length} snippet candidates for ${resource.id}:`
+                );
+                snippetCandidates.forEach((snippet, index) => {
+                  console.log(`[Server] Snippet ${index + 1} structure:`, {
+                    id: snippet.id,
+                    hasText: !!snippet.text,
+                    textType: typeof snippet.text,
+                    textLength: snippet.text
+                      ? snippet.text.length
+                      : "undefined",
+                    entityType: snippet.metadata?.entityType,
+                    confidence: snippet.metadata?.confidence,
+                  });
+
+                  if (snippet.text) {
+                    console.log(`[Server] Snippet ${index + 1} text preview:`, {
+                      text:
+                        snippet.text.substring(0, 200) +
+                        (snippet.text.length > 200 ? "..." : ""),
+                    });
+                  } else {
+                    console.warn(
+                      `[Server] Snippet ${index + 1} has no text property`
+                    );
+                  }
+                });
+
+                const stagedSnippetsDAO = getDAOFactory(
+                  c.env
+                ).stagedSnippetsDAO;
+
+                // Convert snippet candidates to D1 format
+                const d1Snippets = snippetCandidates
+                  .filter((snippet) => snippet.text && snippet.metadata) // Filter out invalid snippets
+                  .map((snippet) => ({
+                    id: snippet.id,
+                    campaign_id: campaignId,
+                    resource_id: resource.id,
+                    snippet_type: snippet.metadata.entityType,
+                    content: snippet.text,
+                    metadata: JSON.stringify(snippet.metadata),
+                  }));
+
+                await stagedSnippetsDAO.createStagedSnippets(d1Snippets);
+
+                console.log(
+                  `[Server] Successfully stored ${snippetCandidates.length} snippets in database for ${resource.id}`
+                );
+              } else {
+                console.warn(
+                  `[Server] No snippet candidates generated for ${resource.id}`
+                );
+              }
+            } else {
+              console.warn(
+                `[Server] Invalid structured content format for ${resource.id}`
+              );
+            }
+          } catch (parseError) {
+            console.error(
+              `[Server] Error parsing AI response for ${resource.id}:`,
+              parseError
+            );
+            console.log(`[Server] Raw AI response: ${aiResponse}`);
+          }
         }
-      } catch (error) {
-        console.error(
-          `[Server] Error generating campaign snippets for file ${id}:`,
-          error
-        );
-        // Don't fail the resource addition if snippet generation fails
       }
-    }, 1000); // Small delay to ensure resource is committed
+    } catch (snippetError) {
+      console.error(`[Server] Error generating snippets:`, snippetError);
+      // Don't fail the resource addition if snippet generation fails
+    }
 
     const newResource = {
       id: resourceId,
@@ -620,7 +652,7 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
 
     // First, check if the campaign exists and belongs to the user
     const campaign = await c.env.DB.prepare(
-      "SELECT id, name, username FROM campaigns WHERE id = ? AND username = ?"
+      "select id, name, username from campaigns where id = ? and username = ?"
     )
       .bind(campaignId, userAuth.username)
       .first<{ id: string; name: string; username: string }>();
@@ -636,7 +668,7 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
 
     // Check if the resource exists in this campaign
     const resource = await c.env.DB.prepare(
-      "SELECT id, file_key, file_name FROM campaign_resources WHERE id = ? AND campaign_id = ?"
+      "select id, file_key, file_name from campaign_resources where id = ? and campaign_id = ?"
     )
       .bind(resourceId, campaignId)
       .first<{ id: string; file_key: string; file_name: string }>();
@@ -652,7 +684,7 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
 
     // Remove the resource from the campaign
     await c.env.DB.prepare(
-      "DELETE FROM campaign_resources WHERE id = ? AND campaign_id = ?"
+      "delete from campaign_resources where id = ? and campaign_id = ?"
     )
       .bind(resourceId, campaignId)
       .run();
