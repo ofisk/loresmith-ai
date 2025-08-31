@@ -8,6 +8,7 @@ export { useAutoRAGPolling } from "./useAutoRAGPolling";
 export { useBaseAsync, useBaseAsyncVoid } from "./useBaseAsync";
 // Data hooks
 export { useCampaigns } from "./useCampaigns";
+export { useResourceManagement } from "./useResourceManagement";
 // UI and interaction hooks
 export { default as useClickOutside } from "./useClickOutside";
 // Form submission hooks
