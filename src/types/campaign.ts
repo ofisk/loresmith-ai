@@ -80,3 +80,42 @@ export interface File {
   uploaded: string;
   status: string;
 }
+
+export interface Snippet {
+  id: string;
+  text: string;
+  metadata: {
+    fileKey: string;
+    fileName: string;
+    source: string;
+    campaignId: string;
+    entityType: string;
+    confidence: number;
+    sourceRef: any;
+    query?: string;
+  };
+  sourceRef: {
+    fileKey: string;
+    meta: {
+      fileName: string;
+      campaignId: string;
+      entityType: string;
+      chunkId?: string;
+      score?: number;
+    };
+  };
+}
+
+export interface StagedSnippetGroup {
+  key: string;
+  sourceRef: {
+    fileKey: string;
+    meta: {
+      fileName: string;
+      campaignId: string;
+    };
+  };
+  snippets: Snippet[];
+  created_at: string;
+  campaignRagBasePath: string;
+}

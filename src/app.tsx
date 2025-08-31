@@ -11,11 +11,10 @@ import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import type React from "react";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import loresmith from "@/assets/loresmith.png";
 
-// Component imports
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { HelpButton } from "@/components/help/HelpButton";
@@ -26,10 +25,8 @@ import { ThinkingSpinner } from "@/components/thinking-spinner";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
-import { JWT_STORAGE_KEY } from "./constants";
+import { useAuthentication } from "./hooks/useAuthentication";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
-import { AuthService } from "./services/auth-service";
-import { API_CONFIG } from "./shared";
 
 import type { campaignTools } from "./tools/campaign";
 import type { fileTools } from "./tools/file";
@@ -84,65 +81,19 @@ export default function Chat() {
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
 
-  // Authentication state management
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [username, setUsername] = useState<string>("");
-  const [storedOpenAIKey, setStoredOpenAIKey] = useState<string>("");
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-
-  // Get stored JWT for user operations
-  const getStoredJwt = useCallback((): string | null => {
-    return localStorage.getItem(JWT_STORAGE_KEY);
-  }, []);
-
-  // Check for stored OpenAI key
-  const checkStoredOpenAIKey = useCallback(async (username: string) => {
-    try {
-      const response = await fetch(
-        `/get-openai-key?username=${encodeURIComponent(username)}`
-      );
-      const result = (await response.json()) as {
-        hasKey?: boolean;
-        apiKey?: string;
-      };
-      if (response.ok && result.hasKey) {
-        setStoredOpenAIKey(result.apiKey || "");
-        setIsAuthenticated(true);
-      } else {
-        // No stored key found, show the auth modal immediately
-        setShowAuthModal(true);
-        setIsAuthenticated(false);
-      }
-    } catch (error) {
-      console.error("Error checking stored OpenAI key:", error);
-      // Show modal on error as well
-      setShowAuthModal(true);
-      setIsAuthenticated(false);
-    }
-  }, []);
-
-  // Check authentication status on mount
-  useEffect(() => {
-    const payload = AuthService.getJwtPayload();
-    if (payload?.username) {
-      setUsername(payload.username);
-      // Check if JWT is expired
-      const jwt = getStoredJwt();
-      if (jwt && AuthService.isJwtExpired(jwt)) {
-        // JWT expired, show auth modal
-        setShowAuthModal(true);
-        setIsAuthenticated(false);
-      } else {
-        // JWT valid, check if we have stored OpenAI key
-        checkStoredOpenAIKey(payload.username);
-      }
-    } else {
-      // No JWT, show auth modal
-      setShowAuthModal(true);
-      setIsAuthenticated(false);
-    }
-  }, [checkStoredOpenAIKey, getStoredJwt]);
+  // Use the extracted authentication hook
+  const {
+    showAuthModal,
+    username,
+    storedOpenAIKey,
+    isAuthenticated,
+    showUserMenu,
+    handleAuthenticationSubmit,
+    handleLogout,
+    setShowUserMenu,
+    setShowAuthModal,
+    getStoredJwt,
+  } = useAuthentication();
 
   // Get session ID for this browser session
   const sessionId = getSessionId();
@@ -153,55 +104,6 @@ export default function Chat() {
       // JWT expired - no annoying toasts needed
     },
   });
-
-  // Handle authentication submission
-  const handleAuthenticationSubmit = async (
-    username: string,
-    adminKey: string,
-    openaiApiKey: string
-  ) => {
-    try {
-      const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            username,
-            adminSecret: adminKey?.trim() || undefined, // Make admin key optional
-            openaiApiKey,
-          }),
-        }
-      );
-
-      const result = (await response.json()) as {
-        success?: boolean;
-        token?: string;
-        error?: string;
-      };
-
-      if (response.ok && result.token) {
-        // Store JWT token
-        AuthService.storeJwt(result.token);
-
-        // Update stored OpenAI key
-        setStoredOpenAIKey(openaiApiKey);
-
-        // Set authentication state
-        setIsAuthenticated(true);
-
-        // Close modal
-        setShowAuthModal(false);
-      } else {
-        throw new Error(result.error || "Authentication failed");
-      }
-    } catch (error) {
-      console.error("Error during authentication:", error);
-      throw error;
-    }
-  };
 
   useEffect(() => {
     // Apply theme class on mount and when theme changes
@@ -222,49 +124,6 @@ export default function Chat() {
     setTheme(newTheme);
   };
 
-  const handleLogout = async () => {
-    try {
-      // Call the logout endpoint
-      const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.LOGOUT),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (response.ok) {
-        // Clear local JWT storage
-        AuthService.clearJwt();
-
-        // Reset authentication state
-        setIsAuthenticated(false);
-        setUsername("");
-        setShowUserMenu(false);
-
-        // Show success message
-        console.log("Logged out successfully");
-
-        // Optionally show auth modal again
-        setShowAuthModal(true);
-      } else {
-        throw new Error("Logout failed");
-      }
-    } catch (error) {
-      console.error("Logout error:", error);
-      console.error("Logout failed. Please try again.");
-
-      // Force clear local state even if server call failed
-      AuthService.clearJwt();
-      setIsAuthenticated(false);
-      setUsername("");
-      setShowUserMenu(false);
-      setShowAuthModal(true);
-    }
-  };
-
   // Close user menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -278,7 +137,7 @@ export default function Chat() {
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showUserMenu]);
+  }, [showUserMenu, setShowUserMenu]);
 
   const agent = useAgent({
     agent: "chat",
