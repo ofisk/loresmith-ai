@@ -1,48 +1,9 @@
 import type React from "react";
-import { useCallback, useEffect, useState } from "react";
-import { API_CONFIG } from "../../shared";
+import { useEffect } from "react";
+import { useCampaignSnippetManagement } from "../../hooks/useCampaignSnippetManagement";
 import { Button } from "../button/Button";
 import { Card } from "../card/Card";
 import { Loader } from "../loader/Loader";
-
-interface Snippet {
-  id: string;
-  text: string;
-  metadata: {
-    fileKey: string;
-    fileName: string;
-    source: string;
-    campaignId: string;
-    entityType: string;
-    confidence: number;
-    sourceRef: any;
-    query?: string;
-  };
-  sourceRef: {
-    fileKey: string;
-    meta: {
-      fileName: string;
-      campaignId: string;
-      entityType: string;
-      chunkId?: string;
-      score?: number;
-    };
-  };
-}
-
-interface StagedSnippetGroup {
-  key: string;
-  sourceRef: {
-    fileKey: string;
-    meta: {
-      fileName: string;
-      campaignId: string;
-    };
-  };
-  snippets: Snippet[];
-  created_at: string;
-  campaignRagBasePath: string;
-}
 
 interface CampaignSnippetManagerProps {
   campaignId: string;
@@ -53,173 +14,32 @@ export const CampaignSnippetManager: React.FC<CampaignSnippetManagerProps> = ({
   campaignId,
   onSnippetsUpdated,
 }) => {
-  const [stagedSnippets, setStagedSnippets] = useState<StagedSnippetGroup[]>(
-    []
-  );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [processing, setProcessing] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-
-  // Fetch staged snippets
-  const fetchStagedSnippets = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch(
-        API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SNIPPETS(
-            campaignId
-          )
-        ),
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("jwt")}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch staged snippets: ${response.statusText}`
-        );
-      }
-
-      const data = (await response.json()) as {
-        snippets?: StagedSnippetGroup[];
-      };
-      setStagedSnippets(data.snippets || []);
-    } catch (err) {
-      console.error("Error fetching staged snippets:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch snippets");
-    } finally {
-      setLoading(false);
-    }
-  }, [campaignId]);
-
-  // Approve snippets
-  const approveSnippets = async (stagingKey: string) => {
-    try {
-      setProcessing(stagingKey);
-
-      const response = await fetch(
-        API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.APPROVE_SNIPPETS(
-            campaignId
-          )
-        ),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("jwt")}`,
-          },
-          body: JSON.stringify({
-            stagingKey,
-            expansions: [], // Optional expansions can be added later
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to approve snippets: ${response.statusText}`);
-      }
-
-      // Remove the approved snippet group from the list
-      setStagedSnippets((prev) =>
-        prev.filter((group) => group.key !== stagingKey)
-      );
-
-      // Notify parent component
-      onSnippetsUpdated?.();
-    } catch (err) {
-      console.error("Error approving snippets:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to approve snippets"
-      );
-    } finally {
-      setProcessing(null);
-    }
-  };
-
-  // Reject snippets
-  const rejectSnippets = async (stagingKey: string, reason: string) => {
-    try {
-      setProcessing(stagingKey);
-
-      const response = await fetch(
-        API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.REJECT_SNIPPETS(
-            campaignId
-          )
-        ),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("jwt")}`,
-          },
-          body: JSON.stringify({
-            stagingKey,
-            reason,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to reject snippets: ${response.statusText}`);
-      }
-
-      // Remove the rejected snippet group from the list
-      setStagedSnippets((prev) =>
-        prev.filter((group) => group.key !== stagingKey)
-      );
-
-      // Notify parent component
-      onSnippetsUpdated?.();
-    } catch (err) {
-      console.error("Error rejecting snippets:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to reject snippets"
-      );
-    } finally {
-      setProcessing(null);
-    }
-  };
+  const {
+    stagedSnippets,
+    loading,
+    error,
+    processing,
+    refreshing,
+    fetchStagedSnippets,
+    approveSnippets,
+    rejectSnippets,
+    refreshSnippets,
+  } = useCampaignSnippetManagement(campaignId);
 
   // Load snippets on component mount
   useEffect(() => {
     fetchStagedSnippets();
   }, [fetchStagedSnippets]);
 
-  // Listen for resource-added-to-campaign events to refresh snippets
+  // Listen for resource added events to refresh snippets
   useEffect(() => {
-    const handleResourceAdded = (event: CustomEvent) => {
-      const { campaignIds, fileKey, fileName } = event.detail;
-
-      // Check if this snippet manager is for one of the affected campaigns
-      if (campaignIds.includes(campaignId)) {
-        console.log(
-          `[CampaignSnippetManager] Resource added to campaign ${campaignId}, refreshing snippets...`,
-          {
-            fileKey,
-            fileName,
-            campaignIds,
-          }
-        );
-
-        // Wait a bit for snippets to be generated, then refresh
-        setTimeout(() => {
-          setRefreshing(true);
-          fetchStagedSnippets().finally(() => {
-            setRefreshing(false);
-          });
-        }, 2000); // 2 second delay to allow snippet generation to complete
-      }
+    const handleResourceAdded = () => {
+      // Small delay to allow the backend to process
+      setTimeout(() => {
+        fetchStagedSnippets();
+      }, 1000);
     };
 
-    // Listen for custom resource-added-to-campaign events
     window.addEventListener(
       "resource-added-to-campaign",
       handleResourceAdded as EventListener
@@ -231,7 +51,7 @@ export const CampaignSnippetManager: React.FC<CampaignSnippetManagerProps> = ({
         handleResourceAdded as EventListener
       );
     };
-  }, [campaignId, fetchStagedSnippets]);
+  }, [fetchStagedSnippets]);
 
   if (loading) {
     return (
@@ -273,7 +93,7 @@ export const CampaignSnippetManager: React.FC<CampaignSnippetManagerProps> = ({
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold">Staged Snippets</h3>
         <div className="flex space-x-2">
-          <Button onClick={fetchStagedSnippets} variant="secondary" size="sm">
+          <Button onClick={refreshSnippets} variant="secondary" size="sm">
             Refresh
           </Button>
         </div>
@@ -323,32 +143,36 @@ export const CampaignSnippetManager: React.FC<CampaignSnippetManagerProps> = ({
                       <summary className="cursor-pointer hover:text-gray-700">
                         View Query
                       </summary>
-                      <p className="mt-1 p-2 bg-gray-50 rounded text-xs">
+                      <p className="mt-1 p-2 bg-gray-50 rounded">
                         {snippet.metadata.query}
                       </p>
                     </details>
                   )}
                 </div>
-                <p className="text-gray-700 whitespace-pre-wrap">
-                  {snippet.text}
-                </p>
+                <p className="text-gray-700">{snippet.text}</p>
               </div>
             ))}
           </div>
 
-          <div className="flex justify-end space-x-3">
+          <div className="flex justify-end space-x-2">
             <Button
-              onClick={() => rejectSnippets(group.key, "User rejected")}
+              onClick={() => rejectSnippets(group.key, "Rejected by user")}
               variant="secondary"
+              size="sm"
               disabled={processing === group.key}
             >
-              {processing === group.key ? "Rejecting..." : "Reject All"}
+              {processing === group.key ? "Rejecting..." : "Reject"}
             </Button>
             <Button
-              onClick={() => approveSnippets(group.key)}
+              onClick={() => {
+                approveSnippets(group.key);
+                onSnippetsUpdated?.();
+              }}
+              variant="primary"
+              size="sm"
               disabled={processing === group.key}
             >
-              {processing === group.key ? "Approving..." : "Approve All"}
+              {processing === group.key ? "Approving..." : "Approve"}
             </Button>
           </div>
         </Card>
