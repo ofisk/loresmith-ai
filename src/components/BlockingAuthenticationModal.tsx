@@ -1,7 +1,6 @@
 import type React from "react";
 import { useEffect, useId, useState } from "react";
 import { PrimaryActionButton } from "./button";
-import { FormField } from "./input/FormField";
 import { Modal } from "./modal/Modal";
 
 interface BlockingAuthenticationModalProps {
@@ -74,74 +73,98 @@ export function BlockingAuthenticationModal({
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <FormField
-            id={usernameId}
-            label="Username"
-            placeholder="Speak your name..."
-            value={currentUsername}
-            onValueChange={(value, _isValid) => setCurrentUsername(value)}
-            disabled={false}
-          >
+          <div>
+            <label
+              htmlFor={usernameId}
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+            >
+              Username
+            </label>
+            <input
+              id={usernameId}
+              type="text"
+              placeholder="Speak your name..."
+              value={currentUsername}
+              onChange={(e) => setCurrentUsername(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              disabled={false}
+            />
             <p className="text-xs text-gray-500 mt-1">
               Forge your identity in the realm of LoreSmith.
             </p>
-          </FormField>
+          </div>
 
-          <FormField
-            id={adminKeyId}
-            label="Admin Key (Optional)"
-            placeholder="Enter the sacred key for the infinite vault..."
-            value={adminKey}
-            onValueChange={(value, _isValid) => setAdminKey(value)}
-            disabled={false}
-          >
+          <div>
+            <label
+              htmlFor={adminKeyId}
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+            >
+              Admin Key (Optional)
+            </label>
+            <input
+              id={adminKeyId}
+              type="password"
+              placeholder="Enter the sacred key for the infinite vault..."
+              value={adminKey}
+              onChange={(e) => setAdminKey(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              disabled={false}
+            />
             <p className="text-xs text-gray-500 mt-1">
               Optional: Opens the infinite vault. Without it, you have 20MB
               limit.
             </p>
-          </FormField>
+          </div>
 
-          <FormField
-            id={openaiKeyId}
-            label="OpenAI API Key"
-            placeholder="Enter OpenAI's spell..."
-            value={isOpenAIKeyDisabled ? openaiKeyDisplay : openaiApiKey}
-            onValueChange={(value, _isValid) => setOpenaiApiKey(value)}
-            disabled={isOpenAIKeyDisabled}
-            tooltip={
-              isOpenAIKeyDisabled ? (
-                <div className="text-sm text-gray-700 dark:text-gray-300">
-                  <p>Using stored API key. Contact administrator to reset.</p>
-                </div>
-              ) : (
-                <div className="text-sm text-gray-700 dark:text-gray-300">
-                  <p className="mb-2">
-                    Seeking the power of OpenAI's arcane knowledge?
-                  </p>
-                  <ol className="list-decimal list-inside space-y-1 mb-2">
-                    <li>
-                      Journey to{" "}
-                      <a
-                        href="https://platform.openai.com/api-keys"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 dark:text-blue-400 hover:underline"
-                      >
-                        platform.openai.com/api-keys
-                      </a>
-                    </li>
-                    <li>Sign in or create an account</li>
-                    <li>Click "Create new secret key"</li>
-                    <li>Copy the key and paste it here</li>
-                  </ol>
-                  <p className="text-orange-600 dark:text-orange-400">
-                    ⚠️ Guard your API key like a precious treasure - never share
-                    it publicly.
-                  </p>
-                </div>
-              )
-            }
-          />
+          <div>
+            <label
+              htmlFor={openaiKeyId}
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+            >
+              OpenAI API Key
+            </label>
+            <input
+              id={openaiKeyId}
+              type="password"
+              placeholder="Enter OpenAI's spell..."
+              value={isOpenAIKeyDisabled ? openaiKeyDisplay : openaiApiKey}
+              onChange={(e) => setOpenaiApiKey(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isOpenAIKeyDisabled}
+            />
+            {!isOpenAIKeyDisabled && (
+              <div className="text-xs text-gray-500 mt-1">
+                <p className="mb-2">
+                  Seeking the power of OpenAI's arcane knowledge?
+                </p>
+                <ol className="list-decimal list-inside space-y-1 mb-2">
+                  <li>
+                    Journey to{" "}
+                    <a
+                      href="https://platform.openai.com/api-keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      platform.openai.com/api-keys
+                    </a>
+                  </li>
+                  <li>Sign in or create an account</li>
+                  <li>Click "Create new secret key"</li>
+                  <li>Copy the key and paste it here</li>
+                </ol>
+                <p className="text-orange-600 dark:text-orange-400">
+                  ⚠️ Guard your API key like a precious treasure - never share
+                  it publicly.
+                </p>
+              </div>
+            )}
+            {isOpenAIKeyDisabled && (
+              <p className="text-xs text-gray-500 mt-1">
+                Using stored API key. Contact administrator to reset.
+              </p>
+            )}
+          </div>
 
           {error && <div className="text-red-500 text-sm">{error}</div>}
 
