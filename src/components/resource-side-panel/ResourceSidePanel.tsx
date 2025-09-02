@@ -360,6 +360,9 @@ export function ResourceSidePanel({
 
       // Trigger AutoRAG sync and start polling for job status
       try {
+        // Add a small delay to avoid hitting rate limits
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
         const ragId = AUTORAG_CONFIG.LIBRARY_RAG_ID;
         const jobId = await AutoRAGService.triggerSync(ragId);
 
@@ -387,8 +390,19 @@ export function ResourceSidePanel({
 
         // Start polling for job status
         startPolling(ragId, jobId);
+
+        // Add a cooldown period to prevent hitting rate limits
+        setTimeout(() => {
+          // 5 second cooldown to prevent hitting rate limits
+        }, 5000);
       } catch (syncError) {
         console.error("[ResourceSidePanel] AutoRAG sync error:", syncError);
+
+        // Check if this is a cooldown error
+        const isCooldownError =
+          syncError instanceof Error &&
+          syncError.message.includes("429") &&
+          syncError.message.includes("sync_in_cooldown");
 
         // Update status to show sync failed
         setFileUploads((prev) => {
@@ -399,10 +413,13 @@ export function ResourceSidePanel({
               ...upload,
               progress: {
                 ...upload.progress,
-                currentStep: "error",
-                message:
-                  "Upload successful but AutoRAG sync failed. File may not be searchable.",
-                autoragStatus: `Sync failed: ${syncError instanceof Error ? syncError.message : "Unknown error"}`,
+                currentStep: isCooldownError ? "processing" : "error",
+                message: isCooldownError
+                  ? "Upload successful! AutoRAG sync is temporarily unavailable due to rate limiting. File will be processed automatically when sync becomes available."
+                  : "Upload successful but AutoRAG sync failed. File may not be searchable.",
+                autoragStatus: isCooldownError
+                  ? "Sync temporarily unavailable (rate limited)"
+                  : `Sync failed: ${syncError instanceof Error ? syncError.message : "Unknown error"}`,
               },
             });
           }

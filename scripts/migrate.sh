@@ -44,7 +44,7 @@ FAILED_MIGRATIONS=""
 for migration_file in $MIGRATION_FILES; do
     echo "🔄 Running migration: $(basename "$migration_file")"
     
-    if wrangler d1 execute "$DB_NAME" --file="$migration_file"; then
+    if wrangler d1 execute "$DB_NAME" --file="$migration_file" --remote; then
         echo "✅ Success: $(basename "$migration_file")"
         ((SUCCESS_COUNT++))
     else
@@ -70,7 +70,7 @@ fi
 
 echo ""
 echo "📋 Current database tables:"
-wrangler d1 execute "$DB_NAME" --command="SELECT name FROM sqlite_master WHERE type='table';"
+wrangler d1 execute "$DB_NAME" --command="SELECT name FROM sqlite_master WHERE type='table';" --remote
 
 echo ""
 echo "🎉 Production migration process completed!" 

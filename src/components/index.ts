@@ -8,6 +8,7 @@ export { CampaignPage } from "./campaign/CampaignPage";
 export { CampaignSnippetDashboard } from "./campaign/CampaignSnippetDashboard";
 export { CampaignSnippetManager } from "./campaign/CampaignSnippetManager";
 export { CampaignSnippetSearch } from "./campaign/CampaignSnippetSearch";
+export { UnifiedSnippetDashboard } from "./campaign/UnifiedSnippetDashboard";
 export { Card } from "./card/Card";
 // Chat components
 export { ChatHeader } from "./chat/ChatHeader";

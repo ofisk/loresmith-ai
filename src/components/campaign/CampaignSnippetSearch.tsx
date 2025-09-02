@@ -1,17 +1,15 @@
 import type React from "react";
 import { useState } from "react";
 import { API_CONFIG } from "../../shared";
+import { JWT_STORAGE_KEY } from "../../constants";
 import { Button } from "../button/Button";
 import { Card } from "../card/Card";
 import { Input } from "../input/Input";
 import { Loader } from "../loader/Loader";
 
-interface SearchResult {
-  id: string;
-  text: string;
-  score: number;
-  metadata?: any;
-}
+import type { SnippetSearchResult } from "../../types/snippet";
+
+type SearchResult = SnippetSearchResult;
 
 interface CampaignSnippetSearchProps {
   campaignId: string;
@@ -41,7 +39,7 @@ export const CampaignSnippetSearch: React.FC<CampaignSnippetSearchProps> = ({
         `${API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.SEARCH_APPROVED(campaignId))}?query=${encodeURIComponent(query)}`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+            Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
           },
         }
       );

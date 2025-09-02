@@ -574,6 +574,91 @@ export default function Chat() {
     }
   };
 
+  // Helper function to format snippets as a readable chat message
+  const formatSnippetsAsMessage = useCallback(
+    (snippets: any[], fileName: string) => {
+      if (!snippets || snippets.length === 0) {
+        return `No snippets were generated from "${fileName}".`;
+      }
+
+      let message = `## 📚 New Content Discovered!\n\n`;
+      message += `I've analyzed **${fileName}** and found ${snippets.length} piece${snippets.length !== 1 ? "s" : ""} of content for your campaign:\n\n`;
+
+      snippets.forEach((snippet, index) => {
+        const confidence = Math.round(snippet.metadata.confidence * 100);
+        message += `### ${index + 1}. ${snippet.metadata.entityType} (${confidence}% confidence)\n`;
+        message += `${snippet.text}\n\n`;
+      });
+
+      message += `**Next Steps:**\n`;
+      message += `• Review these snippets in your campaign\n`;
+      message += `• Ask me to help integrate them into your story\n`;
+      message += `• Request specific details about any of these elements\n\n`;
+      message += `What would you like to know more about?`;
+
+      return message;
+    },
+    []
+  );
+
+  // Listen for snippet generation events and add them to chat
+  useEffect(() => {
+    const handleSnippetsGenerated = async (event: CustomEvent) => {
+      const { campaignId, snippets, fileName, resourceId } = event.detail;
+
+      console.log(
+        "[App] Snippets generated for campaign:",
+        campaignId,
+        snippets
+      );
+
+      // Use the snippet agent to present the snippets with proper UI
+      try {
+        // Create a message that will trigger the snippet agent to present the snippets
+        const snippetMessage = {
+          role: "user" as const,
+          content: `I just added "${fileName}" to my campaign and ${snippets.length} snippets were generated. Please show me these snippets so I can review and approve them.`,
+          data: {
+            type: "snippet_review_request",
+            campaignId,
+            fileName,
+            resourceId,
+            snippetCount: snippets.length,
+          },
+        };
+
+        // Add the user message to the chat
+        append(snippetMessage);
+
+        // The snippet agent will now handle this request and present the snippets
+        // with the proper UI components for approval/rejection
+      } catch (error) {
+        console.error("[App] Error handling snippet generation:", error);
+
+        // Fallback to the old format if there's an error
+        const snippetContent = formatSnippetsAsMessage(snippets, fileName);
+        append({
+          role: "assistant",
+          content: snippetContent,
+          data: { type: "snippets", campaignId, fileName },
+        });
+      }
+    };
+
+    // Listen for custom snippet-generated events
+    window.addEventListener(
+      "snippets-generated",
+      handleSnippetsGenerated as unknown as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "snippets-generated",
+        handleSnippetsGenerated as unknown as EventListener
+      );
+    };
+  }, [append, formatSnippetsAsMessage]);
+
   return (
     <>
       <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
