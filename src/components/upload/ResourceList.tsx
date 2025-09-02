@@ -1,6 +1,6 @@
 import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
-import { ERROR_MESSAGES } from "../../constants";
+import { ERROR_MESSAGES, JWT_STORAGE_KEY } from "../../constants";
 import {
   AuthService,
   authenticatedFetchWithExpiration,
@@ -54,6 +54,9 @@ export function ResourceList({
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
   const [addingToCampaigns, setAddingToCampaigns] = useState(false);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
+  const [notificationMessage, setNotificationMessage] = useState<string | null>(
+    null
+  );
 
   const fetchResourceCampaigns = useCallback(async (files: ResourceFile[]) => {
     try {
@@ -314,6 +317,11 @@ export function ResourceList({
           },
         })
       );
+
+      // Also dispatch event for chat integration - check for new snippets after a delay
+      setTimeout(() => {
+        checkForNewSnippets(selectedCampaigns, selectedFile.file_name);
+      }, 3000); // 3 second delay to allow snippet generation to complete
     } catch (err) {
       console.error("Failed to add resource to campaigns:", err);
       setError(
@@ -334,6 +342,68 @@ export function ResourceList({
       newExpandedFiles.add(fileKey);
     }
     setExpandedFiles(newExpandedFiles);
+  };
+
+  // Check for new snippets after adding a resource to campaigns
+  const checkForNewSnippets = async (
+    campaignIds: string[],
+    fileName: string
+  ) => {
+    try {
+      console.log(
+        "[ResourceList] Checking for new snippets for campaigns:",
+        campaignIds
+      );
+
+      // Check each campaign for new snippets
+      for (const campaignId of campaignIds) {
+        const response = await fetch(
+          API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SNIPPETS(
+              campaignId
+            )
+          ),
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = (await response.json()) as { snippets?: any[] };
+          const snippets = data.snippets || [];
+
+          console.log(
+            `[ResourceList] Found ${snippets.length} staged snippets for campaign ${campaignId}`
+          );
+
+          if (snippets.length > 0) {
+            // Show a notification to the user about new snippets
+            console.log("[ResourceList] New snippets available:", snippets);
+
+            // Dispatch event for chat integration
+            window.dispatchEvent(
+              new CustomEvent("snippets-generated", {
+                detail: {
+                  campaignId,
+                  fileName,
+                  snippets: snippets,
+                  resourceId: selectedFile?.file_key,
+                },
+              })
+            );
+
+            // Show user-friendly message about new snippets
+            setNotificationMessage(
+              `🎉 ${snippets.length} new snippets generated from "${fileName}"! Check your campaign to review them.`
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.error("[ResourceList] Error checking for new snippets:", error);
+    }
   };
 
   useEffect(() => {
@@ -439,6 +509,24 @@ export function ResourceList({
 
   return (
     <div className="h-full overflow-y-auto">
+      {/* Notification for new snippets */}
+      {notificationMessage && (
+        <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-green-800 dark:text-green-200">
+              {notificationMessage}
+            </p>
+            <button
+              type="button"
+              onClick={() => setNotificationMessage(null)}
+              className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-200"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-3">
         {files.map((file) => (
           <div

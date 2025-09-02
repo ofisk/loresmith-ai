@@ -1,26 +1,9 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import { SNIPPET_STATUSES, type SnippetStatus } from "../lib/content-types";
+import type { DatabaseSnippet, CreateSnippetData } from "../types/snippet";
 
-export interface StagedSnippet {
-  id: string;
-  campaign_id: string;
-  resource_id: string;
-  snippet_type: string;
-  content: string;
-  metadata?: string;
-  status: SnippetStatus;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CreateStagedSnippetData {
-  id: string;
-  campaign_id: string;
-  resource_id: string;
-  snippet_type: string;
-  content: string;
-  metadata?: string;
-}
+export type StagedSnippet = DatabaseSnippet;
+export type CreateStagedSnippetData = CreateSnippetData;
 
 export class StagedSnippetsDAO {
   constructor(private db: D1Database) {}

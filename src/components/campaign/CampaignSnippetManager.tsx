@@ -1,48 +1,11 @@
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { API_CONFIG } from "../../shared";
+import { JWT_STORAGE_KEY } from "../../constants";
 import { Button } from "../button/Button";
 import { Card } from "../card/Card";
 import { Loader } from "../loader/Loader";
-
-interface Snippet {
-  id: string;
-  text: string;
-  metadata: {
-    fileKey: string;
-    fileName: string;
-    source: string;
-    campaignId: string;
-    entityType: string;
-    confidence: number;
-    sourceRef: any;
-    query?: string;
-  };
-  sourceRef: {
-    fileKey: string;
-    meta: {
-      fileName: string;
-      campaignId: string;
-      entityType: string;
-      chunkId?: string;
-      score?: number;
-    };
-  };
-}
-
-interface StagedSnippetGroup {
-  key: string;
-  sourceRef: {
-    fileKey: string;
-    meta: {
-      fileName: string;
-      campaignId: string;
-    };
-  };
-  snippets: Snippet[];
-  created_at: string;
-  campaignRagBasePath: string;
-}
+import type { StagedSnippetGroup } from "../../types/snippet";
 
 interface CampaignSnippetManagerProps {
   campaignId: string;
@@ -75,7 +38,7 @@ export const CampaignSnippetManager: React.FC<CampaignSnippetManagerProps> = ({
         ),
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+            Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
           },
         }
       );
@@ -113,7 +76,7 @@ export const CampaignSnippetManager: React.FC<CampaignSnippetManagerProps> = ({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+            Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
           },
           body: JSON.stringify({
             stagingKey,
@@ -158,7 +121,7 @@ export const CampaignSnippetManager: React.FC<CampaignSnippetManagerProps> = ({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+            Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
           },
           body: JSON.stringify({
             stagingKey,

@@ -4,29 +4,11 @@ import type {
   AutoRAGSearchResult,
 } from "./autorag-client";
 import { AutoRAGClientBase } from "./autorag-client";
-
-export interface SnippetCandidate {
-  id: string;
-  text: string;
-  metadata: Record<string, any>;
-  sourceRef?: {
-    fileKey: string;
-    meta?: Record<string, any>;
-  };
-}
-
-export interface SnippetExpansion {
-  originalText: string;
-  expandedText: string;
-  reasoning: string;
-  metadata?: Record<string, any>;
-}
-
-export interface RejectedSnippet {
-  rejectedAt: string;
-  reason: string;
-  payload: SnippetCandidate;
-}
+import type {
+  SnippetCandidate,
+  SnippetExpansion,
+  RejectedSnippet,
+} from "../types/snippet";
 
 /**
  * Campaign-specific AutoRAG service

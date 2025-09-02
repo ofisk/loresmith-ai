@@ -9,7 +9,7 @@ export class AutoRAGService {
    * Trigger AutoRAG sync for a specific RAG resource
    * Returns the job_id for tracking the sync progress
    */
-  static async triggerSync(ragId: string): Promise<string> {
+  static async triggerSync(ragId: string, retryCount = 0): Promise<string> {
     try {
       const jwt = AuthService.getStoredJwt();
       if (!jwt) {
@@ -33,6 +33,17 @@ export class AutoRAGService {
 
       if (!response.response.ok) {
         const errorText = await response.response.text();
+
+        // Check if this is a rate limiting error and we should retry
+        if (response.response.status === 429 && retryCount < 3) {
+          const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
+          console.log(
+            `[AutoRAGService] Rate limited, retrying in ${delay}ms (attempt ${retryCount + 1}/3)`
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          return this.triggerSync(ragId, retryCount + 1);
+        }
+
         throw new Error(
           `AutoRAG sync failed: ${response.response.status} ${errorText}`
         );
