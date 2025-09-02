@@ -1,5 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { getDAOFactory } from "../../dao/dao-factory";
+import type { Env } from "../../middleware/auth";
 import { API_CONFIG, type ToolResult, USER_MESSAGES } from "../../constants";
 import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
 import { AUTH_CODES } from "../../shared";
@@ -359,6 +361,47 @@ export const deleteCampaigns = tool({
         AUTH_CODES.ERROR,
         toolCallId
       );
+    }
+  },
+});
+
+// Lightweight resolver for campaign identifiers (name -> UUID)
+export const resolveCampaignIdentifier = tool({
+  description: "Resolve a campaign name/descriptor to its UUID",
+  parameters: z.object({
+    campaignName: z.string().describe("Campaign name as seen in UI"),
+  }),
+  execute: async ({ campaignName }, context?: any) => {
+    try {
+      const env = context?.env as Env | undefined;
+      if (!env) {
+        throw new Error("Environment not available");
+      }
+
+      const campaignDAO = getDAOFactory(env).campaignDAO;
+
+      // exact, case-insensitive match first
+      const exactId = await campaignDAO.getCampaignIdByExactName(campaignName);
+      if (exactId) {
+        return {
+          success: true,
+          data: { campaignId: exactId, matchedBy: "name" },
+        };
+      }
+
+      // fallback to LIKE
+      const likeId = await campaignDAO.searchCampaignIdByLike(campaignName);
+      if (likeId) {
+        return {
+          success: true,
+          data: { campaignId: likeId, matchedBy: "like" },
+        };
+      }
+
+      //TODO: AI-assisted resolution?
+      return { success: false, message: "Campaign not found" } as any;
+    } catch (error) {
+      return { success: false, message: (error as Error).message } as any;
     }
   },
 });

@@ -125,12 +125,20 @@ export class AutoRAGClient {
         score_threshold?: number;
       };
       rewrite_query?: boolean;
+      source_filter?: string;
+      scope?: "file_only" | "campaign_wide" | "library_wide";
+      exclude_sources?: string[];
+      include_sources?: string[];
     } = {}
   ): Promise<AutoRAGAISearchResult> {
     const {
       max_results = 20,
       ranking_options = {},
       rewrite_query = false,
+      source_filter,
+      scope = "library_wide",
+      exclude_sources = [],
+      include_sources = [],
     } = options;
 
     console.log(
@@ -141,7 +149,36 @@ export class AutoRAGClient {
       max_num_results: max_results,
       ranking_options,
       rewrite_query,
+      source_filter,
+      scope,
+      exclude_sources,
+      include_sources,
     });
+
+    // Build the search payload with file-specific options
+    const searchPayload: any = {
+      query: prompt,
+      max_results: max_results,
+      ranking_options,
+      rewrite_query,
+    };
+
+    // Add file-specific filtering if specified
+    if (source_filter) {
+      searchPayload.source_filter = source_filter;
+    }
+
+    if (scope !== "library_wide") {
+      searchPayload.scope = scope;
+    }
+
+    if (exclude_sources.length > 0) {
+      searchPayload.exclude_sources = exclude_sources;
+    }
+
+    if (include_sources.length > 0) {
+      searchPayload.include_sources = include_sources;
+    }
 
     const response = await fetch(this.aiSearchUrl, {
       method: "POST",
@@ -149,12 +186,7 @@ export class AutoRAGClient {
         "Content-Type": "application/json",
         Authorization: `Bearer ${this.apiToken}`,
       },
-      body: JSON.stringify({
-        query: prompt,
-        max_results: max_results,
-        ranking_options,
-        rewrite_query,
-      }),
+      body: JSON.stringify(searchPayload),
     });
 
     if (!response.ok) {

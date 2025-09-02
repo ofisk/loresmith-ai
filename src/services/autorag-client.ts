@@ -97,6 +97,10 @@ export abstract class AutoRAGClientBase {
         score_threshold?: number;
       };
       rewrite_query?: boolean;
+      source_filter?: string;
+      scope?: "file_only" | "campaign_wide" | "library_wide";
+      exclude_sources?: string[];
+      include_sources?: string[];
     } = {}
   ): Promise<AutoRAGAISearchResult> {
     await this.ensureInitialized();
@@ -105,6 +109,7 @@ export abstract class AutoRAGClientBase {
       "[AutoRAGClientBase] AI Searching with prompt:",
       prompt.substring(0, 100) + "..."
     );
+    console.log("[AutoRAGClientBase] AI Search options:", options);
     return await this.autoRagClient.aiSearch(prompt, options);
   }
 

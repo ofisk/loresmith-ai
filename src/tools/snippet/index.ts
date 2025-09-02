@@ -3,30 +3,43 @@
  * Exports all tools related to snippet operations
  */
 
-export {
+import {
   discoverSnippetsTool,
   searchApprovedSnippetsTool,
   getSnippetStatsTool,
 } from "./snippet-discovery-tools";
-export {
+import {
   approveSnippetsTool,
   rejectSnippetsTool,
   createSnippetsTool,
   getSnippetDetailsTool,
 } from "./snippet-management-tools";
-export {
+import {
   renderSnippetManagementUITool,
   renderSnippetApprovalUITool,
 } from "./snippet-ui-tools";
 
-export const snippetTools = [
-  "discoverSnippetsTool",
-  "searchApprovedSnippetsTool",
-  "getSnippetStatsTool",
-  "approveSnippetsTool",
-  "rejectSnippetsTool",
-  "createSnippetsTool",
-  "getSnippetDetailsTool",
-  "renderSnippetManagementUITool",
-  "renderSnippetApprovalUITool",
-] as const;
+export {
+  discoverSnippetsTool,
+  searchApprovedSnippetsTool,
+  getSnippetStatsTool,
+  approveSnippetsTool,
+  rejectSnippetsTool,
+  createSnippetsTool,
+  getSnippetDetailsTool,
+  renderSnippetManagementUITool,
+  renderSnippetApprovalUITool,
+};
+
+// Registry object (Record<string, tool>) required by BaseAgent
+export const snippetTools = {
+  discoverSnippetsTool,
+  searchApprovedSnippetsTool,
+  getSnippetStatsTool,
+  approveSnippetsTool,
+  rejectSnippetsTool,
+  createSnippetsTool,
+  getSnippetDetailsTool,
+  renderSnippetManagementUITool,
+  renderSnippetApprovalUITool,
+} as const;

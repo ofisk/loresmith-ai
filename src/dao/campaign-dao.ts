@@ -297,4 +297,25 @@ export class CampaignDAO extends BaseDAOClass {
     ]);
     return result?.campaignRagBasePath || null;
   }
+
+  // Resolve campaign by exact (case-insensitive) name
+  async getCampaignIdByExactName(name: string): Promise<string | null> {
+    const sql = "select id from campaigns where lower(name) = lower(?) limit 1";
+    const result = await this.queryFirst<{ id: string }>(sql, [name]);
+    return result?.id ?? null;
+  }
+
+  // Resolve campaign by LIKE match, newest first
+  async searchCampaignIdByLike(name: string): Promise<string | null> {
+    const sql =
+      "select id from campaigns where name like ? order by created_at desc limit 1";
+    const result = await this.queryFirst<{ id: string }>(sql, [`%${name}%`]);
+    return result?.id ?? null;
+  }
+
+  // Get all campaign names for AI-assisted resolution
+  async getAllCampaignNames(): Promise<{ id: string; name: string }[]> {
+    const sql = "select id, name from campaigns order by name";
+    return await this.queryAll<{ id: string; name: string }>(sql);
+  }
 }

@@ -5,6 +5,7 @@ import {
   deleteCampaigns,
   listCampaigns,
   showCampaignDetails,
+  resolveCampaignIdentifier,
 } from "./core-tools";
 import { getFileLibraryStats, searchFileLibrary } from "./file-tools";
 import { generateSessionHooks, planSession } from "./planning-tools";
@@ -22,6 +23,7 @@ export {
   deleteCampaigns,
   listCampaigns,
   showCampaignDetails,
+  resolveCampaignIdentifier,
   // Campaign planning tools
   planSession,
   generateSessionHooks,
@@ -49,4 +51,5 @@ export const campaignTools = {
   getFileLibraryStats,
   planSession,
   generateSessionHooks,
+  resolveCampaignIdentifier,
 };

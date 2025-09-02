@@ -124,6 +124,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
         );
 
         let clientJwt: string | null = null;
+        let campaignIdHint: string | null = null;
         if (
           lastUserMessage &&
           "data" in lastUserMessage &&
@@ -133,8 +134,13 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             `[${this.constructor.name}] lastUserMessage.data:`,
             lastUserMessage.data
           );
-          const messageData = lastUserMessage.data as MessageData;
+          const messageData = lastUserMessage.data as MessageData & {
+            campaignId?: string;
+          };
           clientJwt = messageData.jwt || null;
+          if (typeof messageData.campaignId === "string") {
+            campaignIdHint = messageData.campaignId;
+          }
           console.log(
             `[${this.constructor.name}] Extracted JWT from user message:`,
             clientJwt
@@ -177,7 +183,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
         );
 
         // Create enhanced tools that automatically include JWT
-        const enhancedTools = this.createEnhancedTools(clientJwt);
+        const enhancedTools = this.createEnhancedTools(
+          clientJwt,
+          campaignIdHint
+        );
 
         // Use tools if available, otherwise use none
         const toolChoice =
@@ -289,7 +298,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
   /**
    * Create enhanced tools that automatically include JWT for operations
    */
-  protected createEnhancedTools(clientJwt: string | null): Record<string, any> {
+  protected createEnhancedTools(
+    clientJwt: string | null,
+    campaignIdHint: string | null
+  ): Record<string, any> {
     // Track tool calls to prevent infinite loops
     const toolCallCounts = new Map<string, number>();
 
@@ -320,7 +332,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               toolCallCounts.set(callKey, currentCount + 1);
 
               // Ensure JWT is always included for operations
-              const enhancedArgs = { ...args, jwt: clientJwt };
+              let enhancedArgs = { ...args, jwt: clientJwt } as any;
 
               // Execute the tool
               console.log(
@@ -341,51 +353,46 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               // Add delay to prevent rate limiting
               await new Promise((resolve) => setTimeout(resolve, 100));
 
-              // Runtime assertion to catch wrong format
-              if (toolResult && typeof toolResult === "object") {
+              // Normalize results from ai.tool() to the expected ToolResult envelope
+              const normalized = (() => {
+                // If already in the expected envelope, pass-through
                 if (
-                  !("toolCallId" in toolResult) ||
-                  !("result" in toolResult)
+                  toolResult &&
+                  typeof toolResult === "object" &&
+                  "toolCallId" in toolResult &&
+                  "result" in toolResult
                 ) {
-                  console.error(
-                    `[${this.constructor.name}] Tool ${toolName} returned wrong format:`,
-                    toolResult
-                  );
-                  console.error(
-                    `[${this.constructor.name}] Expected ToolResult format: { toolCallId: string, result: { success: boolean, message: string, data?: unknown } }`
-                  );
-                  throw new Error(`Tool ${toolName} returned wrong format`);
+                  return toolResult as any;
                 }
 
-                // Validate the result structure
-                if (
-                  !toolResult.result ||
-                  typeof toolResult.result !== "object"
-                ) {
-                  console.error(
-                    `[${this.constructor.name}] Tool ${toolName} result property is invalid:`,
-                    toolResult.result
-                  );
-                  throw new Error(
-                    `Tool ${toolName} result property is invalid`
-                  );
-                }
+                // Wrap plain results
+                const success = !!(
+                  toolResult &&
+                  typeof toolResult === "object" &&
+                  "success" in toolResult
+                )
+                  ? (toolResult as any).success
+                  : true;
+                const message =
+                  toolResult &&
+                  typeof toolResult === "object" &&
+                  "message" in toolResult
+                    ? (toolResult as any).message
+                    : "ok";
+                const data =
+                  toolResult &&
+                  typeof toolResult === "object" &&
+                  "data" in toolResult
+                    ? (toolResult as any).data
+                    : toolResult;
 
-                if (
-                  !("success" in toolResult.result) ||
-                  !("message" in toolResult.result)
-                ) {
-                  console.error(
-                    `[${this.constructor.name}] Tool ${toolName} result missing required properties:`,
-                    toolResult.result
-                  );
-                  throw new Error(
-                    `Tool ${toolName} result missing required properties`
-                  );
-                }
-              }
+                return {
+                  toolCallId: enhancedContext?.toolCallId || "unknown",
+                  result: { success, message, data },
+                };
+              })();
 
-              return toolResult;
+              return normalized;
             },
           },
         ];
