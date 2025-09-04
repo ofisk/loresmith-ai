@@ -30,6 +30,9 @@ interface ResourceSidePanelProps {
   onLogout?: () => Promise<void>;
   showUserMenu?: boolean;
   setShowUserMenu?: (show: boolean) => void;
+  triggerFileUpload?: boolean;
+  onFileUploadTriggered?: () => void;
+  onSendNotification?: (message: string) => void;
 }
 
 type UploadStep =
@@ -63,6 +66,9 @@ export function ResourceSidePanel({
   onLogout,
   showUserMenu = false,
   setShowUserMenu,
+  triggerFileUpload = false,
+  onFileUploadTriggered,
+  onSendNotification,
 }: ResourceSidePanelProps) {
   const campaignNameId = useId();
   const campaignDescriptionId = useId();
@@ -72,10 +78,16 @@ export function ResourceSidePanel({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCreateCampaignModalOpen, setIsCreateCampaignModalOpen] =
     useState(false);
+  const [isCampaignSuggestionModalOpen, setIsCampaignSuggestionModalOpen] =
+    useState(false);
   const [campaignName, setCampaignName] = useState("");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [campaignsLoading, setCampaignsLoading] = useState(false);
   const [campaignsError, setCampaignsError] = useState<string | null>(null);
+  const [uploadedFileInfo, setUploadedFileInfo] = useState<{
+    filename: string;
+    fileKey: string;
+  } | null>(null);
   const [fileUploads, setFileUploads] = useState<Map<string, FileUpload>>(
     new Map()
   );
@@ -83,6 +95,14 @@ export function ResourceSidePanel({
 
   // AutoRAG job polling hook
   const { jobStatus, startPolling } = useAutoRAGPolling();
+
+  // Watch for external trigger to open file upload modal
+  useEffect(() => {
+    if (triggerFileUpload) {
+      setIsAddModalOpen(true);
+      onFileUploadTriggered?.();
+    }
+  }, [triggerFileUpload, onFileUploadTriggered]);
 
   // Fetch campaigns
   const fetchCampaigns = useCallback(async () => {
@@ -130,6 +150,13 @@ export function ResourceSidePanel({
     }
   }, [isCampaignsOpen, isAuthenticated, fetchCampaigns]);
 
+  // Fetch campaigns when campaign suggestion modal opens
+  useEffect(() => {
+    if (isCampaignSuggestionModalOpen && isAuthenticated) {
+      fetchCampaigns();
+    }
+  }, [isCampaignSuggestionModalOpen, isAuthenticated, fetchCampaigns]);
+
   const handleCreateCampaign = async () => {
     if (!campaignName.trim()) return;
 
@@ -142,7 +169,8 @@ export function ResourceSidePanel({
 
       console.log("Creating campaign:", {
         name: campaignName,
-        description: "",
+        description:
+          "A campaign created to organize uploaded resources and content.",
       });
 
       const response = await authenticatedFetchWithExpiration(
@@ -152,7 +180,8 @@ export function ResourceSidePanel({
           jwt,
           body: JSON.stringify({
             name: campaignName,
-            description: "",
+            description:
+              "A campaign created to organize uploaded resources and content.",
           }),
           headers: {
             "Content-Type": "application/json",
@@ -181,6 +210,136 @@ export function ResourceSidePanel({
     } catch (error) {
       console.error("Failed to create campaign:", error);
       // TODO: Add error notification
+    }
+  };
+
+  const handleAddFileToCampaign = async (campaignId: string) => {
+    if (!uploadedFileInfo) return;
+
+    try {
+      const jwt = getStoredJwt();
+      if (!jwt) {
+        console.error("No JWT token available");
+        return;
+      }
+
+      console.log("Adding file to campaign:", {
+        campaignId,
+        fileKey: uploadedFileInfo.fileKey,
+        filename: uploadedFileInfo.filename,
+      });
+
+      const response = await authenticatedFetchWithExpiration(
+        API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(campaignId)
+        ),
+        {
+          method: "POST",
+          jwt,
+          body: JSON.stringify({
+            type: "file",
+            id: uploadedFileInfo.fileKey,
+            name: uploadedFileInfo.filename,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.response.ok) {
+        const errorText = await response.response.text();
+        throw new Error(`Failed to add file to campaign: ${errorText}`);
+      }
+
+      const result = (await response.response.json()) as any;
+      console.log("File added to campaign successfully:", result);
+
+      // Close the suggestion modal
+      setIsCampaignSuggestionModalOpen(false);
+      setUploadedFileInfo(null);
+
+      // Send appropriate notification based on the result
+      if (onSendNotification) {
+        if (result.message?.includes("already exists")) {
+          onSendNotification(
+            `"${uploadedFileInfo.filename}" was already in your campaign. No new snippets were generated.`
+          );
+        } else if (
+          result.message?.includes("Generated") &&
+          result.message.includes("snippets")
+        ) {
+          // Extract the number of snippets from the message
+          const snippetMatch = result.message.match(/Generated (\d+) snippets/);
+          const snippetCount = snippetMatch ? snippetMatch[1] : "some";
+          onSendNotification(
+            `I just added "${uploadedFileInfo.filename}" to your campaign and ${snippetCount} snippets were generated. Please show me these snippets so I can review and approve them.`
+          );
+        } else if (result.message?.includes("No snippets were generated")) {
+          onSendNotification(
+            `I just added "${uploadedFileInfo.filename}" to your campaign. No snippets were generated from this resource.`
+          );
+        } else {
+          onSendNotification(
+            `I just added "${uploadedFileInfo.filename}" to your campaign. The document is now being processed to extract game-ready content.`
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Failed to add file to campaign:", error);
+    }
+  };
+
+  const handleCreateCampaignForFile = async () => {
+    if (!campaignName.trim() || !uploadedFileInfo) return;
+
+    try {
+      const jwt = getStoredJwt();
+      if (!jwt) {
+        console.error("No JWT token available");
+        return;
+      }
+
+      // First create the campaign
+      const createResponse = await authenticatedFetchWithExpiration(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.CREATE),
+        {
+          method: "POST",
+          jwt,
+          body: JSON.stringify({
+            name: campaignName,
+            description:
+              "A campaign created to organize uploaded resources and content.",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!createResponse.response.ok) {
+        const errorText = await createResponse.response.text();
+        throw new Error(`Failed to create campaign: ${errorText}`);
+      }
+
+      const result = (await createResponse.response.json()) as {
+        campaign: Campaign;
+      };
+      const newCampaign = result.campaign;
+
+      // Then add the file to the new campaign
+      await handleAddFileToCampaign(newCampaign.campaignId);
+
+      // Reset form and close modals
+      setCampaignName("");
+      setIsCreateCampaignModalOpen(false);
+      setIsCampaignSuggestionModalOpen(false);
+      setUploadedFileInfo(null);
+
+      // Refresh campaigns list
+      await fetchCampaigns();
+    } catch (error) {
+      console.error("Failed to create campaign for file:", error);
     }
   };
 
@@ -357,6 +516,20 @@ export function ResourceSidePanel({
         }
         return newMap;
       });
+
+      // Show campaign suggestion modal immediately after upload success
+      setUploadedFileInfo({
+        filename: filename,
+        fileKey: `autorag/${tenant}/${filename}`, // Use the correct file key format with username
+      });
+      setIsCampaignSuggestionModalOpen(true);
+
+      // Send notification about successful upload
+      if (onSendNotification) {
+        onSendNotification(
+          `Your recent document "${filename}" has been indexed and is ready to be added to a campaign.`
+        );
+      }
 
       // Trigger AutoRAG sync and start polling for job status
       try {
@@ -725,7 +898,7 @@ export function ResourceSidePanel({
                   {currentUpload.progress?.currentStep === "success" &&
                     "Upload Complete"}
                   {currentUpload.progress?.currentStep === "processing" &&
-                    "Processing with AutoRAG"}
+                    "Forging Knowledge"}
                   {currentUpload.progress?.currentStep === "error" &&
                     "Upload Failed"}
                 </span>
@@ -849,6 +1022,97 @@ export function ResourceSidePanel({
               className="w-40 px-3 py-1.5 bg-purple-600 dark:bg-purple-700 text-white rounded hover:bg-purple-700 dark:hover:bg-purple-800 transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-purple-600 dark:disabled:hover:bg-purple-700"
             >
               Create
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Campaign Suggestion Modal */}
+      <Modal
+        isOpen={isCampaignSuggestionModalOpen}
+        onClose={() => {
+          setIsCampaignSuggestionModalOpen(false);
+          setUploadedFileInfo(null);
+        }}
+        cardStyle={{ width: 520, height: 500 }}
+      >
+        <div className="space-y-4">
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              🎲 Add to Campaign
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Your file "{uploadedFileInfo?.filename}" has been successfully
+              added to your library. Would you like to add it to a campaign?
+            </p>
+          </div>
+
+          {campaigns.length > 0 ? (
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Add to existing campaign:
+              </h4>
+              <div className="max-h-48 overflow-y-auto space-y-2">
+                {campaigns.map((campaign) => (
+                  <button
+                    type="button"
+                    key={campaign.campaignId}
+                    onClick={() => handleAddFileToCampaign(campaign.campaignId)}
+                    className="w-full p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div className="font-medium text-gray-900 dark:text-gray-100">
+                      {campaign.name}
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Created:{" "}
+                      {new Date(campaign.createdAt).toLocaleDateString()}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                You don't have any campaigns yet. Create one to organize your
+                resources!
+              </p>
+            </div>
+          )}
+
+          <div className="border-t border-gray-200 dark:border-gray-600 pt-4">
+            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              Or create a new campaign:
+            </h4>
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+                placeholder="Enter new campaign name"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+              <button
+                type="button"
+                onClick={handleCreateCampaignForFile}
+                disabled={!campaignName.trim()}
+                className="w-full px-3 py-2 bg-purple-600 dark:bg-purple-700 text-white rounded hover:bg-purple-700 dark:hover:bg-purple-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Create Campaign & Add File
+              </button>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-4 justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                setIsCampaignSuggestionModalOpen(false);
+                setUploadedFileInfo(null);
+              }}
+              className="w-40 px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+            >
+              Skip for now
             </button>
           </div>
         </div>

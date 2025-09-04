@@ -7,7 +7,6 @@ import {
   Sun,
   Trash,
 } from "@phosphor-icons/react";
-import { Lightbulb } from "@phosphor-icons/react/dist/ssr";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import type React from "react";
@@ -26,6 +25,7 @@ import { ThinkingSpinner } from "@/components/thinking-spinner";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
+import { WelcomeMessage } from "./components/chat/WelcomeMessage";
 import { JWT_STORAGE_KEY } from "./constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
 import { AuthService } from "./services/auth-service";
@@ -90,6 +90,12 @@ export default function Chat() {
   const [storedOpenAIKey, setStoredOpenAIKey] = useState<string>("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [triggerFileUpload, setTriggerFileUpload] = useState(false);
+
+  // Handle file upload trigger callback
+  const handleFileUploadTriggered = useCallback(() => {
+    setTriggerFileUpload(false);
+  }, []);
 
   // Get stored JWT for user operations
   const getStoredJwt = useCallback((): string | null => {
@@ -669,6 +675,18 @@ export default function Chat() {
             onLogout={handleLogout}
             showUserMenu={showUserMenu}
             setShowUserMenu={setShowUserMenu}
+            triggerFileUpload={triggerFileUpload}
+            onFileUploadTriggered={handleFileUploadTriggered}
+            onSendNotification={(message) => {
+              // Send notification as an assistant message to the chat
+              append({
+                role: "assistant",
+                content: message,
+                data: AuthService.getStoredJwt()
+                  ? { jwt: AuthService.getStoredJwt() }
+                  : undefined,
+              });
+            }}
           />
 
           {/* Main Chat Area */}
@@ -729,46 +747,10 @@ export default function Chat() {
               className="flex-1 overflow-y-auto px-6 py-4 space-y-4 pb-32 max-h-[calc(100vh-10rem)]"
             >
               {agentMessages.length === 0 && (
-                <div className="h-full flex items-center justify-center">
-                  <Card className="p-6 max-w-2xl mx-auto bg-neutral-100 dark:bg-neutral-900">
-                    <div className="text-left space-y-4">
-                      <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
-                        <img
-                          src={loresmith}
-                          alt="LoreSmith logo"
-                          width={48}
-                          height={48}
-                        />
-                      </div>
-                      <h3 className="font-semibold text-lg">
-                        👋 Welcome to LoreSmith Campaign Planner!
-                      </h3>
-                      <p className="text-muted-foreground text-sm">
-                        Speak your query, and I shall summon the most fitting
-                        agent. Try:
-                      </p>
-                      <div className="flex justify-center gap-2 pt-2">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="bg-neutral-100 dark:bg-neutral-600"
-                          onClick={() => handleSuggestionSubmit("Get started")}
-                        >
-                          <Lightbulb size={12} />
-                          Get started
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="bg-neutral-100 dark:bg-neutral-600"
-                          onClick={() => handleSuggestionSubmit("Show agents")}
-                        >
-                          Show agents
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                </div>
+                <WelcomeMessage
+                  onSuggestionSubmit={handleSuggestionSubmit}
+                  onUploadFiles={() => setTriggerFileUpload(true)}
+                />
               )}
 
               {agentMessages

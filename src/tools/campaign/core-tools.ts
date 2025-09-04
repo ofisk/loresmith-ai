@@ -88,13 +88,21 @@ export const listCampaigns = tool({
 
 export const createCampaign = tool({
   description:
-    "Create a new campaign with an AI-generated description based on the name",
+    "Create a new campaign. The agent should ask the user for a description or help them create one through conversation.",
   parameters: z.object({
     name: z.string(),
+    description: z
+      .string()
+      .describe(
+        "Campaign description provided by the user or created through conversation"
+      ),
     jwt: commonSchemas.jwt,
   }),
-  execute: async ({ name, jwt }, context?: any): Promise<ToolResult> => {
-    console.log("[Tool] createCampaign received:", { name, jwt });
+  execute: async (
+    { name, description, jwt },
+    context?: any
+  ): Promise<ToolResult> => {
+    console.log("[Tool] createCampaign received:", { name, description, jwt });
     console.log("[Tool] createCampaign context:", context);
 
     // Extract toolCallId from context
@@ -102,31 +110,9 @@ export const createCampaign = tool({
     console.log("[createCampaign] Using toolCallId:", toolCallId);
 
     try {
-      // Generate a creative description based on the campaign name
-      const generateDescription = (_campaignName: string): string => {
-        const themes = [
-          "epic fantasy adventure",
-          "dark mystery campaign",
-          "swashbuckling pirate tale",
-          "cosmic horror story",
-          "medieval political intrigue",
-          "post-apocalyptic survival",
-          "steampunk exploration",
-          "underdark expedition",
-          "celestial realm journey",
-          "ancient ruins discovery",
-        ];
-
-        const randomTheme = themes[Math.floor(Math.random() * themes.length)];
-        const intensity = Math.random() > 0.5 ? "thrilling" : "captivating";
-
-        return `A ${intensity} ${randomTheme} where heroes will face incredible challenges, forge lasting bonds, and discover secrets that could change the fate of the world.`;
-      };
-
-      const description = generateDescription(name);
-
-      console.log("[createCampaign] Generated description:", description);
-      console.log("[createCampaign] Making API request");
+      console.log(
+        "[createCampaign] Making API request with user-provided description"
+      );
 
       const response = await authenticatedFetch(
         API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
