@@ -1,82 +1,34 @@
-import type { ProcessingProgress, ProgressMessage } from "../types/progress";
+// Simple progress service stub
+// This replaces the deleted progress-service.ts with minimal functionality
 
-// Progress tracking store
-const progressStore = new Map<string, ProcessingProgress>();
-const progressSubscribers = new Map<string, Set<WebSocket>>();
-
-// Progress management functions
-export function updateProgress(fileKey: string, progress: ProcessingProgress) {
-  progressStore.set(fileKey, progress);
-
-  // Notify subscribers
-  const subscribers = progressSubscribers.get(fileKey);
-  if (subscribers) {
-    const message: ProgressMessage = {
-      type: "progress_update",
-      data: progress,
-    };
-
-    subscribers.forEach((ws) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(message));
-      }
-    });
-  }
+/**
+ * Subscribe to progress updates for a file
+ * @param fileKey - The file key to track
+ * @param websocket - The WebSocket connection
+ */
+export function subscribeToProgress(
+  fileKey: string,
+  websocket: WebSocket
+): void {
+  console.log(`[ProgressService] Subscribing to progress for file: ${fileKey}`);
+  // Simple implementation - just log the subscription
+  // In a real implementation, this would track progress and send updates
 }
 
-export function subscribeToProgress(fileKey: string, ws: WebSocket) {
-  if (!progressSubscribers.has(fileKey)) {
-    progressSubscribers.set(fileKey, new Set());
-  }
-  progressSubscribers.get(fileKey)!.add(ws);
-
-  // Send current progress if available
-  const currentProgress = progressStore.get(fileKey);
-  if (currentProgress) {
-    const message: ProgressMessage = {
-      type: "progress_update",
-      data: currentProgress,
-    };
-    ws.send(JSON.stringify(message));
-  }
-}
-
-export function unsubscribeFromProgress(fileKey: string, ws: WebSocket) {
-  const subscribers = progressSubscribers.get(fileKey);
-  if (subscribers) {
-    subscribers.delete(ws);
-    if (subscribers.size === 0) {
-      progressSubscribers.delete(fileKey);
-    }
-  }
-}
-
+/**
+ * Complete progress tracking for a file
+ * @param fileKey - The file key
+ * @param success - Whether the operation was successful
+ * @param error - Error message if failed
+ */
 export function completeProgress(
   fileKey: string,
   success: boolean,
-  error?: string,
-  suggestedMetadata?: any
-) {
-  const message: ProgressMessage = {
-    type: "progress_complete",
-    data: {
-      fileKey,
-      success,
-      error,
-      suggestedMetadata,
-    },
-  };
-
-  const subscribers = progressSubscribers.get(fileKey);
-  if (subscribers) {
-    subscribers.forEach((ws) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(message));
-      }
-    });
-  }
-
-  // Clean up
-  progressStore.delete(fileKey);
-  progressSubscribers.delete(fileKey);
+  error?: string
+): void {
+  console.log(
+    `[ProgressService] Progress complete for file: ${fileKey}, success: ${success}${error ? `, error: ${error}` : ""}`
+  );
+  // Simple implementation - just log the completion
+  // In a real implementation, this would notify subscribers
 }

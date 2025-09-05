@@ -68,14 +68,6 @@ export class AgentRegistryService {
     try {
       // Lazy load agents to avoid module loading issues
       const { CampaignAgent } = await import("../agents/campaign-agent");
-      const { CampaignContextAgent } = await import(
-        "../agents/campaign-context-agent"
-      );
-      const { CharacterSheetAgent } = await import(
-        "../agents/character-sheet-agent"
-      );
-      const { OnboardingAgent } = await import("../agents/onboarding-agent");
-      const { ResourceAgent } = await import("../agents/resource-agent");
       const { SnippetAgent } = await import("../agents/snippet-agent");
       const { AgentRouter } = await import("./agent-router");
 
@@ -86,42 +78,6 @@ export class AgentRegistryService {
         CampaignAgent.agentMetadata.tools,
         CampaignAgent.agentMetadata.systemPrompt,
         CampaignAgent.agentMetadata.description
-      );
-
-      // Register Campaign Context Agent
-      AgentRouter.registerAgent(
-        CampaignContextAgent.agentMetadata.type as AgentType,
-        CampaignContextAgent,
-        CampaignContextAgent.agentMetadata.tools,
-        CampaignContextAgent.agentMetadata.systemPrompt,
-        CampaignContextAgent.agentMetadata.description
-      );
-
-      // Register Character Sheet Agent
-      AgentRouter.registerAgent(
-        CharacterSheetAgent.agentMetadata.type as AgentType,
-        CharacterSheetAgent,
-        CharacterSheetAgent.agentMetadata.tools,
-        CharacterSheetAgent.agentMetadata.systemPrompt,
-        CharacterSheetAgent.agentMetadata.description
-      );
-
-      // Register Onboarding Agent
-      AgentRouter.registerAgent(
-        OnboardingAgent.agentMetadata.type as AgentType,
-        OnboardingAgent,
-        OnboardingAgent.agentMetadata.tools,
-        OnboardingAgent.agentMetadata.systemPrompt,
-        OnboardingAgent.agentMetadata.description
-      );
-
-      // Register Resource Agent
-      AgentRouter.registerAgent(
-        ResourceAgent.agentMetadata.type as AgentType,
-        ResourceAgent,
-        ResourceAgent.agentMetadata.tools,
-        ResourceAgent.agentMetadata.systemPrompt,
-        ResourceAgent.agentMetadata.description
       );
 
       // Register Snippet Agent
