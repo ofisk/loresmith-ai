@@ -7,10 +7,8 @@ import { AssessmentService } from "../services/assessment-service";
 import { AuthService } from "../services/auth-service";
 import { CampaignAutoRAG } from "../services/campaign-autorag-service";
 import { CampaignService } from "../services/campaign-service";
-import { ErrorHandlingService } from "../services/error-handling-service";
 import { LibraryAutoRAGClient } from "../services/library-autorag-client";
 import { LibraryService } from "../services/library-service";
-import { MetadataService } from "../services/metadata-service";
 import { LibraryRAGService } from "../services/rag-service";
 import { AgentRegistryService } from "./agent-registry";
 import { AgentRouter } from "./agent-router";
@@ -65,24 +63,6 @@ export class ServiceFactory {
     const key = `library-rag-${env.AI ? "has-ai" : "no-ai"}-${env.DB ? "has-db" : "no-db"}-${env.VECTORIZE ? "has-vectorize" : "no-vectorize"}`;
     if (!ServiceFactory.services.has(key)) {
       ServiceFactory.services.set(key, new LibraryRAGService(env));
-    }
-    return ServiceFactory.services.get(key);
-  }
-
-  // Get or create MetadataService
-  static getMetadataService(env: Env): MetadataService {
-    const key = `metadata-${env.AI ? "has-ai" : "no-ai"}`;
-    if (!ServiceFactory.services.has(key)) {
-      ServiceFactory.services.set(key, new MetadataService(env));
-    }
-    return ServiceFactory.services.get(key);
-  }
-
-  // Get or create ErrorHandlingService (stateless, can be reused)
-  static getErrorHandlingService(): ErrorHandlingService {
-    const key = "error-handling";
-    if (!ServiceFactory.services.has(key)) {
-      ServiceFactory.services.set(key, new ErrorHandlingService());
     }
     return ServiceFactory.services.get(key);
   }
@@ -234,12 +214,6 @@ export const getAuthService = (env: Env) => ServiceFactory.getAuthService(env);
 
 export const getLibraryRagService = (env: Env) =>
   ServiceFactory.getLibraryRagService(env);
-
-export const getMetadataService = (env: Env) =>
-  ServiceFactory.getMetadataService(env);
-
-export const getErrorHandlingService = () =>
-  ServiceFactory.getErrorHandlingService();
 
 export const getLibraryService = (env: Env) =>
   ServiceFactory.getLibraryService(env);

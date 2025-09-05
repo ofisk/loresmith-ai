@@ -1,7 +1,5 @@
 // Base hooks
 
-// Legacy exports (for backward compatibility)
-export { useAsyncOperation, useAsyncVoidOperation } from "./useAsyncOperation";
 export { useAuthenticatedRequest } from "./useAuthenticatedRequest";
 // AutoRAG polling hook
 export { useAutoRAGPolling } from "./useAutoRAGPolling";
