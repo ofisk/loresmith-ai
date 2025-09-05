@@ -7,6 +7,7 @@ import {
   handleIngestionStats,
   handleIngestionStatus,
 } from "./api_status";
+import { JWT_STORAGE_KEY } from "./constants";
 import { UploadSessionDO } from "./durable-objects/upload-session";
 import type { AgentType } from "./lib/agent-router";
 import { AgentRouter } from "./lib/agent-router";
@@ -238,6 +239,14 @@ export class Chat extends AIChatAgent<Env> {
       return this.handleSetUserOpenAIKeyRequest(request);
     }
 
+    // Extract JWT token from request headers and store it for authentication
+    const authHeader = request.headers.get("Authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const jwtToken = authHeader.slice(7);
+      await this.ctx.storage.put(JWT_STORAGE_KEY, jwtToken);
+      console.log("[Chat] Stored JWT token for authentication");
+    }
+
     return super.fetch(request);
   }
 
@@ -315,12 +324,16 @@ export class Chat extends AIChatAgent<Env> {
         console.log("[Chat] Extracted username from message:", username);
       }
 
+      // Get JWT token from storage
+      const jwtToken = await this.ctx.storage.get<string>(JWT_STORAGE_KEY);
+
       // Use the auth service helper to handle authentication logic
       const authResult = await AuthService.handleAgentAuthentication(
         username,
         this.messages.some((msg) => msg.role === "user"),
         this.env.DB,
-        this
+        this,
+        jwtToken
       );
 
       if (!authResult.shouldProceed) {

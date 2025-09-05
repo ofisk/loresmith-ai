@@ -10,6 +10,7 @@ import type {
 import { SNIPPET_STATUSES } from "../lib/content-types";
 import { buildSystemPrompt } from "./systemPrompts";
 import { snippetTools } from "../tools/snippet";
+import { resolveCampaignIdentifier } from "../tools/campaign";
 
 // Snippet Agent System Prompt Configuration
 const SNIPPET_AGENT_CONFIG = {
@@ -105,18 +106,43 @@ export class SnippetAgent extends BaseAgent {
         options
       );
 
+      // Resolve campaign identifier if not a UUID
+      const uuidRegex =
+        /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/;
+      let effectiveCampaignId = campaignId;
+      if (!uuidRegex.test(String(campaignId))) {
+        try {
+          const res = await (resolveCampaignIdentifier as any).execute(
+            { campaignName: campaignId },
+            { env: (this as any).env }
+          );
+          if (res?.success && res.data?.campaignId) {
+            effectiveCampaignId = res.data.campaignId;
+            console.log(
+              `[SnippetAgent] Resolved campaign name '${campaignId}' -> '${effectiveCampaignId}'`
+            );
+          }
+        } catch (e) {
+          console.warn(`[SnippetAgent] Failed to resolve campaign id:`, e);
+        }
+      }
+
       let snippets: any[] = [];
 
       if (status === "staged" || status === "all") {
         const stagedSnippets =
-          await this.stagedSnippetsDAO.getStagedSnippetsByCampaign(campaignId);
+          await this.stagedSnippetsDAO.getStagedSnippetsByCampaign(
+            effectiveCampaignId
+          );
         snippets.push(...stagedSnippets);
       }
 
       if (status === "approved" || status === "all") {
         // Get approved snippets (implement search if needed)
         const allSnippets =
-          await this.stagedSnippetsDAO.getSnippetsByCampaign(campaignId);
+          await this.stagedSnippetsDAO.getSnippetsByCampaign(
+            effectiveCampaignId
+          );
         const approvedSnippets = allSnippets.filter(
           (s) => s.status === SNIPPET_STATUSES.APPROVED
         );
@@ -125,7 +151,9 @@ export class SnippetAgent extends BaseAgent {
 
       if (status === "rejected" || status === "all") {
         const allSnippets =
-          await this.stagedSnippetsDAO.getSnippetsByCampaign(campaignId);
+          await this.stagedSnippetsDAO.getSnippetsByCampaign(
+            effectiveCampaignId
+          );
         const rejectedSnippets = allSnippets.filter(
           (s) => s.status === SNIPPET_STATUSES.REJECTED
         );
@@ -150,7 +178,7 @@ export class SnippetAgent extends BaseAgent {
       // Group snippets by resource for better organization
       const groupedSnippets = this.groupSnippetsByResource(
         snippets,
-        campaignId
+        effectiveCampaignId
       );
 
       console.log(

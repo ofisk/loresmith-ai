@@ -405,6 +405,10 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
             {
               max_results: 20,
               rewrite_query: false,
+              source_filter: resource.id,
+              scope: "file_only",
+              exclude_sources: ["*"],
+              include_sources: [resource.id],
             }
           );
 
@@ -490,7 +494,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                   `[Server] Successfully created ${result.created} snippets for ${resource.id}`
                 );
 
-                // Return the generated snippets so they can be presented in the chat
+                // Return the generated snippets and an instruction for the chat UI to render management UI
                 return c.json({
                   success: true,
                   message: `Resource added to campaign successfully. Generated ${result.created} snippets for review.`,
@@ -503,7 +507,17 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                     count: result.created,
                     campaignId,
                     resourceId: resource.id,
-                    message: `Generated ${result.created} snippets from "${resource.resource_name || resource.id}". Use the snippet agent to review and approve them.`,
+                    message: `Generated ${result.created} snippets from "${resource.resource_name || resource.id}".`,
+                  },
+                  // Hint for the client chat to render UI immediately
+                  ui: {
+                    type: "render_component",
+                    component: "SnippetManagementUI",
+                    props: {
+                      campaignId,
+                      action: "show_staged",
+                      resourceId: resource.id,
+                    },
                   },
                 });
               } else {

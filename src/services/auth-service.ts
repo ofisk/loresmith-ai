@@ -569,6 +569,24 @@ export class AuthService {
   }
 
   /**
+   * Extract payload from JWT token without verification (for internal use)
+   */
+  static extractPayloadFromJWT(token: string): AuthPayload | null {
+    try {
+      const parts = token.split(".");
+      if (parts.length !== 3) {
+        return null;
+      }
+
+      const payload = JSON.parse(atob(parts[1]));
+      return payload as AuthPayload;
+    } catch (error) {
+      console.warn("[AuthService] Failed to extract JWT payload:", error);
+      return null;
+    }
+  }
+
+  /**
    * Handle agent authentication for initial message retrieval vs message processing
    * This allows initial message retrieval without auth but requires auth for processing
    */
@@ -580,7 +598,8 @@ export class AuthService {
       getCachedKey(): string | null;
       setCachedKey(key: string): Promise<void>;
       clearCachedKey(): Promise<void>;
-    }
+    },
+    jwtToken?: string | null
   ): Promise<{
     shouldProceed: boolean;
     apiKey: string | null;
@@ -594,11 +613,31 @@ export class AuthService {
       return { shouldProceed: true, apiKey: null, requiresAuth: false };
     }
 
-    const apiKey = await AuthService.loadUserOpenAIKeyWithCache(
-      username,
-      db,
-      cache
-    );
+    // First try to extract API key from JWT token if available
+    let apiKey: string | null = null;
+    if (jwtToken) {
+      try {
+        const payload = AuthService.extractPayloadFromJWT(jwtToken);
+        if (payload && payload.openaiApiKey) {
+          apiKey = payload.openaiApiKey;
+          console.log("[AuthService] Extracted API key from JWT token");
+        }
+      } catch (error) {
+        console.warn(
+          "[AuthService] Failed to extract API key from JWT:",
+          error
+        );
+      }
+    }
+
+    // Fallback to database if not found in JWT
+    if (!apiKey) {
+      apiKey = await AuthService.loadUserOpenAIKeyWithCache(
+        username,
+        db,
+        cache
+      );
+    }
 
     // If no API key and we have user messages, require authentication
     if (!apiKey && hasUserMessages) {

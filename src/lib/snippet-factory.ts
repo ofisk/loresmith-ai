@@ -51,9 +51,9 @@ export class SnippetFactory {
     // Generate chunk ID if not provided
     const finalChunkId = chunkId || `${resourceId}_ai_${Date.now()}`;
 
-    // Create snippet ID
-    const snippetId =
-      snippet?.id || `${resourceId}_${contentType}_${Date.now()}`;
+    // Create snippet ID - ensure uniqueness by using the generateSnippetId method
+    const index = originalMetadata?.index;
+    const snippetId = this.generateSnippetId(resourceId, contentType, index);
 
     // Create metadata
     const metadata: SnippetMetadata = {
@@ -147,7 +147,8 @@ export class SnippetFactory {
       );
 
       // Process each snippet in the content type array
-      for (const snippet of snippetArray) {
+      for (let i = 0; i < snippetArray.length; i++) {
+        const snippet = snippetArray[i];
         if (snippet && snippet.name) {
           const snippetCandidate = this.createSnippetCandidate(
             snippet,
@@ -157,7 +158,7 @@ export class SnippetFactory {
             "library_autorag_ai_search",
             0.9,
             `${resource.id}_ai_${snippetCandidates.length}`,
-            { aiSearchResponse: true }
+            { aiSearchResponse: true, index: i }
           );
           snippetCandidates.push(snippetCandidate);
         }
