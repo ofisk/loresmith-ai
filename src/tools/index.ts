@@ -49,7 +49,7 @@ import type { ToolExecutionOptions } from "ai";
 
 export const executions = {
   createCampaign: async (
-    params: { name: string; jwt?: string },
+    params: { name: string; description: string; jwt?: string },
     context?: ToolExecutionOptions
   ) => {
     return await importedCampaignTools.createCampaign.execute(
