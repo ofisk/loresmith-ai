@@ -4,6 +4,8 @@ import {
   authenticatedFetchWithExpiration,
 } from "../services/auth-service";
 import { API_CONFIG } from "../shared";
+import { useEventEmitter, EVENT_TYPES } from "../lib/event-bus";
+import type { AutoRAGEvent } from "../lib/event-bus";
 
 export interface AutoRAGJobStatus {
   id: string;
@@ -17,7 +19,7 @@ export interface AutoRAGJobStatus {
 export interface UseAutoRAGPollingReturn {
   jobStatus: AutoRAGJobStatus | null;
   isPolling: boolean;
-  startPolling: (ragId: string, jobId: string) => void;
+  startPolling: (ragId: string, jobId: string, fileKey?: string) => void;
   stopPolling: () => void;
   error: string | null;
 }
@@ -28,6 +30,8 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const emit = useEventEmitter();
 
   const stopPolling = useCallback(() => {
     console.log("[useAutoRAGPolling] Stopping polling");
@@ -45,7 +49,7 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
   }, []);
 
   const checkJobStatus = useCallback(
-    async (ragId: string, jobId: string) => {
+    async (ragId: string, jobId: string, fileKey?: string) => {
       console.log("Checking job status for", ragId, jobId);
       try {
         const url = API_CONFIG.buildUrl(
@@ -84,9 +88,36 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
         setJobStatus(result.result);
         setError(null);
 
+        // Emit progress event
+        emit({
+          type: EVENT_TYPES.AUTORAG_SYNC.PROGRESS,
+          ragId,
+          jobId,
+          fileKey,
+          progress: result.result.ended_at ? 100 : 50, // Estimate progress
+          source: "useAutoRAGPolling",
+        } as AutoRAGEvent);
+
         // Stop polling if the job has ended
         if (result.result.ended_at) {
           console.log("[useAutoRAGPolling] Job ended, stopping polling");
+
+          const isSuccess =
+            !result.result.end_reason ||
+            result.result.end_reason === "completed";
+
+          // Emit completion event
+          emit({
+            type: isSuccess
+              ? EVENT_TYPES.AUTORAG_SYNC.COMPLETED
+              : EVENT_TYPES.AUTORAG_SYNC.FAILED,
+            ragId,
+            jobId,
+            fileKey,
+            error: isSuccess ? undefined : result.result.end_reason,
+            source: "useAutoRAGPolling",
+          } as AutoRAGEvent);
+
           stopPolling();
         }
       } catch (err) {
@@ -96,14 +127,26 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
         }
 
         console.error("[useAutoRAGPolling] Error checking job status:", err);
-        setError(err instanceof Error ? err.message : "Unknown error");
+        const errorMessage =
+          err instanceof Error ? err.message : "Unknown error";
+        setError(errorMessage);
+
+        // Emit failure event
+        emit({
+          type: EVENT_TYPES.AUTORAG_SYNC.FAILED,
+          ragId,
+          jobId,
+          fileKey,
+          error: errorMessage,
+          source: "useAutoRAGPolling",
+        } as AutoRAGEvent);
       }
     },
-    [stopPolling]
+    [stopPolling, emit]
   );
 
   const startPolling = useCallback(
-    (ragId: string, jobId: string) => {
+    (ragId: string, jobId: string, fileKey?: string) => {
       // Stop any existing polling
       stopPolling();
 
@@ -115,15 +158,24 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
       setError(null);
       setIsPolling(true);
 
+      // Emit start event
+      emit({
+        type: EVENT_TYPES.AUTORAG_SYNC.STARTED,
+        ragId,
+        jobId,
+        fileKey,
+        source: "useAutoRAGPolling",
+      } as AutoRAGEvent);
+
       // Check status immediately
-      checkJobStatus(ragId, jobId);
+      checkJobStatus(ragId, jobId, fileKey);
 
       // Start polling every 2 seconds
       intervalRef.current = setInterval(() => {
-        checkJobStatus(ragId, jobId);
+        checkJobStatus(ragId, jobId, fileKey);
       }, 2000);
     },
-    [checkJobStatus, stopPolling]
+    [checkJobStatus, stopPolling, emit]
   );
 
   // Cleanup on unmount

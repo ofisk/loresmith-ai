@@ -6,6 +6,14 @@ export { useAuthenticatedRequest } from "./useAuthenticatedRequest";
 // AutoRAG polling hook
 export { useAutoRAGPolling } from "./useAutoRAGPolling";
 export { useBaseAsync, useBaseAsyncVoid } from "./useBaseAsync";
+// Event bus integration hooks
+export {
+  useAsyncState,
+  useFileUploadStatus,
+  useAutoRAGStatus,
+} from "./useAsyncState";
+export { useFileUpload } from "./useFileUpload";
+export { useCampaignManagement } from "./useCampaignManagement";
 // Data hooks
 export { useCampaigns } from "./useCampaigns";
 // UI and interaction hooks
