@@ -6,14 +6,12 @@ import { StorageTracker } from "../storage-tracker";
 interface LibrarySectionProps {
   isOpen: boolean;
   onToggle: () => void;
-  refreshTrigger: number;
   onAddToLibrary: () => void;
 }
 
 export function LibrarySection({
   isOpen,
   onToggle,
-  refreshTrigger,
   onAddToLibrary,
 }: LibrarySectionProps) {
   return (
@@ -43,7 +41,7 @@ export function LibrarySection({
             </button>
           </div>
           <div className="border-t border-neutral-200 dark:border-neutral-700">
-            <ResourceList refreshTrigger={refreshTrigger} />
+            <ResourceList />
             <StorageTracker />
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useEventEmitter, EVENT_TYPES } from "../lib/event-bus";
+import { useEvent, EVENT_TYPES } from "../lib/event-bus";
 import type { FileUploadEvent } from "../lib/event-bus";
 import { buildAutoRAGFileKey } from "../utils/file-keys";
 import {
@@ -26,7 +26,7 @@ export function useFileUpload({
     fileKey: string;
   } | null>(null);
 
-  const emit = useEventEmitter();
+  const send = useEvent();
   const { startPolling } = useAutoRAGPolling();
 
   const handleUpload = useCallback(
@@ -40,7 +40,7 @@ export function useFileUpload({
       setCurrentUploadId(uploadId);
 
       // Emit upload started event
-      emit({
+      send({
         type: EVENT_TYPES.FILE_UPLOAD.STARTED,
         fileKey: buildAutoRAGFileKey(
           AuthService.getUsernameFromStoredJwt() || "",
@@ -65,7 +65,7 @@ export function useFileUpload({
         const fileKey = buildAutoRAGFileKey(tenant, filename);
 
         // Step 1: Upload file directly to storage
-        emit({
+        send({
           type: EVENT_TYPES.FILE_UPLOAD.PROGRESS,
           fileKey,
           filename,
@@ -107,7 +107,7 @@ export function useFileUpload({
         }
 
         // Emit upload completed event
-        emit({
+        send({
           type: EVENT_TYPES.FILE_UPLOAD.COMPLETED,
           fileKey,
           filename,
@@ -155,7 +155,7 @@ export function useFileUpload({
         console.error("[useFileUpload] Upload error:", error);
 
         // Emit upload failed event
-        emit({
+        send({
           type: EVENT_TYPES.FILE_UPLOAD.FAILED,
           fileKey: buildAutoRAGFileKey(
             AuthService.getUsernameFromStoredJwt() || "",
@@ -167,7 +167,7 @@ export function useFileUpload({
         } as FileUploadEvent);
       }
     },
-    [emit, startPolling, onSendNotification, onUploadSuccess]
+    [send, startPolling, onSendNotification, onUploadSuccess]
   );
 
   const clearUploadedFileInfo = useCallback(() => {

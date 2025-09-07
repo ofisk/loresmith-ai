@@ -7,7 +7,6 @@ import { StorageTracker } from "../storage-tracker";
 import { ResourceUpload } from "../upload/ResourceUpload";
 import { CampaignsSection } from "./CampaignsSection";
 import { LibrarySection } from "./LibrarySection";
-import { CampaignSuggestionModal } from "./CampaignSuggestionModal";
 import { CreateCampaignModal } from "./CreateCampaignModal";
 
 interface ResourceSidePanelProps {
@@ -33,20 +32,15 @@ export function ResourceSidePanel({
 }: ResourceSidePanelProps) {
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isCampaignsOpen, setIsCampaignsOpen] = useState(false);
-  const [refreshTrigger] = useState(0);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCreateCampaignModalOpen, setIsCreateCampaignModalOpen] =
     useState(false);
-  const [isCampaignSuggestionModalOpen, setIsCampaignSuggestionModalOpen] =
-    useState(false);
+  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
 
   // Custom hooks for business logic
   const { uploadedFileInfo, handleUpload, clearUploadedFileInfo } =
     useFileUpload({
       onSendNotification,
-      onUploadSuccess: () => {
-        setIsCampaignSuggestionModalOpen(true);
-      },
     });
 
   const {
@@ -59,7 +53,6 @@ export function ResourceSidePanel({
     setCampaignDescription,
     fetchCampaigns,
     handleCreateCampaign,
-    handleAddFileToCampaign,
     handleCreateCampaignForFile,
   } = useCampaignManagement({
     isAuthenticated,
@@ -81,12 +74,12 @@ export function ResourceSidePanel({
     }
   }, [isCampaignsOpen, isAuthenticated, fetchCampaigns]);
 
-  // Fetch campaigns when campaign suggestion modal opens
+  // Fetch campaigns when add modal opens
   useEffect(() => {
-    if (isCampaignSuggestionModalOpen && isAuthenticated) {
+    if (isAddModalOpen && isAuthenticated) {
       fetchCampaigns();
     }
-  }, [isCampaignSuggestionModalOpen, isAuthenticated, fetchCampaigns]);
+  }, [isAddModalOpen, isAuthenticated, fetchCampaigns]);
 
   const handleLogout = async () => {
     try {
@@ -96,16 +89,9 @@ export function ResourceSidePanel({
     }
   };
 
-  const handleAddToCampaign = async (campaignId: string) => {
-    await handleAddFileToCampaign(campaignId, uploadedFileInfo);
-    setIsCampaignSuggestionModalOpen(false);
-    clearUploadedFileInfo();
-  };
-
   const handleCreateCampaignForFileWrapper = async () => {
     await handleCreateCampaignForFile(uploadedFileInfo);
     setIsCreateCampaignModalOpen(false);
-    setIsCampaignSuggestionModalOpen(false);
     clearUploadedFileInfo();
   };
 
@@ -144,7 +130,6 @@ export function ResourceSidePanel({
         <LibrarySection
           isOpen={isLibraryOpen}
           onToggle={() => setIsLibraryOpen(!isLibraryOpen)}
-          refreshTrigger={refreshTrigger}
           onAddToLibrary={() => setIsAddModalOpen(true)}
         />
 
@@ -196,12 +181,19 @@ export function ResourceSidePanel({
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        cardStyle={{ width: 560, height: 560 }}
+        cardStyle={{ width: 560, height: 700 }}
       >
         <ResourceUpload
           onUpload={handleUpload}
           className="border-0 p-0 shadow-none"
           jwtUsername={AuthService.getUsernameFromStoredJwt()}
+          campaigns={campaigns}
+          selectedCampaigns={selectedCampaigns}
+          onCampaignSelectionChange={setSelectedCampaigns}
+          campaignName={campaignName}
+          onCampaignNameChange={setCampaignName}
+          onCreateCampaign={handleCreateCampaignForFileWrapper}
+          showCampaignSelection={true}
         />
       </Modal>
 
@@ -223,30 +215,6 @@ export function ResourceSidePanel({
           campaignDescription={campaignDescription}
           onCampaignDescriptionChange={setCampaignDescription}
           onCreateCampaign={handleCreateCampaignWrapper}
-        />
-      </Modal>
-
-      {/* Campaign Suggestion Modal */}
-      <Modal
-        isOpen={isCampaignSuggestionModalOpen}
-        onClose={() => {
-          setIsCampaignSuggestionModalOpen(false);
-          clearUploadedFileInfo();
-        }}
-        cardStyle={{ width: 520, height: 500 }}
-      >
-        <CampaignSuggestionModal
-          isOpen={isCampaignSuggestionModalOpen}
-          onClose={() => {
-            setIsCampaignSuggestionModalOpen(false);
-            clearUploadedFileInfo();
-          }}
-          uploadedFileInfo={uploadedFileInfo}
-          campaigns={campaigns}
-          campaignName={campaignName}
-          onCampaignNameChange={setCampaignName}
-          onAddToCampaign={handleAddToCampaign}
-          onCreateCampaignForFile={handleCreateCampaignForFileWrapper}
         />
       </Modal>
     </div>

@@ -2,8 +2,10 @@ import { useId, useRef, useState } from "react";
 import { Button, PrimaryActionButton } from "@/components/button";
 import { FormField } from "@/components/input/FormField";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
+import { MultiSelect } from "@/components/select/MultiSelect";
 import { cn } from "@/lib/utils";
 import type { ProcessingProgress } from "../../types/progress";
+import type { Campaign } from "../../types/campaign";
 
 // Function to sanitize filename by removing/replacing URL-encoded characters
 const sanitizeFilename = (filename: string): string => {
@@ -27,6 +29,14 @@ interface ResourceUploadProps {
   className?: string;
   jwtUsername?: string | null;
   uploadProgress?: ProcessingProgress | null;
+  // Campaign selection props
+  campaigns?: Campaign[];
+  selectedCampaigns?: string[];
+  onCampaignSelectionChange?: (campaignIds: string[]) => void;
+  campaignName?: string;
+  onCampaignNameChange?: (name: string) => void;
+  onCreateCampaign?: () => void;
+  showCampaignSelection?: boolean;
 }
 
 export const ResourceUpload = ({
@@ -35,10 +45,18 @@ export const ResourceUpload = ({
   className,
   jwtUsername,
   uploadProgress,
+  campaigns = [],
+  selectedCampaigns = [],
+  onCampaignSelectionChange,
+  campaignName = "",
+  onCampaignNameChange,
+  onCreateCampaign,
+  showCampaignSelection = false,
 }: ResourceUploadProps) => {
   const resourceFilenameId = useId();
   const resourceDescriptionId = useId();
   const resourceTagsId = useId();
+  const campaignNameId = useId();
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [filename, setFilename] = useState("");
@@ -328,6 +346,68 @@ export const ResourceUpload = ({
               Example: undead, forest, cursed treasure
             </div>
           </FormField>
+
+          {/* Campaign Selection Section */}
+          {showCampaignSelection && currentFile && (
+            <div className="space-y-4">
+              <div className="border-t border-ob-base-600 pt-4">
+                <h3 className="text-sm font-medium text-ob-base-200 mb-3">
+                  Add to Campaign
+                </h3>
+
+                {campaigns.length > 0 && (
+                  <div className="space-y-3">
+                    <div>
+                      <div className="block text-sm font-medium text-ob-base-200 mb-2">
+                        Select existing campaigns
+                      </div>
+                      <MultiSelect
+                        options={campaigns.map((campaign) => ({
+                          value: campaign.campaignId,
+                          label: campaign.name,
+                        }))}
+                        selectedValues={selectedCampaigns}
+                        onSelectionChange={
+                          onCampaignSelectionChange || (() => {})
+                        }
+                        placeholder="Choose campaigns..."
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <div>
+                    <label
+                      htmlFor={campaignNameId}
+                      className="block text-sm font-medium text-ob-base-200 mb-2"
+                    >
+                      Or create a new campaign
+                    </label>
+                    <input
+                      id={campaignNameId}
+                      type="text"
+                      placeholder="Campaign name"
+                      value={campaignName}
+                      onChange={(e) => onCampaignNameChange?.(e.target.value)}
+                      className="w-full px-3 py-2 bg-ob-base-700 border border-ob-base-600 rounded text-ob-base-200 placeholder-ob-base-400 focus:outline-none focus:ring-2 focus:ring-ob-primary-500"
+                    />
+                  </div>
+                  {campaignName.trim() && (
+                    <Button
+                      type="button"
+                      onClick={onCreateCampaign}
+                      variant="secondary"
+                      size="sm"
+                      className="w-full"
+                    >
+                      Create Campaign & Add File
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Upload Button */}
           <div className="flex justify-center mt-8">

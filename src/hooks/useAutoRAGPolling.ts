@@ -4,7 +4,7 @@ import {
   authenticatedFetchWithExpiration,
 } from "../services/auth-service";
 import { API_CONFIG } from "../shared";
-import { useEventEmitter, EVENT_TYPES } from "../lib/event-bus";
+import { useEvent, EVENT_TYPES } from "../lib/event-bus";
 import type { AutoRAGEvent } from "../lib/event-bus";
 
 export interface AutoRAGJobStatus {
@@ -31,7 +31,7 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const emit = useEventEmitter();
+  const send = useEvent();
 
   const stopPolling = useCallback(() => {
     console.log("[useAutoRAGPolling] Stopping polling");
@@ -89,7 +89,7 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
         setError(null);
 
         // Emit progress event
-        emit({
+        send({
           type: EVENT_TYPES.AUTORAG_SYNC.PROGRESS,
           ragId,
           jobId,
@@ -107,7 +107,7 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
             result.result.end_reason === "completed";
 
           // Emit completion event
-          emit({
+          send({
             type: isSuccess
               ? EVENT_TYPES.AUTORAG_SYNC.COMPLETED
               : EVENT_TYPES.AUTORAG_SYNC.FAILED,
@@ -132,7 +132,7 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
         setError(errorMessage);
 
         // Emit failure event
-        emit({
+        send({
           type: EVENT_TYPES.AUTORAG_SYNC.FAILED,
           ragId,
           jobId,
@@ -142,7 +142,7 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
         } as AutoRAGEvent);
       }
     },
-    [stopPolling, emit]
+    [stopPolling, send]
   );
 
   const startPolling = useCallback(
@@ -158,8 +158,8 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
       setError(null);
       setIsPolling(true);
 
-      // Emit start event
-      emit({
+      // Send start event
+      send({
         type: EVENT_TYPES.AUTORAG_SYNC.STARTED,
         ragId,
         jobId,
@@ -175,7 +175,7 @@ export function useAutoRAGPolling(): UseAutoRAGPollingReturn {
         checkJobStatus(ragId, jobId, fileKey);
       }, 2000);
     },
-    [checkJobStatus, stopPolling, emit]
+    [checkJobStatus, stopPolling, send]
   );
 
   // Cleanup on unmount

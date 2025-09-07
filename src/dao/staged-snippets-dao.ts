@@ -44,6 +44,11 @@ export class StagedSnippetsDAO {
   ): Promise<void> {
     if (snippets.length === 0) return;
 
+    console.log(
+      `[StagedSnippetsDAO] Creating ${snippets.length} staged snippets`
+    );
+    console.log(`[StagedSnippetsDAO] Snippet preview:`, snippets.slice(0, 2));
+
     const now = new Date().toISOString();
     const batch = this.db.batch(
       snippets.map((snippet) =>
@@ -70,6 +75,9 @@ export class StagedSnippetsDAO {
     );
 
     await batch;
+    console.log(
+      `[StagedSnippetsDAO] Successfully created ${snippets.length} staged snippets`
+    );
   }
 
   /**
@@ -78,6 +86,13 @@ export class StagedSnippetsDAO {
   async getStagedSnippetsByCampaign(
     campaignId: string
   ): Promise<StagedSnippet[]> {
+    console.log(
+      `[StagedSnippetsDAO] Querying staged snippets for campaign: "${campaignId}"`
+    );
+    console.log(
+      `[StagedSnippetsDAO] Looking for status: "${SNIPPET_STATUSES.STAGED}"`
+    );
+
     const result = await this.db
       .prepare(
         `
@@ -89,6 +104,12 @@ export class StagedSnippetsDAO {
       .bind(campaignId, SNIPPET_STATUSES.STAGED)
       .all<StagedSnippet>();
 
+    console.log(`[StagedSnippetsDAO] Query result:`, {
+      success: result.success,
+      resultsCount: result.results?.length || 0,
+      results: result.results,
+    });
+
     return result.results || [];
   }
 
@@ -96,6 +117,10 @@ export class StagedSnippetsDAO {
    * Get all snippets for a campaign (any status)
    */
   async getSnippetsByCampaign(campaignId: string): Promise<StagedSnippet[]> {
+    console.log(
+      `[StagedSnippetsDAO] Querying ALL snippets for campaign: "${campaignId}"`
+    );
+
     const result = await this.db
       .prepare(
         `
@@ -106,6 +131,12 @@ export class StagedSnippetsDAO {
       )
       .bind(campaignId)
       .all<StagedSnippet>();
+
+    console.log(`[StagedSnippetsDAO] All snippets query result:`, {
+      success: result.success,
+      resultsCount: result.results?.length || 0,
+      results: result.results,
+    });
 
     return result.results || [];
   }
@@ -252,6 +283,30 @@ export class StagedSnippetsDAO {
       )
       .bind(campaignId, SNIPPET_STATUSES.APPROVED, `%${query}%`, `%${query}%`)
       .all<StagedSnippet>();
+
+    return result.results || [];
+  }
+
+  /**
+   * Debug method: Get all snippets in the database (for troubleshooting)
+   */
+  async getAllSnippets(): Promise<StagedSnippet[]> {
+    console.log(`[StagedSnippetsDAO] DEBUG: Querying ALL snippets in database`);
+
+    const result = await this.db
+      .prepare(
+        `
+      select * from staged_snippets 
+      order by created_at desc
+    `
+      )
+      .all<StagedSnippet>();
+
+    console.log(`[StagedSnippetsDAO] DEBUG: All snippets in database:`, {
+      success: result.success,
+      resultsCount: result.results?.length || 0,
+      results: result.results,
+    });
 
     return result.results || [];
   }

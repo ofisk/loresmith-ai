@@ -1,10 +1,10 @@
 # Event Bus System Guide
 
-This guide explains how to use the new event bus system for managing asynchronous state updates in your application.
+This guide explains how to use the event bus system for managing asynchronous state updates in your application.
 
 ## Overview
 
-The event bus system provides a centralized way to handle asynchronous operations and their state changes across your application. It solves the common problem of components not updating properly when async operations complete.
+The event bus system provides a centralized way to handle asynchronous operations and their state changes across the application. It solves the common problem of components not updating properly when async operations complete.
 
 ## Key Benefits
 
@@ -55,14 +55,14 @@ interface BaseEvent {
 ### 1. Basic Event Emission
 
 ```typescript
-import { useEventEmitter } from "../hooks/useAsyncState";
+import { useEvent } from "../hooks/useAsyncState";
 
 function MyComponent() {
-  const emit = useEventEmitter();
+  const send = useEvent();
 
   const handleFileUpload = async (file: File) => {
-    // Emit upload started event
-    emit({
+    // Send upload started event
+    send({
       type: "file.upload.started",
       fileKey: "user123/file.pdf",
       filename: "file.pdf",
@@ -73,16 +73,16 @@ function MyComponent() {
       // Perform upload...
       await uploadFile(file);
 
-      // Emit success event
-      emit({
+      // Send success event
+      send({
         type: "file.upload.completed",
         fileKey: "user123/file.pdf",
         filename: "file.pdf",
         source: "MyComponent",
       });
     } catch (error) {
-      // Emit failure event
-      emit({
+      // Send failure event
+      send({
         type: "file.upload.failed",
         fileKey: "user123/file.pdf",
         filename: "file.pdf",
@@ -187,101 +187,6 @@ function AutoRAGManager() {
 }
 ```
 
-## Migration Guide
-
-### From Existing Polling to Event Bus
-
-**Before (ResourceSidePanel):**
-
-```typescript
-// Manual state management with complex useEffect
-useEffect(() => {
-  if (jobStatus && currentUploadId) {
-    const currentUpload = fileUploads.get(currentUploadId);
-    if (currentUpload) {
-      // Complex state update logic...
-      setFileUploads((prev) => {
-        // Manual state synchronization...
-      });
-    }
-  }
-}, [jobStatus, currentUploadId, fileUploads]);
-```
-
-**After (with Event Bus):**
-
-```typescript
-// Automatic state management via events
-const { uploadState } = useFileUploadStatus(currentUploadId);
-
-// State automatically updates when events are emitted
-// No manual useEffect needed!
-```
-
-### Step-by-Step Migration
-
-1. **Replace manual polling hooks** with enhanced versions:
-
-   ```typescript
-   // Old
-   import { useAutoRAGPolling } from "../hooks/useAutoRAGPolling";
-
-   // New
-   import { useEnhancedAutoRAGPolling } from "../hooks/useEnhancedAutoRAGPolling";
-   ```
-
-2. **Replace manual state management** with event-driven hooks:
-
-   ```typescript
-   // Old
-   const [uploadStatus, setUploadStatus] = useState("idle");
-
-   // New
-   const { uploadState } = useFileUploadStatus(fileKey);
-   ```
-
-3. **Emit events** instead of manually updating state:
-
-   ```typescript
-   // Old
-   setUploadStatus("completed");
-
-   // New
-   emit({
-     type: "file.upload.completed",
-     fileKey,
-     filename,
-     source: "MyComponent",
-   });
-   ```
-
-## Best Practices
-
-### 1. Event Naming
-
-- Use descriptive, hierarchical names: `file.upload.started`, `autorag.sync.completed`
-- Follow the pattern: `domain.operation.state`
-
-### 2. Event Sources
-
-- Always include a meaningful `source` field
-- Use component names or service names for easy debugging
-
-### 3. Error Handling
-
-- Always emit failure events with error details
-- Include error messages in the event payload
-
-### 4. Performance
-
-- Use specific event types rather than listening to all events
-- Clean up event listeners when components unmount (handled automatically by hooks)
-
-### 5. Testing
-
-- Use the `eventBus.clear()` method to reset state between tests
-- Check event history with `eventBus.getRecentEvents()`
-
 ## Debugging
 
 ### Event History
@@ -310,35 +215,6 @@ function TestPage() {
 }
 ```
 
-## Integration with Existing Code
-
-The event bus system is designed to work alongside your existing code. You can:
-
-1. **Gradually migrate** components one at a time
-2. **Keep existing hooks** while adding new event-driven ones
-3. **Mix approaches** during the transition period
-
-### Example: Gradual Migration
-
-```typescript
-// Component can use both old and new approaches
-function HybridComponent() {
-  // Old approach (still works)
-  const { jobStatus } = useAutoRAGPolling();
-
-  // New approach (event-driven)
-  const { uploadState } = useFileUploadStatus(fileKey);
-
-  // Both will work together
-  return (
-    <div>
-      <div>Old status: {jobStatus?.id}</div>
-      <div>New status: {uploadState.status}</div>
-    </div>
-  );
-}
-```
-
 ## Troubleshooting
 
 ### Common Issues
@@ -356,33 +232,3 @@ function HybridComponent() {
 3. **Memory leaks**
    - Event listeners are automatically cleaned up by the hooks
    - If using the raw event bus, remember to unsubscribe
-
-### Debug Commands
-
-```typescript
-// Check current listeners
-console.log("Event bus state:", eventBus);
-
-// Clear all events and listeners
-eventBus.clear();
-
-// Get event history
-const history = eventBus.getRecentEvents();
-console.log("Event history:", history);
-```
-
-## Future Enhancements
-
-The event bus system is designed to be extensible. Future enhancements could include:
-
-- **Persistence**: Save event history to localStorage
-- **Filtering**: More sophisticated event filtering
-- **Metrics**: Event timing and performance metrics
-- **Visualization**: Event flow diagrams
-- **Testing**: Built-in testing utilities
-
-## Conclusion
-
-The event bus system provides a robust, scalable solution for managing asynchronous state in your application. It eliminates the common issues with manual state synchronization while providing excellent debugging capabilities and type safety.
-
-Start by migrating one component at a time, and you'll quickly see the benefits of centralized, event-driven state management.

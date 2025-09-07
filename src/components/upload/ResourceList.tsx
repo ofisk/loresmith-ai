@@ -12,6 +12,8 @@ import { Button } from "../button/Button";
 import { Modal } from "../modal/Modal";
 import { MultiSelect } from "../select/MultiSelect";
 import { FileStatusIndicator } from "./FileStatusIndicator";
+import { useEventBus, EVENT_TYPES } from "../../lib/event-bus";
+import type { FileUploadEvent, AutoRAGEvent } from "../../lib/event-bus";
 
 interface ResourceFile {
   id: string;
@@ -29,9 +31,7 @@ interface ResourceFileWithCampaigns extends ResourceFile {
   campaigns?: Campaign[];
 }
 
-interface ResourceListProps {
-  refreshTrigger?: number;
-}
+type ResourceListProps = {};
 
 function getDisplayName(filename: string | undefined | null): string {
   if (!filename) {
@@ -40,9 +40,7 @@ function getDisplayName(filename: string | undefined | null): string {
   return filename;
 }
 
-export function ResourceList({
-  refreshTrigger: _refreshTrigger,
-}: ResourceListProps) {
+export function ResourceList(_props: ResourceListProps) {
   const [files, setFiles] = useState<ResourceFileWithCampaigns[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -410,6 +408,31 @@ export function ResourceList({
     fetchResources();
     fetchCampaigns();
   }, [fetchResources, fetchCampaigns]);
+
+  // Listen for file upload events to refresh the resource list
+  useEventBus<FileUploadEvent>(
+    EVENT_TYPES.FILE_UPLOAD.COMPLETED,
+    (event) => {
+      console.log(
+        "[ResourceList] File upload completed, refreshing resource list:",
+        event
+      );
+      fetchResources();
+    },
+    []
+  );
+
+  useEventBus<AutoRAGEvent>(
+    EVENT_TYPES.AUTORAG_SYNC.COMPLETED,
+    (event) => {
+      console.log(
+        "[ResourceList] AutoRAG sync completed, refreshing resource list:",
+        event
+      );
+      fetchResources();
+    },
+    []
+  );
 
   // Listen for file change events from the AI agent
   useEffect(() => {

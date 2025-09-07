@@ -110,30 +110,58 @@ export class SnippetAgent extends BaseAgent {
       const uuidRegex =
         /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/;
       let effectiveCampaignId = campaignId;
+      console.log(`[SnippetAgent] Original campaignId: "${campaignId}"`);
+      console.log(
+        `[SnippetAgent] Is UUID format: ${uuidRegex.test(String(campaignId))}`
+      );
+
       if (!uuidRegex.test(String(campaignId))) {
+        console.log(
+          `[SnippetAgent] Campaign ID is not UUID format, attempting to resolve...`
+        );
         try {
           const res = await (resolveCampaignIdentifier as any).execute(
             { campaignName: campaignId },
             { env: (this as any).env }
           );
+          console.log(`[SnippetAgent] Campaign resolution result:`, res);
           if (res?.success && res.data?.campaignId) {
             effectiveCampaignId = res.data.campaignId;
             console.log(
               `[SnippetAgent] Resolved campaign name '${campaignId}' -> '${effectiveCampaignId}'`
             );
+          } else {
+            console.warn(
+              `[SnippetAgent] Campaign resolution failed or returned no ID`
+            );
           }
         } catch (e) {
           console.warn(`[SnippetAgent] Failed to resolve campaign id:`, e);
         }
+      } else {
+        console.log(
+          `[SnippetAgent] Campaign ID is already in UUID format, using as-is`
+        );
       }
+
+      console.log(
+        `[SnippetAgent] Effective campaign ID: "${effectiveCampaignId}"`
+      );
 
       let snippets: any[] = [];
 
       if (status === "staged" || status === "all") {
+        console.log(
+          `[SnippetAgent] Querying staged snippets for campaign: "${effectiveCampaignId}"`
+        );
         const stagedSnippets =
           await this.stagedSnippetsDAO.getStagedSnippetsByCampaign(
             effectiveCampaignId
           );
+        console.log(
+          `[SnippetAgent] Found ${stagedSnippets.length} staged snippets:`,
+          stagedSnippets
+        );
         snippets.push(...stagedSnippets);
       }
 
@@ -214,6 +242,10 @@ export class SnippetAgent extends BaseAgent {
       console.log(
         `[SnippetAgent] Creating snippets from AI response for resource: ${resource.id}`
       );
+      console.log(
+        `[SnippetAgent] Campaign ID for snippet creation: "${campaignId}"`
+      );
+      console.log(`[SnippetAgent] Resource details:`, resource);
 
       // Parse AI response into snippet candidates
       const snippetCandidates = SnippetFactory.parseAISearchResponse(
@@ -236,6 +268,14 @@ export class SnippetAgent extends BaseAgent {
         snippetCandidates,
         campaignId,
         resource.id
+      );
+
+      console.log(
+        `[SnippetAgent] Converted ${dbSnippets.length} snippets to database format`
+      );
+      console.log(
+        `[SnippetAgent] Database snippets preview:`,
+        dbSnippets.slice(0, 2)
       );
 
       // Store in database
