@@ -4,6 +4,7 @@ import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { API_CONFIG } from "../shared";
 import { nanoid } from "../utils/nanoid";
+import { buildAutoRAGFileKey, buildStagingFileKey } from "../utils/file-keys";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{
@@ -50,7 +51,7 @@ export async function handleUploadStatus(c: ContextWithAuth) {
       return c.json({ error: "Storage not available" }, 503);
     }
 
-    const key = `staging/${tenant}/${filename}`;
+    const key = buildStagingFileKey(tenant, filename);
     const object = await c.env.R2.head(key);
     const exists = object
       ? {
@@ -99,7 +100,7 @@ export async function handleDirectUpload(c: ContextWithAuth) {
 
     // Get the file content
     const fileBuffer = await c.req.arrayBuffer();
-    const key = `staging/${tenant}/${filename}`;
+    const key = buildStagingFileKey(tenant, filename);
 
     // Upload directly to R2
     await c.env.R2.put(key, fileBuffer, {
@@ -114,7 +115,7 @@ export async function handleDirectUpload(c: ContextWithAuth) {
 
     // Insert file metadata into database
     const fileDAO = getDAOFactory(c.env).fileDAO;
-    const autoragKey = `autorag/${tenant}/${filename}`;
+    const autoragKey = buildAutoRAGFileKey(tenant, filename);
 
     try {
       await fileDAO.insertFileForProcessing(
