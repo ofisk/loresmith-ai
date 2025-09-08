@@ -331,8 +331,21 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               }
               toolCallCounts.set(callKey, currentCount + 1);
 
-              // Ensure JWT is always included for operations
-              let enhancedArgs = { ...args, jwt: clientJwt } as any;
+              // Ensure JWT is always included for operations that require it
+              let enhancedArgs = { ...args };
+
+              // Check if the tool requires a JWT parameter and inject it if not provided
+              if (
+                tool.parameters &&
+                typeof tool.parameters === "object" &&
+                "jwt" in tool.parameters &&
+                !enhancedArgs.jwt
+              ) {
+                enhancedArgs.jwt = clientJwt;
+                console.log(
+                  `[${this.constructor.name}] Injected JWT into tool ${toolName} parameters`
+                );
+              }
 
               // Execute the tool
               console.log(

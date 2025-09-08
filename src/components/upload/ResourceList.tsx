@@ -200,7 +200,17 @@ export function ResourceList(_props: ResourceListProps) {
       setLoading(true);
       setError(null);
 
-      const jwt = getStoredJwt();
+      // Wait for JWT to be available (with retry mechanism)
+      let jwt = getStoredJwt();
+      let retries = 0;
+      const maxRetries = 10;
+
+      while (!jwt && retries < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        jwt = getStoredJwt();
+        retries++;
+      }
+
       if (!jwt) {
         setError(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
         return;
