@@ -1,11 +1,15 @@
 import { AutoRAGClient } from "../lib/autorag";
 import type { AutoRAGAISearchResult } from "../lib/autorag";
+import type {
+  ComparisonFilter,
+  CompoundFilter,
+} from "@cloudflare/workers-types";
 import { R2Helper } from "../lib/r2";
 import type { Env } from "../middleware/auth";
 
 export interface AutoRAGSearchOptions {
   limit?: number;
-  folder?: string;
+  filters?: ComparisonFilter | CompoundFilter;
   probeToken?: string;
 }
 
@@ -72,12 +76,21 @@ export abstract class AutoRAGClientBase {
 
     // Merge filters - if both exist, combine with logical AND
     const mergedOptions = { ...options };
-    if (enforcedFilter && options.folder) {
-      // For now, we'll use the enforced filter as the primary folder
-      // In a more complex implementation, we could combine multiple folder filters
-      mergedOptions.folder = enforcedFilter;
+    if (enforcedFilter && options.filters) {
+      // Combine enforced filter with caller filters using AND
+      mergedOptions.filters = {
+        type: "and",
+        filters: [
+          { type: "eq", key: "folder", value: enforcedFilter },
+          options.filters as any, // Type assertion needed due to union type
+        ],
+      };
     } else if (enforcedFilter) {
-      mergedOptions.folder = enforcedFilter;
+      // Use only the enforced filter
+      mergedOptions.filters = {
+        type: "and",
+        filters: [{ type: "eq", key: "folder", value: enforcedFilter }],
+      };
     }
 
     console.log("[AutoRAGClientBase] Searching with options:", mergedOptions);
@@ -97,20 +110,38 @@ export abstract class AutoRAGClientBase {
         score_threshold?: number;
       };
       rewrite_query?: boolean;
-      source_filter?: string;
-      scope?: "file_only" | "campaign_wide" | "library_wide";
-      exclude_sources?: string[];
-      include_sources?: string[];
+      filters?: ComparisonFilter | CompoundFilter;
     } = {}
   ): Promise<AutoRAGAISearchResult> {
     await this.ensureInitialized();
+
+    const enforcedFilter = this.enforcedFilter();
+
+    // Merge filters - if both exist, combine with logical AND
+    const mergedOptions = { ...options };
+    if (enforcedFilter && options.filters) {
+      // Combine enforced filter with caller filters using AND
+      mergedOptions.filters = {
+        type: "and",
+        filters: [
+          { type: "eq", key: "folder", value: enforcedFilter },
+          options.filters as any, // Type assertion needed due to union type
+        ],
+      };
+    } else if (enforcedFilter) {
+      // Use only the enforced filter
+      mergedOptions.filters = {
+        type: "and",
+        filters: [{ type: "eq", key: "folder", value: enforcedFilter }],
+      };
+    }
 
     console.log(
       "[AutoRAGClientBase] AI Searching with prompt:",
       prompt.substring(0, 100) + "..."
     );
-    console.log("[AutoRAGClientBase] AI Search options:", options);
-    return await this.autoRagClient.aiSearch(prompt, options);
+    console.log("[AutoRAGClientBase] AI Search options:", mergedOptions);
+    return await this.autoRagClient.aiSearch(prompt, mergedOptions);
   }
 
   /**

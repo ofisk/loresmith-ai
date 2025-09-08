@@ -1,3 +1,9 @@
+// Import AutoRAG filter types from Cloudflare SDK
+import type {
+  ComparisonFilter,
+  CompoundFilter,
+} from "@cloudflare/workers-types";
+
 export interface AutoRAGSearchResult {
   results: Array<{
     id: string;
@@ -72,35 +78,33 @@ export class AutoRAGClient {
     query: string,
     options: {
       limit?: number;
-      folder?: string;
+      filters?: ComparisonFilter | CompoundFilter;
       probeToken?: string;
     } = {}
   ): Promise<AutoRAGSearchResult> {
-    const { limit = 10, folder, probeToken } = options;
+    const { limit = 10, filters, probeToken } = options;
 
-    const searchParams = new URLSearchParams({
+    const searchPayload: any = {
       query,
-      limit: limit.toString(),
-    });
+      max_num_results: limit,
+    };
 
-    if (folder) {
-      searchParams.append("folder", folder);
+    if (filters) {
+      searchPayload.filters = filters;
     }
 
     if (probeToken) {
-      searchParams.append("probe_token", probeToken);
+      searchPayload.probe_token = probeToken;
     }
 
-    const response = await fetch(
-      `${this.searchUrl}?${searchParams.toString()}`,
-      {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiToken}`,
-        },
-      }
-    );
+    const response = await fetch(this.searchUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiToken}`,
+      },
+      body: JSON.stringify(searchPayload),
+    });
 
     if (!response.ok) {
       throw new Error(
@@ -125,20 +129,14 @@ export class AutoRAGClient {
         score_threshold?: number;
       };
       rewrite_query?: boolean;
-      source_filter?: string;
-      scope?: "file_only" | "campaign_wide" | "library_wide";
-      exclude_sources?: string[];
-      include_sources?: string[];
+      filters?: ComparisonFilter | CompoundFilter;
     } = {}
   ): Promise<AutoRAGAISearchResult> {
     const {
       max_results = 20,
       ranking_options = {},
       rewrite_query = false,
-      source_filter,
-      scope = "library_wide",
-      exclude_sources = [],
-      include_sources = [],
+      filters,
     } = options;
 
     console.log(
@@ -149,35 +147,20 @@ export class AutoRAGClient {
       max_num_results: max_results,
       ranking_options,
       rewrite_query,
-      source_filter,
-      scope,
-      exclude_sources,
-      include_sources,
+      filters,
     });
 
-    // Build the search payload with file-specific options
+    // Build the search payload with proper metadata filtering
     const searchPayload: any = {
       query: prompt,
-      max_results: max_results,
+      max_num_results: max_results,
       ranking_options,
       rewrite_query,
     };
 
-    // Add file-specific filtering if specified
-    if (source_filter) {
-      searchPayload.source_filter = source_filter;
-    }
-
-    if (scope !== "library_wide") {
-      searchPayload.scope = scope;
-    }
-
-    if (exclude_sources.length > 0) {
-      searchPayload.exclude_sources = exclude_sources;
-    }
-
-    if (include_sources.length > 0) {
-      searchPayload.include_sources = include_sources;
+    // Add metadata filtering if specified
+    if (filters) {
+      searchPayload.filters = filters;
     }
 
     const response = await fetch(this.aiSearchUrl, {
