@@ -1,6 +1,7 @@
 import { CaretDown, SignOut } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
-import { useFileUpload, useCampaignManagement } from "../../hooks";
+import { useFileUpload } from "../../hooks/useFileUpload";
+import { useCampaignManagement } from "../../hooks/useCampaignManagement";
 import { AuthService } from "../../services/auth-service";
 import { Modal } from "../modal/Modal";
 import { StorageTracker } from "../storage-tracker";

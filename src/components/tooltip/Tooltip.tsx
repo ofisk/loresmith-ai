@@ -1,4 +1,10 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  isValidElement,
+} from "react";
 import { cn } from "@/lib/utils";
 import { useTooltip } from "@/providers/TooltipProvider";
 
@@ -57,7 +63,7 @@ export const Tooltip = ({ children, className, content, id }: TooltipProps) => {
 
   // Check if children is a button element to avoid nesting
   const isButtonChild =
-    React.isValidElement(children) &&
+    isValidElement(children) &&
     (children.type === "button" ||
       (typeof children.type === "function" &&
         children.type.name === "ButtonComponent"));
