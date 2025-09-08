@@ -1,5 +1,4 @@
 import { useId } from "react";
-import { Modal } from "../modal/Modal";
 
 interface CreateCampaignModalProps {
   isOpen: boolean;
@@ -24,14 +23,23 @@ export function CreateCampaignModal({
   const campaignDescriptionId = useId();
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <div className="space-y-6">
+      <div className="text-center">
+        <h2 className="text-xl font-semibold text-ob-base-200 mb-2">
+          Create new campaign
+        </h2>
+        <p className="text-sm text-ob-base-400">
+          Set up a new campaign for your resources
+        </p>
+      </div>
+
       <div className="space-y-4">
         <div>
           <label
             htmlFor={campaignNameId}
             className="block text-sm font-medium text-ob-base-200 mb-2"
           >
-            Campaign Name
+            Campaign name
           </label>
           <input
             id={campaignNameId}
@@ -47,7 +55,7 @@ export function CreateCampaignModal({
             htmlFor={campaignDescriptionId}
             className="block text-sm font-medium text-ob-base-200 mb-2"
           >
-            Description (Optional)
+            Description (optional)
           </label>
           <textarea
             id={campaignDescriptionId}
@@ -58,15 +66,25 @@ export function CreateCampaignModal({
             className="w-full px-3 py-2 bg-ob-base-700 border border-ob-base-600 rounded text-ob-base-200 placeholder-ob-base-400 focus:outline-none focus:ring-2 focus:ring-ob-primary-500 resize-none"
           />
         </div>
+      </div>
+
+      <div className="flex gap-3 pt-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex-1 px-4 py-2 bg-ob-base-600 hover:bg-ob-base-500 text-ob-base-200 rounded font-medium transition-colors"
+        >
+          Cancel
+        </button>
         <button
           type="button"
           onClick={onCreateCampaign}
           disabled={!campaignName.trim()}
-          className="w-full px-4 py-2 bg-ob-primary-600 hover:bg-ob-primary-700 disabled:bg-ob-base-600 disabled:cursor-not-allowed text-white rounded font-medium transition-colors"
+          className="flex-1 px-4 py-2 bg-ob-primary-600 hover:bg-ob-primary-700 disabled:bg-ob-base-600 disabled:cursor-not-allowed text-white rounded font-medium transition-colors"
         >
-          Create Campaign
+          Create campaign
         </button>
       </div>
-    </Modal>
+    </div>
   );
 }

@@ -201,7 +201,8 @@ export function ResourceSidePanel({
       <Modal
         isOpen={isCreateCampaignModalOpen}
         onClose={() => setIsCreateCampaignModalOpen(false)}
-        cardStyle={{ width: 480, height: 400 }}
+        cardStyle={{ width: 520, minHeight: 320 }}
+        showCloseButton={true}
       >
         <CreateCampaignModal
           isOpen={isCreateCampaignModalOpen}
