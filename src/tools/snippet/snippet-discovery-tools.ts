@@ -145,3 +145,39 @@ export const getSnippetStatsTool = tool({
     }
   },
 });
+
+/**
+ * Tool: Debug all snippets in database
+ * Returns all snippets in the database for troubleshooting
+ */
+export const debugAllSnippetsTool = tool({
+  description:
+    "DEBUG: Get all snippets in the database for troubleshooting snippet retrieval issues",
+  parameters: z.object({}),
+  execute: async (_, context?: any) => {
+    try {
+      const env = context?.env as Env;
+      if (!env) {
+        throw new Error("Environment not available");
+      }
+
+      const { getDAOFactory } = await import("../../dao/dao-factory");
+      const stagedSnippetsDAO = getDAOFactory(env).stagedSnippetsDAO;
+      const allSnippets = await stagedSnippetsDAO.getAllSnippets();
+
+      return {
+        success: true,
+        data: {
+          totalSnippets: allSnippets.length,
+          snippets: allSnippets,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  },
+});

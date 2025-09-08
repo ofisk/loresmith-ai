@@ -7,6 +7,7 @@ import {
   discoverSnippetsTool,
   searchApprovedSnippetsTool,
   getSnippetStatsTool,
+  debugAllSnippetsTool,
 } from "./snippet-discovery-tools";
 import {
   approveSnippetsTool,
@@ -23,6 +24,7 @@ export {
   discoverSnippetsTool,
   searchApprovedSnippetsTool,
   getSnippetStatsTool,
+  debugAllSnippetsTool,
   approveSnippetsTool,
   rejectSnippetsTool,
   createSnippetsTool,
@@ -36,6 +38,7 @@ export const snippetTools = {
   discoverSnippetsTool,
   searchApprovedSnippetsTool,
   getSnippetStatsTool,
+  debugAllSnippetsTool,
   approveSnippetsTool,
   rejectSnippetsTool,
   createSnippetsTool,

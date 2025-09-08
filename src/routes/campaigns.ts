@@ -483,6 +483,11 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                 {} as any
               );
 
+              console.log(
+                `[Server] Creating snippets with campaignId: "${campaignId}"`
+              );
+              console.log(`[Server] Resource details:`, resource);
+
               const result = await snippetAgent.createSnippets(
                 parsedContent,
                 resource,

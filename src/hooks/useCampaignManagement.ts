@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useEventEmitter, EVENT_TYPES } from "../lib/event-bus";
+import { useEvent, EVENT_TYPES } from "../lib/event-bus";
 import type { CampaignEvent } from "../lib/event-bus";
 import {
   authenticatedFetchWithExpiration,
@@ -7,6 +7,28 @@ import {
 } from "../services/auth-service";
 import { API_CONFIG } from "../shared";
 import type { Campaign } from "../types/campaign";
+
+// Type-safe helper functions
+function isValidString(value: string | null | undefined): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isValidJwt(value: string | null | undefined): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function isValidUploadedFileInfo(
+  value: { filename: string; fileKey: string } | null | undefined
+): value is { filename: string; fileKey: string } {
+  return (
+    value !== null &&
+    value !== undefined &&
+    typeof value.filename === "string" &&
+    typeof value.fileKey === "string" &&
+    value.filename.trim().length > 0 &&
+    value.fileKey.trim().length > 0
+  );
+}
 
 interface UseCampaignManagementProps {
   isAuthenticated: boolean;
@@ -23,7 +45,7 @@ export function useCampaignManagement({
   const [campaignName, setCampaignName] = useState("");
   const [campaignDescription, setCampaignDescription] = useState("");
 
-  const emit = useEventEmitter();
+  const send = useEvent();
 
   // Fetch campaigns
   const fetchCampaigns = useCallback(async () => {
@@ -34,7 +56,7 @@ export function useCampaignManagement({
       setCampaignsError(null);
 
       const jwt = getStoredJwt();
-      if (!jwt) {
+      if (!isValidJwt(jwt)) {
         setCampaignsError("No authentication token available");
         return;
       }
@@ -65,11 +87,11 @@ export function useCampaignManagement({
   }, [isAuthenticated]);
 
   const handleCreateCampaign = useCallback(async () => {
-    if (!campaignName.trim()) return;
+    if (!isValidString(campaignName)) return;
 
     try {
       const jwt = getStoredJwt();
-      if (!jwt) {
+      if (!isValidJwt(jwt)) {
         console.error("No JWT token available");
         return;
       }
@@ -104,7 +126,7 @@ export function useCampaignManagement({
       console.log("Campaign created successfully:", data);
 
       // Emit campaign created event
-      emit({
+      send({
         type: EVENT_TYPES.CAMPAIGN.CREATED,
         campaignId: data.campaign.campaignId,
         campaignName: campaignName,
@@ -123,18 +145,18 @@ export function useCampaignManagement({
     } catch (error) {
       console.error("Failed to create campaign:", error);
     }
-  }, [campaignName, campaignDescription, emit, fetchCampaigns]);
+  }, [campaignName, campaignDescription, send, fetchCampaigns]);
 
   const handleAddFileToCampaign = useCallback(
     async (
       campaignId: string,
       uploadedFileInfo: { filename: string; fileKey: string } | null
     ) => {
-      if (!uploadedFileInfo) return;
+      if (!isValidUploadedFileInfo(uploadedFileInfo)) return;
 
       try {
         const jwt = getStoredJwt();
-        if (!jwt) {
+        if (!isValidJwt(jwt)) {
           console.error("No JWT token available");
           return;
         }
@@ -168,7 +190,10 @@ export function useCampaignManagement({
           throw new Error(`Failed to add file to campaign: ${errorText}`);
         }
 
-        const result = (await response.response.json()) as any;
+        const result = (await response.response.json()) as {
+          message?: string;
+          [key: string]: unknown;
+        };
         console.log("File added to campaign successfully:", result);
 
         // Send appropriate notification based on the result
@@ -208,11 +233,15 @@ export function useCampaignManagement({
 
   const handleCreateCampaignForFile = useCallback(
     async (uploadedFileInfo: { filename: string; fileKey: string } | null) => {
-      if (!campaignName.trim() || !uploadedFileInfo) return;
+      if (
+        !isValidString(campaignName) ||
+        !isValidUploadedFileInfo(uploadedFileInfo)
+      )
+        return;
 
       try {
         const jwt = getStoredJwt();
-        if (!jwt) {
+        if (!isValidJwt(jwt)) {
           console.error("No JWT token available");
           return;
         }
@@ -244,7 +273,7 @@ export function useCampaignManagement({
         const newCampaign = result.campaign;
 
         // Emit campaign created event
-        emit({
+        send({
           type: EVENT_TYPES.CAMPAIGN.CREATED,
           campaignId: newCampaign.campaignId,
           campaignName: campaignName,
@@ -267,7 +296,7 @@ export function useCampaignManagement({
     [
       campaignName,
       campaignDescription,
-      emit,
+      send,
       fetchCampaigns,
       handleAddFileToCampaign,
     ]

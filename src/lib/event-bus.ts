@@ -129,8 +129,8 @@ class EventBus {
     };
   }
 
-  // Emit an event
-  emit(event: Omit<AsyncEvent, "timestamp">): void {
+  // Send an event
+  send(event: Omit<AsyncEvent, "timestamp">): void {
     const fullEvent: AsyncEvent = {
       ...event,
       timestamp: Date.now(),
@@ -196,9 +196,9 @@ export function useEventBus<T extends AsyncEvent>(
   }, [eventType, ...deps]);
 }
 
-// React hook for emitting events
-export function useEventEmitter() {
+// React hook for sending events
+export function useEvent() {
   return useCallback((event: Omit<AsyncEvent, "timestamp">) => {
-    eventBus.emit(event);
+    eventBus.send(event);
   }, []);
 }

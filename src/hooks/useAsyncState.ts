@@ -1,17 +1,121 @@
 import { useCallback, useState } from "react";
-import { useEventBus, useEventEmitter, EVENT_TYPES } from "../lib/event-bus";
+import { useEventBus, useEvent, EVENT_TYPES } from "../lib/event-bus";
 import type { FileUploadEvent, AutoRAGEvent } from "../lib/event-bus";
+
+// Status constants
+export const UPLOAD_STATUS = {
+  IDLE: "idle",
+  UPLOADING: "uploading",
+  PROCESSING: "processing",
+  COMPLETED: "completed",
+  FAILED: "failed",
+} as const;
+
+export const AUTORAG_STATUS = {
+  IDLE: "idle",
+  RUNNING: "running",
+  COMPLETED: "completed",
+  FAILED: "failed",
+} as const;
+
+export type UploadStatus = (typeof UPLOAD_STATUS)[keyof typeof UPLOAD_STATUS];
+export type AutoRAGStatus =
+  (typeof AUTORAG_STATUS)[keyof typeof AUTORAG_STATUS];
+
+function logEventFilteringMismatch(
+  hookName: string,
+  expected: Record<string, any>,
+  event: Record<string, any>,
+  eventType: string
+) {
+  console.error(`[${hookName}] Event filtering mismatch:`, {
+    ...expected,
+    eventType,
+    eventData: event,
+  });
+}
+
+function shouldProcessFileUploadEvent(
+  fileKey: string | undefined,
+  eventFileKey: string
+): boolean {
+  return !fileKey || eventFileKey === fileKey;
+}
+
+function shouldProcessAutoRAGEvent(
+  ragId: string | undefined,
+  jobId: string | undefined,
+  eventRagId: string,
+  eventJobId: string
+): boolean {
+  return (!ragId || eventRagId === ragId) && (!jobId || eventJobId === jobId);
+}
+
+function handleFileUploadEvent<T>(
+  fileKey: string | undefined,
+  event: FileUploadEvent,
+  onMatch: () => void,
+  hookName: string = "useFileUploadStatus"
+) {
+  if (shouldProcessFileUploadEvent(fileKey, event.fileKey)) {
+    onMatch();
+  } else {
+    logEventFilteringMismatch(
+      hookName,
+      { expectedFileKey: fileKey },
+      { eventFileKey: event.fileKey },
+      event.type
+    );
+  }
+}
+
+function handleFileKeyEvent<T extends { fileKey?: string; type: string }>(
+  fileKey: string | undefined,
+  event: T,
+  onMatch: () => void,
+  hookName: string = "useFileUploadStatus"
+) {
+  if (shouldProcessFileUploadEvent(fileKey, event.fileKey || "")) {
+    onMatch();
+  } else {
+    logEventFilteringMismatch(
+      hookName,
+      { expectedFileKey: fileKey },
+      { eventFileKey: event.fileKey },
+      event.type
+    );
+  }
+}
+
+function handleAutoRAGEvent<T>(
+  ragId: string | undefined,
+  jobId: string | undefined,
+  event: AutoRAGEvent,
+  onMatch: () => void,
+  hookName: string = "useAutoRAGStatus"
+) {
+  if (shouldProcessAutoRAGEvent(ragId, jobId, event.ragId, event.jobId)) {
+    onMatch();
+  } else {
+    logEventFilteringMismatch(
+      hookName,
+      { expectedRagId: ragId, expectedJobId: jobId },
+      { eventRagId: event.ragId, eventJobId: event.jobId },
+      event.type
+    );
+  }
+}
 
 // Enhanced async state management with event bus integration
 export interface AsyncState<T = any> {
-  data: T | null;
+  data: T;
   loading: boolean;
   error: string | null;
-  lastUpdated: number | null;
+  lastUpdated: number;
 }
 
 export function useAsyncState<T = any>(
-  initialData: T | null = null
+  initialData: T
 ): [
   AsyncState<T>,
   {
@@ -25,7 +129,7 @@ export function useAsyncState<T = any>(
     data: initialData,
     loading: false,
     error: null,
-    lastUpdated: null,
+    lastUpdated: 0,
   });
 
   const setLoading = useCallback((loading: boolean) => {
@@ -56,7 +160,7 @@ export function useAsyncState<T = any>(
       data: initialData,
       loading: false,
       error: null,
-      lastUpdated: null,
+      lastUpdated: 0,
     });
   }, [initialData]);
 
@@ -65,30 +169,36 @@ export function useAsyncState<T = any>(
 
 // Hook for tracking file upload status via events
 export function useFileUploadStatus(fileKey?: string) {
+  // Log warning if no fileKey is provided (will listen to all events)
+  if (!fileKey) {
+    console.warn(
+      "[useFileUploadStatus] No fileKey provided - will listen to all file upload events"
+    );
+  }
   const [uploadState, setUploadState] = useState<{
-    status: "idle" | "uploading" | "processing" | "completed" | "failed";
+    status: UploadStatus;
     progress: number;
     message: string;
     error?: string;
   }>({
-    status: "idle",
+    status: UPLOAD_STATUS.IDLE,
     progress: 0,
     message: "",
   });
 
-  const emit = useEventEmitter();
+  const send = useEvent();
 
   // Listen for file upload events
   useEventBus<FileUploadEvent>(
     EVENT_TYPES.FILE_UPLOAD.STARTED,
     (event) => {
-      if (!fileKey || event.fileKey === fileKey) {
+      handleFileUploadEvent(fileKey, event, () => {
         setUploadState({
-          status: "uploading",
+          status: UPLOAD_STATUS.UPLOADING,
           progress: 0,
           message: "Upload started...",
         });
-      }
+      });
     },
     [fileKey]
   );
@@ -96,13 +206,13 @@ export function useFileUploadStatus(fileKey?: string) {
   useEventBus<FileUploadEvent>(
     EVENT_TYPES.FILE_UPLOAD.PROGRESS,
     (event) => {
-      if (!fileKey || event.fileKey === fileKey) {
+      handleFileUploadEvent(fileKey, event, () => {
         setUploadState((prev) => ({
           ...prev,
           progress: event.progress || 0,
           message: `Uploading... ${event.progress || 0}%`,
         }));
-      }
+      });
     },
     [fileKey]
   );
@@ -110,13 +220,13 @@ export function useFileUploadStatus(fileKey?: string) {
   useEventBus<FileUploadEvent>(
     EVENT_TYPES.FILE_UPLOAD.COMPLETED,
     (event) => {
-      if (!fileKey || event.fileKey === fileKey) {
+      handleFileUploadEvent(fileKey, event, () => {
         setUploadState({
-          status: "completed",
+          status: UPLOAD_STATUS.COMPLETED,
           progress: 100,
           message: "Upload completed successfully!",
         });
-      }
+      });
     },
     [fileKey]
   );
@@ -124,14 +234,14 @@ export function useFileUploadStatus(fileKey?: string) {
   useEventBus<FileUploadEvent>(
     EVENT_TYPES.FILE_UPLOAD.FAILED,
     (event) => {
-      if (!fileKey || event.fileKey === fileKey) {
+      handleFileUploadEvent(fileKey, event, () => {
         setUploadState({
-          status: "failed",
+          status: UPLOAD_STATUS.FAILED,
           progress: 0,
           message: "Upload failed",
           error: event.error,
         });
-      }
+      });
     },
     [fileKey]
   );
@@ -140,13 +250,13 @@ export function useFileUploadStatus(fileKey?: string) {
   useEventBus<AutoRAGEvent>(
     EVENT_TYPES.AUTORAG_SYNC.STARTED,
     (event) => {
-      if (!fileKey || event.fileKey === fileKey) {
+      handleFileKeyEvent(fileKey, event, () => {
         setUploadState((prev) => ({
           ...prev,
-          status: "processing",
+          status: UPLOAD_STATUS.PROCESSING,
           message: "AutoRAG processing started...",
         }));
-      }
+      });
     },
     [fileKey]
   );
@@ -154,13 +264,13 @@ export function useFileUploadStatus(fileKey?: string) {
   useEventBus<AutoRAGEvent>(
     EVENT_TYPES.AUTORAG_SYNC.COMPLETED,
     (event) => {
-      if (!fileKey || event.fileKey === fileKey) {
+      handleFileKeyEvent(fileKey, event, () => {
         setUploadState((prev) => ({
           ...prev,
-          status: "completed",
+          status: UPLOAD_STATUS.COMPLETED,
           message: "File processed and indexed successfully!",
         }));
-      }
+      });
     },
     [fileKey]
   );
@@ -168,26 +278,26 @@ export function useFileUploadStatus(fileKey?: string) {
   useEventBus<AutoRAGEvent>(
     EVENT_TYPES.AUTORAG_SYNC.FAILED,
     (event) => {
-      if (!fileKey || event.fileKey === fileKey) {
+      handleFileKeyEvent(fileKey, event, () => {
         setUploadState((prev) => ({
           ...prev,
-          status: "failed",
+          status: UPLOAD_STATUS.FAILED,
           message: "AutoRAG processing failed",
           error: event.error,
         }));
-      }
+      });
     },
     [fileKey]
   );
 
   const emitUploadEvent = useCallback(
     (event: Omit<FileUploadEvent, "timestamp" | "source">) => {
-      emit({
+      send({
         ...event,
         source: "useFileUploadStatus",
       });
     },
-    [emit]
+    [send]
   );
 
   return {
@@ -198,33 +308,36 @@ export function useFileUploadStatus(fileKey?: string) {
 
 // Hook for tracking AutoRAG job status via events
 export function useAutoRAGStatus(ragId?: string, jobId?: string) {
+  // Log warning if no filtering parameters are provided (will listen to all events)
+  if (!ragId && !jobId) {
+    console.warn(
+      "[useAutoRAGStatus] No ragId or jobId provided - will listen to all AutoRAG events"
+    );
+  }
   const [jobState, setJobState] = useState<{
-    status: "idle" | "running" | "completed" | "failed";
+    status: AutoRAGStatus;
     progress: number;
     message: string;
     error?: string;
   }>({
-    status: "idle",
+    status: AUTORAG_STATUS.IDLE,
     progress: 0,
     message: "",
   });
 
-  const emit = useEventEmitter();
+  const send = useEvent();
 
   // Listen for AutoRAG events
   useEventBus<AutoRAGEvent>(
     EVENT_TYPES.AUTORAG_SYNC.STARTED,
     (event) => {
-      if (
-        (!ragId || event.ragId === ragId) &&
-        (!jobId || event.jobId === jobId)
-      ) {
+      handleAutoRAGEvent(ragId, jobId, event, () => {
         setJobState({
-          status: "running",
+          status: AUTORAG_STATUS.RUNNING,
           progress: 0,
           message: "AutoRAG sync started...",
         });
-      }
+      });
     },
     [ragId, jobId]
   );
@@ -232,16 +345,13 @@ export function useAutoRAGStatus(ragId?: string, jobId?: string) {
   useEventBus<AutoRAGEvent>(
     EVENT_TYPES.AUTORAG_SYNC.PROGRESS,
     (event) => {
-      if (
-        (!ragId || event.ragId === ragId) &&
-        (!jobId || event.jobId === jobId)
-      ) {
+      handleAutoRAGEvent(ragId, jobId, event, () => {
         setJobState((prev) => ({
           ...prev,
           progress: event.progress || 0,
           message: `Processing... ${event.progress || 0}%`,
         }));
-      }
+      });
     },
     [ragId, jobId]
   );
@@ -249,16 +359,13 @@ export function useAutoRAGStatus(ragId?: string, jobId?: string) {
   useEventBus<AutoRAGEvent>(
     EVENT_TYPES.AUTORAG_SYNC.COMPLETED,
     (event) => {
-      if (
-        (!ragId || event.ragId === ragId) &&
-        (!jobId || event.jobId === jobId)
-      ) {
+      handleAutoRAGEvent(ragId, jobId, event, () => {
         setJobState({
-          status: "completed",
+          status: AUTORAG_STATUS.COMPLETED,
           progress: 100,
           message: "AutoRAG sync completed successfully!",
         });
-      }
+      });
     },
     [ragId, jobId]
   );
@@ -266,29 +373,26 @@ export function useAutoRAGStatus(ragId?: string, jobId?: string) {
   useEventBus<AutoRAGEvent>(
     EVENT_TYPES.AUTORAG_SYNC.FAILED,
     (event) => {
-      if (
-        (!ragId || event.ragId === ragId) &&
-        (!jobId || event.jobId === jobId)
-      ) {
+      handleAutoRAGEvent(ragId, jobId, event, () => {
         setJobState({
-          status: "failed",
+          status: AUTORAG_STATUS.FAILED,
           progress: 0,
           message: "AutoRAG sync failed",
           error: event.error,
         });
-      }
+      });
     },
     [ragId, jobId]
   );
 
   const emitAutoRAGEvent = useCallback(
     (event: Omit<AutoRAGEvent, "timestamp" | "source">) => {
-      emit({
+      send({
         ...event,
         source: "useAutoRAGStatus",
       });
     },
-    [emit]
+    [send]
   );
 
   return {
