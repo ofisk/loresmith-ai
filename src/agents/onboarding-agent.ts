@@ -4,6 +4,7 @@ import {
   buildSystemPrompt,
   createToolMappingFromObjects,
 } from "./systemPrompts";
+import { type StreamTextOnFinishCallback, type ToolSet } from "ai";
 
 /**
  * System prompt configuration for the Onboarding & Guidance Agent.
@@ -29,7 +30,7 @@ const ONBOARDING_SYSTEM_PROMPT = buildSystemPrompt({
     "Contextual Help: Provide different guidance based on whether user has campaigns, resources, etc.",
   ],
   importantNotes: [
-    "Always start by analyzing the user's current state (first-time, existing campaigns, resources, etc.)",
+    "IMPORTANT: Always start by calling the analyzeUserState tool to understand the user's current state (first-time, existing campaigns, resources, etc.)",
     "For first-time users, explain the app's three core pillars: inspiration library, campaign context, session planning",
     "For users with existing campaigns, use campaign health assessments to provide targeted guidance",
     "Suggest specific actions users can take immediately (upload resources, create campaigns, etc.)",
@@ -97,5 +98,66 @@ export class OnboardingAgent extends BaseAgent {
    */
   constructor(ctx: DurableObjectState, env: any, model: any) {
     super(ctx, env, model, onboardingTools);
+  }
+
+  /**
+   * Override onChatMessage to automatically analyze user state first
+   */
+  async onChatMessage(
+    onFinish: StreamTextOnFinishCallback<ToolSet>,
+    options?: { abortSignal?: AbortSignal }
+  ) {
+    // Extract JWT from the last user message if available
+    const lastUserMessage = this.messages
+      .slice()
+      .reverse()
+      .find((msg) => msg.role === "user");
+
+    let clientJwt: string | null = null;
+    if (lastUserMessage && "data" in lastUserMessage && lastUserMessage.data) {
+      const messageData = lastUserMessage.data as { jwt?: string };
+      clientJwt = messageData.jwt || null;
+    }
+
+    // If we have a JWT, automatically call analyzeUserState first
+    if (clientJwt) {
+      try {
+        console.log("[OnboardingAgent] Automatically calling analyzeUserState");
+        const enhancedTools = this.createEnhancedTools(clientJwt, null);
+        const analyzeUserStateTool = enhancedTools.analyzeUserState;
+
+        if (analyzeUserStateTool) {
+          const userStateResult = await analyzeUserStateTool.execute(
+            { jwt: clientJwt },
+            { env: this.env, toolCallId: "auto-analysis" }
+          );
+
+          console.log(
+            "[OnboardingAgent] User state analysis result:",
+            userStateResult
+          );
+
+          // Add the user state analysis as a system message to provide context
+          if (
+            userStateResult?.result?.success &&
+            userStateResult?.result?.data
+          ) {
+            const userState = userStateResult.result.data;
+            const contextMessage = `User State Analysis: ${userState.isFirstTime ? "First-time user" : "Returning user"} with ${userState.campaignCount} campaigns and ${userState.resourceCount} resources.`;
+
+            // Add this as a system message to provide context to the AI
+            this.messages.push({
+              role: "system",
+              content: contextMessage,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("[OnboardingAgent] Failed to analyze user state:", error);
+      }
+    }
+
+    // Now call the parent's onChatMessage with the enhanced context
+    return super.onChatMessage(onFinish, options);
   }
 }
