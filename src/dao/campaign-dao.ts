@@ -31,11 +31,13 @@ export interface CampaignCharacter {
 export interface CampaignResource {
   id: string;
   campaign_id: string;
-  resource_type: string;
-  resource_id: string;
-  resource_name?: string;
+  file_key: string;
+  file_name: string;
+  description?: string;
+  tags?: string;
+  status: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface CampaignWithDetails extends Campaign {

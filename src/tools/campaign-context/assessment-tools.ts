@@ -31,6 +31,14 @@ export async function assessCampaignHealthTool(
         type: "file" as const,
         id: resource.id,
         name: resource.file_name,
+        campaign_id: resource.campaign_id,
+        file_key: resource.file_key,
+        file_name: resource.file_name,
+        description: resource.description,
+        tags: resource.tags,
+        status: resource.status,
+        created_at: resource.created_at,
+        updated_at: resource.updated_at,
       })
     );
 

@@ -99,7 +99,16 @@ describe("CampaignAutoRAG", () => {
 
       expect(mockSearch).toHaveBeenCalledWith("test query", {
         limit: 5,
-        folder: "campaigns/test-campaign-123/rejected/",
+        filters: {
+          type: "and",
+          filters: [
+            {
+              type: "eq",
+              key: "folder",
+              value: "campaigns/test-campaign-123/rejected/",
+            },
+          ],
+        },
       });
     });
   });

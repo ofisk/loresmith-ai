@@ -6,6 +6,14 @@ export interface CampaignResource {
   type: ResourceType;
   id: string;
   name: string;
+  campaign_id: string;
+  file_key: string;
+  file_name: string;
+  description?: string;
+  tags?: string;
+  status: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 // Base campaign interface used by Durable Objects

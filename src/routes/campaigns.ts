@@ -392,7 +392,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
           const structuredExtractionPrompt =
             RPG_EXTRACTION_PROMPTS.formatStructuredContentPrompt(
               campaignId,
-              resource.resource_name || resource.id
+              resource.file_name || resource.id
             );
 
           console.log(
@@ -405,10 +405,16 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
             {
               max_results: 20,
               rewrite_query: false,
-              source_filter: resource.id,
-              scope: "file_only",
-              exclude_sources: ["*"],
-              include_sources: [resource.id],
+              filters: {
+                type: "and",
+                filters: [
+                  {
+                    type: "eq",
+                    key: "filename",
+                    value: resource.file_name,
+                  },
+                ],
+              },
             }
           );
 
@@ -505,14 +511,14 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                   message: `Resource added to campaign successfully. Generated ${result.created} snippets for review.`,
                   resource: {
                     id: resource.id,
-                    name: resource.resource_name || resource.id,
-                    type: resource.resource_type || "unknown",
+                    name: resource.file_name || resource.id,
+                    type: "file",
                   },
                   snippets: {
                     count: result.created,
                     campaignId,
                     resourceId: resource.id,
-                    message: `Generated ${result.created} snippets from "${resource.resource_name || resource.id}".`,
+                    message: `Generated ${result.created} snippets from "${resource.file_name || resource.id}".`,
                   },
                   // Hint for the client chat to render UI immediately
                   ui: {
@@ -534,8 +540,8 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                     "Resource added to campaign successfully. No snippets were generated from this resource.",
                   resource: {
                     id: resource.id,
-                    name: resource.resource_name || resource.id,
-                    type: resource.resource_type || "unknown",
+                    name: resource.file_name || resource.id,
+                    type: "file",
                   },
                 });
               }
@@ -550,8 +556,8 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                   "Resource added to campaign successfully. Could not generate snippets from this resource.",
                 resource: {
                   id: resource.id,
-                  name: resource.resource_name || resource.id,
-                  type: resource.resource_type || "unknown",
+                  name: resource.file_name || resource.id,
+                  type: "file",
                 },
               });
             }
@@ -568,8 +574,8 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                 "Resource added to campaign successfully. Error occurred while generating snippets.",
               resource: {
                 id: resource.id,
-                name: resource.resource_name || resource.id,
-                type: resource.resource_type || "unknown",
+                name: resource.file_name || resource.id,
+                type: "file",
               },
               error: "Snippet generation failed",
             });
