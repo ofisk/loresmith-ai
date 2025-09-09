@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "../../button/Button";
 
-interface SnippetActionBarProps {
+interface ShardActionBarProps {
   selectedCount: number;
   processing: string | null;
   action: string;
@@ -11,7 +11,7 @@ interface SnippetActionBarProps {
   onReject: () => void;
 }
 
-export const SnippetActionBar: React.FC<SnippetActionBarProps> = ({
+export const ShardActionBar: React.FC<ShardActionBarProps> = ({
   selectedCount,
   processing,
   action,
@@ -26,7 +26,7 @@ export const SnippetActionBar: React.FC<SnippetActionBarProps> = ({
     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
       <div className="flex items-center justify-between">
         <p className="text-blue-800">
-          {selectedCount} snippet{selectedCount !== 1 ? "s" : ""} selected
+          {selectedCount} shard{selectedCount !== 1 ? "s" : ""} selected
         </p>
         <div className="flex space-x-2">
           <Button

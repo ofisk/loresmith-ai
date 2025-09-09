@@ -19,10 +19,10 @@ export const EVENT_TYPES = {
     UPDATED: "campaign.updated",
     DELETED: "campaign.deleted",
   },
-  SNIPPET: {
-    GENERATED: "snippet.generated",
-    APPROVED: "snippet.approved",
-    REJECTED: "snippet.rejected",
+  SHARD: {
+    GENERATED: "shard.generated",
+    APPROVED: "shard.approved",
+    REJECTED: "shard.rejected",
   },
 } as const;
 
@@ -39,9 +39,9 @@ export type AsyncEventType =
   | "campaign.created"
   | "campaign.updated"
   | "campaign.deleted"
-  | "snippet.generated"
-  | "snippet.approved"
-  | "snippet.rejected";
+  | "shard.generated"
+  | "shard.approved"
+  | "shard.rejected";
 
 // Base event interface
 export interface BaseEvent {
@@ -82,9 +82,9 @@ export interface CampaignEvent extends BaseEvent {
   campaignName: string;
 }
 
-export interface SnippetEvent extends BaseEvent {
-  type: "snippet.generated" | "snippet.approved" | "snippet.rejected";
-  snippetId: string;
+export interface ShardEvent extends BaseEvent {
+  type: "shard.generated" | "shard.approved" | "shard.rejected";
+  shardId: string;
   campaignId: string;
   fileKey: string;
 }
@@ -93,7 +93,7 @@ export type AsyncEvent =
   | FileUploadEvent
   | AutoRAGEvent
   | CampaignEvent
-  | SnippetEvent;
+  | ShardEvent;
 
 // Event listener type
 export type EventListener<T extends AsyncEvent = AsyncEvent> = (

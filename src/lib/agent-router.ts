@@ -7,7 +7,7 @@ export type AgentType =
   | "character-sheets"
   | "onboarding"
   | "resources"
-  | "snippets";
+  | "shards";
 
 export interface AgentIntent {
   agent: AgentType;

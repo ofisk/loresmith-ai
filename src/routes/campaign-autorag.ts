@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "../dao/dao-factory";
-import { SNIPPET_STATUSES } from "../lib/content-types";
+import { SHARD_STATUSES } from "../lib/content-types";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 
@@ -9,13 +9,13 @@ type ContextWithAuth = Context<{ Bindings: Env }> & {
   userAuth?: AuthPayload;
 };
 
-// Get staged snippets for a campaign
-export async function handleGetStagedSnippets(c: ContextWithAuth) {
+// Get staged shards for a campaign
+export async function handleGetStagedShards(c: ContextWithAuth) {
   try {
     const campaignId = c.req.param("campaignId");
     const userAuth = (c as any).userAuth;
 
-    console.log(`[Server] Getting staged snippets for campaign: ${campaignId}`);
+    console.log(`[Server] Getting staged shards for campaign: ${campaignId}`);
 
     // Verify campaign belongs to user
     const campaignDAO = getDAOFactory(c.env).campaignDAO;
@@ -28,34 +28,34 @@ export async function handleGetStagedSnippets(c: ContextWithAuth) {
       return c.json({ error: "Campaign not found" }, 404);
     }
 
-    const stagedSnippetsDAO = getDAOFactory(c.env).stagedSnippetsDAO;
-    const stagedSnippets =
-      await stagedSnippetsDAO.getStagedSnippetsByCampaign(campaignId);
+    const stagedShardsDAO = getDAOFactory(c.env).stagedShardsDAO;
+    const stagedShards =
+      await stagedShardsDAO.getStagedShardsByCampaign(campaignId);
 
     console.log(
-      `[Server] Found ${stagedSnippets.length} staged snippets for campaign: ${campaignId}`
+      `[Server] Found ${stagedShards.length} staged shards for campaign: ${campaignId}`
     );
 
-    return c.json({ snippets: stagedSnippets });
+    return c.json({ shards: stagedShards });
   } catch (error) {
-    console.error("[Server] Error getting staged snippets:", error);
-    return c.json({ error: "Failed to get staged snippets" }, 500);
+    console.error("[Server] Error getting staged shards:", error);
+    return c.json({ error: "Failed to get staged shards" }, 500);
   }
 }
 
-// Approve snippets for a campaign
-export async function handleApproveSnippets(c: ContextWithAuth) {
+// Approve shards for a campaign
+export async function handleApproveShards(c: ContextWithAuth) {
   try {
     const campaignId = c.req.param("campaignId");
     const userAuth = (c as any).userAuth;
-    const { snippetIds } = await c.req.json();
+    const { shardIds } = await c.req.json();
 
-    if (!snippetIds || !Array.isArray(snippetIds) || snippetIds.length === 0) {
-      return c.json({ error: "snippetIds array is required" }, 400);
+    if (!shardIds || !Array.isArray(shardIds) || shardIds.length === 0) {
+      return c.json({ error: "shardIds array is required" }, 400);
     }
 
     console.log(
-      `[Server] Approving ${snippetIds.length} snippets for campaign: ${campaignId}`
+      `[Server] Approving ${shardIds.length} shards for campaign: ${campaignId}`
     );
 
     // Verify campaign belongs to user
@@ -69,34 +69,34 @@ export async function handleApproveSnippets(c: ContextWithAuth) {
       return c.json({ error: "Campaign not found" }, 404);
     }
 
-    const stagedSnippetsDAO = getDAOFactory(c.env).stagedSnippetsDAO;
+    const stagedShardsDAO = getDAOFactory(c.env).stagedShardsDAO;
 
-    // Bulk update snippets to approved status
-    await stagedSnippetsDAO.bulkUpdateSnippetStatuses(
-      snippetIds,
-      SNIPPET_STATUSES.APPROVED
+    // Bulk update shards to approved status
+    await stagedShardsDAO.bulkUpdateShardStatuses(
+      shardIds,
+      SHARD_STATUSES.APPROVED
     );
 
     console.log(
-      `[Server] Approved ${snippetIds.length} snippets for campaign: ${campaignId}`
+      `[Server] Approved ${shardIds.length} shards for campaign: ${campaignId}`
     );
 
-    return c.json({ success: true, approvedCount: snippetIds.length });
+    return c.json({ success: true, approvedCount: shardIds.length });
   } catch (error) {
-    console.error("[Server] Error approving snippets:", error);
-    return c.json({ error: "Failed to approve snippets" }, 500);
+    console.error("[Server] Error approving shards:", error);
+    return c.json({ error: "Failed to approve shards" }, 500);
   }
 }
 
-// Reject snippets for a campaign
-export async function handleRejectSnippets(c: ContextWithAuth) {
+// Reject shards for a campaign
+export async function handleRejectShards(c: ContextWithAuth) {
   try {
     const campaignId = c.req.param("campaignId");
     const userAuth = (c as any).userAuth;
-    const { snippetIds, reason } = await c.req.json();
+    const { shardIds, reason } = await c.req.json();
 
-    if (!snippetIds || !Array.isArray(snippetIds) || snippetIds.length === 0) {
-      return c.json({ error: "snippetIds array is required" }, 400);
+    if (!shardIds || !Array.isArray(shardIds) || shardIds.length === 0) {
+      return c.json({ error: "shardIds array is required" }, 400);
     }
 
     if (!reason) {
@@ -104,7 +104,7 @@ export async function handleRejectSnippets(c: ContextWithAuth) {
     }
 
     console.log(
-      `[Server] Rejecting ${snippetIds.length} snippets for campaign: ${campaignId}, reason: ${reason}`
+      `[Server] Rejecting ${shardIds.length} shards for campaign: ${campaignId}, reason: ${reason}`
     );
 
     // Verify campaign belongs to user
@@ -118,27 +118,27 @@ export async function handleRejectSnippets(c: ContextWithAuth) {
       return c.json({ error: "Campaign not found" }, 404);
     }
 
-    const stagedSnippetsDAO = getDAOFactory(c.env).stagedSnippetsDAO;
+    const stagedShardsDAO = getDAOFactory(c.env).stagedShardsDAO;
 
-    // Bulk update snippets to rejected status
-    await stagedSnippetsDAO.bulkUpdateSnippetStatuses(
-      snippetIds,
-      SNIPPET_STATUSES.REJECTED
+    // Bulk update shards to rejected status
+    await stagedShardsDAO.bulkUpdateShardStatuses(
+      shardIds,
+      SHARD_STATUSES.REJECTED
     );
 
     console.log(
-      `[Server] Rejected ${snippetIds.length} snippets for campaign: ${campaignId}`
+      `[Server] Rejected ${shardIds.length} shards for campaign: ${campaignId}`
     );
 
-    return c.json({ success: true, rejectedCount: snippetIds.length });
+    return c.json({ success: true, rejectedCount: shardIds.length });
   } catch (error) {
-    console.error("[Server] Error rejecting snippets:", error);
-    return c.json({ error: "Failed to reject snippets" }, 500);
+    console.error("[Server] Error rejecting shards:", error);
+    return c.json({ error: "Failed to reject shards" }, 500);
   }
 }
 
-// Search approved snippets for a campaign
-export async function handleSearchApprovedSnippets(c: ContextWithAuth) {
+// Search approved shards for a campaign
+export async function handleSearchApprovedShards(c: ContextWithAuth) {
   try {
     const campaignId = c.req.param("campaignId");
     const userAuth = (c as any).userAuth;
@@ -149,7 +149,7 @@ export async function handleSearchApprovedSnippets(c: ContextWithAuth) {
     }
 
     console.log(
-      `[Server] Searching approved snippets for campaign: ${campaignId}, query: ${query}`
+      `[Server] Searching approved shards for campaign: ${campaignId}, query: ${query}`
     );
 
     // Verify campaign belongs to user
@@ -163,8 +163,8 @@ export async function handleSearchApprovedSnippets(c: ContextWithAuth) {
       return c.json({ error: "Campaign not found" }, 404);
     }
 
-    const stagedSnippetsDAO = getDAOFactory(c.env).stagedSnippetsDAO;
-    const searchResults = await stagedSnippetsDAO.searchApprovedSnippets(
+    const stagedShardsDAO = getDAOFactory(c.env).stagedShardsDAO;
+    const searchResults = await stagedShardsDAO.searchApprovedShards(
       campaignId,
       query
     );
@@ -175,7 +175,7 @@ export async function handleSearchApprovedSnippets(c: ContextWithAuth) {
 
     return c.json({ results: searchResults });
   } catch (error) {
-    console.error("[Server] Error searching approved snippets:", error);
-    return c.json({ error: "Failed to search snippets" }, 500);
+    console.error("[Server] Error searching approved shards:", error);
+    return c.json({ error: "Failed to search shards" }, 500);
   }
 }

@@ -314,8 +314,8 @@ export function ResourceList(_props: ResourceListProps) {
       setSelectedCampaigns([]);
       setIsAddToCampaignModalOpen(false);
 
-      // Dispatch custom event to notify snippet components to refresh
-      // This will trigger snippet list refresh in any open campaign snippet managers
+      // Dispatch custom event to notify shard components to refresh
+      // This will trigger shard list refresh in any open campaign shard managers
       window.dispatchEvent(
         new CustomEvent("resource-added-to-campaign", {
           detail: {
@@ -326,10 +326,10 @@ export function ResourceList(_props: ResourceListProps) {
         })
       );
 
-      // Also dispatch event for chat integration - check for new snippets after a delay
+      // Also dispatch event for chat integration - check for new shards after a delay
       setTimeout(() => {
-        checkForNewSnippets(selectedCampaigns, selectedFile.file_name);
-      }, 3000); // 3 second delay to allow snippet generation to complete
+        checkForNewShards(selectedCampaigns, selectedFile.file_name);
+      }, 3000); // 3 second delay to allow shard generation to complete
     } catch (err) {
       console.error("Failed to add resource to campaigns:", err);
       setError(
@@ -352,22 +352,19 @@ export function ResourceList(_props: ResourceListProps) {
     setExpandedFiles(newExpandedFiles);
   };
 
-  // Check for new snippets after adding a resource to campaigns
-  const checkForNewSnippets = async (
-    campaignIds: string[],
-    fileName: string
-  ) => {
+  // Check for new shards after adding a resource to campaigns
+  const checkForNewShards = async (campaignIds: string[], fileName: string) => {
     try {
       console.log(
-        "[ResourceList] Checking for new snippets for campaigns:",
+        "[ResourceList] Checking for new shards for campaigns:",
         campaignIds
       );
 
-      // Check each campaign for new snippets
+      // Check each campaign for new shards
       for (const campaignId of campaignIds) {
         const response = await fetch(
           API_CONFIG.buildUrl(
-            API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SNIPPETS(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SHARDS(
               campaignId
             )
           ),
@@ -379,38 +376,38 @@ export function ResourceList(_props: ResourceListProps) {
         );
 
         if (response.ok) {
-          const data = (await response.json()) as { snippets?: any[] };
-          const snippets = data.snippets || [];
+          const data = (await response.json()) as { shards?: any[] };
+          const shards = data.shards || [];
 
           console.log(
-            `[ResourceList] Found ${snippets.length} staged snippets for campaign ${campaignId}`
+            `[ResourceList] Found ${shards.length} staged shards for campaign ${campaignId}`
           );
 
-          if (snippets.length > 0) {
-            // Show a notification to the user about new snippets
-            console.log("[ResourceList] New snippets available:", snippets);
+          if (shards.length > 0) {
+            // Show a notification to the user about new shards
+            console.log("[ResourceList] New shards available:", shards);
 
             // Dispatch event for chat integration
             window.dispatchEvent(
-              new CustomEvent("snippets-generated", {
+              new CustomEvent("shards-generated", {
                 detail: {
                   campaignId,
                   fileName,
-                  snippets: snippets,
+                  shards: shards,
                   resourceId: selectedFile?.file_key,
                 },
               })
             );
 
-            // Show user-friendly message about new snippets
+            // Show user-friendly message about new shards
             setNotificationMessage(
-              `🎉 ${snippets.length} new snippets generated from "${fileName}"! Check your campaign to review them.`
+              `🎉 ${shards.length} new shards generated from "${fileName}"! Check your campaign to review them.`
             );
           }
         }
       }
     } catch (error) {
-      console.error("[ResourceList] Error checking for new snippets:", error);
+      console.error("[ResourceList] Error checking for new shards:", error);
     }
   };
 
@@ -542,7 +539,7 @@ export function ResourceList(_props: ResourceListProps) {
 
   return (
     <div className="h-full overflow-y-auto">
-      {/* Notification for new snippets */}
+      {/* Notification for new shards */}
       {notificationMessage && (
         <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
           <div className="flex items-center justify-between">

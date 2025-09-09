@@ -1,37 +1,37 @@
 import React from "react";
 
-interface SnippetHeaderProps {
+interface ShardHeaderProps {
   action: string;
   total: number;
   campaignId: string;
   resourceId?: string;
-  snippetType?: string;
+  shardType?: string;
   selectedCount: number;
-  totalSnippets: number;
+  totalShards: number;
   onSelectAll: (checked: boolean) => void;
 }
 
-export const SnippetHeader: React.FC<SnippetHeaderProps> = ({
+export const ShardHeader: React.FC<ShardHeaderProps> = ({
   action,
   total,
   campaignId,
   resourceId,
-  snippetType,
+  shardType,
   selectedCount,
-  totalSnippets,
+  totalShards,
   onSelectAll,
 }) => {
   return (
     <div className="flex justify-between items-center">
       <div>
         <h3 className="text-lg font-semibold text-gray-900">
-          Snippet Management -{" "}
+          Shard Management -{" "}
           {action.replace("show_", "").replace("_", " ").toUpperCase()}
         </h3>
         <p className="text-sm text-gray-600">
-          Found {total} snippets for campaign {campaignId}
+          Found {total} shards for campaign {campaignId}
           {resourceId && ` • Resource: ${resourceId}`}
-          {snippetType && ` • Type: ${snippetType}`}
+          {shardType && ` • Type: ${shardType}`}
         </p>
       </div>
 
@@ -39,7 +39,7 @@ export const SnippetHeader: React.FC<SnippetHeaderProps> = ({
         <label className="flex items-center space-x-2 text-sm">
           <input
             type="checkbox"
-            checked={selectedCount === totalSnippets}
+            checked={selectedCount === totalShards}
             onChange={(e) => onSelectAll(e.target.checked)}
             className="rounded border-gray-300"
           />

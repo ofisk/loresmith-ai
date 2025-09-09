@@ -38,9 +38,9 @@ import {
   handleRefreshAllFileStatuses,
 } from "./routes/autorag";
 import {
-  handleApproveSnippets,
-  handleGetStagedSnippets,
-  handleRejectSnippets,
+  handleApproveShards,
+  handleGetStagedShards,
+  handleRejectShards,
 } from "./routes/campaign-autorag";
 import {
   handleAddResourceToCampaign,
@@ -590,35 +590,29 @@ app.delete(
 app.post(
   API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.APPROVE(":campaignId"),
   requireUserJwt,
-  handleApproveSnippets
+  handleApproveShards
 );
 app.post(
   API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.REJECT(":campaignId"),
   requireUserJwt,
-  handleRejectSnippets
+  handleRejectShards
 );
 
-// New Campaign AutoRAG Snippet Management Routes
+// New Campaign AutoRAG Shard Management Routes
 app.get(
-  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SNIPPETS(
-    ":campaignId"
-  ),
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SHARDS(":campaignId"),
   requireUserJwt,
-  handleGetStagedSnippets
+  handleGetStagedShards
 );
 app.post(
-  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.APPROVE_SNIPPETS(
-    ":campaignId"
-  ),
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.APPROVE_SHARDS(":campaignId"),
   requireUserJwt,
-  handleApproveSnippets
+  handleApproveShards
 );
 app.post(
-  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.REJECT_SNIPPETS(
-    ":campaignId"
-  ),
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.REJECT_SHARDS(":campaignId"),
   requireUserJwt,
-  handleRejectSnippets
+  handleRejectShards
 );
 
 // Progress WebSocket

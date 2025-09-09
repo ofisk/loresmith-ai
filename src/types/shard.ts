@@ -1,24 +1,24 @@
 import type { StructuredContentType } from "../lib/content-types";
 
 /**
- * Unified snippet types for the entire system
- * Consolidates all snippet interfaces to eliminate duplication
+ * Unified shard types for the entire system
+ * Consolidates all shard interfaces to eliminate duplication
  */
 
 /**
- * Core snippet candidate interface used throughout the system
+ * Core shard candidate interface used throughout the system
  */
-export interface SnippetCandidate {
+export interface ShardCandidate {
   id: string;
   text: string;
-  metadata: SnippetMetadata;
-  sourceRef: SnippetSourceRef;
+  metadata: ShardMetadata;
+  sourceRef: ShardSourceRef;
 }
 
 /**
- * Standardized snippet metadata structure
+ * Standardized shard metadata structure
  */
-export interface SnippetMetadata {
+export interface ShardMetadata {
   fileKey: string;
   fileName: string;
   source: string;
@@ -26,7 +26,7 @@ export interface SnippetMetadata {
   entityType: StructuredContentType;
   confidence: number;
   originalMetadata?: Record<string, any>;
-  query?: string; // Optional query that generated this snippet
+  query?: string; // Optional query that generated this shard
   sourceRef?: {
     fileKey: string;
     meta: {
@@ -40,9 +40,9 @@ export interface SnippetMetadata {
 }
 
 /**
- * Source reference for snippets
+ * Source reference for shards
  */
-export interface SnippetSourceRef {
+export interface ShardSourceRef {
   fileKey: string;
   meta: {
     fileName: string;
@@ -54,7 +54,7 @@ export interface SnippetSourceRef {
 }
 
 /**
- * Campaign resource interface for snippet generation
+ * Campaign resource interface for shard generation
  */
 export interface CampaignResource {
   id: string;
@@ -80,9 +80,9 @@ export interface AISearchResponse {
 }
 
 /**
- * Snippet expansion interface for enhanced content
+ * Shard expansion interface for enhanced content
  */
-export interface SnippetExpansion {
+export interface ShardExpansion {
   originalText: string;
   expandedText: string;
   reasoning: string;
@@ -90,22 +90,22 @@ export interface SnippetExpansion {
 }
 
 /**
- * Rejected snippet interface for tracking rejections
+ * Rejected shard interface for tracking rejections
  */
-export interface RejectedSnippet {
+export interface RejectedShard {
   rejectedAt: string;
   reason: string;
-  payload: SnippetCandidate;
+  payload: ShardCandidate;
 }
 
 /**
- * Database snippet interface for D1 storage
+ * Database shard interface for D1 storage
  */
-export interface DatabaseSnippet {
+export interface DatabaseShard {
   id: string;
   campaign_id: string;
   resource_id: string;
-  snippet_type: string;
+  shard_type: string;
   content: string;
   metadata?: string;
   status: string;
@@ -114,32 +114,32 @@ export interface DatabaseSnippet {
 }
 
 /**
- * Staged snippet group interface for UI display
+ * Staged shard group interface for UI display
  */
-export interface StagedSnippetGroup {
+export interface StagedShardGroup {
   key: string;
-  sourceRef: SnippetSourceRef;
-  snippets: SnippetCandidate[];
+  sourceRef: ShardSourceRef;
+  shards: ShardCandidate[];
   created_at: string;
   campaignRagBasePath: string;
 }
 
 /**
- * Snippet creation data for database operations
+ * Shard creation data for database operations
  */
-export interface CreateSnippetData {
+export interface CreateShardData {
   id: string;
   campaign_id: string;
   resource_id: string;
-  snippet_type: string;
+  shard_type: string;
   content: string;
   metadata?: string;
 }
 
 /**
- * Snippet search result interface
+ * Shard search result interface
  */
-export interface SnippetSearchResult {
+export interface ShardSearchResult {
   id: string;
   text: string;
   score: number;

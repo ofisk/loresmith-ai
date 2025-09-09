@@ -1,12 +1,12 @@
 import React from "react";
 
-interface SnippetApprovalHeaderProps {
+interface ShardApprovalHeaderProps {
   campaignId: string;
   total: number;
   reason?: string;
 }
 
-export const SnippetApprovalHeader: React.FC<SnippetApprovalHeaderProps> = ({
+export const ShardApprovalHeader: React.FC<ShardApprovalHeaderProps> = ({
   campaignId,
   total,
   reason,
@@ -14,10 +14,10 @@ export const SnippetApprovalHeader: React.FC<SnippetApprovalHeaderProps> = ({
   return (
     <div className="text-center">
       <h3 className="text-lg font-semibold text-gray-900">
-        Snippet Approval Interface
+        Shard Approval Interface
       </h3>
       <p className="text-sm text-gray-600">
-        Ready to process {total} snippets for campaign {campaignId}
+        Ready to process {total} shards for campaign {campaignId}
       </p>
       {reason && (
         <p className="text-sm text-blue-600 mt-1">Context: {reason}</p>

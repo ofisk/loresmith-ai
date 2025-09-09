@@ -33,9 +33,9 @@ type AsyncEventType =
   | "campaign.created"
   | "campaign.updated"
   | "campaign.deleted"
-  | "snippet.generated"
-  | "snippet.approved"
-  | "snippet.rejected";
+  | "shard.generated"
+  | "shard.approved"
+  | "shard.rejected";
 ```
 
 ### Event Structure

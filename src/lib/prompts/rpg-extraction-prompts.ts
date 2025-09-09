@@ -22,7 +22,7 @@ CONTEXT & HINTS
   - Scenes/Rooms: numbered keys (e.g., "Area 12"), read-aloud boxed text, GM notes.
   - Hooks/Quests: imperative requests with stakes and links to NPCs/locations.
   - Tables: a dice column (d20/d100), range → result rows.
-- Keep "rejected" campaign content out of results if the snippet indicates rejection (e.g., metadata flags).
+- Keep "rejected" campaign content out of results if the shard indicates rejection (e.g., metadata flags).
 - Normalize names (title case), keep dice notation and DCs.
 - Include lightweight relationships in \`relations[]\` to connect items (e.g., a scene that contains a monster).
 

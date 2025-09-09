@@ -1,38 +1,38 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { Env } from "../../middleware/auth";
-import { SnippetAgent } from "../../agents/snippet-agent";
+import { ShardAgent } from "../../agents/shard-agent";
 
 /**
- * Tool: Discover snippets for a campaign
- * Finds and returns snippets based on various criteria
+ * Tool: Discover shards for a campaign
+ * Finds and returns shards based on various criteria
  */
-export const discoverSnippetsTool = tool({
+export const discoverShardsTool = tool({
   description:
-    "Discover snippets for a campaign with optional filtering by status, resource, or type",
+    "Discover shards for a campaign with optional filtering by status, resource, or type",
   parameters: z.object({
-    campaignId: z.string().describe("The campaign ID to search for snippets"),
+    campaignId: z.string().describe("The campaign ID to search for shards"),
     status: z
       .enum(["staged", "approved", "rejected", "all"])
       .optional()
-      .describe("Filter by snippet status (default: staged)"),
+      .describe("Filter by shard status (default: staged)"),
     resourceId: z
       .string()
       .optional()
       .describe("Optional: Filter by specific resource ID"),
-    snippetType: z
+    shardType: z
       .string()
       .optional()
       .describe(
-        "Optional: Filter by snippet type (e.g., 'monsters', 'spells', 'npcs')"
+        "Optional: Filter by shard type (e.g., 'monsters', 'spells', 'npcs')"
       ),
     limit: z
       .number()
       .optional()
-      .describe("Maximum number of snippets to return (default: 100)"),
+      .describe("Maximum number of shards to return (default: 100)"),
   }),
   execute: async (
-    { campaignId, status, resourceId, snippetType, limit },
+    { campaignId, status, resourceId, shardType, limit },
     context?: any
   ) => {
     try {
@@ -41,19 +41,19 @@ export const discoverSnippetsTool = tool({
         throw new Error("Environment not available");
       }
 
-      const snippetAgent = new SnippetAgent({} as any, env, {} as any);
+      const shardAgent = new ShardAgent({} as any, env, {} as any);
 
-      const result = await snippetAgent.discoverSnippets(campaignId, {
+      const result = await shardAgent.discoverShards(campaignId, {
         status,
         resourceId,
-        snippetType,
+        shardType,
         limit,
       });
 
       return {
         success: true,
         data: {
-          snippets: result.snippets,
+          shards: result.shards,
           total: result.total,
           status: result.status,
         },
@@ -69,15 +69,15 @@ export const discoverSnippetsTool = tool({
 });
 
 /**
- * Tool: Search approved snippets
- * Searches through approved snippets for specific content
+ * Tool: Search approved shards
+ * Searches through approved shards for specific content
  */
-export const searchApprovedSnippetsTool = tool({
+export const searchApprovedShardsTool = tool({
   description:
-    "Search through approved snippets in a campaign for specific content or keywords",
+    "Search through approved shards in a campaign for specific content or keywords",
   parameters: z.object({
     campaignId: z.string().describe("The campaign ID to search in"),
-    query: z.string().describe("Search query to find relevant snippets"),
+    query: z.string().describe("Search query to find relevant shards"),
   }),
   execute: async ({ campaignId, query }, context?: any) => {
     try {
@@ -86,12 +86,9 @@ export const searchApprovedSnippetsTool = tool({
         throw new Error("Environment not available");
       }
 
-      const snippetAgent = new SnippetAgent({} as any, env, {} as any);
+      const shardAgent = new ShardAgent({} as any, env, {} as any);
 
-      const result = await snippetAgent.searchApprovedSnippets(
-        campaignId,
-        query
-      );
+      const result = await shardAgent.searchApprovedShards(campaignId, query);
 
       return {
         success: true,
@@ -112,12 +109,12 @@ export const searchApprovedSnippetsTool = tool({
 });
 
 /**
- * Tool: Get snippet statistics
- * Returns comprehensive statistics about snippets in a campaign
+ * Tool: Get shard statistics
+ * Returns comprehensive statistics about shards in a campaign
  */
-export const getSnippetStatsTool = tool({
+export const getShardStatsTool = tool({
   description:
-    "Get comprehensive statistics about snippets in a campaign including counts by status and type",
+    "Get comprehensive statistics about shards in a campaign including counts by status and type",
   parameters: z.object({
     campaignId: z.string().describe("The campaign ID to get statistics for"),
   }),
@@ -128,9 +125,9 @@ export const getSnippetStatsTool = tool({
         throw new Error("Environment not available");
       }
 
-      const snippetAgent = new SnippetAgent({} as any, env, {} as any);
+      const shardAgent = new ShardAgent({} as any, env, {} as any);
 
-      const stats = await snippetAgent.getSnippetStats(campaignId);
+      const stats = await shardAgent.getShardStats(campaignId);
 
       return {
         success: true,
@@ -147,12 +144,12 @@ export const getSnippetStatsTool = tool({
 });
 
 /**
- * Tool: Debug all snippets in database
- * Returns all snippets in the database for troubleshooting
+ * Tool: Debug all shards in database
+ * Returns all shards in the database for troubleshooting
  */
-export const debugAllSnippetsTool = tool({
+export const debugAllShardsTool = tool({
   description:
-    "DEBUG: Get all snippets in the database for troubleshooting snippet retrieval issues",
+    "DEBUG: Get all shards in the database for troubleshooting shard retrieval issues",
   parameters: z.object({}),
   execute: async (_, context?: any) => {
     try {
@@ -162,14 +159,14 @@ export const debugAllSnippetsTool = tool({
       }
 
       const { getDAOFactory } = await import("../../dao/dao-factory");
-      const stagedSnippetsDAO = getDAOFactory(env).stagedSnippetsDAO;
-      const allSnippets = await stagedSnippetsDAO.getAllSnippets();
+      const stagedShardsDAO = getDAOFactory(env).stagedShardsDAO;
+      const allShards = await stagedShardsDAO.getAllShards();
 
       return {
         success: true,
         data: {
-          totalSnippets: allSnippets.length,
-          snippets: allSnippets,
+          totalShards: allShards.length,
+          shards: allShards,
         },
       };
     } catch (error) {

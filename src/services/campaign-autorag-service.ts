@@ -5,10 +5,10 @@ import type {
 } from "./autorag-client";
 import { AutoRAGClientBase } from "./autorag-client";
 import type {
-  SnippetCandidate,
-  SnippetExpansion,
-  RejectedSnippet,
-} from "../types/snippet";
+  ShardCandidate,
+  ShardExpansion,
+  RejectedShard,
+} from "../types/shard";
 
 /**
  * Campaign-specific AutoRAG service
@@ -40,21 +40,21 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
   }
 
   /**
-   * Save snippet candidates to staging
+   * Save shard candidates to staging
    */
-  async saveSnippetCandidates(
+  async saveShardCandidates(
     sourceRef: { fileKey: string; meta?: Record<string, any> },
-    snippets: SnippetCandidate[]
+    shards: ShardCandidate[]
   ): Promise<void> {
     console.log(
-      `[CampaignAutoRAG] Saving ${snippets.length} snippet candidates to staging`
+      `[CampaignAutoRAG] Saving ${shards.length} shard candidates to staging`
     );
 
     const stagingKey = `${this.campaignRagBasePath}/staging/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.json`;
 
     const stagingData = {
       sourceRef,
-      snippets,
+      shards,
       created_at: new Date().toISOString(),
       campaignRagBasePath: this.campaignRagBasePath,
     };
@@ -65,17 +65,17 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
       "application/json"
     );
 
-    console.log(`[CampaignAutoRAG] Saved snippet candidates to: ${stagingKey}`);
+    console.log(`[CampaignAutoRAG] Saved shard candidates to: ${stagingKey}`);
   }
 
   /**
-   * Approve snippets by moving from staging to approved
+   * Approve shards by moving from staging to approved
    */
-  async approveSnippets(
+  async approveShards(
     stagingKey: string,
-    expansions?: SnippetExpansion[]
+    expansions?: ShardExpansion[]
   ): Promise<void> {
-    console.log(`[CampaignAutoRAG] Approving snippets from: ${stagingKey}`);
+    console.log(`[CampaignAutoRAG] Approving shards from: ${stagingKey}`);
 
     // Read staging data
     const stagingObject = await this.env.R2.get(stagingKey);
@@ -108,15 +108,15 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
       console.log(`[CampaignAutoRAG] Created expansion file: ${expansionKey}`);
     }
 
-    console.log(`[CampaignAutoRAG] Approved snippets moved to: ${approvedKey}`);
+    console.log(`[CampaignAutoRAG] Approved shards moved to: ${approvedKey}`);
   }
 
   /**
-   * Reject snippets by moving from staging to rejected
+   * Reject shards by moving from staging to rejected
    */
-  async rejectSnippets(stagingKey: string, reason: string): Promise<void> {
+  async rejectShards(stagingKey: string, reason: string): Promise<void> {
     console.log(
-      `[CampaignAutoRAG] Rejecting snippets from: ${stagingKey} with reason: ${reason}`
+      `[CampaignAutoRAG] Rejecting shards from: ${stagingKey} with reason: ${reason}`
     );
 
     // Read staging data
@@ -129,7 +129,7 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
     const stagingData = JSON.parse(await stagingObject.text());
 
     // Create rejected data wrapper
-    const rejectedData: RejectedSnippet = {
+    const rejectedData: RejectedShard = {
       rejectedAt: new Date().toISOString(),
       reason,
       payload: stagingData,
@@ -146,18 +146,18 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
     // Delete staging file
     await this.r2Helper.delete(stagingKey);
 
-    console.log(`[CampaignAutoRAG] Rejected snippets moved to: ${rejectedKey}`);
+    console.log(`[CampaignAutoRAG] Rejected shards moved to: ${rejectedKey}`);
   }
 
   /**
-   * Search rejected snippets (admin/QA only)
+   * Search rejected shards (admin/QA only)
    */
   async searchRejected(
     query: string,
     options: AutoRAGSearchOptions = {}
   ): Promise<AutoRAGSearchResult> {
     console.log(
-      `[CampaignAutoRAG] Searching rejected snippets with query: ${query}`
+      `[CampaignAutoRAG] Searching rejected shards with query: ${query}`
     );
 
     const rejectedFolder = `${this.campaignRagBasePath}/rejected/`;
@@ -186,11 +186,11 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
   }
 
   /**
-   * Get staged snippets
+   * Get staged shards
    */
-  async getStagedSnippets(): Promise<any[]> {
+  async getStagedShards(): Promise<any[]> {
     console.log(
-      `[CampaignAutoRAG] Getting staged snippets from: ${this.campaignRagBasePath}/staging/`
+      `[CampaignAutoRAG] Getting staged shards from: ${this.campaignRagBasePath}/staging/`
     );
 
     try {
@@ -200,32 +200,32 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
         limit: 1000,
       });
 
-      const stagedSnippets = [];
+      const stagedShards = [];
 
       for (const object of listResult.objects) {
         try {
           const content = await this.r2Helper.get(object.key);
           if (content) {
             const data = JSON.parse(new TextDecoder().decode(content));
-            stagedSnippets.push({
+            stagedShards.push({
               key: object.key,
               ...data,
             });
           }
         } catch (error) {
           console.warn(
-            `[CampaignAutoRAG] Error reading staged snippet ${object.key}:`,
+            `[CampaignAutoRAG] Error reading staged shard ${object.key}:`,
             error
           );
         }
       }
 
       console.log(
-        `[CampaignAutoRAG] Found ${stagedSnippets.length} staged snippets`
+        `[CampaignAutoRAG] Found ${stagedShards.length} staged shards`
       );
-      return stagedSnippets;
+      return stagedShards;
     } catch (error) {
-      console.error(`[CampaignAutoRAG] Error getting staged snippets:`, error);
+      console.error(`[CampaignAutoRAG] Error getting staged shards:`, error);
       return [];
     }
   }

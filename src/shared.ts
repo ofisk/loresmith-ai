@@ -107,14 +107,14 @@ export const API_CONFIG = {
           `/campaigns/${campaignId}/autorag/search`,
         SEARCH_REJECTED: (campaignId: string) =>
           `/campaigns/${campaignId}/autorag/search-rejected`,
-        STAGED_SNIPPETS: (campaignId: string) =>
-          `/campaigns/${campaignId}/snippets/staged`,
-        APPROVE_SNIPPETS: (campaignId: string) =>
-          `/campaigns/${campaignId}/snippets/approve`,
-        REJECT_SNIPPETS: (campaignId: string) =>
-          `/campaigns/${campaignId}/snippets/reject`,
+        STAGED_SHARDS: (campaignId: string) =>
+          `/campaigns/${campaignId}/shards/staged`,
+        APPROVE_SHARDS: (campaignId: string) =>
+          `/campaigns/${campaignId}/shards/approve`,
+        REJECT_SHARDS: (campaignId: string) =>
+          `/campaigns/${campaignId}/shards/reject`,
         SEARCH_APPROVED: (campaignId: string) =>
-          `/campaigns/${campaignId}/snippets/approved`,
+          `/campaigns/${campaignId}/shards/approved`,
       },
     },
     CHARACTER_SHEETS: {
