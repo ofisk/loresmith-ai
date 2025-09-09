@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "../dao/dao-factory";
 import { getLibraryAutoRAGService } from "../lib/service-factory";
-import { SnippetAgent } from "../agents/snippet-agent";
+import { ShardAgent } from "../agents/shard-agent";
 import { RPG_EXTRACTION_PROMPTS } from "../lib/prompts/rpg-extraction-prompts";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
@@ -359,9 +359,9 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 
     console.log(`[Server] Added resource ${id} to campaign ${campaignId}`);
 
-    // Generate snippets for the newly added resource
+    // Generate shards for the newly added resource
     try {
-      console.log(`[Server] Generating snippets for campaign: ${campaignId}`);
+      console.log(`[Server] Generating shards for campaign: ${campaignId}`);
 
       const campaignDAO = getDAOFactory(c.env).campaignDAO;
       const campaignRagBasePath = await campaignDAO.getCampaignRagBasePath(
@@ -372,7 +372,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
         console.warn(
           `[Server] Campaign AutoRAG not initialized for campaign: ${campaignId}`
         );
-        // Continue without snippet generation
+        // Continue without shard generation
       } else {
         const resources = await campaignDAO.getCampaignResources(campaignId);
         if (!resources || resources.length === 0) {
@@ -382,7 +382,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
         } else {
           // Get the most recently added resource (the one that triggered this call)
           const resource = resources[resources.length - 1];
-          console.log(`[Server] Generating snippets for resource:`, resource);
+          console.log(`[Server] Generating shards for resource:`, resource);
 
           console.log(`[Server] Getting library AutoRAG service`);
           const libraryAutoRAG = getLibraryAutoRAGService(c.env);
@@ -449,7 +449,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
               `[Server] AI Search result has no accessible response property`
             );
             console.log(`[Server] Full AI Search result:`, actualResult);
-            return; // Skip snippet generation if no response
+            return; // Skip shard generation if no response
           }
 
           console.log(
@@ -482,19 +482,15 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
             });
 
             if (parsedContent && typeof parsedContent === "object") {
-              // Use SnippetAgent to create snippets
-              const snippetAgent = new SnippetAgent(
-                {} as any,
-                c.env,
-                {} as any
-              );
+              // Use ShardAgent to create shards
+              const shardAgent = new ShardAgent({} as any, c.env, {} as any);
 
               console.log(
-                `[Server] Creating snippets with campaignId: "${campaignId}"`
+                `[Server] Creating shards with campaignId: "${campaignId}"`
               );
               console.log(`[Server] Resource details:`, resource);
 
-              const result = await snippetAgent.createSnippets(
+              const result = await shardAgent.createShards(
                 parsedContent,
                 resource,
                 campaignId
@@ -502,28 +498,28 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 
               if (result.created > 0) {
                 console.log(
-                  `[Server] Successfully created ${result.created} snippets for ${resource.id}`
+                  `[Server] Successfully created ${result.created} shards for ${resource.id}`
                 );
 
-                // Return the generated snippets and an instruction for the chat UI to render management UI
+                // Return the generated shards and an instruction for the chat UI to render management UI
                 return c.json({
                   success: true,
-                  message: `Resource added to campaign successfully. Generated ${result.created} snippets for review.`,
+                  message: `Resource added to campaign successfully. Generated ${result.created} shards for review.`,
                   resource: {
                     id: resource.id,
                     name: resource.file_name || resource.id,
                     type: "file",
                   },
-                  snippets: {
+                  shards: {
                     count: result.created,
                     campaignId,
                     resourceId: resource.id,
-                    message: `Generated ${result.created} snippets from "${resource.file_name || resource.id}".`,
+                    message: `Generated ${result.created} shards from "${resource.file_name || resource.id}".`,
                   },
                   // Hint for the client chat to render UI immediately
                   ui: {
                     type: "render_component",
-                    component: "SnippetManagementUI",
+                    component: "ShardManagementUI",
                     props: {
                       campaignId,
                       action: "show_staged",
@@ -532,12 +528,12 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                   },
                 });
               } else {
-                console.log(`[Server] No snippets created for ${resource.id}`);
+                console.log(`[Server] No shards created for ${resource.id}`);
 
                 return c.json({
                   success: true,
                   message:
-                    "Resource added to campaign successfully. No snippets were generated from this resource.",
+                    "Resource added to campaign successfully. No shards were generated from this resource.",
                   resource: {
                     id: resource.id,
                     name: resource.file_name || resource.id,
@@ -553,7 +549,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
               return c.json({
                 success: true,
                 message:
-                  "Resource added to campaign successfully. Could not generate snippets from this resource.",
+                  "Resource added to campaign successfully. Could not generate shards from this resource.",
                 resource: {
                   id: resource.id,
                   name: resource.file_name || resource.id,
@@ -571,20 +567,20 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
             return c.json({
               success: true,
               message:
-                "Resource added to campaign successfully. Error occurred while generating snippets.",
+                "Resource added to campaign successfully. Error occurred while generating shards.",
               resource: {
                 id: resource.id,
                 name: resource.file_name || resource.id,
                 type: "file",
               },
-              error: "Snippet generation failed",
+              error: "Shard generation failed",
             });
           }
         }
       }
-    } catch (snippetError) {
-      console.error(`[Server] Error generating snippets:`, snippetError);
-      // Don't fail the resource addition if snippet generation fails
+    } catch (shardError) {
+      console.error(`[Server] Error generating shards:`, shardError);
+      // Don't fail the resource addition if shard generation fails
     }
 
     const newResource = {

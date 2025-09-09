@@ -1,24 +1,24 @@
 import { STRUCTURED_CONTENT_TYPES } from "./content-types";
 import type {
-  SnippetCandidate,
-  SnippetMetadata,
-  SnippetSourceRef,
+  ShardCandidate,
+  ShardMetadata,
+  ShardSourceRef,
   CampaignResource,
   AISearchResponse,
-  CreateSnippetData,
-} from "../types/snippet";
+  CreateShardData,
+} from "../types/shard";
 
 /**
- * Unified Snippet Factory
- * Centralized snippet creation and parsing logic to eliminate duplication
- * and ensure consistent snippet structures across the system
+ * Unified Shard Factory
+ * Centralized shard creation and parsing logic to eliminate duplication
+ * and ensure consistent shard structures across the system
  */
-export class SnippetFactory {
+export class ShardFactory {
   /**
-   * Create a snippet candidate from structured content
+   * Create a shard candidate from structured content
    */
-  static createSnippetCandidate(
-    snippet: any,
+  static createShardCandidate(
+    shard: any,
     contentType: string,
     resource: CampaignResource,
     campaignId: string,
@@ -26,7 +26,7 @@ export class SnippetFactory {
     confidence: number = 0.9,
     chunkId?: string,
     originalMetadata: Record<string, any> = {}
-  ): SnippetCandidate {
+  ): ShardCandidate {
     // Defensive checks for resource properties
     const resourceId = resource?.id || resource?.resource_id || "unknown";
     const resourceName =
@@ -35,8 +35,8 @@ export class SnippetFactory {
       resource?.name ||
       resourceId;
 
-    console.log(`[SnippetFactory] Creating snippet candidate:`, {
-      snippetKeys: snippet ? Object.keys(snippet) : "null",
+    console.log(`[ShardFactory] Creating shard candidate:`, {
+      shardKeys: shard ? Object.keys(shard) : "null",
       resourceId,
       resourceName,
       contentType,
@@ -45,18 +45,18 @@ export class SnippetFactory {
 
     // Validate content type
     if (!STRUCTURED_CONTENT_TYPES.includes(contentType as any)) {
-      console.warn(`[SnippetFactory] Invalid content type: ${contentType}`);
+      console.warn(`[ShardFactory] Invalid content type: ${contentType}`);
     }
 
     // Generate chunk ID if not provided
     const finalChunkId = chunkId || `${resourceId}_ai_${Date.now()}`;
 
-    // Create snippet ID - ensure uniqueness by using the generateSnippetId method
+    // Create shard ID - ensure uniqueness by using the generateShardId method
     const index = originalMetadata?.index;
-    const snippetId = this.generateSnippetId(resourceId, contentType, index);
+    const shardId = this.generateShardId(resourceId, contentType, index);
 
     // Create metadata
-    const metadata: SnippetMetadata = {
+    const metadata: ShardMetadata = {
       fileKey: resourceId,
       fileName: resourceName,
       source,
@@ -64,7 +64,7 @@ export class SnippetFactory {
       entityType: contentType as any,
       confidence,
       originalMetadata: {
-        structuredContent: snippet,
+        structuredContent: shard,
         contentType,
         ...originalMetadata,
       },
@@ -81,7 +81,7 @@ export class SnippetFactory {
     };
 
     // Create source reference
-    const sourceRef: SnippetSourceRef = {
+    const sourceRef: ShardSourceRef = {
       fileKey: resourceId,
       meta: {
         fileName: resourceName,
@@ -93,25 +93,25 @@ export class SnippetFactory {
     };
 
     return {
-      id: snippetId,
-      text: JSON.stringify(snippet, null, 2),
+      id: shardId,
+      text: JSON.stringify(shard, null, 2),
       metadata,
       sourceRef,
     };
   }
 
   /**
-   * Parse AI Search results into snippet candidates
+   * Parse AI Search results into shard candidates
    * Handles structured JSON responses from AutoRAG AI Search
    */
   static parseAISearchResponse(
     aiSearchResponse: AISearchResponse,
     resource: CampaignResource,
     campaignId: string
-  ): SnippetCandidate[] {
-    const snippetCandidates: SnippetCandidate[] = [];
+  ): ShardCandidate[] {
+    const shardCandidates: ShardCandidate[] = [];
 
-    console.log(`[SnippetFactory] Processing AI Search response:`, {
+    console.log(`[ShardFactory] Processing AI Search response:`, {
       responseKeys: Object.keys(aiSearchResponse),
       responseType: typeof aiSearchResponse,
       resource: resource,
@@ -120,7 +120,7 @@ export class SnippetFactory {
 
     if (!aiSearchResponse || typeof aiSearchResponse !== "object") {
       console.warn(
-        `[SnippetFactory] AI Search response is null/undefined or not an object`
+        `[ShardFactory] AI Search response is null/undefined or not an object`
       );
       return [];
     }
@@ -134,96 +134,96 @@ export class SnippetFactory {
     );
 
     console.log(
-      `[SnippetFactory] Found content types in AI Search response:`,
+      `[ShardFactory] Found content types in AI Search response:`,
       foundContentTypes
     );
 
     // Process each content type
     for (const contentType of foundContentTypes) {
-      const snippetArray = aiSearchResponse[contentType];
+      const shardArray = aiSearchResponse[contentType];
 
       console.log(
-        `[SnippetFactory] Processing ${snippetArray.length} ${contentType} items`
+        `[ShardFactory] Processing ${shardArray.length} ${contentType} items`
       );
 
-      // Process each snippet in the content type array
-      for (let i = 0; i < snippetArray.length; i++) {
-        const snippet = snippetArray[i];
-        if (snippet && snippet.name) {
-          const snippetCandidate = this.createSnippetCandidate(
-            snippet,
+      // Process each shard in the content type array
+      for (let i = 0; i < shardArray.length; i++) {
+        const shard = shardArray[i];
+        if (shard && shard.name) {
+          const shardCandidate = this.createShardCandidate(
+            shard,
             contentType,
             resource,
             campaignId,
             "library_autorag_ai_search",
             0.9,
-            `${resource.id}_ai_${snippetCandidates.length}`,
+            `${resource.id}_ai_${shardCandidates.length}`,
             { aiSearchResponse: true, index: i }
           );
-          snippetCandidates.push(snippetCandidate);
+          shardCandidates.push(shardCandidate);
         }
       }
 
       console.log(
-        `[SnippetFactory] Processed ${snippetArray.length} ${contentType} snippets from AI Search response`
+        `[ShardFactory] Processed ${shardArray.length} ${contentType} shards from AI Search response`
       );
     }
 
-    return snippetCandidates;
+    return shardCandidates;
   }
 
   /**
-   * Convert snippet candidates to database format
+   * Convert shard candidates to database format
    */
   static toDatabaseFormat(
-    snippetCandidates: SnippetCandidate[],
+    shardCandidates: ShardCandidate[],
     campaignId: string,
     resourceId: string
-  ): CreateSnippetData[] {
-    return snippetCandidates
-      .filter((snippet) => snippet.text && snippet.metadata) // Filter out invalid snippets
-      .map((snippet) => ({
-        id: snippet.id,
+  ): CreateShardData[] {
+    return shardCandidates
+      .filter((shard) => shard.text && shard.metadata) // Filter out invalid shards
+      .map((shard) => ({
+        id: shard.id,
         campaign_id: campaignId,
         resource_id: resourceId,
-        snippet_type: snippet.metadata.entityType,
-        content: snippet.text,
-        metadata: JSON.stringify(snippet.metadata),
+        shard_type: shard.metadata.entityType,
+        content: shard.text,
+        metadata: JSON.stringify(shard.metadata),
       }));
   }
 
   /**
-   * Validate snippet candidate structure
+   * Validate shard candidate structure
    */
-  static validateSnippetCandidate(snippet: any): snippet is SnippetCandidate {
+  static validateShardCandidate(shard: any): shard is ShardCandidate {
     return (
-      snippet &&
-      typeof snippet === "object" &&
-      typeof snippet.id === "string" &&
-      typeof snippet.text === "string" &&
-      snippet.metadata &&
-      typeof snippet.metadata === "object" &&
-      typeof snippet.metadata.fileKey === "string" &&
-      typeof snippet.metadata.fileName === "string" &&
-      typeof snippet.metadata.campaignId === "string" &&
-      typeof snippet.metadata.entityType === "string" &&
-      typeof snippet.metadata.confidence === "number" &&
-      snippet.sourceRef &&
-      typeof snippet.sourceRef === "object"
+      shard &&
+      typeof shard === "object" &&
+      typeof shard.id === "string" &&
+      typeof shard.text === "string" &&
+      shard.metadata &&
+      typeof shard.metadata === "object" &&
+      typeof shard.metadata.fileKey === "string" &&
+      typeof shard.metadata.fileName === "string" &&
+      typeof shard.metadata.campaignId === "string" &&
+      typeof shard.metadata.entityType === "string" &&
+      typeof shard.metadata.confidence === "number" &&
+      shard.sourceRef &&
+      typeof shard.sourceRef === "object"
     );
   }
 
   /**
-   * Filter valid snippets from a collection
+   * Filter valid shards from a collection
    */
-  static filterValidSnippets(snippets: any[]): SnippetCandidate[] {
-    return snippets.filter((snippet) => this.validateSnippetCandidate(snippet));
+  static filterValidShards(shards: any[]): ShardCandidate[] {
+    return shards.filter((shard) => this.validateShardCandidate(shard));
   }
 
   /**
-   * Create snippet ID from resource and content type
+   * Create shard ID from resource and content type
    */
-  static generateSnippetId(
+  static generateShardId(
     resourceId: string,
     contentType: string,
     index?: number

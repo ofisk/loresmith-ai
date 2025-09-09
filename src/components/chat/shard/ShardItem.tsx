@@ -1,7 +1,7 @@
 import React from "react";
 
-interface SnippetItemProps {
-  snippet: {
+interface ShardItemProps {
+  shard: {
     id: string;
     text: string;
     metadata: {
@@ -11,11 +11,11 @@ interface SnippetItemProps {
     };
   };
   isSelected: boolean;
-  onSelectionChange: (snippetId: string, checked: boolean) => void;
+  onSelectionChange: (shardId: string, checked: boolean) => void;
 }
 
-export const SnippetItem: React.FC<SnippetItemProps> = ({
-  snippet,
+export const ShardItem: React.FC<ShardItemProps> = ({
+  shard,
   isSelected,
   onSelectionChange,
 }) => {
@@ -25,31 +25,31 @@ export const SnippetItem: React.FC<SnippetItemProps> = ({
         <input
           type="checkbox"
           checked={isSelected}
-          onChange={(e) => onSelectionChange(snippet.id, e.target.checked)}
+          onChange={(e) => onSelectionChange(shard.id, e.target.checked)}
           className="mt-1 rounded border-gray-300"
         />
 
         <div className="flex-1">
           <div className="flex items-center space-x-2 mb-2">
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-              {snippet.metadata.entityType}
+              {shard.metadata.entityType}
             </span>
             <span className="text-sm text-gray-500">
-              Confidence: {Math.round(snippet.metadata.confidence * 100)}%
+              Confidence: {Math.round(shard.metadata.confidence * 100)}%
             </span>
           </div>
 
           <p className="text-gray-700 whitespace-pre-wrap text-sm">
-            {snippet.text}
+            {shard.text}
           </p>
 
-          {snippet.metadata.query && (
+          {shard.metadata.query && (
             <details className="mt-2">
               <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700">
                 View Query
               </summary>
               <p className="mt-1 p-2 bg-gray-50 rounded text-xs">
-                {snippet.metadata.query}
+                {shard.metadata.query}
               </p>
             </details>
           )}

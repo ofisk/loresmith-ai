@@ -1,3 +1,3 @@
-export { SnippetManagementUI } from "./SnippetManagementUI";
-export { SnippetApprovalUI } from "./SnippetApprovalUI";
-export * from "./snippet";
+export { ShardManagementUI } from "./ShardManagementUI";
+export { ShardApprovalUI } from "./ShardApprovalUI";
+export * from "./shard";

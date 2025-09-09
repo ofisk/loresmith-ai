@@ -16,8 +16,8 @@ import { campaignTools as importedCampaignTools } from "./campaign";
 import { fileTools as importedFileTools } from "./file";
 // General tools for authentication and utilities
 import { generalTools } from "./general";
-// Snippet-related tools for snippet management
-import { snippetTools as importedSnippetTools } from "./snippet";
+// Shard-related tools for shard management
+import { shardTools as importedShardTools } from "./shard";
 
 /**
  * Export all available tools
@@ -31,7 +31,7 @@ export const tools = {
   ...generalTools,
   ...importedFileTools,
   ...importedCampaignTools,
-  ...importedSnippetTools,
+  ...importedShardTools,
 };
 
 /**

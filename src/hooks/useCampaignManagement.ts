@@ -200,23 +200,21 @@ export function useCampaignManagement({
         if (onSendNotification) {
           if (result.message?.includes("already exists")) {
             onSendNotification(
-              `"${uploadedFileInfo.filename}" was already in your campaign. No new snippets were generated.`
+              `"${uploadedFileInfo.filename}" was already in your campaign. No new shards were generated.`
             );
           } else if (
             result.message?.includes("Generated") &&
-            result.message.includes("snippets")
+            result.message.includes("shards")
           ) {
-            // Extract the number of snippets from the message
-            const snippetMatch = result.message.match(
-              /Generated (\d+) snippets/
-            );
-            const snippetCount = snippetMatch ? snippetMatch[1] : "some";
+            // Extract the number of shards from the message
+            const shardMatch = result.message.match(/Generated (\d+) shards/);
+            const shardCount = shardMatch ? shardMatch[1] : "some";
             onSendNotification(
-              `"${uploadedFileInfo.filename}" has been added to my campaign and ${snippetCount} snippets were generated. Please show me these snippets so I can review and approve them.`
+              `"${uploadedFileInfo.filename}" has been added to my campaign and ${shardCount} shards were generated. Please show me these shards so I can review and approve them.`
             );
-          } else if (result.message?.includes("No snippets were generated")) {
+          } else if (result.message?.includes("No shards were generated")) {
             onSendNotification(
-              `"${uploadedFileInfo.filename}" has been added to my campaign. No snippets were generated from this resource.`
+              `"${uploadedFileInfo.filename}" has been added to my campaign. No shards were generated from this resource.`
             );
           } else {
             onSendNotification(

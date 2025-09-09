@@ -1,23 +1,23 @@
 import React, { useState } from "react";
-import type { SnippetCandidate } from "../../types/snippet";
+import type { ShardCandidate } from "../../types/shard";
 import {
-  SnippetItem,
-  SnippetApprovalActionBar,
-  SnippetApprovalHeader,
-} from "./snippet";
+  ShardItem,
+  ShardApprovalActionBar,
+  ShardApprovalHeader,
+} from "./shard";
 
-interface SnippetApprovalUIProps {
+interface ShardApprovalUIProps {
   campaignId: string;
-  snippets: SnippetCandidate[];
-  snippetIds: string[];
+  shards: ShardCandidate[];
+  shardIds: string[];
   reason?: string;
   total: number;
 }
 
-export const SnippetApprovalUI: React.FC<SnippetApprovalUIProps> = ({
+export const ShardApprovalUI: React.FC<ShardApprovalUIProps> = ({
   campaignId,
-  snippets,
-  snippetIds,
+  shards,
+  shardIds,
   reason,
   total,
 }) => {
@@ -28,17 +28,17 @@ export const SnippetApprovalUI: React.FC<SnippetApprovalUIProps> = ({
     setProcessing("approving");
     try {
       window.dispatchEvent(
-        new CustomEvent("approve-snippets", {
+        new CustomEvent("approve-shards", {
           detail: {
             campaignId,
-            snippetIds,
+            shardIds,
             source: "chat-ui",
             reason,
           },
         })
       );
     } catch (error) {
-      console.error("Error approving snippets:", error);
+      console.error("Error approving shards:", error);
     } finally {
       setProcessing(null);
     }
@@ -49,19 +49,19 @@ export const SnippetApprovalUI: React.FC<SnippetApprovalUIProps> = ({
 
     setProcessing("rejecting");
     try {
-      // This would call the rejectSnippets tool through the AI agent
+      // This would call the rejectShards tool through the AI agent
       window.dispatchEvent(
-        new CustomEvent("reject-snippets", {
+        new CustomEvent("reject-shards", {
           detail: {
             campaignId,
-            snippetIds,
+            shardIds,
             reason: rejectionReason,
             source: "chat-ui",
           },
         })
       );
     } catch (error) {
-      console.error("Error rejecting snippets:", error);
+      console.error("Error rejecting shards:", error);
     } finally {
       setProcessing(null);
     }
@@ -69,13 +69,13 @@ export const SnippetApprovalUI: React.FC<SnippetApprovalUIProps> = ({
 
   return (
     <div className="space-y-4 border border-gray-200 rounded-lg p-4 bg-white">
-      <SnippetApprovalHeader
+      <ShardApprovalHeader
         campaignId={campaignId}
         total={total}
         reason={reason}
       />
 
-      <SnippetApprovalActionBar
+      <ShardApprovalActionBar
         total={total}
         processing={processing}
         rejectionReason={rejectionReason}
@@ -85,13 +85,13 @@ export const SnippetApprovalUI: React.FC<SnippetApprovalUIProps> = ({
       />
 
       <div className="space-y-3">
-        {snippets.map((snippet) => (
-          <SnippetItem
-            key={snippet.id}
-            snippet={{
-              id: snippet.id,
-              text: snippet.text,
-              metadata: snippet.metadata,
+        {shards.map((shard) => (
+          <ShardItem
+            key={shard.id}
+            shard={{
+              id: shard.id,
+              text: shard.text,
+              metadata: shard.metadata,
             }}
             isSelected={false}
             onSelectionChange={() => {}} // No selection needed in approval UI

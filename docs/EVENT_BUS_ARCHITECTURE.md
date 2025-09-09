@@ -14,7 +14,7 @@ graph TB
         FU[File Upload Service]
         AR[AutoRAG Service]
         CM[Campaign Management]
-        SA[Snippet Agent]
+        SA[Shard Agent]
     end
 
     subgraph "Event Listeners"
@@ -152,10 +152,10 @@ graph LR
         CD[CAMPAIGN.DELETED<br/>campaignId]
     end
 
-    subgraph "Snippet Events"
-        SG[SNIPPET.GENERATED<br/>snippetId, campaignId]
-        SA[SNIPPET.APPROVED<br/>snippetId, campaignId]
-        SR[SNIPPET.REJECTED<br/>snippetId, campaignId]
+    subgraph "Shard Events"
+        SG[SHARD.GENERATED<br/>shardId, campaignId]
+        SA[SHARD.APPROVED<br/>shardId, campaignId]
+        SR[SHARD.REJECTED<br/>shardId, campaignId]
     end
 
     %% Event flow connections
@@ -174,12 +174,12 @@ graph LR
     classDef fileEvent fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
     classDef autoragEvent fill:#f1f8e9,stroke:#388e3c,stroke-width:2px
     classDef campaignEvent fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-    classDef snippetEvent fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef shardEvent fill:#fff3e0,stroke:#f57c00,stroke-width:2px
 
     class FUS,FUP,FUC,FUF fileEvent
     class ARS,ARP,ARC,ARF autoragEvent
     class CC,CU,CD campaignEvent
-    class SG,SA,SR snippetEvent
+    class SG,SA,SR shardEvent
 ```
 
 ## Hook Architecture

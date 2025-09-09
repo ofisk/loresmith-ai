@@ -53,16 +53,15 @@ export const STRUCTURED_CONTENT_TYPES = [
 export type StructuredContentType = (typeof STRUCTURED_CONTENT_TYPES)[number];
 
 /**
- * Snippet status constants
+ * Shard status constants
  */
-export const SNIPPET_STATUSES = {
+export const SHARD_STATUSES = {
   STAGED: "staged",
   APPROVED: "approved",
   REJECTED: "rejected",
 } as const;
 
-export type SnippetStatus =
-  (typeof SNIPPET_STATUSES)[keyof typeof SNIPPET_STATUSES];
+export type ShardStatus = (typeof SHARD_STATUSES)[keyof typeof SHARD_STATUSES];
 
 /**
  * Helper function to check if a string is a valid content type

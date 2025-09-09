@@ -580,24 +580,24 @@ export default function Chat() {
     }
   };
 
-  // Helper function to format snippets as a readable chat message
-  const formatSnippetsAsMessage = useCallback(
-    (snippets: any[], fileName: string) => {
-      if (!snippets || snippets.length === 0) {
-        return `No snippets were generated from "${fileName}".`;
+  // Helper function to format shards as a readable chat message
+  const formatShardsAsMessage = useCallback(
+    (shards: any[], fileName: string) => {
+      if (!shards || shards.length === 0) {
+        return `No shards were generated from "${fileName}".`;
       }
 
       let message = `## 📚 New Content Discovered!\n\n`;
-      message += `I've analyzed **${fileName}** and found ${snippets.length} piece${snippets.length !== 1 ? "s" : ""} of content for your campaign:\n\n`;
+      message += `I've analyzed **${fileName}** and found ${shards.length} piece${shards.length !== 1 ? "s" : ""} of content for your campaign:\n\n`;
 
-      snippets.forEach((snippet, index) => {
-        const confidence = Math.round(snippet.metadata.confidence * 100);
-        message += `### ${index + 1}. ${snippet.metadata.entityType} (${confidence}% confidence)\n`;
-        message += `${snippet.text}\n\n`;
+      shards.forEach((shard, index) => {
+        const confidence = Math.round(shard.metadata.confidence * 100);
+        message += `### ${index + 1}. ${shard.metadata.entityType} (${confidence}% confidence)\n`;
+        message += `${shard.text}\n\n`;
       });
 
       message += `**Next Steps:**\n`;
-      message += `• Review these snippets in your campaign\n`;
+      message += `• Review these shards in your campaign\n`;
       message += `• Ask me to help integrate them into your story\n`;
       message += `• Request specific details about any of these elements\n\n`;
       message += `What would you like to know more about?`;
@@ -607,63 +607,59 @@ export default function Chat() {
     []
   );
 
-  // Listen for snippet generation events and add them to chat
+  // Listen for shard generation events and add them to chat
   useEffect(() => {
-    const handleSnippetsGenerated = async (event: CustomEvent) => {
-      const { campaignId, snippets, fileName, resourceId } = event.detail;
+    const handleShardsGenerated = async (event: CustomEvent) => {
+      const { campaignId, shards, fileName, resourceId } = event.detail;
 
-      console.log(
-        "[App] Snippets generated for campaign:",
-        campaignId,
-        snippets
-      );
+      console.log("[App] Shards generated for campaign:", campaignId, shards);
 
-      // Use the snippet agent to present the snippets with proper UI
+      // Use the shard agent to present the shards with proper UI
       try {
-        // Create a message that will trigger the snippet agent to present the snippets
-        const snippetMessage = {
+        // Create a message that will trigger the shard agent to present the shards
+        const shardMessage = {
           role: "user" as const,
-          content: `I just added "${fileName}" to my campaign and ${snippets.length} snippets were generated. Please show me these snippets so I can review and approve them.`,
+          content: `I just added "${fileName}" to my campaign and ${shards.length} shards were generated. Please show me these shards so I can review and approve them.`,
           data: {
-            type: "snippet_review_request",
+            type: "shard_review_request",
             campaignId,
             fileName,
             resourceId,
-            snippetCount: snippets.length,
+            shardCount: shards.length,
           },
         };
 
         // Add the user message to the chat
-        append(snippetMessage);
+        append(shardMessage);
 
-        // The snippet agent will now handle this request and present the snippets
+        // The shard agent will now handle this request and present the shards
         // with the proper UI components for approval/rejection
       } catch (error) {
-        console.error("[App] Error handling snippet generation:", error);
+        console.error("[App] Error handling shard generation:", error);
 
         // Fallback to the old format if there's an error
-        const snippetContent = formatSnippetsAsMessage(snippets, fileName);
+        const shardContent = formatShardsAsMessage(shards, fileName);
         append({
           role: "assistant",
-          content: snippetContent,
-          data: { type: "snippets", campaignId, fileName },
+          content: shardContent,
+          data: { type: "shards", campaignId, fileName },
         });
       }
     };
 
-    // Listen for custom snippet-generated events
+    // Listen for custom shard-generated events
     window.addEventListener(
-      "snippets-generated",
-      handleSnippetsGenerated as unknown as EventListener
+      "shards-generated",
+      handleShardsGenerated as unknown as EventListener
     );
 
     return () => {
       window.removeEventListener(
-        "snippets-generated",
-        handleSnippetsGenerated as unknown as EventListener
+        "shards-generated",
+        handleShardsGenerated as unknown as EventListener
       );
     };
-  }, [append, formatSnippetsAsMessage]);
+  }, [append, formatShardsAsMessage]);
 
   return (
     <>

@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "../../button/Button";
 
-interface SnippetApprovalActionBarProps {
+interface ShardApprovalActionBarProps {
   total: number;
   processing: string | null;
   rejectionReason: string;
@@ -10,9 +10,7 @@ interface SnippetApprovalActionBarProps {
   onReject: () => void;
 }
 
-export const SnippetApprovalActionBar: React.FC<
-  SnippetApprovalActionBarProps
-> = ({
+export const ShardApprovalActionBar: React.FC<ShardApprovalActionBarProps> = ({
   total,
   processing,
   rejectionReason,
@@ -24,7 +22,7 @@ export const SnippetApprovalActionBar: React.FC<
     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
         <p className="text-blue-800 font-medium">
-          {total} snippet{total !== 1 ? "s" : ""} ready for processing
+          {total} shard{total !== 1 ? "s" : ""} ready for processing
         </p>
         <div className="flex space-x-2">
           <Button
