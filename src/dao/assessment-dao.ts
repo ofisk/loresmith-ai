@@ -97,7 +97,7 @@ export class AssessmentDAO {
   }
 
   /**
-   * Get campaign context data for health assessment
+   * Get campaign context data for readiness assessment
    */
   async getCampaignContext(campaignId: string): Promise<any[]> {
     const result = await this.db
@@ -109,7 +109,7 @@ export class AssessmentDAO {
   }
 
   /**
-   * Get campaign characters for health assessment
+   * Get campaign characters for readiness assessment
    */
   async getCampaignCharacters(campaignId: string): Promise<any[]> {
     const result = await this.db

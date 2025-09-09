@@ -188,8 +188,8 @@ export const API_CONFIG = {
       USER_STATE: "/assessment/user-state",
       USER_ACTIVITY: "/assessment/user-activity",
       MODULE_INTEGRATION: "/assessment/module-integration",
-      CAMPAIGN_HEALTH: (campaignId: string) =>
-        `/assessment/campaign-health/${campaignId}`,
+      CAMPAIGN_READINESS: (campaignId: string) =>
+        `/assessment/campaign-readiness/${campaignId}`,
     },
     ONBOARDING: {
       NEXT_ACTIONS: "/onboarding/next-actions",

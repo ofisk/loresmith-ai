@@ -437,7 +437,12 @@ function performReadinessAssessment(
 
   return {
     score,
-    status: score >= 70 ? "ready" : score >= 50 ? "needs_work" : "not_ready",
+    status:
+      score >= 70
+        ? "legendary"
+        : score >= 50
+          ? "getting_there"
+          : "just_beginning",
     recommendations,
     details: {
       characters: characters.length,

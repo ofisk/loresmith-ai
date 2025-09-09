@@ -2,6 +2,9 @@
 -- This replaces all the previous migrations with a single, clean schema
 
 -- Drop all existing tables (in dependency order)
+-- First disable foreign key constraints to avoid dependency issues
+PRAGMA foreign_keys = OFF;
+
 drop table if exists autorag_jobs;
 drop table if exists staged_shards;
 drop table if exists autorag_chunks;
@@ -17,6 +20,9 @@ drop table if exists file_chunks;
 drop table if exists file_metadata;
 drop table if exists files;
 drop table if exists campaigns;
+
+-- Re-enable foreign key constraints
+PRAGMA foreign_keys = ON;
 
 -- Drop views
 drop view if exists analyzed_files;
