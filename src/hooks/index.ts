@@ -28,6 +28,7 @@ export {
   useFormSubmissionWithData,
 } from "./useFormSubmission";
 // Authentication hooks
+export { useAuthReady } from "./useAuthReady";
 export { useJwtExpiration } from "./useJwtExpiration";
 export { useMenuNavigation } from "./useMenuNavigation";
 export { useOpenAIKey } from "./useOpenAIKey";

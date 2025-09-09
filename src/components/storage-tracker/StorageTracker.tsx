@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getStoredJwt } from "../../services/auth-service";
 import { API_CONFIG } from "../../shared";
 import { Loader } from "../loader/Loader";
+import { useAuthReady } from "../../hooks/useAuthReady";
 
 interface StorageUsage {
   username: string;
@@ -17,6 +18,7 @@ export function StorageTracker() {
   const [storageUsage, setStorageUsage] = useState<StorageUsage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const authReady = useAuthReady();
 
   const fetchStorageUsage = useCallback(async () => {
     try {
@@ -61,9 +63,12 @@ export function StorageTracker() {
     }
   }, []);
 
+  // Fetch storage usage when auth becomes ready
   useEffect(() => {
-    fetchStorageUsage();
-  }, [fetchStorageUsage]);
+    if (authReady) {
+      fetchStorageUsage();
+    }
+  }, [authReady, fetchStorageUsage]);
 
   const formatBytes = (bytes: number): string => {
     if (bytes === 0) return "0 B";
@@ -72,6 +77,11 @@ export function StorageTracker() {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return `${parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
   };
+
+  // Don't show anything if auth is not ready yet
+  if (!authReady) {
+    return null;
+  }
 
   if (loading) {
     return (
