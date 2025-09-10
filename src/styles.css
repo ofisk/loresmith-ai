@@ -333,6 +333,13 @@
 
   /* Focus colors */
   --color-ob-focus: var(--color-blue-400);
+
+  /* Form element colors */
+  --border-input: var(--color-neutral-200);
+  --background: var(--color-white);
+  --ring-offset-background: var(--color-white);
+  --ring: var(--color-blue-400);
+  --muted-foreground: var(--color-neutral-500);
 }
 
 .dark {
@@ -376,6 +383,13 @@
 
   /* Focus colors */
   --color-ob-focus: var(--color-blue-800);
+
+  /* Form element colors */
+  --border-input: var(--color-neutral-700);
+  --background: var(--color-neutral-900);
+  --ring-offset-background: var(--color-neutral-900);
+  --ring: var(--color-blue-800);
+  --muted-foreground: var(--color-neutral-400);
 }
 
 /* Button primary styles */
@@ -442,6 +456,17 @@
 
 .btn {
   border-width: 1px;
+  border-style: solid;
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  text-decoration: none;
 }
 .btn.interactive {
   cursor: pointer;
