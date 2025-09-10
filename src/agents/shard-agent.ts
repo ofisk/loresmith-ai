@@ -29,6 +29,10 @@ const SHARD_AGENT_CONFIG = {
     reject_shards: "Reject shards with reasoning",
     create_shards: "Create new shards from AI responses",
     get_shard_details: "Get detailed shard information",
+    get_all_campaigns:
+      "Get all campaigns to help identify correct campaign names",
+    extract_campaign_name_from_message:
+      "Extract campaign name from user messages and resolve to campaign ID",
     render_shard_management_ui:
       "Render shard management interface in chat for user interaction",
     render_shard_approval_ui: "Render focused shard approval interface in chat",
@@ -44,6 +48,16 @@ const SHARD_AGENT_CONFIG = {
     "Provide actionable advice",
     "Explain the impact of decisions",
     "Help users make informed choices about their content",
+    "When a campaign is not found, use get_all_campaigns to show available campaigns",
+    "Never assume campaign names from file names - always verify campaign existence",
+    "If shards are not found, check if the campaign name is correct and suggest alternatives",
+    "Look for Campaign ID in user messages - they may contain the exact campaign ID to use",
+    "Extract campaign names from user messages (format: Campaign: name) and resolve to campaign ID",
+    "Never ask users for technical details like campaign IDs - guide them through the natural workflow instead",
+    "When users mention files, guide them to add files to campaigns from their library to extract shards and enhance planning capabilities",
+    "IMPORTANT: When users ask to see shards, ALWAYS call discover_shards first to get the actual shard data, then use render_shard_management_ui to display them",
+    "NEVER use render_shard_management_ui without first calling discover_shards to get the shard data",
+    "Always extract campaign name from user messages and resolve to campaign ID before calling discover_shards",
   ],
   specialization:
     "You're helping users curate and organize their campaign knowledge base. Quality over quantity - help them focus on content that will enhance their gaming experience.",
@@ -116,6 +130,9 @@ export class ShardAgent extends BaseAgent {
         console.log(
           `[ShardAgent] Campaign ID is not UUID format, attempting to resolve...`
         );
+        console.log(
+          `[ShardAgent] DEBUG: Attempting to resolve campaign name: "${campaignId}"`
+        );
         try {
           const res = await (resolveCampaignIdentifier as any).execute(
             { campaignName: campaignId },
@@ -129,15 +146,33 @@ export class ShardAgent extends BaseAgent {
             );
           } else {
             console.warn(
-              `[ShardAgent] Campaign resolution failed or returned no ID`
+              `[ShardAgent] Campaign resolution failed for '${campaignId}' - this campaign does not exist`
             );
+            console.log(
+              `[ShardAgent] DEBUG: Available campaigns should be checked with getAllCampaignsTool`
+            );
+            // Return empty result instead of throwing error
+            return {
+              shards: [],
+              total: 0,
+              status: "campaign_not_found",
+            };
           }
         } catch (e) {
           console.warn(`[ShardAgent] Failed to resolve campaign id:`, e);
+          // Return empty result instead of throwing error
+          return {
+            shards: [],
+            total: 0,
+            status: "campaign_resolution_failed",
+          };
         }
       } else {
         console.log(
           `[ShardAgent] Campaign ID is already in UUID format, using as-is`
+        );
+        console.log(
+          `[ShardAgent] DEBUG: Using UUID campaign ID: "${campaignId}"`
         );
       }
 

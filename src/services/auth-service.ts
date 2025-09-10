@@ -602,7 +602,7 @@ export class AuthService {
     jwtToken?: string | null
   ): Promise<{
     shouldProceed: boolean;
-    apiKey: string | null;
+    openAIAPIKey: string | null;
     requiresAuth: boolean;
   }> {
     // For initial message retrieval, allow the request to proceed without authentication
@@ -610,17 +610,22 @@ export class AuthService {
       console.log(
         "[AuthService] No username found for initial message retrieval, allowing request to proceed"
       );
-      return { shouldProceed: true, apiKey: null, requiresAuth: false };
+      return { shouldProceed: true, openAIAPIKey: null, requiresAuth: false };
     }
 
     // First try to extract API key from JWT token if available
-    let apiKey: string | null = null;
+    let openAIAPIKey: string | null = null;
     if (jwtToken) {
       try {
         const payload = AuthService.extractPayloadFromJWT(jwtToken);
         if (payload && payload.openaiApiKey) {
-          apiKey = payload.openaiApiKey;
-          console.log("[AuthService] Extracted API key from JWT token");
+          openAIAPIKey = payload.openaiApiKey;
+          console.log("[AuthService] Extracted OpenAI API key from JWT token");
+        } else {
+          console.log(
+            "[AuthService] No OpenAI API key found in JWT payload:",
+            payload
+          );
         }
       } catch (error) {
         console.warn(
@@ -628,26 +633,32 @@ export class AuthService {
           error
         );
       }
+    } else {
+      console.log("[AuthService] No JWT token provided for authentication");
     }
 
     // Fallback to database if not found in JWT
-    if (!apiKey) {
-      apiKey = await AuthService.loadUserOpenAIKeyWithCache(
+    if (!openAIAPIKey) {
+      openAIAPIKey = await AuthService.loadUserOpenAIKeyWithCache(
         username,
         db,
         cache
       );
     }
 
-    // If no API key and we have user messages, require authentication
-    if (!apiKey && hasUserMessages) {
+    // If no OpenAI API key found, require authentication
+    if (!openAIAPIKey) {
       console.log(
-        "[AuthService] No OpenAI API key found for message processing, requiring authentication"
+        "[AuthService] No OpenAI API key found for user, requiring authentication"
       );
-      return { shouldProceed: false, apiKey: null, requiresAuth: true };
+      return { shouldProceed: false, openAIAPIKey: null, requiresAuth: true };
     }
 
-    return { shouldProceed: true, apiKey, requiresAuth: false };
+    console.log(
+      `[AuthService] Authentication successful. Username: ${username}, User OpenAI API key: present`
+    );
+
+    return { shouldProceed: true, openAIAPIKey, requiresAuth: false };
   }
 }
 

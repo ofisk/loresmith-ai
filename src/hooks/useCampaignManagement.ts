@@ -192,15 +192,27 @@ export function useCampaignManagement({
 
         const result = (await response.response.json()) as {
           message?: string;
+          shards?: {
+            count: number;
+            campaignId: string;
+            resourceId: string;
+            message: string;
+          };
           [key: string]: unknown;
         };
         console.log("File added to campaign successfully:", result);
 
         // Send appropriate notification based on the result
         if (onSendNotification) {
+          // Get campaign ID from the response for context
+          const campaignId = result.shards?.campaignId;
+          const campaignContext = campaignId
+            ? ` (Campaign ID: ${campaignId})`
+            : "";
+
           if (result.message?.includes("already exists")) {
             onSendNotification(
-              `"${uploadedFileInfo.filename}" was already in your campaign. No new shards were generated.`
+              `"${uploadedFileInfo.filename}" was already in your campaign. No new shards were generated.${campaignContext}`
             );
           } else if (
             result.message?.includes("Generated") &&
@@ -210,15 +222,15 @@ export function useCampaignManagement({
             const shardMatch = result.message.match(/Generated (\d+) shards/);
             const shardCount = shardMatch ? shardMatch[1] : "some";
             onSendNotification(
-              `"${uploadedFileInfo.filename}" has been added to my campaign and ${shardCount} shards were generated. Please show me these shards so I can review and approve them.`
+              `"${uploadedFileInfo.filename}" has been added to my campaign and ${shardCount} shards were generated. Please show me these shards so I can review and approve them.${campaignContext}`
             );
           } else if (result.message?.includes("No shards were generated")) {
             onSendNotification(
-              `"${uploadedFileInfo.filename}" has been added to my campaign. No shards were generated from this resource.`
+              `"${uploadedFileInfo.filename}" has been added to my campaign. No shards were generated from this resource.${campaignContext}`
             );
           } else {
             onSendNotification(
-              `"${uploadedFileInfo.filename}" has been added to my campaign. The document is now being processed to extract game-ready content.`
+              `"${uploadedFileInfo.filename}" has been added to my campaign. The document is now being processed to extract game-ready content.${campaignContext}`
             );
           }
         }

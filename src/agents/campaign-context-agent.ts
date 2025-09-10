@@ -46,6 +46,8 @@ const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
     "Integrate module content with existing campaign context to create comprehensive campaign understanding",
     "Provide actionable recommendations based on campaign assessment scores",
     "Focus on high-impact areas when providing campaign improvement suggestions",
+    "When users mention files, guide them to add files to campaigns from their library to extract shards and enhance planning capabilities",
+    "Never ask for technical details like campaign IDs - guide users through the natural workflow instead",
   ],
 });
 
