@@ -16,7 +16,7 @@ const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
     "Context Storage: Store and retrieve campaign context like world descriptions, session notes, and plot hooks",
     "AI Character Generation: Create detailed characters with AI-generated backstories, personalities, and relationships",
     "Context Search: Help users find relevant campaign context and character information",
-    "Campaign Assessment: Analyze campaign health and provide scoring across narrative, character, plot hooks, and session readiness",
+    "Campaign Assessment: Analyze campaign readiness and provide scoring across narrative, character, plot hooks, and session readiness",
     "File Analysis: Extract campaign information from uploaded module files and integrate into campaign context",
     "Module Integration: Parse published modules and extract key story elements, NPCs, locations, and plot hooks",
   ],
@@ -26,7 +26,7 @@ const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
     "Context Storage: Help users store important campaign information like backstories, world details, and session notes",
     "Information Retrieval: Help users find relevant context and character information when needed",
     "AI Enhancement: Use AI to generate rich character details, backstories, and personality traits",
-    "Campaign Analysis: When users ask about campaign health or need guidance, use assessment tools to provide detailed analysis",
+    "Campaign Analysis: When users ask about campaign readiness or need guidance, use assessment tools to provide detailed analysis",
     "File Processing: When users upload module files, extract key story elements and integrate them into campaign context",
     "Module Integration: Parse module structure, extract NPCs, locations, plot hooks, and story beats for campaign context",
   ],
@@ -57,7 +57,7 @@ const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
  * - Campaign context storage and retrieval
  * - World building and session note management
  * - Intelligent context analysis and suggestions
- * - Campaign health assessment and scoring
+ * - Campaign readiness assessment and scoring
  * - File module analysis and integration
  *
  * The agent uses AI to generate rich character backstories, personalities, and
@@ -85,7 +85,7 @@ const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
  * // - "Store this world description"
  * // - "Find information about the Black Dragon"
  * // - "Generate a backstory for my character"
- * // - "Analyze my campaign's health"
+ * // - "Analyze my campaign's readiness"
  * // - "Extract information from this uploaded module file"
  * ```
  */

@@ -625,7 +625,7 @@ app.get(
   handleGetUserState
 );
 app.get(
-  API_CONFIG.ENDPOINTS.ASSESSMENT.CAMPAIGN_HEALTH(":campaignId"),
+  API_CONFIG.ENDPOINTS.ASSESSMENT.CAMPAIGN_READINESS(":campaignId"),
   requireUserJwt,
   handleGetAssessmentRecommendations
 );

@@ -34,7 +34,7 @@ export async function handleGetAssessmentRecommendations(c: ContextWithAuth) {
     }
 
     const assessmentService = getAssessmentService(c.env);
-    const recommendations = await assessmentService.getCampaignHealth(
+    const recommendations = await assessmentService.getCampaignReadiness(
       currentModule,
       userState,
       []

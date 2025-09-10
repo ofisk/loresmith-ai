@@ -2,7 +2,7 @@ import { getAssessmentService } from "../../lib/service-factory";
 import type { Env } from "../../middleware/auth";
 import type { Campaign, CampaignResource } from "../../types/campaign";
 import {
-  analyzeCampaignHealth,
+  analyzeCampaignReadiness,
   type CampaignAssessment,
   extractModuleInformation,
   type ModuleAnalysis,
@@ -10,9 +10,9 @@ import {
 } from "./assessment-core";
 
 /**
- * Tool: Analyze campaign health and provide detailed assessment
+ * Tool: Analyze campaign readiness and provide detailed assessment
  */
-export async function assessCampaignHealthTool(
+export async function assessCampaignReadinessTool(
   campaignId: string,
   campaign: Campaign,
   _resources: CampaignResource[],
@@ -42,15 +42,15 @@ export async function assessCampaignHealthTool(
       })
     );
 
-    const assessment = await analyzeCampaignHealth(
+    const assessment = await analyzeCampaignReadiness(
       campaignId,
       campaign,
       campaignResources
     );
     return assessment;
   } catch (error) {
-    console.error("Failed to assess campaign health:", error);
-    throw new Error("Failed to analyze campaign health");
+    console.error("Failed to assess campaign readiness:", error);
+    throw new Error("Failed to analyze campaign readiness");
   }
 }
 
@@ -106,9 +106,9 @@ export async function integrateModuleIntoTool(
 }
 
 /**
- * Tool: Get campaign health score and quick overview
+ * Tool: Get campaign readiness score and quick overview
  */
-export async function getCampaignHealthScoreTool(
+export async function getCampaignReadinessScoreTool(
   campaignId: string,
   campaign: Campaign,
   resources: CampaignResource[],
@@ -116,13 +116,13 @@ export async function getCampaignHealthScoreTool(
 ): Promise<{ overallScore: number; summary: string; priorityAreas: string[] }> {
   try {
     const assessmentService = getAssessmentService(env);
-    const assessment = await assessmentService.getCampaignHealth(
+    const assessment = await assessmentService.getCampaignReadiness(
       campaignId,
       campaign,
       resources
     );
 
-    const summary = generateHealthSummary(assessment);
+    const summary = generateReadinessSummary(assessment);
     const priorityAreas = assessment.priorityAreas;
 
     return {
@@ -131,8 +131,8 @@ export async function getCampaignHealthScoreTool(
       priorityAreas,
     };
   } catch (error) {
-    console.error("Failed to get campaign health score:", error);
-    throw new Error("Failed to analyze campaign health");
+    console.error("Failed to get campaign readiness score:", error);
+    throw new Error("Failed to analyze campaign readiness");
   }
 }
 
@@ -147,7 +147,7 @@ export async function getCampaignRecommendationsTool(
 ): Promise<{ recommendations: Recommendation[]; focusArea: string }> {
   try {
     const assessmentService = getAssessmentService(env);
-    const assessment = await assessmentService.getCampaignHealth(
+    const assessment = await assessmentService.getCampaignReadiness(
       campaignId,
       campaign,
       resources
@@ -210,7 +210,7 @@ export async function getCampaignRecommendationsTool(
 }
 
 /**
- * Tool: Analyze specific dimension of campaign health
+ * Tool: Analyze specific dimension of campaign readiness
  */
 export async function analyzeCampaignDimensionTool(
   campaignId: string,
@@ -226,7 +226,7 @@ export async function analyzeCampaignDimensionTool(
 }> {
   try {
     const assessmentService = getAssessmentService(env);
-    const assessment = await assessmentService.getCampaignHealth(
+    const assessment = await assessmentService.getCampaignReadiness(
       campaignId,
       campaign,
       resources
@@ -258,20 +258,20 @@ export async function analyzeCampaignDimensionTool(
 }
 
 // Helper functions
-function generateHealthSummary(assessment: {
+function generateReadinessSummary(assessment: {
   overallScore: number;
   priorityAreas: string[];
 }): string {
   const { overallScore } = assessment;
 
   if (overallScore >= 80) {
-    return `Your campaign is in excellent health (${overallScore}/100)! All dimensions are well-developed.`;
+    return `Your campaign is legendary and ready for epic adventures (${overallScore}/100)! All dimensions are well-developed.`;
   } else if (overallScore >= 60) {
-    return `Your campaign is in good health (${overallScore}/100) with room for improvement in some areas.`;
+    return `Your campaign is well-prepared for adventure (${overallScore}/100) with room to enhance some areas.`;
   } else if (overallScore >= 40) {
-    return `Your campaign needs attention (${overallScore}/100). Focus on the priority areas for improvement.`;
+    return `Your campaign is getting there (${overallScore}/100). Focus on the priority areas to level up your readiness.`;
   } else {
-    return `Your campaign needs significant work (${overallScore}/100). Consider starting fresh or major restructuring.`;
+    return `Your campaign is just beginning its journey (${overallScore}/100). Every great adventure starts with a single step!`;
   }
 }
 

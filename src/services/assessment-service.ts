@@ -16,7 +16,7 @@ export interface UserState {
 
 export type { ActivityType };
 
-export interface CampaignHealthSummary {
+export interface CampaignReadinessSummary {
   overallScore: number;
   priorityAreas: string[];
   recommendations: string[];
@@ -83,13 +83,13 @@ export class AssessmentService {
   }
 
   /**
-   * Get campaign health summary for existing campaigns
+   * Get campaign readiness summary for existing campaigns
    */
-  async getCampaignHealth(
+  async getCampaignReadiness(
     campaignId: string,
     _campaign: Campaign,
     resources: CampaignResource[]
-  ): Promise<CampaignHealthSummary> {
+  ): Promise<CampaignReadinessSummary> {
     try {
       // Get campaign data
       const contextData =
@@ -97,7 +97,7 @@ export class AssessmentService {
       const charactersData =
         await this.assessmentDAO.getCampaignCharacters(campaignId);
 
-      // Calculate health score based on data richness
+      // Calculate readiness score based on data richness
       const contextCount = contextData.length;
       const characterCount = charactersData.length;
       const resourceCount = resources.length;
@@ -159,8 +159,8 @@ export class AssessmentService {
         recommendations,
       };
     } catch (error) {
-      console.error("Failed to get campaign health:", error);
-      throw new Error("Failed to analyze campaign health");
+      console.error("Failed to get campaign readiness:", error);
+      throw new Error("Failed to analyze campaign readiness");
     }
   }
 

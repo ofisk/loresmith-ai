@@ -33,14 +33,14 @@ export interface ActivityType {
  */
 export interface CampaignAwareGuidance {
   userState: UserState;
-  campaignHealth?: CampaignHealthSummary;
+  campaignReadiness?: CampaignReadinessSummary;
   primaryAction: ActionSuggestion;
   secondaryActions: ActionSuggestion[];
   explanation: string;
   externalTools?: ToolRecommendation[];
 }
 
-export interface CampaignHealthSummary {
+export interface CampaignReadinessSummary {
   overallScore: number;
   priorityAreas: string[];
   recommendations: string[];
@@ -125,10 +125,10 @@ export const analyzeUserStateTool = tool({
 });
 
 /**
- * Tool: Get campaign health summary for existing campaigns
+ * Tool: Get campaign readiness summary for existing campaigns
  */
-export const getCampaignHealthTool = tool({
-  description: "Get campaign health summary for existing campaigns",
+export const getCampaignReadinessTool = tool({
+  description: "Get campaign readiness summary for existing campaigns",
   parameters: z.object({
     campaignId: z.string().describe("The campaign ID to analyze"),
     jwt: commonSchemas.jwt,
@@ -147,21 +147,21 @@ export const getCampaignHealthTool = tool({
 
       const assessmentService = getAssessmentService(env);
       // Note: This would need campaign and resources data, simplified for now
-      const campaignHealth = await assessmentService.getCampaignHealth(
+      const campaignReadiness = await assessmentService.getCampaignReadiness(
         campaignId,
         {} as Campaign,
         [] as CampaignResource[]
       );
 
       return createToolSuccess(
-        `Campaign health analyzed successfully for campaign ${campaignId}`,
-        campaignHealth,
+        `Campaign readiness analyzed successfully for campaign ${campaignId}`,
+        campaignReadiness,
         context?.toolCallId || "unknown"
       );
     } catch (error) {
-      console.error("Failed to get campaign health:", error);
+      console.error("Failed to get campaign readiness:", error);
       return createToolError(
-        "Failed to analyze campaign health",
+        "Failed to analyze campaign readiness",
         error instanceof Error ? error.message : "Unknown error",
         500,
         context?.toolCallId || "unknown"

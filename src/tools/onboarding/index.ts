@@ -10,7 +10,7 @@ import {
 } from "./guidance-tools";
 import {
   analyzeUserStateTool,
-  getCampaignHealthTool,
+  getCampaignReadinessTool,
   getUserActivityTool,
 } from "./state-analysis-tools";
 
@@ -22,7 +22,7 @@ export * from "./state-analysis-tools";
 export const onboardingTools = {
   // State analysis tools
   analyzeUserState: analyzeUserStateTool,
-  getCampaignHealth: getCampaignHealthTool,
+  getCampaignReadiness: getCampaignReadinessTool,
   getUserActivity: getUserActivityTool,
 
   // Guidance tools

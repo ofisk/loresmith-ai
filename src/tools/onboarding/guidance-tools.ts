@@ -197,7 +197,7 @@ export const suggestNextActionsTool = tool({
  * Tool: Provide campaign-specific guidance
  */
 export const provideCampaignGuidanceTool = tool({
-  description: "Provide campaign-specific guidance based on campaign health",
+  description: "Provide campaign-specific guidance based on campaign readiness",
   parameters: z.object({
     campaignId: z.string().describe("The campaign ID to provide guidance for"),
     jwt: commonSchemas.jwt,
@@ -218,7 +218,7 @@ export const provideCampaignGuidanceTool = tool({
       }
 
       const assessmentService = getAssessmentService(env);
-      const campaignHealth = await assessmentService.getCampaignHealth(
+      const campaignReadiness = await assessmentService.getCampaignReadiness(
         campaignId,
         {} as any,
         []
@@ -227,11 +227,11 @@ export const provideCampaignGuidanceTool = tool({
       return createToolSuccess(
         `Campaign guidance provided successfully for campaign ${campaignId}`,
         {
-          campaignHealth,
+          campaignReadiness,
           primaryAction: {
-            title: "Improve Campaign Health",
+            title: "Improve Campaign Readiness",
             description:
-              "Focus on the priority areas identified in your campaign health assessment",
+              "Focus on the priority areas identified in your campaign readiness assessment",
             action: "improve_campaign",
             priority: "high",
             estimatedTime: "20 minutes",
@@ -253,7 +253,7 @@ export const provideCampaignGuidanceTool = tool({
               estimatedTime: "15 minutes",
             },
           ],
-          explanation: `Your campaign health assessment shows areas for improvement. Focus on the priority areas to enhance your campaign experience.`,
+          explanation: `Your campaign readiness assessment shows areas for improvement. Focus on the priority areas to enhance your campaign experience.`,
         },
         context?.toolCallId || "unknown"
       );

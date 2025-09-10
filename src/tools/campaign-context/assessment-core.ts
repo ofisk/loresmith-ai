@@ -133,9 +133,9 @@ export interface ConflictInfo {
 }
 
 /**
- * Analyzes campaign health across multiple dimensions
+ * Analyzes campaign readiness across multiple dimensions
  */
-export async function analyzeCampaignHealth(
+export async function analyzeCampaignReadiness(
   campaignId: string,
   campaign: Campaign,
   resources: CampaignResource[]
