@@ -8,6 +8,8 @@ import {
   searchApprovedShardsTool,
   getShardStatsTool,
   debugAllShardsTool,
+  getAllCampaignsTool,
+  extractCampaignNameFromMessageTool,
 } from "./shard-discovery-tools";
 import {
   approveShardsTool,
@@ -25,6 +27,8 @@ export {
   searchApprovedShardsTool,
   getShardStatsTool,
   debugAllShardsTool,
+  getAllCampaignsTool,
+  extractCampaignNameFromMessageTool,
   approveShardsTool,
   rejectShardsTool,
   createShardsTool,
@@ -39,6 +43,8 @@ export const shardTools = {
   searchApprovedShardsTool,
   getShardStatsTool,
   debugAllShardsTool,
+  getAllCampaignsTool,
+  extractCampaignNameFromMessageTool,
   approveShardsTool,
   rejectShardsTool,
   createShardsTool,

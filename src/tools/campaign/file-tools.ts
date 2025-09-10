@@ -37,18 +37,18 @@ export const searchFileLibrary = tool({
     try {
       console.log("[searchFileLibrary] Using JWT:", jwt);
 
-      const searchPayload = {
-        query: context ? `${query} ${context}` : query,
-        limit,
-      };
+      const searchQuery = context ? `${query} ${context}` : query;
+      const searchUrl = new URL(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.SEARCH)
+      );
+      searchUrl.searchParams.set("q", searchQuery);
+      searchUrl.searchParams.set("limit", limit.toString());
 
-      const response = await fetch(API_CONFIG.ENDPOINTS.RAG.SEARCH, {
-        method: "POST",
+      const response = await fetch(searchUrl.toString(), {
+        method: "GET",
         headers: {
-          "Content-Type": "application/json",
           ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
         },
-        body: JSON.stringify(searchPayload),
       });
 
       console.log("[searchFileLibrary] Response status:", response.status);
@@ -64,17 +64,22 @@ export const searchFileLibrary = tool({
       }
 
       const result = (await response.json()) as {
+        success: boolean;
         results: Array<{
-          chunk: {
-            id: string;
-            file_key: string;
-            chunk_text: string;
-            chunk_index: number;
-            metadata?: Record<string, any>;
-          };
-          score: number;
-          metadata?: Record<string, any>;
+          file_key: string;
+          file_name: string;
+          description?: string;
+          tags?: string[];
+          file_size: number;
+          created_at: string;
+          status: string;
         }>;
+        query: string;
+        pagination: {
+          limit: number;
+          offset: number;
+          total: number;
+        };
       };
 
       if (!result.results || result.results.length === 0) {
@@ -85,40 +90,23 @@ export const searchFileLibrary = tool({
         );
       }
 
-      // Group results by PDF file and format for better presentation
-      const groupedResults = result.results.reduce(
-        (acc, item) => {
-          const fileName =
-            item.chunk.file_key.split("/").pop() || "Unknown PDF";
-          if (!acc[fileName]) {
-            acc[fileName] = {
-              fileName,
-              fileKey: item.chunk.file_key,
-              chunks: [],
-              relevanceScore: 0,
-            };
-          }
-          acc[fileName].chunks.push({
-            text: item.chunk.chunk_text,
-            score: item.score,
-            index: item.chunk.chunk_index,
-          });
-          acc[fileName].relevanceScore += item.score;
-          return acc;
-        },
-        {} as Record<string, any>
-      );
-
-      const sortedResults = Object.values(groupedResults)
-        .sort((a: any, b: any) => b.relevanceScore - a.relevanceScore)
-        .slice(0, limit);
+      // Format results for better presentation
+      const formattedResults = result.results.map((file) => ({
+        fileName: file.file_name,
+        fileKey: file.file_key,
+        description: file.description || "No description available",
+        tags: file.tags || [],
+        fileSize: file.file_size,
+        status: file.status,
+        createdAt: file.created_at,
+      }));
 
       return createToolSuccess(
-        `Found ${sortedResults.length} relevant resources in your file library: ${sortedResults.map((r: any) => r.fileName).join(", ")}`,
+        `Found ${formattedResults.length} relevant resources in your file library: ${formattedResults.map((r) => r.fileName).join(", ")}`,
         {
-          results: sortedResults,
+          results: formattedResults,
           empty: false,
-          count: sortedResults.length,
+          count: formattedResults.length,
           query,
         },
         toolCallId
@@ -153,7 +141,7 @@ export const getFileLibraryStats = tool({
       console.log("[getFileLibraryStats] Using JWT:", jwt);
 
       const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.RAG.FILES),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.FILES),
         {
           method: "GET",
           headers: {
@@ -175,7 +163,8 @@ export const getFileLibraryStats = tool({
       }
 
       const result = (await response.json()) as {
-        pdfs: Array<{
+        success: boolean;
+        files: Array<{
           file_key: string;
           file_name: string;
           description?: string;
@@ -184,32 +173,37 @@ export const getFileLibraryStats = tool({
           created_at: string;
           status: string;
         }>;
+        pagination: {
+          limit: number;
+          offset: number;
+          total: number;
+        };
       };
 
-      if (!result.pdfs || result.pdfs.length === 0) {
+      if (!result.files || result.files.length === 0) {
         return createToolSuccess(
           "Your file library is empty. Consider uploading some D&D resources to get started with campaign planning!",
-          { pdfs: [], empty: true },
+          { files: [], empty: true },
           toolCallId
         );
       }
 
       // Analyze the library for campaign planning insights
-      const totalFiles = result.pdfs.length;
-      const totalSize = result.pdfs.reduce(
-        (sum, pdf) => sum + pdf.file_size,
+      const totalFiles = result.files.length;
+      const totalSize = result.files.reduce(
+        (sum, file) => sum + (file.file_size || 0),
         0
       );
-      const processedFiles = result.pdfs.filter(
-        (pdf) => pdf.status === "processed"
+      const processedFiles = result.files.filter(
+        (file) => file.status === "completed" || file.status === "processed"
       ).length;
 
-      // Categorize PDFs by tags and descriptions
-      const categories = result.pdfs.reduce(
-        (acc, pdf) => {
-          const tags = pdf.tags || [];
-          const description = pdf.description || "";
-          const fileName = pdf.file_name.toLowerCase();
+      // Categorize files by tags and descriptions
+      const categories = result.files.reduce(
+        (acc, file) => {
+          const tags = file.tags || [];
+          const description = file.description || "";
+          const fileName = file.file_name.toLowerCase();
 
           // Simple categorization logic
           if (
@@ -252,7 +246,7 @@ export const getFileLibraryStats = tool({
           .map(([cat, count]) => `${cat} (${count})`)
           .join(", ")}`,
         {
-          pdfs: result.pdfs,
+          files: result.files,
           empty: false,
           stats: {
             totalFiles,

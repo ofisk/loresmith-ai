@@ -400,6 +400,11 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
           );
 
           // Call AutoRAG AI Search with the detailed prompt
+          console.log(`[Server] Calling AutoRAG AI Search with filters:`, {
+            filename: resource.file_name,
+            prompt: structuredExtractionPrompt.substring(0, 200) + "...",
+          });
+
           const aiSearchResult = await libraryAutoRAG.aiSearch(
             structuredExtractionPrompt,
             {
@@ -417,6 +422,13 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
               },
             }
           );
+
+          console.log(`[Server] AutoRAG AI Search completed with result:`, {
+            hasResponse: !!aiSearchResult.response,
+            hasData: !!aiSearchResult.data,
+            dataLength: aiSearchResult.data?.length || 0,
+            resultKeys: Object.keys(aiSearchResult),
+          });
 
           console.log(
             `[Server] AutoRAG AI Search completed for ${resource.id}`

@@ -387,6 +387,10 @@ export function ResourceList(_props: ResourceListProps) {
             // Show a notification to the user about new shards
             console.log("[ResourceList] New shards available:", shards);
 
+            // Find the campaign name from the campaigns array
+            const campaign = campaigns.find((c) => c.campaignId === campaignId);
+            const campaignName = campaign?.name || "Unknown Campaign";
+
             // Dispatch event for chat integration
             window.dispatchEvent(
               new CustomEvent("shards-generated", {
@@ -399,9 +403,9 @@ export function ResourceList(_props: ResourceListProps) {
               })
             );
 
-            // Show user-friendly message about new shards
+            // Show user-friendly message about new shards with campaign name
             setNotificationMessage(
-              `🎉 ${shards.length} new shards generated from "${fileName}"! Check your campaign to review them.`
+              `🎉 ${shards.length} new shards generated from "${fileName}"! Check your campaign to review them. Campaign: ${campaignName}`
             );
           }
         }

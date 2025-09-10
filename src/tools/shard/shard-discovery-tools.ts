@@ -36,6 +36,13 @@ export const discoverShardsTool = tool({
     context?: any
   ) => {
     try {
+      console.log(
+        `[discoverShardsTool] DEBUG: Called with campaignId: "${campaignId}"`
+      );
+      console.log(
+        `[discoverShardsTool] DEBUG: Status: ${status}, ResourceId: ${resourceId}, ShardType: ${shardType}, Limit: ${limit}`
+      );
+
       const env = context?.env as Env;
       if (!env) {
         throw new Error("Environment not available");
@@ -50,6 +57,8 @@ export const discoverShardsTool = tool({
         limit,
       });
 
+      console.log(`[discoverShardsTool] DEBUG: Result:`, result);
+
       return {
         success: true,
         data: {
@@ -59,6 +68,7 @@ export const discoverShardsTool = tool({
         },
       };
     } catch (error) {
+      console.error(`[discoverShardsTool] DEBUG: Error:`, error);
       return {
         success: false,
         error:
@@ -134,6 +144,125 @@ export const getShardStatsTool = tool({
         data: stats,
       };
     } catch (error) {
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  },
+});
+
+/**
+ * Tool: Get all campaigns for the user
+ * Returns all campaigns to help identify the correct campaign name
+ */
+export const getAllCampaignsTool = tool({
+  description:
+    "Get all campaigns for the user to help identify the correct campaign name when shards are not found",
+  parameters: z.object({}),
+  execute: async (_, context?: any) => {
+    try {
+      const env = context?.env as Env;
+      if (!env) {
+        throw new Error("Environment not available");
+      }
+
+      // Get all campaigns directly from database
+      const campaigns = await env.DB.prepare(
+        "SELECT id, name, username FROM campaigns ORDER BY created_at DESC"
+      ).all();
+
+      return {
+        success: true,
+        data: {
+          campaigns: campaigns.results || [],
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  },
+});
+
+/**
+ * Tool: Extract campaign name from message
+ * Looks for campaign name in user messages and resolves it to campaign ID
+ */
+export const extractCampaignNameFromMessageTool = tool({
+  description:
+    "Extract campaign name from user messages (format: Campaign: name) and resolve to campaign ID",
+  parameters: z.object({
+    message: z
+      .string()
+      .describe("The user message to extract campaign name from"),
+  }),
+  execute: async ({ message }, context?: any) => {
+    try {
+      console.log(
+        "[extractCampaignNameFromMessageTool] Extracting from message:",
+        message
+      );
+
+      // Look for "Campaign: " followed by a campaign name
+      const campaignNameMatch = message.match(/Campaign:\s*([^.!?]+)/i);
+      const campaignName = campaignNameMatch
+        ? campaignNameMatch[1].trim()
+        : null;
+
+      console.log(
+        "[extractCampaignNameFromMessageTool] Extracted campaign name:",
+        campaignName
+      );
+
+      if (!campaignName) {
+        return {
+          success: true,
+          data: {
+            campaignName: null,
+            campaignId: null,
+            found: false,
+          },
+        };
+      }
+
+      // Resolve campaign name to campaign ID
+      const env = context?.env as Env;
+      if (!env) {
+        throw new Error("Environment not available");
+      }
+
+      // Get all campaigns to find the matching one
+      const campaigns = await env.DB.prepare(
+        "SELECT id, name FROM campaigns WHERE name = ?"
+      )
+        .bind(campaignName)
+        .all();
+
+      const campaign = campaigns.results?.[0] as
+        | { id: string; name: string }
+        | undefined;
+      const campaignId = campaign?.id || null;
+
+      console.log(
+        "[extractCampaignNameFromMessageTool] Resolved campaign ID:",
+        campaignId
+      );
+
+      return {
+        success: true,
+        data: {
+          campaignName,
+          campaignId,
+          found: !!campaignId,
+        },
+      };
+    } catch (error) {
+      console.error("[extractCampaignNameFromMessageTool] Error:", error);
       return {
         success: false,
         error:

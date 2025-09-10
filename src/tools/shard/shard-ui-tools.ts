@@ -26,6 +26,13 @@ export const renderShardManagementUITool = tool({
     context?: any
   ) => {
     try {
+      console.log(
+        `[renderShardManagementUITool] DEBUG: Called with campaignId: "${campaignId}", action: "${action}"`
+      );
+      console.log(
+        `[renderShardManagementUITool] DEBUG: ResourceId: ${resourceId}, ShardType: ${shardType}`
+      );
+
       const env = context?.env as Env;
       if (!env) {
         throw new Error("Environment not available");
@@ -39,11 +46,20 @@ export const renderShardManagementUITool = tool({
       else if (action === "show_rejected") status = "rejected";
       else if (action === "show_all") status = "all";
 
+      console.log(
+        `[renderShardManagementUITool] DEBUG: Discovering shards with status: "${status}"`
+      );
+
       const result = await shardAgent.discoverShards(campaignId, {
         status,
         resourceId,
         shardType,
       });
+
+      console.log(
+        `[renderShardManagementUITool] DEBUG: Discovered ${result.total} shards:`,
+        result
+      );
 
       // Return a special response that the UI will recognize as a component render request
       return {
@@ -64,6 +80,7 @@ export const renderShardManagementUITool = tool({
         },
       };
     } catch (error) {
+      console.error(`[renderShardManagementUITool] DEBUG: Error:`, error);
       return {
         success: false,
         error:
