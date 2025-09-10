@@ -160,6 +160,70 @@ export async function handleGetCampaignResources(c: ContextWithAuth) {
   }
 }
 
+// Update specific campaign
+export async function handleUpdateCampaign(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    const campaignId = c.req.param("campaignId");
+    const body = (await c.req.json()) as {
+      name?: string;
+      description?: string;
+    };
+
+    console.log(`[Server] PUT /campaigns/${campaignId} - starting request`);
+    console.log("[Server] User auth from middleware:", userAuth);
+    console.log("[Server] Update data:", body);
+
+    // First, check if the campaign exists and belongs to the user
+    const campaign = await c.env.DB.prepare(
+      "select id, name, username from campaigns where id = ? and username = ?"
+    )
+      .bind(campaignId, userAuth.username)
+      .first<{ id: string; name: string; username: string }>();
+
+    if (!campaign) {
+      console.log(
+        `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
+      );
+      return c.json({ error: "Campaign not found" }, 404);
+    }
+
+    console.log("[Server] Found campaign:", campaign);
+
+    // Update the campaign
+    const now = new Date().toISOString();
+    await c.env.DB.prepare(
+      "update campaigns set name = ?, description = ?, updated_at = ? where id = ? and username = ?"
+    )
+      .bind(
+        body.name || campaign.name,
+        body.description || "",
+        now,
+        campaignId,
+        userAuth.username
+      )
+      .run();
+
+    console.log(`[Server] Updated campaign ${campaignId}`);
+
+    // Fetch the updated campaign
+    const updatedCampaign = await c.env.DB.prepare(
+      "select * from campaigns where id = ? and username = ?"
+    )
+      .bind(campaignId, userAuth.username)
+      .first();
+
+    return c.json({
+      success: true,
+      message: "Campaign updated successfully",
+      campaign: updatedCampaign,
+    });
+  } catch (error) {
+    console.error("Error updating campaign:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+}
+
 // Delete specific campaign
 export async function handleDeleteCampaign(c: ContextWithAuth) {
   try {

@@ -262,7 +262,7 @@ export const deleteCampaign = tool({
     try {
       console.log("[deleteCampaign] Making API request");
       const response = await authenticatedFetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.DETAILS(campaignId)),
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.DELETE(campaignId)),
         {
           method: "DELETE",
           jwt,

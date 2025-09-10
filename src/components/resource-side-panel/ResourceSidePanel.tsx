@@ -9,6 +9,8 @@ import { ResourceUpload } from "../upload/ResourceUpload";
 import { CampaignsSection } from "./CampaignsSection";
 import { LibrarySection } from "./LibrarySection";
 import { CreateCampaignModal } from "./CreateCampaignModal";
+import { CampaignDetailsModal } from "./CampaignDetailsModal";
+import type { Campaign } from "../../types/campaign";
 
 interface ResourceSidePanelProps {
   className?: string;
@@ -36,6 +38,11 @@ export function ResourceSidePanel({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCreateCampaignModalOpen, setIsCreateCampaignModalOpen] =
     useState(false);
+  const [isCampaignDetailsModalOpen, setIsCampaignDetailsModalOpen] =
+    useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(
+    null
+  );
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
 
   // Custom hooks for business logic
@@ -55,6 +62,8 @@ export function ResourceSidePanel({
     fetchCampaigns,
     handleCreateCampaign,
     handleCreateCampaignForFile,
+    handleDeleteCampaign,
+    handleUpdateCampaign,
   } = useCampaignManagement({
     isAuthenticated,
     onSendNotification,
@@ -101,6 +110,16 @@ export function ResourceSidePanel({
     setIsCreateCampaignModalOpen(false);
   };
 
+  const handleCampaignClick = (campaign: Campaign) => {
+    setSelectedCampaign(campaign);
+    setIsCampaignDetailsModalOpen(true);
+  };
+
+  const handleCampaignDetailsClose = () => {
+    setIsCampaignDetailsModalOpen(false);
+    setSelectedCampaign(null);
+  };
+
   return (
     <div
       className={`w-80 h-full bg-neutral-50 dark:bg-neutral-900 border-r border-neutral-300 dark:border-neutral-800 flex flex-col ${className}`}
@@ -125,6 +144,7 @@ export function ResourceSidePanel({
           onToggle={() => setIsCampaignsOpen(!isCampaignsOpen)}
           isOpen={isCampaignsOpen}
           onCreateCampaign={() => setIsCreateCampaignModalOpen(true)}
+          onCampaignClick={handleCampaignClick}
         />
 
         {/* Library Section */}
@@ -219,6 +239,15 @@ export function ResourceSidePanel({
           onCreateCampaign={handleCreateCampaignWrapper}
         />
       </Modal>
+
+      {/* Campaign Details Modal */}
+      <CampaignDetailsModal
+        campaign={selectedCampaign}
+        isOpen={isCampaignDetailsModalOpen}
+        onClose={handleCampaignDetailsClose}
+        onDelete={handleDeleteCampaign}
+        onUpdate={handleUpdateCampaign}
+      />
     </div>
   );
 }

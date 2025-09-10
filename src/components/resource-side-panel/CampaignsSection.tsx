@@ -1,4 +1,10 @@
-import { CaretDown, CaretRight, FileText, Plus } from "@phosphor-icons/react";
+import {
+  CaretDown,
+  CaretRight,
+  FileText,
+  Plus,
+  DotsThreeVertical,
+} from "@phosphor-icons/react";
 import { Card } from "../card/Card";
 import type { Campaign } from "../../types/campaign";
 
@@ -9,6 +15,7 @@ interface CampaignsSectionProps {
   onToggle: () => void;
   isOpen: boolean;
   onCreateCampaign: () => void;
+  onCampaignClick?: (campaign: Campaign) => void;
 }
 
 export function CampaignsSection({
@@ -18,6 +25,7 @@ export function CampaignsSection({
   onToggle,
   isOpen,
   onCreateCampaign,
+  onCampaignClick,
 }: CampaignsSectionProps) {
   return (
     <Card className="p-0">
@@ -66,13 +74,28 @@ export function CampaignsSection({
               {campaigns.map((campaign) => (
                 <div
                   key={campaign.campaignId}
-                  className="p-3 border-b border-neutral-200 dark:border-neutral-700 last:border-b-0 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                  className="p-3 border-b border-neutral-200 dark:border-neutral-700 last:border-b-0 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer group"
+                  onClick={() => onCampaignClick?.(campaign)}
                 >
-                  <div className="font-medium text-gray-900 dark:text-gray-100">
-                    {campaign.name}
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    Created {new Date(campaign.createdAt).toLocaleString()}
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                        {campaign.name}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Created {new Date(campaign.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCampaignClick?.(campaign);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded transition-all"
+                      title="Manage campaign"
+                    >
+                      <DotsThreeVertical size={16} className="text-gray-500" />
+                    </button>
                   </div>
                 </div>
               ))}

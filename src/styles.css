@@ -427,16 +427,16 @@
 
 /* Button destructive styles */
 .btn.btn-destructive {
-  border-color: var(--color-ob-btn-destructive-border);
-  background-color: var(--color-ob-btn-destructive-bg);
-  color: #fff;
+  border: none;
+  background-color: transparent;
+  color: var(--text-color-ob-destructive);
 }
 .btn.btn-destructive:not(:disabled):hover {
-  background-color: var(--color-ob-btn-destructive-bg-hover);
-  border-color: var(--color-ob-btn-destructive-border-hover);
+  background-color: transparent;
+  color: var(--text-color-ob-destructive);
 }
 .btn.btn-destructive.toggle:not(:disabled) {
-  background-color: var(--color-ob-btn-destructive-bg-hover);
+  background-color: var(--color-ob-btn-secondary-bg-hover);
   border-color: var(--color-ob-btn-destructive-border-hover);
 }
 
