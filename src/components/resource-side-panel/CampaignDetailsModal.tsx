@@ -220,21 +220,23 @@ export function CampaignDetailsModal({
           <div className="flex gap-2">
             {isEditing ? (
               <>
-                <Button
+                <button
+                  type="button"
                   onClick={handleSave}
                   disabled={isUpdating || !editedName.trim()}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold text-sm hover:text-purple-700 dark:hover:text-purple-300 transition-colors disabled:opacity-50"
                 >
                   <FloppyDisk size={16} />
                   {isUpdating ? "Saving..." : "Save changes"}
-                </Button>
-                <Button
-                  variant="secondary"
+                </button>
+                <button
+                  type="button"
                   onClick={handleCancel}
                   disabled={isUpdating}
+                  className="flex items-center gap-2 text-gray-600 dark:text-gray-400 font-semibold text-sm hover:text-gray-700 dark:hover:text-gray-300 transition-colors disabled:opacity-50"
                 >
                   Cancel
-                </Button>
+                </button>
               </>
             ) : (
               <button
