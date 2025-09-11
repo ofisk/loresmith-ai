@@ -244,20 +244,27 @@ export class CampaignDAO extends BaseDAOClass {
 
   async addCampaignResource(
     campaignId: string,
-    resourceType: string,
-    resourceId: string,
-    resourceName?: string
-  ): Promise<void> {
+    fileKey: string,
+    fileName: string,
+    description?: string,
+    tags?: string,
+    status?: string
+  ): Promise<string> {
+    const resourceId = crypto.randomUUID();
     const sql = `
-      insert into campaign_resources (campaign_id, resource_type, resource_id, resource_name, created_at, updated_at)
-      values (?, ?, ?, ?, current_timestamp, current_timestamp)
+      insert into campaign_resources (id, campaign_id, file_key, file_name, description, tags, status, created_at, updated_at)
+      values (?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
     `;
     await this.execute(sql, [
-      campaignId,
-      resourceType,
       resourceId,
-      resourceName,
+      campaignId,
+      fileKey,
+      fileName,
+      description || "",
+      tags || "[]",
+      status || "active",
     ]);
+    return resourceId;
   }
 
   async removeCampaignResource(
@@ -267,6 +274,33 @@ export class CampaignDAO extends BaseDAOClass {
     const sql =
       "delete from campaign_resources where campaign_id = ? and resource_id = ?";
     await this.execute(sql, [campaignId, resourceId]);
+  }
+
+  async removeAllCampaigns(
+    username: string
+  ): Promise<{ id: string; name: string }[]> {
+    // First get all campaigns to return
+    const campaigns = await this.queryAll<{ id: string; name: string }>(
+      "select id, name from campaigns where username = ?",
+      [username]
+    );
+
+    if (campaigns.length === 0) {
+      return [];
+    }
+
+    // Delete in transaction
+    await this.transaction([
+      () =>
+        this.execute(
+          "delete from campaign_resources where campaign_id in (select id from campaigns where username = ?)",
+          [username]
+        ),
+      () =>
+        this.execute("delete from campaigns where username = ?", [username]),
+    ]);
+
+    return campaigns;
   }
 
   async getCampaignCount(username: string): Promise<number> {
@@ -319,5 +353,46 @@ export class CampaignDAO extends BaseDAOClass {
   async getAllCampaignNames(): Promise<{ id: string; name: string }[]> {
     const sql = "select id, name from campaigns order by name";
     return await this.queryAll<{ id: string; name: string }>(sql);
+  }
+
+  // Check if campaign exists and belongs to user (for route validation)
+  async getCampaignOwnership(
+    campaignId: string,
+    username: string
+  ): Promise<{ id: string; name: string; username: string } | null> {
+    const sql =
+      "select id, name, username from campaigns where id = ? and username = ?";
+    return await this.queryFirst<{
+      id: string;
+      name: string;
+      username: string;
+    }>(sql, [campaignId, username]);
+  }
+
+  // Get campaign resource by ID and campaign ID
+  async getCampaignResourceById(
+    resourceId: string,
+    campaignId: string
+  ): Promise<{ id: string; file_key: string; file_name: string } | null> {
+    const sql =
+      "select id, file_key, file_name from campaign_resources where id = ? and campaign_id = ?";
+    return await this.queryFirst<{
+      id: string;
+      file_key: string;
+      file_name: string;
+    }>(sql, [resourceId, campaignId]);
+  }
+
+  // Check if resource already exists in campaign
+  async getCampaignResourceByFileKey(
+    campaignId: string,
+    fileKey: string
+  ): Promise<{ id: string; file_name: string } | null> {
+    const sql =
+      "select id, file_name from campaign_resources where campaign_id = ? and file_key = ?";
+    return await this.queryFirst<{ id: string; file_name: string }>(sql, [
+      campaignId,
+      fileKey,
+    ]);
   }
 }
