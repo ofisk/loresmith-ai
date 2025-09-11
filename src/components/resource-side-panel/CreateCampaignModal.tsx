@@ -9,7 +9,7 @@ interface CreateCampaignModalProps {
   onCampaignNameChange: (name: string) => void;
   campaignDescription: string;
   onCampaignDescriptionChange: (description: string) => void;
-  onCreateCampaign: () => void;
+  onCreateCampaign: (name: string, description: string) => void;
 }
 
 export function CreateCampaignModal({
@@ -35,7 +35,7 @@ export function CreateCampaignModal({
   const handleCreate = () => {
     onCampaignNameChange(localName);
     onCampaignDescriptionChange(localDescription);
-    onCreateCampaign();
+    onCreateCampaign(localName, localDescription);
   };
 
   const campaignNameId = "campaign-name";

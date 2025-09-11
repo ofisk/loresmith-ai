@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useId } from "react";
 import { Trash, PencilSimple, FloppyDisk } from "@phosphor-icons/react";
 import { Modal } from "../modal/Modal";
 import { Button } from "../button/Button";
@@ -15,7 +15,7 @@ interface CampaignDetailsModalProps {
     campaignId: string,
     updates: { name: string; description: string }
   ) => Promise<void>;
-  isLoading?: boolean;
+  _isLoading?: boolean;
 }
 
 export function CampaignDetailsModal({
@@ -24,8 +24,10 @@ export function CampaignDetailsModal({
   onClose,
   onDelete,
   onUpdate,
-  isLoading = false,
+  _isLoading = false,
 }: CampaignDetailsModalProps) {
+  const nameId = useId();
+  const descriptionId = useId();
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(campaign?.name || "");
   const [editedDescription, setEditedDescription] = useState(
@@ -152,11 +154,15 @@ export function CampaignDetailsModal({
         <div className="space-y-4">
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label
+              htmlFor={nameId}
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            >
               Campaign name
             </label>
             {isEditing ? (
               <Input
+                id={nameId}
                 value={editedName}
                 onChange={(e) => setEditedName(e.target.value)}
                 placeholder="Enter campaign name"
@@ -173,11 +179,15 @@ export function CampaignDetailsModal({
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label
+              htmlFor={descriptionId}
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            >
               Description
             </label>
             {isEditing ? (
               <Textarea
+                id={descriptionId}
                 value={editedDescription}
                 onChange={(e) => setEditedDescription(e.target.value)}
                 placeholder="Enter campaign description"
@@ -228,6 +238,7 @@ export function CampaignDetailsModal({
               </>
             ) : (
               <button
+                type="button"
                 onClick={() => setIsEditing(true)}
                 className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold text-sm hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
               >
@@ -267,6 +278,7 @@ export function CampaignDetailsModal({
               </div>
             ) : (
               <button
+                type="button"
                 onClick={handleDeleteClick}
                 disabled={isDeleting || isUpdating}
                 className="flex items-center gap-2 text-red-600 dark:text-red-400 font-semibold text-sm hover:text-red-700 dark:hover:text-red-300 transition-colors disabled:opacity-50"

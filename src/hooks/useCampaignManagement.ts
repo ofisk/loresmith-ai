@@ -86,66 +86,74 @@ export function useCampaignManagement({
     }
   }, [isAuthenticated]);
 
-  const handleCreateCampaign = useCallback(async () => {
-    if (!isValidString(campaignName)) return;
+  const handleCreateCampaign = useCallback(
+    async (name?: string, description?: string) => {
+      const campaignNameToUse = name || campaignName;
+      const campaignDescriptionToUse = description || campaignDescription;
 
-    try {
-      const jwt = getStoredJwt();
-      if (!isValidJwt(jwt)) {
-        console.error("No JWT token available");
+      if (!isValidString(campaignNameToUse)) {
         return;
       }
 
-      console.log("Creating campaign:", {
-        name: campaignName,
-        description: campaignDescription,
-      });
-
-      const response = await authenticatedFetchWithExpiration(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.CREATE),
-        {
-          method: "POST",
-          jwt,
-          body: JSON.stringify({
-            name: campaignName,
-            description: campaignDescription,
-          }),
-          headers: {
-            "Content-Type": "application/json",
-          },
+      try {
+        const jwt = getStoredJwt();
+        if (!isValidJwt(jwt)) {
+          console.error("No JWT token available");
+          return;
         }
-      );
 
-      if (!response.response.ok) {
-        throw new Error(
-          `Failed to create campaign: ${response.response.status}`
+        console.log("Creating campaign:", {
+          name: campaignNameToUse,
+          description: campaignDescriptionToUse,
+        });
+
+        const response = await authenticatedFetchWithExpiration(
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.CREATE),
+          {
+            method: "POST",
+            jwt,
+            body: JSON.stringify({
+              name: campaignNameToUse,
+              description: campaignDescriptionToUse,
+            }),
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
         );
+
+        if (!response.response.ok) {
+          throw new Error(
+            `Failed to create campaign: ${response.response.status}`
+          );
+        }
+
+        const data = (await response.response.json()) as { campaign: Campaign };
+        console.log("Campaign created successfully:", data);
+
+        // Emit campaign created event
+        send({
+          type: EVENT_TYPES.CAMPAIGN.CREATED,
+          campaignId: data.campaign.campaignId,
+          campaignName: campaignNameToUse,
+          source: "useCampaignManagement",
+        } as CampaignEvent);
+
+        // Reset form
+        setCampaignName("");
+        setCampaignDescription("");
+
+        // Refresh campaigns list
+        await fetchCampaigns();
+
+        // Show success feedback
+        console.log("Campaign created successfully!");
+      } catch (error) {
+        console.error("Failed to create campaign:", error);
       }
-
-      const data = (await response.response.json()) as { campaign: Campaign };
-      console.log("Campaign created successfully:", data);
-
-      // Emit campaign created event
-      send({
-        type: EVENT_TYPES.CAMPAIGN.CREATED,
-        campaignId: data.campaign.campaignId,
-        campaignName: campaignName,
-        source: "useCampaignManagement",
-      } as CampaignEvent);
-
-      // Reset form
-      setCampaignName("");
-      setCampaignDescription("");
-
-      // Refresh campaigns list
-      await fetchCampaigns();
-
-      // Show success feedback
-      console.log("Campaign created successfully!");
-    } catch (error) {
-      console.error("Failed to create campaign:", error);
-    }
-  }, [campaignName, campaignDescription, send, fetchCampaigns]);
+    },
+    [campaignName, campaignDescription, send, fetchCampaigns]
+  );
 
   const handleAddFileToCampaign = useCallback(
     async (

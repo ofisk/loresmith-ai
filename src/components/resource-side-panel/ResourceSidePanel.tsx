@@ -105,8 +105,11 @@ export function ResourceSidePanel({
     clearUploadedFileInfo();
   };
 
-  const handleCreateCampaignWrapper = async () => {
-    await handleCreateCampaign();
+  const handleCreateCampaignWrapper = async (
+    name: string,
+    description: string
+  ) => {
+    await handleCreateCampaign(name, description);
     setIsCreateCampaignModalOpen(false);
   };
 

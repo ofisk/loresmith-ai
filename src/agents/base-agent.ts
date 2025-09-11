@@ -300,7 +300,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
    */
   protected createEnhancedTools(
     clientJwt: string | null,
-    campaignIdHint: string | null
+    _campaignIdHint: string | null
   ): Record<string, any> {
     // Track tool calls to prevent infinite loops
     const toolCallCounts = new Map<string, number>();
@@ -332,7 +332,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               toolCallCounts.set(callKey, currentCount + 1);
 
               // Ensure JWT is always included for operations that require it
-              let enhancedArgs = { ...args };
+              const enhancedArgs = { ...args };
 
               // Check if the tool requires a JWT parameter and inject it if not provided
               if (
@@ -379,13 +379,12 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 }
 
                 // Wrap plain results
-                const success = !!(
+                const success =
                   toolResult &&
                   typeof toolResult === "object" &&
                   "success" in toolResult
-                )
-                  ? (toolResult as any).success
-                  : true;
+                    ? (toolResult as any).success
+                    : true;
                 const message =
                   toolResult &&
                   typeof toolResult === "object" &&
