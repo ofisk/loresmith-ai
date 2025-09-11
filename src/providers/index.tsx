@@ -8,6 +8,9 @@ import { TooltipProvider } from "@/providers/TooltipProvider";
  * - Modal functionality (ModalProvider)
  * - Tooltip functionality (TooltipProvider)
  *
+ * Note: NotificationProvider is handled inside the App component
+ * where authentication state is available
+ *
  * @param children - React children to wrap with all providers
  */
 export const Providers = ({ children }: { children: React.ReactNode }) => {

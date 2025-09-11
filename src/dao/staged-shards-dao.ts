@@ -1,6 +1,6 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import { SHARD_STATUSES, type ShardStatus } from "../lib/content-types";
-import type { DatabaseShard, CreateShardData } from "../types/shard";
+import type { CreateShardData, DatabaseShard } from "../types/shard";
 
 export type StagedShard = DatabaseShard;
 export type CreateStagedShardData = CreateShardData;

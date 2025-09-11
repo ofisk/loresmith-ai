@@ -47,11 +47,11 @@ import {
   handleCreateCampaign,
   handleDeleteAllCampaigns,
   handleDeleteCampaign,
-  handleUpdateCampaign,
   handleGetCampaign,
   handleGetCampaignResources,
   handleGetCampaigns,
   handleRemoveResourceFromCampaign,
+  handleUpdateCampaign,
 } from "./routes/campaigns";
 import {
   handleGetExternalResourceRecommendations,
@@ -68,6 +68,11 @@ import {
   handleSearchFiles,
   handleUpdateFile,
 } from "./routes/library";
+import {
+  handleMintStreamToken,
+  handleNotificationPublish,
+  handleNotificationStream,
+} from "./routes/notifications";
 import {
   handleGetNextActions,
   handleGetStateAnalysis,
@@ -107,9 +112,10 @@ interface Env extends AuthEnv {
   DB: D1Database;
   VECTORIZE: VectorizeIndex;
   AI: any; // AI binding for AutoRAG
-  Chat: DurableObjectNamespace;
-  UserFileTracker: DurableObjectNamespace;
-  UploadSession: DurableObjectNamespace;
+  CHAT: DurableObjectNamespace;
+  USER_FILE_TRACKER: DurableObjectNamespace;
+  UPLOAD_SESSION: DurableObjectNamespace;
+  NOTIFICATIONS: DurableObjectNamespace;
   ASSETS: Fetcher;
   FILE_PROCESSING_QUEUE: Queue;
   FILE_PROCESSING_DLQ: Queue;
@@ -258,7 +264,7 @@ export class Chat extends AIChatAgent<Env> {
 
     // Extract JWT token from Authorization header and store it for authentication
     const authHeader = request.headers.get("Authorization");
-    if (authHeader && authHeader.startsWith("Bearer ")) {
+    if (authHeader?.startsWith("Bearer ")) {
       const jwtToken = authHeader.slice(7);
       await this.ctx.storage.put(JWT_STORAGE_KEY, jwtToken);
       console.log("[Chat] Stored JWT token from Authorization header");
@@ -428,7 +434,7 @@ export class Chat extends AIChatAgent<Env> {
   }
 }
 
-export { UserFileTracker } from "./durable-objects/UserFileTracker";
+export { NotificationHub, UserFileTracker } from "./durable-objects";
 export { UploadSessionDO };
 
 /**
@@ -700,6 +706,12 @@ app.delete(
   requireUserJwt,
   handleDeleteFile
 );
+
+// Notification Routes
+app.post(API_CONFIG.ENDPOINTS.NOTIFICATIONS.MINT_STREAM, handleMintStreamToken);
+app.get(API_CONFIG.ENDPOINTS.NOTIFICATIONS.STREAM, handleNotificationStream);
+app.post(API_CONFIG.ENDPOINTS.NOTIFICATIONS.PUBLISH, handleNotificationPublish);
+
 app.get(
   API_CONFIG.ENDPOINTS.LIBRARY.FILE_DOWNLOAD(":fileId"),
   requireUserJwt,
@@ -782,6 +794,11 @@ export { queueConsumer as queue };
 app.get("*", async (c) => {
   const url = new URL(c.req.url);
   const path = url.pathname;
+
+  // Skip API routes - let them be handled by specific route handlers above
+  if (path.startsWith("/api/")) {
+    return new Response("Not found", { status: 404 });
+  }
 
   // Serve index.html for the root path
   if (path === "/") {

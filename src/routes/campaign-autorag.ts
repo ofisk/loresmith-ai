@@ -1,6 +1,10 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "../dao/dao-factory";
 import { SHARD_STATUSES } from "../lib/content-types";
+import {
+  notifyShardApproval,
+  notifyShardRejection,
+} from "../lib/notifications";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 
@@ -81,6 +85,21 @@ export async function handleApproveShards(c: ContextWithAuth) {
       `[Server] Approved ${shardIds.length} shards for campaign: ${campaignId}`
     );
 
+    // Send notification about shard approval
+    try {
+      await notifyShardApproval(
+        c.env,
+        userAuth.username,
+        campaign.name,
+        shardIds.length
+      );
+    } catch (error) {
+      console.error(
+        "[Server] Failed to send shard approval notification:",
+        error
+      );
+    }
+
     return c.json({ success: true, approvedCount: shardIds.length });
   } catch (error) {
     console.error("[Server] Error approving shards:", error);
@@ -129,6 +148,22 @@ export async function handleRejectShards(c: ContextWithAuth) {
     console.log(
       `[Server] Rejected ${shardIds.length} shards for campaign: ${campaignId}`
     );
+
+    // Send notification about shard rejection
+    try {
+      await notifyShardRejection(
+        c.env,
+        userAuth.username,
+        campaign.name,
+        shardIds.length,
+        reason
+      );
+    } catch (error) {
+      console.error(
+        "[Server] Failed to send shard rejection notification:",
+        error
+      );
+    }
 
     return c.json({ success: true, rejectedCount: shardIds.length });
   } catch (error) {

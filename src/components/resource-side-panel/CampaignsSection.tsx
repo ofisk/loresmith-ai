@@ -1,12 +1,12 @@
 import {
   CaretDown,
   CaretRight,
+  DotsThreeVertical,
   FileText,
   Plus,
-  DotsThreeVertical,
 } from "@phosphor-icons/react";
-import { Card } from "../card/Card";
 import type { Campaign } from "../../types/campaign";
+import { Card } from "../card/Card";
 
 interface CampaignsSectionProps {
   campaigns: Campaign[];

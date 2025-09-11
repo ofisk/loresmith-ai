@@ -592,7 +592,7 @@ export class AuthService {
    */
   static async handleAgentAuthentication(
     username: string | null,
-    hasUserMessages: boolean,
+    _hasUserMessages: boolean,
     db: D1Database,
     cache: {
       getCachedKey(): string | null;
@@ -618,7 +618,7 @@ export class AuthService {
     if (jwtToken) {
       try {
         const payload = AuthService.extractPayloadFromJWT(jwtToken);
-        if (payload && payload.openaiApiKey) {
+        if (payload?.openaiApiKey) {
           openAIAPIKey = payload.openaiApiKey;
           console.log("[AuthService] Extracted OpenAI API key from JWT token");
         } else {

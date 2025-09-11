@@ -1,10 +1,10 @@
+import type { StreamTextOnFinishCallback, ToolSet } from "ai";
 import { onboardingTools } from "../tools/onboarding";
 import { BaseAgent } from "./base-agent";
 import {
   buildSystemPrompt,
   createToolMappingFromObjects,
 } from "./systemPrompts";
-import type { StreamTextOnFinishCallback, ToolSet } from "ai";
 
 /**
  * System prompt configuration for the Onboarding & Guidance Agent.

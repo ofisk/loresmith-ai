@@ -31,11 +31,7 @@ function getApiUrl(env?: any): string {
   }
 
   // Then try to get from process.env (Node.js environment)
-  if (
-    typeof process !== "undefined" &&
-    process.env?.VITE_API_URL &&
-    process.env.VITE_API_URL !== "undefined"
-  ) {
+  if (process?.env?.VITE_API_URL && process.env.VITE_API_URL !== "undefined") {
     return process.env.VITE_API_URL;
   }
 
@@ -275,6 +271,12 @@ export const API_CONFIG = {
       PENDING: "/file-analysis/pending",
       RECOMMENDATIONS: "/file-analysis/recommendations",
       ANALYZE_ALL: "/file-analysis/analyze-all",
+    },
+    NOTIFICATIONS: {
+      STREAM: "/api/notifications/stream",
+      MINT_STREAM: "/api/notifications/mint-stream",
+      PUBLISH: "/api/notifications/publish",
+      STREAM_SUBSCRIBE: "/api/notifications/stream/subscribe",
     },
   },
 } as const;

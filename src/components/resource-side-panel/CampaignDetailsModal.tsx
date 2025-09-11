@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useId } from "react";
-import { Trash, PencilSimple, FloppyDisk } from "@phosphor-icons/react";
-import { Modal } from "../modal/Modal";
+import { FloppyDisk, PencilSimple, Trash } from "@phosphor-icons/react";
+import { useEffect, useId, useRef, useState } from "react";
+import type { Campaign } from "../../types/campaign";
 import { Button } from "../button/Button";
 import { Input } from "../input/Input";
+import { Modal } from "../modal/Modal";
 import { Textarea } from "../textarea/Textarea";
-import type { Campaign } from "../../types/campaign";
 
 interface CampaignDetailsModalProps {
   campaign: Campaign | null;

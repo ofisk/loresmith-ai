@@ -36,12 +36,12 @@ export class AutoRAGService {
 
         // Check if this is a rate limiting error and we should retry
         if (response.response.status === 429 && retryCount < 3) {
-          const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
+          const delay = 2 ** retryCount * 1000; // Exponential backoff: 1s, 2s, 4s
           console.log(
             `[AutoRAGService] Rate limited, retrying in ${delay}ms (attempt ${retryCount + 1}/3)`
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
-          return this.triggerSync(ragId, retryCount + 1);
+          return AutoRAGService.triggerSync(ragId, retryCount + 1);
         }
 
         throw new Error(

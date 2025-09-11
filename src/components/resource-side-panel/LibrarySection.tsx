@@ -1,7 +1,7 @@
 import { CaretDown, CaretRight, FileText, Plus } from "@phosphor-icons/react";
 import { Card } from "../card/Card";
-import { ResourceList } from "../upload/ResourceList";
 import { StorageTracker } from "../storage-tracker";
+import { ResourceList } from "../upload/ResourceList";
 
 interface LibrarySectionProps {
   isOpen: boolean;

@@ -14,10 +14,8 @@
   "assets": {
     "directory": "dist/client",
   },
-
   "vars": {
     "MAX_INDEX_FILE_BYTES": "4194304",
-
     "AUTORAG_PREFIX": "autorag",
     "STAGING_PREFIX": "staging",
     "READINESS_TIMEOUT_SEC": "600",
@@ -27,9 +25,22 @@
   },
   "durable_objects": {
     "bindings": [
-      { "name": "Chat", "class_name": "Chat" },
-      { "name": "UserFileTracker", "class_name": "UserFileTracker" },
-      { "name": "UploadSession", "class_name": "UploadSessionDO" },
+      {
+        "name": "CHAT",
+        "class_name": "Chat",
+      },
+      {
+        "name": "USER_FILE_TRACKER",
+        "class_name": "UserFileTracker",
+      },
+      {
+        "name": "UPLOAD_SESSION",
+        "class_name": "UploadSessionDO",
+      },
+      {
+        "name": "NOTIFICATIONS",
+        "class_name": "NotificationHub",
+      },
     ],
   },
   "r2_buckets": [
@@ -98,6 +109,10 @@
     {
       "tag": "v6",
       "new_classes": [],
+    },
+    {
+      "tag": "v7",
+      "new_classes": ["NotificationHub"],
     },
   ],
   "observability": {

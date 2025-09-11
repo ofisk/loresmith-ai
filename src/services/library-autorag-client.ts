@@ -1,15 +1,10 @@
 import { AutoRAGClientBase } from "./autorag-client";
-import type { Env } from "../middleware/auth";
 
 /**
  * Library AutoRAG client for searching library content
  * This service provides AutoRAG search functionality for the user's library
  */
 export class LibraryAutoRAGClient extends AutoRAGClientBase {
-  constructor(env: Env, baseUrl: string) {
-    super(env, baseUrl);
-  }
-
   /**
    * Enforce filtering to user's library folder
    * This ensures users can only search their own content

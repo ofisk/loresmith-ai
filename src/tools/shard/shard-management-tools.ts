@@ -1,7 +1,12 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { Env } from "../../middleware/auth";
 import { ShardAgent } from "../../agents/shard-agent";
+import { getDAOFactory } from "../../dao/dao-factory";
+import {
+  notifyShardApproval,
+  notifyShardRejection,
+} from "../../lib/notifications";
+import type { Env } from "../../middleware/auth";
 
 /**
  * Tool: Approve shards
@@ -26,6 +31,30 @@ export const approveShardsTool = tool({
       const shardAgent = new ShardAgent({} as any, env, {} as any);
 
       const result = await shardAgent.approveShards(campaignId, shardIds);
+
+      // Send notification about shard approval
+      if (result.approved > 0) {
+        try {
+          const campaignDAO = getDAOFactory(env).campaignDAO;
+          const campaign = await campaignDAO.getCampaignById(campaignId);
+
+          if (campaign) {
+            // Get username from context or extract from JWT
+            const username = context?.username || "unknown";
+            await notifyShardApproval(
+              env,
+              username,
+              campaign.name,
+              result.approved
+            );
+          }
+        } catch (error) {
+          console.error(
+            "[approveShardsTool] Failed to send approval notification:",
+            error
+          );
+        }
+      }
 
       return {
         success: true,
@@ -73,6 +102,31 @@ export const rejectShardsTool = tool({
         shardIds,
         reason
       );
+
+      // Send notification about shard rejection
+      if (result.rejected > 0) {
+        try {
+          const campaignDAO = getDAOFactory(env).campaignDAO;
+          const campaign = await campaignDAO.getCampaignById(campaignId);
+
+          if (campaign) {
+            // Get username from context or extract from JWT
+            const username = context?.username || "unknown";
+            await notifyShardRejection(
+              env,
+              username,
+              campaign.name,
+              result.rejected,
+              reason
+            );
+          }
+        } catch (error) {
+          console.error(
+            "[rejectShardsTool] Failed to send rejection notification:",
+            error
+          );
+        }
+      }
 
       return {
         success: true,

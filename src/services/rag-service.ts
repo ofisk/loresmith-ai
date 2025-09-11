@@ -571,7 +571,7 @@ SUGGESTIONS: [suggestion1, suggestion2, suggestion3]
   async searchContent(
     _username: string,
     query: string,
-    limit: number = 10
+    _limit: number = 10
   ): Promise<any[]> {
     try {
       console.log(`[LibraryRAGService] Searching content with query: ${query}`);

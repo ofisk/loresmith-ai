@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { getStoredJwt } from "../../services/auth-service";
+import { useAuthReady } from "../../hooks/useAuthReady";
+import {
+  authenticatedFetchWithExpiration,
+  getStoredJwt,
+} from "../../services/auth-service";
 import { API_CONFIG } from "../../shared";
 import { Loader } from "../loader/Loader";
-import { useAuthReady } from "../../hooks/useAuthReady";
 
 interface StorageUsage {
   username: string;
@@ -31,14 +34,17 @@ export function StorageTracker() {
         return;
       }
 
-      const response = await fetch(
+      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
         API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.STORAGE_USAGE),
-        {
-          headers: {
-            Authorization: `Bearer ${jwt}`,
-          },
-        }
+        { jwt }
       );
+
+      if (jwtExpired) {
+        setError(
+          "Session expired. Please refresh the page to re-authenticate."
+        );
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(`Failed to fetch storage usage: ${response.status}`);

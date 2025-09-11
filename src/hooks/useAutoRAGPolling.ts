@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { AutoRAGEvent } from "../lib/event-bus";
+import { EVENT_TYPES, useEvent } from "../lib/event-bus";
 import {
   AuthService,
   authenticatedFetchWithExpiration,
 } from "../services/auth-service";
 import { API_CONFIG } from "../shared";
-import { useEvent, EVENT_TYPES } from "../lib/event-bus";
-import type { AutoRAGEvent } from "../lib/event-bus";
 
 export interface AutoRAGJobStatus {
   id: string;

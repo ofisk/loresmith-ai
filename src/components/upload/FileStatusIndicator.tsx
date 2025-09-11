@@ -1,9 +1,10 @@
 import { CheckCircle, Spinner, XCircle } from "@phosphor-icons/react";
-import { useEffect, useState, useCallback } from "react";
-import { useAutoRAGPolling } from "../../hooks/useAutoRAGPolling";
-import { API_CONFIG } from "../../shared";
+import { useCallback, useEffect, useState } from "react";
 import { JWT_STORAGE_KEY } from "../../constants";
 import { FileDAO } from "../../dao/file-dao";
+import { useAutoRAGPolling } from "../../hooks/useAutoRAGPolling";
+import { authenticatedFetchWithExpiration } from "../../services/auth-service";
+import { API_CONFIG } from "../../shared";
 
 interface FileStatusIndicatorProps {
   className?: string;
@@ -58,19 +59,26 @@ export function FileStatusIndicator({
       }
 
       // Use the new refresh all statuses endpoint from API_CONFIG
-      const response = await fetch(
+      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
         API_CONFIG.ENDPOINTS.AUTORAG.REFRESH_ALL_FILE_STATUSES,
         {
           method: "POST",
+          jwt,
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${jwt}`,
           },
           body: JSON.stringify({
             username: tenant,
           }),
         }
       );
+
+      if (jwtExpired) {
+        console.warn(
+          "[FileStatusIndicator] JWT expired while refreshing file statuses"
+        );
+        return;
+      }
 
       if (response.ok) {
         const result = (await response.json()) as {

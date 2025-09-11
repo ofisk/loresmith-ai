@@ -143,7 +143,7 @@ export class AutoRAGClient {
       `[AutoRAGClient] Making AI Search request to: ${this.aiSearchUrl}`
     );
     console.log(`[AutoRAGClient] AI Search payload:`, {
-      query: prompt.substring(0, 100) + "...",
+      query: `${prompt.substring(0, 100)}...`,
       max_num_results: max_results,
       ranking_options,
       rewrite_query,
