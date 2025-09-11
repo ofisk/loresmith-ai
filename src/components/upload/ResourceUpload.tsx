@@ -232,7 +232,7 @@ export const ResourceUpload = ({
         <button
           type="button"
           className={cn(
-            "border-2 border-dashed border-ob-base-200 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-ob-accent-500 focus:border-ob-accent-500 outline-none",
+            "border-2 border-dashed border-purple-300 dark:border-purple-600 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-purple-400 dark:hover:border-purple-500 focus:border-purple-400 dark:focus:border-purple-500 outline-none bg-purple-50/30 dark:bg-purple-900/10",
             loading && "opacity-50 pointer-events-none"
           )}
           aria-label="Upload resource file"

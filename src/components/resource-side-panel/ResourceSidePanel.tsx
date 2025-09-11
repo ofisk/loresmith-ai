@@ -122,6 +122,21 @@ export function ResourceSidePanel({
     setSelectedCampaign(null);
   };
 
+  const handleUpdateCampaignWrapper = async (
+    campaignId: string,
+    updates: { name: string; description: string }
+  ) => {
+    await handleUpdateCampaign(campaignId, updates);
+    // Update the selected campaign with the new data
+    if (selectedCampaign && selectedCampaign.campaignId === campaignId) {
+      setSelectedCampaign({
+        ...selectedCampaign,
+        name: updates.name,
+        description: updates.description,
+      });
+    }
+  };
+
   return (
     <div
       className={`w-80 h-full bg-neutral-50 dark:bg-neutral-900 border-r border-neutral-300 dark:border-neutral-800 flex flex-col ${className}`}
@@ -243,7 +258,7 @@ export function ResourceSidePanel({
         isOpen={isCampaignDetailsModalOpen}
         onClose={handleCampaignDetailsClose}
         onDelete={handleDeleteCampaign}
-        onUpdate={handleUpdateCampaign}
+        onUpdate={handleUpdateCampaignWrapper}
       />
     </div>
   );

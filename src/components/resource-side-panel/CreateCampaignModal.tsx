@@ -21,21 +21,21 @@ export function CreateCampaignModal({
   onCampaignDescriptionChange,
   onCreateCampaign,
 }: CreateCampaignModalProps) {
-  const [localName, setLocalName] = useState(campaignName);
-  const [localDescription, setLocalDescription] = useState(campaignDescription);
+  const [name, setName] = useState(campaignName);
+  const [description, setDescription] = useState(campaignDescription);
 
   // Sync with parent state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setLocalName(campaignName);
-      setLocalDescription(campaignDescription);
+      setName(campaignName);
+      setDescription(campaignDescription);
     }
   }, [isOpen, campaignName, campaignDescription]);
 
   const handleCreate = () => {
-    onCampaignNameChange(localName);
-    onCampaignDescriptionChange(localDescription);
-    onCreateCampaign(localName, localDescription);
+    onCampaignNameChange(name);
+    onCampaignDescriptionChange(description);
+    onCreateCampaign(name, description);
   };
 
   const campaignNameId = "campaign-name";
@@ -66,8 +66,8 @@ export function CreateCampaignModal({
             id={campaignNameId}
             type="text"
             placeholder="Enter campaign name"
-            value={localName}
-            onChange={(e) => setLocalName(e.target.value)}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             className="w-full"
           />
         </div>
@@ -81,8 +81,8 @@ export function CreateCampaignModal({
           <Textarea
             id={campaignDescriptionId}
             placeholder="Enter campaign description"
-            value={localDescription}
-            onChange={(e) => setLocalDescription(e.target.value)}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             rows={4}
             className="w-full resize-none"
           />
@@ -95,7 +95,7 @@ export function CreateCampaignModal({
           <button
             type="button"
             onClick={handleCreate}
-            disabled={!localName.trim()}
+            disabled={!name.trim()}
             className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold text-sm hover:text-purple-700 dark:hover:text-purple-300 transition-colors disabled:opacity-50"
           >
             Create
