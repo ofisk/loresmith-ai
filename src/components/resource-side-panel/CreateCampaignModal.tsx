@@ -42,16 +42,18 @@ export function CreateCampaignModal({
   const campaignDescriptionId = "campaign-description";
 
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+    <div className="p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
           Create new campaign
         </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Set up a new campaign for your resources
         </p>
       </div>
 
+      {/* Campaign Info */}
       <div className="space-y-4">
         <div>
           <label
@@ -81,28 +83,31 @@ export function CreateCampaignModal({
             placeholder="Enter campaign description"
             value={localDescription}
             onChange={(e) => setLocalDescription(e.target.value)}
-            rows={3}
+            rows={4}
             className="w-full resize-none"
           />
         </div>
       </div>
 
-      <div className="flex gap-3 pt-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex items-center gap-2 text-gray-600 dark:text-gray-400 font-semibold text-sm hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={handleCreate}
-          disabled={!localName.trim()}
-          className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold text-sm hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
-        >
-          Create
-        </button>
+      {/* Actions */}
+      <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={!localName.trim()}
+            className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold text-sm hover:text-purple-700 dark:hover:text-purple-300 transition-colors disabled:opacity-50"
+          >
+            Create
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 font-semibold text-sm hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );
