@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { Button, PrimaryActionButton } from "@/components/button";
+import { Button } from "@/components/button";
 import { FormField } from "@/components/input/FormField";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
 import { MultiSelect } from "@/components/select/MultiSelect";
@@ -216,261 +216,281 @@ export const ResourceUpload = ({
     !currentFile || loading || (uploadSuccess && !hasChanges);
 
   return (
-    <div className={cn("space-y-4", className)}>
-      <div className="mx-auto max-w-md w-full"></div>
-      <div style={{ marginTop: 75 }}>
-        {/* File Upload Area */}
-        <div className="flex justify-center" style={{ marginBottom: 50 }}>
-          <button
-            type="button"
-            className={cn(
-              "border-2 border-dashed border-ob-base-200 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer transition hover:border-ob-accent-500 focus:border-ob-accent-500 outline-none",
-              loading && "opacity-50 pointer-events-none",
-              className
-            )}
-            aria-label="Upload resource file"
-            onClick={() => fileInputRef.current?.click()}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                fileInputRef.current?.click();
-              }
-            }}
-            onKeyUp={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                fileInputRef.current?.click();
-              }
-            }}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragEnter={(e) => e.preventDefault()}
-            onDragLeave={(e) => e.preventDefault()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,.txt,.doc,.docx"
-              onChange={handleFileSelect}
-              className="hidden"
-              multiple
-            />
-            {currentFile ? (
-              <div className="text-center">
-                <div className="text-ob-base-300 text-sm font-medium mb-2">
-                  {currentFile.name}
-                </div>
-                <div className="text-ob-base-200 text-sm">
-                  {(currentFile.size / 1024 / 1024).toFixed(2)} MB
-                </div>
-              </div>
-            ) : (
-              <div className="text-center">
-                <div className="text-ob-base-300 text-sm font-medium mb-2">
-                  Click to select or drag and drop
-                </div>
-                <div className="text-ob-base-200 text-sm">
-                  Supported resource types: PDF and other files (more coming
-                  soon)
-                </div>
-              </div>
-            )}
-          </button>
-        </div>
+    <div className={cn("p-6", className)}>
+      {/* Header */}
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+          Add resource
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Upload files to your resource library
+        </p>
+      </div>
 
-        {/* Form Fields */}
-        <div className="space-y-4">
-          <FormField
-            id={resourceFilenameId}
-            label="Filename"
-            placeholder="Name this mighty tome…"
-            value={filename}
-            onValueChange={(value, _isValid) => setFilename(value)}
-            disabled={loading}
+      {/* File Upload Area */}
+      <div className="flex justify-center mb-4">
+        <button
+          type="button"
+          className={cn(
+            "border-2 border-dashed border-ob-base-200 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-ob-accent-500 focus:border-ob-accent-500 outline-none",
+            loading && "opacity-50 pointer-events-none"
+          )}
+          aria-label="Upload resource file"
+          onClick={() => fileInputRef.current?.click()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              fileInputRef.current?.click();
+            }
+          }}
+          onKeyUp={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              fileInputRef.current?.click();
+            }
+          }}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragEnter={(e) => e.preventDefault()}
+          onDragLeave={(e) => e.preventDefault()}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.txt,.doc,.docx"
+            onChange={handleFileSelect}
+            className="hidden"
+            multiple
           />
-          <FormField
-            id={resourceDescriptionId}
-            label="Description (optional)"
-            placeholder="Describe the perils and promises within..."
-            value={description}
-            onValueChange={(value, _isValid) => setDescription(value)}
-            disabled={loading}
-          />
-          <FormField
-            id={resourceTagsId}
-            label="Tags (optional)"
-            placeholder="Mark this tome with its arcane keywords…"
-            value={tagInput}
-            onValueChange={(value, _isValid) => setTagInput(value)}
-            onKeyPress={handleTagKeyPress}
-            disabled={loading}
-          >
-            {tags.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                {tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="flex items-center bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-medium px-2.5 py-0.5 rounded-full"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTag(tag)}
-                      className="ml-1.5 p-0.5 text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 focus:outline-none rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/30"
-                    >
-                      <svg
-                        className="h-3 w-3"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <title>Remove tag</title>
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </button>
-                  </span>
-                ))}
+          {currentFile ? (
+            <div className="text-center">
+              <div className="text-ob-base-300 text-sm font-medium mb-2">
+                {currentFile.name}
               </div>
-            )}
-            <div className="text-ob-base-200 text-xs">
-              Example: undead, forest, cursed treasure
+              <div className="text-ob-base-200 text-sm">
+                {(currentFile.size / 1024 / 1024).toFixed(2)} MB
+              </div>
             </div>
-          </FormField>
-
-          {/* Campaign Selection Section */}
-          {showCampaignSelection && currentFile && (
-            <div className="space-y-4">
-              <div className="border-t border-ob-base-600 pt-4">
-                <h3 className="text-sm font-medium text-ob-base-200 mb-3">
-                  Add to Campaign
-                </h3>
-
-                {campaigns.length > 0 && (
-                  <div className="space-y-3">
-                    <div>
-                      <div className="block text-sm font-medium text-ob-base-200 mb-2">
-                        Select existing campaigns
-                      </div>
-                      <MultiSelect
-                        options={campaigns.map((campaign) => ({
-                          value: campaign.campaignId,
-                          label: campaign.name,
-                        }))}
-                        selectedValues={selectedCampaigns}
-                        onSelectionChange={
-                          onCampaignSelectionChange || (() => {})
-                        }
-                        placeholder="Choose campaigns..."
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  <div>
-                    <label
-                      htmlFor={campaignNameId}
-                      className="block text-sm font-medium text-ob-base-200 mb-2"
-                    >
-                      Or create a new campaign
-                    </label>
-                    <input
-                      id={campaignNameId}
-                      type="text"
-                      placeholder="Campaign name"
-                      value={campaignName}
-                      onChange={(e) => onCampaignNameChange?.(e.target.value)}
-                      className="w-full px-3 py-2 bg-ob-base-700 border border-ob-base-600 rounded text-ob-base-200 placeholder-ob-base-400 focus:outline-none focus:ring-2 focus:ring-ob-primary-500"
-                    />
-                  </div>
-                  {campaignName.trim() && (
-                    <Button
-                      type="button"
-                      onClick={onCreateCampaign}
-                      variant="secondary"
-                      size="sm"
-                      className="w-full"
-                    >
-                      Create Campaign & Add File
-                    </Button>
-                  )}
-                </div>
+          ) : (
+            <div className="text-center">
+              <div className="text-ob-base-300 text-sm font-medium mb-2">
+                Click to select or drag and drop
+              </div>
+              <div className="text-ob-base-200 text-sm">
+                Supported resource types: PDF and other files (more coming soon)
               </div>
             </div>
           )}
+        </button>
+      </div>
 
-          {/* Upload Button */}
-          <div className="flex justify-center mt-8">
-            {currentFile ? (
-              <PrimaryActionButton
-                onClick={handleUpload}
-                disabled={isUploadDisabled}
-                loading={loading}
-              >
-                {uploadSuccess && !hasChanges ? (
-                  <div className="flex items-center justify-center gap-2">
+      {/* Form Fields */}
+      <div className="space-y-3">
+        <FormField
+          id={resourceFilenameId}
+          label="Filename"
+          placeholder="Name this mighty tome…"
+          value={filename}
+          onValueChange={(value, _isValid) => setFilename(value)}
+          disabled={loading}
+        />
+        <FormField
+          id={resourceDescriptionId}
+          label="Description (optional)"
+          placeholder="Describe the perils and promises within..."
+          value={description}
+          onValueChange={(value, _isValid) => setDescription(value)}
+          disabled={loading}
+        />
+        <FormField
+          id={resourceTagsId}
+          label="Tags (optional)"
+          placeholder="Mark this tome with its arcane keywords…"
+          value={tagInput}
+          onValueChange={(value, _isValid) => setTagInput(value)}
+          onKeyPress={handleTagKeyPress}
+          disabled={loading}
+        >
+          {tags.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="flex items-center bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-medium px-2.5 py-0.5 rounded-full"
+                >
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveTag(tag)}
+                    className="ml-1.5 p-0.5 text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 focus:outline-none rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/30"
+                  >
                     <svg
-                      className="w-4 h-4"
+                      className="h-3 w-3"
                       fill="none"
-                      stroke="currentColor"
                       viewBox="0 0 24 24"
+                      stroke="currentColor"
                     >
-                      <title>Upload complete</title>
+                      <title>Remove tag</title>
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         strokeWidth={2}
-                        d="M5 13l4 4L19 7"
+                        d="M6 18L18 6M6 6l12 12"
                       />
                     </svg>
-                    <span>Complete</span>
-                  </div>
-                ) : (
-                  "Upload"
-                )}
-              </PrimaryActionButton>
-            ) : (
-              <Button
-                onClick={handleUpload}
-                disabled={isUploadDisabled}
-                loading={loading}
-                variant="secondary"
-                size="sm"
-                className="w-40 h-10 text-center justify-center text-base font-medium bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 cursor-not-allowed"
-              >
-                Upload
-              </Button>
-            )}
-          </div>
-
-          {/* Multi-file Navigation Buttons */}
-          {selectedFiles.length > 1 && (
-            <div className="flex justify-center mt-4 gap-2">
-              {currentFileIndex > 0 && (
-                <Button
-                  onClick={handlePreviousFile}
-                  variant="secondary"
-                  size="sm"
-                  className="w-40 h-8 text-center justify-center"
-                >
-                  Previous File
-                </Button>
-              )}
-              {currentFileIndex < selectedFiles.length - 1 && (
-                <Button
-                  onClick={handleNextFile}
-                  variant="secondary"
-                  size="sm"
-                  className="w-40 h-8 text-center justify-center"
-                >
-                  Next File
-                </Button>
-              )}
+                  </button>
+                </span>
+              ))}
             </div>
           )}
+          <div className="text-ob-base-200 text-xs">
+            Example: undead, forest, cursed treasure
+          </div>
+        </FormField>
+
+        {/* Campaign Selection Section */}
+        {showCampaignSelection && currentFile && (
+          <div className="space-y-3">
+            <div className="border-t border-ob-base-600 pt-3">
+              <h3 className="text-sm font-medium text-ob-base-200 mb-3">
+                Add to Campaign
+              </h3>
+
+              {campaigns.length > 0 && (
+                <div className="space-y-2">
+                  <div>
+                    <div className="block text-sm font-medium text-ob-base-200 mb-2">
+                      Select existing campaigns
+                    </div>
+                    <MultiSelect
+                      options={campaigns.map((campaign) => ({
+                        value: campaign.campaignId,
+                        label: campaign.name,
+                      }))}
+                      selectedValues={selectedCampaigns}
+                      onSelectionChange={
+                        onCampaignSelectionChange || (() => {})
+                      }
+                      placeholder="Choose campaigns..."
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <div>
+                  <label
+                    htmlFor={campaignNameId}
+                    className="block text-sm font-medium text-ob-base-200 mb-2"
+                  >
+                    Or create a new campaign
+                  </label>
+                  <input
+                    id={campaignNameId}
+                    type="text"
+                    placeholder="Campaign name"
+                    value={campaignName}
+                    onChange={(e) => onCampaignNameChange?.(e.target.value)}
+                    className="w-full px-3 py-2 bg-ob-base-700 border border-ob-base-600 rounded text-ob-base-200 placeholder-ob-base-400 focus:outline-none focus:ring-2 focus:ring-ob-primary-500"
+                  />
+                </div>
+                {campaignName.trim() && (
+                  <Button
+                    type="button"
+                    onClick={onCreateCampaign}
+                    variant="secondary"
+                    size="sm"
+                    className="w-full"
+                  >
+                    Create Campaign & Add File
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Multi-file Navigation Buttons */}
+      {selectedFiles.length > 1 && (
+        <div className="flex justify-center gap-2">
+          {currentFileIndex > 0 && (
+            <button
+              type="button"
+              onClick={handlePreviousFile}
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 font-semibold text-sm hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+            >
+              Previous File
+            </button>
+          )}
+          {currentFileIndex < selectedFiles.length - 1 && (
+            <button
+              type="button"
+              onClick={handleNextFile}
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 font-semibold text-sm hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+            >
+              Next File
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex gap-2">
+          {currentFile ? (
+            <button
+              type="button"
+              onClick={handleUpload}
+              disabled={isUploadDisabled}
+              className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold text-sm hover:text-purple-700 dark:hover:text-purple-300 transition-colors disabled:opacity-50"
+            >
+              {uploadSuccess && !hasChanges ? (
+                <>
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <title>Upload complete</title>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  Complete
+                </>
+              ) : (
+                "Upload"
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={true}
+              className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold text-sm hover:text-purple-700 dark:hover:text-purple-300 transition-colors disabled:opacity-50"
+            >
+              Upload
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              // Reset form state
+              setSelectedFiles([]);
+              setCurrentFileIndex(0);
+              setFilename("");
+              setDescription("");
+              setTags([]);
+              setTagInput("");
+              setUploadSuccess(false);
+              setIsValid(false);
+            }}
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 font-semibold text-sm hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Cancel
+          </button>
         </div>
       </div>
     </div>
