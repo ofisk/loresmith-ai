@@ -4,11 +4,12 @@ import { useFileUpload } from "../../hooks/useFileUpload";
 import { useCampaignManagement } from "../../hooks/useCampaignManagement";
 import { AuthService } from "../../services/auth-service";
 import { Modal } from "../modal/Modal";
-import { StorageTracker } from "../storage-tracker";
 import { ResourceUpload } from "../upload/ResourceUpload";
 import { CampaignsSection } from "./CampaignsSection";
 import { LibrarySection } from "./LibrarySection";
 import { CreateCampaignModal } from "./CreateCampaignModal";
+import { CampaignDetailsModal } from "./CampaignDetailsModal";
+import type { Campaign } from "../../types/campaign";
 
 interface ResourceSidePanelProps {
   className?: string;
@@ -36,6 +37,11 @@ export function ResourceSidePanel({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCreateCampaignModalOpen, setIsCreateCampaignModalOpen] =
     useState(false);
+  const [isCampaignDetailsModalOpen, setIsCampaignDetailsModalOpen] =
+    useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(
+    null
+  );
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
 
   // Custom hooks for business logic
@@ -55,6 +61,8 @@ export function ResourceSidePanel({
     fetchCampaigns,
     handleCreateCampaign,
     handleCreateCampaignForFile,
+    handleDeleteCampaign,
+    handleUpdateCampaign,
   } = useCampaignManagement({
     isAuthenticated,
     onSendNotification,
@@ -96,9 +104,37 @@ export function ResourceSidePanel({
     clearUploadedFileInfo();
   };
 
-  const handleCreateCampaignWrapper = async () => {
-    await handleCreateCampaign();
+  const handleCreateCampaignWrapper = async (
+    name: string,
+    description: string
+  ) => {
+    await handleCreateCampaign(name, description);
     setIsCreateCampaignModalOpen(false);
+  };
+
+  const handleCampaignClick = (campaign: Campaign) => {
+    setSelectedCampaign(campaign);
+    setIsCampaignDetailsModalOpen(true);
+  };
+
+  const handleCampaignDetailsClose = () => {
+    setIsCampaignDetailsModalOpen(false);
+    setSelectedCampaign(null);
+  };
+
+  const handleUpdateCampaignWrapper = async (
+    campaignId: string,
+    updates: { name: string; description: string }
+  ) => {
+    await handleUpdateCampaign(campaignId, updates);
+    // Update the selected campaign with the new data
+    if (selectedCampaign && selectedCampaign.campaignId === campaignId) {
+      setSelectedCampaign({
+        ...selectedCampaign,
+        name: updates.name,
+        description: updates.description,
+      });
+    }
   };
 
   return (
@@ -125,6 +161,7 @@ export function ResourceSidePanel({
           onToggle={() => setIsCampaignsOpen(!isCampaignsOpen)}
           isOpen={isCampaignsOpen}
           onCreateCampaign={() => setIsCreateCampaignModalOpen(true)}
+          onCampaignClick={handleCampaignClick}
         />
 
         {/* Library Section */}
@@ -133,11 +170,6 @@ export function ResourceSidePanel({
           onToggle={() => setIsLibraryOpen(!isLibraryOpen)}
           onAddToLibrary={() => setIsAddModalOpen(true)}
         />
-
-        {/* Storage Tracker */}
-        <div className="p-4">
-          <StorageTracker />
-        </div>
       </div>
 
       {/* Username Display and Menu - At the very bottom */}
@@ -182,7 +214,7 @@ export function ResourceSidePanel({
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        cardStyle={{ width: 560, height: 700 }}
+        cardStyle={{ width: 560, height: 500 }}
       >
         <ResourceUpload
           onUpload={handleUpload}
@@ -219,6 +251,15 @@ export function ResourceSidePanel({
           onCreateCampaign={handleCreateCampaignWrapper}
         />
       </Modal>
+
+      {/* Campaign Details Modal */}
+      <CampaignDetailsModal
+        campaign={selectedCampaign}
+        isOpen={isCampaignDetailsModalOpen}
+        onClose={handleCampaignDetailsClose}
+        onDelete={handleDeleteCampaign}
+        onUpdate={handleUpdateCampaignWrapper}
+      />
     </div>
   );
 }

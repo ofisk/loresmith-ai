@@ -47,6 +47,7 @@ import {
   handleCreateCampaign,
   handleDeleteAllCampaigns,
   handleDeleteCampaign,
+  handleUpdateCampaign,
   handleGetCampaign,
   handleGetCampaignResources,
   handleGetCampaigns,
@@ -576,6 +577,11 @@ app.delete(
   API_CONFIG.ENDPOINTS.CAMPAIGNS.DELETE(":campaignId"),
   requireUserJwt,
   handleDeleteCampaign
+);
+app.put(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.DETAILS(":campaignId"),
+  requireUserJwt,
+  handleUpdateCampaign
 );
 app.delete(
   API_CONFIG.ENDPOINTS.CAMPAIGNS.DELETE_ALL,

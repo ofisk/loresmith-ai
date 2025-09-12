@@ -20,6 +20,7 @@ export interface CampaignResource {
 export interface CampaignData {
   campaignId: string;
   name: string;
+  description?: string;
   campaignRagBasePath?: string;
   createdAt: string;
   updatedAt: string;

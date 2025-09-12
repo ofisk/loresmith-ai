@@ -1,4 +1,6 @@
-import { useId } from "react";
+import { useState, useEffect } from "react";
+import { Input } from "../input/Input";
+import { Textarea } from "../textarea/Textarea";
 
 interface CreateCampaignModalProps {
   isOpen: boolean;
@@ -7,7 +9,7 @@ interface CreateCampaignModalProps {
   onCampaignNameChange: (name: string) => void;
   campaignDescription: string;
   onCampaignDescriptionChange: (description: string) => void;
-  onCreateCampaign: () => void;
+  onCreateCampaign: (name: string, description: string) => void;
 }
 
 export function CreateCampaignModal({
@@ -19,71 +21,93 @@ export function CreateCampaignModal({
   onCampaignDescriptionChange,
   onCreateCampaign,
 }: CreateCampaignModalProps) {
-  const campaignNameId = useId();
-  const campaignDescriptionId = useId();
+  const [name, setName] = useState(campaignName);
+  const [description, setDescription] = useState(campaignDescription);
+
+  // Sync with parent state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setName(campaignName);
+      setDescription(campaignDescription);
+    }
+  }, [isOpen, campaignName, campaignDescription]);
+
+  const handleCreate = () => {
+    onCampaignNameChange(name);
+    onCampaignDescriptionChange(description);
+    onCreateCampaign(name, description);
+  };
+
+  const campaignNameId = "campaign-name";
+  const campaignDescriptionId = "campaign-description";
 
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold text-ob-base-200 mb-2">
+    <div className="p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
           Create new campaign
         </h2>
-        <p className="text-sm text-ob-base-400">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Set up a new campaign for your resources
         </p>
       </div>
 
+      {/* Campaign Info */}
       <div className="space-y-4">
         <div>
           <label
             htmlFor={campaignNameId}
-            className="block text-sm font-medium text-ob-base-200 mb-2"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
           >
             Campaign name
           </label>
-          <input
+          <Input
             id={campaignNameId}
             type="text"
             placeholder="Enter campaign name"
-            value={campaignName}
-            onChange={(e) => onCampaignNameChange(e.target.value)}
-            className="w-full px-3 py-2 bg-ob-base-700 border border-ob-base-600 rounded text-ob-base-200 placeholder-ob-base-400 focus:outline-none focus:ring-2 focus:ring-ob-primary-500"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full"
           />
         </div>
         <div>
           <label
             htmlFor={campaignDescriptionId}
-            className="block text-sm font-medium text-ob-base-200 mb-2"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
           >
             Description (optional)
           </label>
-          <textarea
+          <Textarea
             id={campaignDescriptionId}
             placeholder="Enter campaign description"
-            value={campaignDescription}
-            onChange={(e) => onCampaignDescriptionChange(e.target.value)}
-            rows={3}
-            className="w-full px-3 py-2 bg-ob-base-700 border border-ob-base-600 rounded text-ob-base-200 placeholder-ob-base-400 focus:outline-none focus:ring-2 focus:ring-ob-primary-500 resize-none"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={4}
+            className="w-full resize-none"
           />
         </div>
       </div>
 
-      <div className="flex gap-3 pt-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex-1 px-4 py-2 bg-ob-base-600 hover:bg-ob-base-500 text-ob-base-200 rounded font-medium transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={onCreateCampaign}
-          disabled={!campaignName.trim()}
-          className="flex-1 px-4 py-2 bg-ob-primary-600 hover:bg-ob-primary-700 disabled:bg-ob-base-600 disabled:cursor-not-allowed text-white rounded font-medium transition-colors"
-        >
-          Create campaign
-        </button>
+      {/* Actions */}
+      <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={!name.trim()}
+            className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold text-sm hover:text-purple-700 dark:hover:text-purple-300 transition-colors disabled:opacity-50"
+          >
+            Create
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 font-semibold text-sm hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );

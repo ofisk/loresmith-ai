@@ -4,7 +4,7 @@ import {
   buildSystemPrompt,
   createToolMappingFromObjects,
 } from "./systemPrompts";
-import { type StreamTextOnFinishCallback, type ToolSet } from "ai";
+import type { StreamTextOnFinishCallback, ToolSet } from "ai";
 
 /**
  * System prompt configuration for the Onboarding & Guidance Agent.

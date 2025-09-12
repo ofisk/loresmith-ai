@@ -146,35 +146,36 @@ export async function handleGetCampaignResources(c: ContextWithAuth) {
   try {
     const campaignId = c.req.param("campaignId");
 
-    // Query campaign resources directly from D1 database
-    const resources = await c.env.DB.prepare(
-      "select id, campaign_id, file_key, file_name, description, tags, status, created_at from campaign_resources where campaign_id = ?"
-    )
-      .bind(campaignId)
-      .all();
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
+    const resources = await campaignDAO.getCampaignResources(campaignId);
 
-    return c.json({ resources: resources.results || [] });
+    return c.json({ resources });
   } catch (error) {
     console.error("Error fetching campaign resources:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
 
-// Delete specific campaign
-export async function handleDeleteCampaign(c: ContextWithAuth) {
+export async function handleUpdateCampaign(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
     const campaignId = c.req.param("campaignId");
+    const body = (await c.req.json()) as {
+      name?: string;
+      description?: string;
+    };
 
-    console.log(`[Server] DELETE /campaigns/${campaignId} - starting request`);
+    console.log(`[Server] PUT /campaigns/${campaignId} - starting request`);
     console.log("[Server] User auth from middleware:", userAuth);
+    console.log("[Server] Update data:", body);
+
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
 
     // First, check if the campaign exists and belongs to the user
-    const campaign = await c.env.DB.prepare(
-      "select id, name, username from campaigns where id = ? and username = ?"
-    )
-      .bind(campaignId, userAuth.username)
-      .first<{ id: string; name: string; username: string }>();
+    const campaign = await campaignDAO.getCampaignOwnership(
+      campaignId,
+      userAuth.username
+    );
 
     if (!campaign) {
       console.log(
@@ -185,23 +186,58 @@ export async function handleDeleteCampaign(c: ContextWithAuth) {
 
     console.log("[Server] Found campaign:", campaign);
 
-    // Delete campaign resources first (due to foreign key constraints)
-    await c.env.DB.prepare(
-      "delete from campaign_resources where campaign_id = ?"
-    )
-      .bind(campaignId)
-      .run();
+    // Update the campaign using DAO
+    await campaignDAO.updateCampaign(campaignId, {
+      name: body.name || campaign.name,
+      description: body.description || "",
+    });
 
-    console.log(
-      `[Server] Deleted campaign resources for campaign ${campaignId}`
+    console.log(`[Server] Updated campaign ${campaignId}`);
+
+    // Fetch the updated campaign
+    const updatedCampaign = await campaignDAO.getCampaignByIdWithMapping(
+      campaignId,
+      userAuth.username
     );
 
-    // Delete the campaign
-    await c.env.DB.prepare(
-      "delete from campaigns where id = ? and username = ?"
-    )
-      .bind(campaignId, userAuth.username)
-      .run();
+    return c.json({
+      success: true,
+      message: "Campaign updated successfully",
+      campaign: updatedCampaign,
+    });
+  } catch (error) {
+    console.error("Error updating campaign:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+}
+
+export async function handleDeleteCampaign(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    const campaignId = c.req.param("campaignId");
+
+    console.log(`[Server] DELETE /campaigns/${campaignId} - starting request`);
+    console.log("[Server] User auth from middleware:", userAuth);
+
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
+
+    // First, check if the campaign exists and belongs to the user
+    const campaign = await campaignDAO.getCampaignOwnership(
+      campaignId,
+      userAuth.username
+    );
+
+    if (!campaign) {
+      console.log(
+        `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
+      );
+      return c.json({ error: "Campaign not found" }, 404);
+    }
+
+    console.log("[Server] Found campaign:", campaign);
+
+    // Delete the campaign using DAO (handles cascading deletes)
+    await campaignDAO.deleteCampaign(campaignId);
 
     console.log(`[Server] Deleted campaign ${campaignId}`);
 
@@ -224,48 +260,22 @@ export async function handleDeleteAllCampaigns(c: ContextWithAuth) {
     console.log("[Server] DELETE /campaigns - starting request");
     console.log("[Server] User auth from middleware:", userAuth);
 
-    // First, get all campaigns for the user
-    const campaigns = await c.env.DB.prepare(
-      "select id, name from campaigns where username = ?"
-    )
-      .bind(userAuth.username)
-      .all<{ id: string; name: string }>();
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
 
-    console.log(
-      `[Server] Found ${campaigns.results?.length || 0} campaigns to delete`
+    // Delete all campaigns for the user using DAO
+    const deletedCampaigns = await campaignDAO.removeAllCampaigns(
+      userAuth.username
     );
 
-    if (!campaigns.results || campaigns.results.length === 0) {
-      return c.json({
-        success: true,
-        message: "No campaigns found to delete",
-        deletedCount: 0,
-      });
-    }
-
-    // Delete campaign resources first (due to foreign key constraints)
-    await c.env.DB.prepare(
-      "delete from campaign_resources where campaign_id in (select id from campaigns where username = ?)"
-    )
-      .bind(userAuth.username)
-      .run();
-
     console.log(
-      `[Server] Deleted campaign resources for user ${userAuth.username}`
+      `[Server] Deleted ${deletedCampaigns.length} campaigns for user ${userAuth.username}`
     );
-
-    // Delete all campaigns for the user
-    await c.env.DB.prepare("delete from campaigns where username = ?")
-      .bind(userAuth.username)
-      .run();
-
-    console.log(`[Server] Deleted campaigns for user ${userAuth.username}`);
 
     return c.json({
       success: true,
       message: "All campaigns deleted successfully",
-      deletedCount: campaigns.results?.length || 0,
-      deletedCampaigns: campaigns.results,
+      deletedCount: deletedCampaigns.length,
+      deletedCampaigns: deletedCampaigns,
     });
   } catch (error) {
     console.error("Error deleting all campaigns:", error);
@@ -290,12 +300,13 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       return c.json({ error: "Resource type and id are required" }, 400);
     }
 
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
+
     // First, check if the campaign exists and belongs to the user
-    const campaign = await c.env.DB.prepare(
-      "select id, name, username from campaigns where id = ? and username = ?"
-    )
-      .bind(campaignId, userAuth.username)
-      .first<{ id: string; name: string; username: string }>();
+    const campaign = await campaignDAO.getCampaignOwnership(
+      campaignId,
+      userAuth.username
+    );
 
     if (!campaign) {
       console.log(
@@ -307,11 +318,10 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
     console.log("[Server] Found campaign:", campaign);
 
     // Check if resource already exists in this campaign
-    const existingResource = await c.env.DB.prepare(
-      "select id, file_name from campaign_resources where campaign_id = ? and file_key = ?"
-    )
-      .bind(campaignId, id)
-      .first<{ id: string; file_name: string }>();
+    const existingResource = await campaignDAO.getCampaignResourceByFileKey(
+      campaignId,
+      id
+    );
 
     if (existingResource) {
       console.log(
@@ -337,25 +347,15 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       );
     }
 
-    // Add the resource to the campaign
-    const resourceId = crypto.randomUUID();
-    const now = new Date().toISOString();
-
-    await c.env.DB.prepare(
-      "insert into campaign_resources (id, campaign_id, file_key, file_name, description, tags, status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    )
-      .bind(
-        resourceId,
-        campaignId,
-        id,
-        name || id,
-        "",
-        "[]",
-        "active",
-        now,
-        now
-      )
-      .run();
+    // Add the resource to the campaign using DAO
+    const resourceId = await campaignDAO.addCampaignResource(
+      campaignId,
+      id,
+      name || id,
+      "",
+      "[]",
+      "active"
+    );
 
     console.log(`[Server] Added resource ${id} to campaign ${campaignId}`);
 
@@ -603,8 +603,8 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       description: "",
       tags: "[]",
       status: "active",
-      createdAt: now,
-      updatedAt: now,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     return c.json({ resource: newResource }, 201);
@@ -626,12 +626,13 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
     );
     console.log("[Server] User auth from middleware:", userAuth);
 
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
+
     // First, check if the campaign exists and belongs to the user
-    const campaign = await c.env.DB.prepare(
-      "select id, name, username from campaigns where id = ? and username = ?"
-    )
-      .bind(campaignId, userAuth.username)
-      .first<{ id: string; name: string; username: string }>();
+    const campaign = await campaignDAO.getCampaignOwnership(
+      campaignId,
+      userAuth.username
+    );
 
     if (!campaign) {
       console.log(
@@ -643,11 +644,10 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
     console.log("[Server] Found campaign:", campaign);
 
     // Check if the resource exists in this campaign
-    const resource = await c.env.DB.prepare(
-      "select id, file_key, file_name from campaign_resources where id = ? and campaign_id = ?"
-    )
-      .bind(resourceId, campaignId)
-      .first<{ id: string; file_key: string; file_name: string }>();
+    const resource = await campaignDAO.getCampaignResourceById(
+      resourceId,
+      campaignId
+    );
 
     if (!resource) {
       console.log(
@@ -658,12 +658,8 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
 
     console.log("[Server] Found resource:", resource);
 
-    // Remove the resource from the campaign
-    await c.env.DB.prepare(
-      "delete from campaign_resources where id = ? and campaign_id = ?"
-    )
-      .bind(resourceId, campaignId)
-      .run();
+    // Remove the resource from the campaign using DAO
+    await campaignDAO.removeCampaignResource(campaignId, resourceId);
 
     console.log(
       `[Server] Removed resource ${resourceId} from campaign ${campaignId}`

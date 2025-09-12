@@ -51,7 +51,7 @@ function shouldProcessAutoRAGEvent(
   return (!ragId || eventRagId === ragId) && (!jobId || eventJobId === jobId);
 }
 
-function handleFileUploadEvent<T>(
+function handleFileUploadEvent<_T>(
   fileKey: string | undefined,
   event: FileUploadEvent,
   onMatch: () => void,
@@ -87,7 +87,7 @@ function handleFileKeyEvent<T extends { fileKey?: string; type: string }>(
   }
 }
 
-function handleAutoRAGEvent<T>(
+function handleAutoRAGEvent<_T>(
   ragId: string | undefined,
   jobId: string | undefined,
   event: AutoRAGEvent,
