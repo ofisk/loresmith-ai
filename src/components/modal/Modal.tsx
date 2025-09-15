@@ -86,7 +86,7 @@ export const Modal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed top-0 left-0 z-50 flex h-screen w-full items-center justify-center bg-transparent p-6">
+    <div className="fixed top-0 left-0 z-50 flex h-screen w-full items-center justify-center bg-transparent p-6 overflow-y-auto">
       {/* Modal overlay - clickable background */}
       <div
         className="absolute inset-0 bg-black/70"
@@ -96,7 +96,7 @@ export const Modal = ({
 
       {/* Modal content container */}
       <div
-        className="relative z-10 bg-white dark:bg-neutral-900 rounded-lg shadow-lg"
+        className="relative z-10 bg-white dark:bg-neutral-900 rounded-lg shadow-lg max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
         role="dialog"

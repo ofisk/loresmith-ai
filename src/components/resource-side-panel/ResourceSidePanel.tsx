@@ -214,7 +214,7 @@ export function ResourceSidePanel({
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        cardStyle={{ width: 560, height: 500 }}
+        cardStyle={{ width: 560, maxHeight: "90vh" }}
       >
         <ResourceUpload
           onUpload={handleUpload}
