@@ -1,12 +1,5 @@
 import type { Message } from "@ai-sdk/react";
-import {
-  Bug,
-  Moon,
-  PaperPlaneRight,
-  Stop,
-  Sun,
-  Trash,
-} from "@phosphor-icons/react";
+import { Bug, PaperPlaneRight, Stop, Trash } from "@phosphor-icons/react";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import type React from "react";
@@ -75,11 +68,6 @@ function getSessionId(): string {
 
 export default function Chat() {
   const chatContainerId = useId();
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    // Check localStorage first, default to dark if not found
-    const savedTheme = localStorage.getItem("theme");
-    return (savedTheme as "dark" | "light") || "dark";
-  });
 
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
@@ -207,25 +195,6 @@ export default function Chat() {
       console.error("Error during authentication:", error);
       throw error;
     }
-  };
-
-  useEffect(() => {
-    // Apply theme class on mount and when theme changes
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-      document.documentElement.classList.remove("light");
-    } else {
-      document.documentElement.classList.remove("dark");
-      document.documentElement.classList.add("light");
-    }
-
-    // Save theme preference to localStorage
-    localStorage.setItem("theme", theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setTheme(newTheme);
   };
 
   const handleLogout = async () => {
@@ -715,16 +684,6 @@ export default function Chat() {
               </div>
 
               <HelpButton onActionClick={handleHelpAction} />
-
-              <Button
-                variant="ghost"
-                size="md"
-                shape="square"
-                className="rounded-full h-9 w-9"
-                onClick={toggleTheme}
-              >
-                {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
-              </Button>
 
               <Button
                 variant="ghost"
