@@ -715,7 +715,7 @@ export function ResourceList(_props: ResourceListProps) {
       <Modal
         isOpen={isAddToCampaignModalOpen}
         onClose={() => setIsAddToCampaignModalOpen(false)}
-        cardStyle={{ width: 500, height: 400 }}
+        cardStyle={{ width: 500, maxHeight: "90vh" }}
       >
         <div className="p-6">
           <h3 className="text-lg font-semibold mb-4">
