@@ -32,6 +32,15 @@ Features:
 - OpenAI API key (optional - users can provide their own)
 - Node.js 22+ and npm
 
+### Infrastructure Management
+
+For managing Cloudflare infrastructure, see the [scripts documentation](scripts/README.md):
+
+- **Full Infrastructure Reset**: `./scripts/recreate-infrastructure.sh`
+- **Specific Resource Reset**: `./scripts/reset-specific-resource.sh [worker|queues|d1|r2|vectorize|all]`
+
+These scripts handle the complexities of Cloudflare resource dependencies and binding issues.
+
 ### Installation
 
 1. **Clone the repository**:

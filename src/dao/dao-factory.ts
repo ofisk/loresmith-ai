@@ -1,9 +1,9 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import { CampaignDAO } from "./campaign-dao";
 import { FileDAO } from "./file-dao";
+import { StagedShardsDAO } from "./staged-shards-dao";
 import type { UserStorageUsage } from "./user-dao";
 import { UserDAO } from "./user-dao";
-import { StagedShardsDAO } from "./staged-shards-dao";
 
 // Cache for DAO factory instances
 const daoFactoryCache = new Map<string, DAOFactory>();

@@ -1,7 +1,6 @@
 import { useCallback, useState } from "react";
-import { useEvent, EVENT_TYPES } from "../lib/event-bus";
 import type { FileUploadEvent } from "../lib/event-bus";
-import { buildAutoRAGFileKey } from "../utils/file-keys";
+import { EVENT_TYPES, useEvent } from "../lib/event-bus";
 import {
   AuthService,
   authenticatedFetchWithExpiration,
@@ -9,6 +8,7 @@ import {
 } from "../services/auth-service";
 import { AutoRAGService } from "../services/autorag-service";
 import { API_CONFIG, AUTORAG_CONFIG } from "../shared";
+import { buildAutoRAGFileKey } from "../utils/file-keys";
 import { useAutoRAGPolling } from "./useAutoRAGPolling";
 
 interface UseFileUploadProps {

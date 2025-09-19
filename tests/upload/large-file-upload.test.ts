@@ -12,7 +12,7 @@ const mockEnv = {
     createMultipartUpload: vi.fn(),
     resumeMultipartUpload: vi.fn(),
   },
-  UploadSession: {
+  UPLOAD_SESSION: {
     idFromName: vi.fn(),
     get: vi.fn(),
   },
@@ -55,8 +55,8 @@ describe("Large File Upload", () => {
       };
 
       mockEnv.R2.createMultipartUpload.mockResolvedValue(mockMultipartUpload);
-      mockEnv.UploadSession.idFromName.mockReturnValue("test-id");
-      mockEnv.UploadSession.get.mockReturnValue(mockUploadSession);
+      mockEnv.UPLOAD_SESSION.idFromName.mockReturnValue("test-id");
+      mockEnv.UPLOAD_SESSION.get.mockReturnValue(mockUploadSession);
 
       const context = createMockContext({
         filename: "large-file.pdf",
@@ -132,8 +132,8 @@ describe("Large File Upload", () => {
       };
 
       mockEnv.R2.resumeMultipartUpload.mockReturnValue(mockMultipartUpload);
-      mockEnv.UploadSession.idFromName.mockReturnValue("test-id");
-      mockEnv.UploadSession.get.mockReturnValue(mockUploadSession);
+      mockEnv.UPLOAD_SESSION.idFromName.mockReturnValue("test-id");
+      mockEnv.UPLOAD_SESSION.get.mockReturnValue(mockUploadSession);
 
       const context = createMockContext({});
       context.req.param.mockImplementation((param: string) => {
@@ -197,8 +197,8 @@ describe("Large File Upload", () => {
       };
 
       mockEnv.R2.resumeMultipartUpload.mockReturnValue(mockMultipartUpload);
-      mockEnv.UploadSession.idFromName.mockReturnValue("test-id");
-      mockEnv.UploadSession.get.mockReturnValue(mockUploadSession);
+      mockEnv.UPLOAD_SESSION.idFromName.mockReturnValue("test-id");
+      mockEnv.UPLOAD_SESSION.get.mockReturnValue(mockUploadSession);
 
       const context = createMockContext({});
       context.req.param.mockReturnValue("test-session");
@@ -226,8 +226,8 @@ describe("Large File Upload", () => {
         }),
       };
 
-      mockEnv.UploadSession.idFromName.mockReturnValue("test-id");
-      mockEnv.UploadSession.get.mockReturnValue(mockUploadSession);
+      mockEnv.UPLOAD_SESSION.idFromName.mockReturnValue("test-id");
+      mockEnv.UPLOAD_SESSION.get.mockReturnValue(mockUploadSession);
 
       const context = createMockContext({});
       context.req.param.mockReturnValue("test-session");

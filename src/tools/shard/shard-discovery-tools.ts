@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { Env } from "../../middleware/auth";
 import { ShardAgent } from "../../agents/shard-agent";
+import type { Env } from "../../middleware/auth";
 
 /**
  * Tool: Discover shards for a campaign

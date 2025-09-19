@@ -293,8 +293,8 @@ export async function handleSetOpenAIApiKey(c: Context<{ Bindings: Env }>) {
 
     // Get the Chat durable object for this session
     const sessionId = c.req.header("X-Session-ID") || "default";
-    const chatId = c.env.Chat.idFromName(sessionId);
-    const chat = c.env.Chat.get(chatId);
+    const chatId = c.env.CHAT.idFromName(sessionId);
+    const chat = c.env.CHAT.get(chatId);
 
     // Set the API key directly in the Chat durable object
     const response = await chat.fetch(

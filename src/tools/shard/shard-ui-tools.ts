@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { Env } from "../../middleware/auth";
 import { ShardAgent } from "../../agents/shard-agent";
+import type { Env } from "../../middleware/auth";
 
 /**
  * Tool: Render shard management UI in chat
@@ -129,13 +129,14 @@ export const renderShardApprovalUITool = tool({
         success: true,
         data: {
           type: "render_component",
-          component: "ShardApprovalUI",
+          component: "ShardManagementUI",
           props: {
             campaignId,
-            shards: requestedShards,
+            shards: requestedShards, // This will be ShardCandidate[] and get normalized
             shardIds,
             reason,
             total: requestedShards.length,
+            action: "focused_approval",
           },
           message: `Ready to approve ${requestedShards.length} shards. Here's the approval interface:`,
         },

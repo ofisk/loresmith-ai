@@ -3,8 +3,8 @@ import { getDAOFactory } from "../dao/dao-factory";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { API_CONFIG } from "../shared";
-import { nanoid } from "../utils/nanoid";
 import { buildAutoRAGFileKey, buildStagingFileKey } from "../utils/file-keys";
+import { nanoid } from "../utils/nanoid";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{
@@ -317,8 +317,8 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
     const totalParts = Math.ceil(fileSize / PART_SIZE);
 
     // Create upload session in Durable Object
-    const uploadSessionId = c.env.UploadSession.idFromName(sessionId);
-    const uploadSession = c.env.UploadSession.get(uploadSessionId);
+    const uploadSessionId = c.env.UPLOAD_SESSION.idFromName(sessionId);
+    const uploadSession = c.env.UPLOAD_SESSION.get(uploadSessionId);
 
     const sessionData = {
       userId: tenant,
@@ -389,8 +389,8 @@ export async function handleUploadPart(c: ContextWithAuth) {
     }
 
     // Get upload session
-    const uploadSessionId = c.env.UploadSession.idFromName(sessionId);
-    const uploadSession = c.env.UploadSession.get(uploadSessionId);
+    const uploadSessionId = c.env.UPLOAD_SESSION.idFromName(sessionId);
+    const uploadSession = c.env.UPLOAD_SESSION.get(uploadSessionId);
 
     const sessionResponse = await uploadSession.fetch(
       API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_GET),
@@ -472,8 +472,8 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
     }
 
     // Get upload session
-    const uploadSessionId = c.env.UploadSession.idFromName(sessionId);
-    const uploadSession = c.env.UploadSession.get(uploadSessionId);
+    const uploadSessionId = c.env.UPLOAD_SESSION.idFromName(sessionId);
+    const uploadSession = c.env.UPLOAD_SESSION.get(uploadSessionId);
 
     const sessionResponse = await uploadSession.fetch(
       API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_GET),
@@ -585,8 +585,8 @@ export async function handleGetUploadProgress(c: ContextWithAuth) {
     }
 
     // Get upload session
-    const uploadSessionId = c.env.UploadSession.idFromName(sessionId);
-    const uploadSession = c.env.UploadSession.get(uploadSessionId);
+    const uploadSessionId = c.env.UPLOAD_SESSION.idFromName(sessionId);
+    const uploadSession = c.env.UPLOAD_SESSION.get(uploadSessionId);
 
     const sessionResponse = await uploadSession.fetch(
       API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_GET),
@@ -650,8 +650,8 @@ export async function handleAbortLargeUpload(c: ContextWithAuth) {
     }
 
     // Get upload session
-    const uploadSessionId = c.env.UploadSession.idFromName(sessionId);
-    const uploadSession = c.env.UploadSession.get(uploadSessionId);
+    const uploadSessionId = c.env.UPLOAD_SESSION.idFromName(sessionId);
+    const uploadSession = c.env.UPLOAD_SESSION.get(uploadSessionId);
 
     const sessionResponse = await uploadSession.fetch(
       API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_GET),

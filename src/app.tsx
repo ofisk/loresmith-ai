@@ -19,6 +19,7 @@ import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
 import { WelcomeMessage } from "./components/chat/WelcomeMessage";
+import { NotificationProvider } from "./components/notifications/NotificationProvider";
 import { JWT_STORAGE_KEY } from "./constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
 import { AuthService } from "./services/auth-service";
@@ -631,7 +632,7 @@ export default function Chat() {
   }, [append, formatShardsAsMessage]);
 
   return (
-    <>
+    <NotificationProvider isAuthenticated={isAuthenticated}>
       <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
         <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-[1400px] flex shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
           {/* Resource Side Panel */}
@@ -905,6 +906,6 @@ export default function Chat() {
         storedOpenAIKey={storedOpenAIKey}
         onSubmit={handleAuthenticationSubmit}
       />
-    </>
+    </NotificationProvider>
   );
 }

@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "../dao/dao-factory";
 import { FileDAO } from "../dao/file-dao";
+import { notifyFileUploadComplete } from "../lib/notifications";
 import { getLibraryRagService } from "../lib/service-factory";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
@@ -103,6 +104,21 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
         // Update database status and file size
         await fileDAO.updateFileRecord(fileKey, "completed", file.size);
 
+        // Send notification about file upload completion
+        try {
+          await notifyFileUploadComplete(
+            c.env,
+            userAuth.username,
+            filename,
+            file.size
+          );
+        } catch (error) {
+          console.error(
+            "[RAG] Failed to send file upload notification:",
+            error
+          );
+        }
+
         completeProgress(fileKey, true);
       } catch (error) {
         console.error("Error processing file for RAG:", error);
@@ -183,6 +199,21 @@ export async function handleProcessFileFromR2ForRag(c: ContextWithAuth) {
 
         // Update database status and file size
         await fileDAO.updateFileRecord(fileKey, "completed", file.size);
+
+        // Send notification about file upload completion
+        try {
+          await notifyFileUploadComplete(
+            c.env,
+            userAuth.username,
+            filename,
+            file.size
+          );
+        } catch (error) {
+          console.error(
+            "[RAG] Failed to send file upload notification:",
+            error
+          );
+        }
 
         completeProgress(fileKey, true);
       } catch (error) {

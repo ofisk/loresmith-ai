@@ -1,12 +1,12 @@
-import { STRUCTURED_CONTENT_TYPES } from "./content-types";
 import type {
+  AISearchResponse,
+  CampaignResource,
+  CreateShardData,
   ShardCandidate,
   ShardMetadata,
   ShardSourceRef,
-  CampaignResource,
-  AISearchResponse,
-  CreateShardData,
 } from "../types/shard";
+import { STRUCTURED_CONTENT_TYPES } from "./content-types";
 
 /**
  * Unified Shard Factory
@@ -53,7 +53,11 @@ export class ShardFactory {
 
     // Create shard ID - ensure uniqueness by using the generateShardId method
     const index = originalMetadata?.index;
-    const shardId = this.generateShardId(resourceId, contentType, index);
+    const shardId = ShardFactory.generateShardId(
+      resourceId,
+      contentType,
+      index
+    );
 
     // Create metadata
     const metadata: ShardMetadata = {
@@ -149,8 +153,8 @@ export class ShardFactory {
       // Process each shard in the content type array
       for (let i = 0; i < shardArray.length; i++) {
         const shard = shardArray[i];
-        if (shard && shard.name) {
-          const shardCandidate = this.createShardCandidate(
+        if (shard?.name) {
+          const shardCandidate = ShardFactory.createShardCandidate(
             shard,
             contentType,
             resource,
@@ -217,7 +221,7 @@ export class ShardFactory {
    * Filter valid shards from a collection
    */
   static filterValidShards(shards: any[]): ShardCandidate[] {
-    return shards.filter((shard) => this.validateShardCandidate(shard));
+    return shards.filter((shard) => ShardFactory.validateShardCandidate(shard));
   }
 
   /**

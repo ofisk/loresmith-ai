@@ -1,16 +1,16 @@
-import { BaseAgent } from "./base-agent";
-import { ShardFactory } from "../lib/shard-factory";
 import { getDAOFactory } from "../dao/dao-factory";
+import { SHARD_STATUSES } from "../lib/content-types";
+import { ShardFactory } from "../lib/shard-factory";
+import { resolveCampaignIdentifier } from "../tools/campaign";
+import { shardTools } from "../tools/shard";
 import type {
-  ShardCandidate,
-  CampaignResource,
   AISearchResponse,
+  CampaignResource,
+  ShardCandidate,
   StagedShardGroup,
 } from "../types/shard";
-import { SHARD_STATUSES } from "../lib/content-types";
+import { BaseAgent } from "./base-agent";
 import { buildSystemPrompt } from "./systemPrompts";
-import { shardTools } from "../tools/shard";
-import { resolveCampaignIdentifier } from "../tools/campaign";
 
 // Shard Agent System Prompt Configuration
 const SHARD_AGENT_CONFIG = {
@@ -64,6 +64,7 @@ const SHARD_AGENT_CONFIG = {
 };
 
 const SHARD_AGENT_PROMPT = buildSystemPrompt(SHARD_AGENT_CONFIG);
+
 import type { Env } from "../middleware/auth";
 
 /**

@@ -1,15 +1,15 @@
 import { CaretDown, SignOut } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
-import { useFileUpload } from "../../hooks/useFileUpload";
 import { useCampaignManagement } from "../../hooks/useCampaignManagement";
+import { useFileUpload } from "../../hooks/useFileUpload";
 import { AuthService } from "../../services/auth-service";
+import type { Campaign } from "../../types/campaign";
 import { Modal } from "../modal/Modal";
 import { ResourceUpload } from "../upload/ResourceUpload";
-import { CampaignsSection } from "./CampaignsSection";
-import { LibrarySection } from "./LibrarySection";
-import { CreateCampaignModal } from "./CreateCampaignModal";
 import { CampaignDetailsModal } from "./CampaignDetailsModal";
-import type { Campaign } from "../../types/campaign";
+import { CampaignsSection } from "./CampaignsSection";
+import { CreateCampaignModal } from "./CreateCampaignModal";
+import { LibrarySection } from "./LibrarySection";
 
 interface ResourceSidePanelProps {
   className?: string;
@@ -65,7 +65,6 @@ export function ResourceSidePanel({
     handleUpdateCampaign,
   } = useCampaignManagement({
     isAuthenticated,
-    onSendNotification,
   });
 
   // Watch for external trigger to open file upload modal

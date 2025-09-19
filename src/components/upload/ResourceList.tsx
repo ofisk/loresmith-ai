@@ -1,6 +1,8 @@
 import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { ERROR_MESSAGES, JWT_STORAGE_KEY } from "../../constants";
+import type { AutoRAGEvent, FileUploadEvent } from "../../lib/event-bus";
+import { EVENT_TYPES, useEventBus } from "../../lib/event-bus";
 import {
   AuthService,
   authenticatedFetchWithExpiration,
@@ -12,8 +14,6 @@ import { Button } from "../button/Button";
 import { Modal } from "../modal/Modal";
 import { MultiSelect } from "../select/MultiSelect";
 import { FileStatusIndicator } from "./FileStatusIndicator";
-import { useEventBus, EVENT_TYPES } from "../../lib/event-bus";
-import type { FileUploadEvent, AutoRAGEvent } from "../../lib/event-bus";
 
 interface ResourceFile {
   id: string;
@@ -52,9 +52,6 @@ export function ResourceList(_props: ResourceListProps) {
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
   const [addingToCampaigns, setAddingToCampaigns] = useState(false);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
-  const [notificationMessage, setNotificationMessage] = useState<string | null>(
-    null
-  );
 
   const fetchResourceCampaigns = useCallback(async (files: ResourceFile[]) => {
     try {
@@ -362,18 +359,19 @@ export function ResourceList(_props: ResourceListProps) {
 
       // Check each campaign for new shards
       for (const campaignId of campaignIds) {
-        const response = await fetch(
+        const { response, jwtExpired } = await authenticatedFetchWithExpiration(
           API_CONFIG.buildUrl(
             API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SHARDS(
               campaignId
             )
           ),
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem(JWT_STORAGE_KEY)}`,
-            },
-          }
+          { jwt: localStorage.getItem(JWT_STORAGE_KEY) }
         );
+
+        if (jwtExpired) {
+          console.warn("[ResourceList] JWT expired while checking for shards");
+          return;
+        }
 
         if (response.ok) {
           const data = (await response.json()) as { shards?: any[] };
@@ -387,10 +385,6 @@ export function ResourceList(_props: ResourceListProps) {
             // Show a notification to the user about new shards
             console.log("[ResourceList] New shards available:", shards);
 
-            // Find the campaign name from the campaigns array
-            const campaign = campaigns.find((c) => c.campaignId === campaignId);
-            const campaignName = campaign?.name || "Unknown Campaign";
-
             // Dispatch event for chat integration
             window.dispatchEvent(
               new CustomEvent("shards-generated", {
@@ -403,9 +397,9 @@ export function ResourceList(_props: ResourceListProps) {
               })
             );
 
-            // Show user-friendly message about new shards with campaign name
-            setNotificationMessage(
-              `🎉 ${shards.length} new shards generated from "${fileName}"! Check your campaign to review them. Campaign: ${campaignName}`
+            // Notification will be sent via SSE from the server
+            console.log(
+              `[ResourceList] ${shards.length} shards generated for campaign: ${campaignId}`
             );
           }
         }
@@ -543,24 +537,6 @@ export function ResourceList(_props: ResourceListProps) {
 
   return (
     <div className="h-full overflow-y-auto">
-      {/* Notification for new shards */}
-      {notificationMessage && (
-        <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-green-800 dark:text-green-200">
-              {notificationMessage}
-            </p>
-            <button
-              type="button"
-              onClick={() => setNotificationMessage(null)}
-              className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-200"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="space-y-3">
         {files.map((file) => (
           <div

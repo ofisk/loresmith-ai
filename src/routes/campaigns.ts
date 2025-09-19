@@ -1,8 +1,9 @@
 import type { Context } from "hono";
-import { getDAOFactory } from "../dao/dao-factory";
-import { getLibraryAutoRAGService } from "../lib/service-factory";
 import { ShardAgent } from "../agents/shard-agent";
+import { getDAOFactory } from "../dao/dao-factory";
+import { notifyShardGeneration } from "../lib/notifications";
 import { RPG_EXTRACTION_PROMPTS } from "../lib/prompts/rpg-extraction-prompts";
+import { getLibraryAutoRAGService } from "../lib/service-factory";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { CampaignAutoRAG } from "../services/campaign-autorag-service";
@@ -172,12 +173,8 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
     const campaignDAO = getDAOFactory(c.env).campaignDAO;
 
     // First, check if the campaign exists and belongs to the user
-    const campaign = await campaignDAO.getCampaignOwnership(
-      campaignId,
-      userAuth.username
-    );
-
-    if (!campaign) {
+    const campaign = await campaignDAO.getCampaignById(campaignId);
+    if (!campaign || campaign.username !== userAuth.username) {
       console.log(
         `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
       );
@@ -222,12 +219,8 @@ export async function handleDeleteCampaign(c: ContextWithAuth) {
     const campaignDAO = getDAOFactory(c.env).campaignDAO;
 
     // First, check if the campaign exists and belongs to the user
-    const campaign = await campaignDAO.getCampaignOwnership(
-      campaignId,
-      userAuth.username
-    );
-
-    if (!campaign) {
+    const campaign = await campaignDAO.getCampaignById(campaignId);
+    if (!campaign || campaign.username !== userAuth.username) {
       console.log(
         `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
       );
@@ -236,7 +229,7 @@ export async function handleDeleteCampaign(c: ContextWithAuth) {
 
     console.log("[Server] Found campaign:", campaign);
 
-    // Delete the campaign using DAO (handles cascading deletes)
+    // Delete the campaign (DAO handles cascading deletes)
     await campaignDAO.deleteCampaign(campaignId);
 
     console.log(`[Server] Deleted campaign ${campaignId}`);
@@ -262,20 +255,29 @@ export async function handleDeleteAllCampaigns(c: ContextWithAuth) {
 
     const campaignDAO = getDAOFactory(c.env).campaignDAO;
 
-    // Delete all campaigns for the user using DAO
-    const deletedCampaigns = await campaignDAO.removeAllCampaigns(
+    // Delete all campaigns for the user
+    const deletedCampaigns = await campaignDAO.deleteAllCampaignsForUser(
       userAuth.username
     );
 
     console.log(
-      `[Server] Deleted ${deletedCampaigns.length} campaigns for user ${userAuth.username}`
+      `[Server] Found ${deletedCampaigns.length} campaigns to delete`
     );
 
+    if (deletedCampaigns.length === 0) {
+      return c.json({
+        success: true,
+        message: "No campaigns found to delete",
+        deletedCount: 0,
+      });
+    }
+
+    console.log(`[Server] Deleted campaigns for user ${userAuth.username}`);
     return c.json({
       success: true,
       message: "All campaigns deleted successfully",
       deletedCount: deletedCampaigns.length,
-      deletedCampaigns: deletedCampaigns,
+      deletedCampaigns,
     });
   } catch (error) {
     console.error("Error deleting all campaigns:", error);
@@ -303,12 +305,8 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
     const campaignDAO = getDAOFactory(c.env).campaignDAO;
 
     // First, check if the campaign exists and belongs to the user
-    const campaign = await campaignDAO.getCampaignOwnership(
-      campaignId,
-      userAuth.username
-    );
-
-    if (!campaign) {
+    const campaign = await campaignDAO.getCampaignById(campaignId);
+    if (!campaign || campaign.username !== userAuth.username) {
       console.log(
         `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
       );
@@ -318,7 +316,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
     console.log("[Server] Found campaign:", campaign);
 
     // Check if resource already exists in this campaign
-    const existingResource = await campaignDAO.getCampaignResourceByFileKey(
+    const existingResource = await campaignDAO.getFileResourceByFileKey(
       campaignId,
       id
     );
@@ -347,8 +345,11 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       );
     }
 
-    // Add the resource to the campaign using DAO
-    const resourceId = await campaignDAO.addCampaignResource(
+    // Add the resource to the campaign
+    const resourceId = crypto.randomUUID();
+
+    await campaignDAO.addFileResourceToCampaign(
+      resourceId,
       campaignId,
       id,
       name || id,
@@ -363,7 +364,6 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
     try {
       console.log(`[Server] Generating shards for campaign: ${campaignId}`);
 
-      const campaignDAO = getDAOFactory(c.env).campaignDAO;
       const campaignRagBasePath = await campaignDAO.getCampaignRagBasePath(
         userAuth.username,
         campaignId
@@ -402,7 +402,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
           // Call AutoRAG AI Search with the detailed prompt
           console.log(`[Server] Calling AutoRAG AI Search with filters:`, {
             filename: resource.file_name,
-            prompt: structuredExtractionPrompt.substring(0, 200) + "...",
+            prompt: `${structuredExtractionPrompt.substring(0, 200)}...`,
           });
 
           const aiSearchResult = await libraryAutoRAG.aiSearch(
@@ -454,7 +454,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
             typeof actualResult.result === "string"
           ) {
             aiResponse = actualResult.result;
-          } else if (actualResult.result && actualResult.result.response) {
+          } else if (actualResult.result?.response) {
             aiResponse = actualResult.result.response;
           } else {
             console.warn(
@@ -512,6 +512,27 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                 console.log(
                   `[Server] Successfully created ${result.created} shards for ${resource.id}`
                 );
+
+                // Send notification about shard generation
+                try {
+                  const campaignData =
+                    await campaignDAO.getCampaignById(campaignId);
+
+                  if (campaignData) {
+                    await notifyShardGeneration(
+                      c.env,
+                      userAuth.username,
+                      campaignData.name,
+                      resource.file_name || resource.id,
+                      result.created
+                    );
+                  }
+                } catch (error) {
+                  console.error(
+                    "[Server] Failed to send shard generation notification:",
+                    error
+                  );
+                }
 
                 // Return the generated shards and an instruction for the chat UI to render management UI
                 return c.json({
@@ -629,12 +650,8 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
     const campaignDAO = getDAOFactory(c.env).campaignDAO;
 
     // First, check if the campaign exists and belongs to the user
-    const campaign = await campaignDAO.getCampaignOwnership(
-      campaignId,
-      userAuth.username
-    );
-
-    if (!campaign) {
+    const campaign = await campaignDAO.getCampaignById(campaignId);
+    if (!campaign || campaign.username !== userAuth.username) {
       console.log(
         `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
       );
@@ -658,7 +675,7 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
 
     console.log("[Server] Found resource:", resource);
 
-    // Remove the resource from the campaign using DAO
+    // Remove the resource from the campaign
     await campaignDAO.removeCampaignResource(campaignId, resourceId);
 
     console.log(

@@ -1,9 +1,9 @@
-import { AutoRAGClient } from "../lib/autorag";
-import type { AutoRAGAISearchResult } from "../lib/autorag";
 import type {
   ComparisonFilter,
   CompoundFilter,
 } from "@cloudflare/workers-types";
+import type { AutoRAGAISearchResult } from "../lib/autorag";
+import { AutoRAGClient } from "../lib/autorag";
 import { R2Helper } from "../lib/r2";
 import type { Env } from "../middleware/auth";
 
@@ -138,7 +138,7 @@ export abstract class AutoRAGClientBase {
 
     console.log(
       "[AutoRAGClientBase] AI Searching with prompt:",
-      prompt.substring(0, 100) + "..."
+      `${prompt.substring(0, 100)}...`
     );
     console.log("[AutoRAGClientBase] AI Search options:", mergedOptions);
     return await this.autoRagClient.aiSearch(prompt, mergedOptions);

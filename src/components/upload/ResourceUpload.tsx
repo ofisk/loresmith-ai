@@ -4,8 +4,8 @@ import { FormField } from "@/components/input/FormField";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
 import { MultiSelect } from "@/components/select/MultiSelect";
 import { cn } from "@/lib/utils";
-import type { ProcessingProgress } from "../../types/progress";
 import type { Campaign } from "../../types/campaign";
+import type { ProcessingProgress } from "../../types/progress";
 
 // Function to sanitize filename by removing/replacing URL-encoded characters
 const sanitizeFilename = (filename: string): string => {
@@ -43,7 +43,7 @@ export const ResourceUpload = ({
   onUpload,
   loading = false,
   className,
-  jwtUsername,
+  jwtUsername: _jwtUsername,
   uploadProgress,
   campaigns = [],
   selectedCampaigns = [],

@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
-import { useEvent, EVENT_TYPES } from "../lib/event-bus";
+import { NOTIFICATION_TYPES } from "../constants/notification-types";
 import type { CampaignEvent } from "../lib/event-bus";
+import { EVENT_TYPES, useEvent } from "../lib/event-bus";
 import {
   authenticatedFetchWithExpiration,
   getStoredJwt,
@@ -32,12 +33,10 @@ function isValidUploadedFileInfo(
 
 interface UseCampaignManagementProps {
   isAuthenticated: boolean;
-  onSendNotification?: (message: string) => void;
 }
 
 export function useCampaignManagement({
   isAuthenticated,
-  onSendNotification,
 }: UseCampaignManagementProps) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [campaignsLoading, setCampaignsLoading] = useState(false);
@@ -46,6 +45,44 @@ export function useCampaignManagement({
   const [campaignDescription, setCampaignDescription] = useState("");
 
   const send = useEvent();
+
+  // Helper function to send notifications via SSE
+  const sendNotification = useCallback(
+    async (
+      type: string,
+      title: string,
+      message: string,
+      data?: Record<string, any>
+    ) => {
+      try {
+        const jwt = getStoredJwt();
+        if (!jwt) return;
+
+        const payload = {
+          type,
+          title,
+          message,
+          data,
+          timestamp: Date.now(),
+        };
+
+        await authenticatedFetchWithExpiration(
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.PUBLISH),
+          {
+            method: "POST",
+            jwt,
+            body: JSON.stringify(payload),
+          }
+        );
+      } catch (error) {
+        console.error(
+          "[useCampaignManagement] Failed to send notification:",
+          error
+        );
+      }
+    },
+    []
+  );
 
   // Fetch campaigns
   const fetchCampaigns = useCallback(async () => {
@@ -211,42 +248,46 @@ export function useCampaignManagement({
         console.log("File added to campaign successfully:", result);
 
         // Send appropriate notification based on the result
-        if (onSendNotification) {
-          // Get campaign ID from the response for context
-          const campaignId = result.shards?.campaignId;
-          const campaignContext = campaignId
-            ? ` (Campaign ID: ${campaignId})`
-            : "";
-
-          if (result.message?.includes("already exists")) {
-            onSendNotification(
-              `"${uploadedFileInfo.filename}" was already in your campaign. No new shards were generated.${campaignContext}`
-            );
-          } else if (
-            result.message?.includes("Generated") &&
-            result.message.includes("shards")
-          ) {
-            // Extract the number of shards from the message
-            const shardMatch = result.message.match(/Generated (\d+) shards/);
-            const shardCount = shardMatch ? shardMatch[1] : "some";
-            onSendNotification(
-              `"${uploadedFileInfo.filename}" has been added to my campaign and ${shardCount} shards were generated. Please show me these shards so I can review and approve them.${campaignContext}`
-            );
-          } else if (result.message?.includes("No shards were generated")) {
-            onSendNotification(
-              `"${uploadedFileInfo.filename}" has been added to my campaign. No shards were generated from this resource.${campaignContext}`
-            );
-          } else {
-            onSendNotification(
-              `"${uploadedFileInfo.filename}" has been added to my campaign. The document is now being processed to extract game-ready content.${campaignContext}`
-            );
-          }
+        if (result.message?.includes("already exists")) {
+          await sendNotification(
+            NOTIFICATION_TYPES.CAMPAIGN_FILE_ADDED,
+            "File Already in Campaign",
+            `"${uploadedFileInfo.filename}" was already in your campaign. No new shards were generated.`,
+            { fileName: uploadedFileInfo.filename, alreadyExists: true }
+          );
+        } else if (
+          result.message?.includes("Generated") &&
+          result.message.includes("shards")
+        ) {
+          // Extract the number of shards from the message
+          const shardMatch = result.message.match(/Generated (\d+) shards/);
+          const shardCount = shardMatch ? parseInt(shardMatch[1], 10) : 0;
+          await sendNotification(
+            NOTIFICATION_TYPES.CAMPAIGN_FILE_ADDED,
+            "File Added with Shards",
+            `"${uploadedFileInfo.filename}" has been added to your campaign and ${shardCount} shards were generated. Please show me these shards so I can review and approve them.`,
+            { fileName: uploadedFileInfo.filename, shardCount }
+          );
+        } else if (result.message?.includes("No shards were generated")) {
+          await sendNotification(
+            NOTIFICATION_TYPES.CAMPAIGN_FILE_ADDED,
+            "File Added to Campaign",
+            `"${uploadedFileInfo.filename}" has been added to your campaign. No shards were generated from this resource.`,
+            { fileName: uploadedFileInfo.filename, shardCount: 0 }
+          );
+        } else {
+          await sendNotification(
+            NOTIFICATION_TYPES.CAMPAIGN_FILE_ADDED,
+            "File Added to Campaign",
+            `"${uploadedFileInfo.filename}" has been added to your campaign. The document is now being processed to extract game-ready content.`,
+            { fileName: uploadedFileInfo.filename }
+          );
         }
       } catch (error) {
         console.error("Failed to add file to campaign:", error);
       }
     },
-    [onSendNotification]
+    [sendNotification]
   );
 
   const handleCreateCampaignForFile = useCallback(
@@ -352,20 +393,22 @@ export function useCampaignManagement({
         await fetchCampaigns();
 
         // Show success feedback
-        if (onSendNotification) {
-          onSendNotification("Campaign deleted successfully");
-        }
+        await sendNotification(
+          NOTIFICATION_TYPES.SUCCESS,
+          "Campaign Deleted",
+          "Campaign deleted successfully"
+        );
       } catch (error) {
         console.error("Failed to delete campaign:", error);
-        if (onSendNotification) {
-          onSendNotification(
-            `Failed to delete campaign: ${error instanceof Error ? error.message : "Unknown error"}`
-          );
-        }
+        await sendNotification(
+          NOTIFICATION_TYPES.ERROR,
+          "Campaign Deletion Failed",
+          `Failed to delete campaign: ${error instanceof Error ? error.message : "Unknown error"}`
+        );
         throw error;
       }
     },
-    [fetchCampaigns, onSendNotification]
+    [fetchCampaigns, sendNotification]
   );
 
   const handleUpdateCampaign = useCallback(
@@ -407,20 +450,22 @@ export function useCampaignManagement({
         await fetchCampaigns();
 
         // Show success feedback
-        if (onSendNotification) {
-          onSendNotification("Campaign updated successfully");
-        }
+        await sendNotification(
+          NOTIFICATION_TYPES.SUCCESS,
+          "Campaign Updated",
+          "Campaign updated successfully"
+        );
       } catch (error) {
         console.error("Failed to update campaign:", error);
-        if (onSendNotification) {
-          onSendNotification(
-            `Failed to update campaign: ${error instanceof Error ? error.message : "Unknown error"}`
-          );
-        }
+        await sendNotification(
+          NOTIFICATION_TYPES.ERROR,
+          "Campaign Update Failed",
+          `Failed to update campaign: ${error instanceof Error ? error.message : "Unknown error"}`
+        );
         throw error;
       }
     },
-    [fetchCampaigns, onSendNotification]
+    [fetchCampaigns, sendNotification]
   );
 
   return {
