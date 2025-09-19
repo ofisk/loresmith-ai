@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { JWT_STORAGE_KEY } from "../constants";
+import { NOTIFICATION_TYPES } from "../constants/notification-types";
 import type { NotificationPayload } from "../durable-objects/notification-hub";
 import { API_CONFIG } from "../shared";
 
@@ -57,15 +58,12 @@ export function useNotificationStream(
     }
 
     isConnectingRef.current = true;
+    console.log("[useNotificationStream] Starting connect()");
     // Get JWT token from localStorage
     const token = localStorage.getItem(JWT_STORAGE_KEY);
-    console.log(
-      "[useNotificationStream] Attempting to connect, token available:",
-      !!token
-    );
 
     if (!token) {
-      console.log("[useNotificationStream] No JWT token found, cannot connect");
+      console.log("[useNotificationStream] No JWT found; cannot connect");
       setState((prev) => ({
         ...prev,
         error: "No authentication token found",
@@ -75,36 +73,27 @@ export function useNotificationStream(
       return;
     }
 
-    // Basic JWT validation - check if it's a valid JWT format
+    // Best-effort JWT validation for expiration. Do not clear token on parse errors.
     try {
       const parts = token.split(".");
-      if (parts.length !== 3) {
-        throw new Error("Invalid JWT format");
+      if (parts.length === 3) {
+        // Base64URL decode
+        const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+        const padded = base64 + "===".slice((base64.length + 3) % 4);
+        const payload = JSON.parse(atob(padded));
+        if (payload.exp && payload.exp < Date.now() / 1000) {
+          localStorage.removeItem(JWT_STORAGE_KEY);
+          setState((prev) => ({
+            ...prev,
+            error: "Authentication expired. Please refresh the page.",
+            isConnected: false,
+          }));
+          isConnectingRef.current = false;
+          return;
+        }
       }
-
-      // Check if JWT is expired by decoding the payload
-      const payload = JSON.parse(atob(parts[1]));
-      if (payload.exp && payload.exp < Date.now() / 1000) {
-        console.log("[useNotificationStream] JWT token is expired");
-        localStorage.removeItem(JWT_STORAGE_KEY);
-        setState((prev) => ({
-          ...prev,
-          error: "Authentication expired. Please refresh the page.",
-          isConnected: false,
-        }));
-        isConnectingRef.current = false;
-        return;
-      }
-    } catch (error) {
-      console.log("[useNotificationStream] Invalid JWT token:", error);
-      localStorage.removeItem(JWT_STORAGE_KEY);
-      setState((prev) => ({
-        ...prev,
-        error: "Invalid authentication token. Please refresh the page.",
-        isConnected: false,
-      }));
-      isConnectingRef.current = false;
-      return;
+    } catch (_ignore) {
+      // If we cannot parse the token locally, continue and let the server validate it.
     }
 
     // Close existing connection
@@ -119,8 +108,8 @@ export function useNotificationStream(
     }
 
     try {
-      console.log("[useNotificationStream] Minting stream token...");
       // First, mint a short-lived stream token
+      console.log("[useNotificationStream] Minting stream token...");
       const mintResponse = await fetch(
         API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.MINT_STREAM),
         {
@@ -132,13 +121,13 @@ export function useNotificationStream(
         }
       );
 
-      console.log(
-        "[useNotificationStream] Mint response status:",
-        mintResponse.status
-      );
-
       if (!mintResponse.ok) {
         const errorText = await mintResponse.text();
+        console.log(
+          "[useNotificationStream] Mint failed status:",
+          mintResponse.status,
+          errorText
+        );
         console.error(
           "[useNotificationStream] Mint failed:",
           mintResponse.status,
@@ -167,22 +156,18 @@ export function useNotificationStream(
         expiresIn: number;
       };
 
-      console.log("[useNotificationStream] Mint response data:", mintData);
-      console.log(
-        "[useNotificationStream] Stream URL from response:",
-        mintData.streamUrl
-      );
-
       const streamUrl = mintData.streamUrl;
 
       if (!streamUrl) {
         throw new Error("No stream URL returned from server");
       }
+      console.log("[useNotificationStream] Stream URL:", streamUrl);
 
       // Create EventSource with the short-lived stream URL
       let eventSource: EventSource;
       try {
         eventSource = new EventSource(streamUrl);
+        console.log("[useNotificationStream] EventSource created");
       } catch (error) {
         console.error(
           "[useNotificationStream] Error creating EventSource:",
@@ -192,6 +177,10 @@ export function useNotificationStream(
       }
 
       eventSourceRef.current = eventSource;
+      console.log(
+        "[useNotificationStream] readyState after create:",
+        eventSource.readyState
+      );
 
       // Note: Removed debugging timeout that was causing premature connection closure
 
@@ -208,27 +197,47 @@ export function useNotificationStream(
           error: null,
         }));
         reconnectAttempts.current = 0;
+        // Send a synthetic notification to verify the UI path
+        try {
+          const connectedNotice: NotificationPayload = {
+            type: NOTIFICATION_TYPES.CONNECTED,
+            title: "Notifications Connected",
+            message: "You're subscribed to real-time updates.",
+            timestamp: Date.now(),
+          };
+          // Update local list for badge/count consumers
+          setState((prev) => ({
+            ...prev,
+            notifications: [connectedNotice, ...prev.notifications].slice(
+              0,
+              50
+            ),
+          }));
+          // Notify provider so the NotificationBell renders it immediately
+          optsRef.current.onNotification?.(connectedNotice);
+        } catch (_e) {
+          // ignore
+        }
         optsRef.current.onConnect?.();
         isConnectingRef.current = false;
       };
 
       // Handle messages
       eventSource.onmessage = (event) => {
+        console.log(
+          "[useNotificationStream] raw message:",
+          event?.data?.slice?.(0, 120)
+        );
         try {
           const notification: NotificationPayload = JSON.parse(event.data);
 
           // Check if this is a Durable Object reset message
           if (notification.type === "durable-object-reset") {
             console.log(
-              "[useNotificationStream] 🔄 Durable Object reset detected, clearing token and reconnecting"
+              "[useNotificationStream] 🔄 Durable Object reset detected, reconnecting"
             );
-            // Clear the JWT token to force a fresh mint
-            localStorage.removeItem(JWT_STORAGE_KEY);
-            // Reset reconnect attempts to allow immediate reconnection
             reconnectAttempts.current = 0;
-            // Close current connection
             eventSource.close();
-            // Start reconnection immediately
             setTimeout(() => {
               isConnectingRef.current = false;
               connect().catch((error) => {
@@ -247,7 +256,7 @@ export function useNotificationStream(
             error: null,
             notifications: [notification, ...prev.notifications].slice(0, 50), // Keep last 50 notifications
           }));
-
+          console.log("[useNotificationStream] ▶ message:", notification.type);
           optsRef.current.onNotification?.(notification);
         } catch (error) {
           console.error(
@@ -270,15 +279,14 @@ export function useNotificationStream(
       // Handle connection errors
       eventSource.onerror = (error) => {
         console.error("[useNotificationStream] ❌ Connection error:", error);
+        console.log(
+          "[useNotificationStream] onerror readyState:",
+          eventSource.readyState
+        );
 
-        // Check if this is a connection close due to token expiration
+        // If CLOSED, allow immediate reconnection without clearing main auth JWT
         if (eventSource.readyState === 2) {
-          // CLOSED
-          // Reset reconnect attempts to allow immediate reconnection with fresh token
           reconnectAttempts.current = 0;
-
-          // Clear the JWT token to force a fresh mint
-          localStorage.removeItem(JWT_STORAGE_KEY);
         }
 
         setState((prev) => ({
@@ -343,24 +351,12 @@ export function useNotificationStream(
   }, []);
 
   const disconnect = useCallback(() => {
-    console.log("[useNotificationStream] Disconnect called");
-    console.log(
-      "[useNotificationStream] EventSource ref exists:",
-      !!eventSourceRef.current
-    );
-    console.log(
-      "[useNotificationStream] EventSource readyState:",
-      eventSourceRef.current?.readyState
-    );
-
     if (eventSourceRef.current) {
-      console.log("[useNotificationStream] Closing EventSource");
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
 
     if (reconnectTimeoutRef.current) {
-      console.log("[useNotificationStream] Clearing reconnect timeout");
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
@@ -402,7 +398,7 @@ export function useNotificationStream(
     return () => {
       // Cleanup handled by connect() function
     };
-  }, [connect]); // Depend on the connect function
+  }, [connect]);
 
   return {
     ...state,

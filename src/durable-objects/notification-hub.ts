@@ -49,29 +49,18 @@ export class NotificationHub extends DurableObject {
     const url = new URL(request.url);
     const userId = url.searchParams.get("userId");
 
-    console.log(
-      `[NotificationHub] SSE subscription request for user: ${userId}`
-    );
-
     if (!userId) {
-      console.log(`[NotificationHub] Missing userId in request`);
       return new Response("Missing userId", { status: 400 });
     }
 
     // Check if this is a reconnection (user already exists)
     if (this.subscribers.has(userId)) {
-      console.log(
-        `[NotificationHub] User ${userId} already subscribed, cleaning up old connection`
-      );
       const oldSubscriber = this.subscribers.get(userId);
       if (oldSubscriber) {
         try {
           await oldSubscriber.writer.close();
-        } catch (error) {
-          console.log(
-            `[NotificationHub] Error closing old connection for ${userId}:`,
-            error
-          );
+        } catch (_error) {
+          // Ignore error closing old connection
         }
       }
       this.subscribers.delete(userId);
@@ -90,31 +79,24 @@ export class NotificationHub extends DurableObject {
     };
 
     this.subscribers.set(userId, subscriber);
-    console.log(
-      `[NotificationHub] Added subscriber for ${userId}, total subscribers: ${this.subscribers.size}`
-    );
-
-    // Send initial connection message
     try {
-      await this.sendSSEMessage(writer, encoder, {
-        type: "connected",
-        title: "Connected",
-        message: "Notification stream established",
-        timestamp: Date.now(),
-      });
       console.log(
-        `[NotificationHub] Sent initial connection message to ${userId}`
+        `[NotificationHub] Subscriber added: ${userId}. Total: ${this.subscribers.size}`
       );
-    } catch (error) {
-      console.error(
-        `[NotificationHub] Failed to send initial message to ${userId}:`,
-        error
-      );
+    } catch (_e) {
+      // ignore log errors
     }
+
+    // Send initial connection message (fire-and-forget to avoid hanging tests)
+    this.sendSSEMessage(writer, encoder, {
+      type: "connected",
+      title: "Connected",
+      message: "Notification stream established",
+      timestamp: Date.now(),
+    }).catch(() => {});
 
     // Handle client disconnect
     request.signal?.addEventListener("abort", () => {
-      console.log(`[NotificationHub] Client disconnected: ${userId}`);
       this.subscribers.delete(userId);
       writer.close();
     });
@@ -129,7 +111,6 @@ export class NotificationHub extends DurableObject {
       },
     });
 
-    console.log(`[NotificationHub] Returning SSE response for ${userId}`);
     return response;
   }
 
@@ -160,12 +141,19 @@ export class NotificationHub extends DurableObject {
     const encoder = new TextEncoder();
     const deadSubscribers: string[] = [];
 
+    try {
+      console.log(
+        `[NotificationHub] Broadcasting: ${payload.type}. Subscribers: ${this.subscribers.size}`
+      );
+    } catch (_e) {
+      // ignore log errors
+    }
+
     for (const [userId, subscriber] of this.subscribers.entries()) {
       try {
         await this.sendSSEMessage(subscriber.writer, encoder, payload);
         subscriber.lastPing = Date.now();
-      } catch (error) {
-        console.error(`[NotificationHub] Failed to send to ${userId}:`, error);
+      } catch (_error) {
         deadSubscribers.push(userId);
       }
     }
@@ -215,8 +203,7 @@ export class NotificationHub extends DurableObject {
         const pingMessage = `: ping\n\n`;
         await subscriber.writer.write(encoder.encode(pingMessage));
         subscriber.lastPing = Date.now();
-      } catch (error) {
-        console.error(`[NotificationHub] Ping failed for ${userId}:`, error);
+      } catch (_error) {
         // Clean up the failed subscriber immediately
         try {
           await subscriber.writer.close();

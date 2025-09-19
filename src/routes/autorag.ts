@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import { FileDAO } from "../dao/file-dao";
+import { notifyFileUploadComplete } from "../lib/notifications";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { FileAnalysisOrchestrator } from "../services/file-analysis-orchestrator-service";
@@ -536,6 +537,28 @@ async function checkSingleJobStatus(
         console.log(
           `[AutoRAG] Updated file ${job.file_name} to status: ${fileStatus}`
         );
+
+        // If the job completed, emit a user notification via SSE
+        if (fileStatus === "completed") {
+          try {
+            const meta = await fileDAO.getFileMetadata(job.file_key);
+            const size = meta?.file_size ?? 0;
+            console.log(
+              `[AutoRAG] Sending FILE_UPLOADED notification for ${job.file_name} (size=${size}) to ${job.username}`
+            );
+            await notifyFileUploadComplete(
+              env,
+              job.username,
+              job.file_name,
+              size
+            );
+          } catch (notifyError) {
+            console.error(
+              `[AutoRAG] Failed to send file upload notification for ${job.file_name}:`,
+              notifyError
+            );
+          }
+        }
       }
 
       return { status: fileStatus, updated };

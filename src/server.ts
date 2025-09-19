@@ -791,31 +791,39 @@ export default {
 
 export { queueConsumer as queue };
 
-app.get("*", async (c) => {
-  const url = new URL(c.req.url);
-  const path = url.pathname;
+// Root path handler - serve index.html
+app.get("/", async (c) => {
+  return c.env.ASSETS.fetch(new Request("https://example.com/index.html"));
+});
 
-  // Skip API routes - let them be handled by specific route handlers above
-  if (path.startsWith("/api/")) {
-    return new Response("Not found", { status: 404 });
-  }
-
-  // Serve index.html for the root path
-  if (path === "/") {
-    return c.env.ASSETS.fetch(new Request("https://example.com/index.html"));
-  }
-
-  // Try to serve static assets
+// Static asset handler - serve CSS, JS, images, etc.
+app.get("/assets/*", async (c) => {
   try {
     const assetResponse = await c.env.ASSETS.fetch(c.req.raw);
     if (assetResponse.status === 200) {
       return assetResponse;
     }
   } catch (_error) {
-    console.log("Asset not found:", path);
+    console.log("Asset not found:", c.req.path);
   }
+  return new Response("Asset not found", { status: 404 });
+});
 
-  // Fallback to agent routing
+// Favicon handler
+app.get("/favicon.ico", async (c) => {
+  try {
+    const assetResponse = await c.env.ASSETS.fetch(c.req.raw);
+    if (assetResponse.status === 200) {
+      return assetResponse;
+    }
+  } catch (_error) {
+    console.log("Favicon not found");
+  }
+  return new Response("Favicon not found", { status: 404 });
+});
+
+// Agent routing handler - handle chat requests
+app.get("/agents/*", async (c) => {
   if (!process.env.OPENAI_API_KEY) {
     console.error(
       "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
@@ -837,6 +845,11 @@ app.get("*", async (c) => {
 
   return (
     (await routeAgentRequest(modifiedRequest, c.env as any, { cors: true })) ||
-    new Response("Not found", { status: 404 })
+    new Response("Agent route not found", { status: 404 })
   );
+});
+
+// Catch-all for any other GET requests - return 404
+app.get("*", async (_c) => {
+  return new Response("Route not found", { status: 404 });
 });

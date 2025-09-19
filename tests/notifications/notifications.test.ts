@@ -43,12 +43,9 @@ describe("Notification Helpers", () => {
       expect(mockEnv.NOTIFICATIONS.get).toHaveBeenCalled();
 
       const mockDO = mockEnv.NOTIFICATIONS.get();
-      expect(mockDO.fetch).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        })
-      );
+      const request = mockDO.fetch.mock.calls[0][0] as Request;
+      expect(request.method).toBe("POST");
+      expect(request.headers.get("Content-Type")).toBe("application/json");
     });
 
     it("should handle errors gracefully", async () => {
@@ -86,8 +83,8 @@ describe("Notification Helpers", () => {
       );
 
       const mockDO = mockEnv.NOTIFICATIONS.get();
-      const callArgs = mockDO.fetch.mock.calls[0][0];
-      const body = JSON.parse(callArgs.body);
+      const request = mockDO.fetch.mock.calls[0][0] as Request;
+      const body = await request.json();
 
       expect(body.type).toBe("shards_generated");
       expect(body.title).toBe("New Shards Ready!");
@@ -113,8 +110,8 @@ describe("Notification Helpers", () => {
       );
 
       const mockDO = mockEnv.NOTIFICATIONS.get();
-      const callArgs = mockDO.fetch.mock.calls[0][0];
-      const body = JSON.parse(callArgs.body);
+      const request = mockDO.fetch.mock.calls[0][0] as Request;
+      const body = await request.json();
 
       expect(body.type).toBe("file_uploaded");
       expect(body.title).toBe("File Upload Complete");
@@ -132,8 +129,8 @@ describe("Notification Helpers", () => {
       await notifyCampaignCreated(mockEnv, "test-user", "New Campaign");
 
       const mockDO = mockEnv.NOTIFICATIONS.get();
-      const callArgs = mockDO.fetch.mock.calls[0][0];
-      const body = JSON.parse(callArgs.body);
+      const request = mockDO.fetch.mock.calls[0][0] as Request;
+      const body = await request.json();
 
       expect(body.type).toBe("campaign_created");
       expect(body.title).toBe("Campaign Created");
@@ -155,8 +152,8 @@ describe("Notification Helpers", () => {
       );
 
       const mockDO = mockEnv.NOTIFICATIONS.get();
-      const callArgs = mockDO.fetch.mock.calls[0][0];
-      const body = JSON.parse(callArgs.body);
+      const request = mockDO.fetch.mock.calls[0][0] as Request;
+      const body = await request.json();
 
       expect(body.type).toBe("success");
       expect(body.title).toBe("Success!");
@@ -176,8 +173,8 @@ describe("Notification Helpers", () => {
       );
 
       const mockDO = mockEnv.NOTIFICATIONS.get();
-      const callArgs = mockDO.fetch.mock.calls[0][0];
-      const body = JSON.parse(callArgs.body);
+      const request = mockDO.fetch.mock.calls[0][0] as Request;
+      const body = await request.json();
 
       expect(body.type).toBe("error");
       expect(body.title).toBe("Error!");

@@ -19,7 +19,6 @@ interface ResourceSidePanelProps {
   setShowUserMenu?: (show: boolean) => void;
   triggerFileUpload?: boolean;
   onFileUploadTriggered?: () => void;
-  onSendNotification?: (message: string) => void;
 }
 
 export function ResourceSidePanel({
@@ -30,7 +29,6 @@ export function ResourceSidePanel({
   setShowUserMenu,
   triggerFileUpload = false,
   onFileUploadTriggered,
-  onSendNotification,
 }: ResourceSidePanelProps) {
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isCampaignsOpen, setIsCampaignsOpen] = useState(false);
@@ -47,7 +45,7 @@ export function ResourceSidePanel({
   // Custom hooks for business logic
   const { uploadedFileInfo, handleUpload, clearUploadedFileInfo } =
     useFileUpload({
-      onSendNotification,
+      onUploadStart: () => setIsAddModalOpen(false),
     });
 
   const {

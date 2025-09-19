@@ -643,16 +643,6 @@ export default function Chat() {
             setShowUserMenu={setShowUserMenu}
             triggerFileUpload={triggerFileUpload}
             onFileUploadTriggered={handleFileUploadTriggered}
-            onSendNotification={(message) => {
-              // Send notification as an assistant message to the chat
-              append({
-                role: "assistant",
-                content: message,
-                data: AuthService.getStoredJwt()
-                  ? { jwt: AuthService.getStoredJwt() }
-                  : undefined,
-              });
-            }}
           />
 
           {/* Main Chat Area */}

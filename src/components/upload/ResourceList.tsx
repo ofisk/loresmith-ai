@@ -194,6 +194,7 @@ export function ResourceList(_props: ResourceListProps) {
 
   const fetchResources = useCallback(async () => {
     try {
+      console.log("[ResourceList] fetchResources called");
       setLoading(true);
       setError(null);
 
@@ -422,6 +423,7 @@ export function ResourceList(_props: ResourceListProps) {
         "[ResourceList] File upload completed, refreshing resource list:",
         event
       );
+      console.log("[ResourceList] About to call fetchResources");
       fetchResources();
     },
     []

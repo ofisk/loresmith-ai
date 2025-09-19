@@ -1,10 +1,107 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "../dao/dao-factory";
+import { notifyFileUploadComplete } from "../lib/notifications";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { API_CONFIG } from "../shared";
 import { buildAutoRAGFileKey, buildStagingFileKey } from "../utils/file-keys";
 import { nanoid } from "../utils/nanoid";
+
+/**
+ * Helper function to process a file with AutoRAG and send notifications
+ */
+async function processFileWithAutoRAG(
+  env: Env,
+  autoragKey: string,
+  userId: string,
+  filename: string,
+  fileKey: string,
+  logPrefix: string
+): Promise<void> {
+  try {
+    console.log(`${logPrefix} Starting AutoRAG processing for:`, filename);
+
+    // Get file from R2
+    const file = await env.R2.get(fileKey);
+    if (!file) {
+      throw new Error("File not found in R2");
+    }
+
+    // Process with RAG service
+    const { getLibraryRagService } = await import("../lib/service-factory");
+    const ragService = getLibraryRagService(env);
+    await ragService.processFileFromR2(autoragKey, userId, env.R2, {
+      file_key: autoragKey,
+      username: userId,
+      file_name: filename,
+      file_size: file.size,
+      status: "processing",
+      created_at: new Date().toISOString(),
+    });
+
+    // Update database status and file size
+    const fileDAO = getDAOFactory(env).fileDAO;
+    await fileDAO.updateFileRecord(autoragKey, "completed", file.size);
+    console.log(`${logPrefix} AutoRAG processing completed for:`, filename);
+
+    // Send notification about file processing completion
+    try {
+      console.log(
+        `${logPrefix} Sending file processing completion notification for:`,
+        filename
+      );
+      await notifyFileUploadComplete(env, userId, filename, file.size);
+      console.log(
+        `${logPrefix} File processing completion notification sent successfully`
+      );
+    } catch (error) {
+      console.error(
+        `${logPrefix} Failed to send file processing completion notification:`,
+        error
+      );
+    }
+  } catch (error) {
+    console.error(
+      `${logPrefix} AutoRAG processing failed for:`,
+      filename,
+      error
+    );
+
+    // Update database status to error
+    try {
+      const fileDAO = getDAOFactory(env).fileDAO;
+      await fileDAO.updateFileRecord(autoragKey, "error");
+    } catch (dbError) {
+      console.error(
+        `${logPrefix} Failed to update file status to error:`,
+        dbError
+      );
+    }
+  }
+}
+
+/**
+ * Helper function to start AutoRAG processing in background
+ */
+function startAutoRAGProcessing(
+  env: Env,
+  autoragKey: string,
+  userId: string,
+  filename: string,
+  fileKey: string,
+  logPrefix: string
+): void {
+  setTimeout(async () => {
+    await processFileWithAutoRAG(
+      env,
+      autoragKey,
+      userId,
+      filename,
+      fileKey,
+      logPrefix
+    );
+  }, 100);
+}
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{
@@ -131,6 +228,16 @@ export async function handleDirectUpload(c: ContextWithAuth) {
       console.error(`[DirectUpload] Failed to insert file metadata: ${error}`);
       // Don't fail the upload if metadata insertion fails
     }
+
+    // Start AutoRAG processing in background
+    startAutoRAGProcessing(
+      c.env,
+      autoragKey,
+      userAuth.username,
+      filename,
+      key,
+      "[DirectUpload]"
+    );
 
     return c.json({
       success: true,
@@ -542,6 +649,16 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
       console.error(`[LargeUpload] Failed to insert file metadata: ${error}`);
       // Don't fail the upload if metadata insertion fails
     }
+
+    // Start AutoRAG processing in background
+    startAutoRAGProcessing(
+      c.env,
+      autoragKey,
+      session.userId,
+      session.filename,
+      session.fileKey,
+      "[LargeUpload]"
+    );
 
     // Mark session as completed
     await uploadSession.fetch(

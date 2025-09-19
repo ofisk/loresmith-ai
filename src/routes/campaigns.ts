@@ -382,6 +382,28 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
         } else {
           // Get the most recently added resource (the one that triggered this call)
           const resource = resources[resources.length - 1];
+
+          // Local helper to send a single consistent notification about shard count
+          const notifyShardCount = async (count: number) => {
+            try {
+              const campaignData =
+                await campaignDAO.getCampaignById(campaignId);
+              if (campaignData) {
+                await notifyShardGeneration(
+                  c.env,
+                  userAuth.username,
+                  campaignData.name,
+                  resource.file_name || resource.id,
+                  count
+                );
+              }
+            } catch (error) {
+              console.error(
+                "[Server] Failed to send shard generation notification:",
+                error
+              );
+            }
+          };
           console.log(`[Server] Generating shards for resource:`, resource);
 
           console.log(`[Server] Getting library AutoRAG service`);
@@ -512,27 +534,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                 console.log(
                   `[Server] Successfully created ${result.created} shards for ${resource.id}`
                 );
-
-                // Send notification about shard generation
-                try {
-                  const campaignData =
-                    await campaignDAO.getCampaignById(campaignId);
-
-                  if (campaignData) {
-                    await notifyShardGeneration(
-                      c.env,
-                      userAuth.username,
-                      campaignData.name,
-                      resource.file_name || resource.id,
-                      result.created
-                    );
-                  }
-                } catch (error) {
-                  console.error(
-                    "[Server] Failed to send shard generation notification:",
-                    error
-                  );
-                }
+                await notifyShardCount(result.created);
 
                 // Return the generated shards and an instruction for the chat UI to render management UI
                 return c.json({
@@ -562,6 +564,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                 });
               } else {
                 console.log(`[Server] No shards created for ${resource.id}`);
+                await notifyShardCount(0);
 
                 return c.json({
                   success: true,
@@ -578,6 +581,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
               console.warn(
                 `[Server] Invalid structured content format for ${resource.id}`
               );
+              await notifyShardCount(0);
 
               return c.json({
                 success: true,
@@ -596,6 +600,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
               parseError
             );
             console.log(`[Server] Raw AI response: ${aiResponse}`);
+            await notifyShardCount(0);
 
             return c.json({
               success: true,
@@ -613,6 +618,26 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       }
     } catch (shardError) {
       console.error(`[Server] Error generating shards:`, shardError);
+      // Still notify user with zero shards when generation fails
+      try {
+        // reuse local helper if available
+        // If helper is not in scope (type narrowing), send directly
+        const campaignData = await campaignDAO.getCampaignById(campaignId);
+        if (campaignData) {
+          await notifyShardGeneration(
+            c.env,
+            userAuth.username,
+            campaignData.name,
+            name || id,
+            0
+          );
+        }
+      } catch (notifyErr) {
+        console.error(
+          "[Server] Failed to send zero-shard notification after error:",
+          notifyErr
+        );
+      }
       // Don't fail the resource addition if shard generation fails
     }
 
