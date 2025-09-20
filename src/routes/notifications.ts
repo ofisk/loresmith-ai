@@ -11,22 +11,13 @@ export async function handleMintStreamToken(
   c: Context<{ Bindings: Env }>
 ): Promise<Response> {
   try {
-    console.log("[handleMintStreamToken] Mint stream token request received");
-
     // Authenticate user with their main JWT
     const authResult = await AuthService.extractAuthFromHeader(
       c.req.header("Authorization") || "",
       c.env
     );
 
-    console.log(
-      "[handleMintStreamToken] Auth result:",
-      !!authResult,
-      authResult?.username
-    );
-
     if (!authResult || !authResult.username) {
-      console.log("[handleMintStreamToken] Authentication failed");
       return new Response("Invalid or expired token", {
         status: 401,
         headers: {
@@ -36,10 +27,6 @@ export async function handleMintStreamToken(
     }
 
     const userId = authResult.username;
-    console.log(
-      "[handleMintStreamToken] Creating stream token for user:",
-      userId
-    );
 
     // Create a short-lived token specifically for SSE
     const authService = new AuthService(c.env);
@@ -69,10 +56,6 @@ export async function handleMintStreamToken(
       expiresIn: 900, // 15 minutes in seconds
     };
 
-    console.log(
-      "[handleMintStreamToken] Returning stream URL:",
-      response.streamUrl
-    );
     return c.json(response);
   } catch (error) {
     console.error("[Notifications] Error minting stream token:", error);
@@ -87,14 +70,6 @@ export async function handleNotificationStream(
   c: Context<{ Bindings: Env }>
 ): Promise<Response> {
   try {
-    console.log("[handleNotificationStream] *** STREAM REQUEST RECEIVED ***");
-    console.log("[handleNotificationStream] Request URL:", c.req.url);
-    console.log("[handleNotificationStream] Request method:", c.req.method);
-    console.log(
-      "[handleNotificationStream] Accept header:",
-      c.req.header("accept")
-    );
-
     // Get short-lived stream token from query parameter
     const streamToken = c.req.query("token");
 
@@ -163,31 +138,21 @@ export async function handleNotificationStream(
       );
       const notificationHub = c.env.NOTIFICATIONS.get(notificationHubId);
 
-      // Create SSE stream URL for Durable Object
-      const streamUrl = new URL(
-        API_CONFIG.ENDPOINTS.NOTIFICATIONS.STREAM_SUBSCRIBE,
-        c.req.url
-      );
-      streamUrl.searchParams.set("userId", userId);
-
-      console.log(
-        `[handleNotificationStream] Stream URL: ${streamUrl.toString()}`
-      );
-
-      // Forward request to Durable Object
-      const doRequest = new Request(streamUrl.toString(), {
+      // Create request to Durable Object directly
+      const doRequest = new Request("http://localhost/subscribe", {
         method: "GET",
         headers: {
-          ...c.req.raw.headers,
           Accept: "text/event-stream",
         },
-        signal: c.req.raw.signal,
+        // Remove signal to avoid hanging
       });
 
-      console.log(
-        `[handleNotificationStream] Forwarding to DO: ${streamUrl.toString()}`
-      );
-      const response = await notificationHub.fetch(doRequest);
+      // Add userId as query parameter
+      const doUrl = new URL(doRequest.url);
+      doUrl.searchParams.set("userId", userId);
+      const finalRequest = new Request(doUrl.toString(), doRequest);
+
+      const response = await notificationHub.fetch(finalRequest);
 
       if (!response.ok) {
         console.error(
@@ -204,10 +169,6 @@ export async function handleNotificationStream(
           },
         });
       }
-
-      console.log(
-        `[handleNotificationStream] DO response OK, streaming to client`
-      );
 
       // Clone the response and add CORS headers
       const corsHeaders = {
@@ -234,10 +195,6 @@ export async function handleNotificationStream(
         jwtError instanceof Error &&
         jwtError.message.includes("Durable Object reset")
       ) {
-        console.log(
-          "[Notifications] Durable Object reset detected, returning SSE reset message"
-        );
-
         // Return a successful SSE response with a reset message
         const { readable, writable } = new TransformStream();
         const writer = writable.getWriter();
@@ -250,8 +207,8 @@ export async function handleNotificationStream(
         setTimeout(async () => {
           try {
             await writer.close();
-          } catch (error) {
-            console.log("[Notifications] Error closing reset stream:", error);
+          } catch (_error) {
+            // Ignore error closing reset stream
           }
         }, 100);
 
@@ -337,12 +294,8 @@ export async function handleNotificationPublish(
     const notificationHubId = c.env.NOTIFICATIONS.idFromName(`user-${userId}`);
     const notificationHub = c.env.NOTIFICATIONS.get(notificationHubId);
 
-    // Create publish request
-    const publishUrl = new URL(
-      API_CONFIG.ENDPOINTS.NOTIFICATIONS.PUBLISH,
-      c.req.url
-    );
-    const doRequest = new Request(publishUrl.toString(), {
+    // Create publish request to call the Durable Object directly
+    const doRequest = new Request("http://localhost/publish", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

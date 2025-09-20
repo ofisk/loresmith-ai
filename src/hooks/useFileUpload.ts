@@ -12,13 +12,13 @@ import { buildAutoRAGFileKey } from "../utils/file-keys";
 import { useAutoRAGPolling } from "./useAutoRAGPolling";
 
 interface UseFileUploadProps {
-  onSendNotification?: (message: string) => void;
   onUploadSuccess?: (filename: string, fileKey: string) => void;
+  onUploadStart?: () => void;
 }
 
 export function useFileUpload({
-  onSendNotification,
   onUploadSuccess,
+  onUploadStart,
 }: UseFileUploadProps = {}) {
   const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
   const [uploadedFileInfo, setUploadedFileInfo] = useState<{
@@ -49,6 +49,9 @@ export function useFileUpload({
         filename,
         source: "useFileUpload",
       } as FileUploadEvent);
+
+      // Call upload start callback to close modal
+      onUploadStart?.();
 
       try {
         const jwt = getStoredJwt();
@@ -107,6 +110,13 @@ export function useFileUpload({
         }
 
         // Emit upload completed event
+        console.log("[useFileUpload] Emitting file upload completed event:", {
+          type: EVENT_TYPES.FILE_UPLOAD.COMPLETED,
+          fileKey,
+          filename,
+          progress: 100,
+          source: "useFileUpload",
+        });
         send({
           type: EVENT_TYPES.FILE_UPLOAD.COMPLETED,
           fileKey,
@@ -120,13 +130,6 @@ export function useFileUpload({
           filename: filename,
           fileKey: fileKey,
         });
-
-        // Send notification about successful upload
-        if (onSendNotification) {
-          onSendNotification(
-            `Your recent document "${filename}" has been indexed and is ready to be added to a campaign.`
-          );
-        }
 
         // Call success callback
         onUploadSuccess?.(filename, fileKey);
@@ -167,7 +170,7 @@ export function useFileUpload({
         } as FileUploadEvent);
       }
     },
-    [send, startPolling, onSendNotification, onUploadSuccess]
+    [send, startPolling, onUploadSuccess, onUploadStart]
   );
 
   const clearUploadedFileInfo = useCallback(() => {

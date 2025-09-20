@@ -1,5 +1,4 @@
-import type React from "react";
-import { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState } from "react";
 import type { NotificationPayload } from "../../durable-objects/notification-hub";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
 import { NotificationBell } from "./NotificationBell";
@@ -23,6 +22,11 @@ export function NotificationProvider({
   children,
   isAuthenticated,
 }: NotificationProviderProps) {
+  // Basic mount log to confirm provider is rendered client-side
+  console.log(
+    "[NotificationProvider] mounted. isAuthenticated:",
+    Boolean(isAuthenticated)
+  );
   const [activeNotifications, setActiveNotifications] = useState<
     NotificationPayload[]
   >([]);
@@ -31,10 +35,22 @@ export function NotificationProvider({
     useNotificationStream({
       onNotification: (notification) => {
         // Add to active notifications for display
+        console.log(
+          "[NotificationProvider] onNotification:",
+          notification?.type
+        );
         setActiveNotifications((prev) => [notification, ...prev]);
       },
       reconnectTrigger: isAuthenticated, // Trigger reconnection when auth state changes
     });
+
+  // Debug current list whenever it changes
+  React.useEffect(() => {
+    console.log(
+      "[NotificationProvider] activeNotifications count:",
+      activeNotifications.length
+    );
+  }, [activeNotifications]);
 
   const dismissNotification = (timestamp: number) => {
     setActiveNotifications((prev) =>

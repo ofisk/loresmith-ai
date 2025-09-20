@@ -1,19 +1,28 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NotificationHub } from "../../src/durable-objects/notification-hub";
+
+// Mock the Cloudflare DurableObject base to avoid constructor state checks in Node
+vi.mock("cloudflare:workers", () => ({
+  DurableObject: class {},
+}));
 
 // Mock Durable Object environment
 const mockEnv = {
   NOTIFICATIONS: {
     idFromName: (name: string) => ({ toString: () => name }),
-    get: (_id: any) => new NotificationHub({} as any, mockEnv),
+    get: (_id: any) =>
+      new NotificationHub({} as unknown as DurableObjectState, {} as any),
   },
-};
+} as any;
 
 describe("NotificationHub", () => {
   let notificationHub: NotificationHub;
 
   beforeEach(() => {
-    notificationHub = new NotificationHub({} as any, mockEnv);
+    notificationHub = new NotificationHub(
+      {} as unknown as DurableObjectState,
+      {} as any
+    );
   });
 
   afterEach(() => {

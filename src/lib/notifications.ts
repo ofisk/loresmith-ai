@@ -1,7 +1,6 @@
 import { NOTIFICATION_TYPES } from "../constants/notification-types";
 import type { NotificationPayload } from "../durable-objects/notification-hub";
 import type { Env } from "../middleware/auth";
-import { API_CONFIG } from "../shared";
 
 /**
  * Publish a notification to a specific user
@@ -22,20 +21,16 @@ export async function notifyUser(
       timestamp: Date.now(),
     };
 
-    // Create publish request
-    const publishRequest = new Request(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.PUBLISH),
-      {
+    // Call the Durable Object directly instead of making an HTTP request
+    const response = await notificationHub.fetch(
+      new Request("http://localhost/publish", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(completePayload),
-      }
+      })
     );
-
-    // Send notification
-    const response = await notificationHub.fetch(publishRequest);
 
     if (!response.ok) {
       console.error(
@@ -83,6 +78,12 @@ export async function notifyFileUploadComplete(
   fileName: string,
   fileSize: number
 ): Promise<void> {
+  console.log(
+    "[notifyFileUploadComplete] Sending notification for:",
+    fileName,
+    "to user:",
+    userId
+  );
   await notifyUser(env, userId, {
     type: NOTIFICATION_TYPES.FILE_UPLOADED,
     title: "File Upload Complete",
@@ -92,6 +93,7 @@ export async function notifyFileUploadComplete(
       fileSize,
     },
   });
+  console.log("[notifyFileUploadComplete] Notification sent successfully");
 }
 
 /**
