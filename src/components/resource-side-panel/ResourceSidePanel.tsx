@@ -96,8 +96,9 @@ export function ResourceSidePanel({
   };
 
   const handleCreateCampaignForFileWrapper = async () => {
-    await handleCreateCampaignForFile(uploadedFileInfo);
+    // Close immediately for instant feedback, then process in background
     setIsCreateCampaignModalOpen(false);
+    await handleCreateCampaignForFile(uploadedFileInfo);
     clearUploadedFileInfo();
   };
 
@@ -105,8 +106,9 @@ export function ResourceSidePanel({
     name: string,
     description: string
   ) => {
-    await handleCreateCampaign(name, description);
+    // Close immediately for instant feedback, then process in background
     setIsCreateCampaignModalOpen(false);
+    await handleCreateCampaign(name, description);
   };
 
   const handleCampaignClick = (campaign: Campaign) => {

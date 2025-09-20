@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Button } from "../button/Button";
 import { NOTIFICATION_TYPES } from "../../constants/notification-types";
 import type { NotificationPayload } from "../../durable-objects/notification-hub";
 
@@ -79,14 +80,16 @@ export function NotificationBell({
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-600 hover:text-gray-800 transition-colors"
+      <Button
+        variant="secondary"
+        size="md"
+        shape="circular"
+        className="relative h-9 w-9"
         aria-label="Notifications"
+        onClick={() => setIsOpen(!isOpen)}
       >
         <svg
-          className="w-6 h-6"
+          className="w-5 h-5"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -99,13 +102,12 @@ export function NotificationBell({
             d="M15 17h5l-5 5v-5zM4.5 19.5a2.5 2.5 0 01-2.5-2.5V7a2.5 2.5 0 012.5-2.5h15a2.5 2.5 0 012.5 2.5v10a2.5 2.5 0 01-2.5 2.5h-15z"
           />
         </svg>
-
         {notifications.length > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-medium leading-none">
             {notifications.length > 99 ? "99+" : notifications.length}
           </span>
         )}
-      </button>
+      </Button>
 
       {isOpen && (
         <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-96 overflow-hidden">

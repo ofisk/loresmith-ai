@@ -11,6 +11,8 @@ import loresmith from "@/assets/loresmith.png";
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { HelpButton } from "@/components/help/HelpButton";
+import { NotificationBell } from "./components/notifications/NotificationBell";
+import { useNotifications } from "./components/notifications/NotificationProvider";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { ResourceSidePanel } from "@/components/resource-side-panel";
 import { Textarea } from "@/components/textarea/Textarea";
@@ -65,6 +67,24 @@ function getSessionId(): string {
   const newSessionId = generateSessionId();
   localStorage.setItem("chat-session-id", newSessionId);
   return newSessionId;
+}
+
+function TopBarNotifications() {
+  const { activeNotifications, dismissNotification, clearActiveNotifications } =
+    useNotifications();
+
+  return (
+    <div className="ml-1">
+      <NotificationBell
+        notifications={activeNotifications}
+        onDismiss={(notificationId) => {
+          const ts = parseInt(notificationId.split("-")[0], 10);
+          dismissNotification(ts);
+        }}
+        onDismissAll={clearActiveNotifications}
+      />
+    </div>
+  );
 }
 
 export default function Chat() {
@@ -685,6 +705,9 @@ export default function Chat() {
               >
                 <Trash size={20} />
               </Button>
+
+              {/* Notifications button styled like other top bar buttons */}
+              <TopBarNotifications />
             </div>
 
             {/* Main Content Area */}

@@ -10,10 +10,15 @@ export const NOTIFICATION_TYPES = {
 
   // File-related notifications
   FILE_UPLOADED: "file_uploaded",
+  FILE_UPLOAD_FAILED: "file_upload_failed",
+  INDEXING_STARTED: "indexing_started",
+  INDEXING_COMPLETED: "indexing_completed",
+  INDEXING_FAILED: "indexing_failed",
   CAMPAIGN_FILE_ADDED: "campaign_file_added",
 
   // Campaign-related notifications
   CAMPAIGN_CREATED: "campaign_created",
+  CAMPAIGN_DELETED: "campaign_deleted",
 
   // System notifications
   SUCCESS: "success",

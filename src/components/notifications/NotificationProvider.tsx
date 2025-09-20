@@ -1,13 +1,16 @@
 import React, { createContext, useContext, useState } from "react";
 import type { NotificationPayload } from "../../durable-objects/notification-hub";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
-import { NotificationBell } from "./NotificationBell";
 
 interface NotificationContextType {
   notifications: NotificationPayload[];
   isConnected: boolean;
   error: string | null;
   clearNotifications: () => void;
+  // Active, user-visible notifications (toast list)
+  activeNotifications: NotificationPayload[];
+  dismissNotification: (timestamp: number) => void;
+  clearActiveNotifications: () => void;
 }
 
 const NotificationContext = createContext<NotificationContextType | null>(null);
@@ -58,28 +61,23 @@ export function NotificationProvider({
     );
   };
 
+  const clearActiveNotifications = () => setActiveNotifications([]);
+
   const contextValue: NotificationContextType = {
     notifications,
     isConnected,
     error,
     clearNotifications,
+    activeNotifications,
+    dismissNotification,
+    clearActiveNotifications,
   };
 
   return (
     <NotificationContext.Provider value={contextValue}>
       {children}
 
-      {/* Render notification bell */}
-      <div className="fixed top-4 right-4 z-50">
-        <NotificationBell
-          notifications={activeNotifications}
-          onDismiss={(notificationId) => {
-            const timestamp = parseInt(notificationId.split("-")[0], 10);
-            dismissNotification(timestamp);
-          }}
-          onDismissAll={() => setActiveNotifications([])}
-        />
-      </div>
+      {/* Bell is rendered by the top bar consumer to avoid overlap */}
 
       {/* Connection status indicator */}
       {!isConnected && (

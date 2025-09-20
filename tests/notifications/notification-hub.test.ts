@@ -6,8 +6,8 @@ vi.mock("cloudflare:workers", () => ({
   DurableObject: class {},
 }));
 
-// Mock Durable Object environment
-const mockEnv = {
+// Mock Durable Object environment (unused, keep underscore to satisfy linter)
+const _mockEnv = {
   NOTIFICATIONS: {
     idFromName: (name: string) => ({ toString: () => name }),
     get: (_id: any) =>

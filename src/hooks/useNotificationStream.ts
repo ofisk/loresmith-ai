@@ -197,27 +197,6 @@ export function useNotificationStream(
           error: null,
         }));
         reconnectAttempts.current = 0;
-        // Send a synthetic notification to verify the UI path
-        try {
-          const connectedNotice: NotificationPayload = {
-            type: NOTIFICATION_TYPES.CONNECTED,
-            title: "Notifications Connected",
-            message: "You're subscribed to real-time updates.",
-            timestamp: Date.now(),
-          };
-          // Update local list for badge/count consumers
-          setState((prev) => ({
-            ...prev,
-            notifications: [connectedNotice, ...prev.notifications].slice(
-              0,
-              50
-            ),
-          }));
-          // Notify provider so the NotificationBell renders it immediately
-          optsRef.current.onNotification?.(connectedNotice);
-        } catch (_e) {
-          // ignore
-        }
         optsRef.current.onConnect?.();
         isConnectingRef.current = false;
       };
@@ -250,11 +229,19 @@ export function useNotificationStream(
             return;
           }
 
+          if (
+            notification.type === NOTIFICATION_TYPES.CONNECTED ||
+            notification.type === "connected"
+          ) {
+            setState((prev) => ({ ...prev, isConnected: true, error: null }));
+            return;
+          }
+
           setState((prev) => ({
             ...prev,
-            isConnected: true, // Fallback: treat first message as connected
+            isConnected: true,
             error: null,
-            notifications: [notification, ...prev.notifications].slice(0, 50), // Keep last 50 notifications
+            notifications: [notification, ...prev.notifications].slice(0, 50),
           }));
           console.log("[useNotificationStream] ▶ message:", notification.type);
           optsRef.current.onNotification?.(notification);

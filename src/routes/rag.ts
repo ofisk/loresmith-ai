@@ -1,7 +1,12 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "../dao/dao-factory";
 import { FileDAO } from "../dao/file-dao";
-import { notifyFileUploadComplete } from "../lib/notifications";
+import {
+  notifyFileUploadComplete,
+  notifyIndexingStarted,
+  notifyIndexingCompleted,
+  notifyIndexingFailed,
+} from "../lib/notifications";
 import { getLibraryRagService } from "../lib/service-factory";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
@@ -79,6 +84,9 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
     // Start processing in background
     setTimeout(async () => {
       try {
+        try {
+          await notifyIndexingStarted(c.env, userAuth.username, filename);
+        } catch (_e) {}
         // Get file from R2
         const file = await c.env.FILE_BUCKET.get(fileKey);
         if (!file) {
@@ -104,7 +112,7 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
         // Update database status and file size
         await fileDAO.updateFileRecord(fileKey, "completed", file.size);
 
-        // Send notification about file upload completion
+        // Send notifications
         try {
           await notifyFileUploadComplete(
             c.env,
@@ -112,6 +120,7 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
             filename,
             file.size
           );
+          await notifyIndexingCompleted(c.env, userAuth.username, filename);
         } catch (error) {
           console.error(
             "[RAG] Failed to send file upload notification:",
@@ -126,6 +135,15 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
 
         // Update database status
         await fileDAO.updateFileRecord(fileKey, "error");
+
+        try {
+          await notifyIndexingFailed(
+            c.env,
+            userAuth.username,
+            filename,
+            (error as Error)?.message
+          );
+        } catch (_e) {}
       }
     }, 100);
 
@@ -175,6 +193,9 @@ export async function handleProcessFileFromR2ForRag(c: ContextWithAuth) {
     // Start processing in background
     setTimeout(async () => {
       try {
+        try {
+          await notifyIndexingStarted(c.env, userAuth.username, filename);
+        } catch (_e) {}
         // Get file from R2
         const file = await c.env.FILE_BUCKET.get(fileKey);
         if (!file) {
@@ -200,7 +221,7 @@ export async function handleProcessFileFromR2ForRag(c: ContextWithAuth) {
         // Update database status and file size
         await fileDAO.updateFileRecord(fileKey, "completed", file.size);
 
-        // Send notification about file upload completion
+        // Send notifications
         try {
           await notifyFileUploadComplete(
             c.env,
@@ -208,6 +229,7 @@ export async function handleProcessFileFromR2ForRag(c: ContextWithAuth) {
             filename,
             file.size
           );
+          await notifyIndexingCompleted(c.env, userAuth.username, filename);
         } catch (error) {
           console.error(
             "[RAG] Failed to send file upload notification:",
@@ -222,6 +244,15 @@ export async function handleProcessFileFromR2ForRag(c: ContextWithAuth) {
 
         // Update database status
         await fileDAO.updateFileRecord(fileKey, "error");
+
+        try {
+          await notifyIndexingFailed(
+            c.env,
+            userAuth.username,
+            filename,
+            (error as Error)?.message
+          );
+        } catch (_e) {}
       }
     }, 100);
 

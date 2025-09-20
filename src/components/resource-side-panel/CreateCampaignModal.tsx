@@ -23,6 +23,7 @@ export function CreateCampaignModal({
 }: CreateCampaignModalProps) {
   const [name, setName] = useState(campaignName);
   const [description, setDescription] = useState(campaignDescription);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Sync with parent state when modal opens
   useEffect(() => {
@@ -33,10 +34,36 @@ export function CreateCampaignModal({
   }, [isOpen, campaignName, campaignDescription]);
 
   const handleCreate = () => {
+    if (!name.trim() || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      if (typeof document !== "undefined") {
+        document.body.style.cursor = "progress";
+        document.documentElement.style.cursor = "progress";
+      }
+    } catch (_e) {}
+    // Sync upstream state then close first for instant UX
     onCampaignNameChange(name);
     onCampaignDescriptionChange(description);
-    onCreateCampaign(name, description);
+    onClose();
+    // Kick off creation on next tick so close renders immediately
+    setTimeout(() => {
+      onCreateCampaign(name, description);
+    }, 0);
   };
+
+  // Reset cursor and submitting state when modal closes/unmounts
+  useEffect(() => {
+    if (!isOpen) {
+      setIsSubmitting(false);
+      try {
+        if (typeof document !== "undefined") {
+          document.body.style.cursor = "";
+          document.documentElement.style.cursor = "";
+        }
+      } catch (_e) {}
+    }
+  }, [isOpen]);
 
   const campaignNameId = "campaign-name";
   const campaignDescriptionId = "campaign-description";
@@ -95,10 +122,10 @@ export function CreateCampaignModal({
           <button
             type="button"
             onClick={handleCreate}
-            disabled={!name.trim()}
-            className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold text-sm hover:text-purple-700 dark:hover:text-purple-300 transition-colors disabled:opacity-50"
+            disabled={!name.trim() || isSubmitting}
+            className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold text-sm hover:text-purple-700 dark:hover:text-purple-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Create
+            {isSubmitting ? "Creating…" : "Create"}
           </button>
           <button
             type="button"
