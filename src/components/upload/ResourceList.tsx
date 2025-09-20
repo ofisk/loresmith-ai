@@ -45,6 +45,10 @@ export function ResourceList(_props: ResourceListProps) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Local progress map keyed by fileKey; 0..100
+  const [progressByFileKey, setProgressByFileKey] = useState<
+    Record<string, number>
+  >({});
   const [selectedFile, setSelectedFile] =
     useState<ResourceFileWithCampaigns | null>(null);
   const [isAddToCampaignModalOpen, setIsAddToCampaignModalOpen] =
@@ -429,6 +433,102 @@ export function ResourceList(_props: ResourceListProps) {
     []
   );
 
+  // Upload progress listeners
+  useEventBus<FileUploadEvent>(
+    EVENT_TYPES.FILE_UPLOAD.STARTED,
+    (event) => {
+      const key = event.fileKey;
+      if (!key) return;
+      setProgressByFileKey((prev) => ({ ...prev, [key]: 0 }));
+    },
+    []
+  );
+
+  useEventBus<FileUploadEvent>(
+    EVENT_TYPES.FILE_UPLOAD.PROGRESS,
+    (event) => {
+      const key = event.fileKey;
+      if (!key) return;
+      const pct = Math.max(0, Math.min(100, event.progress ?? 0));
+      setProgressByFileKey((prev) => ({ ...prev, [key]: pct }));
+    },
+    []
+  );
+
+  useEventBus<FileUploadEvent>(
+    EVENT_TYPES.FILE_UPLOAD.FAILED,
+    (event) => {
+      const key = event.fileKey;
+      if (!key) return;
+      setProgressByFileKey((prev) => ({ ...prev, [key]: 100 }));
+      // Clear after a short delay to reflect failure via status badge
+      setTimeout(() => {
+        setProgressByFileKey((prev) => {
+          const copy = { ...prev };
+          delete copy[key];
+          return copy;
+        });
+      }, 1500);
+    },
+    []
+  );
+
+  // Indexing progress listeners
+  useEventBus<AutoRAGEvent>(
+    EVENT_TYPES.AUTORAG_SYNC.STARTED,
+    (event) => {
+      const key = event.fileKey as string | undefined;
+      if (!key) return;
+      setProgressByFileKey((prev) => ({ ...prev, [key]: 0 }));
+    },
+    []
+  );
+
+  useEventBus<AutoRAGEvent>(
+    EVENT_TYPES.AUTORAG_SYNC.PROGRESS,
+    (event) => {
+      const key = event.fileKey as string | undefined;
+      if (!key) return;
+      const pct = Math.max(0, Math.min(100, event.progress ?? 0));
+      setProgressByFileKey((prev) => ({ ...prev, [key]: pct }));
+    },
+    []
+  );
+
+  useEventBus<AutoRAGEvent>(
+    EVENT_TYPES.AUTORAG_SYNC.COMPLETED,
+    (event) => {
+      const key = event.fileKey as string | undefined;
+      if (!key) return;
+      setProgressByFileKey((prev) => ({ ...prev, [key]: 100 }));
+      setTimeout(() => {
+        setProgressByFileKey((prev) => {
+          const copy = { ...prev };
+          delete copy[key];
+          return copy;
+        });
+      }, 1500);
+    },
+    []
+  );
+
+  useEventBus<AutoRAGEvent>(
+    EVENT_TYPES.AUTORAG_SYNC.FAILED,
+    (event) => {
+      const key = event.fileKey as string | undefined;
+      if (!key) return;
+      setProgressByFileKey((prev) => ({ ...prev, [key]: 100 }));
+      setTimeout(() => {
+        setProgressByFileKey((prev) => {
+          const copy = { ...prev };
+          delete copy[key];
+          return copy;
+        });
+      }, 1500);
+    },
+    []
+  );
+
   useEventBus<AutoRAGEvent>(
     EVENT_TYPES.AUTORAG_SYNC.COMPLETED,
     (event) => {
@@ -543,8 +643,26 @@ export function ResourceList(_props: ResourceListProps) {
         {files.map((file) => (
           <div
             key={file.file_key}
-            className="p-2 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800"
+            className="relative p-2 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800 overflow-hidden"
           >
+            {/* Progress fill (transparent overlay) */}
+            <div
+              className="absolute inset-y-0 left-0 pointer-events-none"
+              style={{
+                width: (() => {
+                  const pct = progressByFileKey[file.file_key];
+                  if (typeof pct === "number") return `${pct}%`;
+                  if (file.status === "processing") return "66%";
+                  if (file.status === "error") return "100%";
+                  return undefined;
+                })(),
+                transition: "width 300ms ease",
+                background:
+                  file.status === "error"
+                    ? "rgba(239,68,68,0.15)"
+                    : "rgba(147,197,253,0.12)",
+              }}
+            />
             <div className="flex flex-col h-full">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 flex-1 mr-3 min-w-0">
@@ -776,6 +894,7 @@ export function ResourceList(_props: ResourceListProps) {
                     selectedValues={selectedCampaigns}
                     onSelectionChange={setSelectedCampaigns}
                     placeholder="Choose campaigns..."
+                    closeOnSelect
                   />
                 )}
               </fieldset>

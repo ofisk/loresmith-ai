@@ -13,6 +13,8 @@ export type MultiSelectProps = {
   selectedValues: string[];
   onSelectionChange: (values: string[]) => void;
   size?: "sm" | "md" | "base";
+  /** If true, the dropdown closes after each selection change */
+  closeOnSelect?: boolean;
 };
 
 export const MultiSelect = ({
@@ -22,6 +24,7 @@ export const MultiSelect = ({
   selectedValues,
   onSelectionChange,
   size = "base",
+  closeOnSelect = false,
 }: MultiSelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -45,6 +48,9 @@ export const MultiSelect = ({
       ? selectedValues.filter((v) => v !== value)
       : [...selectedValues, value];
     onSelectionChange(newSelection);
+    if (closeOnSelect) {
+      setIsOpen(false);
+    }
   };
 
   const selectedLabels = options

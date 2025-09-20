@@ -1,7 +1,11 @@
 import type { Context } from "hono";
 import { ShardAgent } from "../agents/shard-agent";
 import { getDAOFactory } from "../dao/dao-factory";
-import { notifyShardGeneration } from "../lib/notifications";
+import {
+  notifyShardGeneration,
+  notifyCampaignCreated,
+  notifyCampaignFileAdded,
+} from "../lib/notifications";
 import { RPG_EXTRACTION_PROMPTS } from "../lib/prompts/rpg-extraction-prompts";
 import { getLibraryAutoRAGService } from "../lib/service-factory";
 import type { Env } from "../middleware/auth";
@@ -111,6 +115,11 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
     console.log(
       `[Server] Created campaign: ${campaignId} for user ${userAuth.username}`
     );
+
+    // Notify campaign creation
+    try {
+      await notifyCampaignCreated(c.env, userAuth.username, name);
+    } catch (_e) {}
 
     return c.json({ success: true, campaign: newCampaign }, 201);
   } catch (error) {
@@ -359,6 +368,16 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
     );
 
     console.log(`[Server] Added resource ${id} to campaign ${campaignId}`);
+
+    // Notify file added to campaign (before shard generation)
+    try {
+      await notifyCampaignFileAdded(
+        c.env,
+        userAuth.username,
+        campaign.name,
+        name || id
+      );
+    } catch (_e) {}
 
     // Generate shards for the newly added resource
     try {

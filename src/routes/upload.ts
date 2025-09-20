@@ -1,6 +1,12 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "../dao/dao-factory";
-import { notifyFileUploadComplete } from "../lib/notifications";
+import {
+  notifyFileUploadComplete,
+  notifyFileUploadFailed,
+  notifyIndexingStarted,
+  notifyIndexingCompleted,
+  notifyIndexingFailed,
+} from "../lib/notifications";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { API_CONFIG } from "../shared";
@@ -20,6 +26,11 @@ async function processFileWithAutoRAG(
 ): Promise<void> {
   try {
     console.log(`${logPrefix} Starting AutoRAG processing for:`, filename);
+
+    // Send indexing started notification
+    try {
+      await notifyIndexingStarted(env, userId, filename);
+    } catch (_e) {}
 
     // Get file from R2
     const file = await env.R2.get(fileKey);
@@ -43,6 +54,11 @@ async function processFileWithAutoRAG(
     const fileDAO = getDAOFactory(env).fileDAO;
     await fileDAO.updateFileRecord(autoragKey, "completed", file.size);
     console.log(`${logPrefix} AutoRAG processing completed for:`, filename);
+
+    // Send indexing completed notification
+    try {
+      await notifyIndexingCompleted(env, userId, filename);
+    } catch (_e) {}
 
     // Send notification about file processing completion
     try {
@@ -77,6 +93,16 @@ async function processFileWithAutoRAG(
         dbError
       );
     }
+
+    // Send indexing failed notification
+    try {
+      await notifyIndexingFailed(
+        env,
+        userId,
+        filename,
+        (error as Error)?.message
+      );
+    } catch (_e) {}
   }
 }
 
@@ -247,6 +273,19 @@ export async function handleDirectUpload(c: ContextWithAuth) {
     });
   } catch (error) {
     console.error("[DirectUpload] Upload error:", error);
+    try {
+      const tenant = c.req.param("tenant");
+      const filename = c.req.param("filename");
+      const userAuth = (c as any).userAuth as AuthPayload;
+      if (tenant && filename && userAuth?.username === tenant) {
+        await notifyFileUploadFailed(
+          c.env,
+          userAuth.username,
+          filename,
+          (error as Error)?.message
+        );
+      }
+    } catch (_e) {}
     return c.json({ error: "Internal server error" }, 500);
   }
 }
@@ -680,6 +719,27 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
     });
   } catch (error) {
     console.error("[LargeUpload] Error completing upload:", error);
+    try {
+      const sessionId = c.req.param("sessionId");
+      if (sessionId) {
+        // Best-effort fetch to get filename and user
+        const uploadSessionId = c.env.UPLOAD_SESSION.idFromName(sessionId);
+        const uploadSession = c.env.UPLOAD_SESSION.get(uploadSessionId);
+        const sessionResponse = await uploadSession.fetch(
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_GET),
+          { method: "GET" }
+        );
+        if (sessionResponse.ok) {
+          const s = (await sessionResponse.json()) as UploadSessionData;
+          await notifyFileUploadFailed(
+            c.env,
+            s.userId,
+            s.filename,
+            (error as Error)?.message
+          );
+        }
+      }
+    } catch (_e) {}
     return c.json({ error: "Failed to complete upload" }, 500);
   }
 }

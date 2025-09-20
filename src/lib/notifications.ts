@@ -57,10 +57,16 @@ export async function notifyShardGeneration(
   fileName: string,
   shardCount: number
 ): Promise<void> {
+  const isNone = !shardCount || shardCount === 0;
+  const title = isNone ? "No Shards Found" : "New Shards Ready!";
+  const message = isNone
+    ? `🔎 No shards were discovered from "${fileName}". You can try another source or refine your materials.`
+    : `🎉 ${shardCount} new shards generated from "${fileName}"! Check your "${campaignName}" campaign to review them.`;
+
   await notifyUser(env, userId, {
     type: NOTIFICATION_TYPES.SHARDS_GENERATED,
-    title: "New Shards Ready!",
-    message: `🎉 ${shardCount} new shards generated from "${fileName}"! Check your "${campaignName}" campaign to review them.`,
+    title,
+    message,
     data: {
       campaignName,
       fileName,
@@ -94,6 +100,69 @@ export async function notifyFileUploadComplete(
     },
   });
   console.log("[notifyFileUploadComplete] Notification sent successfully");
+}
+
+/**
+ * Publish a file upload failure notification
+ */
+export async function notifyFileUploadFailed(
+  env: Env,
+  userId: string,
+  fileName: string,
+  reason?: string
+): Promise<void> {
+  await notifyUser(env, userId, {
+    type: NOTIFICATION_TYPES.FILE_UPLOAD_FAILED,
+    title: "Upload Faltered",
+    message: `⚠️ The scroll "${fileName}" could not be stowed. ${reason ? `Reason: ${reason}` : "Please try again."}`,
+    data: {
+      fileName,
+      reason,
+    },
+  });
+}
+
+/**
+ * Publish indexing lifecycle notifications
+ */
+export async function notifyIndexingStarted(
+  env: Env,
+  userId: string,
+  fileName: string
+): Promise<void> {
+  await notifyUser(env, userId, {
+    type: NOTIFICATION_TYPES.INDEXING_STARTED,
+    title: "Indexing Begun",
+    message: `📜 We’re scribing "${fileName}" into your library.`,
+    data: { fileName },
+  });
+}
+
+export async function notifyIndexingCompleted(
+  env: Env,
+  userId: string,
+  fileName: string
+): Promise<void> {
+  await notifyUser(env, userId, {
+    type: NOTIFICATION_TYPES.INDEXING_COMPLETED,
+    title: "Indexing Complete",
+    message: `✨ "${fileName}" is now searchable in your tome.`,
+    data: { fileName },
+  });
+}
+
+export async function notifyIndexingFailed(
+  env: Env,
+  userId: string,
+  fileName: string,
+  reason?: string
+): Promise<void> {
+  await notifyUser(env, userId, {
+    type: NOTIFICATION_TYPES.INDEXING_FAILED,
+    title: "Indexing Failed",
+    message: `🛑 Our quill slipped while indexing "${fileName}". ${reason ? `Reason: ${reason}` : "Please try again later."}`,
+    data: { fileName, reason },
+  });
 }
 
 /**
