@@ -26,6 +26,12 @@ export const renderShardManagementUITool = tool({
     context?: any
   ) => {
     try {
+      console.log(`[renderShardManagementUITool] ENTER:`, {
+        campaignId,
+        action,
+        resourceId,
+        shardType,
+      });
       console.log(
         `[renderShardManagementUITool] DEBUG: Called with campaignId: "${campaignId}", action: "${action}"`
       );
@@ -62,7 +68,7 @@ export const renderShardManagementUITool = tool({
       );
 
       // Return a special response that the UI will recognize as a component render request
-      return {
+      const payload = {
         success: true,
         data: {
           type: "render_component",
@@ -79,6 +85,14 @@ export const renderShardManagementUITool = tool({
           message: `Found ${result.total} shards for campaign ${campaignId}. Here's the management interface:`,
         },
       };
+      console.log(
+        `[renderShardManagementUITool] RETURN payload.render_component=true`,
+        {
+          total: result.total,
+          hasShardsArray: Array.isArray(result.shards),
+        }
+      );
+      return payload;
     } catch (error) {
       console.error(`[renderShardManagementUITool] DEBUG: Error:`, error);
       return {

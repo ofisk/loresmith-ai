@@ -297,6 +297,29 @@ export default function Chat() {
     onFinish: (result) => {
       console.log("[App] Agent finished:", result);
       console.log("[App] Result content:", result.content);
+      try {
+        // Debug: summarize final assistant message parts
+        const last = agentMessages[agentMessages.length - 1];
+        if (last) {
+          const summary = (last.parts || []).map((p: any) => {
+            if (p?.type === "text")
+              return { type: "text", len: p.text?.length };
+            if (p?.type === "tool-invocation") {
+              const res = p?.toolInvocation?.result;
+              const hasRender = Boolean(res?.data?.type === "render_component");
+              return {
+                type: "tool",
+                tool: p?.toolInvocation?.toolName,
+                state: p?.toolInvocation?.state,
+                hasResult: Boolean(res != null),
+                renderComponent: hasRender ? res?.data?.component : undefined,
+              };
+            }
+            return { type: p?.type };
+          });
+          console.log("[App][DEBUG] Last assistant message parts:", summary);
+        }
+      } catch (_e) {}
 
       // Check if the response indicates authentication is required
       if (result.content?.includes("AUTHENTICATION_REQUIRED:")) {
@@ -342,6 +365,26 @@ export default function Chat() {
       }
     },
   });
+  // Debug when agent messages change - inspect most recent message for render payloads
+  useEffect(() => {
+    const last = agentMessages[agentMessages.length - 1];
+    if (!last) return;
+    try {
+      const hasRender = (last.parts || []).some((p: any) =>
+        Boolean(
+          (p as any)?.data?.type === "render_component" ||
+            ((p as any)?.type === "tool-invocation" &&
+              (p as any)?.toolInvocation?.result?.data?.type ===
+                "render_component")
+        )
+      );
+      console.log("[App][DEBUG] Message render check:", {
+        id: last.id,
+        parts: (last.parts || []).length,
+        hasRender,
+      });
+    } catch (_e) {}
+  }, [agentMessages]);
 
   // Scroll to bottom on mount - only if there are messages and not loading
   useEffect(() => {
@@ -382,6 +425,8 @@ export default function Chat() {
       content: suggestion,
       data: jwt ? { jwt } : undefined,
     });
+    // Emit a system marker indicating this user message is now processed client-side
+    // We cannot reference the id synchronously here; a subsequent append will attach the id.
     setInput("");
     // Scroll to bottom after user sends a message
     setTimeout(() => {
@@ -525,6 +570,16 @@ export default function Chat() {
       content: agentInput,
       data: jwt ? { jwt } : undefined,
     });
+    // Immediately send a hidden system marker referencing the last user message
+    setTimeout(() => {
+      const last = agentMessages[agentMessages.length - 1];
+      const processedMessageId = last?.id;
+      append({
+        role: "system",
+        content: "",
+        data: { type: "client_marker", processedMessageId },
+      });
+    }, 0);
     setInput("");
     setTextareaHeight("auto"); // Reset height after submission
     // Scroll to bottom after user sends a message
@@ -571,31 +626,6 @@ export default function Chat() {
   };
 
   // Helper function to format shards as a readable chat message
-  const formatShardsAsMessage = useCallback(
-    (shards: any[], fileName: string) => {
-      if (!shards || shards.length === 0) {
-        return `No shards were generated from "${fileName}".`;
-      }
-
-      let message = `## 📚 New Content Discovered!\n\n`;
-      message += `I've analyzed **${fileName}** and found ${shards.length} piece${shards.length !== 1 ? "s" : ""} of content for your campaign:\n\n`;
-
-      shards.forEach((shard, index) => {
-        const confidence = Math.round(shard.metadata.confidence * 100);
-        message += `### ${index + 1}. ${shard.metadata.entityType} (${confidence}% confidence)\n`;
-        message += `${shard.text}\n\n`;
-      });
-
-      message += `**Next Steps:**\n`;
-      message += `• Review these shards in your campaign\n`;
-      message += `• Ask me to help integrate them into your story\n`;
-      message += `• Request specific details about any of these elements\n\n`;
-      message += `What would you like to know more about?`;
-
-      return message;
-    },
-    []
-  );
 
   // Listen for shard generation events and add them to chat
   useEffect(() => {
@@ -604,37 +634,24 @@ export default function Chat() {
 
       console.log("[App] Shards generated for campaign:", campaignId, shards);
 
-      // Use the shard agent to present the shards with proper UI
-      try {
-        // Create a message that will trigger the shard agent to present the shards
-        const shardMessage = {
-          role: "user" as const,
-          content: `I just added "${fileName}" to my campaign and ${shards.length} shards were generated. Please show me these shards so I can review and approve them.`,
-          data: {
-            type: "shard_review_request",
+      // Directly render the interactive UI via tool response shape
+      append({
+        role: "assistant",
+        content: "", // content not needed for component render
+        data: {
+          type: "render_component",
+          component: "ShardManagementUI",
+          props: {
             campaignId,
-            fileName,
+            shards,
+            total: shards.length,
+            status: "staged",
+            action: "show_staged",
             resourceId,
-            shardCount: shards.length,
           },
-        };
-
-        // Add the user message to the chat
-        append(shardMessage);
-
-        // The shard agent will now handle this request and present the shards
-        // with the proper UI components for approval/rejection
-      } catch (error) {
-        console.error("[App] Error handling shard generation:", error);
-
-        // Fallback to the old format if there's an error
-        const shardContent = formatShardsAsMessage(shards, fileName);
-        append({
-          role: "assistant",
-          content: shardContent,
-          data: { type: "shards", campaignId, fileName },
-        });
-      }
+          message: `Found ${shards.length} shards for ${fileName}.`,
+        },
+      });
     };
 
     // Listen for custom shard-generated events
@@ -643,13 +660,33 @@ export default function Chat() {
       handleShardsGenerated as unknown as EventListener
     );
 
+    // Also listen for NotificationProvider's UI render dispatches
+    const handleUiRender = (e: CustomEvent) => {
+      const { component, props } = e.detail || {};
+      if (component === "ShardManagementUI") {
+        append({
+          role: "assistant",
+          content: "",
+          data: { type: "render_component", component, props },
+        });
+      }
+    };
+    window.addEventListener(
+      "ui-render-component",
+      handleUiRender as unknown as EventListener
+    );
+
     return () => {
       window.removeEventListener(
         "shards-generated",
         handleShardsGenerated as unknown as EventListener
       );
+      window.removeEventListener(
+        "ui-render-component",
+        handleUiRender as unknown as EventListener
+      );
     };
-  }, [append, formatShardsAsMessage]);
+  }, [append]);
 
   return (
     <NotificationProvider isAuthenticated={isAuthenticated}>
@@ -762,7 +799,112 @@ export default function Chat() {
                           <div className={isUser ? "flex-1" : "w-full"}>
                             <div>
                               {m.parts?.map((part, i) => {
+                                // Precompute whether this message carries a render_component payload
+                                const hasRenderComponent = Array.isArray(
+                                  m.parts
+                                )
+                                  ? m.parts.some((p: any) =>
+                                      Boolean(
+                                        (p as any)?.data?.type ===
+                                          "render_component" ||
+                                          ((p as any)?.type ===
+                                            "tool-invocation" &&
+                                            (p as any)?.toolInvocation?.result
+                                              ?.data?.type ===
+                                              "render_component")
+                                      )
+                                    )
+                                  : false;
+                                if (i === 0) {
+                                  console.log(
+                                    "[App][DEBUG] Rendering message:",
+                                    {
+                                      id: m.id,
+                                      hasRenderComponent,
+                                      partCount: m.parts?.length,
+                                    }
+                                  );
+                                }
+                                // If the previous assistant message already rendered a component, suppress plain text in this follow-up message as well
+                                const previousMessage =
+                                  agentMessages[
+                                    agentMessages.findIndex(
+                                      (mm) => mm.id === m.id
+                                    ) - 1
+                                  ];
+                                const prevHasRender =
+                                  previousMessage?.parts?.some((p: any) =>
+                                    Boolean(
+                                      (p as any)?.data?.type ===
+                                        "render_component" ||
+                                        ((p as any)?.type ===
+                                          "tool-invocation" &&
+                                          (p as any)?.toolInvocation?.result
+                                            ?.data?.type === "render_component")
+                                    )
+                                  );
+                                // Render components pushed via notifications or tools
+                                if (
+                                  (part as any)?.data?.type ===
+                                    "render_component" &&
+                                  (part as any)?.data?.component ===
+                                    "ShardManagementUI"
+                                ) {
+                                  console.log(
+                                    "[App][DEBUG] Rendering ShardManagementUI from direct data payload"
+                                  );
+                                  const payload = (part as any).data;
+                                  const Comp =
+                                    require("./components/chat/ShardManagementUI").ShardManagementUI;
+                                  return (
+                                    <div
+                                      key={`${m.id}-render-direct-${i}`}
+                                      className="w-full"
+                                    >
+                                      <Comp {...payload.props} />
+                                    </div>
+                                  );
+                                }
+                                // Render components returned inside tool results (tool-invocation → result → data)
+                                if (
+                                  part.type === "tool-invocation" &&
+                                  (part as any)?.toolInvocation?.result?.data
+                                    ?.type === "render_component" &&
+                                  (part as any)?.toolInvocation?.result?.data
+                                    ?.component === "ShardManagementUI"
+                                ) {
+                                  console.log(
+                                    "[App][DEBUG] Rendering ShardManagementUI from tool result",
+                                    (part as any)?.toolInvocation?.toolName
+                                  );
+                                  const payload = (part as any).toolInvocation
+                                    .result.data;
+                                  const Comp =
+                                    require("./components/chat/ShardManagementUI").ShardManagementUI;
+                                  return (
+                                    <div
+                                      key={`${m.id}-${(part as any)?.toolInvocation?.toolCallId || "tool"}-${i}`}
+                                      className="w-full"
+                                    >
+                                      <Comp {...payload.props} />
+                                    </div>
+                                  );
+                                }
+                                // If a prior tool result exists that handled the action, and this part is a generic confirmation text,
+                                // suppress it to avoid duplicate prose when an interactive component was rendered.
+                                if (
+                                  part.type === "text" &&
+                                  (hasRenderComponent || prevHasRender)
+                                ) {
+                                  console.log(
+                                    "[App][DEBUG] Suppressing text because render_component is present"
+                                  );
+                                  return null;
+                                }
                                 if (part.type === "text") {
+                                  console.log(
+                                    "[App][DEBUG] Rendering plain text (no render_component in message)"
+                                  );
                                   return (
                                     // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
                                     <div key={i}>

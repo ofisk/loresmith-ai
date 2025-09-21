@@ -182,10 +182,56 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           `[${this.constructor.name}] About to call streamText with maxSteps: 2...`
         );
 
-        // Create enhanced tools that automatically include JWT
+        // Determine whether the most recent user command is stale
+        let isStaleCommand = false;
+        try {
+          const createdAt = (lastUserMessage as any)?.createdAt as
+            | string
+            | number
+            | Date
+            | undefined;
+          if (createdAt) {
+            const ts = new Date(createdAt as any).getTime();
+            const ageMs = Date.now() - ts;
+            // Consider commands older than 30 seconds as stale (guard to avoid re-triggering actions)
+            isStaleCommand = Number.isFinite(ageMs) && ageMs > 30 * 1000;
+
+            // If any newer system message exists after the user message, mark as stale
+            try {
+              const userTs = ts;
+              const newerSystemExists = this.messages.some((m: any) => {
+                if (m?.role !== "system" || !m?.createdAt) return false;
+                const msTs = new Date(m.createdAt as any).getTime();
+                return Number.isFinite(msTs) && msTs > userTs;
+              });
+              if (newerSystemExists) {
+                isStaleCommand = true;
+              }
+            } catch (_e2) {}
+
+            // If a client marker exists indicating this user message was processed, treat as stale
+            try {
+              const markerFound = this.messages.some((m: any) => {
+                if (m?.role !== "system") return false;
+                const data = (m as any)?.data;
+                return (
+                  data &&
+                  data.type === "client_marker" &&
+                  data.processedMessageId === (lastUserMessage as any)?.id
+                );
+              });
+              if (markerFound) {
+                isStaleCommand = true;
+              }
+            } catch (_e3) {}
+          }
+        } catch (_e) {}
+
+        // Create enhanced tools that automatically include JWT and apply stale-command guard
         const enhancedTools = this.createEnhancedTools(
           clientJwt,
-          campaignIdHint
+          campaignIdHint,
+          { isStaleCommand }
         );
 
         // Use tools if available, otherwise use none
@@ -196,6 +242,14 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
         console.log(
           `[${this.constructor.name}] Starting streamText with toolChoice: ${toolChoice}`
         );
+        // Debug which tools will be available to the model (names only)
+        try {
+          const toolNames = Object.keys(enhancedTools);
+          console.log(
+            `[${this.constructor.name}] Enhanced tools exposed to model:`,
+            toolNames
+          );
+        } catch (_e) {}
         console.log(`[${this.constructor.name}] Model: ${this.model}`);
         console.log(
           `[${this.constructor.name}] System prompt length: ${(this.constructor as any).agentMetadata.systemPrompt.length}`
@@ -300,7 +354,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
    */
   protected createEnhancedTools(
     clientJwt: string | null,
-    _campaignIdHint: string | null
+    _campaignIdHint: string | null,
+    staleGuard?: { isStaleCommand?: boolean }
   ): Record<string, any> {
     // Track tool calls to prevent infinite loops
     const toolCallCounts = new Map<string, number>();
@@ -345,6 +400,27 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 console.log(
                   `[${this.constructor.name}] Injected JWT into tool ${toolName} parameters`
                 );
+              }
+
+              // Block mutating tools if the last user command is stale
+              const mutatingTools = new Set([
+                "approveShardsTool",
+                "rejectShardsTool",
+                "createShardsTool",
+              ]);
+              if (staleGuard?.isStaleCommand && mutatingTools.has(toolName)) {
+                console.warn(
+                  `[${this.constructor.name}] Blocking mutating tool '${toolName}' due to stale user command`
+                );
+                return {
+                  toolCallId: context?.toolCallId || "unknown",
+                  result: {
+                    success: false,
+                    message:
+                      "IGNORED_STALE_COMMAND: Mutating action was blocked because the originating user command is stale.",
+                    data: null,
+                  },
+                };
               }
 
               // Execute the tool

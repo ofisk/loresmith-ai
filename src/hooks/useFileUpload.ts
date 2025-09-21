@@ -9,7 +9,6 @@ import {
 import { AutoRAGService } from "../services/autorag-service";
 import { API_CONFIG, AUTORAG_CONFIG } from "../shared";
 import { buildAutoRAGFileKey } from "../utils/file-keys";
-import { useAutoRAGPolling } from "./useAutoRAGPolling";
 
 interface UseFileUploadProps {
   onUploadSuccess?: (filename: string, fileKey: string) => void;
@@ -27,7 +26,6 @@ export function useFileUpload({
   } | null>(null);
 
   const send = useEvent();
-  const { startPolling } = useAutoRAGPolling();
 
   const handleUpload = useCallback(
     async (
@@ -125,7 +123,7 @@ export function useFileUpload({
           source: "useFileUpload",
         } as FileUploadEvent);
 
-        // Success state - trigger AutoRAG sync and start polling
+        // Success state - trigger AutoRAG sync; progress will arrive via SSE
         setUploadedFileInfo({
           filename: filename,
           fileKey: fileKey,
@@ -134,7 +132,7 @@ export function useFileUpload({
         // Call success callback
         onUploadSuccess?.(filename, fileKey);
 
-        // Trigger AutoRAG sync and start polling for job status
+        // Trigger AutoRAG sync
         try {
           // Add a small delay to avoid hitting rate limits
           await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -143,9 +141,6 @@ export function useFileUpload({
           const jobId = await AutoRAGService.triggerSync(ragId);
 
           console.log("[useFileUpload] AutoRAG sync triggered, job_id:", jobId);
-
-          // Start polling for job status with file key
-          startPolling(ragId, jobId, fileKey);
 
           // Add a cooldown period to prevent hitting rate limits
           setTimeout(() => {
@@ -170,7 +165,7 @@ export function useFileUpload({
         } as FileUploadEvent);
       }
     },
-    [send, startPolling, onUploadSuccess, onUploadStart]
+    [send, onUploadSuccess, onUploadStart]
   );
 
   const clearUploadedFileInfo = useCallback(() => {

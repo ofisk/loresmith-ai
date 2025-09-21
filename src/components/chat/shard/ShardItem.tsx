@@ -12,12 +12,20 @@ interface ShardItemProps {
   };
   isSelected: boolean;
   onSelectionChange: (shardId: string, checked: boolean) => void;
+  onApprove?: () => void;
+  onReject?: (reason: string) => void;
+  isApproving?: boolean;
+  isRejecting?: boolean;
 }
 
 export const ShardItem: React.FC<ShardItemProps> = ({
   shard,
   isSelected,
   onSelectionChange,
+  onApprove,
+  onReject,
+  isApproving = false,
+  isRejecting = false,
 }) => {
   return (
     <div className="border border-gray-200 rounded-lg p-3">
@@ -53,8 +61,57 @@ export const ShardItem: React.FC<ShardItemProps> = ({
               </p>
             </details>
           )}
+
+          {(onApprove || onReject) && (
+            <div className="mt-3 flex items-center gap-2">
+              {onApprove && (
+                <button
+                  type="button"
+                  onClick={onApprove}
+                  disabled={isApproving}
+                  className="px-2.5 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  {isApproving ? "Approving…" : "Approve"}
+                </button>
+              )}
+              {onReject && (
+                <RejectWithReasonButton
+                  onReject={onReject}
+                  disabled={isRejecting}
+                  isRejecting={isRejecting}
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
+
+function RejectWithReasonButton({
+  onReject,
+  disabled,
+  isRejecting,
+}: {
+  onReject: (reason: string) => void;
+  disabled?: boolean;
+  isRejecting?: boolean;
+}) {
+  const handleClick = () => {
+    const reason = window.prompt("Enter rejection reason (optional):", "");
+    if (reason !== null) {
+      onReject(reason);
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={disabled}
+      className="px-2.5 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+    >
+      {isRejecting ? "Rejecting…" : "Reject"}
+    </button>
+  );
+}

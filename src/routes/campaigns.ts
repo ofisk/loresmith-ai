@@ -5,6 +5,7 @@ import {
   notifyShardGeneration,
   notifyCampaignCreated,
   notifyCampaignFileAdded,
+  notifyShardParseIssue,
 } from "../lib/notifications";
 import { RPG_EXTRACTION_PROMPTS } from "../lib/prompts/rpg-extraction-prompts";
 import { getLibraryAutoRAGService } from "../lib/service-factory";
@@ -446,23 +447,56 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
             prompt: `${structuredExtractionPrompt.substring(0, 200)}...`,
           });
 
-          const aiSearchResult = await libraryAutoRAG.aiSearch(
-            structuredExtractionPrompt,
-            {
+          // Retry AI search once on transient failures (e.g., 400 due to race/format)
+          async function runAISearchOnce() {
+            const fileKey = resource.id as string;
+            const folderPrefix =
+              typeof fileKey === "string" && fileKey.includes("/")
+                ? fileKey.slice(0, fileKey.lastIndexOf("/") + 1)
+                : undefined;
+            const fileNameForFilter =
+              resource.file_name ||
+              (typeof fileKey === "string"
+                ? fileKey.substring(fileKey.lastIndexOf("/") + 1)
+                : undefined);
+
+            // Build compound filters: folder (original upload location) AND filename
+            const filtersArr: any[] = [];
+            if (folderPrefix) {
+              filtersArr.push({
+                type: "eq",
+                key: "folder",
+                value: folderPrefix,
+              });
+            }
+            if (fileNameForFilter) {
+              filtersArr.push({
+                type: "eq",
+                key: "filename",
+                value: fileNameForFilter,
+              });
+            }
+
+            return await libraryAutoRAG.aiSearch(structuredExtractionPrompt, {
               max_results: 20,
               rewrite_query: false,
               filters: {
                 type: "and",
-                filters: [
-                  {
-                    type: "eq",
-                    key: "filename",
-                    value: resource.file_name,
-                  },
-                ],
+                filters: filtersArr,
               },
-            }
-          );
+            });
+          }
+          let aiSearchResult: any;
+          try {
+            aiSearchResult = await runAISearchOnce();
+          } catch (firstErr) {
+            console.warn(
+              "[Server] AI Search failed once, retrying in 500ms:",
+              firstErr
+            );
+            await new Promise((r) => setTimeout(r, 500));
+            aiSearchResult = await runAISearchOnce();
+          }
 
           console.log(`[Server] AutoRAG AI Search completed with result:`, {
             hasResponse: !!aiSearchResult.response,
@@ -584,6 +618,17 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
               } else {
                 console.log(`[Server] No shards created for ${resource.id}`);
                 await notifyShardCount(0);
+                // Emit a hidden debug notification to help diagnose parse misses
+                await notifyShardParseIssue(
+                  c.env,
+                  userAuth.username,
+                  campaign.name,
+                  resource.file_name || resource.id,
+                  {
+                    reason: "no_shards_after_parse",
+                    aiResponsePreview: aiResponse.substring(0, 200),
+                  }
+                );
 
                 return c.json({
                   success: true,
@@ -601,6 +646,16 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                 `[Server] Invalid structured content format for ${resource.id}`
               );
               await notifyShardCount(0);
+              await notifyShardParseIssue(
+                c.env,
+                userAuth.username,
+                campaign.name,
+                resource.file_name || resource.id,
+                {
+                  reason: "invalid_structured_content",
+                  keys: Object.keys(parsedContent || {}),
+                }
+              );
 
               return c.json({
                 success: true,
@@ -620,6 +675,16 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
             );
             console.log(`[Server] Raw AI response: ${aiResponse}`);
             await notifyShardCount(0);
+            await notifyShardParseIssue(
+              c.env,
+              userAuth.username,
+              campaign.name,
+              resource.file_name || resource.id,
+              {
+                reason: "parse_exception",
+                error: (parseError as Error)?.message,
+              }
+            );
 
             return c.json({
               success: true,
