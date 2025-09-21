@@ -36,6 +36,10 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
   shardIds: _shardIds,
 }) => {
   const [processing, setProcessing] = useState<string | null>(null);
+  const [processingShard, setProcessingShard] = useState<{
+    id: string;
+    action: "approving" | "rejecting" | null;
+  } | null>(null);
   const [selectedShards, setSelectedShards] = useState<Set<string>>(new Set());
   const [rejectionReason, setRejectionReason] = useState("");
   const [processedShards, setProcessedShards] = useState<Set<string>>(
@@ -138,6 +142,49 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
     }
   };
 
+  const approveSingleShard = async (shardId: string) => {
+    setProcessingShard({ id: shardId, action: "approving" });
+    try {
+      const jwt = getStoredJwt();
+      if (!jwt) {
+        throw new Error("Authentication required");
+      }
+
+      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
+        API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.APPROVE_SHARDS(
+            campaignId
+          )
+        ),
+        {
+          method: "POST",
+          jwt,
+          body: JSON.stringify({ shardIds: [shardId] }),
+        }
+      );
+
+      if (jwtExpired) {
+        throw new Error("Authentication expired");
+      }
+
+      if (!response.ok) {
+        const errorData = (await response.json()) as { error?: string };
+        throw new Error(errorData.error || "Failed to approve shard");
+      }
+
+      setProcessedShards((prev) => new Set([...prev, shardId]));
+      setSelectedShards((prev) => {
+        const copy = new Set(prev);
+        copy.delete(shardId);
+        return copy;
+      });
+    } catch (error) {
+      console.error("Error approving shard:", error);
+    } finally {
+      setProcessingShard(null);
+    }
+  };
+
   const handleRejectSelected = async () => {
     if (selectedShards.size === 0 || !rejectionReason.trim()) return;
 
@@ -183,6 +230,50 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
       console.error("Error rejecting shards:", error);
     } finally {
       setProcessing(null);
+    }
+  };
+
+  const rejectSingleShard = async (shardId: string, reason: string) => {
+    if (!reason.trim()) return;
+    setProcessingShard({ id: shardId, action: "rejecting" });
+    try {
+      const jwt = getStoredJwt();
+      if (!jwt) {
+        throw new Error("Authentication required");
+      }
+
+      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
+        API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.REJECT_SHARDS(
+            campaignId
+          )
+        ),
+        {
+          method: "POST",
+          jwt,
+          body: JSON.stringify({ shardIds: [shardId], reason: reason.trim() }),
+        }
+      );
+
+      if (jwtExpired) {
+        throw new Error("Authentication expired");
+      }
+
+      if (!response.ok) {
+        const errorData = (await response.json()) as { error?: string };
+        throw new Error(errorData.error || "Failed to reject shard");
+      }
+
+      setProcessedShards((prev) => new Set([...prev, shardId]));
+      setSelectedShards((prev) => {
+        const copy = new Set(prev);
+        copy.delete(shardId);
+        return copy;
+      });
+    } catch (error) {
+      console.error("Error rejecting shard:", error);
+    } finally {
+      setProcessingShard(null);
     }
   };
 
@@ -272,6 +363,16 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
                     }}
                     isSelected={selectedShards.has(shard.id)}
                     onSelectionChange={handleShardSelection}
+                    onApprove={() => approveSingleShard(shard.id)}
+                    onReject={(reason) => rejectSingleShard(shard.id, reason)}
+                    isApproving={
+                      processingShard?.id === shard.id &&
+                      processingShard.action === "approving"
+                    }
+                    isRejecting={
+                      processingShard?.id === shard.id &&
+                      processingShard.action === "rejecting"
+                    }
                   />
                 ))}
               </div>
@@ -285,6 +386,9 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
               group={group}
               selectedShards={selectedShards}
               onShardSelection={handleShardSelection}
+              onApproveOne={approveSingleShard}
+              onRejectOne={rejectSingleShard}
+              processingShard={processingShard}
             />
           );
         })}

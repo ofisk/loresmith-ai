@@ -1,9 +1,10 @@
 import { CheckCircle, Spinner, XCircle } from "@phosphor-icons/react";
-import { useCallback, useEffect, useState } from "react";
-import { JWT_STORAGE_KEY } from "../../constants";
+import { useCallback, useEffect } from "react";
 import { FileDAO } from "../../dao/file-dao";
-import { useAutoRAGPolling } from "../../hooks/useAutoRAGPolling";
-import { authenticatedFetchWithExpiration } from "../../services/auth-service";
+import {
+  authenticatedFetchWithExpiration,
+  getStoredJwt,
+} from "../../services/auth-service";
 import { API_CONFIG } from "../../shared";
 
 interface FileStatusIndicatorProps {
@@ -17,46 +18,17 @@ interface FileStatusIndicatorProps {
 export function FileStatusIndicator({
   className = "",
   initialStatus = "uploaded",
-  jobId,
-  ragId,
+  jobId: _jobId,
+  ragId: _ragId,
   tenant,
 }: FileStatusIndicatorProps) {
-  const [showError, setShowError] = useState(false);
-  const { jobStatus, isPolling, startPolling, stopPolling } =
-    useAutoRAGPolling();
-
-  // Start polling if we have job details and the file is still pending
-  useEffect(() => {
-    if (
-      jobId &&
-      ragId &&
-      (initialStatus === FileDAO.STATUS.UPLOADED ||
-        initialStatus === FileDAO.STATUS.PROCESSING)
-    ) {
-      startPolling(ragId, jobId);
-
-      // Set a timeout to show error after 2 minutes if still polling
-      const errorTimeout = setTimeout(() => {
-        if (isPolling) {
-          setShowError(true);
-          stopPolling();
-        }
-      }, 120000); // 2 minutes
-
-      return () => {
-        clearTimeout(errorTimeout);
-        stopPolling();
-      };
-    }
-  }, [jobId, ragId, initialStatus, startPolling, stopPolling, isPolling]);
+  // No local error timeout; rely on SSE-driven updates and server state
 
   // Manual refresh function to check AutoRAG status
   const handleRefresh = useCallback(async () => {
     try {
-      const jwt = localStorage.getItem(JWT_STORAGE_KEY);
-      if (!jwt) {
-        throw new Error("No JWT token available");
-      }
+      const jwt = getStoredJwt();
+      if (!jwt) return;
 
       // Use the new refresh all statuses endpoint from API_CONFIG
       const { response, jwtExpired } = await authenticatedFetchWithExpiration(
@@ -106,15 +78,25 @@ export function FileStatusIndicator({
     }
   }, [tenant]);
 
-  // Automatically refresh file statuses on component mount for processing files
+  // Refresh when SSE says file statuses changed
   useEffect(() => {
+    const onUpdate = (_e: Event) => {
+      handleRefresh();
+    };
+    window.addEventListener("file-status-updated", onUpdate);
+    window.addEventListener("file-changed", onUpdate as EventListener);
+    // Initial best-effort refresh for processing files
     if (
       initialStatus === FileDAO.STATUS.PROCESSING ||
       initialStatus === FileDAO.STATUS.UPLOADED
     ) {
       handleRefresh();
     }
-  }, [handleRefresh, initialStatus]); // Include dependencies
+    return () => {
+      window.removeEventListener("file-status-updated", onUpdate);
+      window.removeEventListener("file-changed", onUpdate as EventListener);
+    };
+  }, [handleRefresh, initialStatus]);
 
   // Determine what to show based on status
   const statusConfig = {
@@ -143,26 +125,13 @@ export function FileStatusIndicator({
 
   // Get current status
   let currentStatus: keyof typeof statusConfig;
-
-  if (showError) {
+  // Fall back to initial status
+  if (initialStatus === FileDAO.STATUS.COMPLETED) {
+    currentStatus = FileDAO.STATUS.COMPLETED;
+  } else if (initialStatus === FileDAO.STATUS.ERROR) {
     currentStatus = FileDAO.STATUS.ERROR;
-  } else if (jobStatus?.ended_at) {
-    // Job completed
-    const isSuccess =
-      !jobStatus.end_reason || jobStatus.end_reason === "completed";
-    currentStatus = isSuccess ? FileDAO.STATUS.COMPLETED : FileDAO.STATUS.ERROR;
-  } else if (jobStatus?.started_at) {
-    // Job is running
-    currentStatus = FileDAO.STATUS.PROCESSING;
   } else {
-    // Fall back to initial status
-    if (initialStatus === FileDAO.STATUS.COMPLETED) {
-      currentStatus = FileDAO.STATUS.COMPLETED;
-    } else if (initialStatus === FileDAO.STATUS.ERROR) {
-      currentStatus = FileDAO.STATUS.ERROR;
-    } else {
-      currentStatus = FileDAO.STATUS.PROCESSING;
-    }
+    currentStatus = FileDAO.STATUS.PROCESSING;
   }
 
   const config = statusConfig[currentStatus];

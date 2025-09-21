@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState } from "react";
 import type { NotificationPayload } from "../../durable-objects/notification-hub";
+import { NOTIFICATION_TYPES } from "../../constants/notification-types";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
 
 interface NotificationContextType {
@@ -37,12 +38,83 @@ export function NotificationProvider({
   const { notifications, isConnected, error, clearNotifications } =
     useNotificationStream({
       onNotification: (notification) => {
-        // Add to active notifications for display
+        // System/hidden notifications should not show a toast
+        const hidden =
+          notification?.data?.hidden === true ||
+          notification?.type?.startsWith?.("system:");
+
         console.log(
           "[NotificationProvider] onNotification:",
-          notification?.type
+          notification?.type,
+          hidden ? "(hidden)" : ""
         );
-        setActiveNotifications((prev) => [notification, ...prev]);
+
+        // Fire UI render events if present
+        const render = notification?.data?.render_component;
+        if (render && typeof window !== "undefined") {
+          try {
+            window.dispatchEvent(
+              new CustomEvent("ui-render-component", {
+                detail: {
+                  component: render.component,
+                  props: render.props || {},
+                  origin: notification.type,
+                },
+              })
+            );
+          } catch (_e) {}
+        }
+
+        // Emit app-level events for file/indexing state changes to avoid polling
+        if (typeof window !== "undefined") {
+          try {
+            switch (notification?.type) {
+              case NOTIFICATION_TYPES.INDEXING_STARTED:
+              case NOTIFICATION_TYPES.INDEXING_COMPLETED:
+              case NOTIFICATION_TYPES.INDEXING_FAILED: {
+                const fileName = notification?.data?.fileName;
+                window.dispatchEvent(
+                  new CustomEvent("file-status-updated", {
+                    detail: { updatedCount: 1, fileName },
+                  })
+                );
+                break;
+              }
+              case NOTIFICATION_TYPES.FILE_UPLOADED:
+              case NOTIFICATION_TYPES.FILE_UPLOAD_FAILED: {
+                const fileName = notification?.data?.fileName;
+                window.dispatchEvent(
+                  new CustomEvent("file-changed", {
+                    detail: { type: "file-changed", fileName },
+                  })
+                );
+                break;
+              }
+              case NOTIFICATION_TYPES.SHARDS_GENERATED: {
+                // Also ensure shard UI render triggers via SSE path
+                const render2 = notification?.data?.render_component;
+                if (render2?.component === "ShardManagementUI") {
+                  window.dispatchEvent(
+                    new CustomEvent("ui-render-component", {
+                      detail: {
+                        component: render2.component,
+                        props: render2.props || {},
+                        origin: notification.type,
+                      },
+                    })
+                  );
+                }
+                break;
+              }
+              default:
+                break;
+            }
+          } catch (_e) {}
+        }
+
+        if (!hidden) {
+          setActiveNotifications((prev) => [notification, ...prev]);
+        }
       },
       reconnectTrigger: isAuthenticated, // Trigger reconnection when auth state changes
     });

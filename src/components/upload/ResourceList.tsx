@@ -1,6 +1,6 @@
 import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
-import { ERROR_MESSAGES, JWT_STORAGE_KEY } from "../../constants";
+import { ERROR_MESSAGES } from "../../constants";
 import type { AutoRAGEvent, FileUploadEvent } from "../../lib/event-bus";
 import { EVENT_TYPES, useEventBus } from "../../lib/event-bus";
 import {
@@ -308,6 +308,28 @@ export function ResourceList(_props: ResourceListProps) {
               `Failed to add resource to campaign ${campaignId}: ${addResponse.status} - ${errorText}`
             );
           }
+
+          // If server returns UI hint, render it immediately in chat without waiting for SSE
+          try {
+            const result = (await addResponse.json()) as any;
+            const ui = result?.ui;
+            if (
+              ui?.type === "render_component" &&
+              ui?.component === "ShardManagementUI"
+            ) {
+              window.dispatchEvent(
+                new CustomEvent("ui-render-component", {
+                  detail: {
+                    component: ui.component,
+                    props: ui.props,
+                    origin: "campaigns:add-resource",
+                  },
+                })
+              );
+            }
+          } catch (_e) {
+            // Response may be empty (201 with separate follow-up), ignore
+          }
         })
       );
 
@@ -327,11 +349,6 @@ export function ResourceList(_props: ResourceListProps) {
           },
         })
       );
-
-      // Also dispatch event for chat integration - check for new shards after a delay
-      setTimeout(() => {
-        checkForNewShards(selectedCampaigns, selectedFile.file_name);
-      }, 3000); // 3 second delay to allow shard generation to complete
     } catch (err) {
       console.error("Failed to add resource to campaigns:", err);
       setError(
@@ -354,72 +371,12 @@ export function ResourceList(_props: ResourceListProps) {
     setExpandedFiles(newExpandedFiles);
   };
 
-  // Check for new shards after adding a resource to campaigns
-  const checkForNewShards = async (campaignIds: string[], fileName: string) => {
-    try {
-      console.log(
-        "[ResourceList] Checking for new shards for campaigns:",
-        campaignIds
-      );
-
-      // Check each campaign for new shards
-      for (const campaignId of campaignIds) {
-        const { response, jwtExpired } = await authenticatedFetchWithExpiration(
-          API_CONFIG.buildUrl(
-            API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SHARDS(
-              campaignId
-            )
-          ),
-          { jwt: localStorage.getItem(JWT_STORAGE_KEY) }
-        );
-
-        if (jwtExpired) {
-          console.warn("[ResourceList] JWT expired while checking for shards");
-          return;
-        }
-
-        if (response.ok) {
-          const data = (await response.json()) as { shards?: any[] };
-          const shards = data.shards || [];
-
-          console.log(
-            `[ResourceList] Found ${shards.length} staged shards for campaign ${campaignId}`
-          );
-
-          if (shards.length > 0) {
-            // Show a notification to the user about new shards
-            console.log("[ResourceList] New shards available:", shards);
-
-            // Dispatch event for chat integration
-            window.dispatchEvent(
-              new CustomEvent("shards-generated", {
-                detail: {
-                  campaignId,
-                  fileName,
-                  shards: shards,
-                  resourceId: selectedFile?.file_key,
-                },
-              })
-            );
-
-            // Notification will be sent via SSE from the server
-            console.log(
-              `[ResourceList] ${shards.length} shards generated for campaign: ${campaignId}`
-            );
-          }
-        }
-      }
-    } catch (error) {
-      console.error("[ResourceList] Error checking for new shards:", error);
-    }
-  };
-
   useEffect(() => {
     fetchResources();
     fetchCampaigns();
   }, [fetchResources, fetchCampaigns]);
 
-  // Listen for file upload events to refresh the resource list
+  // Listen for file upload completed: refresh list and finalize/clear progress bar
   useEventBus<FileUploadEvent>(
     EVENT_TYPES.FILE_UPLOAD.COMPLETED,
     (event) => {
@@ -427,7 +384,18 @@ export function ResourceList(_props: ResourceListProps) {
         "[ResourceList] File upload completed, refreshing resource list:",
         event
       );
-      console.log("[ResourceList] About to call fetchResources");
+      const key = event.fileKey;
+      if (key) {
+        // Snap to 100% then clear shortly after
+        setProgressByFileKey((prev) => ({ ...prev, [key]: 100 }));
+        setTimeout(() => {
+          setProgressByFileKey((prev) => {
+            const copy = { ...prev };
+            delete copy[key];
+            return copy;
+          });
+        }, 1200);
+      }
       fetchResources();
     },
     []
@@ -540,6 +508,28 @@ export function ResourceList(_props: ResourceListProps) {
     },
     []
   );
+
+  // When files list updates, clear any lingering progress entries for files
+  // that are no longer processing (e.g., completed or error)
+  useEffect(() => {
+    if (!files || files.length === 0) return;
+    setProgressByFileKey((prev) => {
+      const activeProcessingKeys = new Set(
+        files.filter((f) => f.status === "processing").map((f) => f.file_key)
+      );
+      // Remove entries for keys not actively processing
+      let changed = false;
+      const next: Record<string, number> = {};
+      for (const [k, v] of Object.entries(prev)) {
+        if (activeProcessingKeys.has(k)) {
+          next[k] = v;
+        } else {
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [files]);
 
   // Listen for file change events from the AI agent
   useEffect(() => {

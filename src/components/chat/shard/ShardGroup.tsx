@@ -7,12 +7,21 @@ interface ShardGroupProps {
   group: StagedShardGroup;
   selectedShards: Set<string>;
   onShardSelection: (shardId: string, checked: boolean) => void;
+  onApproveOne?: (shardId: string) => Promise<void> | void;
+  onRejectOne?: (shardId: string, reason: string) => Promise<void> | void;
+  processingShard?: {
+    id: string;
+    action: "approving" | "rejecting" | null;
+  } | null;
 }
 
 export const ShardGroup: React.FC<ShardGroupProps> = ({
   group,
   selectedShards,
   onShardSelection,
+  onApproveOne,
+  onRejectOne,
+  processingShard,
 }) => {
   return (
     <Card className="p-4">
@@ -36,6 +45,20 @@ export const ShardGroup: React.FC<ShardGroupProps> = ({
             }}
             isSelected={selectedShards.has(shard.id)}
             onSelectionChange={onShardSelection}
+            onApprove={onApproveOne ? () => onApproveOne(shard.id) : undefined}
+            onReject={
+              onRejectOne
+                ? (reason) => onRejectOne(shard.id, reason)
+                : undefined
+            }
+            isApproving={
+              processingShard?.id === shard.id &&
+              processingShard.action === "approving"
+            }
+            isRejecting={
+              processingShard?.id === shard.id &&
+              processingShard.action === "rejecting"
+            }
           />
         ))}
       </div>

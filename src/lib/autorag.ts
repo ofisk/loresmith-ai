@@ -173,6 +173,14 @@ export class AutoRAGClient {
     });
 
     if (!response.ok) {
+      let bodyText = "";
+      try {
+        bodyText = await response.text();
+      } catch (_e) {}
+      console.error(
+        "[AutoRAGClient] AI search error body:",
+        bodyText?.slice(0, 400)
+      );
       throw new Error(
         `AutoRAG AI search failed: ${response.status} ${response.statusText}`
       );

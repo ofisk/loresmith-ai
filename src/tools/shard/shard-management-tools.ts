@@ -23,6 +23,10 @@ export const approveShardsTool = tool({
   }),
   execute: async ({ campaignId, shardIds }, context?: any) => {
     try {
+      console.log("[approveShardsTool] called:", {
+        campaignId,
+        count: shardIds?.length,
+      });
       const env = context?.env as Env;
       if (!env) {
         throw new Error("Environment not available");
@@ -56,14 +60,28 @@ export const approveShardsTool = tool({
         }
       }
 
-      return {
+      // Prefer rendering updated UI rather than returning prose
+      const payload = {
         success: true,
         data: {
-          approved: result.approved,
-          status: result.status,
-          message: `Successfully approved ${result.approved} shards`,
+          type: "render_component",
+          component: "ShardManagementUI",
+          props: {
+            campaignId,
+            action: "show_staged",
+          },
+          // Keep a machine-readable summary if needed by logs/debug
+          meta: {
+            approved: result.approved,
+            status: result.status,
+          },
         },
       };
+      console.log(
+        "[approveShardsTool] returning render_component payload",
+        payload.data?.meta
+      );
+      return payload;
     } catch (error) {
       return {
         success: false,
@@ -90,6 +108,11 @@ export const rejectShardsTool = tool({
   }),
   execute: async ({ campaignId, shardIds, reason }, context?: any) => {
     try {
+      console.log("[rejectShardsTool] called:", {
+        campaignId,
+        count: shardIds?.length,
+        reason,
+      });
       const env = context?.env as Env;
       if (!env) {
         throw new Error("Environment not available");
@@ -128,15 +151,28 @@ export const rejectShardsTool = tool({
         }
       }
 
-      return {
+      // Prefer rendering updated UI rather than returning prose
+      const payload = {
         success: true,
         data: {
-          rejected: result.rejected,
-          status: result.status,
-          reason,
-          message: `Successfully rejected ${result.rejected} shards`,
+          type: "render_component",
+          component: "ShardManagementUI",
+          props: {
+            campaignId,
+            action: "show_staged",
+          },
+          meta: {
+            rejected: result.rejected,
+            status: result.status,
+            reason,
+          },
         },
       };
+      console.log(
+        "[rejectShardsTool] returning render_component payload",
+        payload.data?.meta
+      );
+      return payload;
     } catch (error) {
       return {
         success: false,
@@ -171,6 +207,11 @@ export const createShardsTool = tool({
     context?: any
   ) => {
     try {
+      console.log("[createShardsTool] execute called:", {
+        campaignId,
+        resourceId,
+        hasAI: Boolean(aiResponse),
+      });
       const env = context?.env as Env;
       if (!env) {
         throw new Error("Environment not available");
@@ -190,13 +231,26 @@ export const createShardsTool = tool({
         campaignId
       );
 
+      console.log(
+        "[createShardsTool] result:",
+        result?.status,
+        result?.created
+      );
+      // Hint UI to show staged shards immediately
       return {
         success: true,
         data: {
-          created: result.created,
-          shards: result.shards,
-          status: result.status,
-          message: `Successfully created ${result.created} shards from ${resourceName || resourceId}`,
+          type: "render_component",
+          component: "ShardManagementUI",
+          props: {
+            campaignId,
+            action: "show_staged",
+            resourceId,
+          },
+          meta: {
+            created: result.created,
+            status: result.status,
+          },
         },
       };
     } catch (error) {

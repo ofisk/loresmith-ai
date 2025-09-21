@@ -60,8 +60,8 @@ export async function notifyShardGeneration(
   const isNone = !shardCount || shardCount === 0;
   const title = isNone ? "No Shards Found" : "New Shards Ready!";
   const message = isNone
-    ? `🔎 No shards were discovered from "${fileName}". You can try another source or refine your materials.`
-    : `🎉 ${shardCount} new shards generated from "${fileName}"! Check your "${campaignName}" campaign to review them.`;
+    ? `🔎 No shards were discovered from "${fileName}" in "${campaignName}".`
+    : `🎉 ${shardCount} new shards generated from "${fileName}" in "${campaignName}"!`;
 
   await notifyUser(env, userId, {
     type: NOTIFICATION_TYPES.SHARDS_GENERATED,
@@ -284,6 +284,24 @@ export async function notifyCampaignFileAdded(
       fileName,
       shardCount,
     },
+  });
+}
+
+/**
+ * Publish a shard parsing issue notification
+ */
+export async function notifyShardParseIssue(
+  env: Env,
+  userId: string,
+  campaignName: string,
+  fileName: string,
+  details: Record<string, any>
+): Promise<void> {
+  await notifyUser(env, userId, {
+    type: "system:shard_parse_issue",
+    title: "Shard Parsing Returned No Results",
+    message: `No shards could be parsed from "${fileName}".`,
+    data: { campaignName, fileName, details, hidden: true },
   });
 }
 

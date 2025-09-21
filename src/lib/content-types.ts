@@ -32,6 +32,8 @@ export const STRUCTURED_CONTENT_TYPES = [
   "backgrounds", // Character backgrounds
   "feats", // Character feats and abilities
   "subclasses", // Class options and subclasses
+  "characters", // Player or NPC character sheets
+  "character_sheets", // Structured character sheet representations
   "rules", // Variant and optional rules
   "downtime", // Downtime activities and crafting
 
@@ -97,6 +99,8 @@ export function getContentTypeDisplayName(type: StructuredContentType): string {
     backgrounds: "Backgrounds",
     feats: "Feats",
     subclasses: "Subclasses",
+    characters: "Characters",
+    character_sheets: "Character Sheets",
     rules: "Rules",
     downtime: "Downtime Activities",
     tables: "Tables",
