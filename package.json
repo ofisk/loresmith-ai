@@ -20,7 +20,7 @@
     "start": "vite dev",
     "dev": "wrangler dev --config wrangler.local.jsonc --port 8787 --local",
     "build": "vite build",
-    "deploy": "vite build && wrangler deploy",
+    "deploy": "vite build && wrangler deploy --config wrangler.jsonc",
     "migrate": "./scripts/migrate.sh",
     "test": "vitest",
     "types": "wrangler types",

@@ -237,26 +237,30 @@ export class FileProcessingQueue {
 }
 
 // Export the queue handler function for Wrangler
-export default {
-  async queue(batch: MessageBatch<ProcessingMessage>, env: Env): Promise<void> {
-    const processor = new FileProcessingQueue(env);
+export async function queue(
+  batch: MessageBatch<ProcessingMessage>,
+  env: Env
+): Promise<void> {
+  const processor = new FileProcessingQueue(env);
 
-    console.log(`[Queue] Processing ${batch.messages.length} messages`);
+  console.log(`[Queue] Processing ${batch.messages.length} messages`);
 
-    for (const message of batch.messages) {
-      try {
-        await processor.handleMessage(message.body);
-        message.ack();
-      } catch (error) {
-        console.error(`[Queue] Failed to process message:`, error);
-        message.retry();
-      }
+  for (const message of batch.messages) {
+    try {
+      await processor.handleMessage(message.body);
+      message.ack();
+    } catch (error) {
+      console.error(`[Queue] Failed to process message:`, error);
+      message.retry();
     }
-  },
+  }
+}
 
-  async scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
-    // Clean up old staging files every hour
-    const processor = new FileProcessingQueue(env);
-    await processor.cleanupStaging();
-  },
-};
+export async function scheduled(
+  _event: ScheduledEvent,
+  env: Env
+): Promise<void> {
+  // Clean up old staging files every hour
+  const processor = new FileProcessingQueue(env);
+  await processor.cleanupStaging();
+}

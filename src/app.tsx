@@ -13,19 +13,24 @@ import { Card } from "@/components/card/Card";
 import { HelpButton } from "@/components/help/HelpButton";
 import { NotificationBell } from "./components/notifications/NotificationBell";
 import { useNotifications } from "./components/notifications/NotificationProvider";
-import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { ResourceSidePanel } from "@/components/resource-side-panel";
 import { Textarea } from "@/components/textarea/Textarea";
 import { ThinkingSpinner } from "@/components/thinking-spinner";
 import { Toggle } from "@/components/toggle/Toggle";
-import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
+import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
 import { WelcomeMessage } from "./components/chat/WelcomeMessage";
 import { NotificationProvider } from "./components/notifications/NotificationProvider";
 import { JWT_STORAGE_KEY } from "./constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
-import { AuthService } from "./services/auth-service";
+import {
+  AuthService,
+  authenticatedFetchWithExpiration,
+} from "./services/auth-service";
+import { useUiHints } from "./hooks/useUiHints";
+import { useShardRenderGate } from "./hooks/useShardRenderGate";
 import { API_CONFIG } from "./shared";
+import { getHelpContent } from "./utils/helpContent";
 
 import type { campaignTools } from "./tools/campaign";
 import type { fileTools } from "./tools/file";
@@ -240,9 +245,6 @@ export default function Chat() {
         setUsername("");
         setShowUserMenu(false);
 
-        // Show success message
-        console.log("Logged out successfully");
-
         // Optionally show auth modal again
         setShowAuthModal(true);
       } else {
@@ -295,40 +297,10 @@ export default function Chat() {
     agent,
     maxSteps: 5,
     onFinish: (result) => {
-      console.log("[App] Agent finished:", result);
-      console.log("[App] Result content:", result.content);
-      try {
-        // Debug: summarize final assistant message parts
-        const last = agentMessages[agentMessages.length - 1];
-        if (last) {
-          const summary = (last.parts || []).map((p: any) => {
-            if (p?.type === "text")
-              return { type: "text", len: p.text?.length };
-            if (p?.type === "tool-invocation") {
-              const res = p?.toolInvocation?.result;
-              const hasRender = Boolean(res?.data?.type === "render_component");
-              return {
-                type: "tool",
-                tool: p?.toolInvocation?.toolName,
-                state: p?.toolInvocation?.state,
-                hasResult: Boolean(res != null),
-                renderComponent: hasRender ? res?.data?.component : undefined,
-              };
-            }
-            return { type: p?.type };
-          });
-          console.log("[App][DEBUG] Last assistant message parts:", summary);
-        }
-      } catch (_e) {}
-
       // Check if the response indicates authentication is required
       if (result.content?.includes("AUTHENTICATION_REQUIRED:")) {
-        console.log(
-          "[App] Authentication required detected, showing auth modal"
-        );
         setShowAuthModal(true);
       } else {
-        console.log("[App] No authentication required in response");
       }
 
       // Check if the agent performed file operations that require UI refresh
@@ -337,7 +309,6 @@ export default function Chat() {
         content.includes("deleted") ||
         content.includes("successfully deleted")
       ) {
-        console.log("[App] File operation detected, triggering refresh event");
         window.dispatchEvent(
           new CustomEvent("file-changed", {
             detail: { type: "file-changed", operation: "detected" },
@@ -346,44 +317,18 @@ export default function Chat() {
       }
     },
     onError: (error) => {
-      console.log("[App] Agent error:", error);
-      console.log("[App] Error message:", error.message);
-      console.log("[App] Error stack:", error.stack);
-      console.log("[App] Error type:", typeof error);
-      console.log("[App] Error constructor:", error.constructor.name);
       // Check if the error is related to missing OpenAI API key
       if (
         error.message.includes("AUTHENTICATION_REQUIRED:") ||
         error.message.includes("OpenAI API key required")
       ) {
-        console.log(
-          "[App] Authentication required error detected, showing auth modal"
-        );
         setShowAuthModal(true);
       } else {
-        console.log("[App] Different error type, not showing auth modal");
       }
     },
   });
-  // Debug when agent messages change - inspect most recent message for render payloads
   useEffect(() => {
-    const last = agentMessages[agentMessages.length - 1];
-    if (!last) return;
-    try {
-      const hasRender = (last.parts || []).some((p: any) =>
-        Boolean(
-          (p as any)?.data?.type === "render_component" ||
-            ((p as any)?.type === "tool-invocation" &&
-              (p as any)?.toolInvocation?.result?.data?.type ===
-                "render_component")
-        )
-      );
-      console.log("[App][DEBUG] Message render check:", {
-        id: last.id,
-        parts: (last.parts || []).length,
-        hasRender,
-      });
-    } catch (_e) {}
+    void agentMessages;
   }, [agentMessages]);
 
   // Scroll to bottom on mount - only if there are messages and not loading
@@ -410,14 +355,11 @@ export default function Chat() {
   }, [chatContainerId]);
 
   // Debug modal state changes
-  useEffect(() => {
-    console.log("[App] showAuthModal changed to:", showAuthModal);
-  }, [showAuthModal]);
+  useEffect(() => {}, []);
 
   // Function to handle suggested prompts
   const handleSuggestionSubmit = (suggestion: string) => {
     const jwt = getStoredJwt();
-    console.log("[App] handleSuggestionSubmit sending JWT:", jwt);
 
     // Always send the message to the agent - let the agent handle auth requirements
     append({
@@ -454,69 +396,7 @@ export default function Chat() {
   // Handle help button actions
   const handleHelpAction = (action: string) => {
     const jwt = getStoredJwt();
-    console.log("[App] handleHelpAction:", action);
-
-    let response = "";
-    switch (action) {
-      case "upload_resource":
-        response =
-          "## 📁 Uploading Resources\n\n" +
-          "To upload resources to your inspiration library:\n\n" +
-          "1. **Look for the 'Add to library' button** in the interface\n" +
-          "2. **Click the button** to open the upload modal\n" +
-          "3. **Drag and drop files** directly onto the upload area for quick upload\n" +
-          "4. **Select files** from your computer if you prefer\n\n" +
-          "**Supported file types:** PDF files, images, and other documents\n\n" +
-          "Once uploaded, your resources will be available in your inspiration library for campaign planning!";
-        break;
-      case "create_campaign":
-        response =
-          "## 🎲 Creating a Campaign\n\n" +
-          "To create a new campaign:\n\n" +
-          "1. **Look for the 'Create Campaign' button** in the interface\n" +
-          "2. **Click the button** to open the campaign creation form\n" +
-          "3. **Enter campaign details** including:\n" +
-          "- Campaign name\n" +
-          "- Description\n" +
-          "- Setting details\n" +
-          "4. **Save your campaign** to start organizing your resources\n\n" +
-          "**Benefits:** Campaigns help you organize your resources, plan sessions, and track your story development!";
-        break;
-      case "start_chat":
-        response =
-          "## 💬 Starting a Chat\n\n" +
-          "You can start chatting with me right here! Just type your questions about:\n\n" +
-          "**Campaign Ideas:**\n" +
-          "- World building concepts\n" +
-          "- Plot development\n" +
-          "- Character creation\n\n" +
-          "**GM Topics:**\n" +
-          "- Session planning\n" +
-          "- Encounter design\n" +
-          "- Story pacing\n\n" +
-          "**Tips:**\n" +
-          "- Be specific with your questions\n" +
-          "- Share your campaign context\n" +
-          "- Ask for examples or suggestions\n\n" +
-          "I'm here to help you develop your campaign ideas and provide guidance!";
-        break;
-      default:
-        response =
-          "## 🎯 Getting Started\n\n" +
-          "I can help you with various tasks:\n\n" +
-          "**📁 Upload Resources:**\n" +
-          "- Look for the 'Add to library' button\n" +
-          "- Upload PDFs, images, and documents\n\n" +
-          "**🎲 Create Campaigns:**\n" +
-          "- Use the 'Create Campaign' button\n" +
-          "- Organize your story elements\n\n" +
-          "**💬 Start Chatting:**\n" +
-          "- Just type your questions here\n" +
-          "- Ask about campaign ideas, world building, or GM topics\n\n" +
-          "**💡 Pro Tip:** Be specific with your questions to get the most helpful responses!";
-    }
-
-    // Add the help response as an assistant message
+    const response = getHelpContent(action);
     append({
       role: "assistant",
       content: response,
@@ -561,7 +441,6 @@ export default function Chat() {
     if (!agentInput.trim()) return;
 
     const jwt = getStoredJwt();
-    console.log("[App] handleFormSubmit sending JWT:", jwt);
 
     // Always send the message to the agent - let the agent handle auth requirements
     // The agent will detect missing keys and trigger the auth modal via onFinish callback
@@ -601,7 +480,6 @@ export default function Chat() {
       if (!agentInput.trim()) return;
 
       const jwt = getStoredJwt();
-      console.log("[App] handleKeyDown sending JWT:", jwt);
 
       // Always send the message to the agent - let the agent handle auth requirements
       // The agent will detect missing keys and trigger the auth modal via onFinish callback
@@ -627,66 +505,59 @@ export default function Chat() {
 
   // Helper function to format shards as a readable chat message
 
-  // Listen for shard generation events and add them to chat
-  useEffect(() => {
-    const handleShardsGenerated = async (event: CustomEvent) => {
-      const { campaignId, shards, fileName, resourceId } = event.detail;
-
-      console.log("[App] Shards generated for campaign:", campaignId, shards);
-
-      // Directly render the interactive UI via tool response shape
-      append({
-        role: "assistant",
-        content: "", // content not needed for component render
-        data: {
-          type: "render_component",
-          component: "ShardManagementUI",
-          props: {
-            campaignId,
-            shards,
-            total: shards.length,
-            status: "staged",
-            action: "show_staged",
-            resourceId,
-          },
-          message: `Found ${shards.length} shards for ${fileName}.`,
-        },
-      });
-    };
-
-    // Listen for custom shard-generated events
-    window.addEventListener(
-      "shards-generated",
-      handleShardsGenerated as unknown as EventListener
-    );
-
-    // Also listen for NotificationProvider's UI render dispatches
-    const handleUiRender = (e: CustomEvent) => {
-      const { component, props } = e.detail || {};
-      if (component === "ShardManagementUI") {
+  // Listen for decoupled UI hints
+  useUiHints({
+    onUiHint: async ({ type, data }) => {
+      if (type === "shards_ready" && data?.campaignId) {
+        try {
+          const jwt = getStoredJwt();
+          if (!jwt) return;
+          const { response, jwtExpired } =
+            await authenticatedFetchWithExpiration(
+              API_CONFIG.buildUrl(
+                API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SHARDS(
+                  data.campaignId
+                )
+              ),
+              { jwt }
+            );
+          if (!jwtExpired && response.ok) {
+            const payload = (await response.json()) as { shards?: any[] };
+            const hasStaged =
+              Array.isArray(payload?.shards) && payload.shards.length > 0;
+            if (!hasStaged) return;
+          }
+        } catch {
+          return;
+        }
         append({
           role: "assistant",
           content: "",
-          data: { type: "render_component", component, props },
+          data: {
+            type: "ui_hint",
+            hint: { type: "shards_ready", data },
+          },
         });
       }
-    };
-    window.addEventListener(
-      "ui-render-component",
-      handleUiRender as unknown as EventListener
-    );
+    },
+  });
 
-    return () => {
-      window.removeEventListener(
-        "shards-generated",
-        handleShardsGenerated as unknown as EventListener
-      );
-      window.removeEventListener(
-        "ui-render-component",
-        handleUiRender as unknown as EventListener
-      );
-    };
-  }, [append]);
+  // Track whether campaigns referenced by shard UI messages still have staged shards
+  const campaignIdsForRender = Array.from(
+    new Set(
+      (agentMessages as any[])
+        .map((m) => m?.data)
+        .filter(
+          (d: any) => d?.type === "ui_hint" && d?.hint?.type === "shards_ready"
+        )
+        .map((d: any) => d?.hint?.data?.campaignId)
+        .filter((cid: any) => typeof cid === "string")
+    )
+  ) as string[];
+  const { shouldRender: shouldRenderShardUI } = useShardRenderGate(
+    getStoredJwt,
+    campaignIdsForRender
+  );
 
   return (
     <NotificationProvider isAuthenticated={isAuthenticated}>
@@ -759,232 +630,13 @@ export default function Chat() {
                 />
               )}
 
-              {agentMessages
-                .filter((m: Message) => {
-                  // Hide "Get started" messages from display
-                  if (m.role === "user" && m.content === "Get started") {
-                    return false;
-                  }
-                  return true;
-                })
-                .map((m: Message, _index) => {
-                  const isUser = m.role === "user";
-
-                  return (
-                    <div key={m.id}>
-                      {showDebug && (
-                        <pre className="text-xs text-muted-foreground overflow-scroll">
-                          {JSON.stringify(
-                            {
-                              ...m,
-                              parts: m.parts?.filter(
-                                (part) => part.type !== "tool-invocation"
-                              ),
-                            },
-                            null,
-                            2
-                          )}
-                        </pre>
-                      )}
-                      <div
-                        className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                      >
-                        <div
-                          className={`${
-                            isUser
-                              ? "flex flex-row-reverse gap-2 max-w-[85%]"
-                              : "w-full"
-                          }`}
-                        >
-                          <div className={isUser ? "flex-1" : "w-full"}>
-                            <div>
-                              {m.parts?.map((part, i) => {
-                                // Precompute whether this message carries a render_component payload
-                                const hasRenderComponent = Array.isArray(
-                                  m.parts
-                                )
-                                  ? m.parts.some((p: any) =>
-                                      Boolean(
-                                        (p as any)?.data?.type ===
-                                          "render_component" ||
-                                          ((p as any)?.type ===
-                                            "tool-invocation" &&
-                                            (p as any)?.toolInvocation?.result
-                                              ?.data?.type ===
-                                              "render_component")
-                                      )
-                                    )
-                                  : false;
-                                if (i === 0) {
-                                  console.log(
-                                    "[App][DEBUG] Rendering message:",
-                                    {
-                                      id: m.id,
-                                      hasRenderComponent,
-                                      partCount: m.parts?.length,
-                                    }
-                                  );
-                                }
-                                // If the previous assistant message already rendered a component, suppress plain text in this follow-up message as well
-                                const previousMessage =
-                                  agentMessages[
-                                    agentMessages.findIndex(
-                                      (mm) => mm.id === m.id
-                                    ) - 1
-                                  ];
-                                const prevHasRender =
-                                  previousMessage?.parts?.some((p: any) =>
-                                    Boolean(
-                                      (p as any)?.data?.type ===
-                                        "render_component" ||
-                                        ((p as any)?.type ===
-                                          "tool-invocation" &&
-                                          (p as any)?.toolInvocation?.result
-                                            ?.data?.type === "render_component")
-                                    )
-                                  );
-                                // Render components pushed via notifications or tools
-                                if (
-                                  (part as any)?.data?.type ===
-                                    "render_component" &&
-                                  (part as any)?.data?.component ===
-                                    "ShardManagementUI"
-                                ) {
-                                  console.log(
-                                    "[App][DEBUG] Rendering ShardManagementUI from direct data payload"
-                                  );
-                                  const payload = (part as any).data;
-                                  const Comp =
-                                    require("./components/chat/ShardManagementUI").ShardManagementUI;
-                                  return (
-                                    <div
-                                      key={`${m.id}-render-direct-${i}`}
-                                      className="w-full"
-                                    >
-                                      <Comp {...payload.props} />
-                                    </div>
-                                  );
-                                }
-                                // Render components returned inside tool results (tool-invocation → result → data)
-                                if (
-                                  part.type === "tool-invocation" &&
-                                  (part as any)?.toolInvocation?.result?.data
-                                    ?.type === "render_component" &&
-                                  (part as any)?.toolInvocation?.result?.data
-                                    ?.component === "ShardManagementUI"
-                                ) {
-                                  console.log(
-                                    "[App][DEBUG] Rendering ShardManagementUI from tool result",
-                                    (part as any)?.toolInvocation?.toolName
-                                  );
-                                  const payload = (part as any).toolInvocation
-                                    .result.data;
-                                  const Comp =
-                                    require("./components/chat/ShardManagementUI").ShardManagementUI;
-                                  return (
-                                    <div
-                                      key={`${m.id}-${(part as any)?.toolInvocation?.toolCallId || "tool"}-${i}`}
-                                      className="w-full"
-                                    >
-                                      <Comp {...payload.props} />
-                                    </div>
-                                  );
-                                }
-                                // If a prior tool result exists that handled the action, and this part is a generic confirmation text,
-                                // suppress it to avoid duplicate prose when an interactive component was rendered.
-                                if (
-                                  part.type === "text" &&
-                                  (hasRenderComponent || prevHasRender)
-                                ) {
-                                  console.log(
-                                    "[App][DEBUG] Suppressing text because render_component is present"
-                                  );
-                                  return null;
-                                }
-                                if (part.type === "text") {
-                                  console.log(
-                                    "[App][DEBUG] Rendering plain text (no render_component in message)"
-                                  );
-                                  return (
-                                    // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
-                                    <div key={i}>
-                                      <Card
-                                        className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
-                                          isUser
-                                            ? "rounded-br-none"
-                                            : "rounded-bl-none border-assistant-border"
-                                        } ${
-                                          part.text.startsWith(
-                                            "scheduled message"
-                                          )
-                                            ? "border-accent/50"
-                                            : ""
-                                        } relative`}
-                                      >
-                                        {part.text.startsWith(
-                                          "scheduled message"
-                                        ) && (
-                                          <span className="absolute -top-3 -left-2 text-base">
-                                            🕒
-                                          </span>
-                                        )}
-                                        <MemoizedMarkdown
-                                          content={part.text.replace(
-                                            /^scheduled message: /,
-                                            ""
-                                          )}
-                                        />
-                                      </Card>
-                                      <p
-                                        className={`text-xs text-muted-foreground mt-1 ${
-                                          isUser ? "text-right" : "text-left"
-                                        }`}
-                                      >
-                                        {formatTime(
-                                          new Date(
-                                            m.createdAt as unknown as string
-                                          )
-                                        )}
-                                      </p>
-                                    </div>
-                                  );
-                                }
-
-                                if (part.type === "tool-invocation") {
-                                  const toolInvocation = part.toolInvocation;
-                                  const toolCallId = toolInvocation.toolCallId;
-                                  const needsConfirmation =
-                                    toolsRequiringConfirmation.includes(
-                                      toolInvocation.toolName as
-                                        | keyof typeof generalTools
-                                        | keyof typeof campaignTools
-                                        | keyof typeof fileTools
-                                    );
-
-                                  // Skip rendering the card when debug is off
-                                  if (!showDebug) return null;
-
-                                  return (
-                                    <ToolInvocationCard
-                                      // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here as the array is static
-                                      key={`${toolCallId}-${i}`}
-                                      toolInvocation={toolInvocation}
-                                      toolCallId={toolCallId}
-                                      needsConfirmation={needsConfirmation}
-                                      addToolResult={addToolResult}
-                                      showDebug={showDebug}
-                                    />
-                                  );
-                                }
-                                return null;
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+              <ChatMessageList
+                messages={agentMessages as Message[]}
+                showDebug={showDebug}
+                shouldRenderShardUI={(cid?: string) => shouldRenderShardUI(cid)}
+                addToolResult={addToolResult}
+                formatTime={formatTime}
+              />
 
               {/* Thinking Spinner - shown when agent is processing */}
               {isLoading && (

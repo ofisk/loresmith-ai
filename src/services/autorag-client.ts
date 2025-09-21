@@ -111,6 +111,7 @@ export abstract class AutoRAGClientBase {
       };
       rewrite_query?: boolean;
       filters?: ComparisonFilter | CompoundFilter;
+      system_prompt?: string;
     } = {}
   ): Promise<AutoRAGAISearchResult> {
     await this.ensureInitialized();
@@ -118,7 +119,7 @@ export abstract class AutoRAGClientBase {
     const enforcedFilter = this.enforcedFilter();
 
     // Merge filters - if both exist, combine with logical AND
-    const mergedOptions = { ...options };
+    const mergedOptions = { ...options } as any;
     if (enforcedFilter && options.filters) {
       // Combine enforced filter with caller filters using AND
       mergedOptions.filters = {

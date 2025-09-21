@@ -130,12 +130,15 @@ export class ShardFactory {
     }
 
     // Find all content type arrays in the response
-    const foundContentTypes = Object.keys(aiSearchResponse).filter(
-      (key) =>
-        STRUCTURED_CONTENT_TYPES.includes(key as any) &&
-        Array.isArray(aiSearchResponse[key]) &&
-        aiSearchResponse[key].length > 0
-    );
+    const foundContentTypes = Object.keys(aiSearchResponse).filter((key) => {
+      const arr = (aiSearchResponse as any)[key];
+      const isType = STRUCTURED_CONTENT_TYPES.includes(key as any);
+      const len = Array.isArray(arr) ? arr.length : 0;
+      if (isType) {
+        console.log(`[ShardFactory] Type visibility: ${key} length=${len}`);
+      }
+      return isType && Array.isArray(arr) && len > 0;
+    });
 
     console.log(
       `[ShardFactory] Found content types in AI Search response:`,
@@ -153,19 +156,24 @@ export class ShardFactory {
       // Process each shard in the content type array
       for (let i = 0; i < shardArray.length; i++) {
         const shard = shardArray[i];
-        if (shard?.name) {
-          const shardCandidate = ShardFactory.createShardCandidate(
-            shard,
-            contentType,
-            resource,
-            campaignId,
-            "library_autorag_ai_search",
-            0.9,
-            `${resource.id}_ai_${shardCandidates.length}`,
-            { aiSearchResponse: true, index: i }
-          );
-          shardCandidates.push(shardCandidate);
+        if (!shard || typeof shard !== "object") continue;
+
+        const candidateUnknown: unknown = ShardFactory.createShardCandidate(
+          shard,
+          contentType,
+          resource,
+          campaignId,
+          "library_autorag_ai_search",
+          0.9,
+          `${resource.id}_ai_${shardCandidates.length}`,
+          { aiSearchResponse: true, index: i }
+        );
+        if (!ShardFactory.validateShardCandidate(candidateUnknown as any)) {
+          console.warn(`[ShardFactory] Candidate failed validation`);
+          continue;
         }
+        const candidate = candidateUnknown as ShardCandidate;
+        shardCandidates.push(candidate);
       }
 
       console.log(

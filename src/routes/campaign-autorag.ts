@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "../dao/dao-factory";
-import { SHARD_STATUSES } from "../lib/content-types";
+import { CampaignAutoRAG } from "../services/campaign-autorag-service";
 import {
   notifyShardApproval,
   notifyShardRejection,
@@ -18,29 +18,42 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
   try {
     const campaignId = c.req.param("campaignId");
     const userAuth = (c as any).userAuth;
+    const resourceId = c.req.query("resourceId");
 
     console.log(`[Server] Getting staged shards for campaign: ${campaignId}`);
 
     // Verify campaign belongs to user
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    const campaign = await campaignDAO.getCampaignByIdWithMapping(
+    const campaignDAO1 = getDAOFactory(c.env).campaignDAO;
+    const campaign1 = await campaignDAO1.getCampaignByIdWithMapping(
       campaignId,
       userAuth.username
     );
 
-    if (!campaign) {
+    if (!campaign1) {
       return c.json({ error: "Campaign not found" }, 404);
     }
 
-    const stagedShardsDAO = getDAOFactory(c.env).stagedShardsDAO;
-    const stagedShards =
-      await stagedShardsDAO.getStagedShardsByCampaign(campaignId);
+    // New: read from R2 staging so client can manage per-resource files, but also
+    // fallback to D1 for legacy rows (both merged in response)
+
+    const basePath =
+      campaign1?.campaignRagBasePath || `campaigns/${campaignId}`;
+    const autoRAG = new CampaignAutoRAG(
+      c.env,
+      c.env.AUTORAG_BASE_URL,
+      basePath
+    );
+    const r2Staged = await autoRAG.listStagedCandidates();
+    const r2Filtered = resourceId
+      ? r2Staged.filter((x) => x.resourceId === resourceId)
+      : r2Staged;
 
     console.log(
-      `[Server] Found ${stagedShards.length} staged shards for campaign: ${campaignId}`
+      `[Server] R2 staged: ${r2Filtered.length} for campaign ${campaignId}`
     );
 
-    return c.json({ shards: stagedShards });
+    // For client simplicity, return the R2 items under 'shards'
+    return c.json({ shards: r2Filtered });
   } catch (error) {
     console.error("[Server] Error getting staged shards:", error);
     return c.json({ error: "Failed to get staged shards" }, 500);
@@ -52,7 +65,7 @@ export async function handleApproveShards(c: ContextWithAuth) {
   try {
     const campaignId = c.req.param("campaignId");
     const userAuth = (c as any).userAuth;
-    const { shardIds } = await c.req.json();
+    const { shardIds, stagingKeys } = await c.req.json();
 
     if (!shardIds || !Array.isArray(shardIds) || shardIds.length === 0) {
       return c.json({ error: "shardIds array is required" }, 400);
@@ -63,8 +76,8 @@ export async function handleApproveShards(c: ContextWithAuth) {
     );
 
     // Verify campaign belongs to user
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    const campaign = await campaignDAO.getCampaignByIdWithMapping(
+    const campaignDAOa = getDAOFactory(c.env).campaignDAO;
+    const campaign = await campaignDAOa.getCampaignByIdWithMapping(
       campaignId,
       userAuth.username
     );
@@ -73,13 +86,18 @@ export async function handleApproveShards(c: ContextWithAuth) {
       return c.json({ error: "Campaign not found" }, 404);
     }
 
-    const stagedShardsDAO = getDAOFactory(c.env).stagedShardsDAO;
-
-    // Bulk update shards to approved status
-    await stagedShardsDAO.bulkUpdateShardStatuses(
-      shardIds,
-      SHARD_STATUSES.APPROVED
+    // Move R2 staging objects to approved. If stagingKeys are provided, prefer those.
+    const basePath = campaign.campaignRagBasePath || `campaigns/${campaignId}`;
+    const autoRAG = new CampaignAutoRAG(
+      c.env,
+      c.env.AUTORAG_BASE_URL,
+      basePath
     );
+    if (Array.isArray(stagingKeys) && stagingKeys.length > 0) {
+      for (const key of stagingKeys) {
+        await autoRAG.approveShards(key);
+      }
+    }
 
     console.log(
       `[Server] Approved ${shardIds.length} shards for campaign: ${campaignId}`
@@ -100,7 +118,12 @@ export async function handleApproveShards(c: ContextWithAuth) {
       );
     }
 
-    return c.json({ success: true, approvedCount: shardIds.length });
+    return c.json({
+      success: true,
+      approvedCount: Array.isArray(stagingKeys)
+        ? stagingKeys.length
+        : shardIds.length,
+    });
   } catch (error) {
     console.error("[Server] Error approving shards:", error);
     return c.json({ error: "Failed to approve shards" }, 500);
@@ -112,7 +135,7 @@ export async function handleRejectShards(c: ContextWithAuth) {
   try {
     const campaignId = c.req.param("campaignId");
     const userAuth = (c as any).userAuth;
-    const { shardIds, reason } = await c.req.json();
+    const { shardIds, reason, stagingKeys } = await c.req.json();
 
     if (!shardIds || !Array.isArray(shardIds) || shardIds.length === 0) {
       return c.json({ error: "shardIds array is required" }, 400);
@@ -137,13 +160,17 @@ export async function handleRejectShards(c: ContextWithAuth) {
       return c.json({ error: "Campaign not found" }, 404);
     }
 
-    const stagedShardsDAO = getDAOFactory(c.env).stagedShardsDAO;
-
-    // Bulk update shards to rejected status
-    await stagedShardsDAO.bulkUpdateShardStatuses(
-      shardIds,
-      SHARD_STATUSES.REJECTED
+    const basePath = campaign?.campaignRagBasePath || `campaigns/${campaignId}`;
+    const autoRAG = new CampaignAutoRAG(
+      c.env,
+      c.env.AUTORAG_BASE_URL,
+      basePath
     );
+    if (Array.isArray(stagingKeys) && stagingKeys.length > 0) {
+      for (const key of stagingKeys) {
+        await autoRAG.rejectShards(key, reason);
+      }
+    }
 
     console.log(
       `[Server] Rejected ${shardIds.length} shards for campaign: ${campaignId}`
@@ -165,7 +192,12 @@ export async function handleRejectShards(c: ContextWithAuth) {
       );
     }
 
-    return c.json({ success: true, rejectedCount: shardIds.length });
+    return c.json({
+      success: true,
+      rejectedCount: Array.isArray(stagingKeys)
+        ? stagingKeys.length
+        : shardIds.length,
+    });
   } catch (error) {
     console.error("[Server] Error rejecting shards:", error);
     return c.json({ error: "Failed to reject shards" }, 500);

@@ -15,11 +15,12 @@ import {
 
 interface ShardManagementUIProps {
   campaignId: string;
-  shards: StagedShardGroup[] | ShardCandidate[];
-  total: number;
+  shards?: StagedShardGroup[] | ShardCandidate[];
+  total?: number;
   status?: string;
   action?: string;
   resourceId?: string;
+  resourceName?: string;
   shardType?: string;
   reason?: string;
   shardIds?: string[]; // For focused approval mode
@@ -30,7 +31,8 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
   shards,
   total: _total,
   action = "show_staged",
-  resourceId,
+  resourceId: _resourceId,
+  resourceName,
   shardType,
   reason: _reason,
   shardIds: _shardIds,
@@ -46,17 +48,127 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
     new Set()
   );
 
+  // If shards are not provided, fetch staged shards for this campaign
+  const [fetchedShards, setFetchedShards] = React.useState<StagedShardGroup[]>(
+    []
+  );
+  const [isLoading, setIsLoading] = React.useState<boolean>(false);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [campaignName, setCampaignName] = React.useState<string | undefined>(
+    undefined
+  );
+
+  React.useEffect(() => {
+    const shouldFetch = !Array.isArray(shards) || shards.length === 0;
+    if (!shouldFetch) return;
+    (async () => {
+      try {
+        setIsLoading(true);
+        setLoadError(null);
+        const jwt = getStoredJwt();
+        if (!jwt) throw new Error("Authentication required");
+        const { response, jwtExpired } = await authenticatedFetchWithExpiration(
+          API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SHARDS(
+              campaignId
+            )
+          ),
+          { jwt }
+        );
+        if (jwtExpired) throw new Error("Authentication expired");
+        if (!response.ok)
+          throw new Error(`Failed to load shards (${response.status})`);
+        const data = (await response.json()) as {
+          shards: {
+            resourceId: string;
+            shard: ShardCandidate;
+            key: string;
+            fileName?: string;
+          }[];
+        };
+        const items = Array.isArray(data?.shards) ? data.shards : [];
+
+        // New R2 response shape: [{ resourceId, shard, key, fileName? }]
+        const mapped: StagedShardGroup[] = items.length
+          ? [
+              {
+                key: "staged_r2",
+                sourceRef: {
+                  fileKey: items[0]?.resourceId || "",
+                  meta: {
+                    fileName:
+                      items[0]?.fileName ||
+                      items[0]?.shard?.metadata?.fileName ||
+                      "",
+                    campaignId,
+                    entityType: items[0]?.shard?.metadata?.entityType || "",
+                    chunkId: "",
+                    score:
+                      typeof items[0]?.shard?.metadata?.confidence === "number"
+                        ? (items[0]!.shard!.metadata!.confidence as number)
+                        : 0,
+                  },
+                },
+                shards: items.map((it) => it.shard),
+                created_at: new Date().toISOString(),
+                campaignRagBasePath: `campaigns/${campaignId}`,
+              },
+            ]
+          : [];
+        setFetchedShards(mapped);
+      } catch (err) {
+        console.error(
+          "[ShardManagementUI] Failed to fetch staged shards:",
+          err
+        );
+        setLoadError(
+          err instanceof Error ? err.message : "Failed to load shards"
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, [campaignId, shards]);
+
+  // Fetch campaign name for friendly header display
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const jwt = getStoredJwt();
+        if (!jwt) return;
+        const { response, jwtExpired } = await authenticatedFetchWithExpiration(
+          API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.DETAILS(campaignId)
+          ),
+          { jwt }
+        );
+        if (jwtExpired || !response.ok) return;
+        const data = (await response.json()) as {
+          campaign?: { name?: string };
+        };
+        if (data?.campaign?.name) setCampaignName(data.campaign.name);
+      } catch {}
+    })();
+  }, [campaignId]);
+
+  const effectiveShards: (StagedShardGroup | ShardCandidate)[] = Array.isArray(
+    shards
+  )
+    ? shards
+    : fetchedShards;
+
   // Normalize data structure - convert ShardCandidate[] to StagedShardGroup[] format
   const normalizedShards: StagedShardGroup[] = React.useMemo(() => {
-    if (shards.length === 0) return [];
+    const list = Array.isArray(effectiveShards) ? effectiveShards : [];
+    if (list.length === 0) return [];
 
     // Check if it's already StagedShardGroup[]
-    if ("key" in shards[0] && "shards" in shards[0]) {
-      return shards as StagedShardGroup[];
+    if ("key" in (list as any)[0] && "shards" in (list as any)[0]) {
+      return list as StagedShardGroup[];
     }
 
     // Convert ShardCandidate[] to StagedShardGroup[] format
-    const shardCandidates = shards as ShardCandidate[];
+    const shardCandidates = list as ShardCandidate[];
     return [
       {
         key: "focused_approval",
@@ -75,7 +187,7 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
         campaignRagBasePath: `campaigns/${campaignId}`,
       },
     ];
-  }, [shards, campaignId]);
+  }, [effectiveShards, campaignId]);
 
   const handleShardSelection = (shardId: string, checked: boolean) => {
     const newSelected = new Set(selectedShards);
@@ -133,8 +245,6 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
       // Mark shards as processed and clear selection
       setProcessedShards((prev) => new Set([...prev, ...selectedShards]));
       setSelectedShards(new Set());
-
-      console.log(`Successfully approved ${selectedShards.size} shards`);
     } catch (error) {
       console.error("Error approving shards:", error);
     } finally {
@@ -224,8 +334,6 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
       setProcessedShards((prev) => new Set([...prev, ...selectedShards]));
       setSelectedShards(new Set());
       setRejectionReason("");
-
-      console.log(`Successfully rejected ${selectedShards.size} shards`);
     } catch (error) {
       console.error("Error rejecting shards:", error);
     } finally {
@@ -307,6 +415,22 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
     0
   );
 
+  if (isLoading) {
+    return (
+      <div className="border border-gray-200 rounded-lg p-4 bg-white text-sm text-gray-600">
+        Loading shards...
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="border border-red-200 rounded-lg p-4 bg-white text-sm text-red-700">
+        {loadError}
+      </div>
+    );
+  }
+
   if (visibleShards.length === 0) {
     return <EmptyState action={action} />;
   }
@@ -316,8 +440,10 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
       <ShardHeader
         action={action}
         total={visibleShardCount}
-        campaignId={campaignId}
-        resourceId={resourceId}
+        campaignName={campaignName ?? null}
+        resourceName={
+          resourceName || normalizedShards[0]?.sourceRef?.meta?.fileName
+        }
         shardType={shardType}
         selectedCount={selectedShards.size}
         totalShards={visibleShardCount}

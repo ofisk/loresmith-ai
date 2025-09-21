@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import { ShardAgent } from "../agents/shard-agent";
+import { ShardFactory } from "../lib/shard-factory";
 import { getDAOFactory } from "../dao/dao-factory";
 import {
   notifyShardGeneration,
@@ -394,15 +394,27 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
         );
         // Continue without shard generation
       } else {
-        const resources = await campaignDAO.getCampaignResources(campaignId);
-        if (!resources || resources.length === 0) {
+        // Fetch the specific resource we just created to avoid ordering issues
+        const resource = await campaignDAO.getCampaignResourceById(
+          resourceId,
+          campaignId
+        );
+        if (!resource) {
           console.warn(
-            `[Server] No resources found in campaign: ${campaignId}`
+            `[Server] Newly added resource not found in campaign: ${campaignId} (resourceId: ${resourceId})`
           );
+          return c.json({
+            success: true,
+            message:
+              "Resource added to campaign. Shard generation deferred (resource lookup failed).",
+            resource: {
+              id: resourceId,
+              name: name || id,
+              type: "file",
+            },
+          });
         } else {
-          // Get the most recently added resource (the one that triggered this call)
-          const resource = resources[resources.length - 1];
-
+          const r = resource as any;
           // Local helper to send a single consistent notification about shard count
           const notifyShardCount = async (count: number) => {
             try {
@@ -414,7 +426,10 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                   userAuth.username,
                   campaignData.name,
                   resource.file_name || resource.id,
-                  count
+                  count,
+                  count > 0
+                    ? { campaignId, resourceId: resource.id }
+                    : undefined
                 );
               }
             } catch (error) {
@@ -434,57 +449,204 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
           const structuredExtractionPrompt =
             RPG_EXTRACTION_PROMPTS.formatStructuredContentPrompt(
               campaignId,
-              resource.file_name || resource.id
+              r.file_name || r.id
             );
 
-          console.log(
-            `[Server] Extracting structured content from ${resource.id}`
-          );
+          console.log(`{[Server]} Extracting structured content from ${r.id}`);
 
           // Call AutoRAG AI Search with the detailed prompt
           console.log(`[Server] Calling AutoRAG AI Search with filters:`, {
-            filename: resource.file_name,
+            filename: r.file_name,
             prompt: `${structuredExtractionPrompt.substring(0, 200)}...`,
           });
 
           // Retry AI search once on transient failures (e.g., 400 due to race/format)
           async function runAISearchOnce() {
-            const fileKey = resource.id as string;
+            const fileKey = (r as any).file_key as string;
             const folderPrefix =
               typeof fileKey === "string" && fileKey.includes("/")
                 ? fileKey.slice(0, fileKey.lastIndexOf("/") + 1)
                 : undefined;
             const fileNameForFilter =
-              resource.file_name ||
+              r.file_name ||
               (typeof fileKey === "string"
                 ? fileKey.substring(fileKey.lastIndexOf("/") + 1)
                 : undefined);
 
-            // Build compound filters: folder (original upload location) AND filename
-            const filtersArr: any[] = [];
-            if (folderPrefix) {
-              filtersArr.push({
-                type: "eq",
-                key: "folder",
-                value: folderPrefix,
+            console.log("[Server] AutoRAG filter inputs:", {
+              fileKey,
+              folderPrefix,
+              fileNameForFilter,
+            });
+
+            // Build the full prompt (put everything into the main query to match Playground behavior)
+            const filenameConstraint = fileNameForFilter
+              ? `\nIMPORTANT: Only show entries where source.doc equals "${fileNameForFilter}".`
+              : "";
+            const promptWithFilename = `${structuredExtractionPrompt}${filenameConstraint}`;
+
+            // Helpers to match items to this resource's filename
+            const normalizeName = (s: string) =>
+              (s || "")
+                .toLowerCase()
+                .split("/")
+                .pop()!
+                .replace(/\.[a-z0-9]+$/, "")
+                .replace(/[^a-z0-9]+/g, "");
+            const targetDocNorm = normalizeName(r.file_name || r.id);
+            const docMatches = (doc: unknown) => {
+              if (typeof doc !== "string") return false;
+              const d = normalizeName(doc);
+              return (
+                d === targetDocNorm ||
+                d.includes(targetDocNorm) ||
+                targetDocNorm.includes(d)
+              );
+            };
+
+            // Helper for counting without throwing (returns total and matched-to-file)
+            const tryCount = (raw: string) => {
+              try {
+                let s = (raw || "").trim();
+                if (s.includes("```")) {
+                  s = s.replace(/^```[a-zA-Z]*\n?/, "").replace(/\n?```$/, "");
+                }
+                const first = s.indexOf("{");
+                const last = s.lastIndexOf("}");
+                if (first !== -1 && last !== -1 && last > first) {
+                  s = s.slice(first, last + 1);
+                }
+                const parsed = JSON.parse(s) as any;
+                const keys = Object.keys(parsed || {}).filter(
+                  (k) => k !== "meta" && Array.isArray(parsed[k])
+                );
+                const counts: Record<string, number> = {};
+                const matchedCounts: Record<string, number> = {};
+                let total = 0;
+                let matchedTotal = 0;
+                for (const k of keys) {
+                  const arr = (parsed[k] || []) as any[];
+                  const n = arr.length;
+                  counts[k] = n;
+                  total += n;
+                  const matched = arr.filter((it) =>
+                    docMatches((it as any)?.source?.doc)
+                  ).length;
+                  matchedCounts[k] = matched;
+                  matchedTotal += matched;
+                }
+                return {
+                  ok: true,
+                  total,
+                  counts,
+                  keys,
+                  matchedCounts,
+                  matchedTotal,
+                };
+              } catch {
+                return {
+                  ok: false,
+                  total: 0,
+                  counts: {},
+                  keys: [] as string[],
+                  matchedCounts: {},
+                  matchedTotal: 0,
+                };
+              }
+            };
+
+            // First attempt: prompt-only (no metadata filters)
+            {
+              console.log(
+                "[Server][AI Search][prompt-only] full prompt:\n" +
+                  promptWithFilename
+              );
+              const res = await libraryAutoRAG.aiSearch(promptWithFilename, {
+                max_results: 50,
+                rewrite_query: false,
               });
-            }
-            if (fileNameForFilter) {
-              filtersArr.push({
-                type: "eq",
-                key: "filename",
-                value: fileNameForFilter,
+              const preview =
+                typeof res.response === "string" ? res.response : "";
+              const info = tryCount(preview);
+              const dataDocs = Array.isArray((res as any)?.data)
+                ? Array.from(
+                    new Set(
+                      (res as any).data
+                        .map((d: any) => d?.filename || d?.attributes?.filename)
+                        .filter((x: any) => typeof x === "string")
+                    )
+                  )
+                : [];
+              console.log("[Server][AI Search][prompt-only]", {
+                ...info,
+                dataDocs,
               });
+              try {
+                await notifyShardParseIssue(
+                  c.env,
+                  userAuth.username,
+                  campaign?.name || "unknown",
+                  r.file_name || r.id,
+                  {
+                    reason: "ai_search_prompt_only",
+                    prompt: promptWithFilename,
+                    counts: info.counts,
+                    total: info.total,
+                    matchedCounts: info.matchedCounts,
+                    matchedTotal: info.matchedTotal,
+                    dataDocs,
+                  }
+                );
+              } catch (_e) {}
+              if (info.ok && (info.matchedTotal > 0 || info.total > 0)) {
+                return res;
+              }
             }
 
-            return await libraryAutoRAG.aiSearch(structuredExtractionPrompt, {
-              max_results: 20,
-              rewrite_query: false,
-              filters: {
-                type: "and",
-                filters: filtersArr,
-              },
-            });
+            // Second attempt: prompt-only with rewrite_query=true
+            {
+              console.log(
+                "[Server][AI Search][prompt-only][rewrite] full prompt:\n" +
+                  promptWithFilename
+              );
+              const res = await libraryAutoRAG.aiSearch(promptWithFilename, {
+                max_results: 50,
+                rewrite_query: true,
+              });
+              const preview =
+                typeof res.response === "string" ? res.response : "";
+              const info = tryCount(preview);
+              const dataDocs = Array.isArray((res as any)?.data)
+                ? Array.from(
+                    new Set(
+                      (res as any).data
+                        .map((d: any) => d?.filename || d?.attributes?.filename)
+                        .filter((x: any) => typeof x === "string")
+                    )
+                  )
+                : [];
+              console.log("[Server][AI Search][prompt-only][rewrite]", {
+                ...info,
+                dataDocs,
+              });
+              try {
+                await notifyShardParseIssue(
+                  c.env,
+                  userAuth.username,
+                  campaign?.name || "unknown",
+                  r.file_name || r.id,
+                  {
+                    reason: "ai_search_prompt_only_rewrite",
+                    counts: info.counts,
+                    total: info.total,
+                    matchedCounts: info.matchedCounts,
+                    matchedTotal: info.matchedTotal,
+                    dataDocs,
+                  }
+                );
+              } catch (_e) {}
+              return res;
+            }
           }
           let aiSearchResult: any;
           try {
@@ -505,9 +667,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
             resultKeys: Object.keys(aiSearchResult),
           });
 
-          console.log(
-            `[Server] AutoRAG AI Search completed for ${resource.id}`
-          );
+          console.log(`[Server] AutoRAG AI Search completed for ${r.id}`);
           // Type assertion to handle the actual API response structure
           const actualResult = aiSearchResult as any;
 
@@ -545,20 +705,23 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 
           // Parse the AI response to extract structured content
           try {
-            // Clean the AI response by removing markdown formatting if present
-            let cleanResponse = aiResponse;
-            if (aiResponse.includes("```json")) {
-              // Remove markdown code block formatting
-              cleanResponse = aiResponse
-                .replace(/```json\n?/g, "")
-                .replace(/```\n?/g, "")
-                .trim();
-              console.log(
-                `[Server] Cleaned markdown formatting from AI response`
-              );
+            // Robust JSON extraction and cleaning
+            function extractJson(text: string): string | null {
+              let s = (text || "").trim();
+              if (s.includes("```")) {
+                s = s.replace(/^```[a-zA-Z]*\n?/, "").replace(/\n?```$/, "");
+              }
+              const firstIdx = s.indexOf("{");
+              const lastIdx = s.lastIndexOf("}");
+              if (firstIdx !== -1 && lastIdx !== -1 && lastIdx > firstIdx) {
+                return s.slice(firstIdx, lastIdx + 1);
+              }
+              return null;
             }
 
-            const parsedContent = JSON.parse(cleanResponse);
+            const cleanResponse = aiResponse.trim();
+            const jsonSlice = extractJson(cleanResponse);
+            const parsedContent = JSON.parse(jsonSlice || cleanResponse);
 
             console.log(`[Server] Parsed AI Search response structure:`, {
               keys: Object.keys(parsedContent),
@@ -568,89 +731,176 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
               ),
             });
 
+            // Emit hidden debug counts per type
+            try {
+              const counts: Record<string, number> = {};
+              for (const k of Object.keys(parsedContent || {})) {
+                if (k !== "meta" && Array.isArray((parsedContent as any)[k])) {
+                  counts[k] = (parsedContent as any)[k].length;
+                }
+              }
+              await notifyShardParseIssue(
+                c.env,
+                userAuth.username,
+                campaign.name,
+                r.file_name || r.id,
+                {
+                  reason: "parsed_counts",
+                  counts,
+                  triedFilters: "folder+filename|folder|none",
+                }
+              );
+            } catch (_e) {}
+
             if (parsedContent && typeof parsedContent === "object") {
-              // Use ShardAgent to create shards
-              const shardAgent = new ShardAgent({} as any, c.env, {} as any);
-
-              console.log(
-                `[Server] Creating shards with campaignId: "${campaignId}"`
-              );
-              console.log(`[Server] Resource details:`, resource);
-
-              const result = await shardAgent.createShards(
-                parsedContent,
-                resource,
-                campaignId
-              );
-
-              if (result.created > 0) {
-                console.log(
-                  `[Server] Successfully created ${result.created} shards for ${resource.id}`
+              // Filter parsed items to the current resource's document only
+              const normalizeName = (s: string) =>
+                (s || "")
+                  .toLowerCase()
+                  .split("/")
+                  .pop()!
+                  .replace(/\.[a-z0-9]+$/, "")
+                  .replace(/[^a-z0-9]+/g, "");
+              const targetDocNorm = normalizeName(r.file_name || r.id);
+              const docMatches = (doc: unknown) => {
+                if (typeof doc !== "string") return false;
+                const d = normalizeName(doc);
+                return (
+                  d === targetDocNorm ||
+                  d.includes(targetDocNorm) ||
+                  targetDocNorm.includes(d)
                 );
-                await notifyShardCount(result.created);
+              };
 
-                // Return the generated shards and an instruction for the chat UI to render management UI
-                return c.json({
-                  success: true,
-                  message: `Resource added to campaign successfully. Generated ${result.created} shards for review.`,
-                  resource: {
-                    id: resource.id,
-                    name: resource.file_name || resource.id,
-                    type: "file",
-                  },
-                  shards: {
-                    count: result.created,
-                    campaignId,
-                    resourceId: resource.id,
-                    message: `Generated ${result.created} shards from "${resource.file_name || resource.id}".`,
-                  },
-                  // Hint for the client chat to render UI immediately
-                  ui: {
-                    type: "render_component",
-                    component: "ShardManagementUI",
-                    props: {
-                      campaignId,
-                      action: "show_staged",
-                      resourceId: resource.id,
-                    },
-                  },
+              const preCounts: Record<string, number> = {};
+              const postCounts: Record<string, number> = {};
+              const filtered: Record<string, any> = {};
+              const docsSeen = new Set<string>();
+              for (const key of Object.keys(parsedContent)) {
+                const val = (parsedContent as any)[key];
+                if (key === "meta" || !Array.isArray(val)) {
+                  filtered[key] = val;
+                  continue;
+                }
+                preCounts[key] = val.length;
+                const arr = (val as any[]).filter((it) => {
+                  const d = (it as any)?.source?.doc;
+                  if (typeof d === "string") docsSeen.add(d);
+                  return docMatches(d);
                 });
-              } else {
-                console.log(`[Server] No shards created for ${resource.id}`);
-                await notifyShardCount(0);
-                // Emit a hidden debug notification to help diagnose parse misses
+                postCounts[key] = arr.length;
+                filtered[key] = arr;
+              }
+
+              try {
                 await notifyShardParseIssue(
                   c.env,
                   userAuth.username,
                   campaign.name,
-                  resource.file_name || resource.id,
+                  r.file_name || r.id,
                   {
-                    reason: "no_shards_after_parse",
-                    aiResponsePreview: aiResponse.substring(0, 200),
+                    reason: "post_filter_counts",
+                    preCounts,
+                    postCounts,
+                    docsSeen: Array.from(docsSeen),
                   }
                 );
+              } catch (_e) {}
+              // Save shard candidates to R2 staging first (single file for this generation)
+              try {
+                const campaignAutoRAG = new CampaignAutoRAG(
+                  c.env,
+                  c.env.AUTORAG_BASE_URL,
+                  campaignRagBasePath || `campaigns/${campaignId}`
+                );
+                const shardCandidates = ShardFactory.parseAISearchResponse(
+                  filtered as any,
+                  resource as any,
+                  campaignId
+                );
+
+                // Write per-shard files for precise approvals
+                await campaignAutoRAG.saveShardCandidatesPerShard(
+                  r.id,
+                  shardCandidates,
+                  { fileName: r.file_name }
+                );
+
+                const createdCount = shardCandidates.length;
+                if (createdCount > 0) {
+                  await notifyShardCount(createdCount);
+                }
+
+                // Return an immediate UI hint using the generated candidates
+                const serverGroups = [
+                  {
+                    key: "focused_approval",
+                    sourceRef: {
+                      fileKey: resource.id,
+                      meta: {
+                        fileName: resource.file_name || resource.id,
+                        campaignId,
+                        entityType:
+                          shardCandidates[0]?.metadata?.entityType || "",
+                        chunkId: "",
+                        score: 0,
+                      },
+                    },
+                    shards: shardCandidates,
+                    created_at: new Date().toISOString(),
+                    campaignRagBasePath:
+                      campaignRagBasePath || `campaigns/${campaignId}`,
+                  },
+                ];
 
                 return c.json({
                   success: true,
-                  message:
-                    "Resource added to campaign successfully. No shards were generated from this resource.",
+                  message: `Resource added to campaign successfully. Generated ${createdCount} shards for review.`,
                   resource: {
-                    id: resource.id,
-                    name: resource.file_name || resource.id,
+                    id: r.id,
+                    name: r.file_name || r.id,
                     type: "file",
                   },
+                  shards: {
+                    count: createdCount,
+                    campaignId,
+                    resourceId: r.id,
+                    groups: serverGroups,
+                    message: `Generated ${createdCount} shards from "${r.file_name || r.id}".`,
+                  },
+                  ui_hint: {
+                    type: "shards_ready",
+                    data: {
+                      campaignId,
+                      resourceId: r.id,
+                      groups: serverGroups,
+                    },
+                  },
                 });
+              } catch (e) {
+                console.warn(
+                  "[Server] Failed to write candidates to R2 staging:",
+                  e
+                );
               }
+              // If we reach here without returning, treat as zero created for safety
+              await notifyShardCount(0);
+              return c.json({
+                success: true,
+                message:
+                  "Resource added to campaign successfully. Shards were saved for review.",
+                resource: { id: r.id, name: r.file_name || r.id, type: "file" },
+              });
             } else {
               console.warn(
-                `[Server] Invalid structured content format for ${resource.id}`
+                `[Server] Invalid structured content format for ${r.id}`
               );
               await notifyShardCount(0);
               await notifyShardParseIssue(
                 c.env,
                 userAuth.username,
                 campaign.name,
-                resource.file_name || resource.id,
+                r.file_name || r.id,
                 {
                   reason: "invalid_structured_content",
                   keys: Object.keys(parsedContent || {}),
@@ -662,15 +912,15 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                 message:
                   "Resource added to campaign successfully. Could not generate shards from this resource.",
                 resource: {
-                  id: resource.id,
-                  name: resource.file_name || resource.id,
+                  id: r.id,
+                  name: r.file_name || r.id,
                   type: "file",
                 },
               });
             }
           } catch (parseError) {
             console.error(
-              `[Server] Error parsing AI response for ${resource.id}:`,
+              `[Server] Error parsing AI response for ${r.id}:`,
               parseError
             );
             console.log(`[Server] Raw AI response: ${aiResponse}`);
@@ -679,7 +929,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
               c.env,
               userAuth.username,
               campaign.name,
-              resource.file_name || resource.id,
+              r.file_name || r.id,
               {
                 reason: "parse_exception",
                 error: (parseError as Error)?.message,
@@ -691,8 +941,8 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
               message:
                 "Resource added to campaign successfully. Error occurred while generating shards.",
               resource: {
-                id: resource.id,
-                name: resource.file_name || resource.id,
+                id: r.id,
+                name: r.file_name || r.id,
                 type: "file",
               },
               error: "Shard generation failed",

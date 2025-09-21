@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState } from "react";
+import type React from "react";
+import { createContext, useContext, useState } from "react";
 import type { NotificationPayload } from "../../durable-objects/notification-hub";
 import { NOTIFICATION_TYPES } from "../../constants/notification-types";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
@@ -26,11 +27,6 @@ export function NotificationProvider({
   children,
   isAuthenticated,
 }: NotificationProviderProps) {
-  // Basic mount log to confirm provider is rendered client-side
-  console.log(
-    "[NotificationProvider] mounted. isAuthenticated:",
-    Boolean(isAuthenticated)
-  );
   const [activeNotifications, setActiveNotifications] = useState<
     NotificationPayload[]
   >([]);
@@ -43,21 +39,15 @@ export function NotificationProvider({
           notification?.data?.hidden === true ||
           notification?.type?.startsWith?.("system:");
 
-        console.log(
-          "[NotificationProvider] onNotification:",
-          notification?.type,
-          hidden ? "(hidden)" : ""
-        );
-
-        // Fire UI render events if present
-        const render = notification?.data?.render_component;
-        if (render && typeof window !== "undefined") {
+        // Fire decoupled UI hint events if present
+        const uiHint = notification?.data?.ui_hint;
+        if (uiHint && typeof window !== "undefined") {
           try {
             window.dispatchEvent(
-              new CustomEvent("ui-render-component", {
+              new CustomEvent("ui-hint", {
                 detail: {
-                  component: render.component,
-                  props: render.props || {},
+                  type: uiHint.type,
+                  data: uiHint.data,
                   origin: notification.type,
                 },
               })
@@ -91,14 +81,14 @@ export function NotificationProvider({
                 break;
               }
               case NOTIFICATION_TYPES.SHARDS_GENERATED: {
-                // Also ensure shard UI render triggers via SSE path
-                const render2 = notification?.data?.render_component;
-                if (render2?.component === "ShardManagementUI") {
+                // If a ui_hint is present, broadcast it too (handled above)
+                const uiHint2 = notification?.data?.ui_hint;
+                if (uiHint2) {
                   window.dispatchEvent(
-                    new CustomEvent("ui-render-component", {
+                    new CustomEvent("ui-hint", {
                       detail: {
-                        component: render2.component,
-                        props: render2.props || {},
+                        type: uiHint2.type,
+                        data: uiHint2.data,
                         origin: notification.type,
                       },
                     })
@@ -118,14 +108,6 @@ export function NotificationProvider({
       },
       reconnectTrigger: isAuthenticated, // Trigger reconnection when auth state changes
     });
-
-  // Debug current list whenever it changes
-  React.useEffect(() => {
-    console.log(
-      "[NotificationProvider] activeNotifications count:",
-      activeNotifications.length
-    );
-  }, [activeNotifications]);
 
   const dismissNotification = (timestamp: number) => {
     setActiveNotifications((prev) =>
