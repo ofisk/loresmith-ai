@@ -60,9 +60,6 @@ export function FileStatusIndicator({
         };
 
         if (result.success && result.updatedCount > 0) {
-          console.log(
-            `[FileStatusIndicator] Updated ${result.updatedCount} file statuses`
-          );
           // Trigger a custom event to refresh the ResourceList data instead of page reload
           window.dispatchEvent(
             new CustomEvent("file-status-updated", {
@@ -70,7 +67,6 @@ export function FileStatusIndicator({
             })
           );
         } else {
-          console.log("[FileStatusIndicator] No file statuses were updated");
         }
       }
     } catch (error) {

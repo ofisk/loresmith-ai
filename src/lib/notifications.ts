@@ -55,7 +55,8 @@ export async function notifyShardGeneration(
   userId: string,
   campaignName: string,
   fileName: string,
-  shardCount: number
+  shardCount: number,
+  context?: { campaignId: string; resourceId: string; groups?: any[] }
 ): Promise<void> {
   const isNone = !shardCount || shardCount === 0;
   const title = isNone ? "No Shards Found" : "New Shards Ready!";
@@ -71,6 +72,19 @@ export async function notifyShardGeneration(
       campaignName,
       fileName,
       shardCount,
+      // Provide optional decoupled UI hint (no component names)
+      ...(context
+        ? {
+            ui_hint: {
+              type: "shards_ready",
+              data: {
+                campaignId: context.campaignId,
+                resourceId: context.resourceId,
+                groups: context.groups,
+              },
+            },
+          }
+        : {}),
     },
   });
 }

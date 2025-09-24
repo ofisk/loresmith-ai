@@ -1,5 +1,5 @@
 import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ERROR_MESSAGES } from "../../constants";
 import type { AutoRAGEvent, FileUploadEvent } from "../../lib/event-bus";
 import { EVENT_TYPES, useEventBus } from "../../lib/event-bus";
@@ -56,107 +56,93 @@ export function ResourceList(_props: ResourceListProps) {
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
   const [addingToCampaigns, setAddingToCampaigns] = useState(false);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
+  const refreshTimerRef = useRef<number | null>(null);
+  const isFetchingRef = useRef<boolean>(false);
 
   const fetchResourceCampaigns = useCallback(async (files: ResourceFile[]) => {
     try {
       const jwt = getStoredJwt();
 
-      const filesWithCampaigns = await Promise.all(
-        files.map(async (file) => {
+      // Fetch campaigns once
+      const { response: campaignsResponse, jwtExpired: campaignsJwtExpired } =
+        await authenticatedFetchWithExpiration(
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
+          { jwt }
+        );
+
+      if (campaignsJwtExpired) {
+        throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
+      }
+
+      if (!campaignsResponse.ok) {
+        throw new Error(
+          `Failed to fetch campaigns: ${campaignsResponse.status}`
+        );
+      }
+
+      const campaignsData = (await campaignsResponse.json()) as {
+        campaigns: Campaign[];
+      };
+      const userCampaigns = campaignsData.campaigns || [];
+
+      // Fetch each campaign's resources once
+      const resourcesByCampaign = await Promise.all(
+        userCampaigns.map(async (campaign) => {
           try {
             const {
-              response: campaignsResponse,
-              jwtExpired: campaignsJwtExpired,
+              response: resourcesResponse,
+              jwtExpired: resourcesJwtExpired,
             } = await authenticatedFetchWithExpiration(
-              API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
+              API_CONFIG.buildUrl(
+                API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(campaign.campaignId)
+              ),
               { jwt }
             );
-
-            if (campaignsJwtExpired) {
+            if (resourcesJwtExpired) {
               throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
             }
-
-            if (!campaignsResponse.ok) {
+            if (!resourcesResponse.ok) {
               throw new Error(
-                `Failed to fetch campaigns: ${campaignsResponse.status}`
+                `Failed to fetch campaign resources: ${resourcesResponse.status}`
               );
             }
-
-            const campaignsData = (await campaignsResponse.json()) as {
-              campaigns: Campaign[];
+            const resourcesData = (await resourcesResponse.json()) as {
+              resources: any[];
             };
-            const userCampaigns = campaignsData.campaigns || [];
-
-            // For each campaign, check if this file is in it
-            const campaignsWithFile = await Promise.all(
-              userCampaigns.map(async (campaign) => {
-                try {
-                  const {
-                    response: resourcesResponse,
-                    jwtExpired: resourcesJwtExpired,
-                  } = await authenticatedFetchWithExpiration(
-                    API_CONFIG.buildUrl(
-                      API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(
-                        campaign.campaignId
-                      )
-                    ),
-                    { jwt }
-                  );
-
-                  if (resourcesJwtExpired) {
-                    throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
-                  }
-
-                  if (!resourcesResponse.ok) {
-                    throw new Error(
-                      `Failed to fetch campaign resources: ${resourcesResponse.status}`
-                    );
-                  }
-
-                  const resourcesData = (await resourcesResponse.json()) as {
-                    resources: any[];
-                  };
-                  const resources = resourcesData.resources || [];
-
-                  // Check if this file is in the campaign
-                  const fileInCampaign = resources.some(
-                    (resource) => resource.file_key === file.file_key
-                  );
-
-                  return fileInCampaign ? campaign : null;
-                } catch (err) {
-                  console.error(
-                    `Failed to check campaign ${campaign.campaignId}:`,
-                    err
-                  );
-                  return null;
-                }
-              })
+            const resources = resourcesData.resources || [];
+            const fileKeySet = new Set<string>(
+              resources.map((r: any) => r.file_key)
             );
-
-            // Filter out null campaigns and return file with campaigns
-            const validCampaigns = campaignsWithFile.filter(
-              (campaign) => campaign !== null
-            ) as Campaign[];
-
-            return {
-              ...file,
-              campaigns: validCampaigns,
-            };
-          } catch (err) {
-            console.error(
-              `Failed to fetch campaigns for file ${file.file_key}:`,
-              err
-            );
-            return {
-              ...file,
-              campaigns: [],
-            };
+            return { campaign, fileKeySet };
+          } catch (_e) {
+            return { campaign, fileKeySet: new Set<string>() };
           }
         })
       );
 
+      // Build mapping: file_key -> campaigns[]
+      const fileKeyToCampaigns: Record<string, Campaign[]> = {};
+      for (const { campaign, fileKeySet } of resourcesByCampaign) {
+        for (const file of files) {
+          if (fileKeySet.has(file.file_key)) {
+            if (!fileKeyToCampaigns[file.file_key]) {
+              fileKeyToCampaigns[file.file_key] = [];
+            }
+            fileKeyToCampaigns[file.file_key].push(campaign);
+          }
+        }
+      }
+
+      // Map files with campaigns
+      const filesWithCampaigns: ResourceFileWithCampaigns[] = files.map(
+        (file) => ({
+          ...file,
+          campaigns: fileKeyToCampaigns[file.file_key] || [],
+        })
+      );
+
       setFiles(filesWithCampaigns);
+      setCampaigns(userCampaigns);
     } catch (err) {
       console.error("Failed to fetch resource campaigns:", err);
       setError("Failed to fetch resource campaigns");
@@ -198,7 +184,8 @@ export function ResourceList(_props: ResourceListProps) {
 
   const fetchResources = useCallback(async () => {
     try {
-      console.log("[ResourceList] fetchResources called");
+      if (isFetchingRef.current) return;
+      isFetchingRef.current = true;
       setLoading(true);
       setError(null);
 
@@ -247,8 +234,22 @@ export function ResourceList(_props: ResourceListProps) {
       );
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   }, [fetchResourceCampaigns]);
+
+  const scheduleRefresh = useCallback(
+    (delay = 300) => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+      refreshTimerRef.current = window.setTimeout(() => {
+        fetchResources();
+        refreshTimerRef.current = null;
+      }, delay);
+    },
+    [fetchResources]
+  );
 
   const handleAddToCampaigns = async () => {
     if (!selectedFile || selectedCampaigns.length === 0) return;
@@ -273,16 +274,6 @@ export function ResourceList(_props: ResourceListProps) {
             name: selectedFile.file_name,
           };
 
-          console.log("[ResourceList] Adding resource to campaign:", {
-            campaignId,
-            url,
-            body,
-            selectedFile: {
-              file_key: selectedFile.file_key,
-              file_name: selectedFile.file_name,
-            },
-          });
-
           const { response: addResponse, jwtExpired: addJwtExpired } =
             await authenticatedFetchWithExpiration(url, {
               method: "POST",
@@ -293,13 +284,6 @@ export function ResourceList(_props: ResourceListProps) {
           if (addJwtExpired) {
             throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
           }
-
-          console.log("[ResourceList] Campaign response:", {
-            campaignId,
-            status: addResponse.status,
-            ok: addResponse.ok,
-            statusText: addResponse.statusText,
-          });
 
           if (!addResponse.ok) {
             const errorText = await addResponse.text();
@@ -312,16 +296,13 @@ export function ResourceList(_props: ResourceListProps) {
           // If server returns UI hint, render it immediately in chat without waiting for SSE
           try {
             const result = (await addResponse.json()) as any;
-            const ui = result?.ui;
-            if (
-              ui?.type === "render_component" &&
-              ui?.component === "ShardManagementUI"
-            ) {
+            const uiHint = result?.ui_hint;
+            if (uiHint) {
               window.dispatchEvent(
-                new CustomEvent("ui-render-component", {
+                new CustomEvent("ui-hint", {
                   detail: {
-                    component: ui.component,
-                    props: ui.props,
+                    type: uiHint.type,
+                    data: uiHint.data,
                     origin: "campaigns:add-resource",
                   },
                 })
@@ -380,10 +361,6 @@ export function ResourceList(_props: ResourceListProps) {
   useEventBus<FileUploadEvent>(
     EVENT_TYPES.FILE_UPLOAD.COMPLETED,
     (event) => {
-      console.log(
-        "[ResourceList] File upload completed, refreshing resource list:",
-        event
-      );
       const key = event.fileKey;
       if (key) {
         // Snap to 100% then clear shortly after
@@ -396,9 +373,9 @@ export function ResourceList(_props: ResourceListProps) {
           });
         }, 1200);
       }
-      fetchResources();
+      scheduleRefresh(200);
     },
-    []
+    [scheduleRefresh]
   );
 
   // Upload progress listeners
@@ -504,9 +481,9 @@ export function ResourceList(_props: ResourceListProps) {
         "[ResourceList] AutoRAG sync completed, refreshing resource list:",
         event
       );
-      fetchResources();
+      scheduleRefresh(200);
     },
-    []
+    [scheduleRefresh]
   );
 
   // When files list updates, clear any lingering progress entries for files
@@ -535,8 +512,7 @@ export function ResourceList(_props: ResourceListProps) {
   useEffect(() => {
     const handleFileChange = (event: CustomEvent) => {
       if (event.detail?.type === "file-changed") {
-        console.log("[ResourceList] File change detected, refreshing...");
-        fetchResources();
+        scheduleRefresh(200);
       }
     };
 
@@ -549,16 +525,13 @@ export function ResourceList(_props: ResourceListProps) {
         handleFileChange as EventListener
       );
     };
-  }, [fetchResources]);
+  }, [scheduleRefresh]);
 
   // Listen for file status update events from FileStatusIndicator
   useEffect(() => {
     const handleFileStatusUpdate = (event: CustomEvent) => {
       if (event.detail?.updatedCount > 0) {
-        console.log(
-          "[ResourceList] File status update detected, refreshing..."
-        );
-        fetchResources();
+        scheduleRefresh(200);
       }
     };
 
@@ -574,23 +547,7 @@ export function ResourceList(_props: ResourceListProps) {
         handleFileStatusUpdate as EventListener
       );
     };
-  }, [fetchResources]);
-
-  // Log modal state when it opens
-  useEffect(() => {
-    if (isAddToCampaignModalOpen && selectedFile) {
-      console.log("[ResourceList] Modal opened with state:", {
-        selectedFile: {
-          fileKey: selectedFile.file_key,
-          fileName: selectedFile.file_name,
-          existingCampaigns: selectedFile.campaigns,
-        },
-        campaignsCount: campaigns.length,
-        campaigns: campaigns.map((c) => ({ id: c.campaignId, name: c.name })),
-        selectedCampaigns,
-      });
-    }
-  }, [isAddToCampaignModalOpen, selectedFile, campaigns, selectedCampaigns]);
+  }, [scheduleRefresh]);
 
   if (loading) {
     return (
@@ -763,14 +720,6 @@ export function ResourceList(_props: ResourceListProps) {
                 <div className="mt-4 space-y-2">
                   <Button
                     onClick={() => {
-                      console.log(
-                        "[ResourceList] Add to campaign button clicked for file:",
-                        {
-                          fileKey: file.file_key,
-                          fileName: file.file_name,
-                          existingCampaigns: file.campaigns,
-                        }
-                      );
                       setSelectedFile(file);
                       setIsAddToCampaignModalOpen(true);
                     }}
@@ -783,7 +732,6 @@ export function ResourceList(_props: ResourceListProps) {
                   <Button
                     onClick={() => {
                       // TODO: Implement edit functionality
-                      console.log("Edit file:", file.file_key);
                     }}
                     variant="secondary"
                     size="sm"
@@ -899,23 +847,7 @@ export function ResourceList(_props: ResourceListProps) {
                   Cancel
                 </Button>
                 <Button
-                  onClick={() => {
-                    console.log(
-                      "[ResourceList] Add button clicked with state:",
-                      {
-                        selectedCampaigns,
-                        campaignsCount: campaigns.length,
-                        availableCampaigns: campaigns.filter(
-                          (campaign) =>
-                            !selectedFile?.campaigns?.some(
-                              (c) => c.campaignId === campaign.campaignId
-                            )
-                        ).length,
-                        selectedFileCampaigns: selectedFile?.campaigns,
-                      }
-                    );
-                    handleAddToCampaigns();
-                  }}
+                  onClick={handleAddToCampaigns}
                   disabled={
                     selectedCampaigns.length === 0 ||
                     campaigns.filter(

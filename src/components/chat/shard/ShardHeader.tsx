@@ -3,8 +3,8 @@ import type React from "react";
 interface ShardHeaderProps {
   action: string;
   total: number;
-  campaignId: string;
-  resourceId?: string;
+  campaignName: string | null;
+  resourceName?: string | null;
   shardType?: string;
   selectedCount: number;
   totalShards: number;
@@ -14,8 +14,8 @@ interface ShardHeaderProps {
 export const ShardHeader: React.FC<ShardHeaderProps> = ({
   action,
   total,
-  campaignId,
-  resourceId,
+  campaignName,
+  resourceName,
   shardType,
   selectedCount,
   totalShards,
@@ -29,8 +29,8 @@ export const ShardHeader: React.FC<ShardHeaderProps> = ({
           {action.replace("show_", "").replace("_", " ").toUpperCase()}
         </h3>
         <p className="text-sm text-gray-600">
-          Found {total} shards for campaign {campaignId}
-          {resourceId && ` • Resource: ${resourceId}`}
+          Found {total} shards for campaign {campaignName || "unknown campaign"}
+          {` • Resource: ${resourceName || "unknown resource"}`}
           {shardType && ` • Type: ${shardType}`}
         </p>
       </div>

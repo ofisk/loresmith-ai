@@ -69,6 +69,97 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
   }
 
   /**
+   * Save shard candidates to individual staging files (preferred for per-shard approval)
+   * Each shard will be written to: `${base}/staging/${resourceId}/${shardId}.json`
+   */
+  async saveShardCandidatesPerShard(
+    resourceId: string,
+    shards: ShardCandidate[],
+    extraMeta?: { fileName?: string }
+  ): Promise<void> {
+    if (!Array.isArray(shards) || shards.length === 0) {
+      console.log(
+        `[CampaignAutoRAG] No shard candidates provided for resource ${resourceId}; skipping save.`
+      );
+      return;
+    }
+    for (const shard of shards) {
+      const key = `${this.campaignRagBasePath}/staging/${resourceId}/${shard.id}.json`;
+      const payload = {
+        resourceId,
+        shard,
+        fileName: extraMeta?.fileName,
+        created_at: new Date().toISOString(),
+        campaignRagBasePath: this.campaignRagBasePath,
+      };
+      if (!shard?.id || !shard?.metadata) {
+        console.warn(
+          `[CampaignAutoRAG] Skipping invalid shard for resource ${resourceId}:`,
+          Object.keys(shard || {})
+        );
+        continue;
+      }
+      await this.r2Helper.put(
+        key,
+        new TextEncoder().encode(JSON.stringify(payload)).buffer,
+        "application/json"
+      );
+    }
+    console.log(
+      `[CampaignAutoRAG] Saved ${shards.length} per-shard candidates under ${this.campaignRagBasePath}/staging/${resourceId}/`
+    );
+  }
+
+  /**
+   * List all staged shard candidate objects (supports legacy multi-shard files and per-shard files)
+   */
+  async listStagedCandidates(): Promise<
+    {
+      resourceId: string;
+      shard: ShardCandidate;
+      key: string;
+      fileName?: string;
+    }[]
+  > {
+    const results: {
+      resourceId: string;
+      shard: ShardCandidate;
+      key: string;
+      fileName?: string;
+    }[] = [];
+    const prefix = `${this.campaignRagBasePath}/staging/`;
+    const list = await this.env.R2.list({ prefix, limit: 1000 });
+    for (const obj of list.objects) {
+      try {
+        const buf = await this.r2Helper.get(obj.key);
+        if (!buf) continue;
+        const parsed = JSON.parse(new TextDecoder().decode(buf));
+        if (Array.isArray(parsed?.shards)) {
+          const resourceId: string = parsed?.sourceRef?.fileKey || "unknown";
+          const fileName: string | undefined =
+            parsed?.sourceRef?.meta?.fileName;
+          for (const item of parsed.shards as ShardCandidate[]) {
+            results.push({ resourceId, shard: item, key: obj.key, fileName });
+          }
+        } else if (parsed?.shard && parsed?.resourceId) {
+          results.push({
+            resourceId: parsed.resourceId as string,
+            shard: parsed.shard as ShardCandidate,
+            key: obj.key,
+            fileName: parsed.fileName as string | undefined,
+          });
+        }
+      } catch (e) {
+        console.warn(
+          `[CampaignAutoRAG] Failed to parse staged object ${obj.key}:`,
+          e
+        );
+      }
+    }
+    return results;
+  }
+
+  /**
    * Approve shards by moving from staging to approved
    */
   async approveShards(

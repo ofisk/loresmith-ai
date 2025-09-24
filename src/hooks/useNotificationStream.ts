@@ -58,12 +58,10 @@ export function useNotificationStream(
     }
 
     isConnectingRef.current = true;
-    console.log("[useNotificationStream] Starting connect()");
     // Get JWT token from localStorage
     const token = localStorage.getItem(JWT_STORAGE_KEY);
 
     if (!token) {
-      console.log("[useNotificationStream] No JWT found; cannot connect");
       setState((prev) => ({
         ...prev,
         error: "No authentication token found",
@@ -109,7 +107,6 @@ export function useNotificationStream(
 
     try {
       // First, mint a short-lived stream token
-      console.log("[useNotificationStream] Minting stream token...");
       const mintResponse = await fetch(
         API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.MINT_STREAM),
         {
@@ -123,11 +120,6 @@ export function useNotificationStream(
 
       if (!mintResponse.ok) {
         const errorText = await mintResponse.text();
-        console.log(
-          "[useNotificationStream] Mint failed status:",
-          mintResponse.status,
-          errorText
-        );
         console.error(
           "[useNotificationStream] Mint failed:",
           mintResponse.status,
@@ -161,13 +153,11 @@ export function useNotificationStream(
       if (!streamUrl) {
         throw new Error("No stream URL returned from server");
       }
-      console.log("[useNotificationStream] Stream URL:", streamUrl);
 
       // Create EventSource with the short-lived stream URL
       let eventSource: EventSource;
       try {
         eventSource = new EventSource(streamUrl);
-        console.log("[useNotificationStream] EventSource created");
       } catch (error) {
         console.error(
           "[useNotificationStream] Error creating EventSource:",
@@ -177,10 +167,6 @@ export function useNotificationStream(
       }
 
       eventSourceRef.current = eventSource;
-      console.log(
-        "[useNotificationStream] readyState after create:",
-        eventSource.readyState
-      );
 
       // Note: Removed debugging timeout that was causing premature connection closure
 
@@ -188,9 +174,6 @@ export function useNotificationStream(
 
       // Handle connection open
       eventSource.onopen = () => {
-        console.log(
-          "[useNotificationStream] ✅ Connected to notification stream"
-        );
         setState((prev) => ({
           ...prev,
           isConnected: true,
@@ -203,18 +186,11 @@ export function useNotificationStream(
 
       // Handle messages
       eventSource.onmessage = (event) => {
-        console.log(
-          "[useNotificationStream] raw message:",
-          event?.data?.slice?.(0, 120)
-        );
         try {
           const notification: NotificationPayload = JSON.parse(event.data);
 
           // Check if this is a Durable Object reset message
           if (notification.type === "durable-object-reset") {
-            console.log(
-              "[useNotificationStream] 🔄 Durable Object reset detected, reconnecting"
-            );
             reconnectAttempts.current = 0;
             eventSource.close();
             setTimeout(() => {
@@ -243,7 +219,6 @@ export function useNotificationStream(
             error: null,
             notifications: [notification, ...prev.notifications].slice(0, 50),
           }));
-          console.log("[useNotificationStream] ▶ message:", notification.type);
           optsRef.current.onNotification?.(notification);
         } catch (error) {
           console.error(
@@ -266,10 +241,6 @@ export function useNotificationStream(
       // Handle connection errors
       eventSource.onerror = (error) => {
         console.error("[useNotificationStream] ❌ Connection error:", error);
-        console.log(
-          "[useNotificationStream] onerror readyState:",
-          eventSource.readyState
-        );
 
         // If CLOSED, allow immediate reconnection without clearing main auth JWT
         if (eventSource.readyState === 2) {
@@ -286,9 +257,6 @@ export function useNotificationStream(
 
         // Check if this might be a 401 (token expired) by checking the readyState
         if (eventSource.readyState === EventSource.CLOSED) {
-          console.log(
-            "[useNotificationStream] Connection closed, likely due to token expiration"
-          );
           // Reset reconnect attempts for token expiration - this is expected
           reconnectAttempts.current = 0;
         }
@@ -297,10 +265,6 @@ export function useNotificationStream(
         if (reconnectAttempts.current < maxReconnectAttempts) {
           const delay = Math.min(1000 * 2 ** reconnectAttempts.current, 30000); // Exponential backoff, max 30s
           reconnectAttempts.current++;
-
-          console.log(
-            `[useNotificationStream] Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current})`
-          );
 
           reconnectTimeoutRef.current = setTimeout(() => {
             isConnectingRef.current = false;

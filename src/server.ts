@@ -12,7 +12,7 @@ import { UploadSessionDO } from "./durable-objects/upload-session";
 import type { AgentType } from "./lib/agent-router";
 import { AgentRouter } from "./lib/agent-router";
 import { ModelManager } from "./lib/model-manager";
-import queueConsumer from "./queue_consumer";
+import { queue as queueFn, scheduled as scheduledFn } from "./queue_consumer";
 import {
   handleGetAssessmentRecommendations,
   handleGetUserActivity,
@@ -784,12 +784,25 @@ app.get(
   handleIngestionStats
 );
 
-export default {
-  fetch: app.fetch,
-  queue: queueConsumer.queue,
-};
+// Wrap Hono fetch in a plain function to satisfy Wrangler's export check
+export const fetch = (request: Request, env: Env, ctx: ExecutionContext) =>
+  app.fetch(request, env, ctx);
+export const queue = (
+  batch: MessageBatch<unknown>,
+  env: Env,
+  _ctx?: ExecutionContext
+) => queueFn(batch as any, env as any);
+export const scheduled = (
+  event: ScheduledEvent,
+  env: Env,
+  _ctx?: ExecutionContext
+) => scheduledFn(event as any, env as any);
 
-export { queueConsumer as queue };
+export default {
+  fetch,
+  queue,
+  scheduled,
+};
 
 // Root path handler - serve index.html
 app.get("/", async (c) => {

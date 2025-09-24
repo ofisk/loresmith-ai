@@ -6,7 +6,7 @@ interface ShardItemProps {
     text: string;
     metadata: {
       entityType: string;
-      confidence: number;
+      confidence?: number;
       query?: string;
     };
   };
@@ -42,9 +42,12 @@ export const ShardItem: React.FC<ShardItemProps> = ({
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
               {shard.metadata.entityType}
             </span>
-            <span className="text-sm text-gray-500">
-              Confidence: {Math.round(shard.metadata.confidence * 100)}%
-            </span>
+            {typeof shard.metadata.confidence === "number" &&
+              !Number.isNaN(shard.metadata.confidence) && (
+                <span className="text-sm text-gray-500">
+                  Confidence: {Math.round(shard.metadata.confidence * 100)}%
+                </span>
+              )}
           </div>
 
           <p className="text-gray-700 whitespace-pre-wrap text-sm">

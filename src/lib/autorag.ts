@@ -130,6 +130,7 @@ export class AutoRAGClient {
       };
       rewrite_query?: boolean;
       filters?: ComparisonFilter | CompoundFilter;
+      system_prompt?: string;
     } = {}
   ): Promise<AutoRAGAISearchResult> {
     const {
@@ -137,6 +138,7 @@ export class AutoRAGClient {
       ranking_options = {},
       rewrite_query = false,
       filters,
+      system_prompt,
     } = options;
 
     console.log(
@@ -161,6 +163,10 @@ export class AutoRAGClient {
     // Add metadata filtering if specified
     if (filters) {
       searchPayload.filters = filters;
+    }
+
+    if (system_prompt) {
+      (searchPayload as any).system_prompt = system_prompt;
     }
 
     const response = await fetch(this.aiSearchUrl, {
