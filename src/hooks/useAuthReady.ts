@@ -24,12 +24,12 @@ export function useAuthReady(timeoutMs: number = 5000): boolean {
       return;
     }
 
-    // Set up interval to check for auth readiness
+    // Set up interval to check for auth readiness (reduced frequency)
     const interval = setInterval(() => {
       if (checkAuth()) {
         clearInterval(interval);
       }
-    }, 100);
+    }, 500); // Reduced from 100ms to 500ms
 
     // Clean up interval after timeout
     const timeout = setTimeout(() => {

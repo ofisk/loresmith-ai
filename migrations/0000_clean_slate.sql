@@ -74,7 +74,8 @@ create table file_metadata (
   last_analyzed_at datetime,
   analysis_status text default 'pending', -- pending, analyzing, completed, failed
   analysis_error text, -- Store any analysis errors
-  created_at datetime default current_timestamp
+  created_at datetime default current_timestamp,
+  updated_at datetime
 );
 
 -- Create file content chunks for rag
@@ -242,6 +243,7 @@ create index if not exists idx_file_metadata_content_type_categories on file_met
 create index if not exists idx_file_metadata_difficulty_level on file_metadata(difficulty_level);
 create index if not exists idx_file_metadata_campaign_themes on file_metadata(campaign_themes);
 create index if not exists idx_file_metadata_content_quality_score on file_metadata(content_quality_score);
+create index if not exists idx_file_metadata_status_updated_at on file_metadata(status, updated_at);
 create index if not exists idx_autorag_chunks_file_key on autorag_chunks(file_key);
 create index if not exists idx_autorag_chunks_username on autorag_chunks(username);
 create index if not exists idx_autorag_chunks_chunk_key on autorag_chunks(chunk_key);

@@ -10,7 +10,6 @@ interface Env {
   ADMIN_SECRET?: string;
   DB: D1Database;
   Chat: DurableObjectNamespace;
-  UserFileTracker: DurableObjectNamespace;
 }
 
 /**

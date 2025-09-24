@@ -10,7 +10,6 @@ import { SimpleChatAgent } from "./simple-chat-agent";
 interface Env {
   ADMIN_SECRET?: string;
   Chat: DurableObjectNamespace;
-  UserFileTracker: DurableObjectNamespace;
 }
 
 interface MessageData {

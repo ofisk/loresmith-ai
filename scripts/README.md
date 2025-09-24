@@ -174,6 +174,33 @@ Make sure to backup any important data before running this script.
 - **Production**: Only run during maintenance windows
 - **Staging**: Consider running on staging environment first
 
+### Database Migrations
+
+The project uses a migration system for database schema changes:
+
+#### Running Migrations
+
+```bash
+# Run all migrations (production)
+./scripts/migrate.sh
+
+# Run all migrations (local development)
+./scripts/migrate-local.sh
+```
+
+#### Migration Files
+
+- `migrations/0000_clean_slate.sql` - Complete database schema (includes `updated_at` column)
+- `migrations/0001_add_autorag_jobs_table.sql` - AutoRAG job tracking
+- `migrations/0002_add_sync_queue_table.sql` - Sync queue management
+- `migrations/0003_add_updated_at_to_file_metadata.sql` - Adds `updated_at` column for stuck file detection
+
+#### Important Notes
+
+- **Clean Slate Migration**: `0000_clean_slate.sql` drops and recreates all tables
+- **Schema Updates**: Always update the clean slate migration when adding new columns
+- **Stuck File Detection**: Requires `updated_at` column in `file_metadata` table for proper timeout handling
+
 ### Related Files
 
 - `wrangler.jsonc` - Main Wrangler configuration

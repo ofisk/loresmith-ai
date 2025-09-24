@@ -37,7 +37,7 @@ export function useShardRenderGate(
         }
       })();
     });
-  }, [getJwt, campaignIds, presence]);
+  }, [getJwt, campaignIds]);
 
   const shouldRender = useMemo(
     () => (cid?: string) => (cid ? presence[cid] === true : false),

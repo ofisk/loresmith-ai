@@ -1,15 +1,19 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "../dao/dao-factory";
+import { FileDAO } from "../dao/file-dao";
 import {
-  notifyFileUploadComplete,
+  notifyFileUploadCompleteWithData,
   notifyFileUploadFailed,
   notifyIndexingStarted,
   notifyIndexingCompleted,
   notifyIndexingFailed,
+  notifyFileStatusUpdated,
+  notifyFileUpdated,
 } from "../lib/notifications";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { API_CONFIG } from "../shared-config";
+import { SyncQueueService } from "../services/sync-queue-service";
 import { buildAutoRAGFileKey, buildStagingFileKey } from "../utils/file-keys";
 import { nanoid } from "../utils/nanoid";
 
@@ -22,87 +26,132 @@ async function processFileWithAutoRAG(
   userId: string,
   filename: string,
   fileKey: string,
-  logPrefix: string
+  logPrefix: string,
+  jwt?: string
 ): Promise<void> {
   try {
     console.log(`${logPrefix} Starting AutoRAG processing for:`, filename);
-
-    // Send indexing started notification
-    try {
-      await notifyIndexingStarted(env, userId, filename);
-    } catch (_e) {}
-
-    // Get file from R2
-    const file = await env.R2.get(fileKey);
-    if (!file) {
-      throw new Error("File not found in R2");
-    }
-
-    // Process with RAG service
-    const { getLibraryRagService } = await import("../lib/service-factory");
-    const ragService = getLibraryRagService(env);
-    await ragService.processFileFromR2(autoragKey, userId, env.R2, {
-      file_key: autoragKey,
-      username: userId,
-      file_name: filename,
-      file_size: file.size,
-      status: "processing",
-      created_at: new Date().toISOString(),
+    console.log(`${logPrefix} AutoRAG processing params:`, {
+      autoragKey,
+      userId,
+      filename,
+      fileKey,
+      jwtPresent: jwt ? "yes" : "no",
     });
 
-    // Update database status and file size
-    const fileDAO = getDAOFactory(env).fileDAO;
-    await fileDAO.updateFileRecord(autoragKey, "completed", file.size);
-    console.log(`${logPrefix} AutoRAG processing completed for:`, filename);
-
-    // Send indexing completed notification
-    try {
-      await notifyIndexingCompleted(env, userId, filename);
-    } catch (_e) {}
-
-    // Send notification about file processing completion
-    try {
-      console.log(
-        `${logPrefix} Sending file processing completion notification for:`,
-        filename
-      );
-      await notifyFileUploadComplete(env, userId, filename, file.size);
-      console.log(
-        `${logPrefix} File processing completion notification sent successfully`
-      );
-    } catch (error) {
+    // Send indexing started notification (fire-and-forget)
+    notifyIndexingStarted(env, userId, filename).catch((notifyError) => {
       console.error(
-        `${logPrefix} Failed to send file processing completion notification:`,
-        error
+        `${logPrefix} Indexing started notification failed:`,
+        notifyError
+      );
+    });
+    console.log(
+      `${logPrefix} Indexing started notification sent (fire-and-forget)`
+    );
+
+    // Update database status - mark as uploaded (ready for AutoRAG)
+    const fileDAO = getDAOFactory(env).fileDAO;
+    const r2File = await env.R2.get(fileKey);
+    await fileDAO.updateFileRecord(
+      autoragKey,
+      FileDAO.STATUS.UPLOADED,
+      r2File?.size || 0
+    );
+    console.log(`${logPrefix} File marked as uploaded for:`, filename);
+
+    // Trigger AutoRAG processing using the same pattern as retry
+    const result = await SyncQueueService.processFileUpload(
+      env,
+      userId,
+      autoragKey,
+      filename,
+      jwt
+    );
+
+    console.log(`${logPrefix} AutoRAG processing initiated for:`, filename);
+    console.log(`${logPrefix} SyncQueueService result:`, result);
+
+    // Send status update notification with complete file data (fire-and-forget)
+    const fileRecord = await fileDAO.getFileForRag(autoragKey, userId);
+    if (fileRecord) {
+      notifyFileUpdated(env, userId, fileRecord).catch((notifyError) => {
+        console.error(
+          `${logPrefix} File updated notification failed:`,
+          notifyError
+        );
+      });
+    } else {
+      // Fallback to basic notification if file record not found
+      notifyFileStatusUpdated(
+        env,
+        userId,
+        autoragKey,
+        filename,
+        FileDAO.STATUS.UPLOADED,
+        r2File?.size || 0
+      ).catch((notifyError) => {
+        console.error(`${logPrefix} Status notification failed:`, notifyError);
+      });
+    }
+
+    // Send file upload completion notification with complete data (fire-and-forget)
+    if (fileRecord) {
+      notifyFileUploadCompleteWithData(env, userId, fileRecord).catch(
+        (notifyError) => {
+          console.error(
+            `${logPrefix} Upload complete notification failed:`,
+            notifyError
+          );
+        }
       );
     }
+
+    // Send indexing completed notification (fire-and-forget)
+    notifyIndexingCompleted(env, userId, filename).catch((notifyError) => {
+      console.error(
+        `${logPrefix} Indexing completed notification failed:`,
+        notifyError
+      );
+    });
   } catch (error) {
     console.error(
-      `${logPrefix} AutoRAG processing failed for:`,
-      filename,
+      `${logPrefix} AutoRAG processing failed for ${filename}:`,
       error
     );
 
-    // Update database status to error
-    try {
-      const fileDAO = getDAOFactory(env).fileDAO;
-      await fileDAO.updateFileRecord(autoragKey, "error");
-    } catch (dbError) {
-      console.error(
-        `${logPrefix} Failed to update file status to error:`,
-        dbError
-      );
-    }
+    // Update file status to error
+    const fileDAO = getDAOFactory(env).fileDAO;
+    await fileDAO.updateFileRecord(autoragKey, FileDAO.STATUS.ERROR);
 
-    // Send indexing failed notification
-    try {
-      await notifyIndexingFailed(
-        env,
-        userId,
-        filename,
-        (error as Error)?.message
+    // Send error notifications (fire-and-forget)
+    notifyFileStatusUpdated(
+      env,
+      userId,
+      autoragKey,
+      filename,
+      FileDAO.STATUS.ERROR
+    ).catch((notifyError) => {
+      console.error(
+        `${logPrefix} Error status notification failed:`,
+        notifyError
       );
-    } catch (_e) {}
+    });
+
+    // Send indexing failed notification (fire-and-forget)
+    notifyIndexingFailed(
+      env,
+      userId,
+      filename,
+      (error as Error)?.message
+    ).catch((notifyError) => {
+      console.error(
+        `${logPrefix} Indexing failed notification failed:`,
+        notifyError
+      );
+    });
+
+    throw error;
   }
 }
 
@@ -115,18 +164,43 @@ function startAutoRAGProcessing(
   userId: string,
   filename: string,
   fileKey: string,
-  logPrefix: string
+  logPrefix: string,
+  jwt?: string
 ): void {
-  setTimeout(async () => {
-    await processFileWithAutoRAG(
-      env,
-      autoragKey,
-      userId,
-      filename,
-      fileKey,
-      logPrefix
-    );
-  }, 100);
+  console.log(
+    `${logPrefix} startAutoRAGProcessing called for file: ${filename}`
+  );
+
+  // Execute AutoRAG processing immediately instead of using setTimeout
+  // Cloudflare Workers don't reliably support setTimeout with async callbacks
+  console.log(
+    `${logPrefix} Starting AutoRAG processing immediately for file: ${filename}`
+  );
+
+  processFileWithAutoRAG(
+    env,
+    autoragKey,
+    userId,
+    filename,
+    fileKey,
+    logPrefix,
+    jwt
+  )
+    .then(() => {
+      console.log(
+        `${logPrefix} processFileWithAutoRAG completed successfully for file: ${filename}`
+      );
+    })
+    .catch((error) => {
+      console.error(
+        `${logPrefix} processFileWithAutoRAG failed for file ${filename}:`,
+        error
+      );
+    });
+
+  console.log(
+    `${logPrefix} AutoRAG processing started (no setTimeout) for file: ${filename}`
+  );
 }
 
 // Extend the context to include userAuth
@@ -255,6 +329,22 @@ export async function handleDirectUpload(c: ContextWithAuth) {
       // Don't fail the upload if metadata insertion fails
     }
 
+    // Extract JWT token from Authorization header
+    const authHeader = c.req.header("Authorization");
+    const jwt = authHeader?.replace(/^Bearer\s+/i, "");
+
+    console.log(
+      `[DirectUpload] About to start AutoRAG processing with params:`,
+      {
+        autoragKey,
+        userId: userAuth.username,
+        filename,
+        fileKey: key,
+        jwtPresent: jwt ? "yes" : "no",
+        jwtLength: jwt?.length || 0,
+      }
+    );
+
     // Start AutoRAG processing in background
     startAutoRAGProcessing(
       c.env,
@@ -262,7 +352,12 @@ export async function handleDirectUpload(c: ContextWithAuth) {
       userAuth.username,
       filename,
       key,
-      "[DirectUpload]"
+      "[DirectUpload]",
+      jwt
+    );
+
+    console.log(
+      `[DirectUpload] AutoRAG processing scheduled for file: ${filename}`
     );
 
     return c.json({
@@ -672,7 +767,7 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
 
     // Insert file metadata into database
     const fileDAO = getDAOFactory(c.env).fileDAO;
-    const autoragKey = `autorag/${session.userId}/${session.filename}`;
+    const autoragKey = buildAutoRAGFileKey(session.userId, session.filename);
 
     try {
       await fileDAO.insertFileForProcessing(
@@ -689,6 +784,10 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
       // Don't fail the upload if metadata insertion fails
     }
 
+    // Extract JWT token from Authorization header
+    const authHeader = c.req.header("Authorization");
+    const jwt = authHeader?.replace(/^Bearer\s+/i, "");
+
     // Start AutoRAG processing in background
     startAutoRAGProcessing(
       c.env,
@@ -696,7 +795,8 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
       session.userId,
       session.filename,
       session.fileKey,
-      "[LargeUpload]"
+      "[LargeUpload]",
+      jwt
     );
 
     // Mark session as completed

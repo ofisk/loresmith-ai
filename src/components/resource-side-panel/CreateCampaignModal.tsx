@@ -9,7 +9,7 @@ interface CreateCampaignModalProps {
   onCampaignNameChange: (name: string) => void;
   campaignDescription: string;
   onCampaignDescriptionChange: (description: string) => void;
-  onCreateCampaign: (name: string, description: string) => void;
+  onCreateCampaign: (name: string, description: string) => Promise<void>;
 }
 
 export function CreateCampaignModal({
@@ -33,7 +33,7 @@ export function CreateCampaignModal({
     }
   }, [isOpen, campaignName, campaignDescription]);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!name.trim() || isSubmitting) return;
     setIsSubmitting(true);
     try {
@@ -42,14 +42,39 @@ export function CreateCampaignModal({
         document.documentElement.style.cursor = "progress";
       }
     } catch (_e) {}
+
     // Sync upstream state then close first for instant UX
     onCampaignNameChange(name);
     onCampaignDescriptionChange(description);
     onClose();
-    // Kick off creation on next tick so close renders immediately
-    setTimeout(() => {
-      onCreateCampaign(name, description);
-    }, 0);
+
+    try {
+      // Kick off creation on next tick so close renders immediately
+      await new Promise<void>((resolve) => {
+        setTimeout(async () => {
+          try {
+            await onCreateCampaign(name, description);
+          } finally {
+            // Always reset cursor when campaign creation completes (success or failure)
+            try {
+              if (typeof document !== "undefined") {
+                document.body.style.cursor = "";
+                document.documentElement.style.cursor = "";
+              }
+            } catch (_e) {}
+            resolve();
+          }
+        }, 0);
+      });
+    } catch (_error) {
+      // Reset cursor on error
+      try {
+        if (typeof document !== "undefined") {
+          document.body.style.cursor = "";
+          document.documentElement.style.cursor = "";
+        }
+      } catch (_e) {}
+    }
   };
 
   // Reset cursor and submitting state when modal closes/unmounts

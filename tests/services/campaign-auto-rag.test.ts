@@ -66,20 +66,9 @@ describe("CampaignAutoRAG", () => {
 
       await campaignAutoRAG.initFolders();
 
-      // Verify that folder markers were created
-      expect(mockExists).toHaveBeenCalledTimes(6); // 3 folders * 2 markers each
-      expect(mockPut).toHaveBeenCalledTimes(6);
-
-      // Verify the correct folder paths were checked
-      expect(mockExists).toHaveBeenCalledWith(
-        "campaigns/test-campaign-123/staging/.init"
-      );
-      expect(mockExists).toHaveBeenCalledWith(
-        "campaigns/test-campaign-123/approved/.init"
-      );
-      expect(mockExists).toHaveBeenCalledWith(
-        "campaigns/test-campaign-123/rejected/.init"
-      );
+      // No marker files are created anymore - folders are created automatically when files are uploaded
+      expect(mockExists).toHaveBeenCalledTimes(0);
+      expect(mockPut).toHaveBeenCalledTimes(0);
     });
   });
 

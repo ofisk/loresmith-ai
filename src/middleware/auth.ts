@@ -9,12 +9,12 @@ export interface Env extends AuthEnv, EnvWithSecrets {
   VECTORIZE: VectorizeIndex;
   AI: Ai;
   Chat: DurableObjectNamespace;
-  UserFileTracker: DurableObjectNamespace;
   UploadSession: DurableObjectNamespace;
   ASSETS: Fetcher;
   FILE_PROCESSING_QUEUE: Queue;
   FILE_PROCESSING_DLQ: Queue;
   AUTORAG_BASE_URL: string;
+  AUTORAG_ACCOUNT_ID: string;
   AUTORAG_API_TOKEN: string | { get(): Promise<string> };
 }
 

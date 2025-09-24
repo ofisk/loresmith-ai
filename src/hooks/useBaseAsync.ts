@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 
 /**
  * Base hook for managing async operations with loading states, error handling, and success callbacks.
@@ -50,8 +50,14 @@ export function useBaseAsync<T, P extends any[]>(
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<T | null>(null);
 
+  // Store options in a ref to prevent unnecessary re-renders
+  const optionsRef = useRef(options);
+
   const execute = useCallback(
     async (...args: P): Promise<T> => {
+      // Update the ref with current options at execution time
+      optionsRef.current = options;
+
       try {
         setLoading(true);
         setError(null);
@@ -59,16 +65,16 @@ export function useBaseAsync<T, P extends any[]>(
         const result = await asyncFn(...args);
 
         setData(result);
-        options.onSuccess?.(result);
+        optionsRef.current.onSuccess?.(result);
 
         return result;
       } catch (err) {
         const errorMessage =
           err instanceof Error
             ? err.message
-            : options.errorMessage || "Operation failed";
+            : optionsRef.current.errorMessage || "Operation failed";
         setError(errorMessage);
-        options.onError?.(errorMessage);
+        optionsRef.current.onError?.(errorMessage);
 
         throw err;
       } finally {
@@ -80,11 +86,11 @@ export function useBaseAsync<T, P extends any[]>(
 
   const retry = useCallback(() => {
     setError(null);
-    if (options.autoExecute && options.autoExecuteArgs) {
-      return execute(...options.autoExecuteArgs);
+    if (optionsRef.current.autoExecute && optionsRef.current.autoExecuteArgs) {
+      return execute(...optionsRef.current.autoExecuteArgs);
     }
     return execute;
-  }, [execute, options.autoExecute, options.autoExecuteArgs]);
+  }, [execute]);
 
   const reset = useCallback(() => {
     setLoading(false);

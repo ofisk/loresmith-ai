@@ -9,6 +9,7 @@ import { LibrarySection } from "./LibrarySection";
 interface ResourceSidePanelProps {
   className?: string;
   isAuthenticated?: boolean;
+  campaigns?: Campaign[]; // Accept campaigns from parent
   onLogout?: () => Promise<void>;
   showUserMenu?: boolean;
   setShowUserMenu?: (show: boolean) => void;
@@ -24,6 +25,7 @@ interface ResourceSidePanelProps {
 export function ResourceSidePanel({
   className = "",
   isAuthenticated = false,
+  campaigns = [],
   onLogout,
   showUserMenu = false,
   setShowUserMenu,
@@ -38,10 +40,14 @@ export function ResourceSidePanel({
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isCampaignsOpen, setIsCampaignsOpen] = useState(false);
 
-  const { campaigns, campaignsLoading, campaignsError, fetchCampaigns } =
-    useCampaignManagement({
-      isAuthenticated,
-    });
+  const {
+    campaigns: managedCampaigns,
+    campaignsLoading,
+    campaignsError,
+  } = useCampaignManagement({
+    isAuthenticated,
+    campaigns, // Pass campaigns from parent
+  });
 
   // Watch for external trigger to open file upload modal
   useEffect(() => {
@@ -50,13 +56,6 @@ export function ResourceSidePanel({
       onFileUploadTriggered?.();
     }
   }, [triggerFileUpload, onAddResource, onFileUploadTriggered]);
-
-  // Fetch campaigns when campaigns section is opened
-  useEffect(() => {
-    if (isCampaignsOpen && isAuthenticated) {
-      fetchCampaigns();
-    }
-  }, [isCampaignsOpen, isAuthenticated, fetchCampaigns]);
 
   const handleLogout = async () => {
     try {
@@ -74,7 +73,7 @@ export function ResourceSidePanel({
       <div className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0">
         {/* Campaigns Section */}
         <CampaignsSection
-          campaigns={campaigns}
+          campaigns={managedCampaigns}
           campaignsLoading={campaignsLoading}
           campaignsError={campaignsError}
           onToggle={() => setIsCampaignsOpen(!isCampaignsOpen)}

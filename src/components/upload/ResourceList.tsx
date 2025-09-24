@@ -1,6 +1,7 @@
 import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ERROR_MESSAGES } from "../../app-constants";
+import { FileDAO } from "../../dao/file-dao";
 import type { AutoRAGEvent, FileUploadEvent } from "../../lib/event-bus";
 import { EVENT_TYPES, useEventBus } from "../../lib/event-bus";
 import {
@@ -10,6 +11,7 @@ import {
 } from "../../services/auth-service";
 import { API_CONFIG } from "../../shared-config";
 import type { Campaign } from "../../types/campaign";
+import { useAuthReady } from "../../hooks/useAuthReady";
 import { Button } from "../button/Button";
 import { FileStatusIndicator } from "./FileStatusIndicator";
 
@@ -54,154 +56,108 @@ export function ResourceList({
     Record<string, number>
   >({});
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
-  const refreshTimerRef = useRef<number | null>(null);
   const isFetchingRef = useRef<boolean>(false);
+  const authReady = useAuthReady();
 
-  const fetchResourceCampaigns = useCallback(async (files: ResourceFile[]) => {
-    try {
-      const jwt = getStoredJwt();
+  const fetchResourceCampaigns = useCallback(
+    async (files: ResourceFile[], campaigns: Campaign[] = []) => {
+      try {
+        const jwt = getStoredJwt();
+        if (!jwt) {
+          return;
+        }
 
-      // Fetch campaigns once
-      const { response: campaignsResponse, jwtExpired: campaignsJwtExpired } =
-        await authenticatedFetchWithExpiration(
-          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
-          { jwt }
-        );
+        const userCampaigns = campaigns;
 
-      if (campaignsJwtExpired) {
-        throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
-      }
-
-      if (!campaignsResponse.ok) {
-        throw new Error(
-          `Failed to fetch campaigns: ${campaignsResponse.status}`
-        );
-      }
-
-      const campaignsData = (await campaignsResponse.json()) as {
-        campaigns: Campaign[];
-      };
-      const userCampaigns = campaignsData.campaigns || [];
-
-      // Fetch each campaign's resources once
-      const resourcesByCampaign = await Promise.all(
-        userCampaigns.map(async (campaign) => {
-          try {
-            const {
-              response: resourcesResponse,
-              jwtExpired: resourcesJwtExpired,
-            } = await authenticatedFetchWithExpiration(
-              API_CONFIG.buildUrl(
-                API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(campaign.campaignId)
-              ),
-              { jwt }
-            );
-            if (resourcesJwtExpired) {
-              throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
-            }
-            if (!resourcesResponse.ok) {
-              throw new Error(
-                `Failed to fetch campaign resources: ${resourcesResponse.status}`
+        // Fetch each campaign's resources once
+        const resourcesByCampaign = await Promise.all(
+          userCampaigns.map(async (campaign) => {
+            try {
+              const {
+                response: resourcesResponse,
+                jwtExpired: resourcesJwtExpired,
+              } = await authenticatedFetchWithExpiration(
+                API_CONFIG.buildUrl(
+                  API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(campaign.campaignId)
+                ),
+                { jwt }
               );
+              if (resourcesJwtExpired) {
+                throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
+              }
+              if (!resourcesResponse.ok) {
+                throw new Error(
+                  `Failed to fetch campaign resources: ${resourcesResponse.status}`
+                );
+              }
+              const resourcesData = (await resourcesResponse.json()) as {
+                resources: any[];
+              };
+              const resources = resourcesData.resources || [];
+              const fileKeySet = new Set<string>(
+                resources.map((r: any) => r.file_key)
+              );
+              return { campaign, fileKeySet };
+            } catch (_e) {
+              return { campaign, fileKeySet: new Set<string>() };
             }
-            const resourcesData = (await resourcesResponse.json()) as {
-              resources: any[];
-            };
-            const resources = resourcesData.resources || [];
-            const fileKeySet = new Set<string>(
-              resources.map((r: any) => r.file_key)
-            );
-            return { campaign, fileKeySet };
-          } catch (_e) {
-            return { campaign, fileKeySet: new Set<string>() };
-          }
-        })
-      );
+          })
+        );
 
-      // Build mapping: file_key -> campaigns[]
-      const fileKeyToCampaigns: Record<string, Campaign[]> = {};
-      for (const { campaign, fileKeySet } of resourcesByCampaign) {
-        for (const file of files) {
-          if (fileKeySet.has(file.file_key)) {
-            if (!fileKeyToCampaigns[file.file_key]) {
-              fileKeyToCampaigns[file.file_key] = [];
+        // Build mapping: file_key -> campaigns[]
+        const fileKeyToCampaigns: Record<string, Campaign[]> = {};
+        for (const { campaign, fileKeySet } of resourcesByCampaign) {
+          for (const file of files) {
+            if (fileKeySet.has(file.file_key)) {
+              if (!fileKeyToCampaigns[file.file_key]) {
+                fileKeyToCampaigns[file.file_key] = [];
+              }
+              fileKeyToCampaigns[file.file_key].push(campaign);
             }
-            fileKeyToCampaigns[file.file_key].push(campaign);
           }
         }
-      }
 
-      // Map files with campaigns
-      const filesWithCampaigns: ResourceFileWithCampaigns[] = files.map(
-        (file) => ({
-          ...file,
-          campaigns: fileKeyToCampaigns[file.file_key] || [],
-        })
-      );
-
-      setFiles(filesWithCampaigns);
-      setCampaigns(userCampaigns);
-    } catch (err) {
-      console.error("Failed to fetch resource campaigns:", err);
-      setError("Failed to fetch resource campaigns");
-    }
-  }, []);
-
-  const fetchCampaigns = useCallback(async () => {
-    try {
-      const jwt = getStoredJwt();
-      if (!jwt) {
-        return;
-      }
-
-      const { response: campaignsResponse, jwtExpired: campaignsJwtExpired } =
-        await authenticatedFetchWithExpiration(
-          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
-          { jwt }
+        // Map files with campaigns and parse tags from JSON strings
+        const filesWithCampaigns: ResourceFileWithCampaigns[] = files.map(
+          (file) => ({
+            ...file,
+            campaigns: fileKeyToCampaigns[file.file_key] || [],
+            tags:
+              typeof file.tags === "string"
+                ? JSON.parse(file.tags)
+                : file.tags || [],
+          })
         );
 
-      if (campaignsJwtExpired) {
-        throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
+        setFiles(filesWithCampaigns);
+        setCampaigns(userCampaigns);
+      } catch (err) {
+        console.error("Failed to fetch resource campaigns:", err);
+        setError("Failed to fetch resource campaigns");
       }
-
-      if (!campaignsResponse.ok) {
-        throw new Error(
-          `Failed to fetch campaigns: ${campaignsResponse.status}`
-        );
-      }
-
-      const campaignsData = (await campaignsResponse.json()) as {
-        campaigns: Campaign[];
-      };
-
-      setCampaigns(campaignsData.campaigns || []);
-    } catch (err) {
-      console.error("Failed to fetch campaigns:", err);
-    }
-  }, []);
+    },
+    []
+  );
 
   const fetchResources = useCallback(async () => {
     try {
-      if (isFetchingRef.current) return;
-      isFetchingRef.current = true;
-      setLoading(true);
-      setError(null);
-
-      // Wait for JWT to be available (with retry mechanism)
-      let jwt = getStoredJwt();
-      let retries = 0;
-      const maxRetries = 10;
-
-      while (!jwt && retries < maxRetries) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        jwt = getStoredJwt();
-        retries++;
+      if (isFetchingRef.current) {
+        console.log(
+          "[ResourceList] fetchResources already in progress, skipping"
+        );
+        return;
       }
 
+      const jwt = getStoredJwt();
       if (!jwt) {
         setError(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
         return;
       }
+
+      console.log("[ResourceList] Starting fetchResources");
+      isFetchingRef.current = true;
+      setLoading(true);
+      setError(null);
 
       const { response: resourcesResponse, jwtExpired: resourcesJwtExpired } =
         await authenticatedFetchWithExpiration(
@@ -224,7 +180,11 @@ export function ResourceList({
       };
 
       const files = resourcesData.files || [];
-      await fetchResourceCampaigns(files);
+      console.log(
+        `[ResourceList] Fetched ${files.length} files:`,
+        files.map((f) => ({ filename: f.file_name, status: f.status }))
+      );
+      await fetchResourceCampaigns(files, []); // Pass empty campaigns array for now
     } catch (err) {
       console.error("Failed to fetch resources:", err);
       setError(
@@ -236,15 +196,99 @@ export function ResourceList({
     }
   }, [fetchResourceCampaigns]);
 
-  const scheduleRefresh = useCallback(
-    (delay = 300) => {
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
+  // Handle file status updates from SSE notifications
+  const handleFileStatusUpdate = useCallback((event: CustomEvent) => {
+    const { completeFileData, fileKey, fileName, status, fileSize } =
+      event.detail;
+    console.log("[ResourceList] Received file-status-updated event:", {
+      completeFileData,
+      fileKey,
+      fileName,
+      status,
+      fileSize,
+    });
+
+    setFiles((prevFiles) => {
+      // If we have complete file data, use it for in-place replacement
+      if (completeFileData) {
+        console.log(
+          "[ResourceList] Updating file with complete data:",
+          completeFileData
+        );
+        return prevFiles.map((file) => {
+          if (file.file_key === completeFileData.file_key) {
+            // Preserve campaigns data when replacing and parse tags from JSON string
+            return {
+              ...completeFileData,
+              campaigns: file.campaigns || [],
+              tags:
+                typeof completeFileData.tags === "string"
+                  ? JSON.parse(completeFileData.tags)
+                  : completeFileData.tags || [],
+            };
+          }
+          return file;
+        });
       }
-      refreshTimerRef.current = window.setTimeout(() => {
+
+      // Fallback to individual field updates for backward compatibility
+      console.log("[ResourceList] Updating file with individual fields");
+      return prevFiles.map((file) => {
+        if (file.file_key === fileKey) {
+          return {
+            ...file,
+            status,
+            ...(fileSize !== undefined && { file_size: fileSize }),
+          };
+        }
+        return file;
+      });
+    });
+  }, []);
+
+  // Handle file changes from SSE notifications
+  const handleFileChange = useCallback(
+    (event: CustomEvent) => {
+      const { completeFileData, fileName, fileSize } = event.detail;
+      console.log("[ResourceList] Received file-changed event:", {
+        completeFileData,
+        fileName,
+        fileSize,
+      });
+
+      // If we have complete file data, add the new file to the list in-place
+      if (completeFileData) {
+        console.log(
+          "[ResourceList] Adding new file with complete data:",
+          completeFileData
+        );
+        setFiles((prevFiles) => {
+          // Check if file already exists (avoid duplicates)
+          const exists = prevFiles.some(
+            (f) => f.file_key === completeFileData.file_key
+          );
+          if (exists) {
+            console.log(
+              "[ResourceList] File already exists, skipping duplicate"
+            );
+            return prevFiles;
+          }
+
+          // Add new file to the beginning of the list with parsed tags
+          const parsedFileData = {
+            ...completeFileData,
+            tags:
+              typeof completeFileData.tags === "string"
+                ? JSON.parse(completeFileData.tags)
+                : completeFileData.tags || [],
+          };
+          return [parsedFileData, ...prevFiles];
+        });
+      } else {
+        // Fallback to refresh if we don't have complete file data
+        console.log("[ResourceList] No complete file data, refreshing list");
         fetchResources();
-        refreshTimerRef.current = null;
-      }, delay);
+      }
     },
     [fetchResources]
   );
@@ -252,6 +296,50 @@ export function ResourceList({
   const handleEditFile = (file: ResourceFileWithCampaigns) => {
     onEditFile?.(file);
   };
+
+  const handleRetryFile = useCallback(
+    async (fileKey: string, fileName: string) => {
+      try {
+        console.log(`[ResourceList] Retrying file processing for: ${fileName}`);
+
+        const jwt = getStoredJwt();
+        if (!jwt) {
+          console.error("[ResourceList] No JWT token available for retry");
+          return;
+        }
+
+        // Call the retry endpoint
+        const retryUrl = API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.AUTORAG.RETRY_FILE
+        );
+        const response = await authenticatedFetchWithExpiration(retryUrl, {
+          method: "POST",
+          jwt,
+          body: JSON.stringify({ fileKey }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (!response.response.ok) {
+          throw new Error(`Retry failed: ${response.response.status}`);
+        }
+
+        console.log(
+          `[ResourceList] Retry initiated successfully for: ${fileName}`
+        );
+
+        // Refresh the file list to show updated status
+        fetchResources();
+      } catch (error) {
+        console.error(
+          `[ResourceList] Failed to retry file processing for ${fileName}:`,
+          error
+        );
+      }
+    },
+    [fetchResources]
+  );
 
   const toggleFileExpansion = (fileKey: string) => {
     const newExpandedFiles = new Set(expandedFiles);
@@ -263,15 +351,21 @@ export function ResourceList({
     setExpandedFiles(newExpandedFiles);
   };
 
+  // Initial load - run when authentication becomes ready
   useEffect(() => {
-    fetchResources();
-    fetchCampaigns();
-  }, [fetchResources, fetchCampaigns]);
+    if (authReady) {
+      fetchResources();
+    }
+  }, [authReady, fetchResources]);
 
   // Listen for file upload completed: refresh list and finalize/clear progress bar
   useEventBus<FileUploadEvent>(
     EVENT_TYPES.FILE_UPLOAD.COMPLETED,
     (event) => {
+      console.log(
+        "[ResourceList] Received FILE_UPLOAD.COMPLETED event:",
+        event
+      );
       const key = event.fileKey;
       if (key) {
         // Snap to 100% then clear shortly after
@@ -284,9 +378,10 @@ export function ResourceList({
           });
         }, 1200);
       }
-      scheduleRefresh(200);
+      console.log("[ResourceList] Upload completed, refreshing file list");
+      fetchResources();
     },
-    [scheduleRefresh]
+    [fetchResources]
   );
 
   // Upload progress listeners
@@ -385,17 +480,21 @@ export function ResourceList({
     []
   );
 
-  useEventBus<AutoRAGEvent>(
-    EVENT_TYPES.AUTORAG_SYNC.COMPLETED,
-    (event) => {
-      console.log(
-        "[ResourceList] AutoRAG sync completed, refreshing resource list:",
-        event
+  // Handle file status update events from SSE notifications
+  useEffect(() => {
+    // Listen for file status update events from the notification system
+    window.addEventListener(
+      "file-status-updated",
+      handleFileStatusUpdate as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "file-status-updated",
+        handleFileStatusUpdate as EventListener
       );
-      scheduleRefresh(200);
-    },
-    [scheduleRefresh]
-  );
+    };
+  }, [handleFileStatusUpdate]);
 
   // When files list updates, clear any lingering progress entries for files
   // that are no longer processing (e.g., completed or error)
@@ -403,7 +502,16 @@ export function ResourceList({
     if (!files || files.length === 0) return;
     setProgressByFileKey((prev) => {
       const activeProcessingKeys = new Set(
-        files.filter((f) => f.status === "processing").map((f) => f.file_key)
+        files
+          .filter(
+            (f) =>
+              f.status === FileDAO.STATUS.UPLOADING ||
+              f.status === FileDAO.STATUS.UPLOADED ||
+              f.status === FileDAO.STATUS.SYNCING ||
+              f.status === FileDAO.STATUS.PROCESSING ||
+              f.status === FileDAO.STATUS.INDEXING
+          )
+          .map((f) => f.file_key)
       );
       // Remove entries for keys not actively processing
       let changed = false;
@@ -419,14 +527,8 @@ export function ResourceList({
     });
   }, [files]);
 
-  // Listen for file change events from the AI agent
+  // Listen for file change events from SSE notifications
   useEffect(() => {
-    const handleFileChange = (event: CustomEvent) => {
-      if (event.detail?.type === "file-changed") {
-        scheduleRefresh(200);
-      }
-    };
-
     // Listen for custom file change events
     window.addEventListener("file-changed", handleFileChange as EventListener);
 
@@ -436,29 +538,7 @@ export function ResourceList({
         handleFileChange as EventListener
       );
     };
-  }, [scheduleRefresh]);
-
-  // Listen for file status update events from FileStatusIndicator
-  useEffect(() => {
-    const handleFileStatusUpdate = (event: CustomEvent) => {
-      if (event.detail?.updatedCount > 0) {
-        scheduleRefresh(200);
-      }
-    };
-
-    // Listen for file status update events
-    window.addEventListener(
-      "file-status-updated",
-      handleFileStatusUpdate as EventListener
-    );
-
-    return () => {
-      window.removeEventListener(
-        "file-status-updated",
-        handleFileStatusUpdate as EventListener
-      );
-    };
-  }, [scheduleRefresh]);
+  }, [handleFileChange]);
 
   if (loading) {
     return (
@@ -510,9 +590,26 @@ export function ResourceList({
                 width: (() => {
                   const pct = progressByFileKey[file.file_key];
                   if (typeof pct === "number") return `${pct}%`;
-                  if (file.status === "processing") return "66%";
-                  if (file.status === "error") return "100%";
-                  return undefined;
+
+                  // Progress based on status
+                  switch (file.status) {
+                    case FileDAO.STATUS.UPLOADING:
+                      return "20%";
+                    case FileDAO.STATUS.UPLOADED:
+                      return "40%";
+                    case FileDAO.STATUS.SYNCING:
+                      return "60%";
+                    case FileDAO.STATUS.PROCESSING:
+                      return "80%";
+                    case FileDAO.STATUS.INDEXING:
+                      return "90%";
+                    case FileDAO.STATUS.COMPLETED:
+                      return "100%";
+                    case FileDAO.STATUS.ERROR:
+                      return "100%";
+                    default:
+                      return undefined;
+                  }
                 })(),
                 transition: "width 300ms ease",
                 background:
@@ -531,6 +628,9 @@ export function ResourceList({
                     <FileStatusIndicator
                       tenant={AuthService.getUsernameFromStoredJwt()!}
                       initialStatus={file.status}
+                      fileKey={file.file_key}
+                      fileName={file.file_name}
+                      onRetry={handleRetryFile}
                       className="flex-shrink-0"
                     />
                   )}
@@ -629,6 +729,49 @@ export function ResourceList({
                 )}
 
                 <div className="mt-4 space-y-2">
+                  {(file.status === FileDAO.STATUS.UNINDEXED ||
+                    file.status === FileDAO.STATUS.ERROR) && (
+                    <Button
+                      onClick={async () => {
+                        try {
+                          const jwt = getStoredJwt();
+                          if (!jwt) return;
+
+                          const { response } =
+                            await authenticatedFetchWithExpiration(
+                              API_CONFIG.buildUrl(
+                                API_CONFIG.ENDPOINTS.RAG.TRIGGER_INDEXING
+                              ),
+                              {
+                                method: "POST",
+                                jwt,
+                                headers: {
+                                  "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify({
+                                  fileKey: file.file_key,
+                                }),
+                              }
+                            );
+
+                          if (response.ok) {
+                            // Refresh the file list to show updated status
+                            await fetchResources();
+                          }
+                        } catch (error) {
+                          console.error("Failed to retry indexing:", error);
+                          setError(
+                            "Failed to retry indexing. Please try again."
+                          );
+                        }
+                      }}
+                      variant="secondary"
+                      size="sm"
+                      className="w-full !text-orange-600 dark:!text-orange-400 hover:!text-orange-700 dark:hover:!text-orange-300 border-orange-200 dark:border-orange-700 hover:border-orange-300 dark:hover:border-orange-600"
+                    >
+                      Retry Indexing
+                    </Button>
+                  )}
                   <Button
                     onClick={() => {
                       onAddToCampaign?.(file);
@@ -636,8 +779,11 @@ export function ResourceList({
                     variant="secondary"
                     size="sm"
                     className="w-full !text-purple-600 dark:!text-purple-400 hover:!text-purple-700 dark:hover:!text-purple-300 border-purple-200 dark:border-purple-700 hover:border-purple-300 dark:hover:border-purple-600"
+                    disabled={file.status !== FileDAO.STATUS.COMPLETED}
                   >
-                    Add to campaign
+                    {file.status === FileDAO.STATUS.COMPLETED
+                      ? "Add to campaign"
+                      : "File Not Ready"}
                   </Button>
                   <Button
                     onClick={() => {

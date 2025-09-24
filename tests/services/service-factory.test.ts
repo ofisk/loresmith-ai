@@ -183,31 +183,6 @@ describe("ServiceFactory", () => {
     });
   });
 
-  describe("getLibraryRagService", () => {
-    it("should create new LibraryRagService instance on first call", () => {
-      const libraryRagService = ServiceFactory.getLibraryRagService(mockEnv);
-
-      // Note: LibraryRagService is not mocked, so we test the factory method exists
-      expect(libraryRagService).toBeDefined();
-    });
-
-    it("should return cached LibraryRagService instance on subsequent calls", () => {
-      const firstCall = ServiceFactory.getLibraryRagService(mockEnv);
-      const secondCall = ServiceFactory.getLibraryRagService(mockEnv);
-
-      expect(firstCall).toBe(secondCall);
-    });
-
-    it("should create new instance with different environment", () => {
-      const differentEnv = { ...mockEnv, AI: undefined };
-
-      const firstService = ServiceFactory.getLibraryRagService(mockEnv);
-      const secondService = ServiceFactory.getLibraryRagService(differentEnv);
-
-      expect(firstService).not.toBe(secondService);
-    });
-  });
-
   describe("initializeAgentRegistry", () => {
     it("should initialize agent registry successfully", async () => {
       // Since we're not mocking the services, we'll test that the method exists and can be called

@@ -50,6 +50,9 @@ export const STRUCTURED_CONTENT_TYPES = [
   // Timelines & campaign glue
   "timelines", // Campaign timelines and clocks
   "travel", // Travel routes and journeys
+
+  // Flexible discovery
+  "custom", // Custom content types discovered during extraction
 ] as const;
 
 export type StructuredContentType = (typeof STRUCTURED_CONTENT_TYPES)[number];
@@ -111,6 +114,7 @@ export function getContentTypeDisplayName(type: StructuredContentType): string {
     puzzles: "Puzzles",
     timelines: "Timelines",
     travel: "Travel Routes",
+    custom: "Custom Content",
   };
 
   return displayNames[type];

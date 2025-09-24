@@ -11,7 +11,6 @@ import { ErrorHandlingService } from "../services/error-handling-service";
 import { LibraryAutoRAGClient } from "../services/library-autorag-client";
 import { LibraryService } from "../services/library-service";
 import { MetadataService } from "../services/metadata-service";
-import { LibraryRAGService } from "../services/rag-service";
 import { AgentRegistryService } from "./agent-registry";
 import { AgentRouter } from "./agent-router";
 import { CampaignRAGService } from "./campaignRag";
@@ -56,15 +55,6 @@ export class ServiceFactory {
 
     if (!ServiceFactory.services.has(key)) {
       ServiceFactory.services.set(key, new AuthService(env));
-    }
-    return ServiceFactory.services.get(key);
-  }
-
-  // Get or create LibraryRAGService
-  static getLibraryRagService(env: Env): LibraryRAGService {
-    const key = `library-rag-${env.AI ? "has-ai" : "no-ai"}-${env.DB ? "has-db" : "no-db"}-${env.VECTORIZE ? "has-vectorize" : "no-vectorize"}`;
-    if (!ServiceFactory.services.has(key)) {
-      ServiceFactory.services.set(key, new LibraryRAGService(env));
     }
     return ServiceFactory.services.get(key);
   }
@@ -186,14 +176,18 @@ export class ServiceFactory {
   /**
    * Get library AutoRAG service for searching library content
    */
-  static getLibraryAutoRAGService(env: Env): LibraryAutoRAGClient {
+  static getLibraryAutoRAGService(
+    env: Env,
+    username?: string
+  ): LibraryAutoRAGClient {
     console.log(`[ServiceFactory] getLibraryAutoRAGService called with env:`, {
       hasAutoragBaseUrl: !!env.AUTORAG_BASE_URL,
       autoragBaseUrl: env.AUTORAG_BASE_URL,
+      username,
       envKeys: Object.keys(env).filter((key) => key.includes("AUTORAG")),
     });
 
-    const key = `library-auto-rag-${env.AUTORAG_BASE_URL}`;
+    const key = `library-auto-rag-${env.AUTORAG_BASE_URL}-${username || "no-user"}`;
     console.log(`[ServiceFactory] Getting library AutoRAG service: ${key}`);
     if (!ServiceFactory.services.has(key)) {
       if (!env.AUTORAG_BASE_URL) {
@@ -209,7 +203,7 @@ export class ServiceFactory {
       console.log(`[ServiceFactory] Setting library AutoRAG service: ${key}`);
       ServiceFactory.services.set(
         key,
-        new LibraryAutoRAGClient(env, env.AUTORAG_BASE_URL)
+        new LibraryAutoRAGClient(env, env.AUTORAG_BASE_URL, username)
       );
     }
     console.log(`[ServiceFactory] Returning library AutoRAG service: ${key}`);
@@ -231,9 +225,6 @@ export const getAssessmentService = (env: Env) =>
   ServiceFactory.getAssessmentService(env);
 
 export const getAuthService = (env: Env) => ServiceFactory.getAuthService(env);
-
-export const getLibraryRagService = (env: Env) =>
-  ServiceFactory.getLibraryRagService(env);
 
 export const getMetadataService = (env: Env) =>
   ServiceFactory.getMetadataService(env);
@@ -264,7 +255,7 @@ export const getCampaignAutoRAGService = (
   campaignRagBasePath: string
 ) => ServiceFactory.getCampaignAutoRAGService(env, campaignRagBasePath);
 
-export const getLibraryAutoRAGService = (env: Env) =>
-  ServiceFactory.getLibraryAutoRAGService(env);
+export const getLibraryAutoRAGService = (env: Env, username?: string) =>
+  ServiceFactory.getLibraryAutoRAGService(env, username);
 
 export const getAgentRouter = (env: Env) => ServiceFactory.getAgentRouter(env);

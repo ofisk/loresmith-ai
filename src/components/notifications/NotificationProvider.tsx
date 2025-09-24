@@ -61,21 +61,50 @@ export function NotificationProvider({
             switch (notification?.type) {
               case NOTIFICATION_TYPES.INDEXING_STARTED:
               case NOTIFICATION_TYPES.INDEXING_COMPLETED:
-              case NOTIFICATION_TYPES.INDEXING_FAILED: {
-                const fileName = notification?.data?.fileName;
+              case NOTIFICATION_TYPES.INDEXING_FAILED:
+              case NOTIFICATION_TYPES.FILE_STATUS_UPDATED: {
                 window.dispatchEvent(
                   new CustomEvent("file-status-updated", {
-                    detail: { updatedCount: 1, fileName },
+                    detail: {
+                      // Include complete file data if available (for in-place updates)
+                      completeFileData: notification?.data?.completeFileData,
+                      // Also include individual fields for backward compatibility
+                      fileKey: notification?.data?.fileKey,
+                      fileName: notification?.data?.fileName,
+                      status: notification?.data?.status,
+                      fileSize: notification?.data?.fileSize,
+                    },
                   })
                 );
                 break;
               }
               case NOTIFICATION_TYPES.FILE_UPLOADED:
               case NOTIFICATION_TYPES.FILE_UPLOAD_FAILED: {
-                const fileName = notification?.data?.fileName;
+                // Pass through all the file data for immediate UI updates
                 window.dispatchEvent(
                   new CustomEvent("file-changed", {
-                    detail: { type: "file-changed", fileName },
+                    detail: {
+                      // Include complete file data if available (for in-place updates)
+                      completeFileData: notification?.data?.completeFileData,
+                      // Also include individual fields for backward compatibility
+                      type: "file-changed",
+                      fileName: notification?.data?.fileName,
+                      fileSize: notification?.data?.fileSize,
+                    },
+                  })
+                );
+                break;
+              }
+              case NOTIFICATION_TYPES.CAMPAIGN_CREATED: {
+                // Dispatch campaign created event to trigger UI refresh
+                window.dispatchEvent(
+                  new CustomEvent("campaign-created", {
+                    detail: {
+                      type: "campaign-created",
+                      campaignName: notification?.data?.campaignName,
+                      campaignDescription:
+                        notification?.data?.campaignDescription,
+                    },
                   })
                 );
                 break;

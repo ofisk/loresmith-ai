@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { USER_MESSAGES } from "../app-constants";
 import { API_CONFIG } from "../shared-config";
 import type { Campaign, CampaignResource } from "../types/campaign";
 import { useAuthenticatedRequest } from "./useAuthenticatedRequest";
+import { useAuthReady } from "./useAuthReady";
 import { useBaseAsync } from "./useBaseAsync";
 
 /**
@@ -45,57 +46,79 @@ export function useCampaigns() {
   const [error, setError] = useState<string | null>(null);
 
   const { makeRequestWithData } = useAuthenticatedRequest();
+  const authReady = useAuthReady();
 
   // Fetch all campaigns
   const fetchCampaigns = useBaseAsync(
-    async () => {
-      const data = await makeRequestWithData<{ campaigns: Campaign[] }>(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE)
-      );
-      return data.campaigns || [];
-    },
-    {
-      onSuccess: (campaigns) => setCampaigns(campaigns),
-      onError: (error) => setError(error),
-      errorMessage: USER_MESSAGES.HOOK_FAILED_TO_FETCH_CAMPAIGNS,
-    }
+    useMemo(
+      () => async () => {
+        const data = await makeRequestWithData<{ campaigns: Campaign[] }>(
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE)
+        );
+        return data.campaigns || [];
+      },
+      [makeRequestWithData]
+    ),
+    useMemo(
+      () => ({
+        onSuccess: (campaigns: Campaign[]) => setCampaigns(campaigns),
+        onError: (error: string) => setError(error),
+        errorMessage: USER_MESSAGES.HOOK_FAILED_TO_FETCH_CAMPAIGNS,
+      }),
+      []
+    )
   );
 
   // Fetch single campaign
   const fetchCampaign = useBaseAsync(
-    async (campaignId: string) => {
-      const data = await makeRequestWithData<{ campaign: Campaign }>(
-        API_CONFIG.buildUrl(`${API_CONFIG.ENDPOINTS.CAMPAIGNS}/${campaignId}`)
-      );
-      return data.campaign;
-    },
-    {
-      onSuccess: (campaign) => setCurrentCampaign(campaign),
-      onError: (error) => setError(error),
-      errorMessage: USER_MESSAGES.HOOK_FAILED_TO_FETCH_CAMPAIGN,
-    }
+    useMemo(
+      () => async (campaignId: string) => {
+        const data = await makeRequestWithData<{ campaign: Campaign }>(
+          API_CONFIG.buildUrl(`${API_CONFIG.ENDPOINTS.CAMPAIGNS}/${campaignId}`)
+        );
+        return data.campaign;
+      },
+      [makeRequestWithData]
+    ),
+    useMemo(
+      () => ({
+        onSuccess: (campaign: Campaign) => setCurrentCampaign(campaign),
+        onError: (error: string) => setError(error),
+        errorMessage: USER_MESSAGES.HOOK_FAILED_TO_FETCH_CAMPAIGN,
+      }),
+      []
+    )
   );
 
   // Create campaign
   const createCampaign = useBaseAsync(
-    async (name: string) => {
-      const data = await makeRequestWithData<{ campaign: Campaign }>(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
-        {
-          method: "POST",
-          body: JSON.stringify({ name }),
-        }
-      );
-      return data.campaign;
-    },
-    {
-      onSuccess: (campaign) => {
-        setCampaigns((prev) => [campaign, ...prev]);
-        setCurrentCampaign(campaign);
+    useMemo(
+      () => async (name: string, description?: string) => {
+        const data = await makeRequestWithData<{ campaign: Campaign }>(
+          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
+          {
+            method: "POST",
+            body: JSON.stringify({
+              name,
+              description: description || "",
+            }),
+          }
+        );
+        return data.campaign;
       },
-      onError: (error) => setError(error),
-      errorMessage: USER_MESSAGES.HOOK_FAILED_TO_CREATE_CAMPAIGN,
-    }
+      [makeRequestWithData]
+    ),
+    useMemo(
+      () => ({
+        onSuccess: (campaign: Campaign) => {
+          setCampaigns((prev) => [...prev, campaign]);
+          setCurrentCampaign(campaign);
+        },
+        onError: (error: string) => setError(error),
+        errorMessage: USER_MESSAGES.HOOK_FAILED_TO_CREATE_CAMPAIGN,
+      }),
+      []
+    )
   );
 
   // Add resource to campaign
@@ -140,10 +163,12 @@ export function useCampaigns() {
     }
   );
 
-  // Auto-fetch campaigns on mount
+  // Auto-fetch campaigns when authentication becomes ready
   useEffect(() => {
-    fetchCampaigns.execute();
-  }, [fetchCampaigns.execute]);
+    if (authReady) {
+      fetchCampaigns.execute();
+    }
+  }, [authReady, fetchCampaigns.execute]);
 
   return {
     // State

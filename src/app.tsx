@@ -28,6 +28,8 @@ import { WelcomeMessage } from "./components/chat/WelcomeMessage";
 import { NotificationProvider } from "./components/notifications/NotificationProvider";
 import { JWT_STORAGE_KEY } from "./app-constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
+import { useFileUpload } from "./hooks/useFileUpload";
+import { useCampaigns } from "./hooks/useCampaigns";
 import {
   AuthService,
   authenticatedFetchWithExpiration,
@@ -124,6 +126,19 @@ export default function Chat() {
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [isEditFileModalOpen, setIsEditFileModalOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<any>(null);
+
+  // Campaign management hook
+  const { createCampaign, campaigns } = useCampaigns();
+
+  // File upload hook
+  const { handleUpload } = useFileUpload({
+    onUploadSuccess: (filename, fileKey) => {
+      console.log("Upload successful:", filename, fileKey);
+    },
+    onUploadStart: () => {
+      console.log("Upload started");
+    },
+  });
 
   // Handle file upload trigger callback
   const handleFileUploadTriggered = useCallback(() => {
@@ -689,6 +704,7 @@ export default function Chat() {
             {/* Resource Side Panel */}
             <ResourceSidePanel
               isAuthenticated={isAuthenticated}
+              campaigns={campaigns}
               onLogout={handleLogout}
               showUserMenu={showUserMenu}
               setShowUserMenu={setShowUserMenu}
@@ -817,10 +833,14 @@ export default function Chat() {
           onCampaignNameChange={setCampaignName}
           campaignDescription={campaignDescription}
           onCampaignDescriptionChange={setCampaignDescription}
-          onCreateCampaign={(name, description) => {
-            // TODO: Implement actual campaign creation
-            console.log("Creating campaign:", name, description);
-            handleCreateCampaignClose();
+          onCreateCampaign={async (name, description) => {
+            try {
+              await createCampaign(name, description);
+              handleCreateCampaignClose();
+            } catch (error) {
+              // Keep modal open on error so user can retry
+              console.error("Campaign creation failed:", error);
+            }
           }}
         />
       </Modal>
@@ -850,10 +870,15 @@ export default function Chat() {
         showCloseButton={true}
       >
         <ResourceUpload
-          onUpload={(fileInfo) => {
-            // TODO: Implement actual file upload
-            console.log("Uploading file:", fileInfo);
-            handleAddResourceClose();
+          onUpload={async (file, filename, description, tags) => {
+            console.log("Uploading file:", file);
+            try {
+              await handleUpload(file, filename, description, tags);
+              handleAddResourceClose();
+            } catch (error) {
+              console.error("Upload failed:", error);
+              // Don't close modal on error so user can retry
+            }
           }}
           onCancel={handleAddResourceClose}
           className="border-0 p-0 shadow-none"

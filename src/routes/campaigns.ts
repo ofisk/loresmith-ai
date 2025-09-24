@@ -119,7 +119,7 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
 
     // Notify campaign creation
     try {
-      await notifyCampaignCreated(c.env, userAuth.username, name);
+      await notifyCampaignCreated(c.env, userAuth.username, name, description);
     } catch (_e) {}
 
     return c.json({ success: true, campaign: newCampaign }, 201);
@@ -442,7 +442,10 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
           console.log(`[Server] Generating shards for resource:`, resource);
 
           console.log(`[Server] Getting library AutoRAG service`);
-          const libraryAutoRAG = getLibraryAutoRAGService(c.env);
+          const libraryAutoRAG = getLibraryAutoRAGService(
+            c.env,
+            userAuth.username
+          );
           console.log(`[Server] Library AutoRAG:`, libraryAutoRAG);
 
           // Use the centralized RPG extraction prompt
@@ -479,11 +482,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
               fileNameForFilter,
             });
 
-            // Build the full prompt (put everything into the main query to match Playground behavior)
-            const filenameConstraint = fileNameForFilter
-              ? `\nIMPORTANT: Only show entries where source.doc equals "${fileNameForFilter}".`
-              : "";
-            const promptWithFilename = `${structuredExtractionPrompt}${filenameConstraint}`;
+            // Use the updated prompt format that matches the working manual prompt
 
             // Helpers to match items to this resource's filename
             const normalizeName = (s: string) =>
@@ -559,12 +558,15 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
             {
               console.log(
                 "[Server][AI Search][prompt-only] full prompt:\n" +
-                  promptWithFilename
+                  structuredExtractionPrompt
               );
-              const res = await libraryAutoRAG.aiSearch(promptWithFilename, {
-                max_results: 50,
-                rewrite_query: false,
-              });
+              const res = await libraryAutoRAG.aiSearch(
+                structuredExtractionPrompt,
+                {
+                  max_results: 50,
+                  rewrite_query: false,
+                }
+              );
               const preview =
                 typeof res.response === "string" ? res.response : "";
               const info = tryCount(preview);
@@ -589,7 +591,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                   r.file_name || r.id,
                   {
                     reason: "ai_search_prompt_only",
-                    prompt: promptWithFilename,
+                    prompt: structuredExtractionPrompt,
                     counts: info.counts,
                     total: info.total,
                     matchedCounts: info.matchedCounts,
@@ -607,12 +609,15 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
             {
               console.log(
                 "[Server][AI Search][prompt-only][rewrite] full prompt:\n" +
-                  promptWithFilename
+                  structuredExtractionPrompt
               );
-              const res = await libraryAutoRAG.aiSearch(promptWithFilename, {
-                max_results: 50,
-                rewrite_query: true,
-              });
+              const res = await libraryAutoRAG.aiSearch(
+                structuredExtractionPrompt,
+                {
+                  max_results: 50,
+                  rewrite_query: true,
+                }
+              );
               const preview =
                 typeof res.response === "string" ? res.response : "";
               const info = tryCount(preview);
