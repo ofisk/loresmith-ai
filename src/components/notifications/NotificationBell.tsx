@@ -58,23 +58,23 @@ export function NotificationBell({
   const getTypeStyles = (type: string) => {
     switch (type) {
       case NOTIFICATION_TYPES.SHARDS_GENERATED:
-        return "bg-green-50 border-green-200 text-green-800";
+        return "bg-green-900/20 border-green-700/30 text-green-300";
       case NOTIFICATION_TYPES.FILE_UPLOADED:
-        return "bg-blue-50 border-blue-200 text-blue-800";
+        return "bg-blue-900/20 border-blue-700/30 text-blue-300";
       case NOTIFICATION_TYPES.CAMPAIGN_CREATED:
-        return "bg-purple-50 border-purple-200 text-purple-800";
+        return "bg-purple-900/20 border-purple-700/30 text-purple-300";
       case NOTIFICATION_TYPES.SHARD_APPROVED:
-        return "bg-green-50 border-green-200 text-green-800";
+        return "bg-green-900/20 border-green-700/30 text-green-300";
       case NOTIFICATION_TYPES.SHARD_REJECTED:
-        return "bg-red-50 border-red-200 text-red-800";
+        return "bg-red-900/20 border-red-700/30 text-red-300";
       case NOTIFICATION_TYPES.CAMPAIGN_FILE_ADDED:
-        return "bg-blue-50 border-blue-200 text-blue-800";
+        return "bg-blue-900/20 border-blue-700/30 text-blue-300";
       case NOTIFICATION_TYPES.SUCCESS:
-        return "bg-green-50 border-green-200 text-green-800";
+        return "bg-green-900/20 border-green-700/30 text-green-300";
       case NOTIFICATION_TYPES.ERROR:
-        return "bg-red-50 border-red-200 text-red-800";
+        return "bg-red-900/20 border-red-700/30 text-red-300";
       default:
-        return "bg-gray-50 border-gray-200 text-gray-800";
+        return "bg-gray-800/20 border-gray-700/30 text-gray-300";
     }
   };
 
@@ -110,15 +110,15 @@ export function NotificationBell({
       </Button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-96 overflow-hidden">
-          <div className="p-3 border-b border-gray-200 bg-gray-50">
+        <div className="absolute right-0 mt-2 w-80 bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-50 max-h-96 overflow-hidden">
+          <div className="p-3 border-b border-gray-700 bg-gray-800">
             <div className="flex justify-between items-center">
-              <h3 className="font-medium text-gray-900">Notifications</h3>
+              <h3 className="font-medium text-gray-100">Notifications</h3>
               {notifications.length > 0 && onDismissAll && (
                 <button
                   type="button"
                   onClick={onDismissAll}
-                  className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                  className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
                 >
                   Clear all
                 </button>
@@ -128,15 +128,15 @@ export function NotificationBell({
 
           <div className="max-h-80 overflow-y-auto">
             {notifications.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
+              <div className="p-4 text-center text-gray-400">
                 <p className="text-sm">No notifications</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-gray-700">
                 {notifications.map((notification, index) => (
                   <div
                     key={`${notification.timestamp}-${index}`}
-                    className={`p-3 hover:bg-gray-50 transition-colors ${getTypeStyles(notification.type)}`}
+                    className={`p-3 hover:bg-gray-800 transition-colors ${getTypeStyles(notification.type)}`}
                   >
                     <div className="flex items-start space-x-3">
                       <div className="flex-shrink-0 text-lg">
@@ -144,13 +144,13 @@ export function NotificationBell({
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium mb-1">
+                        <h4 className="text-sm font-medium mb-1 text-gray-100">
                           {notification.title}
                         </h4>
-                        <p className="text-sm opacity-90">
+                        <p className="text-sm opacity-90 text-gray-300">
                           {notification.message}
                         </p>
-                        <p className="text-xs opacity-70 mt-1">
+                        <p className="text-xs opacity-70 mt-1 text-gray-400">
                           {new Date(
                             notification.timestamp
                           ).toLocaleTimeString()}
@@ -162,7 +162,7 @@ export function NotificationBell({
                         onClick={() =>
                           onDismiss(`${notification.timestamp}-${index}`)
                         }
-                        className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
+                        className="flex-shrink-0 text-gray-500 hover:text-gray-300 transition-colors"
                         aria-label="Dismiss notification"
                       >
                         <svg
