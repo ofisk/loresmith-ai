@@ -1,6 +1,6 @@
 import type { Message } from "@ai-sdk/react";
 import { Card } from "@/components/card/Card";
-import { MemoizedMarkdown } from "@/components/memoized-markdown";
+import { MemoizedMarkdown } from "@/components/MemoizedMarkdown";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import { ShardManagementUI } from "./ShardManagementUI";
 

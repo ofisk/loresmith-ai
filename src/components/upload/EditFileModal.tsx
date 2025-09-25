@@ -1,8 +1,8 @@
 import { useState, useEffect, useId } from "react";
 import { FloppyDisk } from "@phosphor-icons/react";
 import { authenticatedFetchWithExpiration } from "../../services/auth-service";
-import { API_CONFIG } from "../../shared";
-import { ERROR_MESSAGES } from "../../constants";
+import { API_CONFIG } from "../../shared-config";
+import { ERROR_MESSAGES } from "../../app-constants";
 import { Modal } from "../modal/Modal";
 import { FormField } from "../input/FormField";
 import { FormButton } from "../button/FormButton";

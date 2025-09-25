@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { API_CONFIG } from "../shared";
+import { API_CONFIG } from "../shared-config";
 import { authenticatedFetchWithExpiration } from "../services/auth-service";
 
 export function useShardRenderGate(
