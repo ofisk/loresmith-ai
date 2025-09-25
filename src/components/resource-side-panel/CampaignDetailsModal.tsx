@@ -2,9 +2,9 @@ import { FloppyDisk, PencilSimple, Trash } from "@phosphor-icons/react";
 import { useEffect, useId, useRef, useState } from "react";
 import type { Campaign } from "../../types/campaign";
 import { Button } from "../button/Button";
-import { Input } from "../input/Input";
+import { FormButton } from "../button/FormButton";
+import { FormField } from "../input/FormField";
 import { Modal } from "../modal/Modal";
-import { Textarea } from "../textarea/Textarea";
 
 interface CampaignDetailsModalProps {
   campaign: Campaign | null;
@@ -153,55 +153,50 @@ export function CampaignDetailsModal({
         {/* Campaign Info */}
         <div className="space-y-4">
           {/* Name */}
-          <div>
-            <label
-              htmlFor={nameId}
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-            >
-              Campaign name
-            </label>
-            {isEditing ? (
-              <Input
-                id={nameId}
-                value={editedName}
-                onChange={(e) => setEditedName(e.target.value)}
-                placeholder="Enter campaign name"
-                className="w-full"
-              />
-            ) : (
+          {isEditing ? (
+            <FormField
+              id={nameId}
+              label="Campaign name"
+              value={editedName}
+              onValueChange={(value) => setEditedName(value)}
+              placeholder="Enter campaign name"
+            />
+          ) : (
+            <div>
+              <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Campaign name
+              </div>
               <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 <p className="text-gray-900 dark:text-gray-100">
                   {campaign.name}
                 </p>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Description */}
-          <div>
-            <label
-              htmlFor={descriptionId}
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-            >
-              Description
-            </label>
-            {isEditing ? (
-              <Textarea
-                id={descriptionId}
-                value={editedDescription}
-                onChange={(e) => setEditedDescription(e.target.value)}
-                placeholder="Enter campaign description"
-                rows={4}
-                className="w-full"
-              />
-            ) : (
+          {isEditing ? (
+            <FormField
+              id={descriptionId}
+              label="Description"
+              value={editedDescription}
+              onValueChange={(value) => setEditedDescription(value)}
+              placeholder="Enter campaign description"
+              multiline
+              rows={4}
+            />
+          ) : (
+            <div>
+              <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Description
+              </div>
               <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg min-h-[100px]">
                 <p className="text-gray-900 dark:text-gray-100">
                   {campaign.description || "No description provided"}
                 </p>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Metadata */}
           <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
@@ -220,33 +215,29 @@ export function CampaignDetailsModal({
           <div className="flex gap-2">
             {isEditing ? (
               <>
-                <button
-                  type="button"
+                <FormButton
                   onClick={handleSave}
                   disabled={isUpdating || !editedName.trim()}
-                  className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold text-sm hover:text-purple-700 dark:hover:text-purple-300 transition-colors disabled:opacity-50"
+                  loading={isUpdating}
+                  icon={<FloppyDisk size={16} />}
                 >
-                  <FloppyDisk size={16} />
                   {isUpdating ? "Saving..." : "Save changes"}
-                </button>
-                <button
-                  type="button"
+                </FormButton>
+                <FormButton
                   onClick={handleCancel}
                   disabled={isUpdating}
-                  className="flex items-center gap-2 text-gray-600 dark:text-gray-400 font-semibold text-sm hover:text-gray-700 dark:hover:text-gray-300 transition-colors disabled:opacity-50"
+                  variant="secondary"
                 >
                   Cancel
-                </button>
+                </FormButton>
               </>
             ) : (
-              <button
-                type="button"
+              <FormButton
                 onClick={() => setIsEditing(true)}
-                className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold text-sm hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
+                icon={<PencilSimple size={16} />}
               >
-                <PencilSimple size={16} />
                 Edit campaign
-              </button>
+              </FormButton>
             )}
           </div>
 
@@ -279,15 +270,14 @@ export function CampaignDetailsModal({
                 </Button>
               </div>
             ) : (
-              <button
-                type="button"
+              <FormButton
                 onClick={handleDeleteClick}
                 disabled={isDeleting || isUpdating}
-                className="flex items-center gap-2 text-red-600 dark:text-red-400 font-semibold text-sm hover:text-red-700 dark:hover:text-red-300 transition-colors disabled:opacity-50"
+                variant="destructive"
+                icon={<Trash size={16} />}
               >
-                <Trash size={16} />
                 Delete campaign
-              </button>
+              </FormButton>
             ))}
         </div>
       </div>

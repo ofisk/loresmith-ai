@@ -98,7 +98,7 @@ export function ChatMessageList({
                           return (
                             <div key={`${m.id}-text-${i}`}>
                               <Card
-                                className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
+                                className={`p-4 rounded-xl bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-sm ${
                                   isUser
                                     ? "rounded-br-none"
                                     : "rounded-bl-none border-assistant-border"
@@ -106,7 +106,7 @@ export function ChatMessageList({
                                   part.text.startsWith("scheduled message")
                                     ? "border-accent/50"
                                     : ""
-                                } relative`}
+                                } relative shadow-sm border border-neutral-200/50 dark:border-neutral-700/50`}
                               >
                                 {part.text.startsWith("scheduled message") && (
                                   <span className="absolute -top-3 -left-2 text-base">
@@ -121,7 +121,7 @@ export function ChatMessageList({
                                 />
                               </Card>
                               <p
-                                className={`text-xs text-muted-foreground mt-1 ${
+                                className={`text-xs text-muted-foreground mt-2 px-1 ${
                                   isUser ? "text-right" : "text-left"
                                 }`}
                               >

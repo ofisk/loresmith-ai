@@ -1,9 +1,84 @@
 import { Info } from "@phosphor-icons/react";
 import type React from "react";
-import { useState } from "react";
-import { Input } from "./Input";
+import { forwardRef, useState } from "react";
+import { cn } from "@/lib/utils";
 
-interface FormFieldProps {
+// Internal Input component - only used by FormField
+type InternalInputProps = Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  "size"
+> & {
+  children?: React.ReactNode;
+  className?: string;
+  displayContent?: "items-first" | "items-last";
+  isValid?: boolean;
+  onValueChange?: (value: string, isValid: boolean) => void;
+  preText?: string[] | React.ReactNode[] | React.ReactNode;
+  postText?: string[] | React.ReactNode[] | React.ReactNode;
+  multiline?: boolean;
+  rows?: number;
+};
+
+const InternalInput = forwardRef<
+  HTMLInputElement | HTMLTextAreaElement,
+  InternalInputProps
+>(
+  (
+    {
+      className,
+      isValid,
+      onValueChange,
+      onChange,
+      value,
+      multiline,
+      rows,
+      ...props
+    },
+    ref
+  ) => {
+    const baseClasses =
+      "flex w-full rounded-md border border-gray-300 dark:border-gray-600 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:border-blue-500 dark:focus-visible:border-blue-400 disabled:cursor-not-allowed disabled:opacity-50";
+    const inputClasses =
+      "h-10 file:border-0 file:bg-transparent file:text-sm file:font-medium";
+    const textareaClasses = "min-h-[80px] resize-none";
+
+    if (multiline) {
+      return (
+        <textarea
+          ref={ref as React.Ref<HTMLTextAreaElement>}
+          className={cn(baseClasses, textareaClasses, className)}
+          rows={rows}
+          value={value}
+          onChange={(e) => {
+            onValueChange?.(e.target.value, true);
+            onChange?.(e as any);
+          }}
+          {...(props as React.TextareaHTMLAttributes<HTMLTextAreaElement>)}
+        />
+      );
+    }
+
+    return (
+      <input
+        ref={ref as React.Ref<HTMLInputElement>}
+        className={cn(baseClasses, inputClasses, className)}
+        value={value}
+        onChange={(e) => {
+          onValueChange?.(e.target.value, true);
+          onChange?.(e);
+        }}
+        {...props}
+      />
+    );
+  }
+);
+InternalInput.displayName = "InternalInput";
+
+interface FormFieldProps
+  extends Omit<
+    InternalInputProps,
+    "id" | "value" | "onValueChange" | "className"
+  > {
   id: string;
   label: string;
   placeholder?: string;
@@ -27,6 +102,7 @@ export const FormField: React.FC<FormFieldProps> = ({
   onKeyPress,
   children,
   tooltip,
+  ...inputProps
 }) => {
   const [showTooltip, setShowTooltip] = useState(false);
 
@@ -61,13 +137,13 @@ export const FormField: React.FC<FormFieldProps> = ({
           </button>
         )}
       </div>
-      <Input
+      <InternalInput
         id={id}
         placeholder={placeholder}
         value={value}
         onValueChange={onValueChange}
         disabled={disabled}
-        className="w-full text-neutral-900 dark:text-white [&:-webkit-autofill]:!text-neutral-900 [&:-webkit-autofill]:!bg-neutral-900 [&:-webkit-autofill]:!shadow-[0_0_0_30px_theme(colors.neutral.900)_inset] dark:[&:-webkit-autofill]:!text-white dark:[&:-webkit-autofill]:!bg-neutral-900 dark:[&:-webkit-autofill]:!shadow-[0_0_0_30px_theme(colors.neutral.900)_inset] [&:-webkit-autofill]:![-webkit-text-fill-color:theme(colors.neutral.900)] dark:[&:-webkit-autofill]:![-webkit-text-fill-color:white]"
+        className="w-full"
         style={
           {
             "--tw-text-opacity": "1",
@@ -75,6 +151,7 @@ export const FormField: React.FC<FormFieldProps> = ({
           } as React.CSSProperties
         }
         onKeyPress={onKeyPress}
+        {...inputProps}
       />
       {children}
     </div>

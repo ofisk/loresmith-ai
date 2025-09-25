@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { Button } from "@/components/button";
+import { FormButton } from "@/components/button/FormButton";
 import { FormField } from "@/components/input/FormField";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
 import { MultiSelect } from "@/components/select/MultiSelect";
@@ -25,6 +25,7 @@ interface ResourceUploadProps {
     description: string,
     tags: string[]
   ) => void;
+  onCancel?: () => void;
   loading?: boolean;
   className?: string;
   jwtUsername?: string | null;
@@ -41,6 +42,7 @@ interface ResourceUploadProps {
 
 export const ResourceUpload = ({
   onUpload,
+  onCancel,
   loading = false,
   className,
   jwtUsername: _jwtUsername,
@@ -317,26 +319,26 @@ export const ResourceUpload = ({
                   className="flex items-center bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-medium px-2.5 py-0.5 rounded-full"
                 >
                   {tag}
-                  <button
-                    type="button"
+                  <FormButton
                     onClick={() => handleRemoveTag(tag)}
-                    className="ml-1.5 p-0.5 text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 focus:outline-none rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/30"
-                  >
-                    <svg
-                      className="h-3 w-3"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <title>Remove tag</title>
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
+                    className="ml-1.5 p-0.5 focus:outline-none rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/30"
+                    icon={
+                      <svg
+                        className="h-3 w-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <title>Remove tag</title>
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    }
+                  />
                 </span>
               ))}
             </div>
@@ -393,15 +395,13 @@ export const ResourceUpload = ({
                   />
                 </div>
                 {campaignName.trim() && (
-                  <Button
-                    type="button"
+                  <FormButton
                     onClick={onCreateCampaign}
                     variant="secondary"
-                    size="sm"
                     className="w-full"
                   >
                     Create Campaign & Add File
-                  </Button>
+                  </FormButton>
                 )}
               </div>
             </div>
@@ -413,22 +413,14 @@ export const ResourceUpload = ({
       {selectedFiles.length > 1 && (
         <div className="flex justify-center gap-2">
           {currentFileIndex > 0 && (
-            <button
-              type="button"
-              onClick={handlePreviousFile}
-              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 font-semibold text-sm hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-            >
+            <FormButton onClick={handlePreviousFile} variant="secondary">
               Previous File
-            </button>
+            </FormButton>
           )}
           {currentFileIndex < selectedFiles.length - 1 && (
-            <button
-              type="button"
-              onClick={handleNextFile}
-              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 font-semibold text-sm hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-            >
+            <FormButton onClick={handleNextFile} variant="secondary">
               Next File
-            </button>
+            </FormButton>
           )}
         </div>
       )}
@@ -437,14 +429,11 @@ export const ResourceUpload = ({
       <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
         <div className="flex gap-2">
           {currentFile ? (
-            <button
-              type="button"
+            <FormButton
               onClick={handleUpload}
               disabled={isUploadDisabled}
-              className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold text-sm hover:text-purple-700 dark:hover:text-purple-300 transition-colors disabled:opacity-50"
-            >
-              {uploadSuccess && !hasChanges ? (
-                <>
+              icon={
+                uploadSuccess && !hasChanges ? (
                   <svg
                     className="w-4 h-4"
                     fill="none"
@@ -459,23 +448,15 @@ export const ResourceUpload = ({
                       d="M5 13l4 4L19 7"
                     />
                   </svg>
-                  Complete
-                </>
-              ) : (
-                "Upload"
-              )}
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={true}
-              className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold text-sm hover:text-purple-700 dark:hover:text-purple-300 transition-colors disabled:opacity-50"
+                ) : undefined
+              }
             >
-              Upload
-            </button>
+              {uploadSuccess && !hasChanges ? "Complete" : "Upload"}
+            </FormButton>
+          ) : (
+            <FormButton disabled={true}>Upload</FormButton>
           )}
-          <button
-            type="button"
+          <FormButton
             onClick={() => {
               // Reset form state
               setSelectedFiles([]);
@@ -486,11 +467,13 @@ export const ResourceUpload = ({
               setTagInput("");
               setUploadSuccess(false);
               setIsValid(false);
+              // Close the modal
+              onCancel?.();
             }}
-            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 font-semibold text-sm hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+            variant="secondary"
           >
             Cancel
-          </button>
+          </FormButton>
         </div>
       </div>
     </div>
