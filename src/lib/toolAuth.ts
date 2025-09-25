@@ -1,4 +1,4 @@
-import { ERROR_MESSAGES } from "../constants";
+import { ERROR_MESSAGES } from "../app-constants";
 import { createAuthHeaders } from "../services/auth-service";
 
 /**

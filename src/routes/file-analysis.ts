@@ -3,7 +3,7 @@ import { FileDAO } from "../dao/file-dao";
 import { requireUserJwt } from "../middleware/auth";
 import { FileAnalysisOrchestrator } from "../services/file-analysis-orchestrator-service";
 import { FileAnalysisService } from "../services/file-analysis-service";
-import { API_CONFIG } from "../shared";
+import { API_CONFIG } from "../shared-config";
 
 const app = new Hono();
 

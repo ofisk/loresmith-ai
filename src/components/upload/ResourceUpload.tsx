@@ -3,7 +3,7 @@ import { FormButton } from "@/components/button/FormButton";
 import { FormField } from "@/components/input/FormField";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
 import { MultiSelect } from "@/components/select/MultiSelect";
-import { cn } from "@/lib/utils";
+import { cn } from "../../lib/utils";
 import type { Campaign } from "../../types/campaign";
 import type { ProcessingProgress } from "../../types/progress";
 

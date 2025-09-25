@@ -4,7 +4,7 @@ import {
   handleStartLargeUpload,
   handleUploadPart,
 } from "../../src/routes/upload";
-import { API_CONFIG } from "../../src/shared";
+import { API_CONFIG } from "../../src/shared-config";
 
 // Mock environment
 const mockEnv = {

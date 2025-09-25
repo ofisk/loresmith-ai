@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { API_CONFIG } from "../constants";
+import { API_CONFIG } from "../app-constants";
 import { createAuthHeadersFromStorage } from "../services/auth-service";
 import { useBaseAsync } from "./useBaseAsync";
 

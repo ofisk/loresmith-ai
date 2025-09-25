@@ -1,6 +1,10 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { API_CONFIG, type ToolResult, USER_MESSAGES } from "../../constants";
+import {
+  API_CONFIG,
+  type ToolResult,
+  USER_MESSAGES,
+} from "../../app-constants";
 import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
 import { createToolError, createToolSuccess } from "../utils";
 

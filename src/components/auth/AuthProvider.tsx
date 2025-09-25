@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { JWT_STORAGE_KEY } from "@/constants";
+import { JWT_STORAGE_KEY } from "../../app-constants";
 import { AuthService } from "@/services/auth-service";
-import { API_CONFIG } from "@/shared";
+import { API_CONFIG } from "../../shared-config";
 
 export interface AuthContextType {
   isAuthenticated: boolean;

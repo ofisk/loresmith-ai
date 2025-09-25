@@ -1,4 +1,4 @@
-import { API_CONFIG } from "../../shared";
+import { API_CONFIG } from "../../shared-config";
 
 export interface FileRecommendationFilters {
   content_type_category?: string;

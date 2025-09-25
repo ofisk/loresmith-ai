@@ -5,7 +5,7 @@ import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { FileAnalysisOrchestrator } from "../services/file-analysis-orchestrator-service";
 import { FileAnalysisService } from "../services/file-analysis-service";
-import { AUTORAG_CONFIG } from "../shared";
+import { AUTORAG_CONFIG } from "../shared-config";
 
 const AUTORAG_ENDPOINTS = {
   SYNC: "/sync",

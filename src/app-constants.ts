@@ -3,14 +3,14 @@
  * This file contains all shared constants used throughout the application
  */
 
-// Re-export from shared.ts for convenience
+// Re-export from shared-config.ts for convenience
 export {
   API_CONFIG,
   APPROVAL,
   AUTH_CODES,
   type AuthResponse,
   type ToolResult,
-} from "./shared";
+} from "./shared-config";
 
 // Application-specific constants
 export const APP_CONFIG = {

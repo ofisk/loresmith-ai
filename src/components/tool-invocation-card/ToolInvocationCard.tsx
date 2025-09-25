@@ -2,9 +2,9 @@ import { CaretDown, Robot } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
-import { MemoizedMarkdown } from "@/components/memoized-markdown";
+import { MemoizedMarkdown } from "@/components/MemoizedMarkdown";
 
-import { APPROVAL } from "@/shared";
+import { APPROVAL } from "../../shared-config";
 
 interface ToolInvocation {
   toolName: string;

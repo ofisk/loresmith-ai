@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { USER_MESSAGES } from "../constants";
-import { API_CONFIG } from "../shared";
+import { USER_MESSAGES } from "../app-constants";
+import { API_CONFIG } from "../shared-config";
 import type { Campaign, CampaignResource } from "../types/campaign";
 import { useAuthenticatedRequest } from "./useAuthenticatedRequest";
 import { useBaseAsync } from "./useBaseAsync";

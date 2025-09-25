@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { API_CONFIG, type ToolResult } from "../../constants";
-import { AUTH_CODES } from "../../shared";
+import { API_CONFIG, type ToolResult } from "../../app-constants";
+import { AUTH_CODES } from "../../shared-config";
 import { createToolError, createToolSuccess } from "../utils";
 
 // File metadata tools

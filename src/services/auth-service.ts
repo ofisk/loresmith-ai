@@ -1,6 +1,6 @@
 import type { JWTPayload } from "jose";
 import { jwtVerify, SignJWT } from "jose";
-import { ERROR_MESSAGES, JWT_STORAGE_KEY } from "../constants";
+import { ERROR_MESSAGES, JWT_STORAGE_KEY } from "../app-constants";
 import { getDAOFactory } from "../dao";
 import { getEnvVar } from "../lib/env-utils";
 import { getAuthService } from "../lib/service-factory";

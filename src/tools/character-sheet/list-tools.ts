@@ -1,8 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { API_CONFIG, type ToolResult } from "../../constants";
+import { API_CONFIG, type ToolResult } from "../../app-constants";
 import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
-import { AUTH_CODES } from "../../shared";
+import { AUTH_CODES } from "../../shared-config";
 import { createToolError, createToolSuccess } from "../utils";
 
 // Character sheet listing tools

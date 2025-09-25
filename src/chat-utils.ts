@@ -8,7 +8,7 @@ import {
   type ToolSet,
 } from "ai";
 import type { z } from "zod";
-import { APPROVAL } from "./shared";
+import { APPROVAL } from "./shared-config";
 
 function isValidToolName<K extends PropertyKey, T extends object>(
   key: K,
