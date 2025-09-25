@@ -639,153 +639,159 @@ export default function Chat() {
   return (
     <NotificationProvider isAuthenticated={isAuthenticated}>
       <div className="h-[100vh] w-full p-6 flex justify-center items-center bg-fixed overflow-hidden">
-        <div className="h-[calc(100vh-3rem)] w-full mx-auto max-w-[1400px] flex shadow-2xl rounded-2xl overflow-hidden relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950">
-          {/* Resource Side Panel */}
-          <ResourceSidePanel
-            isAuthenticated={isAuthenticated}
-            onLogout={handleLogout}
-            showUserMenu={showUserMenu}
-            setShowUserMenu={setShowUserMenu}
-            triggerFileUpload={triggerFileUpload}
-            onFileUploadTriggered={handleFileUploadTriggered}
-            onCreateCampaign={handleCreateCampaign}
-            onCampaignClick={handleCampaignClick}
-            onAddResource={handleAddResource}
-            onAddToCampaign={handleAddToCampaign}
-            onEditFile={handleEditFile}
-          />
-
-          {/* Main Chat Area */}
-          <div className="flex-1 flex flex-col">
-            <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 flex items-center gap-4 sticky top-0 z-10 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-sm">
-              <div
-                className="flex items-center justify-center rounded-lg"
-                style={{ width: 28, height: 28 }}
-              >
-                <img
-                  src={loresmith}
-                  alt="LoreSmith logo"
-                  width={28}
-                  height={28}
-                  className="object-contain"
-                />
-              </div>
-
-              <div className="flex-1">
-                <h2 className="font-semibold text-base">LoreSmith</h2>
-              </div>
-
-              <div className="flex items-center gap-2 mr-2">
-                <Bug size={16} />
-                <Toggle
-                  toggled={showDebug}
-                  aria-label="Toggle debug mode"
-                  onClick={() => setShowDebug((prev) => !prev)}
-                />
-              </div>
-
-              <HelpButton onActionClick={handleHelpAction} />
-
-              <Button
-                variant="ghost"
-                size="md"
-                shape="square"
-                className="rounded-full h-9 w-9"
-                onClick={handleClearHistory}
-              >
-                <Trash size={20} />
-              </Button>
-
-              {/* Notifications button styled like other top bar buttons */}
-              <TopBarNotifications />
-            </div>
-
-            {/* Main Content Area */}
+        <div className="h-[calc(100vh-3rem)] w-full mx-auto max-w-[1400px] flex flex-col shadow-2xl rounded-2xl overflow-hidden relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950">
+          {/* Top Header - LoreSmith Branding */}
+          <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 flex items-center gap-4 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-sm">
             <div
-              id={chatContainerId}
-              className="flex-1 overflow-y-auto px-8 py-6 space-y-6 pb-32 max-h-[calc(100vh-10rem)]"
+              className="flex items-center justify-center rounded-lg"
+              style={{ width: 48, height: 48 }}
             >
-              {agentMessages.length === 0 && (
-                <WelcomeMessage
-                  onSuggestionSubmit={handleSuggestionSubmit}
-                  onUploadFiles={() => setTriggerFileUpload(true)}
-                />
-              )}
-
-              <ChatMessageList
-                messages={agentMessages as Message[]}
-                showDebug={showDebug}
-                shouldRenderShardUI={(cid?: string) => shouldRenderShardUI(cid)}
-                addToolResult={addToolResult}
-                formatTime={formatTime}
+              <img
+                src={loresmith}
+                alt="LoreSmith logo"
+                width={48}
+                height={48}
+                className="object-contain"
               />
-
-              {/* Thinking Spinner - shown when agent is processing */}
-              {isLoading && (
-                <div className="flex justify-start">
-                  <div className="w-full">
-                    <Card className="p-4 rounded-xl bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-sm rounded-bl-none border-assistant-border shadow-sm border border-neutral-200/50 dark:border-neutral-700/50">
-                      <ThinkingSpinner />
-                    </Card>
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Input Area */}
-            <form
-              onSubmit={handleFormSubmit}
-              className="p-6 bg-neutral-50/50 border-t border-neutral-200 dark:border-neutral-700 dark:bg-neutral-900/50 backdrop-blur-sm"
+            <div className="flex-1">
+              <h1 className="font-semibold text-2xl">LoreSmith</h1>
+            </div>
+
+            <div className="flex items-center gap-2 mr-2">
+              <Bug size={16} />
+              <Toggle
+                toggled={showDebug}
+                aria-label="Toggle debug mode"
+                onClick={() => setShowDebug((prev) => !prev)}
+              />
+            </div>
+
+            <HelpButton onActionClick={handleHelpAction} />
+
+            <Button
+              variant="ghost"
+              size="md"
+              shape="square"
+              className="rounded-full h-9 w-9"
+              onClick={handleClearHistory}
             >
-              <div className="flex items-center gap-2">
-                <div className="flex-1 relative">
-                  <ChatInput
-                    disabled={pendingToolCallConfirmation}
-                    placeholder={
-                      pendingToolCallConfirmation
-                        ? "Please respond to the tool confirmation above..."
-                        : "What knowledge do you seek today?"
-                    }
-                    className="flex w-full border border-neutral-200/50 dark:border-neutral-700/50 px-4 py-3 text-base placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-12 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm"
-                    value={agentInput}
-                    onChange={(e) => {
-                      handleAgentInputChange(e);
-                      // Auto-resize the textarea
-                      e.target.style.height = "auto";
-                      e.target.style.height = `${e.target.scrollHeight}px`;
-                      setTextareaHeight(`${e.target.scrollHeight}px`);
-                    }}
-                    onKeyDown={handleKeyDown}
-                    multiline
-                    rows={2}
-                    style={{ height: textareaHeight }}
+              <Trash size={20} />
+            </Button>
+
+            {/* Notifications button styled like other top bar buttons */}
+            <TopBarNotifications />
+          </div>
+
+          {/* Main Content Area */}
+          <div className="flex-1 flex">
+            {/* Resource Side Panel */}
+            <ResourceSidePanel
+              isAuthenticated={isAuthenticated}
+              onLogout={handleLogout}
+              showUserMenu={showUserMenu}
+              setShowUserMenu={setShowUserMenu}
+              triggerFileUpload={triggerFileUpload}
+              onFileUploadTriggered={handleFileUploadTriggered}
+              onCreateCampaign={handleCreateCampaign}
+              onCampaignClick={handleCampaignClick}
+              onAddResource={handleAddResource}
+              onAddToCampaign={handleAddToCampaign}
+              onEditFile={handleEditFile}
+            />
+
+            {/* Chat Area */}
+            <div className="flex-1 flex flex-col">
+              {/* Main Content Area */}
+              <div
+                id={chatContainerId}
+                className="flex-1 overflow-y-auto px-8 py-6 space-y-6 pb-32"
+              >
+                {agentMessages.length === 0 && (
+                  <WelcomeMessage
+                    onSuggestionSubmit={handleSuggestionSubmit}
+                    onUploadFiles={() => setTriggerFileUpload(true)}
                   />
-                  <div className="absolute bottom-1 right-1 p-2 w-fit flex flex-row justify-end">
-                    {isLoading ? (
-                      <button
-                        type="button"
-                        onClick={stop}
-                        className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-2 h-fit border border-neutral-200/50 dark:border-neutral-700/50 shadow-sm backdrop-blur-sm"
-                        aria-label="Stop generation"
-                      >
-                        <Stop size={16} />
-                      </button>
-                    ) : (
-                      <button
-                        type="submit"
-                        className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-2 h-fit border border-neutral-200/50 dark:border-neutral-700/50 shadow-sm backdrop-blur-sm"
-                        disabled={
-                          pendingToolCallConfirmation || !agentInput.trim()
-                        }
-                        aria-label="Send message"
-                      >
-                        <PaperPlaneRight size={16} />
-                      </button>
-                    )}
+                )}
+
+                <ChatMessageList
+                  messages={agentMessages as Message[]}
+                  showDebug={showDebug}
+                  shouldRenderShardUI={(cid?: string) =>
+                    shouldRenderShardUI(cid)
+                  }
+                  addToolResult={addToolResult}
+                  formatTime={formatTime}
+                />
+
+                {/* Thinking Spinner - shown when agent is processing */}
+                {isLoading && (
+                  <div className="flex justify-start">
+                    <div className="w-full">
+                      <Card className="p-4 rounded-xl bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-sm rounded-bl-none border-assistant-border shadow-sm border border-neutral-200/50 dark:border-neutral-700/50">
+                        <ThinkingSpinner />
+                      </Card>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Input Area */}
+              <form
+                onSubmit={handleFormSubmit}
+                className="p-6 bg-neutral-50/50 border-t border-neutral-200 dark:border-neutral-700 dark:bg-neutral-900/50 backdrop-blur-sm"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 relative">
+                    <ChatInput
+                      disabled={pendingToolCallConfirmation}
+                      placeholder={
+                        pendingToolCallConfirmation
+                          ? "Please respond to the tool confirmation above..."
+                          : "What knowledge do you seek today?"
+                      }
+                      className="flex w-full border border-neutral-200/50 dark:border-neutral-700/50 px-4 py-3 text-base placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-12 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm"
+                      value={agentInput}
+                      onChange={(e) => {
+                        handleAgentInputChange(e);
+                        // Auto-resize the textarea
+                        e.target.style.height = "auto";
+                        e.target.style.height = `${e.target.scrollHeight}px`;
+                        setTextareaHeight(`${e.target.scrollHeight}px`);
+                      }}
+                      onKeyDown={handleKeyDown}
+                      multiline
+                      rows={2}
+                      style={{ height: textareaHeight }}
+                    />
+                    <div className="absolute bottom-1 right-1 p-2 w-fit flex flex-row justify-end">
+                      {isLoading ? (
+                        <button
+                          type="button"
+                          onClick={stop}
+                          className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-2 h-fit border border-neutral-200/50 dark:border-neutral-700/50 shadow-sm backdrop-blur-sm"
+                          aria-label="Stop generation"
+                        >
+                          <Stop size={16} />
+                        </button>
+                      ) : (
+                        <button
+                          type="submit"
+                          className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-2 h-fit border border-neutral-200/50 dark:border-neutral-700/50 shadow-sm backdrop-blur-sm"
+                          disabled={
+                            pendingToolCallConfirmation || !agentInput.trim()
+                          }
+                          aria-label="Send message"
+                        >
+                          <PaperPlaneRight size={16} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       </div>

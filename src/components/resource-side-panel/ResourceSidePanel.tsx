@@ -70,16 +70,6 @@ export function ResourceSidePanel({
     <div
       className={`w-80 h-full bg-neutral-50/80 dark:bg-neutral-900/80 border-r border-neutral-200 dark:border-neutral-700 flex flex-col backdrop-blur-sm ${className}`}
     >
-      {/* Header */}
-      <div className="p-6 border-b border-neutral-200 dark:border-neutral-700">
-        <h2 className="font-semibold text-xl text-gray-900 dark:text-gray-100 mb-2">
-          Resources
-        </h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          Manage your campaign content
-        </p>
-      </div>
-
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {/* Campaigns Section */}

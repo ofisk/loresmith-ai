@@ -1,7 +1,8 @@
-import { CaretDown, CaretRight, FileText, Plus } from "@phosphor-icons/react";
+import { CaretDown, CaretRight, Plus } from "@phosphor-icons/react";
 import { Card } from "../card/Card";
 import { StorageTracker } from "../storage-tracker";
 import { ResourceList } from "../upload/ResourceList";
+import libraryIcon from "../../assets/library.png";
 
 interface LibrarySectionProps {
   isOpen: boolean;
@@ -26,7 +27,7 @@ export function LibrarySection({
         className="w-full p-3 flex items-center justify-between text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <FileText size={16} className="text-purple-600" />
+          <img src={libraryIcon} alt="Library" className="w-12 h-12" />
           <span className="font-medium">Your resource library</span>
         </div>
         {isOpen ? <CaretDown size={16} /> : <CaretRight size={16} />}
