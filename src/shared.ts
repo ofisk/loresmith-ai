@@ -31,7 +31,11 @@ function getApiUrl(env?: any): string {
   }
 
   // Then try to get from process.env (Node.js environment)
-  if (process?.env?.VITE_API_URL && process.env.VITE_API_URL !== "undefined") {
+  if (
+    typeof process !== "undefined" &&
+    process?.env?.VITE_API_URL &&
+    process.env.VITE_API_URL !== "undefined"
+  ) {
     return process.env.VITE_API_URL;
   }
 
