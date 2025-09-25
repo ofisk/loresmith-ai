@@ -1,5 +1,5 @@
 import { X } from "@phosphor-icons/react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import useClickOutside from "@/hooks/useClickOutside";
@@ -14,6 +14,32 @@ type ModalProps = {
   cardStyle?: React.CSSProperties;
   showCloseButton?: boolean;
   allowEscape?: boolean;
+  animatedBackground?: boolean; // New prop for animated background
+};
+
+// Generate random particles
+const generateRandomParticles = (
+  count: number,
+  sizeRange: [number, number],
+  opacityRange: [number, number]
+) => {
+  return Array.from({ length: count }, (_, i) => {
+    const size = Math.random() * (sizeRange[1] - sizeRange[0]) + sizeRange[0];
+    const opacity =
+      Math.random() * (opacityRange[1] - opacityRange[0]) + opacityRange[0];
+    const top = Math.random() * 100;
+    const left = Math.random() * 100;
+    const animationDelay = Math.random() * 5; // Random delay up to 5 seconds
+
+    return {
+      id: i,
+      size: Math.round(size),
+      opacity: Math.round(opacity * 100) / 100,
+      top: Math.round(top * 100) / 100,
+      left: Math.round(left * 100) / 100,
+      animationDelay,
+    };
+  });
 };
 
 export const Modal = ({
@@ -25,10 +51,29 @@ export const Modal = ({
   cardStyle,
   showCloseButton = true,
   allowEscape = true,
+  animatedBackground = false,
 }: ModalProps) => {
   const clickOutsideRef = useClickOutside(onClose);
   const defaultRef = useRef<HTMLDivElement>(null);
   const modalRef = clickOutsideToClose ? clickOutsideRef : defaultRef;
+
+  // Generate random particles when modal opens
+  const [particles, setParticles] = useState(() => ({
+    large: generateRandomParticles(8, [8, 16], [0.25, 0.4]),
+    medium: generateRandomParticles(20, [5, 7], [0.4, 0.6]),
+    small: generateRandomParticles(40, [2, 3], [0.5, 0.9]),
+  }));
+
+  // Regenerate particles when modal opens
+  useEffect(() => {
+    if (isOpen && animatedBackground) {
+      setParticles({
+        large: generateRandomParticles(8, [8, 16], [0.25, 0.4]),
+        medium: generateRandomParticles(20, [5, 7], [0.4, 0.6]),
+        small: generateRandomParticles(40, [2, 3], [0.5, 0.9]),
+      });
+    }
+  }, [isOpen, animatedBackground]);
 
   // Stop site overflow when modal is open
   useEffect(() => {
@@ -88,11 +133,81 @@ export const Modal = ({
   return (
     <div className="fixed top-0 left-0 z-50 flex h-screen w-full items-center justify-center bg-transparent p-6 overflow-y-auto">
       {/* Modal overlay - clickable background */}
-      <div
-        className="absolute inset-0 bg-black/70"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      {animatedBackground ? (
+        <div
+          className="absolute inset-0 overflow-hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        >
+          {/* Base dark background */}
+          <div className="absolute inset-0 bg-black" />
+
+          {/* Animated gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-black to-purple-800/20 animate-pulse" />
+
+          {/* Floating particles */}
+          <div className="absolute inset-0">
+            {/* Large floating orbs - randomly positioned */}
+            {particles.large.map((particle) => (
+              <div
+                key={`large-${particle.id}`}
+                className="absolute rounded-full bg-purple-500/30 blur-lg animate-float-slow"
+                style={{
+                  width: `${particle.size}px`,
+                  height: `${particle.size}px`,
+                  top: `${particle.top}%`,
+                  left: `${particle.left}%`,
+                  opacity: particle.opacity,
+                  animationDelay: `${particle.animationDelay}s`,
+                }}
+              />
+            ))}
+
+            {/* Medium particles - randomly positioned */}
+            {particles.medium.map((particle) => (
+              <div
+                key={`medium-${particle.id}`}
+                className="absolute rounded-full bg-purple-400/60 blur-sm animate-float-medium"
+                style={{
+                  width: `${particle.size}px`,
+                  height: `${particle.size}px`,
+                  top: `${particle.top}%`,
+                  left: `${particle.left}%`,
+                  opacity: particle.opacity,
+                  animationDelay: `${particle.animationDelay}s`,
+                }}
+              />
+            ))}
+
+            {/* Small sparkles - randomly positioned */}
+            {particles.small.map((particle) => (
+              <div
+                key={`small-${particle.id}`}
+                className="absolute rounded-full bg-purple-300/70 animate-twinkle"
+                style={{
+                  width: `${particle.size}px`,
+                  height: `${particle.size}px`,
+                  top: `${particle.top}%`,
+                  left: `${particle.left}%`,
+                  opacity: particle.opacity,
+                  animationDelay: `${particle.animationDelay}s`,
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Subtle wave pattern */}
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-purple-500/20 to-transparent animate-wave" />
+          </div>
+        </div>
+      ) : (
+        <div
+          className="absolute inset-0 bg-black/70"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
 
       {/* Modal content container */}
       <div

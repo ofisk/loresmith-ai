@@ -63,6 +63,7 @@ export function BlockingAuthenticationModal({
       clickOutsideToClose={false}
       showCloseButton={false}
       allowEscape={false}
+      animatedBackground={true} // Enable the cool purple animation!
     >
       <div className="p-6 max-w-md mx-auto">
         <h2 className="text-xl font-semibold mb-4">Authentication Required</h2>
