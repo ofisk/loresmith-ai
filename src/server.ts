@@ -7,7 +7,7 @@ import {
   handleIngestionStats,
   handleIngestionStatus,
 } from "./api_status";
-import { JWT_STORAGE_KEY } from "./constants";
+import { JWT_STORAGE_KEY } from "./app-constants";
 import { UploadSessionDO } from "./durable-objects/upload-session";
 import type { AgentType } from "./lib/agent-router";
 import { AgentRouter } from "./lib/agent-router";
@@ -103,7 +103,7 @@ import {
 } from "./routes/upload";
 import type { AuthEnv } from "./services/auth-service";
 import { AuthService } from "./services/auth-service";
-import { API_CONFIG } from "./shared";
+import { API_CONFIG } from "./shared-config";
 
 interface Env extends AuthEnv {
   ADMIN_SECRET?: string;

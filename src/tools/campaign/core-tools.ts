@@ -1,11 +1,16 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { API_CONFIG, type ToolResult, USER_MESSAGES } from "../../constants";
+import {
+  API_CONFIG,
+  type ToolResult,
+  USER_MESSAGES,
+} from "../../app-constants";
 import { getDAOFactory } from "../../dao/dao-factory";
 import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
 import type { Env } from "../../middleware/auth";
-import { AUTH_CODES } from "../../shared";
-import { commonSchemas, createToolError, createToolSuccess } from "../utils";
+import { AUTH_CODES } from "../../shared-config";
+import { commonSchemas } from "../utils";
+import { createToolError, createToolSuccess } from "../utils";
 
 // Core campaign operations
 

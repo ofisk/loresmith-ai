@@ -1,8 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { API_CONFIG, type ToolResult } from "../../constants";
-import { AUTH_CODES } from "../../shared";
-import { commonSchemas, createToolError, createToolSuccess } from "../utils";
+import { API_CONFIG, type ToolResult } from "../../app-constants";
+import { AUTH_CODES } from "../../shared-config";
+import { commonSchemas } from "../utils";
+import { createToolError, createToolSuccess } from "../utils";
 
 // file library tools
 

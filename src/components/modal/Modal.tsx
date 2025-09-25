@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import useClickOutside from "@/hooks/useClickOutside";
-import { cn } from "@/lib/utils";
+import { cn } from "../../lib/utils";
 
 type ModalProps = {
   className?: string;

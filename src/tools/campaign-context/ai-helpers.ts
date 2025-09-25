@@ -1,4 +1,4 @@
-import type { ToolResult } from "../../constants";
+import type { ToolResult } from "../../app-constants";
 import { createToolSuccess } from "../utils";
 
 // Helper function to generate character data using AI

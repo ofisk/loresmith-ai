@@ -4,7 +4,7 @@ import {
   authenticatedFetchWithExpiration,
   getStoredJwt,
 } from "../../services/auth-service";
-import { API_CONFIG } from "../../shared";
+import { API_CONFIG } from "../../shared-config";
 import { Loader } from "../loader/Loader";
 
 interface StorageUsage {

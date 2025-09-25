@@ -26,7 +26,7 @@ import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
 import { WelcomeMessage } from "./components/chat/WelcomeMessage";
 import { NotificationProvider } from "./components/notifications/NotificationProvider";
-import { JWT_STORAGE_KEY } from "./constants";
+import { JWT_STORAGE_KEY } from "./app-constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
 import {
   AuthService,
@@ -34,7 +34,7 @@ import {
 } from "./services/auth-service";
 import { useUiHints } from "./hooks/useUiHints";
 import { useShardRenderGate } from "./hooks/useShardRenderGate";
-import { API_CONFIG } from "./shared";
+import { API_CONFIG } from "./shared-config";
 import { getHelpContent } from "./utils/helpContent";
 
 import type { campaignTools } from "./tools/campaign";

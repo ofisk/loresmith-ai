@@ -1,4 +1,4 @@
-import type { ToolResult } from "../../constants";
+import type { ToolResult } from "../../app-constants";
 import type { CampaignData, CampaignResource } from "../../types/campaign";
 import { createToolSuccess } from "../utils";
 

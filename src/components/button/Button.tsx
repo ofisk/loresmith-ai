@@ -1,7 +1,7 @@
 import { Loader } from "@/components/loader/Loader";
 import { Slot } from "@/components/slot/Slot";
 import { Tooltip } from "@/components/tooltip/Tooltip";
-import { cn } from "@/lib/utils";
+import { cn } from "../../lib/utils";
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   as?: React.ElementType;

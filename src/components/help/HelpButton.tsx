@@ -1,10 +1,10 @@
 import { Question } from "@phosphor-icons/react";
 import { useState } from "react";
-import { JWT_STORAGE_KEY } from "../../constants";
-import { API_CONFIG } from "../../shared";
+import { JWT_STORAGE_KEY } from "../../app-constants";
+import { API_CONFIG } from "../../shared-config";
 import { Button } from "../button/Button";
 import { Card } from "../card/Card";
-import { MemoizedMarkdown } from "../memoized-markdown";
+import { MemoizedMarkdown } from "../MemoizedMarkdown";
 
 interface HelpResponse {
   message: string;

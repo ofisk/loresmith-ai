@@ -7,7 +7,7 @@ import {
   getStoredJwt,
 } from "../services/auth-service";
 import { AutoRAGService } from "../services/autorag-service";
-import { API_CONFIG, AUTORAG_CONFIG } from "../shared";
+import { API_CONFIG, AUTORAG_CONFIG } from "../shared-config";
 import { buildAutoRAGFileKey } from "../utils/file-keys";
 
 interface UseFileUploadProps {

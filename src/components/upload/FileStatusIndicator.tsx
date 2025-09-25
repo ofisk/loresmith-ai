@@ -5,7 +5,7 @@ import {
   authenticatedFetchWithExpiration,
   getStoredJwt,
 } from "../../services/auth-service";
-import { API_CONFIG } from "../../shared";
+import { API_CONFIG } from "../../shared-config";
 
 interface FileStatusIndicatorProps {
   className?: string;

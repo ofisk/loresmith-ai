@@ -1,9 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { API_CONFIG, type ToolResult, USER_MESSAGES } from "../../constants";
+import {
+  API_CONFIG,
+  type ToolResult,
+  USER_MESSAGES,
+} from "../../app-constants";
 import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
-import { AUTH_CODES } from "../../shared";
-import { commonSchemas, createToolError, createToolSuccess } from "../utils";
+import { AUTH_CODES } from "../../shared-config";
+import { commonSchemas } from "../utils";
+import { createToolError, createToolSuccess } from "../utils";
 
 export const listCampaignResources = tool({
   description: "List all resources in a campaign",

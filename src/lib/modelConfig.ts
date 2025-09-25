@@ -1,5 +1,5 @@
 import { openai } from "@ai-sdk/openai";
-import { MODEL_CONFIG } from "../constants";
+import { MODEL_CONFIG } from "../app-constants";
 
 /**
  * Centralized model configuration for Loresmith AI

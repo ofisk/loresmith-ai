@@ -1,6 +1,6 @@
 import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ERROR_MESSAGES } from "../../constants";
+import { ERROR_MESSAGES } from "../../app-constants";
 import type { AutoRAGEvent, FileUploadEvent } from "../../lib/event-bus";
 import { EVENT_TYPES, useEventBus } from "../../lib/event-bus";
 import {
@@ -8,7 +8,7 @@ import {
   authenticatedFetchWithExpiration,
   getStoredJwt,
 } from "../../services/auth-service";
-import { API_CONFIG } from "../../shared";
+import { API_CONFIG } from "../../shared-config";
 import type { Campaign } from "../../types/campaign";
 import { Button } from "../button/Button";
 import { FileStatusIndicator } from "./FileStatusIndicator";

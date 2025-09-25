@@ -2,7 +2,7 @@ import type { Context } from "hono";
 import { SignJWT } from "jose";
 import type { Env } from "../middleware/auth";
 import { AuthService } from "../services/auth-service";
-import { API_CONFIG } from "../shared";
+import { API_CONFIG } from "../shared-config";
 
 /**
  * Handle minting short-lived stream tokens

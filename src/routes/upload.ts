@@ -9,7 +9,7 @@ import {
 } from "../lib/notifications";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
-import { API_CONFIG } from "../shared";
+import { API_CONFIG } from "../shared-config";
 import { buildAutoRAGFileKey, buildStagingFileKey } from "../utils/file-keys";
 import { nanoid } from "../utils/nanoid";
 

@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { API_CONFIG, type ToolResult } from "../../constants";
+import { API_CONFIG, type ToolResult } from "../../app-constants";
 import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
 import {
   commonSchemas,
