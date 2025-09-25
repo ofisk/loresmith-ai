@@ -7,12 +7,16 @@ interface LibrarySectionProps {
   isOpen: boolean;
   onToggle: () => void;
   onAddToLibrary: () => void;
+  onAddToCampaign?: (file: any) => void;
+  onEditFile?: (file: any) => void;
 }
 
 export function LibrarySection({
   isOpen,
   onToggle,
   onAddToLibrary,
+  onAddToCampaign,
+  onEditFile,
 }: LibrarySectionProps) {
   return (
     <Card className="p-0 border-t border-neutral-200 dark:border-neutral-700">
@@ -41,7 +45,10 @@ export function LibrarySection({
             </button>
           </div>
           <div className="border-t border-neutral-200 dark:border-neutral-700">
-            <ResourceList />
+            <ResourceList
+              onAddToCampaign={onAddToCampaign}
+              onEditFile={onEditFile}
+            />
             <StorageTracker />
           </div>
         </div>

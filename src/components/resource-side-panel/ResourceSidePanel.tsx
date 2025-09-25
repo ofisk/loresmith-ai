@@ -1,14 +1,9 @@
 import { CaretDown, SignOut } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { useCampaignManagement } from "../../hooks/useCampaignManagement";
-import { useFileUpload } from "../../hooks/useFileUpload";
 import { AuthService } from "../../services/auth-service";
 import type { Campaign } from "../../types/campaign";
-import { Modal } from "../modal/Modal";
-import { ResourceUpload } from "../upload/ResourceUpload";
-import { CampaignDetailsModal } from "./CampaignDetailsModal";
 import { CampaignsSection } from "./CampaignsSection";
-import { CreateCampaignModal } from "./CreateCampaignModal";
 import { LibrarySection } from "./LibrarySection";
 
 interface ResourceSidePanelProps {
@@ -19,6 +14,11 @@ interface ResourceSidePanelProps {
   setShowUserMenu?: (show: boolean) => void;
   triggerFileUpload?: boolean;
   onFileUploadTriggered?: () => void;
+  onCreateCampaign?: () => void;
+  onCampaignClick?: (campaign: Campaign) => void;
+  onAddResource?: () => void;
+  onAddToCampaign?: (file: any) => void;
+  onEditFile?: (file: any) => void;
 }
 
 export function ResourceSidePanel({
@@ -29,49 +29,27 @@ export function ResourceSidePanel({
   setShowUserMenu,
   triggerFileUpload = false,
   onFileUploadTriggered,
+  onCreateCampaign,
+  onCampaignClick,
+  onAddResource,
+  onAddToCampaign,
+  onEditFile,
 }: ResourceSidePanelProps) {
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isCampaignsOpen, setIsCampaignsOpen] = useState(false);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isCreateCampaignModalOpen, setIsCreateCampaignModalOpen] =
-    useState(false);
-  const [isCampaignDetailsModalOpen, setIsCampaignDetailsModalOpen] =
-    useState(false);
-  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(
-    null
-  );
-  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
 
-  // Custom hooks for business logic
-  const { uploadedFileInfo, handleUpload, clearUploadedFileInfo } =
-    useFileUpload({
-      onUploadStart: () => setIsAddModalOpen(false),
+  const { campaigns, campaignsLoading, campaignsError, fetchCampaigns } =
+    useCampaignManagement({
+      isAuthenticated,
     });
-
-  const {
-    campaigns,
-    campaignsLoading,
-    campaignsError,
-    campaignName,
-    setCampaignName,
-    campaignDescription,
-    setCampaignDescription,
-    fetchCampaigns,
-    handleCreateCampaign,
-    handleCreateCampaignForFile,
-    handleDeleteCampaign,
-    handleUpdateCampaign,
-  } = useCampaignManagement({
-    isAuthenticated,
-  });
 
   // Watch for external trigger to open file upload modal
   useEffect(() => {
     if (triggerFileUpload) {
-      setIsAddModalOpen(true);
+      onAddResource?.();
       onFileUploadTriggered?.();
     }
-  }, [triggerFileUpload, onFileUploadTriggered]);
+  }, [triggerFileUpload, onAddResource, onFileUploadTriggered]);
 
   // Fetch campaigns when campaigns section is opened
   useEffect(() => {
@@ -79,13 +57,6 @@ export function ResourceSidePanel({
       fetchCampaigns();
     }
   }, [isCampaignsOpen, isAuthenticated, fetchCampaigns]);
-
-  // Fetch campaigns when add modal opens
-  useEffect(() => {
-    if (isAddModalOpen && isAuthenticated) {
-      fetchCampaigns();
-    }
-  }, [isAddModalOpen, isAuthenticated, fetchCampaigns]);
 
   const handleLogout = async () => {
     try {
@@ -95,54 +66,13 @@ export function ResourceSidePanel({
     }
   };
 
-  const handleCreateCampaignForFileWrapper = async () => {
-    // Close immediately for instant feedback, then process in background
-    setIsCreateCampaignModalOpen(false);
-    await handleCreateCampaignForFile(uploadedFileInfo);
-    clearUploadedFileInfo();
-  };
-
-  const handleCreateCampaignWrapper = async (
-    name: string,
-    description: string
-  ) => {
-    // Close immediately for instant feedback, then process in background
-    setIsCreateCampaignModalOpen(false);
-    await handleCreateCampaign(name, description);
-  };
-
-  const handleCampaignClick = (campaign: Campaign) => {
-    setSelectedCampaign(campaign);
-    setIsCampaignDetailsModalOpen(true);
-  };
-
-  const handleCampaignDetailsClose = () => {
-    setIsCampaignDetailsModalOpen(false);
-    setSelectedCampaign(null);
-  };
-
-  const handleUpdateCampaignWrapper = async (
-    campaignId: string,
-    updates: { name: string; description: string }
-  ) => {
-    await handleUpdateCampaign(campaignId, updates);
-    // Update the selected campaign with the new data
-    if (selectedCampaign && selectedCampaign.campaignId === campaignId) {
-      setSelectedCampaign({
-        ...selectedCampaign,
-        name: updates.name,
-        description: updates.description,
-      });
-    }
-  };
-
   return (
     <div
-      className={`w-80 h-full bg-neutral-50 dark:bg-neutral-900 border-r border-neutral-300 dark:border-neutral-800 flex flex-col ${className}`}
+      className={`w-80 h-full bg-neutral-50/80 dark:bg-neutral-900/80 border-r border-neutral-200 dark:border-neutral-700 flex flex-col backdrop-blur-sm ${className}`}
     >
       {/* Header */}
-      <div className="p-4 border-b border-neutral-300 dark:border-neutral-800">
-        <h2 className="font-semibold text-lg text-gray-900 dark:text-gray-100">
+      <div className="p-6 border-b border-neutral-200 dark:border-neutral-700">
+        <h2 className="font-semibold text-xl text-gray-900 dark:text-gray-100 mb-2">
           Resources
         </h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -151,7 +81,7 @@ export function ResourceSidePanel({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {/* Campaigns Section */}
         <CampaignsSection
           campaigns={campaigns}
@@ -159,21 +89,23 @@ export function ResourceSidePanel({
           campaignsError={campaignsError}
           onToggle={() => setIsCampaignsOpen(!isCampaignsOpen)}
           isOpen={isCampaignsOpen}
-          onCreateCampaign={() => setIsCreateCampaignModalOpen(true)}
-          onCampaignClick={handleCampaignClick}
+          onCreateCampaign={onCreateCampaign || (() => {})}
+          onCampaignClick={onCampaignClick || (() => {})}
         />
 
         {/* Library Section */}
         <LibrarySection
           isOpen={isLibraryOpen}
           onToggle={() => setIsLibraryOpen(!isLibraryOpen)}
-          onAddToLibrary={() => setIsAddModalOpen(true)}
+          onAddToLibrary={onAddResource || (() => {})}
+          onAddToCampaign={onAddToCampaign || (() => {})}
+          onEditFile={onEditFile || (() => {})}
         />
       </div>
 
       {/* Username Display and Menu - At the very bottom */}
       {isAuthenticated && (
-        <div className="p-3 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
+        <div className="p-4 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50/80 dark:bg-neutral-900/80 backdrop-blur-sm">
           <div className="relative user-menu-container">
             <button
               type="button"
@@ -208,57 +140,6 @@ export function ResourceSidePanel({
           </div>
         </div>
       )}
-
-      {/* Upload Modal */}
-      <Modal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        cardStyle={{ width: 560, maxHeight: "90vh" }}
-      >
-        <ResourceUpload
-          onUpload={handleUpload}
-          className="border-0 p-0 shadow-none"
-          jwtUsername={AuthService.getUsernameFromStoredJwt()}
-          campaigns={campaigns}
-          selectedCampaigns={selectedCampaigns}
-          onCampaignSelectionChange={setSelectedCampaigns}
-          campaignName={campaignName}
-          onCampaignNameChange={setCampaignName}
-          onCreateCampaign={handleCreateCampaignForFileWrapper}
-          showCampaignSelection={true}
-        />
-      </Modal>
-
-      {/* Create Campaign Modal */}
-      <Modal
-        isOpen={isCreateCampaignModalOpen}
-        onClose={() => setIsCreateCampaignModalOpen(false)}
-        cardStyle={{ width: 520, minHeight: 320 }}
-        showCloseButton={true}
-      >
-        <CreateCampaignModal
-          isOpen={isCreateCampaignModalOpen}
-          onClose={() => {
-            setIsCreateCampaignModalOpen(false);
-            setCampaignName("");
-            setCampaignDescription("");
-          }}
-          campaignName={campaignName}
-          onCampaignNameChange={setCampaignName}
-          campaignDescription={campaignDescription}
-          onCampaignDescriptionChange={setCampaignDescription}
-          onCreateCampaign={handleCreateCampaignWrapper}
-        />
-      </Modal>
-
-      {/* Campaign Details Modal */}
-      <CampaignDetailsModal
-        campaign={selectedCampaign}
-        isOpen={isCampaignDetailsModalOpen}
-        onClose={handleCampaignDetailsClose}
-        onDelete={handleDeleteCampaign}
-        onUpdate={handleUpdateCampaignWrapper}
-      />
     </div>
   );
 }

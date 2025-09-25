@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Input } from "../input/Input";
-import { Textarea } from "../textarea/Textarea";
+import { FormField } from "../input/FormField";
+import { FormButton } from "../button/FormButton";
 
 interface CreateCampaignModalProps {
   isOpen: boolean;
@@ -82,58 +82,37 @@ export function CreateCampaignModal({
 
       {/* Campaign Info */}
       <div className="space-y-4">
-        <div>
-          <label
-            htmlFor={campaignNameId}
-            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-          >
-            Campaign name
-          </label>
-          <Input
-            id={campaignNameId}
-            type="text"
-            placeholder="Enter campaign name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full"
-          />
-        </div>
-        <div>
-          <label
-            htmlFor={campaignDescriptionId}
-            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-          >
-            Description (optional)
-          </label>
-          <Textarea
-            id={campaignDescriptionId}
-            placeholder="Enter campaign description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={4}
-            className="w-full resize-none"
-          />
-        </div>
+        <FormField
+          id={campaignNameId}
+          label="Campaign name"
+          placeholder="Enter campaign name"
+          value={name}
+          onValueChange={(value) => setName(value)}
+        />
+        <FormField
+          id={campaignDescriptionId}
+          label="Description (optional)"
+          placeholder="Enter campaign description"
+          value={description}
+          onValueChange={(value) => setDescription(value)}
+          multiline
+          rows={4}
+        />
       </div>
 
       {/* Actions */}
       <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
         <div className="flex gap-2">
-          <button
-            type="button"
+          <FormButton
             onClick={handleCreate}
             disabled={!name.trim() || isSubmitting}
-            className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold text-sm hover:text-purple-700 dark:hover:text-purple-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            loading={isSubmitting}
           >
             {isSubmitting ? "Creating…" : "Create"}
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 font-semibold text-sm hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
+          </FormButton>
+          <FormButton onClick={onClose} variant="secondary">
             Cancel
-          </button>
+          </FormButton>
         </div>
       </div>
     </div>

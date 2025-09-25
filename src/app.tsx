@@ -14,7 +14,12 @@ import { HelpButton } from "@/components/help/HelpButton";
 import { NotificationBell } from "./components/notifications/NotificationBell";
 import { useNotifications } from "./components/notifications/NotificationProvider";
 import { ResourceSidePanel } from "@/components/resource-side-panel";
-import { Textarea } from "@/components/textarea/Textarea";
+import { CreateCampaignModal } from "@/components/resource-side-panel/CreateCampaignModal";
+import { CampaignDetailsModal } from "@/components/resource-side-panel/CampaignDetailsModal";
+import { EditFileModal } from "@/components/upload/EditFileModal";
+import { ResourceUpload } from "@/components/upload/ResourceUpload";
+import { Modal } from "@/components/modal/Modal";
+import { ChatInput } from "@/components/input/ChatInput";
 import { ThinkingSpinner } from "@/components/thinking-spinner";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
@@ -105,11 +110,83 @@ export default function Chat() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [triggerFileUpload, setTriggerFileUpload] = useState(false);
+  const [isCreateCampaignModalOpen, setIsCreateCampaignModalOpen] =
+    useState(false);
+  const [campaignName, setCampaignName] = useState("");
+  const [campaignDescription, setCampaignDescription] = useState("");
+  const [isCampaignDetailsModalOpen, setIsCampaignDetailsModalOpen] =
+    useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
+  const [isAddResourceModalOpen, setIsAddResourceModalOpen] = useState(false);
+  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
+  const [isAddToCampaignModalOpen, setIsAddToCampaignModalOpen] =
+    useState(false);
+  const [selectedFile, setSelectedFile] = useState<any>(null);
+  const [isEditFileModalOpen, setIsEditFileModalOpen] = useState(false);
+  const [editingFile, setEditingFile] = useState<any>(null);
 
   // Handle file upload trigger callback
   const handleFileUploadTriggered = useCallback(() => {
     setTriggerFileUpload(false);
   }, []);
+
+  // Handle create campaign modal
+  const handleCreateCampaign = useCallback(() => {
+    setIsCreateCampaignModalOpen(true);
+  }, []);
+
+  const handleCreateCampaignClose = useCallback(() => {
+    setIsCreateCampaignModalOpen(false);
+    setCampaignName("");
+    setCampaignDescription("");
+  }, []);
+
+  const handleCampaignClick = useCallback((campaign: any) => {
+    setSelectedCampaign(campaign);
+    setIsCampaignDetailsModalOpen(true);
+  }, []);
+
+  const handleCampaignDetailsClose = useCallback(() => {
+    setIsCampaignDetailsModalOpen(false);
+    setSelectedCampaign(null);
+  }, []);
+
+  const handleAddResource = useCallback(() => {
+    setIsAddResourceModalOpen(true);
+  }, []);
+
+  const handleAddResourceClose = useCallback(() => {
+    setIsAddResourceModalOpen(false);
+  }, []);
+
+  const handleAddToCampaign = useCallback((file: any) => {
+    setSelectedFile(file);
+    setIsAddToCampaignModalOpen(true);
+  }, []);
+
+  const handleAddToCampaignClose = useCallback(() => {
+    setIsAddToCampaignModalOpen(false);
+    setSelectedFile(null);
+  }, []);
+
+  const handleEditFile = useCallback((file: any) => {
+    setEditingFile(file);
+    setIsEditFileModalOpen(true);
+  }, []);
+
+  const handleEditFileClose = useCallback(() => {
+    setIsEditFileModalOpen(false);
+    setEditingFile(null);
+  }, []);
+
+  const handleFileUpdate = useCallback(
+    (updatedFile: any) => {
+      // TODO: Implement file update logic
+      console.log("File updated:", updatedFile);
+      handleEditFileClose();
+    },
+    [handleEditFileClose]
+  );
 
   // Get stored JWT for user operations
   const getStoredJwt = useCallback((): string | null => {
@@ -561,164 +638,157 @@ export default function Chat() {
 
   return (
     <NotificationProvider isAuthenticated={isAuthenticated}>
-      {/* Only render main app content when authenticated */}
-      {isAuthenticated ? (
-        <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
-          <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-[1400px] flex shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
-            {/* Resource Side Panel */}
-            <ResourceSidePanel
-              isAuthenticated={isAuthenticated}
-              onLogout={handleLogout}
-              showUserMenu={showUserMenu}
-              setShowUserMenu={setShowUserMenu}
-              triggerFileUpload={triggerFileUpload}
-              onFileUploadTriggered={handleFileUploadTriggered}
-            />
+      <div className="h-[100vh] w-full p-6 flex justify-center items-center bg-fixed overflow-hidden">
+        <div className="h-[calc(100vh-3rem)] w-full mx-auto max-w-[1400px] flex shadow-2xl rounded-2xl overflow-hidden relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950">
+          {/* Resource Side Panel */}
+          <ResourceSidePanel
+            isAuthenticated={isAuthenticated}
+            onLogout={handleLogout}
+            showUserMenu={showUserMenu}
+            setShowUserMenu={setShowUserMenu}
+            triggerFileUpload={triggerFileUpload}
+            onFileUploadTriggered={handleFileUploadTriggered}
+            onCreateCampaign={handleCreateCampaign}
+            onCampaignClick={handleCampaignClick}
+            onAddResource={handleAddResource}
+            onAddToCampaign={handleAddToCampaign}
+            onEditFile={handleEditFile}
+          />
 
-            {/* Main Chat Area */}
-            <div className="flex-1 flex flex-col">
-              <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
-                <div
-                  className="flex items-center justify-center rounded-lg"
-                  style={{ width: 28, height: 28 }}
-                >
-                  <img
-                    src={loresmith}
-                    alt="LoreSmith logo"
-                    width={28}
-                    height={28}
-                    className="object-contain"
-                  />
-                </div>
-
-                <div className="flex-1">
-                  <h2 className="font-semibold text-base">LoreSmith</h2>
-                </div>
-
-                <div className="flex items-center gap-2 mr-2">
-                  <Bug size={16} />
-                  <Toggle
-                    toggled={showDebug}
-                    aria-label="Toggle debug mode"
-                    onClick={() => setShowDebug((prev) => !prev)}
-                  />
-                </div>
-
-                <HelpButton onActionClick={handleHelpAction} />
-
-                <Button
-                  variant="ghost"
-                  size="md"
-                  shape="square"
-                  className="rounded-full h-9 w-9"
-                  onClick={handleClearHistory}
-                >
-                  <Trash size={20} />
-                </Button>
-
-                {/* Notifications button styled like other top bar buttons */}
-                <TopBarNotifications />
-              </div>
-
-              {/* Main Content Area */}
+          {/* Main Chat Area */}
+          <div className="flex-1 flex flex-col">
+            <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 flex items-center gap-4 sticky top-0 z-10 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-sm">
               <div
-                id={chatContainerId}
-                className="flex-1 overflow-y-auto px-6 py-4 space-y-4 pb-32 max-h-[calc(100vh-10rem)]"
+                className="flex items-center justify-center rounded-lg"
+                style={{ width: 28, height: 28 }}
               >
-                {agentMessages.length === 0 && (
-                  <WelcomeMessage
-                    onSuggestionSubmit={handleSuggestionSubmit}
-                    onUploadFiles={() => setTriggerFileUpload(true)}
-                  />
-                )}
-
-                <ChatMessageList
-                  messages={agentMessages as Message[]}
-                  showDebug={showDebug}
-                  shouldRenderShardUI={(cid?: string) =>
-                    shouldRenderShardUI(cid)
-                  }
-                  addToolResult={addToolResult}
-                  formatTime={formatTime}
+                <img
+                  src={loresmith}
+                  alt="LoreSmith logo"
+                  width={28}
+                  height={28}
+                  className="object-contain"
                 />
-
-                {/* Thinking Spinner - shown when agent is processing */}
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="w-full">
-                      <Card className="p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 rounded-bl-none border-assistant-border">
-                        <ThinkingSpinner />
-                      </Card>
-                    </div>
-                  </div>
-                )}
               </div>
 
-              {/* Input Area */}
-              <form
-                onSubmit={handleFormSubmit}
-                className="p-3 bg-neutral-50 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
+              <div className="flex-1">
+                <h2 className="font-semibold text-base">LoreSmith</h2>
+              </div>
+
+              <div className="flex items-center gap-2 mr-2">
+                <Bug size={16} />
+                <Toggle
+                  toggled={showDebug}
+                  aria-label="Toggle debug mode"
+                  onClick={() => setShowDebug((prev) => !prev)}
+                />
+              </div>
+
+              <HelpButton onActionClick={handleHelpAction} />
+
+              <Button
+                variant="ghost"
+                size="md"
+                shape="square"
+                className="rounded-full h-9 w-9"
+                onClick={handleClearHistory}
               >
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 relative">
-                    <Textarea
-                      disabled={pendingToolCallConfirmation}
-                      placeholder={
-                        pendingToolCallConfirmation
-                          ? "Please respond to the tool confirmation above..."
-                          : "What knowledge do you seek today?"
-                      }
-                      className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-base ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900"
-                      value={agentInput}
-                      onChange={(e) => {
-                        handleAgentInputChange(e);
-                        // Auto-resize the textarea
-                        e.target.style.height = "auto";
-                        e.target.style.height = `${e.target.scrollHeight}px`;
-                        setTextareaHeight(`${e.target.scrollHeight}px`);
-                      }}
-                      onKeyDown={handleKeyDown}
-                      rows={2}
-                      style={{ height: textareaHeight }}
-                    />
-                    <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
-                      {isLoading ? (
-                        <button
-                          type="button"
-                          onClick={stop}
-                          className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                          aria-label="Stop generation"
-                        >
-                          <Stop size={16} />
-                        </button>
-                      ) : (
-                        <button
-                          type="submit"
-                          className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                          disabled={
-                            pendingToolCallConfirmation || !agentInput.trim()
-                          }
-                          aria-label="Send message"
-                        >
-                          <PaperPlaneRight size={16} />
-                        </button>
-                      )}
-                    </div>
+                <Trash size={20} />
+              </Button>
+
+              {/* Notifications button styled like other top bar buttons */}
+              <TopBarNotifications />
+            </div>
+
+            {/* Main Content Area */}
+            <div
+              id={chatContainerId}
+              className="flex-1 overflow-y-auto px-8 py-6 space-y-6 pb-32 max-h-[calc(100vh-10rem)]"
+            >
+              {agentMessages.length === 0 && (
+                <WelcomeMessage
+                  onSuggestionSubmit={handleSuggestionSubmit}
+                  onUploadFiles={() => setTriggerFileUpload(true)}
+                />
+              )}
+
+              <ChatMessageList
+                messages={agentMessages as Message[]}
+                showDebug={showDebug}
+                shouldRenderShardUI={(cid?: string) => shouldRenderShardUI(cid)}
+                addToolResult={addToolResult}
+                formatTime={formatTime}
+              />
+
+              {/* Thinking Spinner - shown when agent is processing */}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="w-full">
+                    <Card className="p-4 rounded-xl bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-sm rounded-bl-none border-assistant-border shadow-sm border border-neutral-200/50 dark:border-neutral-700/50">
+                      <ThinkingSpinner />
+                    </Card>
                   </div>
                 </div>
-              </form>
+              )}
             </div>
+
+            {/* Input Area */}
+            <form
+              onSubmit={handleFormSubmit}
+              className="p-6 bg-neutral-50/50 border-t border-neutral-200 dark:border-neutral-700 dark:bg-neutral-900/50 backdrop-blur-sm"
+            >
+              <div className="flex items-center gap-2">
+                <div className="flex-1 relative">
+                  <ChatInput
+                    disabled={pendingToolCallConfirmation}
+                    placeholder={
+                      pendingToolCallConfirmation
+                        ? "Please respond to the tool confirmation above..."
+                        : "What knowledge do you seek today?"
+                    }
+                    className="flex w-full border border-neutral-200/50 dark:border-neutral-700/50 px-4 py-3 text-base placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-12 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm"
+                    value={agentInput}
+                    onChange={(e) => {
+                      handleAgentInputChange(e);
+                      // Auto-resize the textarea
+                      e.target.style.height = "auto";
+                      e.target.style.height = `${e.target.scrollHeight}px`;
+                      setTextareaHeight(`${e.target.scrollHeight}px`);
+                    }}
+                    onKeyDown={handleKeyDown}
+                    multiline
+                    rows={2}
+                    style={{ height: textareaHeight }}
+                  />
+                  <div className="absolute bottom-1 right-1 p-2 w-fit flex flex-row justify-end">
+                    {isLoading ? (
+                      <button
+                        type="button"
+                        onClick={stop}
+                        className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-2 h-fit border border-neutral-200/50 dark:border-neutral-700/50 shadow-sm backdrop-blur-sm"
+                        aria-label="Stop generation"
+                      >
+                        <Stop size={16} />
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-2 h-fit border border-neutral-200/50 dark:border-neutral-700/50 shadow-sm backdrop-blur-sm"
+                        disabled={
+                          pendingToolCallConfirmation || !agentInput.trim()
+                        }
+                        aria-label="Send message"
+                      >
+                        <PaperPlaneRight size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
-      ) : (
-        /* Show loading state while checking authentication */
-        <div className="h-[100vh] w-full flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Loading...</p>
-          </div>
-        </div>
-      )}
+      </div>
 
       <BlockingAuthenticationModal
         isOpen={showAuthModal}
@@ -726,6 +796,126 @@ export default function Chat() {
         storedOpenAIKey={storedOpenAIKey}
         onSubmit={handleAuthenticationSubmit}
       />
+
+      {/* Create Campaign Modal */}
+      <Modal
+        isOpen={isCreateCampaignModalOpen}
+        onClose={handleCreateCampaignClose}
+        cardStyle={{ width: 520, minHeight: 320 }}
+        showCloseButton={true}
+      >
+        <CreateCampaignModal
+          isOpen={isCreateCampaignModalOpen}
+          onClose={handleCreateCampaignClose}
+          campaignName={campaignName}
+          onCampaignNameChange={setCampaignName}
+          campaignDescription={campaignDescription}
+          onCampaignDescriptionChange={setCampaignDescription}
+          onCreateCampaign={(name, description) => {
+            // TODO: Implement actual campaign creation
+            console.log("Creating campaign:", name, description);
+            handleCreateCampaignClose();
+          }}
+        />
+      </Modal>
+
+      {/* Campaign Details Modal */}
+      <CampaignDetailsModal
+        campaign={selectedCampaign}
+        isOpen={isCampaignDetailsModalOpen}
+        onClose={handleCampaignDetailsClose}
+        onDelete={async (campaignId) => {
+          // TODO: Implement actual campaign deletion
+          console.log("Deleting campaign:", campaignId);
+          handleCampaignDetailsClose();
+        }}
+        onUpdate={async (campaignId, updates) => {
+          // TODO: Implement actual campaign update
+          console.log("Updating campaign:", campaignId, updates);
+          handleCampaignDetailsClose();
+        }}
+      />
+
+      {/* Add Resource Modal */}
+      <Modal
+        isOpen={isAddResourceModalOpen}
+        onClose={handleAddResourceClose}
+        cardStyle={{ width: 600, minHeight: 400 }}
+        showCloseButton={true}
+      >
+        <ResourceUpload
+          onUpload={(fileInfo) => {
+            // TODO: Implement actual file upload
+            console.log("Uploading file:", fileInfo);
+            handleAddResourceClose();
+          }}
+          onCancel={handleAddResourceClose}
+          className="border-0 p-0 shadow-none"
+          jwtUsername={getStoredJwt() || ""}
+          campaigns={[]} // TODO: Get campaigns from context
+          selectedCampaigns={selectedCampaigns}
+          onCampaignSelectionChange={setSelectedCampaigns}
+          campaignName={campaignName}
+          onCampaignNameChange={setCampaignName}
+          onCreateCampaign={() => {
+            setIsAddResourceModalOpen(false);
+            setIsCreateCampaignModalOpen(true);
+          }}
+          showCampaignSelection={true}
+        />
+      </Modal>
+
+      {/* Add to Campaign Modal */}
+      <Modal
+        isOpen={isAddToCampaignModalOpen}
+        onClose={handleAddToCampaignClose}
+        cardStyle={{ width: 500, maxHeight: "90vh" }}
+        showCloseButton={true}
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">
+            "{selectedFile ? selectedFile.file_name : ""}" - Add to Campaign
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Select which campaigns to add this resource to:
+          </p>
+          <div className="space-y-3">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              Available campaigns will be listed here
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                type="button"
+                onClick={handleAddToCampaignClose}
+                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  // TODO: Implement actual add to campaign logic
+                  console.log("Adding file to campaigns:", selectedFile);
+                  handleAddToCampaignClose();
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md"
+              >
+                Add to Campaigns
+              </button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit File Modal */}
+      {editingFile && (
+        <EditFileModal
+          isOpen={isEditFileModalOpen}
+          onClose={handleEditFileClose}
+          file={editingFile}
+          onUpdate={handleFileUpdate}
+        />
+      )}
     </NotificationProvider>
   );
 }

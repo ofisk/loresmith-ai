@@ -11,9 +11,12 @@ import {
 import { API_CONFIG } from "../../shared";
 import type { Campaign } from "../../types/campaign";
 import { Button } from "../button/Button";
-import { Modal } from "../modal/Modal";
-import { MultiSelect } from "../select/MultiSelect";
 import { FileStatusIndicator } from "./FileStatusIndicator";
+
+interface ResourceListProps {
+  onAddToCampaign?: (file: any) => void;
+  onEditFile?: (file: any) => void;
+}
 
 interface ResourceFile {
   id: string;
@@ -31,8 +34,6 @@ interface ResourceFileWithCampaigns extends ResourceFile {
   campaigns?: Campaign[];
 }
 
-type ResourceListProps = {};
-
 function getDisplayName(filename: string | undefined | null): string {
   if (!filename) {
     return "Unknown file";
@@ -40,21 +41,18 @@ function getDisplayName(filename: string | undefined | null): string {
   return filename;
 }
 
-export function ResourceList(_props: ResourceListProps) {
+export function ResourceList({
+  onAddToCampaign,
+  onEditFile,
+}: ResourceListProps) {
   const [files, setFiles] = useState<ResourceFileWithCampaigns[]>([]);
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [_campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Local progress map keyed by fileKey; 0..100
   const [progressByFileKey, setProgressByFileKey] = useState<
     Record<string, number>
   >({});
-  const [selectedFile, setSelectedFile] =
-    useState<ResourceFileWithCampaigns | null>(null);
-  const [isAddToCampaignModalOpen, setIsAddToCampaignModalOpen] =
-    useState(false);
-  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
-  const [addingToCampaigns, setAddingToCampaigns] = useState(false);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const refreshTimerRef = useRef<number | null>(null);
   const isFetchingRef = useRef<boolean>(false);
@@ -251,95 +249,8 @@ export function ResourceList(_props: ResourceListProps) {
     [fetchResources]
   );
 
-  const handleAddToCampaigns = async () => {
-    if (!selectedFile || selectedCampaigns.length === 0) return;
-
-    try {
-      setAddingToCampaigns(true);
-
-      const jwt = getStoredJwt();
-      if (!jwt) {
-        throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
-      }
-
-      // Add to each selected campaign
-      await Promise.all(
-        selectedCampaigns.map(async (campaignId) => {
-          const url = API_CONFIG.buildUrl(
-            API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(campaignId)
-          );
-          const body = {
-            type: "pdf",
-            id: selectedFile.file_key,
-            name: selectedFile.file_name,
-          };
-
-          const { response: addResponse, jwtExpired: addJwtExpired } =
-            await authenticatedFetchWithExpiration(url, {
-              method: "POST",
-              jwt,
-              body: JSON.stringify(body),
-            });
-
-          if (addJwtExpired) {
-            throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
-          }
-
-          if (!addResponse.ok) {
-            const errorText = await addResponse.text();
-            console.error("[ResourceList] Campaign error response:", errorText);
-            throw new Error(
-              `Failed to add resource to campaign ${campaignId}: ${addResponse.status} - ${errorText}`
-            );
-          }
-
-          // If server returns UI hint, render it immediately in chat without waiting for SSE
-          try {
-            const result = (await addResponse.json()) as any;
-            const uiHint = result?.ui_hint;
-            if (uiHint) {
-              window.dispatchEvent(
-                new CustomEvent("ui-hint", {
-                  detail: {
-                    type: uiHint.type,
-                    data: uiHint.data,
-                    origin: "campaigns:add-resource",
-                  },
-                })
-              );
-            }
-          } catch (_e) {
-            // Response may be empty (201 with separate follow-up), ignore
-          }
-        })
-      );
-
-      // Refresh the file list to show updated campaign associations
-      await fetchResources();
-      setSelectedCampaigns([]);
-      setIsAddToCampaignModalOpen(false);
-
-      // Dispatch custom event to notify shard components to refresh
-      // This will trigger shard list refresh in any open campaign shard managers
-      window.dispatchEvent(
-        new CustomEvent("resource-added-to-campaign", {
-          detail: {
-            campaignIds: selectedCampaigns,
-            fileKey: selectedFile.file_key,
-            fileName: selectedFile.file_name,
-          },
-        })
-      );
-    } catch (err) {
-      console.error("Failed to add resource to campaigns:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to add resource to campaigns"
-      );
-    } finally {
-      setAddingToCampaigns(false);
-    }
+  const handleEditFile = (file: ResourceFileWithCampaigns) => {
+    onEditFile?.(file);
   };
 
   const toggleFileExpansion = (fileKey: string) => {
@@ -720,8 +631,7 @@ export function ResourceList(_props: ResourceListProps) {
                 <div className="mt-4 space-y-2">
                   <Button
                     onClick={() => {
-                      setSelectedFile(file);
-                      setIsAddToCampaignModalOpen(true);
+                      onAddToCampaign?.(file);
                     }}
                     variant="secondary"
                     size="sm"
@@ -731,7 +641,7 @@ export function ResourceList(_props: ResourceListProps) {
                   </Button>
                   <Button
                     onClick={() => {
-                      // TODO: Implement edit functionality
+                      handleEditFile(file);
                     }}
                     variant="secondary"
                     size="sm"
@@ -745,130 +655,6 @@ export function ResourceList(_props: ResourceListProps) {
           </div>
         ))}
       </div>
-
-      <Modal
-        isOpen={isAddToCampaignModalOpen}
-        onClose={() => setIsAddToCampaignModalOpen(false)}
-        cardStyle={{ width: 500, maxHeight: "90vh" }}
-      >
-        <div className="p-6">
-          <h3 className="text-lg font-semibold mb-4">
-            "{selectedFile ? getDisplayName(selectedFile.file_name) : ""}"
-          </h3>
-
-          {campaigns.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <p className="font-medium text-gray-700 dark:text-gray-300 mb-3">
-                You haven't created any campaigns yet
-              </p>
-              <div className="text-sm text-gray-500 dark:text-gray-400 space-y-2">
-                <p>
-                  To create a campaign, chat with the LoreSmith agent! Simply
-                  ask something like:
-                </p>
-                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-left">
-                  <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    💬 Try asking:
-                  </p>
-                  <p className="text-gray-600 dark:text-gray-400">
-                    "Create a new D&D campaign called [Campaign Name]"
-                  </p>
-                  <p className="text-gray-600 dark:text-gray-400">
-                    "Help me start a new campaign about [theme/idea]"
-                  </p>
-                </div>
-                <p className="mt-3">
-                  LoreSmith will help you design the campaign together and then
-                  you can add resources to it!
-                </p>
-              </div>
-            </div>
-          ) : (
-            <>
-              {selectedFile?.campaigns && selectedFile.campaigns.length > 0 && (
-                <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/10 rounded-md">
-                  <p className="text-sm font-medium text-purple-800 dark:text-purple-300 mb-2">
-                    Linked campaigns:
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedFile.campaigns.map((campaign) => (
-                      <span
-                        key={campaign.campaignId}
-                        className="px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded"
-                      >
-                        {campaign.name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <fieldset className="mb-4">
-                <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Select campaigns
-                </legend>
-                {campaigns.filter(
-                  (campaign) =>
-                    !selectedFile?.campaigns?.some(
-                      (c) => c.campaignId === campaign.campaignId
-                    )
-                ).length === 0 ? (
-                  <div className="text-sm text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-900/20 rounded-md">
-                    This resource is already in all available campaigns.
-                  </div>
-                ) : (
-                  <MultiSelect
-                    options={campaigns
-                      .filter(
-                        (campaign) =>
-                          !selectedFile?.campaigns?.some(
-                            (c) => c.campaignId === campaign.campaignId
-                          )
-                      )
-                      .map((campaign) => ({
-                        value: campaign.campaignId,
-                        label: campaign.name,
-                      }))}
-                    selectedValues={selectedCampaigns}
-                    onSelectionChange={setSelectedCampaigns}
-                    placeholder="Choose campaigns..."
-                    closeOnSelect
-                  />
-                )}
-              </fieldset>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <Button
-                  onClick={() => setIsAddToCampaignModalOpen(false)}
-                  variant="secondary"
-                  size="sm"
-                  className="w-32 text-center justify-center"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleAddToCampaigns}
-                  disabled={
-                    selectedCampaigns.length === 0 ||
-                    campaigns.filter(
-                      (campaign) =>
-                        !selectedFile?.campaigns?.some(
-                          (c) => c.campaignId === campaign.campaignId
-                        )
-                    ).length === 0
-                  }
-                  loading={addingToCampaigns}
-                  variant="primary"
-                  size="sm"
-                  className="w-32 text-center justify-center"
-                >
-                  Add
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      </Modal>
     </div>
   );
 }
