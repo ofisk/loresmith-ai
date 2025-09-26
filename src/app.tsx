@@ -883,11 +883,11 @@ export default function Chat() {
             "{selectedFile ? selectedFile.file_name : ""}" - Add to Campaign
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Select which campaigns to add this resource to:
+            Choose which legendary adventures this tome shall join:
           </p>
           <div className="space-y-3">
             <div className="text-sm text-gray-500 dark:text-gray-400">
-              Available campaigns will be listed here
+              Your campaigns await this knowledge...
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button

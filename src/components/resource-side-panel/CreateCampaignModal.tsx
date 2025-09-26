@@ -76,7 +76,7 @@ export function CreateCampaignModal({
           Create new campaign
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Set up a new campaign for your resources
+          Set up a new campaign
         </p>
       </div>
 
@@ -85,14 +85,14 @@ export function CreateCampaignModal({
         <FormField
           id={campaignNameId}
           label="Campaign name"
-          placeholder="Enter campaign name"
+          placeholder="Name your legendary adventure..."
           value={name}
           onValueChange={(value) => setName(value)}
         />
         <FormField
           id={campaignDescriptionId}
           label="Description (optional)"
-          placeholder="Enter campaign description"
+          placeholder="Describe the world, its mysteries, and the heroes who will shape its destiny..."
           value={description}
           onValueChange={(value) => setDescription(value)}
           multiline

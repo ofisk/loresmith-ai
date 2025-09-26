@@ -34,7 +34,7 @@ export function LibrarySection({
       </button>
 
       {isOpen && (
-        <div className="border-t border-neutral-200 dark:border-neutral-700 h-96 overflow-y-auto">
+        <div className="border-t border-neutral-200 dark:border-neutral-700 max-h-80 overflow-y-auto">
           <div className="p-3">
             <button
               type="button"
