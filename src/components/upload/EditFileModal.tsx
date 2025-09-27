@@ -138,7 +138,7 @@ export function EditFileModal({
             label="Description"
             value={editedDescription}
             onValueChange={(value) => setEditedDescription(value)}
-            placeholder="Enter a description for this file..."
+            placeholder="Describe the secrets and knowledge within this ledger..."
             multiline
             rows={4}
           />
@@ -149,7 +149,7 @@ export function EditFileModal({
             label="Tags"
             value={editedTags}
             onValueChange={(value) => setEditedTags(value)}
-            placeholder="Enter tags separated by commas (e.g., campaign, npc, lore)"
+            placeholder="Label this ledger with mystical tags (e.g., dragons, magic, adventure)..."
           />
         </div>
 
