@@ -4,7 +4,6 @@
 export interface SimpleChatAgentEnv {
   ADMIN_SECRET?: string;
   Chat: DurableObjectNamespace;
-  UserFileTracker: DurableObjectNamespace;
   [key: string]: any;
 }
 

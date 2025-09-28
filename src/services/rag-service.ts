@@ -24,7 +24,7 @@ export class LibraryRAGService extends BaseRAGService {
     vectorId?: string;
   }> {
     try {
-      const file = await this.env.FILE_BUCKET.get(metadata.fileKey);
+      const file = await this.env.R2.get(metadata.fileKey);
       if (!file) {
         throw new Error("File not found in R2");
       }

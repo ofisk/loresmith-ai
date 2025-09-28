@@ -1,5 +1,6 @@
 import type { R2Bucket, VectorizeIndex } from "@cloudflare/workers-types";
 import { BaseDAOClass } from "./base-dao";
+import { getFileExistencePrompt } from "../lib/prompts/file-indexing-prompts";
 
 export interface FileMetadata {
   id: string;
@@ -49,10 +50,15 @@ export interface FileWithChunks extends ParsedFileMetadata {
 export class FileDAO extends BaseDAOClass {
   // File status constants
   static readonly STATUS = {
-    PROCESSING: "processing",
-    COMPLETED: "completed",
-    ERROR: "error",
-    UPLOADED: "uploaded",
+    // Upload flow statuses
+    UPLOADING: "uploading", // File is being uploaded to R2
+    UPLOADED: "uploaded", // File uploaded to R2, ready for AutoRAG
+    SYNCING: "syncing", // AutoRAG sync job started
+    PROCESSING: "processing", // AutoRAG job is processing the file
+    INDEXING: "indexing", // AutoRAG job completed, file is being indexed
+    COMPLETED: "completed", // File is fully indexed and searchable
+    ERROR: "error", // Error occurred at any step
+    UNINDEXED: "unindexed", // File uploaded but not indexed by AutoRAG (legacy)
   } as const;
   /**
    * Helper function to parse tags from JSON string to array
@@ -170,6 +176,25 @@ export class FileDAO extends BaseDAOClass {
     return this.queryAndParseMultipleFileMetadata(sql, [username, status]);
   }
 
+  /**
+   * Get all files stuck in processing status across all users
+   * Used for scheduled cleanup of stuck files
+   */
+  async getStuckProcessingFiles(
+    timeoutMinutes: number = 1
+  ): Promise<ParsedFileMetadata[]> {
+    const timeoutDate = new Date(Date.now() - timeoutMinutes * 60 * 1000);
+    const sql = `
+      SELECT * FROM file_metadata 
+      WHERE status = ? AND updated_at < ?
+      ORDER BY updated_at ASC
+    `;
+    return this.queryAndParseMultipleFileMetadata(sql, [
+      FileDAO.STATUS.PROCESSING,
+      timeoutDate.toISOString(),
+    ]);
+  }
+
   async updateFileMetadata(
     fileKey: string,
     updates: Partial<
@@ -249,10 +274,25 @@ export class FileDAO extends BaseDAOClass {
   async updateFileStatusByKey(fileKey: string, status: string): Promise<void> {
     const sql = `
       UPDATE file_metadata 
-      SET status = ? 
+      SET status = ?, updated_at = CURRENT_TIMESTAMP
       WHERE file_key = ?
     `;
     await this.execute(sql, [status, fileKey]);
+  }
+
+  /**
+   * Mark a file as failed due to timeout
+   */
+  async markFileAsTimeoutFailed(
+    fileKey: string,
+    reason: string = "Processing timeout"
+  ): Promise<void> {
+    const sql = `
+      UPDATE file_metadata 
+      SET status = ?, analysis_error = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE file_key = ?
+    `;
+    await this.execute(sql, [FileDAO.STATUS.ERROR, reason, fileKey]);
   }
 
   async updateFileStatus(
@@ -276,10 +316,58 @@ export class FileDAO extends BaseDAOClass {
   ): Promise<void> {
     const sql = `
       UPDATE file_metadata
-      SET status = ?, updated_at = CURRENT_TIMESTAMP
+      SET status = ?
       WHERE file_key = ? AND username = ?
     `;
     await this.execute(sql, [autoragStatus, fileKey, username]);
+  }
+
+  /**
+   * Check if a file is indexed in AutoRAG by attempting a search
+   */
+  async checkFileIndexingStatus(
+    fileKey: string,
+    _username: string,
+    ragService: any
+  ): Promise<{ isIndexed: boolean; error?: string }> {
+    try {
+      // Extract filename from fileKey for search
+      const filename = fileKey.split("/").pop() || "";
+
+      // Ask AutoRAG directly if it has information from this specific file
+      const searchResult = await ragService.aiSearch(
+        getFileExistencePrompt(filename),
+        {
+          max_results: 1,
+        }
+      );
+
+      console.log(
+        `[FileDAO] AutoRAG search result for ${filename}:`,
+        JSON.stringify(searchResult, null, 2)
+      );
+
+      // Check if the response contains "yes" (case insensitive)
+      const response =
+        searchResult?.response || searchResult?.result || searchResult;
+      const hasResults =
+        response &&
+        typeof response === "string" &&
+        response.toLowerCase().includes("yes");
+
+      console.log(`[FileDAO] Parsed response for ${filename}:`, {
+        response,
+        hasResults,
+      });
+
+      return { isIndexed: hasResults };
+    } catch (error) {
+      console.error(`Error checking indexing status for ${fileKey}:`, error);
+      return {
+        isIndexed: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
   }
 
   async getFilesPendingAutoRAG(
@@ -539,14 +627,14 @@ export class FileDAO extends BaseDAOClass {
     if (fileSize !== undefined) {
       sql = `
         UPDATE file_metadata 
-        SET status = ?, file_size = ? 
+        SET status = ?, file_size = ?, updated_at = CURRENT_TIMESTAMP
         WHERE file_key = ?
       `;
       params = [status, fileSize, fileKey];
     } else {
       sql = `
         UPDATE file_metadata 
-        SET status = ? 
+        SET status = ?, updated_at = CURRENT_TIMESTAMP
         WHERE file_key = ?
       `;
       params = [status, fileKey];
@@ -736,6 +824,13 @@ export class FileDAO extends BaseDAOClass {
       // Update the file status
       await this.updateFileRecord(job.file_key, newStatus);
     }
+  }
+
+  async getAutoRAGJob(jobId: string): Promise<any | null> {
+    const sql = `
+      SELECT * FROM autorag_jobs WHERE job_id = ?
+    `;
+    return await this.queryFirst(sql, [jobId]);
   }
 
   async getAutoRAGJobByFileKey(
@@ -957,5 +1052,67 @@ export class FileDAO extends BaseDAOClass {
     `;
 
     return this.queryAndParseMultipleFileMetadata(sql, [username]);
+  }
+
+  /**
+   * Add a file to the sync queue
+   */
+  async addToSyncQueue(
+    username: string,
+    fileKey: string,
+    fileName: string,
+    ragId: string
+  ): Promise<void> {
+    const sql = `
+      INSERT INTO sync_queue (username, file_key, file_name, rag_id, status, created_at)
+      VALUES (?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)
+    `;
+    await this.execute(sql, [username, fileKey, fileName, ragId]);
+  }
+
+  /**
+   * Get pending sync queue items for a user
+   */
+  async getSyncQueue(username: string): Promise<any[]> {
+    const sql = `
+      SELECT * FROM sync_queue 
+      WHERE username = ? AND status = 'pending'
+      ORDER BY created_at ASC
+    `;
+    return await this.queryAll(sql, [username]);
+  }
+
+  /**
+   * Remove an item from the sync queue
+   */
+  async removeFromSyncQueue(fileKey: string): Promise<void> {
+    const sql = `
+      DELETE FROM sync_queue WHERE file_key = ?
+    `;
+    await this.execute(sql, [fileKey]);
+  }
+
+  /**
+   * Check if there are any ongoing AutoRAG jobs for a user
+   */
+  async hasOngoingAutoRAGJobs(username: string): Promise<boolean> {
+    const sql = `
+      SELECT COUNT(*) as count FROM autorag_jobs 
+      WHERE username = ? AND status IN ('pending', 'processing')
+    `;
+    const result = await this.queryFirst(sql, [username]);
+    return (result as any)?.count > 0;
+  }
+
+  /**
+   * Get all pending AutoRAG jobs across all users (for scheduled polling)
+   */
+  async getAllPendingAutoRAGJobs(): Promise<any[]> {
+    const sql = `
+      SELECT * FROM autorag_jobs 
+      WHERE status IN ('pending', 'processing')
+      ORDER BY created_at ASC
+    `;
+    return await this.queryAll(sql, []);
   }
 }

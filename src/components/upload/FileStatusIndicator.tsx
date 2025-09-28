@@ -1,4 +1,9 @@
-import { CheckCircle, Spinner, XCircle } from "@phosphor-icons/react";
+import {
+  CheckCircle,
+  Spinner,
+  XCircle,
+  ArrowClockwise,
+} from "@phosphor-icons/react";
 import { useCallback, useEffect } from "react";
 import { FileDAO } from "../../dao/file-dao";
 import {
@@ -13,6 +18,9 @@ interface FileStatusIndicatorProps {
   jobId?: string;
   ragId?: string;
   tenant: string;
+  fileKey?: string;
+  fileName?: string;
+  onRetry?: (fileKey: string, fileName: string) => void;
 }
 
 export function FileStatusIndicator({
@@ -20,7 +28,10 @@ export function FileStatusIndicator({
   initialStatus = "uploaded",
   jobId: _jobId,
   ragId: _ragId,
-  tenant,
+  tenant: _tenant,
+  fileKey,
+  fileName,
+  onRetry,
 }: FileStatusIndicatorProps) {
   // No local error timeout; rely on SSE-driven updates and server state
 
@@ -40,7 +51,7 @@ export function FileStatusIndicator({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            username: tenant,
+            username: _tenant,
           }),
         }
       );
@@ -72,7 +83,7 @@ export function FileStatusIndicator({
     } catch (error) {
       console.error("Error checking file status:", error);
     }
-  }, [tenant]);
+  }, [_tenant]);
 
   // Refresh when SSE says file statuses changed
   useEffect(() => {
@@ -106,16 +117,51 @@ export function FileStatusIndicator({
     [FileDAO.STATUS.COMPLETED]: {
       icon: CheckCircle,
       color: "text-green-500",
-      text: "Completed",
-      title: "File processing completed",
+      text: "Ready",
+      title: "File is indexed and searchable",
       spinning: false,
+    },
+    [FileDAO.STATUS.UPLOADING]: {
+      icon: Spinner,
+      color: "text-blue-500",
+      text: "Uploading",
+      title: "Uploading file to storage",
+      spinning: true,
+    },
+    [FileDAO.STATUS.UPLOADED]: {
+      icon: Spinner,
+      color: "text-blue-500",
+      text: "Queued",
+      title: "File uploaded, waiting for AutoRAG processing",
+      spinning: true,
+    },
+    [FileDAO.STATUS.SYNCING]: {
+      icon: Spinner,
+      color: "text-blue-500",
+      text: "Syncing",
+      title: "Starting AutoRAG sync job",
+      spinning: true,
     },
     [FileDAO.STATUS.PROCESSING]: {
       icon: Spinner,
       color: "text-blue-500",
       text: "Processing",
-      title: "Processing with AutoRAG",
+      title: "AutoRAG is processing the file",
       spinning: true,
+    },
+    [FileDAO.STATUS.INDEXING]: {
+      icon: Spinner,
+      color: "text-blue-500",
+      text: "Indexing",
+      title: "File is being indexed for search",
+      spinning: true,
+    },
+    [FileDAO.STATUS.UNINDEXED]: {
+      icon: XCircle,
+      color: "text-orange-500",
+      text: "Not Indexed",
+      title: "File not indexed by AutoRAG - shard generation will fail",
+      spinning: false,
     },
   };
 
@@ -126,6 +172,8 @@ export function FileStatusIndicator({
     currentStatus = FileDAO.STATUS.COMPLETED;
   } else if (initialStatus === FileDAO.STATUS.ERROR) {
     currentStatus = FileDAO.STATUS.ERROR;
+  } else if (initialStatus === FileDAO.STATUS.UNINDEXED) {
+    currentStatus = FileDAO.STATUS.UNINDEXED;
   } else {
     currentStatus = FileDAO.STATUS.PROCESSING;
   }
@@ -133,16 +181,39 @@ export function FileStatusIndicator({
   const config = statusConfig[currentStatus];
   const IconComponent = config.icon;
 
+  const handleRetry = useCallback(() => {
+    if (fileKey && fileName && onRetry) {
+      onRetry(fileKey, fileName);
+    }
+  }, [fileKey, fileName, onRetry]);
+
   return (
-    <div
-      className={`flex items-center gap-1 ${config.color} ${className}`}
-      title={config.title}
-    >
-      <IconComponent
-        size={14}
-        className={config.spinning ? "animate-spin" : ""}
-      />
-      <span className="text-xs">{config.text}</span>
+    <div className={`flex items-center gap-1 ${className}`}>
+      <div
+        className={`flex items-center gap-1 ${config.color}`}
+        title={config.title}
+      >
+        <IconComponent
+          size={14}
+          className={config.spinning ? "animate-spin" : ""}
+        />
+        <span className="text-xs">{config.text}</span>
+      </div>
+
+      {/* Show retry button for failed files */}
+      {currentStatus === FileDAO.STATUS.ERROR &&
+        fileKey &&
+        fileName &&
+        onRetry && (
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="ml-1 p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+            title="Retry processing"
+          >
+            <ArrowClockwise size={12} />
+          </button>
+        )}
     </div>
   );
 }

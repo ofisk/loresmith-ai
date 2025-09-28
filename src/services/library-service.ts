@@ -1,5 +1,4 @@
 import { getDAOFactory } from "../dao/dao-factory";
-import { getLibraryRagService } from "../lib/service-factory";
 import type { Env } from "../middleware/auth";
 import type { FileMetadata } from "../types/upload";
 
@@ -229,11 +228,7 @@ export class LibraryService {
     username: string,
     options: ProcessingOptions = {}
   ): Promise<ProcessingResult> {
-    const {
-      generateMetadata = true,
-      storeEmbeddings = true,
-      updateStatus = true,
-    } = options;
+    const { updateStatus = true } = options;
 
     try {
       // Update status to processing if requested
@@ -247,13 +242,9 @@ export class LibraryService {
         throw new Error("File metadata not found");
       }
 
-      // Process the file using RAG service
-      const ragService = getLibraryRagService(this.env);
-      const result = await ragService.processFileFromR2(
-        fileKey,
-        username,
-        this.env.FILE_BUCKET,
-        fileMetadata
+      // AutoRAG automatically processes files from R2, no manual processing needed
+      console.log(
+        `[LibraryService] AutoRAG will automatically process file: ${fileKey}`
       );
 
       // Update status to processed
@@ -263,12 +254,7 @@ export class LibraryService {
 
       return {
         success: true,
-        metadata:
-          generateMetadata && result.suggestedMetadata
-            ? result.suggestedMetadata
-            : undefined,
-        vectorId:
-          storeEmbeddings && result.vectorId ? result.vectorId : undefined,
+        // AutoRAG handles metadata and embeddings automatically
       };
     } catch (error) {
       const errorInfo = this.categorizeError(error as Error);

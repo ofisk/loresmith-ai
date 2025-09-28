@@ -6,8 +6,7 @@ import {
   authenticatedFetchWithExpiration,
   getStoredJwt,
 } from "../services/auth-service";
-import { AutoRAGService } from "../services/autorag-service";
-import { API_CONFIG, AUTORAG_CONFIG } from "../shared-config";
+import { API_CONFIG } from "../shared-config";
 import { buildAutoRAGFileKey } from "../utils/file-keys";
 
 interface UseFileUploadProps {
@@ -34,16 +33,34 @@ export function useFileUpload({
       _description: string,
       _tags: string[]
     ) => {
+      // Early authentication check to prevent unnecessary logging when unauthenticated
+      const jwt = getStoredJwt();
+      if (!jwt) {
+        throw new Error("No authentication token found");
+      }
+
+      const tenant = AuthService.getUsernameFromStoredJwt();
+      if (!tenant) {
+        throw new Error("No username/tenant available for upload");
+      }
+
+      console.log("[useFileUpload] handleUpload called with:", {
+        filename,
+        fileSize: file.size,
+        fileType: file.type,
+      });
+
       const uploadId = `${filename}`;
       setCurrentUploadId(uploadId);
 
       // Emit upload started event
+      const fileKey = buildAutoRAGFileKey(tenant, filename);
+
+      console.log("[useFileUpload] Built fileKey:", fileKey);
+
       send({
         type: EVENT_TYPES.FILE_UPLOAD.STARTED,
-        fileKey: buildAutoRAGFileKey(
-          AuthService.getUsernameFromStoredJwt() || "",
-          filename
-        ),
+        fileKey,
         filename,
         source: "useFileUpload",
       } as FileUploadEvent);
@@ -52,40 +69,37 @@ export function useFileUpload({
       onUploadStart?.();
 
       try {
-        const jwt = getStoredJwt();
-        if (!jwt) {
-          throw new Error("No authentication token found");
-        }
-
-        // Extract username from JWT
-        const tenant = AuthService.getUsernameFromStoredJwt();
-        if (!tenant) {
-          throw new Error("No username/tenant available for upload");
-        }
-
-        const fileKey = buildAutoRAGFileKey(tenant, filename);
+        console.log("[useFileUpload] Starting upload process...");
+        console.log("[useFileUpload] JWT token: present");
+        console.log("[useFileUpload] Tenant:", tenant);
 
         // Step 1: Upload file directly to storage
         send({
           type: EVENT_TYPES.FILE_UPLOAD.PROGRESS,
           fileKey,
           filename,
-          progress: 25,
+          progress: 20,
+          status: "uploading",
           source: "useFileUpload",
         } as FileUploadEvent);
+
+        const uploadUrl = API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.UPLOAD.DIRECT(tenant, filename)
+        );
 
         console.log("[useFileUpload] Upload request body:", {
           tenant,
           originalName: filename,
           contentType: file.type || "application/pdf",
           fileSize: file.size,
+          uploadUrl,
+          jwt: "present",
         });
 
         // Direct upload to R2 storage
+        console.log("[useFileUpload] Starting upload request to:", uploadUrl);
         const uploadResponse = await authenticatedFetchWithExpiration(
-          API_CONFIG.buildUrl(
-            API_CONFIG.ENDPOINTS.UPLOAD.DIRECT(tenant, filename)
-          ),
+          uploadUrl,
           {
             method: "PUT",
             jwt,
@@ -95,6 +109,12 @@ export function useFileUpload({
             },
           }
         );
+
+        console.log("[useFileUpload] Upload response:", {
+          status: uploadResponse.response.status,
+          ok: uploadResponse.response.ok,
+          jwtExpired: uploadResponse.jwtExpired,
+        });
 
         if (uploadResponse.jwtExpired) {
           throw new Error("Authentication expired. Please log in again.");
@@ -107,19 +127,21 @@ export function useFileUpload({
           );
         }
 
-        // Emit upload completed event
+        // Emit upload completed event (file uploaded to R2, ready for AutoRAG)
         console.log("[useFileUpload] Emitting file upload completed event:", {
           type: EVENT_TYPES.FILE_UPLOAD.COMPLETED,
           fileKey,
           filename,
-          progress: 100,
+          progress: 40,
+          status: "uploaded",
           source: "useFileUpload",
         });
         send({
           type: EVENT_TYPES.FILE_UPLOAD.COMPLETED,
           fileKey,
           filename,
-          progress: 100,
+          progress: 40,
+          status: "uploaded",
           source: "useFileUpload",
         } as FileUploadEvent);
 
@@ -131,26 +153,12 @@ export function useFileUpload({
 
         // Call success callback
         onUploadSuccess?.(filename, fileKey);
-
-        // Trigger AutoRAG sync
-        try {
-          // Add a small delay to avoid hitting rate limits
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-
-          const ragId = AUTORAG_CONFIG.LIBRARY_RAG_ID;
-          const jobId = await AutoRAGService.triggerSync(ragId);
-
-          console.log("[useFileUpload] AutoRAG sync triggered, job_id:", jobId);
-
-          // Add a cooldown period to prevent hitting rate limits
-          setTimeout(() => {
-            // 5 second cooldown to prevent hitting rate limits
-          }, 5000);
-        } catch (syncError) {
-          console.error("[useFileUpload] AutoRAG sync error:", syncError);
-        }
       } catch (error) {
         console.error("[useFileUpload] Upload error:", error);
+        console.error("[useFileUpload] Error details:", {
+          message: error instanceof Error ? error.message : "Unknown error",
+          stack: error instanceof Error ? error.stack : undefined,
+        });
 
         // Emit upload failed event
         send({

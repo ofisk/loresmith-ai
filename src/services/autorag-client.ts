@@ -150,50 +150,10 @@ export abstract class AutoRAGClientBase {
    * @param basePath - Base path for the folders
    * @param subs - Array of subfolder names
    */
-  async ensureFolders(basePath: string, subs: string[]): Promise<void> {
+  async ensureFolders(basePath: string, _subs: string[]): Promise<void> {
     console.log(
       `[AutoRAGClientBase] Ensuring folders for base path: ${basePath}`
     );
-
-    for (const sub of subs) {
-      const folderPath = `${basePath}/${sub}/`;
-      const initMarker = `${folderPath}.init`;
-      const keepMarker = `${folderPath}.keep`;
-
-      // Create .init marker if it doesn't exist
-      if (!(await this.r2Helper.exists(initMarker))) {
-        const initContent = JSON.stringify({
-          created_at: new Date().toISOString(),
-          purpose: "folder_init_marker",
-          subfolder: sub,
-        });
-
-        await this.r2Helper.put(
-          initMarker,
-          new TextEncoder().encode(initContent).buffer,
-          "application/json"
-        );
-
-        console.log(`[AutoRAGClientBase] Created init marker: ${initMarker}`);
-      }
-
-      // Create .keep marker if it doesn't exist
-      if (!(await this.r2Helper.exists(keepMarker))) {
-        const keepContent = JSON.stringify({
-          created_at: new Date().toISOString(),
-          purpose: "folder_keep_marker",
-          subfolder: sub,
-        });
-
-        await this.r2Helper.put(
-          keepMarker,
-          new TextEncoder().encode(keepContent).buffer,
-          "application/json"
-        );
-
-        console.log(`[AutoRAGClientBase] Created keep marker: ${keepMarker}`);
-      }
-    }
   }
 
   /**

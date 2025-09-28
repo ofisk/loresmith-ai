@@ -263,4 +263,66 @@ export async function scheduled(
   // Clean up old staging files every hour
   const processor = new FileProcessingQueue(env);
   await processor.cleanupStaging();
+
+  // Clean up files stuck in processing status (1 minute timeout)
+  await cleanupStuckProcessingFiles(env);
+}
+
+/**
+ * Clean up files that have been stuck in processing status for too long
+ */
+async function cleanupStuckProcessingFiles(env: Env): Promise<void> {
+  try {
+    const { getDAOFactory } = await import("./dao/dao-factory");
+    const { FileDAO } = await import("./dao/file-dao");
+    const { notifyFileStatusUpdated } = await import("./lib/notifications");
+
+    const fileDAO = getDAOFactory(env).fileDAO;
+
+    // Get files stuck in processing for more than 1 minute
+    const stuckFiles = await fileDAO.getStuckProcessingFiles(1);
+
+    if (stuckFiles.length > 0) {
+      console.log(
+        `[ScheduledCleanup] Found ${stuckFiles.length} files stuck in processing status`
+      );
+
+      for (const file of stuckFiles) {
+        // Mark file as failed due to timeout
+        await fileDAO.markFileAsTimeoutFailed(
+          file.file_key,
+          `Processing timeout - stuck in processing for more than 1 minute`
+        );
+
+        // Send notification to user
+        try {
+          await notifyFileStatusUpdated(
+            env,
+            file.username,
+            file.file_key,
+            file.file_name,
+            FileDAO.STATUS.ERROR
+          );
+        } catch (notifyError) {
+          console.error(
+            `[ScheduledCleanup] Failed to notify user ${file.username} about timeout:`,
+            notifyError
+          );
+        }
+
+        console.log(
+          `[ScheduledCleanup] Marked file ${file.file_name} as failed due to timeout`
+        );
+      }
+
+      console.log(
+        `[ScheduledCleanup] Cleaned up ${stuckFiles.length} stuck files`
+      );
+    }
+  } catch (error) {
+    console.error(
+      "[ScheduledCleanup] Error cleaning up stuck processing files:",
+      error
+    );
+  }
 }

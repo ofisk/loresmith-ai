@@ -2,15 +2,16 @@ import type { Context } from "hono";
 import { getDAOFactory } from "../dao/dao-factory";
 import { FileDAO } from "../dao/file-dao";
 import {
-  notifyFileUploadComplete,
   notifyIndexingStarted,
   notifyIndexingCompleted,
   notifyIndexingFailed,
+  notifyFileUploadCompleteWithData,
 } from "../lib/notifications";
-import { getLibraryRagService } from "../lib/service-factory";
+import { getLibraryAutoRAGService } from "../lib/service-factory";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { completeProgress } from "../services/progress-service";
+import { SyncQueueService } from "../services/sync-queue-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -27,12 +28,8 @@ export async function handleRagSearch(c: ContextWithAuth) {
       return c.json({ error: "Query is required" }, 400);
     }
 
-    const ragService = getLibraryRagService(c.env);
-    const results = await ragService.searchContent(
-      userAuth.username,
-      query,
-      limit
-    );
+    const ragService = getLibraryAutoRAGService(c.env, userAuth.username);
+    const results = await ragService.aiSearch(query, { max_results: limit });
 
     return c.json({ results });
   } catch (error) {
@@ -58,7 +55,7 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
     let fileSize = 0;
     try {
       console.log(`[RAG] Attempting to get file from R2: ${fileKey}`);
-      const file = await c.env.FILE_BUCKET.get(fileKey);
+      const file = await c.env.R2.get(fileKey);
       if (file) {
         fileSize = file.size;
         console.log(`[RAG] File found in R2, size: ${fileSize} bytes`);
@@ -88,38 +85,37 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
           await notifyIndexingStarted(c.env, userAuth.username, filename);
         } catch (_e) {}
         // Get file from R2
-        const file = await c.env.FILE_BUCKET.get(fileKey);
+        const file = await c.env.R2.get(fileKey);
         if (!file) {
           throw new Error("File not found in R2");
         }
 
         // Process with RAG service
-        const ragService = getLibraryRagService(c.env);
-        await ragService.processFileFromR2(
-          fileKey,
-          userAuth.username,
-          c.env.FILE_BUCKET,
-          {
-            file_key: fileKey,
-            username: userAuth.username,
-            file_name: filename,
-            file_size: file.size,
-            status: "processing",
-            created_at: new Date().toISOString(),
-          }
+        console.log(
+          `[RAG] File ${filename} uploaded to R2, AutoRAG will process it`
         );
 
-        // Update database status and file size
-        await fileDAO.updateFileRecord(fileKey, "completed", file.size);
+        // Update database status and file size - mark as uploaded, not completed
+        await fileDAO.updateFileRecord(fileKey, "uploaded", file.size);
 
         // Send notifications
         try {
-          await notifyFileUploadComplete(
-            c.env,
-            userAuth.username,
-            filename,
-            file.size
+          // Get the complete file record for the notification
+          const fileRecord = await fileDAO.getFileForRag(
+            fileKey,
+            userAuth.username
           );
+          if (fileRecord) {
+            await notifyFileUploadCompleteWithData(
+              c.env,
+              userAuth.username,
+              fileRecord
+            );
+          } else {
+            console.error(
+              `[RAG] File record not found for upload completion notification: ${fileKey}`
+            );
+          }
           await notifyIndexingCompleted(c.env, userAuth.username, filename);
         } catch (error) {
           console.error(
@@ -170,7 +166,7 @@ export async function handleProcessFileFromR2ForRag(c: ContextWithAuth) {
     // Get file size from R2
     let fileSize = 0;
     try {
-      const file = await c.env.FILE_BUCKET.get(fileKey);
+      const file = await c.env.R2.get(fileKey);
       if (file) {
         fileSize = file.size;
       }
@@ -197,38 +193,38 @@ export async function handleProcessFileFromR2ForRag(c: ContextWithAuth) {
           await notifyIndexingStarted(c.env, userAuth.username, filename);
         } catch (_e) {}
         // Get file from R2
-        const file = await c.env.FILE_BUCKET.get(fileKey);
+        const file = await c.env.R2.get(fileKey);
         if (!file) {
           throw new Error("File not found in R2");
         }
 
         // Process with RAG service
-        const ragService = getLibraryRagService(c.env);
-        await ragService.processFileFromR2(
-          fileKey,
-          userAuth.username,
-          c.env.FILE_BUCKET,
-          {
-            file_key: fileKey,
-            username: userAuth.username,
-            file_name: filename,
-            file_size: file.size,
-            status: "processing",
-            created_at: new Date().toISOString(),
-          }
+        // AutoRAG will process files from R2, but it takes time
+        console.log(
+          `[RAG] File ${filename} uploaded to R2, AutoRAG will process it`
         );
 
-        // Update database status and file size
-        await fileDAO.updateFileRecord(fileKey, "completed", file.size);
+        // Update database status and file size - mark as uploaded, not completed
+        await fileDAO.updateFileRecord(fileKey, "uploaded", file.size);
 
         // Send notifications
         try {
-          await notifyFileUploadComplete(
-            c.env,
-            userAuth.username,
-            filename,
-            file.size
+          // Get the complete file record for the notification
+          const fileRecord = await fileDAO.getFileForRag(
+            fileKey,
+            userAuth.username
           );
+          if (fileRecord) {
+            await notifyFileUploadCompleteWithData(
+              c.env,
+              userAuth.username,
+              fileRecord
+            );
+          } else {
+            console.error(
+              `[RAG] File record not found for upload completion notification: ${fileKey}`
+            );
+          }
           await notifyIndexingCompleted(c.env, userAuth.username, filename);
         } catch (error) {
           console.error(
@@ -269,11 +265,12 @@ export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
     const userAuth = (c as any).userAuth;
     const { fileKey } = await c.req.json();
 
-    if (fileKey) {
-      // Process specific file
-      const ragService = getLibraryRagService(c.env);
+    console.log(
+      `[handleTriggerAutoRAGIndexing] Processing request for fileKey: ${fileKey}`
+    );
 
-      // Get file metadata
+    if (fileKey) {
+      // Check if file exists
       const fileDAO = getDAOFactory(c.env).fileDAO;
       const file = await fileDAO.getFileForRag(fileKey, userAuth.username);
 
@@ -281,38 +278,88 @@ export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
         return c.json({ error: "File not found" }, 404);
       }
 
-      // Run processing in background
-      setTimeout(async () => {
-        try {
-          await ragService.processFileFromR2(
-            fileKey,
-            userAuth.username,
-            c.env.FILE_BUCKET,
-            {
-              file_key: fileKey,
-              username: userAuth.username,
-              file_name: file.file_name as string,
-              file_size: file.file_size as number,
-              status: "processing",
-              created_at: file.created_at as string,
-            }
-          );
-          console.log(`[AutoRAG] Manual processing completed for ${fileKey}`);
-        } catch (error) {
-          console.error(
-            `[AutoRAG] Manual processing failed for ${fileKey}:`,
-            error
-          );
-        }
-      }, 100);
+      // Use sync queue service to handle AutoRAG sync intelligently
+      try {
+        console.log(
+          `[handleTriggerAutoRAGIndexing] Processing retry with sync queue for file: ${file.file_name}`
+        );
+        // Extract JWT token from Authorization header
+        const authHeader = c.req.header("Authorization");
+        const jwt = authHeader?.replace(/^Bearer\s+/i, "");
 
-      return c.json({
-        success: true,
-        message: `AutoRAG processing triggered for ${fileKey}`,
-      });
+        const result = await SyncQueueService.processFileUpload(
+          c.env,
+          userAuth.username,
+          fileKey,
+          file.file_name,
+          jwt
+        );
+
+        if (result.queued) {
+          console.log(
+            `[handleTriggerAutoRAGIndexing] File queued for retry: ${file.file_name}`
+          );
+
+          // Send notification that indexing will start soon (queued)
+          try {
+            await notifyIndexingStarted(
+              c.env,
+              userAuth.username,
+              file.file_name
+            );
+          } catch (notifyError) {
+            console.error(
+              `[handleTriggerAutoRAGIndexing] Failed to send indexing started notification:`,
+              notifyError
+            );
+          }
+
+          return c.json({
+            success: true,
+            message: `File ${file.file_name} queued for retry (sync in progress).`,
+            queued: true,
+            isIndexed: false,
+          });
+        } else {
+          console.log(
+            `[handleTriggerAutoRAGIndexing] Retry triggered immediately, job: ${result.jobId}`
+          );
+
+          // Send immediate notification that indexing has started
+          try {
+            await notifyIndexingStarted(
+              c.env,
+              userAuth.username,
+              file.file_name
+            );
+          } catch (notifyError) {
+            console.error(
+              `[handleTriggerAutoRAGIndexing] Failed to send indexing started notification:`,
+              notifyError
+            );
+          }
+
+          return c.json({
+            success: true,
+            message: `File ${file.file_name} retry started immediately. AutoRAG job ${result.jobId} is being tracked.`,
+            jobId: result.jobId,
+            queued: false,
+            isIndexed: false,
+          });
+        }
+      } catch (syncError) {
+        console.error(
+          `[handleTriggerAutoRAGIndexing] Failed to trigger AutoRAG sync for ${fileKey}:`,
+          syncError
+        );
+        return c.json({
+          success: false,
+          message: `Failed to trigger indexing: ${syncError instanceof Error ? syncError.message : "Unknown error"}`,
+          isIndexed: false,
+        });
+      }
     } else {
       // AutoRAG automatically handles indexing from R2 bucket
-      // No manual bulk processing needed
       console.log("[RAG] AutoRAG automatically indexes content from R2 bucket");
 
       return c.json({
@@ -334,9 +381,7 @@ export async function handleGetFilesForRag(c: ContextWithAuth) {
     const fileDAO = getDAOFactory(c.env).fileDAO;
     const files = await fileDAO.getFilesForRag(userAuth.username);
 
-    // Check for metadata updates from LibraryRAG
-    const ragService = getLibraryRagService(c.env);
-    await ragService.getUserFiles(userAuth.username); // This will trigger metadata updates
+    // Metadata updates are now handled by AutoRAG automatically
 
     return c.json({ files });
   } catch (error) {
@@ -388,6 +433,121 @@ export async function handleCheckAutoRAGStatus(c: ContextWithAuth) {
   }
 }
 
+// Check and update file indexing status
+export async function handleCheckFileIndexingStatus(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    const { fileKey } = await c.req.json();
+
+    if (!fileKey) {
+      return c.json({ error: "fileKey is required" }, 400);
+    }
+
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const ragService = getLibraryAutoRAGService(c.env, userAuth.username);
+
+    // Check if file is indexed
+    const { isIndexed, error } = await fileDAO.checkFileIndexingStatus(
+      fileKey,
+      userAuth.username,
+      ragService
+    );
+
+    // Update file status based on indexing result
+    if (!isIndexed) {
+      await fileDAO.updateFileAutoRAGStatus(
+        fileKey,
+        userAuth.username,
+        FileDAO.STATUS.UNINDEXED
+      );
+    } else {
+      await fileDAO.updateFileAutoRAGStatus(
+        fileKey,
+        userAuth.username,
+        FileDAO.STATUS.COMPLETED
+      );
+    }
+
+    return c.json({
+      success: true,
+      fileKey,
+      isIndexed,
+      error: error || null,
+      status: isIndexed ? FileDAO.STATUS.COMPLETED : FileDAO.STATUS.UNINDEXED,
+    });
+  } catch (error) {
+    console.error("Error checking file indexing status:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+}
+
+// Bulk check and update file indexing statuses
+export async function handleBulkCheckFileIndexingStatus(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const ragService = getLibraryAutoRAGService(c.env, userAuth.username);
+
+    // Get all files that might need checking (skip completed files as they're verified indexed)
+    const files = await fileDAO.getFilesForRag(userAuth.username);
+    const filesToCheck = files.filter(
+      (f) =>
+        f.status === FileDAO.STATUS.UPLOADED ||
+        f.status === FileDAO.STATUS.SYNCING ||
+        f.status === FileDAO.STATUS.PROCESSING ||
+        f.status === FileDAO.STATUS.INDEXING
+    );
+
+    const results = [];
+    let unindexedCount = 0;
+
+    for (const file of filesToCheck) {
+      try {
+        const { isIndexed, error } = await fileDAO.checkFileIndexingStatus(
+          file.file_key,
+          userAuth.username,
+          ragService
+        );
+
+        if (!isIndexed) {
+          await fileDAO.updateFileAutoRAGStatus(
+            file.file_key,
+            userAuth.username,
+            FileDAO.STATUS.UNINDEXED
+          );
+          unindexedCount++;
+        }
+
+        results.push({
+          fileKey: file.file_key,
+          fileName: file.file_name,
+          isIndexed,
+          error: error || null,
+        });
+      } catch (error) {
+        console.error(`Error checking file ${file.file_key}:`, error);
+        results.push({
+          fileKey: file.file_key,
+          fileName: file.file_name,
+          isIndexed: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+
+    return c.json({
+      success: true,
+      totalChecked: filesToCheck.length,
+      unindexedCount,
+      results,
+    });
+  } catch (error) {
+    console.error("Error bulk checking file indexing status:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+}
+
 export const handleDeleteFileForRag = async (c: any) => {
   try {
     const userAuth = (c as any).userAuth;
@@ -419,7 +579,7 @@ export const handleDeleteFileForRag = async (c: any) => {
 
       // Delete any remaining chunks from database
       try {
-        await fileDAO.deleteFile(fileKey, c.env.FILE_BUCKET);
+        await fileDAO.deleteFile(fileKey, c.env.R2);
         console.log("[handleDeleteFileForRag] Cleaned up chunks");
       } catch (error) {
         console.log("[handleDeleteFileForRag] Cleanup failed:", error);
@@ -427,7 +587,7 @@ export const handleDeleteFileForRag = async (c: any) => {
 
       // Try to delete from R2 anyway (in case it still exists)
       try {
-        await c.env.FILE_BUCKET.delete(fileKey);
+        await c.env.R2.delete(fileKey);
         console.log("[handleDeleteFileForRag] R2 cleanup completed");
       } catch (error) {
         console.log(
@@ -445,7 +605,7 @@ export const handleDeleteFileForRag = async (c: any) => {
     console.log("[handleDeleteFileForRag] Deleting from R2 bucket:", fileKey);
     // Delete from R2 - handle failures gracefully
     try {
-      await c.env.FILE_BUCKET.delete(fileKey);
+      await c.env.R2.delete(fileKey);
       console.log("[handleDeleteFileForRag] R2 deletion completed");
     } catch (error) {
       console.log(
@@ -457,7 +617,7 @@ export const handleDeleteFileForRag = async (c: any) => {
 
     console.log("[handleDeleteFileForRag] Deleting from database using DAO");
     // Delete all related data using DAO
-    await fileDAO.deleteFile(fileKey, c.env.FILE_BUCKET);
+    await fileDAO.deleteFile(fileKey, c.env.R2);
     console.log("[handleDeleteFileForRag] Database deletion completed");
 
     // Verify deletion

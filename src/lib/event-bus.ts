@@ -60,6 +60,7 @@ export interface FileUploadEvent extends BaseEvent {
   fileKey: string;
   filename: string;
   progress?: number;
+  status?: string;
   error?: string;
 }
 

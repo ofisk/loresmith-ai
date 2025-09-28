@@ -31,11 +31,7 @@ function getApiUrl(env?: any): string {
   }
 
   // Then try to get from process.env (Node.js environment)
-  if (
-    typeof process !== "undefined" &&
-    process?.env?.VITE_API_URL &&
-    process.env.VITE_API_URL !== "undefined"
-  ) {
+  if (process?.env?.VITE_API_URL && process.env.VITE_API_URL !== "undefined") {
     return process.env.VITE_API_URL;
   }
 
@@ -149,6 +145,8 @@ export const API_CONFIG = {
       DELETE_FILE: (fileKey: string) => `/rag/files/${fileKey}`,
       TRIGGER_INDEXING: "/rag/trigger-indexing",
       STATUS: "/rag/status",
+      CHECK_FILE_INDEXING: "/rag/check-file-indexing",
+      BULK_CHECK_FILE_INDEXING: "/rag/bulk-check-file-indexing",
     },
     LIBRARY: {
       // Library routes (mounted at /library) - these are full paths including the mount point
@@ -237,6 +235,9 @@ export const API_CONFIG = {
         `/autorag/rags/${ragId}/jobs/${jobId}/logs`,
       JOBS: (ragId: string) => `/autorag/rags/${ragId}/jobs`,
       REFRESH_ALL_FILE_STATUSES: "/autorag/refresh-all-statuses",
+      SYNC_QUEUE_STATUS: "/autorag/sync-queue-status",
+      CHECK_COMPLETED_FILES: "/autorag/check-completed-files",
+      RETRY_FILE: "/autorag/retry-file",
       // AutoRAG API URL construction helpers
       API: {
         SEARCH: (

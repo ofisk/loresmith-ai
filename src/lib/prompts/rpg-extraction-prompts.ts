@@ -28,7 +28,8 @@ CONTEXT & HINTS
 
 OUTPUT RULES
 - Output one JSON object with the top-level keys exactly as in SPEC.
-- Each array can be empty, but must exist.
+- Each predefined array can be empty, but must exist.
+- You may discover content that doesn't fit the predefined types - create a new "custom" array for these discoveries.
 - Do not invent rules outside the text; summarize faithfully.
 - Keep \`summary\` and \`one_line\` short (≤ 240 chars each).
 - Output plain JSON without any markdown formatting.
@@ -80,6 +81,10 @@ TYPES & REQUIRED MINIMUM FIELDS
 - timelines[]: { id, type:"timeline", title, phases?: string[], triggers?: string[], consequences?: string[], reset_rules?, tags?, source }
 - travel[]: { id, type:"travel", route, distance?, time?, encounters_table_ref?, costs?, checkpoints?, tags?, source }
 
+CUSTOM TYPES DISCOVERY
+If you find content that doesn't fit the predefined types above, create a "custom" array with items following this structure:
+- custom[]: { id, type: "custom_[descriptive_type]", name, summary, content_type: "brief description of what this is", details?: any, tags?, source, relations? }
+
 TOP-LEVEL RETURN SHAPE (all keys required, arrays may be empty)
 {
   "meta": { "campaignId": string, "source": { "doc": string, "pages"?: string, "anchor"?: string } },
@@ -90,10 +95,13 @@ TOP-LEVEL RETURN SHAPE (all keys required, arrays may be empty)
   "backgrounds": [], "feats": [], "subclasses": [], "rules": [], "downtime": [],
   "tables": [], "encounter_tables": [], "treasure_tables": [],
   "maps": [], "handouts": [], "puzzles": [],
-  "timelines": [], "travel": []
+  "timelines": [], "travel": [],
+  "custom": []
 }
 
-RETURN ONLY JSON.`,
+RETURN ONLY JSON.
+
+Show results for the {{RESOURCE_NAME}} file`,
 
   /**
    * Helper function to format the prompt with campaign-specific variables

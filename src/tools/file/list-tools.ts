@@ -1,10 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../app-constants";
-import {
-  getLibraryRagService,
-  getLibraryService,
-} from "../../lib/service-factory";
+import { getDAOFactory } from "../../dao/dao-factory";
+import { getLibraryService } from "../../lib/service-factory";
 import type { FileResponse } from "../../types/file";
 import { fileHelpers } from "../../types/file";
 import { createToolError, createToolSuccess } from "../utils";
@@ -53,14 +51,9 @@ export const listFiles = tool({
           "[listFiles] Running in Worker environment, calling database directly"
         );
 
-        // Call the library service directly
-        const ragService = getLibraryRagService(env);
-        const files = await ragService.searchFiles({
-          query: "",
-          userId: username,
-          limit: 20,
-          offset: 0,
-        });
+        // Get files directly from database
+        const fileDAO = getDAOFactory(env).fileDAO;
+        const files = await fileDAO.getFilesForRag(username);
 
         console.log("[listFiles] Direct database call result:", files);
 

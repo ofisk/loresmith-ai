@@ -2,7 +2,10 @@ import type { Context } from "hono";
 import { jwtVerify } from "jose";
 import { getDAOFactory } from "../dao";
 import { AgentRouter } from "../lib/agent-router";
-import { getAuthService, getLibraryRagService } from "../lib/service-factory";
+import {
+  getAuthService,
+  getLibraryAutoRAGService,
+} from "../lib/service-factory";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { AuthService } from "../services/auth-service";
@@ -77,11 +80,11 @@ export async function determineAgent(
     ? AuthService.extractUsernameFromMessage(lastUserMessage)
     : null;
 
-  // Create RAG service if we have a username
+  // Create AutoRAG service if we have a username
   let ragService = null;
   if (username) {
     try {
-      ragService = getLibraryRagService(env);
+      ragService = getLibraryAutoRAGService(env, username);
     } catch (error) {
       console.warn("Failed to initialize AutoRAG service:", error);
     }

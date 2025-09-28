@@ -10,19 +10,37 @@ export async function notifyUser(
   userId: string,
   payload: Omit<NotificationPayload, "timestamp">
 ): Promise<void> {
+  console.log(`[notifyUser] Starting notification for user: ${userId}`);
+  console.log(
+    `[notifyUser] NOTIFICATIONS binding available:`,
+    !!env.NOTIFICATIONS
+  );
+
   try {
     // Get NotificationHub Durable Object for the user
     const notificationHubId = env.NOTIFICATIONS.idFromName(`user-${userId}`);
+    console.log(
+      `[notifyUser] Created notification hub ID: ${notificationHubId.toString()}`
+    );
+
     const notificationHub = env.NOTIFICATIONS.get(notificationHubId);
+    console.log(
+      `[notifyUser] Got notification hub instance:`,
+      !!notificationHub
+    );
 
     // Create complete payload with timestamp
     const completePayload: NotificationPayload = {
       ...payload,
       timestamp: Date.now(),
     };
+    console.log(`[notifyUser] Created payload:`, completePayload);
 
     // Call the Durable Object directly instead of making an HTTP request
-    const response = await notificationHub.fetch(
+    console.log(`[notifyUser] About to call Durable Object fetch...`);
+
+    // Add a timeout to the fetch call
+    const fetchPromise = notificationHub.fetch(
       new Request("http://localhost/publish", {
         method: "POST",
         headers: {
@@ -32,18 +50,35 @@ export async function notifyUser(
       })
     );
 
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Durable Object fetch timeout")), 2000)
+    );
+
+    const response = (await Promise.race([
+      fetchPromise,
+      timeoutPromise,
+    ])) as Response;
+    console.log(
+      `[notifyUser] Durable Object response:`,
+      response.status,
+      response.statusText
+    );
+
     if (!response.ok) {
       console.error(
         `[notifyUser] Failed to send notification to ${userId}:`,
         response.status,
         response.statusText
       );
+    } else {
+      console.log(`[notifyUser] Notification sent successfully to ${userId}`);
     }
   } catch (error) {
     console.error(
       `[notifyUser] Error sending notification to ${userId}:`,
       error
     );
+    throw error; // Re-throw to see the error in the calling function
   }
 }
 
@@ -90,30 +125,45 @@ export async function notifyShardGeneration(
 }
 
 /**
- * Publish a file upload completion notification
+ * Publish a file upload completion notification with complete file data
+ * This allows UI components to update in place without refetching
  */
-export async function notifyFileUploadComplete(
+export async function notifyFileUploadCompleteWithData(
   env: Env,
   userId: string,
-  fileName: string,
-  fileSize: number
+  fileData: {
+    id: string;
+    file_key: string;
+    file_name: string;
+    file_size: number;
+    description?: string;
+    tags?: string[];
+    status: string;
+    created_at: string;
+    updated_at: string;
+  }
 ): Promise<void> {
   console.log(
-    "[notifyFileUploadComplete] Sending notification for:",
-    fileName,
+    "[notifyFileUploadCompleteWithData] Sending notification for:",
+    fileData.file_name,
     "to user:",
     userId
   );
   await notifyUser(env, userId, {
     type: NOTIFICATION_TYPES.FILE_UPLOADED,
     title: "File Upload Complete",
-    message: `✅ "${fileName}" has been uploaded successfully (${formatFileSize(fileSize)})`,
+    message: `✅ "${fileData.file_name}" has been uploaded successfully (${formatFileSize(fileData.file_size)})`,
     data: {
-      fileName,
-      fileSize,
+      // Include complete file data for in-place updates
+      completeFileData: fileData,
+      // Also include individual fields for backward compatibility
+      fileName: fileData.file_name,
+      fileSize: fileData.file_size,
     },
   });
-  console.log("[notifyFileUploadComplete] Notification sent successfully");
+  console.log(
+    "[notifyFileUploadCompleteWithData] Notification sent successfully"
+  );
 }
 
 /**
@@ -144,12 +194,31 @@ export async function notifyIndexingStarted(
   userId: string,
   fileName: string
 ): Promise<void> {
-  await notifyUser(env, userId, {
-    type: NOTIFICATION_TYPES.INDEXING_STARTED,
-    title: "Indexing Begun",
-    message: `📜 We’re scribing "${fileName}" into your library.`,
-    data: { fileName },
-  });
+  console.log(
+    `[notifyIndexingStarted] Starting notification for user: ${userId}, file: ${fileName}`
+  );
+  console.log(
+    `[notifyIndexingStarted] NOTIFICATIONS binding available:`,
+    !!env.NOTIFICATIONS
+  );
+
+  try {
+    await notifyUser(env, userId, {
+      type: NOTIFICATION_TYPES.INDEXING_STARTED,
+      title: "Indexing Begun",
+      message: `📜 We're scribing "${fileName}" into your library.`,
+      data: { fileName },
+    });
+    console.log(
+      `[notifyIndexingStarted] Notification sent successfully for user: ${userId}, file: ${fileName}`
+    );
+  } catch (error) {
+    console.error(
+      `[notifyIndexingStarted] Failed to send notification for user: ${userId}, file: ${fileName}:`,
+      error
+    );
+    throw error;
+  }
 }
 
 export async function notifyIndexingCompleted(
@@ -185,7 +254,8 @@ export async function notifyIndexingFailed(
 export async function notifyCampaignCreated(
   env: Env,
   userId: string,
-  campaignName: string
+  campaignName: string,
+  campaignDescription?: string
 ): Promise<void> {
   await notifyUser(env, userId, {
     type: NOTIFICATION_TYPES.CAMPAIGN_CREATED,
@@ -193,6 +263,7 @@ export async function notifyCampaignCreated(
     message: `🎯 Your campaign "${campaignName}" has been created successfully!`,
     data: {
       campaignName,
+      campaignDescription: campaignDescription || "",
     },
   });
 }
@@ -316,6 +387,65 @@ export async function notifyShardParseIssue(
     title: "Shard Parsing Returned No Results",
     message: `No shards could be parsed from "${fileName}".`,
     data: { campaignName, fileName, details, hidden: true },
+  });
+}
+
+/**
+ * Publish a file status update notification
+ */
+export async function notifyFileStatusUpdated(
+  env: Env,
+  userId: string,
+  fileKey: string,
+  fileName: string,
+  status: string,
+  fileSize?: number
+): Promise<void> {
+  await notifyUser(env, userId, {
+    type: NOTIFICATION_TYPES.FILE_STATUS_UPDATED,
+    title: "File Status Updated",
+    message: `📄 "${fileName}" status updated to ${status}`,
+    data: {
+      fileKey,
+      fileName,
+      status,
+      fileSize,
+    },
+  });
+}
+
+/**
+ * Publish a complete file update notification with all file data
+ * This allows UI components to update in place without refetching
+ */
+export async function notifyFileUpdated(
+  env: Env,
+  userId: string,
+  fileData: {
+    id: string;
+    file_key: string;
+    file_name: string;
+    file_size: number;
+    description?: string;
+    tags?: string[];
+    status: string;
+    created_at: string;
+    updated_at: string;
+  }
+): Promise<void> {
+  await notifyUser(env, userId, {
+    type: NOTIFICATION_TYPES.FILE_STATUS_UPDATED,
+    title: "File Updated",
+    message: `📄 "${fileData.file_name}" has been updated`,
+    data: {
+      // Include complete file data for in-place updates
+      completeFileData: fileData,
+      // Also include individual fields for backward compatibility
+      fileKey: fileData.file_key,
+      fileName: fileData.file_name,
+      status: fileData.status,
+      fileSize: fileData.file_size,
+    },
   });
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { NOTIFICATION_TYPES } from "../constants/notification-types";
 import type { CampaignEvent } from "../lib/event-bus";
 import { EVENT_TYPES, useEvent } from "../lib/event-bus";
@@ -33,16 +33,23 @@ function isValidUploadedFileInfo(
 
 interface UseCampaignManagementProps {
   isAuthenticated: boolean;
+  campaigns?: Campaign[]; // Accept campaigns from parent instead of fetching
 }
 
 export function useCampaignManagement({
   isAuthenticated,
+  campaigns: externalCampaigns = [],
 }: UseCampaignManagementProps) {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [campaignsLoading, setCampaignsLoading] = useState(false);
-  const [campaignsError, setCampaignsError] = useState<string | null>(null);
+  const [campaigns, setCampaigns] = useState<Campaign[]>(externalCampaigns);
+  const [campaignsLoading] = useState(false); // Always false since we don't fetch here
+  const [campaignsError] = useState<string | null>(null); // Always null since we don't fetch here
   const [campaignName, setCampaignName] = useState("");
   const [campaignDescription, setCampaignDescription] = useState("");
+
+  // Sync external campaigns with local state
+  useEffect(() => {
+    setCampaigns(externalCampaigns);
+  }, [externalCampaigns]);
 
   const send = useEvent();
 
@@ -84,44 +91,7 @@ export function useCampaignManagement({
     []
   );
 
-  // Fetch campaigns
-  const fetchCampaigns = useCallback(async () => {
-    if (!isAuthenticated) return;
-
-    try {
-      setCampaignsLoading(true);
-      setCampaignsError(null);
-
-      const jwt = getStoredJwt();
-      if (!isValidJwt(jwt)) {
-        setCampaignsError("No authentication token available");
-        return;
-      }
-
-      const response = await authenticatedFetchWithExpiration(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
-        { jwt }
-      );
-
-      if (!response.response.ok) {
-        throw new Error(
-          `Failed to fetch campaigns: ${response.response.status}`
-        );
-      }
-
-      const data = (await response.response.json()) as {
-        campaigns: Campaign[];
-      };
-      setCampaigns(data.campaigns || []);
-    } catch (error) {
-      console.error("Failed to fetch campaigns:", error);
-      setCampaignsError(
-        error instanceof Error ? error.message : "Failed to fetch campaigns"
-      );
-    } finally {
-      setCampaignsLoading(false);
-    }
-  }, [isAuthenticated]);
+  // Removed fetchCampaigns - campaigns are now managed by parent component
 
   const handleCreateCampaign = useCallback(
     async (name?: string, description?: string) => {
@@ -180,16 +150,13 @@ export function useCampaignManagement({
         setCampaignName("");
         setCampaignDescription("");
 
-        // Refresh campaigns list
-        await fetchCampaigns();
-
         // Show success feedback
         console.log("Campaign created successfully!");
       } catch (error) {
         console.error("Failed to create campaign:", error);
       }
     },
-    [campaignName, campaignDescription, send, fetchCampaigns]
+    [campaignName, campaignDescription, send]
   );
 
   const handleAddFileToCampaign = useCallback(
@@ -345,20 +312,11 @@ export function useCampaignManagement({
         // Reset form
         setCampaignName("");
         setCampaignDescription("");
-
-        // Refresh campaigns list
-        await fetchCampaigns();
       } catch (error) {
         console.error("Failed to create campaign for file:", error);
       }
     },
-    [
-      campaignName,
-      campaignDescription,
-      send,
-      fetchCampaigns,
-      handleAddFileToCampaign,
-    ]
+    [campaignName, campaignDescription, send, handleAddFileToCampaign]
   );
 
   const handleDeleteCampaign = useCallback(
@@ -389,9 +347,6 @@ export function useCampaignManagement({
 
         console.log("Campaign deleted successfully");
 
-        // Refresh campaigns list
-        await fetchCampaigns();
-
         // Show success feedback
         await sendNotification(
           NOTIFICATION_TYPES.SUCCESS,
@@ -408,7 +363,7 @@ export function useCampaignManagement({
         throw error;
       }
     },
-    [fetchCampaigns, sendNotification]
+    [sendNotification]
   );
 
   const handleUpdateCampaign = useCallback(
@@ -446,9 +401,6 @@ export function useCampaignManagement({
 
         console.log("Campaign updated successfully");
 
-        // Refresh campaigns list
-        await fetchCampaigns();
-
         // Show success feedback
         await sendNotification(
           NOTIFICATION_TYPES.SUCCESS,
@@ -465,7 +417,7 @@ export function useCampaignManagement({
         throw error;
       }
     },
-    [fetchCampaigns, sendNotification]
+    [sendNotification]
   );
 
   return {
@@ -476,7 +428,6 @@ export function useCampaignManagement({
     setCampaignName,
     campaignDescription,
     setCampaignDescription,
-    fetchCampaigns,
     handleCreateCampaign,
     handleAddFileToCampaign,
     handleCreateCampaignForFile,

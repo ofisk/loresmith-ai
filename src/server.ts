@@ -36,6 +36,9 @@ import {
   handleAutoRAGJobs,
   handleAutoRAGSync,
   handleRefreshAllFileStatuses,
+  handleGetSyncQueueStatus,
+  checkCompletedFilesSearchability,
+  handleRetryFile,
 } from "./routes/autorag";
 import {
   handleApproveShards,
@@ -87,6 +90,8 @@ import {
   handleProcessFileFromR2ForRag,
   handleRagSearch,
   handleTriggerAutoRAGIndexing,
+  handleCheckFileIndexingStatus,
+  handleBulkCheckFileIndexingStatus,
 } from "./routes/rag";
 
 import {
@@ -113,7 +118,6 @@ interface Env extends AuthEnv {
   VECTORIZE: VectorizeIndex;
   AI: any; // AI binding for AutoRAG
   CHAT: DurableObjectNamespace;
-  USER_FILE_TRACKER: DurableObjectNamespace;
   UPLOAD_SESSION: DurableObjectNamespace;
   NOTIFICATIONS: DurableObjectNamespace;
   ASSETS: Fetcher;
@@ -434,7 +438,7 @@ export class Chat extends AIChatAgent<Env> {
   }
 }
 
-export { NotificationHub, UserFileTracker } from "./durable-objects";
+export { NotificationHub, AutoRAGPollingDO } from "./durable-objects";
 export { UploadSessionDO };
 
 /**
@@ -516,6 +520,16 @@ app.post(
   handleTriggerAutoRAGIndexing
 );
 app.get(API_CONFIG.ENDPOINTS.RAG.STATUS, requireUserJwt);
+app.post(
+  API_CONFIG.ENDPOINTS.RAG.CHECK_FILE_INDEXING,
+  requireUserJwt,
+  handleCheckFileIndexingStatus
+);
+app.post(
+  API_CONFIG.ENDPOINTS.RAG.BULK_CHECK_FILE_INDEXING,
+  requireUserJwt,
+  handleBulkCheckFileIndexingStatus
+);
 
 // AutoRAG Routes
 app.patch(
@@ -542,6 +556,21 @@ app.post(
   API_CONFIG.ENDPOINTS.AUTORAG.REFRESH_ALL_FILE_STATUSES,
   requireUserJwt,
   handleRefreshAllFileStatuses
+);
+app.get(
+  API_CONFIG.ENDPOINTS.AUTORAG.SYNC_QUEUE_STATUS,
+  requireUserJwt,
+  handleGetSyncQueueStatus
+);
+app.post(
+  API_CONFIG.ENDPOINTS.AUTORAG.CHECK_COMPLETED_FILES,
+  requireUserJwt,
+  checkCompletedFilesSearchability
+);
+app.post(
+  API_CONFIG.ENDPOINTS.AUTORAG.RETRY_FILE,
+  requireUserJwt,
+  handleRetryFile
 );
 
 // File Analysis Routes

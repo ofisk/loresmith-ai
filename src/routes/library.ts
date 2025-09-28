@@ -2,8 +2,9 @@
 // Handles file listing, search, metadata updates, and file operations
 
 import { type Context, Hono } from "hono";
+import { getDAOFactory } from "../dao/dao-factory";
 import {
-  getLibraryRagService,
+  getLibraryAutoRAGService,
   getLibraryService,
 } from "../lib/service-factory";
 import { requireUserJwt } from "../middleware/auth";
@@ -27,13 +28,9 @@ export const handleGetFiles = async (
     const limit = parseInt(c.req.query("limit") || "20", 10);
     const offset = parseInt(c.req.query("offset") || "0", 10);
 
-    const ragService = getLibraryRagService(c.env);
-    const files = await ragService.searchFiles({
-      query: "",
-      userId,
-      limit,
-      offset,
-    });
+    // Get files directly from database instead of using old RAG service
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const files = await fileDAO.getFilesForRag(userId);
 
     console.log(`[Library] Retrieved files for user:`, {
       userId,
@@ -76,23 +73,25 @@ export const handleSearchFiles = async (
       includeSemantic,
     };
 
-    const ragService = getLibraryRagService(c.env);
-    const results = await ragService.searchFiles(searchQuery);
+    const ragService = getLibraryAutoRAGService(c.env, userId);
+    const results = await ragService.aiSearch(searchQuery.query, {
+      max_results: searchQuery.limit,
+    });
 
     console.log(`[Library] Search results:`, {
       query,
       userId,
-      resultsCount: results.length,
+      resultsCount: results?.data?.length || 0,
     });
 
     return c.json({
       success: true,
-      results,
+      results: results?.data || [],
       query,
       pagination: {
         limit,
         offset,
-        total: results.length, // TODO: Add total count
+        total: results?.data?.length || 0,
       },
     });
   } catch (error) {
@@ -144,8 +143,8 @@ export const handleGetFileDetails = async (
     const userAuth = (c as any).userAuth;
     const userId = userAuth?.username || "anonymous";
 
-    const ragService = getLibraryRagService(c.env);
-    const metadata = await ragService.getFileMetadata(fileId, userId);
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const metadata = await fileDAO.getFileForRag(fileId, userId);
 
     if (!metadata) {
       return c.json({ error: "File not found" }, 404);
@@ -170,12 +169,9 @@ export const handleUpdateFile = async (
     const userId = userAuth?.username || "anonymous";
     const updates = await c.req.json();
 
-    const ragService = getLibraryRagService(c.env);
-    const success = await ragService.updateFileMetadata(
-      fileId,
-      userId,
-      updates
-    );
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    await fileDAO.updateFileRecord(fileId, "completed");
+    const success = true;
 
     if (!success) {
       return c.json({ error: "Failed to update file metadata" }, 500);
@@ -203,15 +199,15 @@ export const handleDeleteFile = async (
     const userId = userAuth?.username || "anonymous";
 
     // Get file metadata first
-    const ragService = getLibraryRagService(c.env);
-    const metadata = await ragService.getFileMetadata(fileId, userId);
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const metadata = await fileDAO.getFileForRag(fileId, userId);
 
     if (!metadata) {
       return c.json({ error: "File not found" }, 404);
     }
 
     // Delete from R2
-    await c.env.FILE_BUCKET.delete(metadata.fileKey);
+    await c.env.R2.delete(metadata.fileKey);
 
     // Delete from D1
     await c.env.DB.prepare(
@@ -244,8 +240,8 @@ export const handleGetFileDownload = async (
     const userAuth = (c as any).userAuth;
     const userId = userAuth?.username || "anonymous";
 
-    const ragService = getLibraryRagService(c.env);
-    const metadata = await ragService.getFileMetadata(fileId, userId);
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const metadata = await fileDAO.getFileForRag(fileId, userId);
 
     if (!metadata) {
       return c.json({ error: "File not found" }, 404);
@@ -271,38 +267,21 @@ export const handleRegenerateFileMetadata = async (
     const userAuth = (c as any).userAuth;
     const userId = userAuth?.username || "anonymous";
 
-    const ragService = getLibraryRagService(c.env);
-    const metadata = await ragService.getFileMetadata(fileId, userId);
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const metadata = await fileDAO.getFileForRag(fileId, userId);
 
     if (!metadata) {
       return c.json({ error: "File not found" }, 404);
     }
 
-    // Process file for new metadata
-    const processedMetadata = await ragService.processFile(metadata);
-
-    // Update metadata
-    await ragService.updateFileMetadata(fileId, userId, {
-      description: processedMetadata.description,
-      tags: processedMetadata.tags,
-      vectorId: processedMetadata.vectorId,
-    });
-
-    console.log(`[Library] Regenerated metadata:`, {
-      fileId,
-      userId,
-      description: processedMetadata.description,
-      tags: processedMetadata.tags,
-    });
+    // AutoRAG handles metadata generation automatically, no manual processing needed
+    console.log(
+      `[Library] AutoRAG automatically handles metadata generation for file: ${metadata.filename}`
+    );
 
     return c.json({
       success: true,
-      metadata: {
-        ...metadata,
-        description: processedMetadata.description,
-        tags: processedMetadata.tags,
-        vectorId: processedMetadata.vectorId,
-      },
+      metadata,
     });
   } catch (error) {
     console.error("[Library] Error regenerating metadata:", error);

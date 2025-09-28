@@ -1,10 +1,17 @@
 import type { Context } from "hono";
+import { getDAOFactory } from "../dao/dao-factory";
 import { FileDAO } from "../dao/file-dao";
-import { notifyFileUploadComplete } from "../lib/notifications";
+import { getLibraryAutoRAGService } from "../lib/service-factory";
+import {
+  notifyFileStatusUpdated,
+  notifyFileUpdated,
+  notifyFileUploadCompleteWithData,
+} from "../lib/notifications";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { FileAnalysisOrchestrator } from "../services/file-analysis-orchestrator-service";
 import { FileAnalysisService } from "../services/file-analysis-service";
+import { SyncQueueService } from "../services/sync-queue-service";
 import { AUTORAG_CONFIG } from "../shared-config";
 
 const AUTORAG_ENDPOINTS = {
@@ -450,7 +457,7 @@ export async function handleAutoRAGJobs(c: ContextWithAuth) {
 /**
  * Check the status of a single AutoRAG job and update file status accordingly
  */
-async function checkSingleJobStatus(
+export async function checkSingleJobStatus(
   job: any,
   env: any
 ): Promise<{ status: string; updated: boolean }> {
@@ -516,18 +523,28 @@ async function checkSingleJobStatus(
         jobStatus = "unknown";
       }
 
-      // Update job status in our database
-      await fileDAO.updateAutoRAGJobStatus(job.job_id, jobStatus);
-
       // Map AutoRAG job status to our file status
       let fileStatus = "processing";
       let updated = false;
 
       if (jobStatus === "completed" || jobStatus === "success") {
-        fileStatus = "completed";
+        // Job completed - mark as completed and stop polling
+        await fileDAO.updateAutoRAGJobStatus(job.job_id, "completed");
+        fileStatus = FileDAO.STATUS.COMPLETED;
         updated = true;
+        console.log(
+          `[AutoRAG] Job completed for ${job.file_name}, marking as completed`
+        );
+
+        // Note: We don't verify searchability here to avoid infinite polling
+        // The file will become searchable eventually, and we can check that separately
       } else if (jobStatus === "failed" || jobStatus === "error") {
-        fileStatus = "error";
+        await fileDAO.updateAutoRAGJobStatus(job.job_id, "failed");
+        fileStatus = FileDAO.STATUS.ERROR;
+        updated = true;
+      } else if (jobStatus === "processing") {
+        await fileDAO.updateAutoRAGJobStatus(job.job_id, "processing");
+        fileStatus = FileDAO.STATUS.PROCESSING;
         updated = true;
       }
 
@@ -538,7 +555,33 @@ async function checkSingleJobStatus(
           `[AutoRAG] Updated file ${job.file_name} to status: ${fileStatus}`
         );
 
-        // If the job completed, emit a user notification via SSE
+        // Send status update notification with complete file data for in-place UI updates
+        try {
+          // Get the complete file record for the notification
+          const fileRecord = await fileDAO.getFileForRag(
+            job.file_key,
+            job.username
+          );
+          if (fileRecord) {
+            await notifyFileUpdated(env, job.username, fileRecord);
+          } else {
+            // Fallback to basic notification if file record not found
+            await notifyFileStatusUpdated(
+              env,
+              job.username,
+              job.file_key,
+              job.file_name,
+              fileStatus
+            );
+          }
+        } catch (notifyError) {
+          console.error(
+            `[AutoRAG] Failed to send status update notification:`,
+            notifyError
+          );
+        }
+
+        // If the job completed, emit a user notification via SSE and process sync queue
         if (fileStatus === "completed") {
           try {
             const meta = await fileDAO.getFileMetadata(job.file_key);
@@ -546,16 +589,45 @@ async function checkSingleJobStatus(
             console.log(
               `[AutoRAG] Sending FILE_UPLOADED notification for ${job.file_name} (size=${size}) to ${job.username}`
             );
-            await notifyFileUploadComplete(
-              env,
-              job.username,
-              job.file_name,
-              size
+            // Get the complete file record for the notification
+            const fileRecord = await fileDAO.getFileForRag(
+              job.file_key,
+              job.username
             );
+            if (fileRecord) {
+              await notifyFileUploadCompleteWithData(
+                env,
+                job.username,
+                fileRecord
+              );
+            } else {
+              console.error(
+                `[AutoRAG] File record not found for upload completion notification: ${job.file_key}`
+              );
+            }
           } catch (notifyError) {
             console.error(
               `[AutoRAG] Failed to send file upload notification for ${job.file_name}:`,
               notifyError
+            );
+          }
+
+          // Process sync queue for this user since a job just completed
+          try {
+            const queueResult = await SyncQueueService.processSyncQueue(
+              env,
+              job.username
+            );
+
+            if (queueResult.processed > 0) {
+              console.log(
+                `[AutoRAG] Processed ${queueResult.processed} queued items for user ${job.username}, new job: ${queueResult.jobId}`
+              );
+            }
+          } catch (queueError) {
+            console.error(
+              `[AutoRAG] Failed to process sync queue for user ${job.username}:`,
+              queueError
             );
           }
         }
@@ -712,6 +784,190 @@ export async function handleRefreshAllFileStatuses(c: ContextWithAuth) {
       {
         success: false,
         error: `Failed to refresh file statuses: ${error instanceof Error ? error.message : "Unknown error"}`,
+      },
+      500
+    );
+  }
+}
+
+/**
+ * Get sync queue status for a user
+ */
+export async function handleGetSyncQueueStatus(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    const username = userAuth.username;
+
+    console.log(`[AutoRAG] Getting sync queue status for user: ${username}`);
+
+    const status = await SyncQueueService.getQueueStatus(c.env, username);
+
+    return c.json({
+      success: true,
+      ...status,
+      message: `Found ${status.queuedCount} queued items and ${status.ongoingJobs ? "ongoing" : "no ongoing"} jobs`,
+    });
+  } catch (error) {
+    console.error("[AutoRAG] Error getting sync queue status:", error);
+    return c.json(
+      {
+        success: false,
+        error: `Failed to get sync queue status: ${error instanceof Error ? error.message : "Unknown error"}`,
+      },
+      500
+    );
+  }
+}
+
+// Check if completed files are actually searchable
+export async function checkCompletedFilesSearchability(c: Context) {
+  try {
+    const userAuth = (c as any).userAuth;
+    const fileDAO = new FileDAO(c.env.DB);
+
+    // Get all files marked as completed
+    const completedFiles = await fileDAO.getFilesByStatus(
+      userAuth.username,
+      FileDAO.STATUS.COMPLETED
+    );
+
+    if (completedFiles.length === 0) {
+      return c.json({
+        success: true,
+        message: "No completed files to check",
+        checked: 0,
+        nowSearchable: 0,
+      });
+    }
+
+    const ragService = getLibraryAutoRAGService(c.env, userAuth.username);
+
+    let nowSearchable = 0;
+
+    for (const file of completedFiles) {
+      try {
+        const result = await fileDAO.checkFileIndexingStatus(
+          file.file_key,
+          userAuth.username,
+          ragService
+        );
+        if (result.isIndexed) {
+          console.log(`[AutoRAG] File ${file.file_name} is now searchable`);
+          nowSearchable++;
+          // File is already marked as completed, no need to update status
+        } else {
+          console.log(`[AutoRAG] File ${file.file_name} still not searchable`);
+        }
+      } catch (error) {
+        console.error(
+          `[AutoRAG] Error checking file ${file.file_name}:`,
+          error
+        );
+      }
+    }
+
+    return c.json({
+      success: true,
+      message: `Checked ${completedFiles.length} completed files`,
+      checked: completedFiles.length,
+      nowSearchable,
+    });
+  } catch (error) {
+    console.error("[AutoRAG] Error checking completed files:", error);
+    return c.json(
+      {
+        success: false,
+        error: `Failed to check completed files: ${error instanceof Error ? error.message : "Unknown error"}`,
+      },
+      500
+    );
+  }
+}
+
+/**
+ * Retry processing for a failed file
+ */
+export async function handleRetryFile(c: Context): Promise<Response> {
+  try {
+    console.log(`[AutoRAG] handleRetryFile called`);
+
+    const userAuth = (c as any).userAuth as AuthPayload;
+    console.log(`[AutoRAG] userAuth:`, userAuth);
+
+    if (!userAuth) {
+      console.error(
+        `[AutoRAG] userAuth is undefined - middleware may not have run properly`
+      );
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    const { fileKey } = await c.req.json();
+
+    if (!fileKey) {
+      return c.json({ error: "fileKey is required" }, 400);
+    }
+
+    console.log(`[AutoRAG] Retry request for file: ${fileKey}`);
+
+    // Get the file record
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const file = await fileDAO.getFileForRag(fileKey, userAuth.username);
+
+    if (!file) {
+      return c.json({ error: "File not found" }, 404);
+    }
+
+    // Check if file is in error state
+    if (file.status !== FileDAO.STATUS.ERROR) {
+      return c.json({ error: "File is not in error state" }, 400);
+    }
+
+    // Reset file status to uploaded and clear error
+    await fileDAO.updateFileRecord(
+      fileKey,
+      FileDAO.STATUS.UPLOADED,
+      file.file_size
+    );
+
+    // Trigger AutoRAG processing
+    const result = await SyncQueueService.processFileUpload(
+      c.env,
+      userAuth.username,
+      fileKey,
+      file.file_name
+    );
+
+    console.log(
+      `[AutoRAG] Retry initiated for file: ${fileKey}, jobId: ${result.jobId}`
+    );
+
+    // Send notification
+    try {
+      await notifyFileStatusUpdated(
+        c.env,
+        userAuth.username,
+        fileKey,
+        file.file_name,
+        FileDAO.STATUS.UPLOADED
+      );
+    } catch (notifyError) {
+      console.error(
+        `[AutoRAG] Failed to send retry notification:`,
+        notifyError
+      );
+    }
+
+    return c.json({
+      success: true,
+      message: "File retry initiated successfully",
+      jobId: result.jobId,
+    });
+  } catch (error) {
+    console.error("[AutoRAG] Error retrying file:", error);
+    return c.json(
+      {
+        error: "Failed to retry file processing",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
       500
     );
