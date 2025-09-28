@@ -4,13 +4,8 @@ import {
   XCircle,
   ArrowClockwise,
 } from "@phosphor-icons/react";
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import { FileDAO } from "../../dao/file-dao";
-import {
-  authenticatedFetchWithExpiration,
-  getStoredJwt,
-} from "../../services/auth-service";
-import { API_CONFIG } from "../../shared-config";
 
 interface FileStatusIndicatorProps {
   className?: string;
@@ -35,75 +30,8 @@ export function FileStatusIndicator({
 }: FileStatusIndicatorProps) {
   // No local error timeout; rely on SSE-driven updates and server state
 
-  // Manual refresh function to check AutoRAG status
-  const handleRefresh = useCallback(async () => {
-    try {
-      const jwt = getStoredJwt();
-      if (!jwt) return;
-
-      // Use the new refresh all statuses endpoint from API_CONFIG
-      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
-        API_CONFIG.ENDPOINTS.AUTORAG.REFRESH_ALL_FILE_STATUSES,
-        {
-          method: "POST",
-          jwt,
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            username: _tenant,
-          }),
-        }
-      );
-
-      if (jwtExpired) {
-        console.warn(
-          "[FileStatusIndicator] JWT expired while refreshing file statuses"
-        );
-        return;
-      }
-
-      if (response.ok) {
-        const result = (await response.json()) as {
-          success: boolean;
-          updatedCount: number;
-          results: Array<{ filename: string; updated: boolean }>;
-        };
-
-        if (result.success && result.updatedCount > 0) {
-          // Trigger a custom event to refresh the ResourceList data instead of page reload
-          window.dispatchEvent(
-            new CustomEvent("file-status-updated", {
-              detail: { updatedCount: result.updatedCount },
-            })
-          );
-        } else {
-        }
-      }
-    } catch (error) {
-      console.error("Error checking file status:", error);
-    }
-  }, [_tenant]);
-
-  // Refresh when SSE says file statuses changed
-  useEffect(() => {
-    const onUpdate = (_e: Event) => {
-      handleRefresh();
-    };
-    window.addEventListener("file-status-updated", onUpdate);
-    window.addEventListener("file-changed", onUpdate as EventListener);
-    // Initial best-effort refresh for processing files
-    if (
-      initialStatus === FileDAO.STATUS.PROCESSING ||
-      initialStatus === FileDAO.STATUS.UPLOADED
-    ) {
-      handleRefresh();
-    }
-    return () => {
-      window.removeEventListener("file-status-updated", onUpdate);
-      window.removeEventListener("file-changed", onUpdate as EventListener);
-    };
-  }, [handleRefresh, initialStatus]);
+  // FileStatusIndicator now only displays status - refresh logic moved to ResourceList
+  // This prevents multiple components from making duplicate refresh-all-statuses calls
 
   // Determine what to show based on status
   const statusConfig = {

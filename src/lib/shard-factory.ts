@@ -113,51 +113,84 @@ export class ShardFactory {
     resource: CampaignResource,
     campaignId: string
   ): ShardCandidate[] {
+    const startTime = Date.now();
     const shardCandidates: ShardCandidate[] = [];
 
-    console.log(`[ShardFactory] Processing AI Search response:`, {
-      responseKeys: Object.keys(aiSearchResponse),
-      responseType: typeof aiSearchResponse,
-      resource: resource,
-      resourceKeys: resource ? Object.keys(resource) : "null",
-    });
+    console.log(
+      `[DEBUG] [ShardFactory] ===== PARSING AI SEARCH RESPONSE =====`
+    );
+    console.log(
+      `[DEBUG] [ShardFactory] Response keys:`,
+      Object.keys(aiSearchResponse)
+    );
+    console.log(
+      `[DEBUG] [ShardFactory] Response type:`,
+      typeof aiSearchResponse
+    );
+    console.log(
+      `[DEBUG] [ShardFactory] Resource:`,
+      JSON.stringify(resource, null, 2)
+    );
+    console.log(`[DEBUG] [ShardFactory] Campaign ID: ${campaignId}`);
+    console.log(
+      `[DEBUG] [ShardFactory] Timestamp: ${new Date().toISOString()}`
+    );
 
     if (!aiSearchResponse || typeof aiSearchResponse !== "object") {
       console.warn(
-        `[ShardFactory] AI Search response is null/undefined or not an object`
+        `[DEBUG] [ShardFactory] AI Search response is null/undefined or not an object`
       );
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      console.log(
+        `[DEBUG] [ShardFactory] ===== PARSING COMPLETED (NO RESPONSE) =====`
+      );
+      console.log(`[DEBUG] [ShardFactory] Duration: ${duration}ms`);
+      console.log(`[DEBUG] [ShardFactory] Status: NO_RESPONSE`);
       return [];
     }
 
     // Find all content type arrays in the response
+    console.log(
+      `[DEBUG] [ShardFactory] Searching for content types in response...`
+    );
     const foundContentTypes = Object.keys(aiSearchResponse).filter((key) => {
       const arr = (aiSearchResponse as any)[key];
       const isType = STRUCTURED_CONTENT_TYPES.includes(key as any);
       const len = Array.isArray(arr) ? arr.length : 0;
       if (isType) {
-        console.log(`[ShardFactory] Type visibility: ${key} length=${len}`);
+        console.log(
+          `[DEBUG] [ShardFactory] Found content type: ${key} with ${len} items`
+        );
       }
       return isType && Array.isArray(arr) && len > 0;
     });
 
     console.log(
-      `[ShardFactory] Found content types in AI Search response:`,
+      `[DEBUG] [ShardFactory] Found ${foundContentTypes.length} content types:`,
       foundContentTypes
     );
 
     // Process each content type
     for (const contentType of foundContentTypes) {
       const shardArray = aiSearchResponse[contentType];
-
       console.log(
-        `[ShardFactory] Processing ${shardArray.length} ${contentType} items`
+        `[DEBUG] [ShardFactory] Processing ${shardArray.length} ${contentType} items`
       );
 
       // Process each shard in the content type array
       for (let i = 0; i < shardArray.length; i++) {
         const shard = shardArray[i];
-        if (!shard || typeof shard !== "object") continue;
+        if (!shard || typeof shard !== "object") {
+          console.log(
+            `[DEBUG] [ShardFactory] Skipping invalid shard at index ${i}`
+          );
+          continue;
+        }
 
+        console.log(
+          `[DEBUG] [ShardFactory] Creating shard candidate ${i + 1}/${shardArray.length} for ${contentType}`
+        );
         const candidateUnknown: unknown = ShardFactory.createShardCandidate(
           shard,
           contentType,
@@ -168,18 +201,36 @@ export class ShardFactory {
           `${resource.id}_ai_${shardCandidates.length}`,
           { aiSearchResponse: true, index: i }
         );
+
         if (!ShardFactory.validateShardCandidate(candidateUnknown as any)) {
-          console.warn(`[ShardFactory] Candidate failed validation`);
+          console.warn(
+            `[DEBUG] [ShardFactory] Candidate ${i + 1} failed validation`
+          );
           continue;
         }
+
         const candidate = candidateUnknown as ShardCandidate;
         shardCandidates.push(candidate);
+        console.log(
+          `[DEBUG] [ShardFactory] Successfully created shard candidate ${i + 1}/${shardArray.length}`
+        );
       }
 
       console.log(
-        `[ShardFactory] Processed ${shardArray.length} ${contentType} shards from AI Search response`
+        `[DEBUG] [ShardFactory] Processed ${shardArray.length} ${contentType} shards from AI Search response`
       );
     }
+
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    console.log(`[DEBUG] [ShardFactory] ===== PARSING COMPLETED =====`);
+    console.log(`[DEBUG] [ShardFactory] Duration: ${duration}ms`);
+    console.log(
+      `[DEBUG] [ShardFactory] Total shard candidates created: ${shardCandidates.length}`
+    );
+    console.log(
+      `[DEBUG] [ShardFactory] Status: ${shardCandidates.length > 0 ? "SUCCESS" : "NO_SHARDS"}`
+    );
 
     return shardCandidates;
   }

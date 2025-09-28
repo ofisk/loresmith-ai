@@ -20,6 +20,8 @@ interface ResourceSidePanelProps {
   onAddResource?: () => void;
   onAddToCampaign?: (file: any) => void;
   onEditFile?: (file: any) => void;
+  campaignAdditionProgress?: Record<string, number>;
+  isAddingToCampaigns?: boolean;
 }
 
 export function ResourceSidePanel({
@@ -36,6 +38,8 @@ export function ResourceSidePanel({
   onAddResource,
   onAddToCampaign,
   onEditFile,
+  campaignAdditionProgress = {},
+  isAddingToCampaigns = false,
 }: ResourceSidePanelProps) {
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isCampaignsOpen, setIsCampaignsOpen] = useState(false);
@@ -89,6 +93,9 @@ export function ResourceSidePanel({
           onAddToLibrary={onAddResource || (() => {})}
           onAddToCampaign={onAddToCampaign || (() => {})}
           onEditFile={onEditFile || (() => {})}
+          campaigns={campaigns}
+          campaignAdditionProgress={campaignAdditionProgress}
+          isAddingToCampaigns={isAddingToCampaigns}
         />
       </div>
 

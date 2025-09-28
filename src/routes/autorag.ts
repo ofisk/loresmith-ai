@@ -461,7 +461,14 @@ export async function checkSingleJobStatus(
   job: any,
   env: any
 ): Promise<{ status: string; updated: boolean }> {
+  const startTime = Date.now();
   const fileDAO = new FileDAO(env.DB);
+
+  console.log(`[DEBUG] [AutoRAG] ===== CHECKING SINGLE JOB STATUS =====`);
+  console.log(`[DEBUG] [AutoRAG] Job ID: ${job.job_id}`);
+  console.log(`[DEBUG] [AutoRAG] File Name: ${job.file_name}`);
+  console.log(`[DEBUG] [AutoRAG] Current Status: ${job.status}`);
+  console.log(`[DEBUG] [AutoRAG] Timestamp: ${new Date().toISOString()}`);
 
   // Call the Cloudflare AutoRAG API to check job status
   const baseUrl = env.AUTORAG_BASE_URL;
@@ -475,12 +482,13 @@ export async function checkSingleJobStatus(
     AUTORAG_ENDPOINTS.JOB_DETAILS.replace("{jobId}", job.job_id)
   );
 
+  console.log(`[DEBUG] [AutoRAG] Job details URL: ${jobDetailsUrl}`);
   console.log(
-    `[AutoRAG] Checking job: ${job.job_id} for file: ${job.file_name}`
+    `[DEBUG] [AutoRAG] API Token present: ${env.AUTORAG_API_TOKEN ? "YES" : "NO"}`
   );
-  console.log(`[AutoRAG] Job details URL: ${jobDetailsUrl}`);
 
   try {
+    console.log(`[DEBUG] [AutoRAG] Making GET request to AutoRAG API...`);
     const jobResponse = await fetch(jobDetailsUrl, {
       method: "GET",
       headers: {
@@ -489,38 +497,60 @@ export async function checkSingleJobStatus(
       },
     });
 
-    console.log(`[AutoRAG] Job response status: ${jobResponse.status}`);
+    console.log(`[DEBUG] [AutoRAG] Job response status: ${jobResponse.status}`);
+    console.log(`[DEBUG] [AutoRAG] Job response ok: ${jobResponse.ok}`);
 
     if (jobResponse.ok) {
+      console.log(`[DEBUG] [AutoRAG] Response OK, parsing JSON...`);
       const jobResult = (await jobResponse.json()) as any;
-      console.log(`[AutoRAG] Job result:`, JSON.stringify(jobResult, null, 2));
+      console.log(
+        `[DEBUG] [AutoRAG] Job result:`,
+        JSON.stringify(jobResult, null, 2)
+      );
 
       // Extract job status from the response
       let jobStatus = jobResult.result?.status || jobResult.status;
+      console.log(`[DEBUG] [AutoRAG] Initial job status: ${jobStatus}`);
 
       // If no explicit status field, determine status from other fields
       if (!jobStatus) {
+        console.log(
+          `[DEBUG] [AutoRAG] No explicit status, determining from other fields...`
+        );
         if (jobResult.result?.ended_at) {
           // Job has ended, check if it was successful
           if (jobResult.result?.end_reason === null) {
             jobStatus = "completed";
+            console.log(
+              `[DEBUG] [AutoRAG] Job ended with no end_reason, status: completed`
+            );
           } else {
             jobStatus = "failed";
+            console.log(
+              `[DEBUG] [AutoRAG] Job ended with end_reason: ${jobResult.result?.end_reason}, status: failed`
+            );
           }
         } else if (jobResult.result?.started_at) {
           // Job has started but not ended
           jobStatus = "processing";
+          console.log(
+            `[DEBUG] [AutoRAG] Job started but not ended, status: processing`
+          );
         } else {
           // Job hasn't started yet
           jobStatus = "pending";
+          console.log(`[DEBUG] [AutoRAG] Job not started yet, status: pending`);
         }
       }
 
-      console.log(`[AutoRAG] Job ${job.job_id} status: ${jobStatus}`);
+      console.log(`[DEBUG] [AutoRAG] Final job status: ${jobStatus}`);
 
       // Ensure jobStatus is never undefined
       if (!jobStatus) {
         jobStatus = "unknown";
+        console.log(
+          `[DEBUG] [AutoRAG] Job status was undefined, set to: unknown`
+        );
       }
 
       // Map AutoRAG job status to our file status
@@ -528,31 +558,43 @@ export async function checkSingleJobStatus(
       let updated = false;
 
       if (jobStatus === "completed" || jobStatus === "success") {
+        console.log(`[DEBUG] [AutoRAG] Job completed, updating database...`);
         // Job completed - mark as completed and stop polling
         await fileDAO.updateAutoRAGJobStatus(job.job_id, "completed");
         fileStatus = FileDAO.STATUS.COMPLETED;
         updated = true;
         console.log(
-          `[AutoRAG] Job completed for ${job.file_name}, marking as completed`
+          `[DEBUG] [AutoRAG] Job completed for ${job.file_name}, marked as completed`
         );
 
         // Note: We don't verify searchability here to avoid infinite polling
         // The file will become searchable eventually, and we can check that separately
       } else if (jobStatus === "failed" || jobStatus === "error") {
+        console.log(`[DEBUG] [AutoRAG] Job failed, updating database...`);
         await fileDAO.updateAutoRAGJobStatus(job.job_id, "failed");
         fileStatus = FileDAO.STATUS.ERROR;
         updated = true;
+        console.log(
+          `[DEBUG] [AutoRAG] Job failed for ${job.file_name}, marked as error`
+        );
       } else if (jobStatus === "processing") {
+        console.log(`[DEBUG] [AutoRAG] Job processing, updating database...`);
         await fileDAO.updateAutoRAGJobStatus(job.job_id, "processing");
         fileStatus = FileDAO.STATUS.PROCESSING;
         updated = true;
+        console.log(
+          `[DEBUG] [AutoRAG] Job processing for ${job.file_name}, marked as processing`
+        );
       }
 
       // Update file status if it changed
       if (updated) {
+        console.log(
+          `[DEBUG] [AutoRAG] Status changed, updating file status...`
+        );
         await fileDAO.updateFileStatusByJobId(job.job_id, fileStatus);
         console.log(
-          `[AutoRAG] Updated file ${job.file_name} to status: ${fileStatus}`
+          `[DEBUG] [AutoRAG] Updated file ${job.file_name} to status: ${fileStatus}`
         );
 
         // Send status update notification with complete file data for in-place UI updates
@@ -633,23 +675,47 @@ export async function checkSingleJobStatus(
         }
       }
 
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      console.log(`[DEBUG] [AutoRAG] ===== JOB STATUS CHECK COMPLETED =====`);
+      console.log(`[DEBUG] [AutoRAG] Duration: ${duration}ms`);
+      console.log(`[DEBUG] [AutoRAG] Status: ${fileStatus}`);
+      console.log(`[DEBUG] [AutoRAG] Updated: ${updated}`);
+
       return { status: fileStatus, updated };
     } else {
       const errorText = await jobResponse.text();
-      console.error(
-        `[AutoRAG] Job check failed: ${jobResponse.status} - ${errorText}`
-      );
+      console.error(`[DEBUG] [AutoRAG] ===== JOB STATUS CHECK FAILED =====`);
+      console.error(`[DEBUG] [AutoRAG] Response status: ${jobResponse.status}`);
+      console.error(`[DEBUG] [AutoRAG] Error text: ${errorText}`);
 
       // Mark job as failed if we can't reach the API
+      console.log(
+        `[DEBUG] [AutoRAG] Marking job as failed due to API error...`
+      );
       await fileDAO.updateAutoRAGJobStatus(
         job.job_id,
         "error",
         `API Error: ${jobResponse.status}`
       );
+      console.log(`[DEBUG] [AutoRAG] Job marked as failed`);
       return { status: "error", updated: true };
     }
   } catch (error) {
-    console.error(`[AutoRAG] Error checking job ${job.job_id}:`, error);
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    console.error(`[DEBUG] [AutoRAG] ===== JOB STATUS CHECK ERROR =====`);
+    console.error(`[DEBUG] [AutoRAG] Duration: ${duration}ms`);
+    console.error(`[DEBUG] [AutoRAG] Job ID: ${job.job_id}`);
+    console.error(`[DEBUG] [AutoRAG] Error:`, error);
+    console.error(
+      `[DEBUG] [AutoRAG] Error message:`,
+      error instanceof Error ? error.message : String(error)
+    );
+    console.error(
+      `[DEBUG] [AutoRAG] Error stack:`,
+      error instanceof Error ? error.stack : "No stack trace"
+    );
 
     // Mark job as failed on exception
     await fileDAO.updateAutoRAGJobStatus(

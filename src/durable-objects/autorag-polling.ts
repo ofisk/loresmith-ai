@@ -215,16 +215,22 @@ export class AutoRAGPollingDO extends DurableObject {
   }
 
   private async pollJobStatus(jobId: string): Promise<void> {
+    const startTime = Date.now();
     try {
-      console.log(`[AutoRAGPollingDO] Polling job status: ${jobId}`);
+      console.log(`[DEBUG] [AutoRAGPollingDO] ===== POLLING JOB STATUS =====`);
+      console.log(`[DEBUG] [AutoRAGPollingDO] Job ID: ${jobId}`);
+      console.log(
+        `[DEBUG] [AutoRAGPollingDO] Timestamp: ${new Date().toISOString()}`
+      );
 
       // Get the job from database
+      console.log(`[DEBUG] [AutoRAGPollingDO] Fetching job from database...`);
       const fileDAO = new FileDAO((this.env as any).DB);
       const job = await fileDAO.getAutoRAGJob(jobId);
 
       if (!job) {
         console.log(
-          `[AutoRAGPollingDO] Job ${jobId} not found, stopping polling`
+          `[DEBUG] [AutoRAGPollingDO] Job ${jobId} not found in database, stopping polling`
         );
         await this.handleStopPolling(
           new Request("http://localhost/stop-polling")
@@ -232,28 +238,69 @@ export class AutoRAGPollingDO extends DurableObject {
         return;
       }
 
+      console.log(`[DEBUG] [AutoRAGPollingDO] Job found:`, {
+        jobId: job.job_id,
+        ragId: job.rag_id,
+        username: job.username,
+        fileKey: job.file_key,
+        fileName: job.file_name,
+        status: job.status,
+      });
+
       // Check job status with AutoRAG API
+      console.log(
+        `[DEBUG] [AutoRAGPollingDO] Checking job status with AutoRAG API...`
+      );
       const result = await checkSingleJobStatus(job, this.env);
+      console.log(`[DEBUG] [AutoRAGPollingDO] AutoRAG API result:`, result);
 
       if (result.updated) {
         console.log(
-          `[AutoRAGPollingDO] Job ${jobId} status updated to: ${result.status}`
+          `[DEBUG] [AutoRAGPollingDO] Job ${jobId} status updated to: ${result.status}`
         );
 
         if (result.status === "completed" || result.status === "failed") {
           console.log(
-            `[AutoRAGPollingDO] Job ${jobId} finished, stopping polling`
+            `[DEBUG] [AutoRAGPollingDO] Job ${jobId} finished with status: ${result.status}, stopping polling`
           );
           await this.handleStopPolling(
             new Request("http://localhost/stop-polling")
           );
 
           // Process the sync queue for this user
+          console.log(
+            `[DEBUG] [AutoRAGPollingDO] Processing sync queue for user: ${job.username}`
+          );
           await this.processSyncQueue();
         }
+      } else {
+        console.log(
+          `[DEBUG] [AutoRAGPollingDO] Job ${jobId} status unchanged, continuing polling`
+        );
       }
+
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      console.log(`[DEBUG] [AutoRAGPollingDO] ===== POLLING COMPLETED =====`);
+      console.log(`[DEBUG] [AutoRAGPollingDO] Duration: ${duration}ms`);
+      console.log(
+        `[DEBUG] [AutoRAGPollingDO] Status: ${result.updated ? "UPDATED" : "NO_CHANGE"}`
+      );
     } catch (error) {
-      console.error(`[AutoRAGPollingDO] Error polling job ${jobId}:`, error);
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      console.error(`[DEBUG] [AutoRAGPollingDO] ===== POLLING FAILED =====`);
+      console.error(`[DEBUG] [AutoRAGPollingDO] Duration: ${duration}ms`);
+      console.error(`[DEBUG] [AutoRAGPollingDO] Job ID: ${jobId}`);
+      console.error(`[DEBUG] [AutoRAGPollingDO] Error:`, error);
+      console.error(
+        `[DEBUG] [AutoRAGPollingDO] Error message:`,
+        error instanceof Error ? error.message : String(error)
+      );
+      console.error(
+        `[DEBUG] [AutoRAGPollingDO] Error stack:`,
+        error instanceof Error ? error.stack : "No stack trace"
+      );
     }
   }
 

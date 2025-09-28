@@ -16,19 +16,27 @@ export class SyncQueueService {
     fileName: string,
     jwt?: string
   ): Promise<{ queued: boolean; jobId?: string; message: string }> {
-    console.log(
-      `[SyncQueue] processFileUpload called for ${fileName} (${fileKey})`
-    );
+    const startTime = Date.now();
+    console.log(`[DEBUG] [SyncQueue] ===== PROCESSING FILE UPLOAD =====`);
+    console.log(`[DEBUG] [SyncQueue] File: ${fileName}`);
+    console.log(`[DEBUG] [SyncQueue] File Key: ${fileKey}`);
+    console.log(`[DEBUG] [SyncQueue] User: ${username}`);
+    console.log(`[DEBUG] [SyncQueue] JWT Present: ${jwt ? "YES" : "NO"}`);
+    console.log(`[DEBUG] [SyncQueue] Timestamp: ${new Date().toISOString()}`);
+
     const fileDAO = new FileDAO(env.DB);
     const ragId = AUTORAG_CONFIG.LIBRARY_RAG_ID;
-    console.log(`[SyncQueue] Using ragId: ${ragId}`);
+    console.log(`[DEBUG] [SyncQueue] Using ragId: ${ragId}`);
 
     // Check if there are any ongoing AutoRAG jobs for this user
-    console.log(`[SyncQueue] Checking for ongoing jobs for user: ${username}`);
+    console.log(
+      `[DEBUG] [SyncQueue] Checking for ongoing jobs for user: ${username}`
+    );
     const hasOngoingJobs = await fileDAO.hasOngoingAutoRAGJobs(username);
-    console.log(`[SyncQueue] Has ongoing jobs: ${hasOngoingJobs}`);
+    console.log(`[DEBUG] [SyncQueue] Has ongoing jobs: ${hasOngoingJobs}`);
 
     if (hasOngoingJobs) {
+      console.log(`[DEBUG] [SyncQueue] Ongoing jobs detected, queuing file...`);
       // Queue via Durable Object if a job is already in progress
       const queueResult = await SyncQueueService.queueFileForSync(
         env,
@@ -38,9 +46,18 @@ export class SyncQueueService {
         ragId
       );
 
+      console.log(`[DEBUG] [SyncQueue] Queue result:`, queueResult);
       console.log(
-        `[SyncQueue] File ${fileName} ${queueResult.queued ? "queued" : "processing immediately"} for user ${username}`
+        `[DEBUG] [SyncQueue] File ${fileName} ${queueResult.queued ? "queued" : "processing immediately"} for user ${username}`
       );
+
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      console.log(
+        `[DEBUG] [SyncQueue] ===== FILE UPLOAD PROCESSING COMPLETED (QUEUED) =====`
+      );
+      console.log(`[DEBUG] [SyncQueue] Duration: ${duration}ms`);
+      console.log(`[DEBUG] [SyncQueue] Status: QUEUED`);
 
       return {
         queued: queueResult.queued,
@@ -49,15 +66,28 @@ export class SyncQueueService {
           : `File ${fileName} indexing started immediately`,
       };
     } else {
+      console.log(
+        `[DEBUG] [SyncQueue] No ongoing jobs, triggering immediate sync...`
+      );
       // No ongoing jobs, trigger sync immediately
       try {
         console.log(
-          `[SyncQueue] No ongoing jobs, triggering immediate sync for ${fileName}`
+          `[DEBUG] [SyncQueue] Calling AutoRAGService.triggerSync...`
         );
+        console.log(`[DEBUG] [SyncQueue] triggerSync params:`, {
+          ragId,
+          offset: 0,
+          jwtPresent: jwt ? "YES" : "NO",
+          envPresent: env ? "YES" : "NO",
+        });
+
         const jobId = await AutoRAGService.triggerSync(ragId, 0, jwt, env);
-        console.log(`[SyncQueue] AutoRAG sync triggered, jobId: ${jobId}`);
+        console.log(
+          `[DEBUG] [SyncQueue] AutoRAG sync triggered successfully, jobId: ${jobId}`
+        );
 
         // Store the job for tracking
+        console.log(`[DEBUG] [SyncQueue] Creating AutoRAG job record...`);
         await fileDAO.createAutoRAGJob(
           jobId,
           ragId,
@@ -65,16 +95,26 @@ export class SyncQueueService {
           fileKey,
           fileName
         );
+        console.log(`[DEBUG] [SyncQueue] AutoRAG job record created`);
 
         // Update file status to syncing (AutoRAG sync job started)
+        console.log(`[DEBUG] [SyncQueue] Updating file status to SYNCING...`);
         await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.SYNCING);
+        console.log(`[DEBUG] [SyncQueue] File status updated to SYNCING`);
 
         // Start immediate polling for this job via Durable Object
+        console.log(`[DEBUG] [SyncQueue] Starting polling for job...`);
         await SyncQueueService.startPollingForJob(env, jobId, username);
+        console.log(`[DEBUG] [SyncQueue] Polling started for job: ${jobId}`);
 
+        const endTime = Date.now();
+        const duration = endTime - startTime;
         console.log(
-          `[SyncQueue] Triggered immediate sync for file ${fileName}, job: ${jobId}`
+          `[DEBUG] [SyncQueue] ===== FILE UPLOAD PROCESSING COMPLETED (IMMEDIATE) =====`
         );
+        console.log(`[DEBUG] [SyncQueue] Duration: ${duration}ms`);
+        console.log(`[DEBUG] [SyncQueue] Status: IMMEDIATE SYNC STARTED`);
+        console.log(`[DEBUG] [SyncQueue] Job ID: ${jobId}`);
 
         return {
           queued: false,

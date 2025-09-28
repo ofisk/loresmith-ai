@@ -11,13 +11,14 @@ import loresmith from "@/assets/loresmith.png";
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { HelpButton } from "@/components/help/HelpButton";
-import { NotificationBell } from "./components/notifications/NotificationBell";
-import { useNotifications } from "./components/notifications/NotificationProvider";
+import { TopBarNotifications } from "./components/notifications/TopBarNotifications";
+import { NOTIFICATION_TYPES } from "./constants/notification-types";
 import { ResourceSidePanel } from "@/components/resource-side-panel";
 import { CreateCampaignModal } from "@/components/resource-side-panel/CreateCampaignModal";
 import { CampaignDetailsModal } from "@/components/resource-side-panel/CampaignDetailsModal";
 import { EditFileModal } from "@/components/upload/EditFileModal";
 import { ResourceUpload } from "@/components/upload/ResourceUpload";
+import { MultiSelect } from "@/components/select/MultiSelect";
 import { Modal } from "@/components/modal/Modal";
 import { ChatInput } from "@/components/input/ChatInput";
 import { ThinkingSpinner } from "@/components/thinking-spinner";
@@ -25,19 +26,18 @@ import { Toggle } from "@/components/toggle/Toggle";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
 import { WelcomeMessage } from "./components/chat/WelcomeMessage";
-import { NotificationProvider } from "./components/notifications/NotificationProvider";
-import { JWT_STORAGE_KEY } from "./app-constants";
 import { useJwtExpiration } from "./hooks/useJwtExpiration";
 import { useFileUpload } from "./hooks/useFileUpload";
 import { useCampaigns } from "./hooks/useCampaigns";
-import {
-  AuthService,
-  authenticatedFetchWithExpiration,
-} from "./services/auth-service";
+import { useLocalNotifications } from "./hooks/useLocalNotifications";
+import { useModalState } from "./hooks/useModalState";
+import { useAppAuthentication } from "./hooks/useAppAuthentication";
+import { useCampaignAddition } from "./hooks/useCampaignAddition";
 import { useUiHints } from "./hooks/useUiHints";
 import { useShardRenderGate } from "./hooks/useShardRenderGate";
 import { API_CONFIG } from "./shared-config";
 import { getHelpContent } from "./utils/helpContent";
+import { authenticatedFetchWithExpiration } from "./services/auth-service";
 
 import type { campaignTools } from "./tools/campaign";
 import type { fileTools } from "./tools/file";
@@ -81,59 +81,34 @@ function getSessionId(): string {
   return newSessionId;
 }
 
-function TopBarNotifications() {
-  const { activeNotifications, dismissNotification, clearActiveNotifications } =
-    useNotifications();
-
-  return (
-    <div className="ml-1">
-      <NotificationBell
-        notifications={activeNotifications}
-        onDismiss={(notificationId) => {
-          const ts = parseInt(notificationId.split("-")[0], 10);
-          dismissNotification(ts);
-        }}
-        onDismissAll={clearActiveNotifications}
-      />
-    </div>
-  );
-}
-
 export default function Chat() {
   const chatContainerId = useId();
 
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
-
-  // Authentication state management
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [username, setUsername] = useState<string>("");
-  const [storedOpenAIKey, setStoredOpenAIKey] = useState<string>("");
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [triggerFileUpload, setTriggerFileUpload] = useState(false);
-  const [isCreateCampaignModalOpen, setIsCreateCampaignModalOpen] =
-    useState(false);
-  const [campaignName, setCampaignName] = useState("");
-  const [campaignDescription, setCampaignDescription] = useState("");
-  const [isCampaignDetailsModalOpen, setIsCampaignDetailsModalOpen] =
-    useState(false);
-  const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
-  const [isAddResourceModalOpen, setIsAddResourceModalOpen] = useState(false);
-  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
-  const [isAddToCampaignModalOpen, setIsAddToCampaignModalOpen] =
-    useState(false);
-  const [selectedFile, setSelectedFile] = useState<any>(null);
-  const [isEditFileModalOpen, setIsEditFileModalOpen] = useState(false);
-  const [editingFile, setEditingFile] = useState<any>(null);
 
-  // Campaign management hook
   const { createCampaign, campaigns } = useCampaigns();
+  const {
+    allNotifications,
+    addLocalNotification,
+    dismissNotification,
+    clearAllNotifications,
+  } = useLocalNotifications();
+  const modalState = useModalState();
+  const authState = useAppAuthentication();
+  const { campaignAdditionProgress, isAddingToCampaigns, addFileToCampaigns } =
+    useCampaignAddition();
 
   // File upload hook
   const { handleUpload } = useFileUpload({
     onUploadSuccess: (filename, fileKey) => {
       console.log("Upload successful:", filename, fileKey);
+      addLocalNotification(
+        NOTIFICATION_TYPES.SUCCESS,
+        "File Uploaded Successfully",
+        `"${filename}" has been uploaded and is being processed.`
+      );
     },
     onUploadStart: () => {
       console.log("Upload started");
@@ -145,116 +120,26 @@ export default function Chat() {
     setTriggerFileUpload(false);
   }, []);
 
-  // Handle create campaign modal
-  const handleCreateCampaign = useCallback(() => {
-    setIsCreateCampaignModalOpen(true);
-  }, []);
-
-  const handleCreateCampaignClose = useCallback(() => {
-    setIsCreateCampaignModalOpen(false);
-    setCampaignName("");
-    setCampaignDescription("");
-  }, []);
-
-  const handleCampaignClick = useCallback((campaign: any) => {
-    setSelectedCampaign(campaign);
-    setIsCampaignDetailsModalOpen(true);
-  }, []);
-
-  const handleCampaignDetailsClose = useCallback(() => {
-    setIsCampaignDetailsModalOpen(false);
-    setSelectedCampaign(null);
-  }, []);
-
-  const handleAddResource = useCallback(() => {
-    setIsAddResourceModalOpen(true);
-  }, []);
-
-  const handleAddResourceClose = useCallback(() => {
-    setIsAddResourceModalOpen(false);
-  }, []);
-
-  const handleAddToCampaign = useCallback((file: any) => {
-    setSelectedFile(file);
-    setIsAddToCampaignModalOpen(true);
-  }, []);
-
-  const handleAddToCampaignClose = useCallback(() => {
-    setIsAddToCampaignModalOpen(false);
-    setSelectedFile(null);
-  }, []);
-
-  const handleEditFile = useCallback((file: any) => {
-    setEditingFile(file);
-    setIsEditFileModalOpen(true);
-  }, []);
-
-  const handleEditFileClose = useCallback(() => {
-    setIsEditFileModalOpen(false);
-    setEditingFile(null);
-  }, []);
-
   const handleFileUpdate = useCallback(
     (updatedFile: any) => {
       // TODO: Implement file update logic
       console.log("File updated:", updatedFile);
-      handleEditFileClose();
+      modalState.handleEditFileClose();
     },
-    [handleEditFileClose]
+    [modalState]
   );
-
-  // Get stored JWT for user operations
-  const getStoredJwt = useCallback((): string | null => {
-    return localStorage.getItem(JWT_STORAGE_KEY);
-  }, []);
-
-  // Check for stored OpenAI key
-  const checkStoredOpenAIKey = useCallback(async (username: string) => {
-    try {
-      const response = await fetch(
-        `/get-openai-key?username=${encodeURIComponent(username)}`
-      );
-      const result = (await response.json()) as {
-        hasKey?: boolean;
-        apiKey?: string;
-      };
-      if (response.ok && result.hasKey) {
-        setStoredOpenAIKey(result.apiKey || "");
-        setIsAuthenticated(true);
-      } else {
-        // No stored key found, show the auth modal immediately
-        setShowAuthModal(true);
-        setIsAuthenticated(false);
-      }
-    } catch (error) {
-      console.error("Error checking stored OpenAI key:", error);
-      // Show modal on error as well
-      setShowAuthModal(true);
-      setIsAuthenticated(false);
-    }
-  }, []);
 
   // Check authentication status on mount
   useEffect(() => {
-    const payload = AuthService.getJwtPayload();
-    if (payload?.username) {
-      setUsername(payload.username);
-      // Check if JWT is expired
-      const jwt = getStoredJwt();
-      if (jwt && AuthService.isJwtExpired(jwt)) {
-        // JWT expired, show auth modal
-        setShowAuthModal(true);
-        setIsAuthenticated(false);
-      } else {
-        // JWT valid, check if we have stored OpenAI key
-        checkStoredOpenAIKey(payload.username);
+    const checkAuth = async () => {
+      const shouldShowAuthModal =
+        !(await authState.checkAuthenticationStatus());
+      if (shouldShowAuthModal) {
+        modalState.setShowAuthModal(true);
       }
-    } else {
-      // No JWT, show auth modal
-      setShowAuthModal(true);
-      setIsAuthenticated(false);
-    }
-  }, [checkStoredOpenAIKey, getStoredJwt]);
+    };
+    checkAuth();
+  }, [authState, modalState]);
 
   // Get session ID for this browser session
   const sessionId = getSessionId();
@@ -267,108 +152,31 @@ export default function Chat() {
   });
 
   // Handle authentication submission
-  const handleAuthenticationSubmit = async (
-    username: string,
-    adminKey: string,
-    openaiApiKey: string
-  ) => {
-    try {
-      const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            username,
-            adminSecret: adminKey?.trim() || undefined, // Make admin key optional
-            openaiApiKey,
-          }),
-        }
-      );
-
-      const result = (await response.json()) as {
-        success?: boolean;
-        token?: string;
-        error?: string;
-      };
-
-      if (response.ok && result.token) {
-        // Store JWT token
-        AuthService.storeJwt(result.token);
-
-        // Update stored OpenAI key
-        setStoredOpenAIKey(openaiApiKey);
-
-        // Set authentication state
-        setIsAuthenticated(true);
-
-        // Close modal
-        setShowAuthModal(false);
-      } else {
-        throw new Error(result.error || "Authentication failed");
+  const handleAuthenticationSubmit = useCallback(
+    async (username: string, adminKey: string, openaiApiKey: string) => {
+      try {
+        await authState.handleAuthenticationSubmit(
+          username,
+          adminKey,
+          openaiApiKey
+        );
+        modalState.setShowAuthModal(false);
+      } catch (error) {
+        throw error;
       }
-    } catch (error) {
-      console.error("Error during authentication:", error);
-      throw error;
-    }
-  };
+    },
+    [authState, modalState]
+  );
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
-      // Call the logout endpoint
-      const response = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.LOGOUT),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (response.ok) {
-        // Clear local JWT storage
-        AuthService.clearJwt();
-
-        // Reset authentication state
-        setIsAuthenticated(false);
-        setUsername("");
-        setShowUserMenu(false);
-
-        // Optionally show auth modal again
-        setShowAuthModal(true);
-      } else {
-        throw new Error("Logout failed");
-      }
+      await authState.handleLogout();
+      modalState.setShowAuthModal(true);
     } catch (error) {
       console.error("Logout error:", error);
-      console.error("Logout failed. Please try again.");
-
-      // Force clear local state even if server call failed
-      AuthService.clearJwt();
-      setIsAuthenticated(false);
-      setUsername("");
-      setShowUserMenu(false);
-      setShowAuthModal(true);
+      modalState.setShowAuthModal(true);
     }
-  };
-
-  // Close user menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        showUserMenu &&
-        !(event.target as Element).closest(".user-menu-container")
-      ) {
-        setShowUserMenu(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showUserMenu]);
+  }, [authState, modalState]);
 
   const agent = useAgent({
     agent: "chat",
@@ -391,8 +199,7 @@ export default function Chat() {
     onFinish: (result) => {
       // Check if the response indicates authentication is required
       if (result.content?.includes("AUTHENTICATION_REQUIRED:")) {
-        setShowAuthModal(true);
-      } else {
+        modalState.setShowAuthModal(true);
       }
 
       // Check if the agent performed file operations that require UI refresh
@@ -414,8 +221,7 @@ export default function Chat() {
         error.message.includes("AUTHENTICATION_REQUIRED:") ||
         error.message.includes("OpenAI API key required")
       ) {
-        setShowAuthModal(true);
-      } else {
+        modalState.setShowAuthModal(true);
       }
     },
   });
@@ -451,7 +257,7 @@ export default function Chat() {
 
   // Function to handle suggested prompts
   const handleSuggestionSubmit = (suggestion: string) => {
-    const jwt = getStoredJwt();
+    const jwt = authState.getStoredJwt();
 
     // Always send the message to the agent - let the agent handle auth requirements
     append({
@@ -487,7 +293,7 @@ export default function Chat() {
 
   // Handle help button actions
   const handleHelpAction = (action: string) => {
-    const jwt = getStoredJwt();
+    const jwt = authState.getStoredJwt();
     const response = getHelpContent(action);
     append({
       role: "assistant",
@@ -532,7 +338,7 @@ export default function Chat() {
     e.preventDefault();
     if (!agentInput.trim()) return;
 
-    const jwt = getStoredJwt();
+    const jwt = authState.getStoredJwt();
 
     // Always send the message to the agent - let the agent handle auth requirements
     // The agent will detect missing keys and trigger the auth modal via onFinish callback
@@ -571,7 +377,7 @@ export default function Chat() {
       e.preventDefault();
       if (!agentInput.trim()) return;
 
-      const jwt = getStoredJwt();
+      const jwt = authState.getStoredJwt();
 
       // Always send the message to the agent - let the agent handle auth requirements
       // The agent will detect missing keys and trigger the auth modal via onFinish callback
@@ -602,7 +408,7 @@ export default function Chat() {
     onUiHint: async ({ type, data }) => {
       if (type === "shards_ready" && data?.campaignId) {
         try {
-          const jwt = getStoredJwt();
+          const jwt = authState.getStoredJwt();
           if (!jwt) return;
           const { response, jwtExpired } =
             await authenticatedFetchWithExpiration(
@@ -647,12 +453,12 @@ export default function Chat() {
     )
   ) as string[];
   const { shouldRender: shouldRenderShardUI } = useShardRenderGate(
-    getStoredJwt,
+    authState.getStoredJwt,
     campaignIdsForRender
   );
 
   return (
-    <NotificationProvider isAuthenticated={isAuthenticated}>
+    <>
       <div className="h-[100vh] w-full p-6 flex justify-center items-center bg-fixed overflow-hidden">
         <div className="h-[calc(100vh-3rem)] w-full mx-auto max-w-[1400px] flex flex-col shadow-2xl rounded-2xl overflow-hidden relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950">
           {/* Top Header - LoreSmith Branding */}
@@ -696,25 +502,31 @@ export default function Chat() {
             </Button>
 
             {/* Notifications button styled like other top bar buttons */}
-            <TopBarNotifications />
+            <TopBarNotifications
+              notifications={allNotifications}
+              onDismiss={dismissNotification}
+              onDismissAll={clearAllNotifications}
+            />
           </div>
 
           {/* Main Content Area */}
           <div className="flex-1 flex">
             {/* Resource Side Panel */}
             <ResourceSidePanel
-              isAuthenticated={isAuthenticated}
+              isAuthenticated={authState.isAuthenticated}
               campaigns={campaigns}
               onLogout={handleLogout}
-              showUserMenu={showUserMenu}
-              setShowUserMenu={setShowUserMenu}
+              showUserMenu={authState.showUserMenu}
+              setShowUserMenu={authState.setShowUserMenu}
               triggerFileUpload={triggerFileUpload}
               onFileUploadTriggered={handleFileUploadTriggered}
-              onCreateCampaign={handleCreateCampaign}
-              onCampaignClick={handleCampaignClick}
-              onAddResource={handleAddResource}
-              onAddToCampaign={handleAddToCampaign}
-              onEditFile={handleEditFile}
+              onCreateCampaign={modalState.handleCreateCampaign}
+              onCampaignClick={modalState.handleCampaignClick}
+              onAddResource={modalState.handleAddResource}
+              onAddToCampaign={modalState.handleAddToCampaign}
+              onEditFile={modalState.handleEditFile}
+              campaignAdditionProgress={campaignAdditionProgress}
+              isAddingToCampaigns={isAddingToCampaigns}
             />
 
             {/* Chat Area */}
@@ -813,30 +625,30 @@ export default function Chat() {
       </div>
 
       <BlockingAuthenticationModal
-        isOpen={showAuthModal}
-        username={username}
-        storedOpenAIKey={storedOpenAIKey}
+        isOpen={modalState.showAuthModal}
+        username={authState.username}
+        storedOpenAIKey={authState.storedOpenAIKey}
         onSubmit={handleAuthenticationSubmit}
       />
 
       {/* Create Campaign Modal */}
       <Modal
-        isOpen={isCreateCampaignModalOpen}
-        onClose={handleCreateCampaignClose}
+        isOpen={modalState.isCreateCampaignModalOpen}
+        onClose={modalState.handleCreateCampaignClose}
         cardStyle={{ width: 520, minHeight: 320 }}
         showCloseButton={true}
       >
         <CreateCampaignModal
-          isOpen={isCreateCampaignModalOpen}
-          onClose={handleCreateCampaignClose}
-          campaignName={campaignName}
-          onCampaignNameChange={setCampaignName}
-          campaignDescription={campaignDescription}
-          onCampaignDescriptionChange={setCampaignDescription}
+          isOpen={modalState.isCreateCampaignModalOpen}
+          onClose={modalState.handleCreateCampaignClose}
+          campaignName={modalState.campaignName}
+          onCampaignNameChange={modalState.setCampaignName}
+          campaignDescription={modalState.campaignDescription}
+          onCampaignDescriptionChange={modalState.setCampaignDescription}
           onCreateCampaign={async (name, description) => {
             try {
               await createCampaign(name, description);
-              handleCreateCampaignClose();
+              modalState.handleCreateCampaignClose();
             } catch (error) {
               // Keep modal open on error so user can retry
               console.error("Campaign creation failed:", error);
@@ -847,50 +659,59 @@ export default function Chat() {
 
       {/* Campaign Details Modal */}
       <CampaignDetailsModal
-        campaign={selectedCampaign}
-        isOpen={isCampaignDetailsModalOpen}
-        onClose={handleCampaignDetailsClose}
+        campaign={modalState.selectedCampaign}
+        isOpen={modalState.isCampaignDetailsModalOpen}
+        onClose={modalState.handleCampaignDetailsClose}
         onDelete={async (campaignId) => {
           // TODO: Implement actual campaign deletion
           console.log("Deleting campaign:", campaignId);
-          handleCampaignDetailsClose();
+          modalState.handleCampaignDetailsClose();
         }}
         onUpdate={async (campaignId, updates) => {
           // TODO: Implement actual campaign update
           console.log("Updating campaign:", campaignId, updates);
-          handleCampaignDetailsClose();
+          modalState.handleCampaignDetailsClose();
         }}
       />
 
       {/* Add Resource Modal */}
       <Modal
-        isOpen={isAddResourceModalOpen}
-        onClose={handleAddResourceClose}
+        isOpen={modalState.isAddResourceModalOpen}
+        onClose={modalState.handleAddResourceClose}
         cardStyle={{ width: 600, minHeight: 400 }}
         showCloseButton={true}
       >
         <ResourceUpload
           onUpload={async (file, filename, description, tags) => {
             console.log("Uploading file:", file);
+
+            // Close modal immediately
+            modalState.handleAddResourceClose();
+
+            // Start upload in background
             try {
               await handleUpload(file, filename, description, tags);
-              handleAddResourceClose();
             } catch (error) {
               console.error("Upload failed:", error);
-              // Don't close modal on error so user can retry
+              // Show error notification since modal is already closed
+              addLocalNotification(
+                NOTIFICATION_TYPES.ERROR,
+                "Upload Failed",
+                `Failed to upload "${filename}". Please try again.`
+              );
             }
           }}
-          onCancel={handleAddResourceClose}
+          onCancel={modalState.handleAddResourceClose}
           className="border-0 p-0 shadow-none"
-          jwtUsername={getStoredJwt() || ""}
+          jwtUsername={authState.getStoredJwt() || ""}
           campaigns={[]} // TODO: Get campaigns from context
-          selectedCampaigns={selectedCampaigns}
-          onCampaignSelectionChange={setSelectedCampaigns}
-          campaignName={campaignName}
-          onCampaignNameChange={setCampaignName}
+          selectedCampaigns={modalState.selectedCampaigns}
+          onCampaignSelectionChange={modalState.setSelectedCampaigns}
+          campaignName={modalState.campaignName}
+          onCampaignNameChange={modalState.setCampaignName}
           onCreateCampaign={() => {
-            setIsAddResourceModalOpen(false);
-            setIsCreateCampaignModalOpen(true);
+            modalState.setIsAddResourceModalOpen(false);
+            modalState.setIsCreateCampaignModalOpen(true);
           }}
           showCampaignSelection={true}
         />
@@ -898,36 +719,76 @@ export default function Chat() {
 
       {/* Add to Campaign Modal */}
       <Modal
-        isOpen={isAddToCampaignModalOpen}
-        onClose={handleAddToCampaignClose}
+        isOpen={modalState.isAddToCampaignModalOpen}
+        onClose={modalState.handleAddToCampaignClose}
         cardStyle={{ width: 500, maxHeight: "90vh" }}
         showCloseButton={true}
       >
         <div className="p-6">
           <h3 className="text-lg font-semibold mb-4">
-            "{selectedFile ? selectedFile.file_name : ""}" - Add to Campaign
+            "{modalState.selectedFile ? modalState.selectedFile.file_name : ""}"
+            - Add to Campaign
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Choose which legendary adventures this tome shall join:
           </p>
           <div className="space-y-3">
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Your campaigns await this knowledge...
-            </div>
+            {campaigns.length > 0 ? (
+              <div className="space-y-2">
+                <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select campaigns to add this file to:
+                </div>
+                <MultiSelect
+                  options={campaigns
+                    .filter((campaign) => {
+                      // Filter out campaigns that already contain this file
+                      if (!modalState.selectedFile?.campaigns) return true;
+                      return !modalState.selectedFile.campaigns.some(
+                        (existingCampaign: any) =>
+                          existingCampaign.campaignId === campaign.campaignId
+                      );
+                    })
+                    .map((campaign) => ({
+                      value: campaign.campaignId,
+                      label: campaign.name,
+                    }))}
+                  selectedValues={modalState.selectedCampaigns}
+                  onSelectionChange={modalState.setSelectedCampaigns}
+                  placeholder="Choose campaigns..."
+                  closeOnSelect={true}
+                />
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                No campaigns available. Create a campaign first to add files to
+                it.
+              </div>
+            )}
             <div className="flex justify-end gap-3 mt-6">
               <button
                 type="button"
-                onClick={handleAddToCampaignClose}
+                onClick={modalState.handleAddToCampaignClose}
                 className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  // TODO: Implement actual add to campaign logic
-                  console.log("Adding file to campaigns:", selectedFile);
-                  handleAddToCampaignClose();
+                onClick={async () => {
+                  // Close modal and clear selections immediately
+                  modalState.setSelectedCampaigns([]);
+                  modalState.handleAddToCampaignClose();
+
+                  // Use the extracted campaign addition logic
+                  await addFileToCampaigns(
+                    modalState.selectedFile,
+                    modalState.selectedCampaigns,
+                    authState.getStoredJwt,
+                    addLocalNotification,
+                    () => {
+                      // Success callback - modal is already closed
+                    }
+                  );
                 }}
                 className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md"
               >
@@ -939,14 +800,14 @@ export default function Chat() {
       </Modal>
 
       {/* Edit File Modal */}
-      {editingFile && (
+      {modalState.editingFile && (
         <EditFileModal
-          isOpen={isEditFileModalOpen}
-          onClose={handleEditFileClose}
-          file={editingFile}
+          isOpen={modalState.isEditFileModalOpen}
+          onClose={modalState.handleEditFileClose}
+          file={modalState.editingFile}
           onUpdate={handleFileUpdate}
         />
       )}
-    </NotificationProvider>
+    </>
   );
 }
