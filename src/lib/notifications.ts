@@ -386,7 +386,8 @@ export async function notifyShardParseIssue(
     type: "system:shard_parse_issue",
     title: "Shard Parsing Returned No Results",
     message: `No shards could be parsed from "${fileName}".`,
-    data: { campaignName, fileName, details, hidden: true },
+    // Respect caller preference for visibility; default to hidden
+    data: { campaignName, fileName, details, hidden: details?.hidden ?? true },
   });
 }
 

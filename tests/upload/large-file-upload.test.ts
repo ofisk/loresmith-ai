@@ -74,6 +74,11 @@ describe("Large File Upload", () => {
           httpMetadata: {
             contentType: "application/pdf",
           },
+          customMetadata: {
+            file_key: "staging/testuser/large-file.pdf",
+            user: "testuser",
+            original_name: "large-file.pdf",
+          },
         }
       );
 

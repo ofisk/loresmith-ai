@@ -733,68 +733,83 @@ export default function Chat() {
             Choose which legendary adventures this tome shall join:
           </p>
           <div className="space-y-3">
-            {campaigns.length > 0 ? (
-              <div className="space-y-2">
-                <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Select campaigns to add this file to:
-                </div>
-                <MultiSelect
-                  options={campaigns
-                    .filter((campaign) => {
-                      // Filter out campaigns that already contain this file
-                      if (!modalState.selectedFile?.campaigns) return true;
-                      return !modalState.selectedFile.campaigns.some(
-                        (existingCampaign: any) =>
-                          existingCampaign.campaignId === campaign.campaignId
-                      );
-                    })
-                    .map((campaign) => ({
-                      value: campaign.campaignId,
-                      label: campaign.name,
-                    }))}
-                  selectedValues={modalState.selectedCampaigns}
-                  onSelectionChange={modalState.setSelectedCampaigns}
-                  placeholder="Choose campaigns..."
-                  closeOnSelect={true}
-                />
-              </div>
-            ) : (
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                No campaigns available. Create a campaign first to add files to
-                it.
-              </div>
-            )}
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                type="button"
-                onClick={modalState.handleAddToCampaignClose}
-                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  // Close modal and clear selections immediately
-                  modalState.setSelectedCampaigns([]);
-                  modalState.handleAddToCampaignClose();
+            {(() => {
+              // Filter out campaigns that already contain this file
+              const availableCampaigns = campaigns.filter((campaign) => {
+                if (!modalState.selectedFile?.campaigns) return true;
+                return !modalState.selectedFile.campaigns.some(
+                  (existingCampaign: any) =>
+                    existingCampaign.campaignId === campaign.campaignId
+                );
+              });
 
-                  // Use the extracted campaign addition logic
-                  await addFileToCampaigns(
-                    modalState.selectedFile,
-                    modalState.selectedCampaigns,
-                    authState.getStoredJwt,
-                    addLocalNotification,
-                    () => {
-                      // Success callback - modal is already closed
-                    }
-                  );
-                }}
-                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md"
-              >
-                Add to Campaigns
-              </button>
-            </div>
+              return (
+                <>
+                  {availableCampaigns.length === 0 ? (
+                    <div className="text-center py-6">
+                      <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                        This file has already been added to all available
+                        campaigns.
+                      </div>
+                      <div className="text-xs text-gray-400 dark:text-gray-500">
+                        Create a new campaign to add this file to additional
+                        adventures.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Select campaigns to add this file to:
+                      </div>
+                      <MultiSelect
+                        options={availableCampaigns.map((campaign) => ({
+                          value: campaign.campaignId,
+                          label: campaign.name,
+                        }))}
+                        selectedValues={modalState.selectedCampaigns}
+                        onSelectionChange={modalState.setSelectedCampaigns}
+                        placeholder="Choose campaigns..."
+                        closeOnSelect={true}
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-3 mt-6">
+                    <button
+                      type="button"
+                      onClick={modalState.handleAddToCampaignClose}
+                      className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                    >
+                      {availableCampaigns.length === 0 ? "Close" : "Cancel"}
+                    </button>
+                    {availableCampaigns.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          // Close modal and clear selections immediately
+                          modalState.setSelectedCampaigns([]);
+                          modalState.handleAddToCampaignClose();
+
+                          // Use the extracted campaign addition logic
+                          await addFileToCampaigns(
+                            modalState.selectedFile,
+                            modalState.selectedCampaigns,
+                            authState.getStoredJwt,
+                            addLocalNotification,
+                            () => {
+                              // Success callback - modal is already closed
+                            }
+                          );
+                        }}
+                        className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md"
+                      >
+                        Add to Campaigns
+                      </button>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       </Modal>

@@ -6,6 +6,10 @@ import {
 } from "@phosphor-icons/react";
 import { useCallback } from "react";
 import { FileDAO } from "../../dao/file-dao";
+import {
+  estimateProcessingTime,
+  formatProcessingTime,
+} from "../../utils/processing-time-estimator";
 
 interface FileStatusIndicatorProps {
   className?: string;
@@ -15,6 +19,7 @@ interface FileStatusIndicatorProps {
   tenant: string;
   fileKey?: string;
   fileName?: string;
+  fileSize?: number;
   onRetry?: (fileKey: string, fileName: string) => void;
 }
 
@@ -26,12 +31,19 @@ export function FileStatusIndicator({
   tenant: _tenant,
   fileKey,
   fileName,
+  fileSize,
   onRetry,
 }: FileStatusIndicatorProps) {
   // No local error timeout; rely on SSE-driven updates and server state
 
   // FileStatusIndicator now only displays status - refresh logic moved to ResourceList
   // This prevents multiple components from making duplicate refresh-all-statuses calls
+
+  // Get processing time estimate if file size is available
+  const processingEstimate = fileSize ? estimateProcessingTime(fileSize) : null;
+  const timeEstimate = processingEstimate
+    ? formatProcessingTime(processingEstimate)
+    : null;
 
   // Determine what to show based on status
   const statusConfig = {
@@ -73,15 +85,19 @@ export function FileStatusIndicator({
     [FileDAO.STATUS.PROCESSING]: {
       icon: Spinner,
       color: "text-blue-500",
-      text: "Processing",
-      title: "AutoRAG is processing the file",
+      text: timeEstimate ? `Processing (~${timeEstimate})` : "Processing",
+      title: timeEstimate
+        ? `AutoRAG is processing the file. Estimated time: ${timeEstimate}`
+        : "AutoRAG is processing the file",
       spinning: true,
     },
     [FileDAO.STATUS.INDEXING]: {
       icon: Spinner,
       color: "text-blue-500",
-      text: "Indexing",
-      title: "File is being indexed for search",
+      text: timeEstimate ? `Indexing (~${timeEstimate})` : "Indexing",
+      title: timeEstimate
+        ? `File is being indexed for search. Estimated time: ${timeEstimate}`
+        : "File is being indexed for search",
       spinning: true,
     },
     [FileDAO.STATUS.UNINDEXED]: {

@@ -426,7 +426,7 @@ export function ResourceList({
     }
   }, [authReady, fetchResources]);
 
-  // Listen for file upload completed: refresh list and finalize/clear progress bar
+  // Listen for file upload completed: update file status and finalize progress bar
   useEventBus<FileUploadEvent>(
     EVENT_TYPES.FILE_UPLOAD.COMPLETED,
     (event) => {
@@ -436,6 +436,24 @@ export function ResourceList({
       );
       const key = event.fileKey;
       if (key) {
+        // Update the file status from "uploading" to "processing"
+        setFiles((prevFiles) => {
+          return prevFiles.map((file) => {
+            if (file.file_key === key) {
+              console.log(
+                "[ResourceList] Updating file status from uploading to processing:",
+                file.file_name
+              );
+              return {
+                ...file,
+                status: "processing",
+                updated_at: new Date().toISOString(),
+              };
+            }
+            return file;
+          });
+        });
+
         // Snap to 100% then clear shortly after
         setProgressByFileKey((prev) => ({ ...prev, [key]: 100 }));
         setTimeout(() => {
@@ -446,10 +464,11 @@ export function ResourceList({
           });
         }, 1200);
       }
-      console.log("[ResourceList] Upload completed, refreshing file list");
-      fetchResources();
+      console.log(
+        "[ResourceList] Upload completed, file status updated to processing"
+      );
     },
-    [fetchResources]
+    []
   );
 
   // Upload progress listeners
@@ -457,7 +476,45 @@ export function ResourceList({
     EVENT_TYPES.FILE_UPLOAD.STARTED,
     (event) => {
       const key = event.fileKey;
-      if (!key) return;
+      const filename = event.filename;
+      const fileSize = event.fileSize;
+      if (!key || !filename) return;
+
+      console.log("[ResourceList] Received FILE_UPLOAD.STARTED event:", {
+        key,
+        filename,
+        fileSize,
+      });
+
+      // Add the uploading file to the files list immediately
+      setFiles((prevFiles) => {
+        // Check if file already exists (avoid duplicates)
+        const exists = prevFiles.some((f) => f.file_key === key);
+        if (exists) {
+          console.log("[ResourceList] File already exists, skipping duplicate");
+          return prevFiles;
+        }
+
+        // Create a temporary file entry for the uploading file
+        const uploadingFile: ResourceFileWithCampaigns = {
+          id: key,
+          file_key: key,
+          file_name: filename,
+          file_size: fileSize || 0, // Use file size from event if available
+          status: "uploading",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          campaigns: [],
+        };
+
+        console.log(
+          "[ResourceList] Adding uploading file to list:",
+          uploadingFile
+        );
+        // Add new file to the beginning of the list
+        return [uploadingFile, ...prevFiles];
+      });
+
       setProgressByFileKey((prev) => ({ ...prev, [key]: 0 }));
     },
     []
@@ -479,6 +536,27 @@ export function ResourceList({
     (event) => {
       const key = event.fileKey;
       if (!key) return;
+
+      console.log("[ResourceList] Received FILE_UPLOAD.FAILED event:", event);
+
+      // Update the file status to "failed"
+      setFiles((prevFiles) => {
+        return prevFiles.map((file) => {
+          if (file.file_key === key) {
+            console.log(
+              "[ResourceList] Updating file status to failed:",
+              file.file_name
+            );
+            return {
+              ...file,
+              status: "failed",
+              updated_at: new Date().toISOString(),
+            };
+          }
+          return file;
+        });
+      });
+
       setProgressByFileKey((prev) => ({ ...prev, [key]: 100 }));
       // Clear after a short delay to reflect failure via status badge
       setTimeout(() => {
@@ -758,6 +836,7 @@ export function ResourceList({
                       initialStatus={file.status}
                       fileKey={file.file_key}
                       fileName={file.file_name}
+                      fileSize={file.file_size}
                       onRetry={handleRetryFile}
                       className="flex-shrink-0"
                     />

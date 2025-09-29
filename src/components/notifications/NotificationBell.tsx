@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "../button/Button";
 import { NOTIFICATION_TYPES } from "../../constants/notification-types";
 import type { NotificationPayload } from "../../durable-objects/notification-hub";
@@ -15,15 +16,17 @@ export function NotificationBell({
   onDismissAll,
 }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null); // wraps the bell button
+  const panelRef = useRef<HTMLDivElement>(null); // wraps the portal panel
+  const [mounted, setMounted] = useState(false);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node;
+      const clickedInsideTrigger = dropdownRef.current?.contains(target);
+      const clickedInsidePanel = panelRef.current?.contains(target);
+      if (!clickedInsideTrigger && !clickedInsidePanel) {
         setIsOpen(false);
       }
     };
@@ -31,6 +34,9 @@ export function NotificationBell({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Ensure document is available for portal
+  useEffect(() => setMounted(true), []);
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -109,85 +115,91 @@ export function NotificationBell({
         )}
       </Button>
 
-      {isOpen && (
-        <div className="fixed top-16 right-4 w-80 bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-[99999] max-h-96 overflow-hidden">
-          <div className="p-3 border-b border-gray-700 bg-gray-800">
-            <div className="flex justify-between items-center">
-              <h3 className="font-medium text-gray-100">Notifications</h3>
-              {notifications.length > 0 && onDismissAll && (
-                <button
-                  type="button"
-                  onClick={onDismissAll}
-                  className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
-                >
-                  Clear all
-                </button>
+      {isOpen &&
+        mounted &&
+        createPortal(
+          <div
+            ref={panelRef}
+            className="fixed top-16 right-4 w-80 bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-[2147483647] max-h-96 overflow-hidden"
+          >
+            <div className="p-3 border-b border-gray-700 bg-gray-800">
+              <div className="flex justify-between items-center">
+                <h3 className="font-medium text-gray-100">Notifications</h3>
+                {notifications.length > 0 && onDismissAll && (
+                  <button
+                    type="button"
+                    onClick={onDismissAll}
+                    className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="max-h-80 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <div className="p-4 text-center text-gray-400">
+                  <p className="text-sm">No notifications</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-700">
+                  {notifications.map((notification, index) => (
+                    <div
+                      key={`${notification.timestamp}-${index}`}
+                      className={`p-3 hover:bg-gray-800 transition-colors ${getTypeStyles(notification.type)}`}
+                    >
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0 text-lg">
+                          {getIcon(notification.type)}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium mb-1 text-gray-100">
+                            {notification.title}
+                          </h4>
+                          <p className="text-sm opacity-90 text-gray-300">
+                            {notification.message}
+                          </p>
+                          <p className="text-xs opacity-70 mt-1 text-gray-400">
+                            {new Date(
+                              notification.timestamp
+                            ).toLocaleTimeString()}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onDismiss(`${notification.timestamp}-${index}`)
+                          }
+                          className="flex-shrink-0 text-gray-500 hover:text-gray-300 transition-colors"
+                          aria-label="Dismiss notification"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <title>Dismiss</title>
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-          </div>
-
-          <div className="max-h-80 overflow-y-auto">
-            {notifications.length === 0 ? (
-              <div className="p-4 text-center text-gray-400">
-                <p className="text-sm">No notifications</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-700">
-                {notifications.map((notification, index) => (
-                  <div
-                    key={`${notification.timestamp}-${index}`}
-                    className={`p-3 hover:bg-gray-800 transition-colors ${getTypeStyles(notification.type)}`}
-                  >
-                    <div className="flex items-start space-x-3">
-                      <div className="flex-shrink-0 text-lg">
-                        {getIcon(notification.type)}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium mb-1 text-gray-100">
-                          {notification.title}
-                        </h4>
-                        <p className="text-sm opacity-90 text-gray-300">
-                          {notification.message}
-                        </p>
-                        <p className="text-xs opacity-70 mt-1 text-gray-400">
-                          {new Date(
-                            notification.timestamp
-                          ).toLocaleTimeString()}
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onDismiss(`${notification.timestamp}-${index}`)
-                        }
-                        className="flex-shrink-0 text-gray-500 hover:text-gray-300 transition-colors"
-                        aria-label="Dismiss notification"
-                      >
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <title>Dismiss</title>
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

@@ -186,11 +186,12 @@ export class FileDAO extends BaseDAOClass {
     const timeoutDate = new Date(Date.now() - timeoutMinutes * 60 * 1000);
     const sql = `
       SELECT * FROM file_metadata 
-      WHERE status = ? AND updated_at < ?
+      WHERE status IN (?, ?) AND updated_at < ?
       ORDER BY updated_at ASC
     `;
     return this.queryAndParseMultipleFileMetadata(sql, [
       FileDAO.STATUS.PROCESSING,
+      FileDAO.STATUS.SYNCING,
       timeoutDate.toISOString(),
     ]);
   }

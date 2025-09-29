@@ -10,6 +10,7 @@ import {
 import { RPG_EXTRACTION_PROMPTS } from "../lib/prompts/rpg-extraction-prompts";
 import { getLibraryAutoRAGService } from "../lib/service-factory";
 import type { Env } from "../middleware/auth";
+import { API_CONFIG } from "../shared-config";
 import type { AuthPayload } from "../services/auth-service";
 import { CampaignAutoRAG } from "../services/campaign-autorag-service";
 
@@ -466,10 +467,6 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
           // Retry AI search once on transient failures (e.g., 400 due to race/format)
           async function runAISearchOnce() {
             const fileKey = (r as any).file_key as string;
-            const folderPrefix =
-              typeof fileKey === "string" && fileKey.includes("/")
-                ? fileKey.slice(0, fileKey.lastIndexOf("/") + 1)
-                : undefined;
             const fileNameForFilter =
               r.file_name ||
               (typeof fileKey === "string"
@@ -478,7 +475,6 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 
             console.log("[Server] AutoRAG filter inputs:", {
               fileKey,
-              folderPrefix,
               fileNameForFilter,
             });
 
@@ -565,6 +561,13 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                 {
                   max_results: 50,
                   rewrite_query: false,
+                  // Enforce exact document by full staging key (Solution 1)
+                  filters: {
+                    type: "and",
+                    filters: [
+                      { key: "file_key", op: "eq", value: fileKey } as any,
+                    ],
+                  },
                 }
               );
               const preview =
@@ -583,6 +586,74 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                 ...info,
                 dataDocs,
               });
+
+              // TODO(ofisk): temporary hack until indexing stabilizes.
+              // If zero docs are detected, automatically trigger a re-index in the background
+              // and notify the user. Remove this block once AutoRAG indexing is stable.
+              if (!info.ok || (info.matchedTotal === 0 && info.total === 0)) {
+                try {
+                  console.log(
+                    "[Server][AI Search][diagnostics] Probing document presence via metadata search"
+                  );
+                  const metaProbe = await libraryAutoRAG.search("", {
+                    limit: 5,
+                    filters: {
+                      type: "and",
+                      filters: [
+                        { key: "file_key", value: fileKey, op: "eq" } as any,
+                      ],
+                    },
+                  });
+                  console.log(
+                    "[Server][AI Search][diagnostics] Metadata probe result:",
+                    metaProbe
+                  );
+                } catch (probeErr) {
+                  console.error(
+                    "[Server][AI Search][diagnostics] Metadata probe failed:",
+                    probeErr
+                  );
+                }
+
+                // Fire-and-forget re-index request via sync queue service route
+                try {
+                  const triggerUrl = `${API_CONFIG.getApiBaseUrl(c.env)}${API_CONFIG.ENDPOINTS.RAG.TRIGGER_INDEXING}`;
+                  const authHeader = c.req.header("Authorization") || "";
+                  const resp = await fetch(triggerUrl, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: authHeader,
+                    },
+                    body: JSON.stringify({ fileKey }),
+                  });
+                  console.log(
+                    "[Server][AI Search][diagnostics] Re-index trigger response:",
+                    resp.status
+                  );
+                } catch (reindexErr) {
+                  console.error(
+                    "[Server][AI Search][diagnostics] Failed to trigger re-index:",
+                    reindexErr
+                  );
+                }
+
+                // Surface a user-facing notification that we queued a re-index
+                try {
+                  await notifyShardParseIssue(
+                    c.env,
+                    userAuth.username,
+                    campaign?.name || "unknown",
+                    r.file_name || r.id,
+                    {
+                      reason: "reindex_triggered",
+                      message:
+                        "Indexing not found; a re-index has been queued automatically.",
+                      hidden: false,
+                    }
+                  );
+                } catch (_e) {}
+              }
               try {
                 await notifyShardParseIssue(
                   c.env,
@@ -603,54 +674,6 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
               if (info.ok && (info.matchedTotal > 0 || info.total > 0)) {
                 return res;
               }
-            }
-
-            // Second attempt: prompt-only with rewrite_query=true
-            {
-              console.log(
-                "[Server][AI Search][prompt-only][rewrite] full prompt:\n" +
-                  structuredExtractionPrompt
-              );
-              const res = await libraryAutoRAG.aiSearch(
-                structuredExtractionPrompt,
-                {
-                  max_results: 50,
-                  rewrite_query: true,
-                }
-              );
-              const preview =
-                typeof res.response === "string" ? res.response : "";
-              const info = tryCount(preview);
-              const dataDocs = Array.isArray((res as any)?.data)
-                ? Array.from(
-                    new Set(
-                      (res as any).data
-                        .map((d: any) => d?.filename || d?.attributes?.filename)
-                        .filter((x: any) => typeof x === "string")
-                    )
-                  )
-                : [];
-              console.log("[Server][AI Search][prompt-only][rewrite]", {
-                ...info,
-                dataDocs,
-              });
-              try {
-                await notifyShardParseIssue(
-                  c.env,
-                  userAuth.username,
-                  campaign?.name || "unknown",
-                  r.file_name || r.id,
-                  {
-                    reason: "ai_search_prompt_only_rewrite",
-                    counts: info.counts,
-                    total: info.total,
-                    matchedCounts: info.matchedCounts,
-                    matchedTotal: info.matchedTotal,
-                    dataDocs,
-                  }
-                );
-              } catch (_e) {}
-              return res;
             }
           }
           let aiSearchResult: any;

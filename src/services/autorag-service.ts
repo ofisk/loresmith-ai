@@ -60,11 +60,112 @@ export class AutoRAGService {
 
       const syncUrl = API_CONFIG.ENDPOINTS.AUTORAG.API.SYNC(accountId, ragId);
       console.log(`[DEBUG] [AutoRAGService] Sync URL: ${syncUrl}`);
+      console.log(`[DEBUG] [AutoRAGService] RAG ID: ${ragId}`);
+      console.log(`[DEBUG] [AutoRAGService] Account ID: ${accountId}`);
+      console.log(
+        `[DEBUG] [AutoRAGService] Expected AutoRAG RAG Name: loresmith-library-autorag`
+      );
+
+      // First, check if the AutoRAG RAG exists by making a GET request
+      console.log(`[DEBUG] [AutoRAGService] Checking if AutoRAG RAG exists...`);
+      const ragCheckUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/autorag/rags/${ragId}`;
+      console.log(`[DEBUG] [AutoRAGService] RAG Check URL: ${ragCheckUrl}`);
+
+      try {
+        const ragCheckResponse = await fetch(ragCheckUrl, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${cloudflareApiToken}`,
+          },
+        });
+
+        console.log(
+          `[DEBUG] [AutoRAGService] RAG Check Response Status: ${ragCheckResponse.status}`
+        );
+        console.log(`[DEBUG] [AutoRAGService] RAG Check Response Headers:`, {
+          "content-type": ragCheckResponse.headers.get("content-type"),
+          "content-length": ragCheckResponse.headers.get("content-length"),
+          date: ragCheckResponse.headers.get("date"),
+          server: ragCheckResponse.headers.get("server"),
+        });
+
+        if (ragCheckResponse.ok) {
+          const ragInfo = await ragCheckResponse.json();
+          console.log(
+            `[DEBUG] [AutoRAGService] RAG exists:`,
+            JSON.stringify(ragInfo, null, 2)
+          );
+
+          // Log RAG configuration details
+          if (
+            ragInfo &&
+            typeof ragInfo === "object" &&
+            "result" in ragInfo &&
+            ragInfo.result
+          ) {
+            const result = ragInfo.result as any;
+            console.log(`[DEBUG] [AutoRAGService] RAG Configuration:`, {
+              name: result.name,
+              status: result.status,
+              created_at: result.created_at,
+              updated_at: result.updated_at,
+            });
+          }
+        } else {
+          const errorText = await ragCheckResponse.text();
+          console.error(
+            `[DEBUG] [AutoRAGService] RAG does not exist or is not accessible: ${ragCheckResponse.status} ${errorText}`
+          );
+          console.error(`[DEBUG] [AutoRAGService] Full error response:`, {
+            status: ragCheckResponse.status,
+            statusText: ragCheckResponse.statusText,
+            headers: {
+              "content-type": ragCheckResponse.headers.get("content-type"),
+              "content-length": ragCheckResponse.headers.get("content-length"),
+              date: ragCheckResponse.headers.get("date"),
+              server: ragCheckResponse.headers.get("server"),
+            },
+            body: errorText,
+          });
+          throw new Error(
+            `AutoRAG RAG '${ragId}' does not exist or is not accessible: ${ragCheckResponse.status} ${errorText}`
+          );
+        }
+      } catch (ragCheckError) {
+        console.error(
+          `[DEBUG] [AutoRAGService] Failed to check RAG existence:`,
+          ragCheckError
+        );
+        console.error(`[DEBUG] [AutoRAGService] RAG check error details:`, {
+          error:
+            ragCheckError instanceof Error
+              ? ragCheckError.message
+              : String(ragCheckError),
+          stack:
+            ragCheckError instanceof Error ? ragCheckError.stack : undefined,
+          ragId,
+          accountId,
+          ragCheckUrl,
+        });
+        throw new Error(
+          `Failed to verify AutoRAG RAG '${ragId}': ${ragCheckError instanceof Error ? ragCheckError.message : String(ragCheckError)}`
+        );
+      }
 
       // Use direct fetch with Cloudflare API token instead of authenticatedFetchWithExpiration
       console.log(
         `[DEBUG] [AutoRAGService] Making PATCH request to AutoRAG API...`
       );
+      console.log(`[DEBUG] [AutoRAGService] Request details:`, {
+        url: syncUrl,
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${cloudflareApiToken.substring(0, 10)}...`, // Only log first 10 chars of token
+        },
+      });
+
       const response = await fetch(syncUrl, {
         method: "PATCH",
         headers: {
@@ -77,6 +178,12 @@ export class AutoRAGService {
         `[DEBUG] [AutoRAGService] Response status: ${response.status}`
       );
       console.log(`[DEBUG] [AutoRAGService] Response ok: ${response.ok}`);
+      console.log(`[DEBUG] [AutoRAGService] Response headers:`, {
+        "content-type": response.headers.get("content-type"),
+        "content-length": response.headers.get("content-length"),
+        date: response.headers.get("date"),
+        server: response.headers.get("server"),
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -84,6 +191,20 @@ export class AutoRAGService {
           `[DEBUG] [AutoRAGService] Response not ok - Status: ${response.status}`
         );
         console.error(`[DEBUG] [AutoRAGService] Error text: ${errorText}`);
+        console.error(`[DEBUG] [AutoRAGService] Full error response:`, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: {
+            "content-type": response.headers.get("content-type"),
+            "content-length": response.headers.get("content-length"),
+            date: response.headers.get("date"),
+            server: response.headers.get("server"),
+          },
+          body: errorText,
+          url: syncUrl,
+          ragId,
+          accountId,
+        });
 
         // Check if this is a rate limiting error and we should retry
         if (response.status === 429 && retryCount < 3) {
@@ -137,6 +258,14 @@ export class AutoRAGService {
         `[DEBUG] [AutoRAGService] Error stack:`,
         error instanceof Error ? error.stack : "No stack trace"
       );
+      console.error(`[DEBUG] [AutoRAGService] Context:`, {
+        ragId,
+        retryCount,
+        jwtPresent: jwt ? "YES" : "NO",
+        envPresent: env ? "YES" : "NO",
+        accountId: env?.CLOUDFLARE_ACCOUNT_ID || "NOT_SET",
+        timestamp: new Date().toISOString(),
+      });
       console.error(`[DEBUG] [AutoRAGService] Status: FAILED`);
       throw error;
     }

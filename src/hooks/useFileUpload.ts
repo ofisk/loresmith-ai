@@ -7,7 +7,7 @@ import {
   getStoredJwt,
 } from "../services/auth-service";
 import { API_CONFIG } from "../shared-config";
-import { buildAutoRAGFileKey } from "../utils/file-keys";
+import { buildStagingFileKey } from "../utils/file-keys";
 
 interface UseFileUploadProps {
   onUploadSuccess?: (filename: string, fileKey: string) => void;
@@ -54,7 +54,7 @@ export function useFileUpload({
       setCurrentUploadId(uploadId);
 
       // Emit upload started event
-      const fileKey = buildAutoRAGFileKey(tenant, filename);
+      const fileKey = buildStagingFileKey(tenant, filename);
 
       console.log("[useFileUpload] Built fileKey:", fileKey);
 
@@ -62,6 +62,7 @@ export function useFileUpload({
         type: EVENT_TYPES.FILE_UPLOAD.STARTED,
         fileKey,
         filename,
+        fileSize: file.size,
         source: "useFileUpload",
       } as FileUploadEvent);
 
@@ -78,6 +79,7 @@ export function useFileUpload({
           type: EVENT_TYPES.FILE_UPLOAD.PROGRESS,
           fileKey,
           filename,
+          fileSize: file.size,
           progress: 20,
           status: "uploading",
           source: "useFileUpload",
@@ -140,6 +142,7 @@ export function useFileUpload({
           type: EVENT_TYPES.FILE_UPLOAD.COMPLETED,
           fileKey,
           filename,
+          fileSize: file.size,
           progress: 40,
           status: "uploaded",
           source: "useFileUpload",
@@ -163,11 +166,12 @@ export function useFileUpload({
         // Emit upload failed event
         send({
           type: EVENT_TYPES.FILE_UPLOAD.FAILED,
-          fileKey: buildAutoRAGFileKey(
+          fileKey: buildStagingFileKey(
             AuthService.getUsernameFromStoredJwt() || "",
             filename
           ),
           filename,
+          fileSize: file.size,
           error: error instanceof Error ? error.message : "Unknown error",
           source: "useFileUpload",
         } as FileUploadEvent);

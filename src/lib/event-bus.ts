@@ -59,6 +59,7 @@ export interface FileUploadEvent extends BaseEvent {
     | "file.upload.failed";
   fileKey: string;
   filename: string;
+  fileSize?: number;
   progress?: number;
   status?: string;
   error?: string;

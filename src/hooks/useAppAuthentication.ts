@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { AuthService } from "../services/auth-service";
 import { API_CONFIG } from "../shared-config";
+import {
+  fetchOpenAIKeyOnce,
+  clearOpenAIKeyCache,
+} from "../lib/openai-key-store";
 import { JWT_STORAGE_KEY } from "../app-constants";
 
 export function useAppAuthentication() {
@@ -18,28 +22,17 @@ export function useAppAuthentication() {
   // Check for stored OpenAI key
   const checkStoredOpenAIKey = useCallback(async (username: string) => {
     try {
-      const response = await fetch(
-        `/get-openai-key?username=${encodeURIComponent(username)}`
-      );
-      const result = (await response.json()) as {
-        hasKey?: boolean;
-        apiKey?: string;
-      };
-      if (response.ok && result.hasKey) {
+      const result = await fetchOpenAIKeyOnce(username);
+      if (result.hasKey) {
         setStoredOpenAIKey(result.apiKey || "");
         setIsAuthenticated(true);
-      } else {
-        // No stored key found, show the auth modal immediately
-        setIsAuthenticated(false);
-        return false; // Indicate that auth modal should be shown
+        return true;
       }
     } catch (error) {
       console.error("Error checking stored OpenAI key:", error);
-      // Show modal on error as well
-      setIsAuthenticated(false);
-      return false; // Indicate that auth modal should be shown
     }
-    return true; // Authentication successful
+    setIsAuthenticated(false);
+    return false; // Indicate that auth modal should be shown
   }, []);
 
   // Check authentication status on mount
@@ -92,6 +85,12 @@ export function useAppAuthentication() {
         if (response.ok && result.token) {
           // Store JWT token
           AuthService.storeJwt(result.token);
+
+          // Ensure future key lookups are not blocked by stale cache
+          clearOpenAIKeyCache();
+
+          // Persist username immediately for UI
+          setUsername(username);
 
           // Update stored OpenAI key
           setStoredOpenAIKey(openaiApiKey);

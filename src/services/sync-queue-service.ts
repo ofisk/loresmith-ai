@@ -28,15 +28,29 @@ export class SyncQueueService {
     const ragId = AUTORAG_CONFIG.LIBRARY_RAG_ID;
     console.log(`[DEBUG] [SyncQueue] Using ragId: ${ragId}`);
 
-    // Check if there are any ongoing AutoRAG jobs for this user
+    // Check if there are any ongoing AutoRAG jobs globally (single AutoRAG instance)
+    console.log(`[DEBUG] [SyncQueue] Checking for any ongoing jobs (global)`);
+    const globalPending = await fileDAO.getAllPendingAutoRAGJobs();
+    const hasOngoingJobs = (globalPending?.length || 0) > 0;
     console.log(
-      `[DEBUG] [SyncQueue] Checking for ongoing jobs for user: ${username}`
+      `[DEBUG] [SyncQueue] Has ongoing jobs (global): ${hasOngoingJobs} (count=${globalPending?.length || 0})`
     );
-    const hasOngoingJobs = await fileDAO.hasOngoingAutoRAGJobs(username);
-    console.log(`[DEBUG] [SyncQueue] Has ongoing jobs: ${hasOngoingJobs}`);
+
+    // Get detailed job information for debugging
+    try {
+      const ongoingJobs = await fileDAO.getPendingAutoRAGJobs(username);
+      console.log(`[DEBUG] [SyncQueue] Ongoing jobs details:`, ongoingJobs);
+    } catch (error) {
+      console.error(
+        `[DEBUG] [SyncQueue] Error getting ongoing jobs details:`,
+        error
+      );
+    }
 
     if (hasOngoingJobs) {
-      console.log(`[DEBUG] [SyncQueue] Ongoing jobs detected, queuing file...`);
+      console.log(
+        `[DEBUG] [SyncQueue] Ongoing job detected globally, queuing file...`
+      );
       // Queue via Durable Object if a job is already in progress
       const queueResult = await SyncQueueService.queueFileForSync(
         env,
@@ -51,6 +65,55 @@ export class SyncQueueService {
         `[DEBUG] [SyncQueue] File ${fileName} ${queueResult.queued ? "queued" : "processing immediately"} for user ${username}`
       );
 
+      // If DO reported not queued (no active polling), immediately trigger a sync here
+      if (!queueResult.queued) {
+        try {
+          console.log(
+            `[DEBUG] [SyncQueue] No active polling detected. Triggering immediate sync fallback...`
+          );
+          const jobId = await AutoRAGService.triggerSync(ragId, 0, jwt, env);
+          console.log(
+            `[DEBUG] [SyncQueue] Fallback immediate sync triggered successfully, jobId: ${jobId}`
+          );
+
+          await fileDAO.createAutoRAGJob(
+            jobId,
+            ragId,
+            username,
+            fileKey,
+            fileName
+          );
+
+          console.log(`[DEBUG] [SyncQueue] Updating file status to SYNCING...`);
+          await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.SYNCING);
+          console.log(`[DEBUG] [SyncQueue] File status updated to SYNCING`);
+
+          console.log(`[DEBUG] [SyncQueue] Starting polling for job...`);
+          await SyncQueueService.startPollingForJob(env, jobId, username);
+          console.log(`[DEBUG] [SyncQueue] Polling started for job: ${jobId}`);
+
+          const endTime = Date.now();
+          const duration = endTime - startTime;
+          console.log(
+            `[DEBUG] [SyncQueue] ===== FILE UPLOAD PROCESSING COMPLETED (IMMEDIATE VIA FALLBACK) =====`
+          );
+          console.log(`[DEBUG] [SyncQueue] Duration: ${duration}ms`);
+          console.log(`[DEBUG] [SyncQueue] Status: IMMEDIATE SYNC STARTED`);
+
+          return {
+            queued: false,
+            jobId,
+            message: `File ${fileName} indexing started immediately`,
+          };
+        } catch (error) {
+          console.error(
+            `[DEBUG] [SyncQueue] Fallback immediate sync failed, leaving in queue:`,
+            error
+          );
+          // Continue as queued below
+        }
+      }
+
       const endTime = Date.now();
       const duration = endTime - startTime;
       console.log(
@@ -60,10 +123,8 @@ export class SyncQueueService {
       console.log(`[DEBUG] [SyncQueue] Status: QUEUED`);
 
       return {
-        queued: queueResult.queued,
-        message: queueResult.queued
-          ? `File ${fileName} queued for indexing (sync in progress)`
-          : `File ${fileName} indexing started immediately`,
+        queued: true,
+        message: `File ${fileName} queued for indexing (sync in progress)`,
       };
     } else {
       console.log(
@@ -85,6 +146,14 @@ export class SyncQueueService {
         console.log(
           `[DEBUG] [SyncQueue] AutoRAG sync triggered successfully, jobId: ${jobId}`
         );
+        console.log(`[DEBUG] [SyncQueue] AutoRAG sync result:`, {
+          jobId,
+          ragId,
+          username,
+          fileKey,
+          fileName,
+          timestamp: new Date().toISOString(),
+        });
 
         // Store the job for tracking
         console.log(`[DEBUG] [SyncQueue] Creating AutoRAG job record...`);
@@ -122,17 +191,37 @@ export class SyncQueueService {
           message: `File ${fileName} indexing started immediately`,
         };
       } catch (error) {
+        const endTime = Date.now();
+        const duration = endTime - startTime;
         console.error(
-          `[SyncQueue] Failed to trigger sync for ${fileName}:`,
+          `[DEBUG] [SyncQueue] ===== FILE UPLOAD PROCESSING FAILED =====`
+        );
+        console.error(`[DEBUG] [SyncQueue] Duration: ${duration}ms`);
+        console.error(
+          `[DEBUG] [SyncQueue] Failed to trigger sync for ${fileName}:`,
           error
         );
+        console.error(`[DEBUG] [SyncQueue] Error details:`, {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          fileName,
+          fileKey,
+          username,
+          ragId,
+          timestamp: new Date().toISOString(),
+        });
 
         // If sync fails, queue it for retry
+        console.log(`[DEBUG] [SyncQueue] Queuing file for retry...`);
         await fileDAO.addToSyncQueue(username, fileKey, fileName, ragId);
 
         // Update file status to syncing when queued for retry
+        console.log(
+          `[DEBUG] [SyncQueue] Updating file status to SYNCING for retry...`
+        );
         await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.SYNCING);
 
+        console.log(`[DEBUG] [SyncQueue] Status: QUEUED FOR RETRY`);
         return {
           queued: true,
           message: `File ${fileName} queued for retry (sync failed)`,
