@@ -2,6 +2,7 @@ import { CaretDown, CaretRight, Plus } from "@phosphor-icons/react";
 import { Card } from "../card/Card";
 import { StorageTracker } from "../storage-tracker";
 import { ResourceList } from "../upload/ResourceList";
+import type { Campaign } from "../../types/campaign";
 import libraryIcon from "../../assets/library.png";
 
 interface LibrarySectionProps {
@@ -10,6 +11,9 @@ interface LibrarySectionProps {
   onAddToLibrary: () => void;
   onAddToCampaign?: (file: any) => void;
   onEditFile?: (file: any) => void;
+  campaigns?: Campaign[];
+  campaignAdditionProgress?: Record<string, number>;
+  isAddingToCampaigns?: boolean;
 }
 
 export function LibrarySection({
@@ -18,6 +22,9 @@ export function LibrarySection({
   onAddToLibrary,
   onAddToCampaign,
   onEditFile,
+  campaigns,
+  campaignAdditionProgress = {},
+  isAddingToCampaigns = false,
 }: LibrarySectionProps) {
   return (
     <Card className="p-0 border-t border-neutral-200 dark:border-neutral-700">
@@ -49,6 +56,9 @@ export function LibrarySection({
             <ResourceList
               onAddToCampaign={onAddToCampaign}
               onEditFile={onEditFile}
+              campaigns={campaigns}
+              campaignAdditionProgress={campaignAdditionProgress}
+              isAddingToCampaigns={isAddingToCampaigns}
             />
             <StorageTracker />
           </div>

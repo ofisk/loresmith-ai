@@ -267,24 +267,53 @@ export class ShardAgent extends BaseAgent {
     shards: ShardCandidate[];
     status: string;
   }> {
+    const startTime = Date.now();
     try {
+      console.log(`[DEBUG] [ShardAgent] ===== CREATING SHARDS =====`);
+      console.log(`[DEBUG] [ShardAgent] Resource ID: ${resource.id}`);
+      console.log(`[DEBUG] [ShardAgent] Campaign ID: ${campaignId}`);
       console.log(
-        `[ShardAgent] Creating shards from AI response for resource: ${resource.id}`
+        `[DEBUG] [ShardAgent] Resource details:`,
+        JSON.stringify(resource, null, 2)
       );
       console.log(
-        `[ShardAgent] Campaign ID for shard creation: "${campaignId}"`
+        `[DEBUG] [ShardAgent] AI Response keys:`,
+        aiResponse ? Object.keys(aiResponse) : "null"
       );
-      console.log(`[ShardAgent] Resource details:`, resource);
+      console.log(
+        `[DEBUG] [ShardAgent] AI Response data:`,
+        aiResponse?.dataDocs
+          ? `${aiResponse.dataDocs.length} docs`
+          : "no dataDocs"
+      );
+      console.log(
+        `[DEBUG] [ShardAgent] Timestamp: ${new Date().toISOString()}`
+      );
 
       // Parse AI response into shard candidates
+      console.log(
+        `[DEBUG] [ShardAgent] Parsing AI response into shard candidates...`
+      );
       const shardCandidates = ShardFactory.parseAISearchResponse(
         aiResponse,
         resource,
         campaignId
       );
+      console.log(
+        `[DEBUG] [ShardAgent] Parsed ${shardCandidates.length} shard candidates`
+      );
 
       if (shardCandidates.length === 0) {
-        console.log(`[ShardAgent] No valid shards found in AI response`);
+        console.log(
+          `[DEBUG] [ShardAgent] No valid shards found in AI response`
+        );
+        const endTime = Date.now();
+        const duration = endTime - startTime;
+        console.log(
+          `[DEBUG] [ShardAgent] ===== SHARD CREATION COMPLETED (NO SHARDS) =====`
+        );
+        console.log(`[DEBUG] [ShardAgent] Duration: ${duration}ms`);
+        console.log(`[DEBUG] [ShardAgent] Status: NO_SHARDS_FOUND`);
         return {
           created: 0,
           shards: [],
@@ -293,26 +322,35 @@ export class ShardAgent extends BaseAgent {
       }
 
       // Convert to database format
+      console.log(
+        `[DEBUG] [ShardAgent] Converting shards to database format...`
+      );
       const dbShards = ShardFactory.toDatabaseFormat(
         shardCandidates,
         campaignId,
         resource.id
       );
-
       console.log(
-        `[ShardAgent] Converted ${dbShards.length} shards to database format`
+        `[DEBUG] [ShardAgent] Converted ${dbShards.length} shards to database format`
       );
       console.log(
-        `[ShardAgent] Database shards preview:`,
-        dbShards.slice(0, 2)
+        `[DEBUG] [ShardAgent] Database shards preview:`,
+        JSON.stringify(dbShards.slice(0, 2), null, 2)
       );
 
       // Store in database
+      console.log(`[DEBUG] [ShardAgent] Storing shards in database...`);
       await this.stagedShardsDAO.createStagedShards(dbShards);
-
       console.log(
-        `[ShardAgent] Successfully created ${dbShards.length} shards`
+        `[DEBUG] [ShardAgent] Successfully stored ${dbShards.length} shards in database`
       );
+
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      console.log(`[DEBUG] [ShardAgent] ===== SHARD CREATION COMPLETED =====`);
+      console.log(`[DEBUG] [ShardAgent] Duration: ${duration}ms`);
+      console.log(`[DEBUG] [ShardAgent] Created: ${dbShards.length} shards`);
+      console.log(`[DEBUG] [ShardAgent] Status: SUCCESS`);
 
       return {
         created: dbShards.length,
@@ -320,7 +358,20 @@ export class ShardAgent extends BaseAgent {
         status: "success",
       };
     } catch (error) {
-      console.error(`[ShardAgent] Error creating shards:`, error);
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      console.error(`[DEBUG] [ShardAgent] ===== SHARD CREATION FAILED =====`);
+      console.error(`[DEBUG] [ShardAgent] Duration: ${duration}ms`);
+      console.error(`[DEBUG] [ShardAgent] Error:`, error);
+      console.error(
+        `[DEBUG] [ShardAgent] Error message:`,
+        error instanceof Error ? error.message : String(error)
+      );
+      console.error(
+        `[DEBUG] [ShardAgent] Error stack:`,
+        error instanceof Error ? error.stack : "No stack trace"
+      );
+      console.error(`[DEBUG] [ShardAgent] Status: FAILED`);
       throw new Error(
         `Failed to create shards: ${error instanceof Error ? error.message : "Unknown error"}`
       );

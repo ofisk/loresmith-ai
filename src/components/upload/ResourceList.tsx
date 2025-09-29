@@ -18,6 +18,9 @@ import { FileStatusIndicator } from "./FileStatusIndicator";
 interface ResourceListProps {
   onAddToCampaign?: (file: any) => void;
   onEditFile?: (file: any) => void;
+  campaigns?: Campaign[];
+  campaignAdditionProgress?: Record<string, number>;
+  isAddingToCampaigns?: boolean;
 }
 
 interface ResourceFile {
@@ -46,6 +49,9 @@ function getDisplayName(filename: string | undefined | null): string {
 export function ResourceList({
   onAddToCampaign,
   onEditFile,
+  campaigns = [],
+  campaignAdditionProgress = {},
+  isAddingToCampaigns = false,
 }: ResourceListProps) {
   const [files, setFiles] = useState<ResourceFileWithCampaigns[]>([]);
   const [_campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -154,7 +160,10 @@ export function ResourceList({
         return;
       }
 
-      console.log("[ResourceList] Starting fetchResources");
+      console.log(
+        "[ResourceList] Starting fetchResources - CALL #",
+        Date.now()
+      );
       isFetchingRef.current = true;
       setLoading(true);
       setError(null);
@@ -184,7 +193,7 @@ export function ResourceList({
         `[ResourceList] Fetched ${files.length} files:`,
         files.map((f) => ({ filename: f.file_name, status: f.status }))
       );
-      await fetchResourceCampaigns(files, []); // Pass empty campaigns array for now
+      await fetchResourceCampaigns(files, campaigns);
     } catch (err) {
       console.error("Failed to fetch resources:", err);
       setError(
@@ -194,7 +203,61 @@ export function ResourceList({
       setLoading(false);
       isFetchingRef.current = false;
     }
-  }, [fetchResourceCampaigns]);
+  }, [fetchResourceCampaigns, campaigns]);
+
+  // Centralized refresh function for all file statuses
+  const refreshAllFileStatuses = useCallback(async () => {
+    try {
+      const jwt = getStoredJwt();
+      if (!jwt) {
+        console.log("[ResourceList] No JWT available for refresh-all-statuses");
+        return;
+      }
+
+      console.log(
+        "[ResourceList] Refreshing all file statuses - CALL #",
+        Date.now()
+      );
+      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
+        API_CONFIG.ENDPOINTS.AUTORAG.REFRESH_ALL_FILE_STATUSES,
+        {
+          method: "POST",
+          jwt,
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username: AuthService.getUsernameFromStoredJwt(),
+          }),
+        }
+      );
+
+      if (jwtExpired) {
+        console.warn(
+          "[ResourceList] JWT expired while refreshing file statuses"
+        );
+        return;
+      }
+
+      if (response.ok) {
+        const result = (await response.json()) as {
+          success: boolean;
+          updatedCount: number;
+          results: Array<{ filename: string; updated: boolean }>;
+        };
+
+        if (result.success && result.updatedCount > 0) {
+          console.log(
+            `[ResourceList] Updated ${result.updatedCount} file statuses`
+          );
+          // Don't call fetchResources here to avoid circular dependency
+          // The individual event handlers will update the local state directly
+        }
+      }
+    } catch (error) {
+      console.error("[ResourceList] Error refreshing file statuses:", error);
+    }
+  }, []);
 
   // Handle file status updates from SSE notifications
   const handleFileStatusUpdate = useCallback((event: CustomEvent) => {
@@ -244,6 +307,8 @@ export function ResourceList({
         return file;
       });
     });
+
+    // Note: refreshAllFileStatuses is called from handleFileChange to avoid duplicate calls
   }, []);
 
   // Handle file changes from SSE notifications
@@ -289,8 +354,11 @@ export function ResourceList({
         console.log("[ResourceList] No complete file data, refreshing list");
         fetchResources();
       }
+
+      // Trigger refresh of all file statuses to ensure server state is current
+      refreshAllFileStatuses();
     },
-    [fetchResources]
+    [fetchResources, refreshAllFileStatuses]
   );
 
   const handleEditFile = (file: ResourceFileWithCampaigns) => {
@@ -540,6 +608,49 @@ export function ResourceList({
     };
   }, [handleFileChange]);
 
+  // Listen for campaign changes to refresh campaign associations
+  useEffect(() => {
+    const handleCampaignChange = () => {
+      console.log(
+        "[ResourceList] Received campaign change event, refreshing campaign data"
+      );
+      // Re-fetch campaign associations for all files
+      setFiles((prevFiles) => {
+        fetchResourceCampaigns(prevFiles, campaigns);
+        return prevFiles; // Return unchanged for now, fetchResourceCampaigns will update via setFiles
+      });
+    };
+
+    // Listen for campaign-related events
+    window.addEventListener(
+      "campaign-created",
+      handleCampaignChange as EventListener
+    );
+    window.addEventListener(
+      "campaign-file-added",
+      handleCampaignChange as EventListener
+    );
+    window.addEventListener(
+      "campaign-file-removed",
+      handleCampaignChange as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "campaign-created",
+        handleCampaignChange as EventListener
+      );
+      window.removeEventListener(
+        "campaign-file-added",
+        handleCampaignChange as EventListener
+      );
+      window.removeEventListener(
+        "campaign-file-removed",
+        handleCampaignChange as EventListener
+      );
+    };
+  }, [fetchResourceCampaigns, campaigns]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
@@ -588,6 +699,14 @@ export function ResourceList({
               className="absolute inset-y-0 left-0 pointer-events-none"
               style={{
                 width: (() => {
+                  // Check for campaign addition progress first
+                  const campaignProgress =
+                    campaignAdditionProgress[file.file_key];
+                  if (typeof campaignProgress === "number") {
+                    return `${campaignProgress}%`;
+                  }
+
+                  // Then check for file upload progress
                   const pct = progressByFileKey[file.file_key];
                   if (typeof pct === "number") return `${pct}%`;
 
@@ -612,10 +731,19 @@ export function ResourceList({
                   }
                 })(),
                 transition: "width 300ms ease",
-                background:
-                  file.status === "error"
+                background: (() => {
+                  // Check for campaign addition progress first
+                  const campaignProgress =
+                    campaignAdditionProgress[file.file_key];
+                  if (typeof campaignProgress === "number") {
+                    return "rgba(147, 51, 234, 0.12)"; // Purple for campaign addition
+                  }
+
+                  // Then check for file status
+                  return file.status === "error"
                     ? "rgba(239,68,68,0.15)"
-                    : "rgba(147,197,253,0.12)",
+                    : "rgba(147,197,253,0.12)";
+                })(),
               }}
             />
             <div className="flex flex-col h-full">

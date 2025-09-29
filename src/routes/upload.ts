@@ -29,38 +29,81 @@ async function processFileWithAutoRAG(
   logPrefix: string,
   jwt?: string
 ): Promise<void> {
+  const startTime = Date.now();
   try {
-    console.log(`${logPrefix} Starting AutoRAG processing for:`, filename);
-    console.log(`${logPrefix} AutoRAG processing params:`, {
-      autoragKey,
-      userId,
-      filename,
-      fileKey,
-      jwtPresent: jwt ? "yes" : "no",
-    });
+    console.log(`[DEBUG] ${logPrefix} ===== STARTING AUTORAG PROCESSING =====`);
+    console.log(`[DEBUG] ${logPrefix} File: ${filename}`);
+    console.log(`[DEBUG] ${logPrefix} AutoRAG Key: ${autoragKey}`);
+    console.log(`[DEBUG] ${logPrefix} Staging Key: ${fileKey}`);
+    console.log(`[DEBUG] ${logPrefix} User: ${userId}`);
+    console.log(`[DEBUG] ${logPrefix} JWT Present: ${jwt ? "YES" : "NO"}`);
+    console.log(`[DEBUG] ${logPrefix} Timestamp: ${new Date().toISOString()}`);
+
+    // Check if staging file exists
+    console.log(`[DEBUG] ${logPrefix} Checking staging file existence...`);
+    const stagingFile = await env.R2.get(fileKey);
+    if (!stagingFile) {
+      throw new Error(`Staging file not found: ${fileKey}`);
+    }
+    console.log(
+      `[DEBUG] ${logPrefix} Staging file found - Size: ${stagingFile.size} bytes`
+    );
+
+    // Check if AutoRAG file already exists
+    console.log(`[DEBUG] ${logPrefix} Checking AutoRAG file existence...`);
+    const existingAutoRAGFile = await env.R2.get(autoragKey);
+    if (existingAutoRAGFile) {
+      console.log(
+        `[DEBUG] ${logPrefix} AutoRAG file already exists - Size: ${existingAutoRAGFile.size} bytes`
+      );
+    } else {
+      console.log(
+        `[DEBUG] ${logPrefix} AutoRAG file does not exist, will be created`
+      );
+    }
 
     // Send indexing started notification (fire-and-forget)
+    console.log(
+      `[DEBUG] ${logPrefix} Sending indexing started notification...`
+    );
     notifyIndexingStarted(env, userId, filename).catch((notifyError) => {
       console.error(
-        `${logPrefix} Indexing started notification failed:`,
+        `[DEBUG] ${logPrefix} Indexing started notification failed:`,
         notifyError
       );
     });
     console.log(
-      `${logPrefix} Indexing started notification sent (fire-and-forget)`
+      `[DEBUG] ${logPrefix} Indexing started notification sent (fire-and-forget)`
     );
 
     // Update database status - mark as uploaded (ready for AutoRAG)
+    console.log(`[DEBUG] ${logPrefix} Updating database status to UPLOADED...`);
     const fileDAO = getDAOFactory(env).fileDAO;
     const r2File = await env.R2.get(fileKey);
+    console.log(
+      `[DEBUG] ${logPrefix} R2 file size: ${r2File?.size || 0} bytes`
+    );
+
     await fileDAO.updateFileRecord(
       autoragKey,
       FileDAO.STATUS.UPLOADED,
       r2File?.size || 0
     );
-    console.log(`${logPrefix} File marked as uploaded for:`, filename);
+    console.log(
+      `[DEBUG] ${logPrefix} File marked as UPLOADED in database for: ${filename}`
+    );
 
     // Trigger AutoRAG processing using the same pattern as retry
+    console.log(
+      `[DEBUG] ${logPrefix} Calling SyncQueueService.processFileUpload...`
+    );
+    console.log(`[DEBUG] ${logPrefix} SyncQueueService params:`, {
+      userId,
+      autoragKey,
+      filename,
+      jwtPresent: jwt ? "YES" : "NO",
+    });
+
     const result = await SyncQueueService.processFileUpload(
       env,
       userId,
@@ -69,19 +112,36 @@ async function processFileWithAutoRAG(
       jwt
     );
 
-    console.log(`${logPrefix} AutoRAG processing initiated for:`, filename);
-    console.log(`${logPrefix} SyncQueueService result:`, result);
+    console.log(
+      `[DEBUG] ${logPrefix} AutoRAG processing initiated for: ${filename}`
+    );
+    console.log(
+      `[DEBUG] ${logPrefix} SyncQueueService result:`,
+      JSON.stringify(result, null, 2)
+    );
 
     // Send status update notification with complete file data (fire-and-forget)
+    console.log(
+      `[DEBUG] ${logPrefix} Fetching file record for notifications...`
+    );
     const fileRecord = await fileDAO.getFileForRag(autoragKey, userId);
     if (fileRecord) {
+      console.log(`[DEBUG] ${logPrefix} File record found:`, {
+        id: fileRecord.id,
+        status: fileRecord.status,
+        size: fileRecord.size,
+        filename: fileRecord.filename,
+      });
       notifyFileUpdated(env, userId, fileRecord).catch((notifyError) => {
         console.error(
-          `${logPrefix} File updated notification failed:`,
+          `[DEBUG] ${logPrefix} File updated notification failed:`,
           notifyError
         );
       });
     } else {
+      console.log(
+        `[DEBUG] ${logPrefix} File record not found, using fallback notification`
+      );
       // Fallback to basic notification if file record not found
       notifyFileStatusUpdated(
         env,
@@ -91,16 +151,22 @@ async function processFileWithAutoRAG(
         FileDAO.STATUS.UPLOADED,
         r2File?.size || 0
       ).catch((notifyError) => {
-        console.error(`${logPrefix} Status notification failed:`, notifyError);
+        console.error(
+          `[DEBUG] ${logPrefix} Status notification failed:`,
+          notifyError
+        );
       });
     }
 
     // Send file upload completion notification with complete data (fire-and-forget)
     if (fileRecord) {
+      console.log(
+        `[DEBUG] ${logPrefix} Sending upload complete notification...`
+      );
       notifyFileUploadCompleteWithData(env, userId, fileRecord).catch(
         (notifyError) => {
           console.error(
-            `${logPrefix} Upload complete notification failed:`,
+            `[DEBUG] ${logPrefix} Upload complete notification failed:`,
             notifyError
           );
         }
@@ -108,23 +174,53 @@ async function processFileWithAutoRAG(
     }
 
     // Send indexing completed notification (fire-and-forget)
+    console.log(
+      `[DEBUG] ${logPrefix} Sending indexing completed notification...`
+    );
     notifyIndexingCompleted(env, userId, filename).catch((notifyError) => {
       console.error(
-        `${logPrefix} Indexing completed notification failed:`,
+        `[DEBUG] ${logPrefix} Indexing completed notification failed:`,
         notifyError
       );
     });
+
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    console.log(
+      `[DEBUG] ${logPrefix} ===== AUTORAG PROCESSING COMPLETED =====`
+    );
+    console.log(`[DEBUG] ${logPrefix} Duration: ${duration}ms`);
+    console.log(`[DEBUG] ${logPrefix} File: ${filename}`);
+    console.log(`[DEBUG] ${logPrefix} Status: SUCCESS`);
   } catch (error) {
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+
+    console.error(`[DEBUG] ${logPrefix} ===== AUTORAG PROCESSING FAILED =====`);
+    console.error(`[DEBUG] ${logPrefix} File: ${filename}`);
+    console.error(`[DEBUG] ${logPrefix} Duration: ${duration}ms`);
+    console.error(`[DEBUG] ${logPrefix} Error:`, error);
     console.error(
-      `${logPrefix} AutoRAG processing failed for ${filename}:`,
-      error
+      `[DEBUG] ${logPrefix} Error message:`,
+      error instanceof Error ? error.message : String(error)
+    );
+    console.error(
+      `[DEBUG] ${logPrefix} Error stack:`,
+      error instanceof Error ? error.stack : "No stack trace"
     );
 
     // Update file status to error
+    console.log(
+      `[DEBUG] ${logPrefix} Updating file status to ERROR in database...`
+    );
     const fileDAO = getDAOFactory(env).fileDAO;
     await fileDAO.updateFileRecord(autoragKey, FileDAO.STATUS.ERROR);
+    console.log(
+      `[DEBUG] ${logPrefix} File status updated to ERROR for: ${filename}`
+    );
 
     // Send error notifications (fire-and-forget)
+    console.log(`[DEBUG] ${logPrefix} Sending error notifications...`);
     notifyFileStatusUpdated(
       env,
       userId,
@@ -133,7 +229,7 @@ async function processFileWithAutoRAG(
       FileDAO.STATUS.ERROR
     ).catch((notifyError) => {
       console.error(
-        `${logPrefix} Error status notification failed:`,
+        `[DEBUG] ${logPrefix} Error status notification failed:`,
         notifyError
       );
     });
@@ -146,11 +242,14 @@ async function processFileWithAutoRAG(
       (error as Error)?.message
     ).catch((notifyError) => {
       console.error(
-        `${logPrefix} Indexing failed notification failed:`,
+        `[DEBUG] ${logPrefix} Indexing failed notification failed:`,
         notifyError
       );
     });
 
+    console.error(
+      `[DEBUG] ${logPrefix} ===== AUTORAG PROCESSING ERROR COMPLETE =====`
+    );
     throw error;
   }
 }
