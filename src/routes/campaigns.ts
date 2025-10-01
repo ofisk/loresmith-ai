@@ -10,7 +10,6 @@ import {
 import { RPG_EXTRACTION_PROMPTS } from "../lib/prompts/rpg-extraction-prompts";
 import { getLibraryAutoRAGService } from "../lib/service-factory";
 import type { Env } from "../middleware/auth";
-import { API_CONFIG } from "../shared-config";
 import type { AuthPayload } from "../services/auth-service";
 import { CampaignAutoRAG } from "../services/campaign-autorag-service";
 
@@ -459,7 +458,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
           console.log(`{[Server]} Extracting structured content from ${r.id}`);
 
           // Call AutoRAG AI Search with the detailed prompt
-          console.log(`[Server] Calling AutoRAG AI Search with filters:`, {
+          console.log(`[Server] Calling AutoRAG AI Search:`, {
             filename: r.file_name,
             prompt: `${structuredExtractionPrompt.substring(0, 200)}...`,
           });
@@ -556,23 +555,39 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                 "[Server][AI Search][prompt-only] full prompt:\n" +
                   structuredExtractionPrompt
               );
+              console.log(
+                `[Server][AI Search][DEBUG] About to call aiSearch with prompt length: ${structuredExtractionPrompt.length}`
+              );
+              console.log(
+                `[Server][AI Search][DEBUG] Prompt preview: ${structuredExtractionPrompt.substring(0, 200)}...`
+              );
+
               const res = await libraryAutoRAG.aiSearch(
                 structuredExtractionPrompt,
                 {
                   max_results: 50,
                   rewrite_query: false,
-                  // Enforce exact document by full staging key (Solution 1)
-                  filters: {
-                    type: "and",
-                    filters: [
-                      { key: "file_key", op: "eq", value: fileKey } as any,
-                    ],
-                  },
                 }
               );
+
+              console.log(
+                `[Server][AI Search][DEBUG] Raw response from AutoRAG:`,
+                JSON.stringify(res, null, 2)
+              );
+              // Extract the actual response from the nested structure
+              const actualResponse =
+                (res as any).result?.response || res.response || "";
               const preview =
-                typeof res.response === "string" ? res.response : "";
+                typeof actualResponse === "string" ? actualResponse : "";
+              console.log(
+                `[Server][AI Search][DEBUG] Response preview (first 500 chars): ${preview.substring(0, 500)}`
+              );
+              console.log(
+                `[Server][AI Search][DEBUG] Response type: ${typeof actualResponse}, length: ${preview.length}`
+              );
+
               const info = tryCount(preview);
+              console.log(`[Server][AI Search][DEBUG] tryCount result:`, info);
               const dataDocs = Array.isArray((res as any)?.data)
                 ? Array.from(
                     new Set(
@@ -587,94 +602,17 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                 dataDocs,
               });
 
-              // TODO(ofisk): temporary hack until indexing stabilizes.
-              // If zero docs are detected, automatically trigger a re-index in the background
-              // and notify the user. Remove this block once AutoRAG indexing is stable.
-              if (!info.ok || (info.matchedTotal === 0 && info.total === 0)) {
-                try {
-                  console.log(
-                    "[Server][AI Search][diagnostics] Probing document presence via metadata search"
-                  );
-                  const metaProbe = await libraryAutoRAG.search("", {
-                    limit: 5,
-                    filters: {
-                      type: "and",
-                      filters: [
-                        { key: "file_key", value: fileKey, op: "eq" } as any,
-                      ],
-                    },
-                  });
-                  console.log(
-                    "[Server][AI Search][diagnostics] Metadata probe result:",
-                    metaProbe
-                  );
-                } catch (probeErr) {
-                  console.error(
-                    "[Server][AI Search][diagnostics] Metadata probe failed:",
-                    probeErr
-                  );
-                }
-
-                // Fire-and-forget re-index request via sync queue service route
-                try {
-                  const triggerUrl = `${API_CONFIG.getApiBaseUrl(c.env)}${API_CONFIG.ENDPOINTS.RAG.TRIGGER_INDEXING}`;
-                  const authHeader = c.req.header("Authorization") || "";
-                  const resp = await fetch(triggerUrl, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: authHeader,
-                    },
-                    body: JSON.stringify({ fileKey }),
-                  });
-                  console.log(
-                    "[Server][AI Search][diagnostics] Re-index trigger response:",
-                    resp.status
-                  );
-                } catch (reindexErr) {
-                  console.error(
-                    "[Server][AI Search][diagnostics] Failed to trigger re-index:",
-                    reindexErr
-                  );
-                }
-
-                // Surface a user-facing notification that we queued a re-index
-                try {
-                  await notifyShardParseIssue(
-                    c.env,
-                    userAuth.username,
-                    campaign?.name || "unknown",
-                    r.file_name || r.id,
-                    {
-                      reason: "reindex_triggered",
-                      message:
-                        "Indexing not found; a re-index has been queued automatically.",
-                      hidden: false,
-                    }
-                  );
-                } catch (_e) {}
-              }
-              try {
-                await notifyShardParseIssue(
-                  c.env,
-                  userAuth.username,
-                  campaign?.name || "unknown",
-                  r.file_name || r.id,
-                  {
-                    reason: "ai_search_prompt_only",
-                    prompt: structuredExtractionPrompt,
-                    counts: info.counts,
-                    total: info.total,
-                    matchedCounts: info.matchedCounts,
-                    matchedTotal: info.matchedTotal,
-                    dataDocs,
-                  }
-                );
-              } catch (_e) {}
               if (info.ok && (info.matchedTotal > 0 || info.total > 0)) {
                 return res;
               }
             }
+            // Return a proper response object even when no results found
+            return {
+              response: "",
+              data: [],
+              success: true,
+              result: { response: "", data: [] },
+            };
           }
           let aiSearchResult: any;
           try {
@@ -686,6 +624,19 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
             );
             await new Promise((r) => setTimeout(r, 500));
             aiSearchResult = await runAISearchOnce();
+          }
+
+          // Ensure we have a valid result object
+          if (!aiSearchResult) {
+            console.warn(
+              "[Server] AI Search returned undefined, using empty result"
+            );
+            aiSearchResult = {
+              response: "",
+              data: [],
+              success: true,
+              result: { response: "", data: [] },
+            };
           }
 
           console.log(`[Server] AutoRAG AI Search completed with result:`, {
@@ -710,21 +661,27 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 
           // Handle the actual API response structure
           let aiResponse: string;
-          if (actualResult.response) {
+          if (actualResult.result?.response) {
+            aiResponse = actualResult.result.response;
+          } else if (actualResult.response) {
             aiResponse = actualResult.response;
           } else if (
             actualResult.result &&
             typeof actualResult.result === "string"
           ) {
             aiResponse = actualResult.result;
-          } else if (actualResult.result?.response) {
-            aiResponse = actualResult.result.response;
           } else {
             console.warn(
               `[Server] AI Search result has no accessible response property`
             );
             console.log(`[Server] Full AI Search result:`, actualResult);
-            return; // Skip shard generation if no response
+            await notifyShardCount(0);
+            return c.json({
+              success: true,
+              message:
+                "Resource added to campaign successfully. No shards could be generated from this resource.",
+              resource: { id: r.id, name: r.file_name || r.id, type: "file" },
+            });
           }
 
           console.log(
