@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   notifyCampaignCreated,
   notifyError,
-  notifyFileUploadComplete,
+  notifyFileUploadCompleteWithData,
   notifyShardGeneration,
   notifySuccess,
   notifyUser,
@@ -25,6 +25,10 @@ const mockEnv = {
 describe("Notification Helpers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset the mock to resolve successfully by default
+    mockEnv.NOTIFICATIONS.get().fetch.mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), { status: 200 })
+    );
   });
 
   describe("notifyUser", () => {
@@ -57,11 +61,13 @@ describe("Notification Helpers", () => {
         new Error("Network error")
       );
 
-      await notifyUser(mockEnv, "test-user", {
-        type: "test",
-        title: "Test",
-        message: "Test message",
-      });
+      await expect(
+        notifyUser(mockEnv, "test-user", {
+          type: "test",
+          title: "Test",
+          message: "Test message",
+        })
+      ).rejects.toThrow("Network error");
 
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining("Error sending notification to test-user"),
@@ -84,7 +90,7 @@ describe("Notification Helpers", () => {
 
       const mockDO = mockEnv.NOTIFICATIONS.get();
       const request = mockDO.fetch.mock.calls[0][0] as Request;
-      const body = await request.json();
+      const body = (await request.json()) as Record<string, any>;
 
       expect(body.type).toBe("shards_generated");
       expect(body.title).toBe("New Shards Ready!");
@@ -100,24 +106,36 @@ describe("Notification Helpers", () => {
     });
   });
 
-  describe("notifyFileUploadComplete", () => {
+  describe("notifyFileUploadCompleteWithData", () => {
     it("should send file upload notification", async () => {
-      await notifyFileUploadComplete(
-        mockEnv,
-        "test-user",
-        "test-file.pdf",
-        1024
-      );
+      await notifyFileUploadCompleteWithData(mockEnv, "test-user", {
+        id: "file-123",
+        file_key: "uploads/test-file.pdf",
+        file_name: "test-file.pdf",
+        file_size: 1024,
+        status: "uploaded",
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+      });
 
       const mockDO = mockEnv.NOTIFICATIONS.get();
       const request = mockDO.fetch.mock.calls[0][0] as Request;
-      const body = await request.json();
+      const body = (await request.json()) as Record<string, any>;
 
       expect(body.type).toBe("file_uploaded");
       expect(body.title).toBe("File Upload Complete");
       expect(body.message).toContain("test-file.pdf");
       expect(body.message).toContain("1 KB");
       expect(body.data).toEqual({
+        completeFileData: {
+          id: "file-123",
+          file_key: "uploads/test-file.pdf",
+          file_name: "test-file.pdf",
+          file_size: 1024,
+          status: "uploaded",
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+        },
         fileName: "test-file.pdf",
         fileSize: 1024,
       });
@@ -130,13 +148,14 @@ describe("Notification Helpers", () => {
 
       const mockDO = mockEnv.NOTIFICATIONS.get();
       const request = mockDO.fetch.mock.calls[0][0] as Request;
-      const body = await request.json();
+      const body = (await request.json()) as Record<string, any>;
 
       expect(body.type).toBe("campaign_created");
       expect(body.title).toBe("Campaign Created");
       expect(body.message).toContain("New Campaign");
       expect(body.data).toEqual({
         campaignName: "New Campaign",
+        campaignDescription: "",
       });
     });
   });
@@ -153,7 +172,7 @@ describe("Notification Helpers", () => {
 
       const mockDO = mockEnv.NOTIFICATIONS.get();
       const request = mockDO.fetch.mock.calls[0][0] as Request;
-      const body = await request.json();
+      const body = (await request.json()) as Record<string, any>;
 
       expect(body.type).toBe("success");
       expect(body.title).toBe("Success!");
@@ -174,7 +193,7 @@ describe("Notification Helpers", () => {
 
       const mockDO = mockEnv.NOTIFICATIONS.get();
       const request = mockDO.fetch.mock.calls[0][0] as Request;
-      const body = await request.json();
+      const body = (await request.json()) as Record<string, any>;
 
       expect(body.type).toBe("error");
       expect(body.title).toBe("Error!");

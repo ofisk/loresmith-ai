@@ -13,6 +13,7 @@ import { FileAnalysisOrchestrator } from "../services/file-analysis-orchestrator
 import { FileAnalysisService } from "../services/file-analysis-service";
 import { SyncQueueService } from "../services/sync-queue-service";
 import { AUTORAG_CONFIG } from "../shared-config";
+import { evaluateTimeout } from "../utils/processing-time-estimator";
 
 const AUTORAG_ENDPOINTS = {
   SYNC: "/sync",
@@ -489,6 +490,15 @@ export async function checkSingleJobStatus(
 
   try {
     console.log(`[DEBUG] [AutoRAG] Making GET request to AutoRAG API...`);
+    console.log(`[DEBUG] [AutoRAG] Request details:`, {
+      url: jobDetailsUrl,
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.AUTORAG_API_TOKEN ? env.AUTORAG_API_TOKEN.substring(0, 10) + "..." : "NOT_SET"}`,
+      },
+    });
+
     const jobResponse = await fetch(jobDetailsUrl, {
       method: "GET",
       headers: {
@@ -499,6 +509,12 @@ export async function checkSingleJobStatus(
 
     console.log(`[DEBUG] [AutoRAG] Job response status: ${jobResponse.status}`);
     console.log(`[DEBUG] [AutoRAG] Job response ok: ${jobResponse.ok}`);
+    console.log(`[DEBUG] [AutoRAG] Job response headers:`, {
+      "content-type": jobResponse.headers.get("content-type"),
+      "content-length": jobResponse.headers.get("content-length"),
+      date: jobResponse.headers.get("date"),
+      server: jobResponse.headers.get("server"),
+    });
 
     if (jobResponse.ok) {
       console.log(`[DEBUG] [AutoRAG] Response OK, parsing JSON...`);
@@ -511,6 +527,28 @@ export async function checkSingleJobStatus(
       // Extract job status from the response
       let jobStatus = jobResult.result?.status || jobResult.status;
       console.log(`[DEBUG] [AutoRAG] Initial job status: ${jobStatus}`);
+      console.log(
+        `[DEBUG] [AutoRAG] Full job result structure:`,
+        JSON.stringify(jobResult, null, 2)
+      );
+
+      // Check if there are any error messages in the response
+      if (jobResult.result?.error) {
+        console.error(
+          `[DEBUG] [AutoRAG] Job has error:`,
+          jobResult.result.error
+        );
+      }
+
+      // Check if there are any logs that might indicate issues
+      if (jobResult.result?.logs && Array.isArray(jobResult.result.logs)) {
+        console.log(
+          `[DEBUG] [AutoRAG] Job has ${jobResult.result.logs.length} log entries`
+        );
+        jobResult.result.logs.forEach((log: any, index: number) => {
+          console.log(`[DEBUG] [AutoRAG] Log ${index}:`, log);
+        });
+      }
 
       // If no explicit status field, determine status from other fields
       if (!jobStatus) {
@@ -716,6 +754,14 @@ export async function checkSingleJobStatus(
       `[DEBUG] [AutoRAG] Error stack:`,
       error instanceof Error ? error.stack : "No stack trace"
     );
+    console.error(`[DEBUG] [AutoRAG] Context:`, {
+      jobId: job.job_id,
+      fileName: job.file_name,
+      currentStatus: job.status,
+      ragId: job.rag_id,
+      username: job.username,
+      timestamp: new Date().toISOString(),
+    });
 
     // Mark job as failed on exception
     await fileDAO.updateAutoRAGJobStatus(
@@ -762,29 +808,39 @@ export async function handleRefreshAllFileStatuses(c: ContextWithAuth) {
           `[AutoRAG] Found ${processingFiles.length} files stuck in processing status without job tracking`
         );
 
-        // For files without job tracking, mark them as failed if they've been processing for more than 5 minutes
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
         let updatedCount = 0;
 
         for (const file of processingFiles) {
-          const fileCreatedAt = new Date(file.created_at);
-          if (fileCreatedAt < fiveMinutesAgo) {
-            // File has been processing for more than 5 minutes, mark as failed
-            await fileDAO.updateFileStatusByKey(
-              file.file_key,
-              FileDAO.STATUS.ERROR
+          try {
+            const { ageSeconds, timeoutSeconds, timedOut } = evaluateTimeout(
+              file.file_size ?? 0,
+              (file.updated_at ?? file.created_at) || Date.now(),
+              1.5
             );
-            console.log(
-              `[AutoRAG] Marked file ${file.file_name} as failed (stuck in processing for >5 minutes without job tracking)`
+
+            if (timedOut) {
+              // File has exceeded expected window; mark as failed so it can be retried
+              await fileDAO.updateFileStatusByKey(
+                file.file_key,
+                FileDAO.STATUS.ERROR
+              );
+              console.log(
+                `[AutoRAG] Marked file ${file.file_name} as failed (stuck ${ageSeconds}s, threshold ${timeoutSeconds}s, size=${file.file_size || 0} bytes)`
+              );
+              updatedCount++;
+            }
+          } catch (err) {
+            console.error(
+              `[AutoRAG] Error evaluating timeout for file ${file.file_key}:`,
+              err
             );
-            updatedCount++;
           }
         }
 
         if (updatedCount > 0) {
           return c.json({
             success: true,
-            message: `Marked ${updatedCount} files as failed (stuck in processing status without job tracking)`,
+            message: `Marked ${updatedCount} files as failed (size-based timeout without job tracking)`,
             updatedCount,
             autoFailed: true,
           });
@@ -809,6 +865,43 @@ export async function handleRefreshAllFileStatuses(c: ContextWithAuth) {
 
     for (const job of pendingJobs) {
       try {
+        // Size-based timeout for jobs with tracking
+        try {
+          const fileRecord = await fileDAO.getFileMetadata(job.file_key);
+          const fileSize = fileRecord?.file_size ?? 0;
+          const {
+            ageSeconds: age,
+            timeoutSeconds: timeout,
+            timedOut,
+          } = evaluateTimeout(
+            fileSize,
+            job.created_at ? new Date(job.created_at).getTime() : Date.now(),
+            1.5
+          );
+          if (timedOut) {
+            await fileDAO.updateAutoRAGJobStatus(
+              job.job_id,
+              "error",
+              `Timed out after ${age}s (threshold ${timeout}s)`
+            );
+            await fileDAO.updateFileRecord(job.file_key, FileDAO.STATUS.ERROR);
+            results.push({
+              filename: job.file_name,
+              jobId: job.job_id,
+              oldStatus: job.status,
+              newStatus: "error",
+              message: "Auto-failed by size-based timeout",
+              updated: true,
+            });
+            continue;
+          }
+        } catch (timeoutEvalErr) {
+          console.error(
+            `[AutoRAG] Error applying size-based timeout to pending job ${job.job_id}:`,
+            timeoutEvalErr
+          );
+        }
+
         const result = await checkSingleJobStatus(job, c.env);
         results.push({
           filename: job.file_name,

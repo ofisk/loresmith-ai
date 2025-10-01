@@ -279,19 +279,19 @@ async function cleanupStuckProcessingFiles(env: Env): Promise<void> {
 
     const fileDAO = getDAOFactory(env).fileDAO;
 
-    // Get files stuck in processing for more than 1 minute
+    // Get files stuck in processing or syncing for more than 1 minute
     const stuckFiles = await fileDAO.getStuckProcessingFiles(1);
 
     if (stuckFiles.length > 0) {
       console.log(
-        `[ScheduledCleanup] Found ${stuckFiles.length} files stuck in processing status`
+        `[ScheduledCleanup] Found ${stuckFiles.length} files stuck in processing/syncing status`
       );
 
       for (const file of stuckFiles) {
         // Mark file as failed due to timeout
         await fileDAO.markFileAsTimeoutFailed(
           file.file_key,
-          `Processing timeout - stuck in processing for more than 1 minute`
+          `Processing timeout - stuck in processing/syncing for more than 1 minute`
         );
 
         // Send notification to user

@@ -166,16 +166,12 @@ export async function handleGetOpenAIKey(c: Context<{ Bindings: Env }>) {
     const daoFactory = getDAOFactory(c.env);
     const apiKey = await daoFactory.getOpenAIKey(username);
 
-    if (apiKey) {
-      return c.json({
-        hasKey: true,
-        apiKey,
-      });
-    } else {
-      return c.json({
-        hasKey: false,
-      });
-    }
+    const responseBody = apiKey ? { hasKey: true, apiKey } : { hasKey: false };
+
+    // Allow brief client-side reuse to reduce duplicate requests
+    const res = c.json(responseBody);
+    res.headers.set("Cache-Control", "private, max-age=300");
+    return res;
   } catch (error) {
     console.error("Error getting OpenAI key:", error);
     return c.json({ error: "Internal server error" }, 500);

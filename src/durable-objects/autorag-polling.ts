@@ -102,8 +102,13 @@ export class AutoRAGPollingDO extends DurableObject {
     // Store state
     await this.ctx.storage.put("state", this.state);
 
+    console.log(`[DEBUG] [AutoRAGPollingDO] ===== STARTED POLLING =====`);
+    console.log(`[DEBUG] [AutoRAGPollingDO] Job ID: ${jobId}`);
+    console.log(`[DEBUG] [AutoRAGPollingDO] User: ${username}`);
+    console.log(`[DEBUG] [AutoRAGPollingDO] Polling interval: 5000ms`);
+    console.log(`[DEBUG] [AutoRAGPollingDO] Timeout: 1800000ms`);
     console.log(
-      `[AutoRAGPollingDO] Started polling for job: ${jobId}, user: ${username}`
+      `[DEBUG] [AutoRAGPollingDO] Timestamp: ${new Date().toISOString()}`
     );
 
     return new Response(JSON.stringify({ success: true, jobId }), {
@@ -232,6 +237,11 @@ export class AutoRAGPollingDO extends DurableObject {
         console.log(
           `[DEBUG] [AutoRAGPollingDO] Job ${jobId} not found in database, stopping polling`
         );
+        console.log(`[DEBUG] [AutoRAGPollingDO] Job details:`, {
+          jobId,
+          found: false,
+          timestamp: new Date().toISOString(),
+        });
         await this.handleStopPolling(
           new Request("http://localhost/stop-polling")
         );
@@ -245,6 +255,9 @@ export class AutoRAGPollingDO extends DurableObject {
         fileKey: job.file_key,
         fileName: job.file_name,
         status: job.status,
+        created_at: job.created_at,
+        updated_at: job.updated_at,
+        timestamp: new Date().toISOString(),
       });
 
       // Check job status with AutoRAG API
@@ -301,6 +314,14 @@ export class AutoRAGPollingDO extends DurableObject {
         `[DEBUG] [AutoRAGPollingDO] Error stack:`,
         error instanceof Error ? error.stack : "No stack trace"
       );
+      console.error(`[DEBUG] [AutoRAGPollingDO] Context:`, {
+        jobId,
+        username: this.state.username,
+        isPolling: this.state.isPolling,
+        currentJobId: this.state.currentJobId,
+        queueLength: this.state.queue.length,
+        timestamp: new Date().toISOString(),
+      });
     }
   }
 

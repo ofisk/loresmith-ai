@@ -14,7 +14,7 @@ import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { API_CONFIG } from "../shared-config";
 import { SyncQueueService } from "../services/sync-queue-service";
-import { buildAutoRAGFileKey, buildStagingFileKey } from "../utils/file-keys";
+import { buildStagingFileKey } from "../utils/file-keys";
 import { nanoid } from "../utils/nanoid";
 
 /**
@@ -22,10 +22,9 @@ import { nanoid } from "../utils/nanoid";
  */
 async function processFileWithAutoRAG(
   env: Env,
-  autoragKey: string,
+  fileKey: string,
   userId: string,
   filename: string,
-  fileKey: string,
   logPrefix: string,
   jwt?: string
 ): Promise<void> {
@@ -33,34 +32,63 @@ async function processFileWithAutoRAG(
   try {
     console.log(`[DEBUG] ${logPrefix} ===== STARTING AUTORAG PROCESSING =====`);
     console.log(`[DEBUG] ${logPrefix} File: ${filename}`);
-    console.log(`[DEBUG] ${logPrefix} AutoRAG Key: ${autoragKey}`);
-    console.log(`[DEBUG] ${logPrefix} Staging Key: ${fileKey}`);
+    console.log(`[DEBUG] ${logPrefix} File Key: ${fileKey}`);
     console.log(`[DEBUG] ${logPrefix} User: ${userId}`);
     console.log(`[DEBUG] ${logPrefix} JWT Present: ${jwt ? "YES" : "NO"}`);
     console.log(`[DEBUG] ${logPrefix} Timestamp: ${new Date().toISOString()}`);
 
-    // Check if staging file exists
-    console.log(`[DEBUG] ${logPrefix} Checking staging file existence...`);
-    const stagingFile = await env.R2.get(fileKey);
-    if (!stagingFile) {
-      throw new Error(`Staging file not found: ${fileKey}`);
+    // Immediately reflect SYNCING to advance UI even if R2 head is slow
+    try {
+      console.log(
+        `[DEBUG] ${logPrefix} Pre-marking status -> SYNCING before existence check`
+      );
+      const fileDAO = getDAOFactory(env).fileDAO;
+      await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.SYNCING);
+      const headMeta = await env.R2.head(fileKey).catch(() => null);
+      await notifyFileStatusUpdated(
+        env,
+        userId,
+        fileKey,
+        filename,
+        FileDAO.STATUS.SYNCING,
+        headMeta?.size || 0
+      );
+      console.log(
+        `[DEBUG] ${logPrefix} Status set to SYNCING (size=${headMeta?.size || 0})`
+      );
+    } catch (e) {
+      console.warn(
+        `[DEBUG] ${logPrefix} Failed to pre-mark SYNCING (non-fatal):`,
+        e
+      );
     }
-    console.log(
-      `[DEBUG] ${logPrefix} Staging file found - Size: ${stagingFile.size} bytes`
-    );
 
-    // Check if AutoRAG file already exists
-    console.log(`[DEBUG] ${logPrefix} Checking AutoRAG file existence...`);
-    const existingAutoRAGFile = await env.R2.get(autoragKey);
-    if (existingAutoRAGFile) {
-      console.log(
-        `[DEBUG] ${logPrefix} AutoRAG file already exists - Size: ${existingAutoRAGFile.size} bytes`
-      );
-    } else {
-      console.log(
-        `[DEBUG] ${logPrefix} AutoRAG file does not exist, will be created`
+    // Best-effort staging existence check (do not block processing)
+    console.log(
+      `[DEBUG] ${logPrefix} Checking staging file existence (HEAD)...`
+    );
+    try {
+      const head = await env.R2.head(fileKey);
+      if (head) {
+        console.log(
+          `[DEBUG] ${logPrefix} Staging file present - Size: ${head.size} bytes`
+        );
+      } else {
+        console.warn(
+          `[DEBUG] ${logPrefix} Staging HEAD returned null for: ${fileKey} (continuing)`
+        );
+      }
+    } catch (headErr) {
+      console.warn(
+        `[DEBUG] ${logPrefix} Staging HEAD check failed (continuing):`,
+        headErr
       );
     }
+
+    // AutoRAG will index the file directly from the staging location
+    console.log(
+      `[DEBUG] ${logPrefix} AutoRAG will index file from staging location: ${fileKey}`
+    );
 
     // Send indexing started notification (fire-and-forget)
     console.log(
@@ -79,27 +107,27 @@ async function processFileWithAutoRAG(
     // Update database status - mark as uploaded (ready for AutoRAG)
     console.log(`[DEBUG] ${logPrefix} Updating database status to UPLOADED...`);
     const fileDAO = getDAOFactory(env).fileDAO;
-    const r2File = await env.R2.get(fileKey);
+    const r2Meta = await env.R2.head(fileKey).catch(() => null);
     console.log(
-      `[DEBUG] ${logPrefix} R2 file size: ${r2File?.size || 0} bytes`
+      `[DEBUG] ${logPrefix} R2 size (HEAD): ${r2Meta?.size || 0} bytes`
     );
 
     await fileDAO.updateFileRecord(
-      autoragKey,
+      fileKey, // Use staging key for database operations too
       FileDAO.STATUS.UPLOADED,
-      r2File?.size || 0
+      r2Meta?.size || 0
     );
     console.log(
       `[DEBUG] ${logPrefix} File marked as UPLOADED in database for: ${filename}`
     );
 
-    // Trigger AutoRAG processing using the same pattern as retry
+    // Trigger AutoRAG processing using the staging key (where the file actually is)
     console.log(
       `[DEBUG] ${logPrefix} Calling SyncQueueService.processFileUpload...`
     );
     console.log(`[DEBUG] ${logPrefix} SyncQueueService params:`, {
       userId,
-      autoragKey,
+      fileKey: fileKey, // Use staging key instead of autorag key
       filename,
       jwtPresent: jwt ? "YES" : "NO",
     });
@@ -107,7 +135,7 @@ async function processFileWithAutoRAG(
     const result = await SyncQueueService.processFileUpload(
       env,
       userId,
-      autoragKey,
+      fileKey, // Use staging key instead of autorag key
       filename,
       jwt
     );
@@ -120,11 +148,36 @@ async function processFileWithAutoRAG(
       JSON.stringify(result, null, 2)
     );
 
+    // Immediately reflect SYNCING state to the DB and clients to move UI forward
+    try {
+      console.log(
+        `[DEBUG] ${logPrefix} Forcing status -> SYNCING for UI responsiveness...`
+      );
+      await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.SYNCING);
+      const metaForSync = await env.R2.head(fileKey).catch(() => null);
+      await notifyFileStatusUpdated(
+        env,
+        userId,
+        fileKey,
+        filename,
+        FileDAO.STATUS.SYNCING,
+        metaForSync?.size || 0
+      );
+      console.log(
+        `[DEBUG] ${logPrefix} Status set to SYNCING and notification emitted`
+      );
+    } catch (setSyncErr) {
+      console.warn(
+        `[DEBUG] ${logPrefix} Failed to set SYNCING state immediately:`,
+        setSyncErr
+      );
+    }
+
     // Send status update notification with complete file data (fire-and-forget)
     console.log(
       `[DEBUG] ${logPrefix} Fetching file record for notifications...`
     );
-    const fileRecord = await fileDAO.getFileForRag(autoragKey, userId);
+    const fileRecord = await fileDAO.getFileForRag(fileKey, userId);
     if (fileRecord) {
       console.log(`[DEBUG] ${logPrefix} File record found:`, {
         id: fileRecord.id,
@@ -146,10 +199,10 @@ async function processFileWithAutoRAG(
       notifyFileStatusUpdated(
         env,
         userId,
-        autoragKey,
+        fileKey,
         filename,
         FileDAO.STATUS.UPLOADED,
-        r2File?.size || 0
+        r2Meta?.size || 0
       ).catch((notifyError) => {
         console.error(
           `[DEBUG] ${logPrefix} Status notification failed:`,
@@ -214,7 +267,7 @@ async function processFileWithAutoRAG(
       `[DEBUG] ${logPrefix} Updating file status to ERROR in database...`
     );
     const fileDAO = getDAOFactory(env).fileDAO;
-    await fileDAO.updateFileRecord(autoragKey, FileDAO.STATUS.ERROR);
+    await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.ERROR);
     console.log(
       `[DEBUG] ${logPrefix} File status updated to ERROR for: ${filename}`
     );
@@ -224,7 +277,7 @@ async function processFileWithAutoRAG(
     notifyFileStatusUpdated(
       env,
       userId,
-      autoragKey,
+      fileKey,
       filename,
       FileDAO.STATUS.ERROR
     ).catch((notifyError) => {
@@ -257,15 +310,14 @@ async function processFileWithAutoRAG(
 /**
  * Helper function to start AutoRAG processing in background
  */
-function startAutoRAGProcessing(
+async function startAutoRAGProcessing(
   env: Env,
-  autoragKey: string,
+  fileKey: string,
   userId: string,
   filename: string,
-  fileKey: string,
   logPrefix: string,
   jwt?: string
-): void {
+): Promise<void> {
   console.log(
     `${logPrefix} startAutoRAGProcessing called for file: ${filename}`
   );
@@ -276,29 +328,28 @@ function startAutoRAGProcessing(
     `${logPrefix} Starting AutoRAG processing immediately for file: ${filename}`
   );
 
-  processFileWithAutoRAG(
-    env,
-    autoragKey,
-    userId,
-    filename,
-    fileKey,
-    logPrefix,
-    jwt
-  )
-    .then(() => {
-      console.log(
-        `${logPrefix} processFileWithAutoRAG completed successfully for file: ${filename}`
-      );
-    })
-    .catch((error) => {
-      console.error(
-        `${logPrefix} processFileWithAutoRAG failed for file ${filename}:`,
-        error
-      );
-    });
+  try {
+    await processFileWithAutoRAG(
+      env,
+      fileKey,
+      userId,
+      filename,
+      logPrefix,
+      jwt
+    );
+    console.log(
+      `${logPrefix} processFileWithAutoRAG completed successfully for file: ${filename}`
+    );
+  } catch (error) {
+    console.error(
+      `${logPrefix} processFileWithAutoRAG failed for file ${filename}:`,
+      error
+    );
+    throw error; // Re-throw to ensure the calling function knows about the failure
+  }
 
   console.log(
-    `${logPrefix} AutoRAG processing started (no setTimeout) for file: ${filename}`
+    `${logPrefix} AutoRAG processing completed for file: ${filename}`
   );
 }
 
@@ -403,6 +454,12 @@ export async function handleDirectUpload(c: ContextWithAuth) {
       httpMetadata: {
         contentType: c.req.header("Content-Type") || "application/octet-stream",
       },
+      // Preserve full staging identity for downstream AutoRAG metadata
+      customMetadata: {
+        file_key: key,
+        user: tenant,
+        original_name: filename,
+      },
     });
 
     console.log(
@@ -411,18 +468,17 @@ export async function handleDirectUpload(c: ContextWithAuth) {
 
     // Insert file metadata into database
     const fileDAO = getDAOFactory(c.env).fileDAO;
-    const autoragKey = buildAutoRAGFileKey(tenant, filename);
 
     try {
       await fileDAO.insertFileForProcessing(
-        autoragKey,
+        key, // Use staging key instead of autorag key
         filename,
         "", // description
         "[]", // tags (empty array as JSON string)
         tenant,
         fileBuffer.byteLength
       );
-      console.log(`[DirectUpload] Inserted file metadata: ${autoragKey}`);
+      console.log(`[DirectUpload] Inserted file metadata: ${key}`);
     } catch (error) {
       console.error(`[DirectUpload] Failed to insert file metadata: ${error}`);
       // Don't fail the upload if metadata insertion fails
@@ -435,22 +491,20 @@ export async function handleDirectUpload(c: ContextWithAuth) {
     console.log(
       `[DirectUpload] About to start AutoRAG processing with params:`,
       {
-        autoragKey,
+        fileKey: key,
         userId: userAuth.username,
         filename,
-        fileKey: key,
         jwtPresent: jwt ? "yes" : "no",
         jwtLength: jwt?.length || 0,
       }
     );
 
-    // Start AutoRAG processing in background
-    startAutoRAGProcessing(
+    // Start AutoRAG processing (awaited to ensure completion)
+    await startAutoRAGProcessing(
       c.env,
-      autoragKey,
+      key,
       userAuth.username,
       filename,
-      key,
       "[DirectUpload]",
       jwt
     );
@@ -650,6 +704,12 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
     const multipartUpload = await c.env.R2.createMultipartUpload(fileKey, {
       httpMetadata: {
         contentType: contentType,
+      },
+      // Ensure the final object carries precise identity metadata
+      customMetadata: {
+        file_key: fileKey,
+        user: tenant,
+        original_name: filename,
       },
     });
 
@@ -866,18 +926,17 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
 
     // Insert file metadata into database
     const fileDAO = getDAOFactory(c.env).fileDAO;
-    const autoragKey = buildAutoRAGFileKey(session.userId, session.filename);
 
     try {
       await fileDAO.insertFileForProcessing(
-        autoragKey,
+        session.fileKey, // Use staging key instead of autorag key
         session.filename,
         "", // description
         "[]", // tags (empty array as JSON string)
         session.userId,
         session.fileSize
       );
-      console.log(`[LargeUpload] Inserted file metadata: ${autoragKey}`);
+      console.log(`[LargeUpload] Inserted file metadata: ${session.fileKey}`);
     } catch (error) {
       console.error(`[LargeUpload] Failed to insert file metadata: ${error}`);
       // Don't fail the upload if metadata insertion fails
@@ -887,13 +946,12 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
     const authHeader = c.req.header("Authorization");
     const jwt = authHeader?.replace(/^Bearer\s+/i, "");
 
-    // Start AutoRAG processing in background
-    startAutoRAGProcessing(
+    // Start AutoRAG processing (awaited to ensure completion)
+    await startAutoRAGProcessing(
       c.env,
-      autoragKey,
+      session.fileKey,
       session.userId,
       session.filename,
-      session.fileKey,
       "[LargeUpload]",
       jwt
     );

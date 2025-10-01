@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { JWT_STORAGE_KEY } from "../../app-constants";
+import { fetchOpenAIKeyOnce } from "../../lib/openai-key-store";
 import { AuthService } from "@/services/auth-service";
 import { API_CONFIG } from "../../shared-config";
 
@@ -36,27 +37,17 @@ export function useAuth(): AuthContextType {
   // Check for stored OpenAI key
   const checkStoredOpenAIKey = useCallback(async (username: string) => {
     try {
-      const response = await fetch(
-        `/get-openai-key?username=${encodeURIComponent(username)}`
-      );
-      const result = (await response.json()) as {
-        hasKey?: boolean;
-        apiKey?: string;
-      };
-      if (response.ok && result.hasKey) {
+      const result = await fetchOpenAIKeyOnce(username);
+      if (result.hasKey) {
         setStoredOpenAIKey(result.apiKey || "");
         setIsAuthenticated(true);
       } else {
-        // No stored key found, show the auth modal immediately
         console.log("[Auth] No stored OpenAI key found for user:", username);
-        console.log("[Auth] Showing auth modal immediately");
         setShowAuthModal(true);
         setIsAuthenticated(false);
       }
     } catch (error) {
       console.error("Error checking stored OpenAI key:", error);
-      // Show modal on error as well
-      console.log("[Auth] Error checking stored key, showing auth modal");
       setShowAuthModal(true);
       setIsAuthenticated(false);
     }

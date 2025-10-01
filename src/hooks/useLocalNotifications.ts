@@ -34,13 +34,6 @@ export function useLocalNotifications() {
         );
         return newNotifications;
       });
-
-      // Auto-dismiss after 5 seconds
-      setTimeout(() => {
-        setLocalNotifications((prev) =>
-          prev.filter((n) => n.timestamp !== notification.timestamp)
-        );
-      }, 5000);
     },
     []
   );
