@@ -251,22 +251,7 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
       `[CampaignAutoRAG] Searching rejected shards with query: ${query}`
     );
 
-    const rejectedFolder = `${this.campaignRagBasePath}/rejected/`;
-    const searchOptions = {
-      ...options,
-      filters: {
-        type: "and" as const,
-        filters: [
-          {
-            type: "eq" as const,
-            key: "folder",
-            value: rejectedFolder,
-          },
-        ],
-      },
-    };
-
-    return await this.autoRagClient.search(query, searchOptions);
+    return await this.autoRagClient.search(query, options);
   }
 
   /**

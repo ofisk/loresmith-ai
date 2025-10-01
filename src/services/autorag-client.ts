@@ -72,29 +72,8 @@ export abstract class AutoRAGClientBase {
   ): Promise<AutoRAGSearchResult> {
     await this.ensureInitialized();
 
-    const enforcedFilter = this.enforcedFilter();
-
-    // Merge filters - if both exist, combine with logical AND
-    const mergedOptions = { ...options };
-    if (enforcedFilter && options.filters) {
-      // Combine enforced filter with caller filters using AND
-      mergedOptions.filters = {
-        type: "and",
-        filters: [
-          { type: "eq", key: "folder", value: enforcedFilter },
-          options.filters as any, // Type assertion needed due to union type
-        ],
-      };
-    } else if (enforcedFilter) {
-      // Use only the enforced filter
-      mergedOptions.filters = {
-        type: "and",
-        filters: [{ type: "eq", key: "folder", value: enforcedFilter }],
-      };
-    }
-
-    console.log("[AutoRAGClientBase] Searching with options:", mergedOptions);
-    return await this.autoRagClient.search(query, mergedOptions);
+    console.log("[AutoRAGClientBase] Searching with options:", options);
+    return await this.autoRagClient.search(query, options);
   }
 
   /**
@@ -116,26 +95,7 @@ export abstract class AutoRAGClientBase {
   ): Promise<AutoRAGAISearchResult> {
     await this.ensureInitialized();
 
-    const enforcedFilter = this.enforcedFilter();
-
-    // Merge filters - if both exist, combine with logical AND
     const mergedOptions = { ...options } as any;
-    if (enforcedFilter && options.filters) {
-      // Combine enforced filter with caller filters using AND
-      mergedOptions.filters = {
-        type: "and",
-        filters: [
-          { type: "eq", key: "folder", value: enforcedFilter },
-          options.filters as any, // Type assertion needed due to union type
-        ],
-      };
-    } else if (enforcedFilter) {
-      // Use only the enforced filter
-      mergedOptions.filters = {
-        type: "and",
-        filters: [{ type: "eq", key: "folder", value: enforcedFilter }],
-      };
-    }
 
     console.log(
       "[AutoRAGClientBase] AI Searching with prompt:",
