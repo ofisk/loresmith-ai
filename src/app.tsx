@@ -3,7 +3,7 @@ import { Bug, PaperPlaneRight, Stop, Trash } from "@phosphor-icons/react";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import type React from "react";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 
 import loresmith from "@/assets/loresmith.png";
 
@@ -441,17 +441,22 @@ export default function Chat() {
   });
 
   // Track whether campaigns referenced by shard UI messages still have staged shards
-  const campaignIdsForRender = Array.from(
-    new Set(
-      (agentMessages as any[])
-        .map((m) => m?.data)
-        .filter(
-          (d: any) => d?.type === "ui_hint" && d?.hint?.type === "shards_ready"
+  const campaignIdsForRender = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (agentMessages as any[])
+            .map((m) => m?.data)
+            .filter(
+              (d: any) =>
+                d?.type === "ui_hint" && d?.hint?.type === "shards_ready"
+            )
+            .map((d: any) => d?.hint?.data?.campaignId)
+            .filter((cid: any) => typeof cid === "string")
         )
-        .map((d: any) => d?.hint?.data?.campaignId)
-        .filter((cid: any) => typeof cid === "string")
-    )
-  ) as string[];
+      ) as string[],
+    [agentMessages]
+  );
   const { shouldRender: shouldRenderShardUI } = useShardRenderGate(
     authState.getStoredJwt,
     campaignIdsForRender

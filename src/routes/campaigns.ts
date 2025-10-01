@@ -518,14 +518,23 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                 const matchedCounts: Record<string, number> = {};
                 let total = 0;
                 let matchedTotal = 0;
+
+                // Check if the meta.source.doc matches our target file
+                const metaDoc = parsed?.meta?.source?.doc;
+                const metaMatches = metaDoc ? docMatches(metaDoc) : false;
+
                 for (const k of keys) {
                   const arr = (parsed[k] || []) as any[];
                   const n = arr.length;
                   counts[k] = n;
                   total += n;
-                  const matched = arr.filter((it) =>
-                    docMatches((it as any)?.source?.doc)
-                  ).length;
+
+                  // If meta matches, all items in this response are considered matched
+                  // since they all come from the same document
+                  const matched = metaMatches
+                    ? n
+                    : arr.filter((it) => docMatches((it as any)?.source?.doc))
+                        .length;
                   matchedCounts[k] = matched;
                   matchedTotal += matched;
                 }
@@ -761,6 +770,12 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
               const postCounts: Record<string, number> = {};
               const filtered: Record<string, any> = {};
               const docsSeen = new Set<string>();
+
+              // Check if the meta.source.doc matches our target file
+              const metaDoc = (parsedContent as any)?.meta?.source?.doc;
+              const metaMatches = metaDoc ? docMatches(metaDoc) : false;
+              if (metaDoc) docsSeen.add(metaDoc);
+
               for (const key of Object.keys(parsedContent)) {
                 const val = (parsedContent as any)[key];
                 if (key === "meta" || !Array.isArray(val)) {
@@ -768,11 +783,15 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
                   continue;
                 }
                 preCounts[key] = val.length;
-                const arr = (val as any[]).filter((it) => {
-                  const d = (it as any)?.source?.doc;
-                  if (typeof d === "string") docsSeen.add(d);
-                  return docMatches(d);
-                });
+
+                // If meta matches, include all items since they all come from the same document
+                const arr = metaMatches
+                  ? val
+                  : (val as any[]).filter((it) => {
+                      const d = (it as any)?.source?.doc;
+                      if (typeof d === "string") docsSeen.add(d);
+                      return docMatches(d);
+                    });
                 postCounts[key] = arr.length;
                 filtered[key] = arr;
               }
