@@ -14,6 +14,7 @@ import type { Campaign } from "../../types/campaign";
 import { useAuthReady } from "../../hooks/useAuthReady";
 import { Button } from "../button/Button";
 import { FileStatusIndicator } from "./FileStatusIndicator";
+import { Tooltip } from "../tooltip/Tooltip";
 
 interface ResourceListProps {
   onAddToCampaign?: (file: any) => void;
@@ -827,9 +828,14 @@ export function ResourceList({
             <div className="flex flex-col h-full">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 flex-1 mr-3 min-w-0">
-                  <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-help">
-                    {getDisplayName(file.file_name)}
-                  </h4>
+                  <Tooltip
+                    content={getDisplayName(file.file_name)}
+                    id={file.file_key}
+                  >
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-help">
+                      {getDisplayName(file.file_name)}
+                    </h4>
+                  </Tooltip>
                   {AuthService.getUsernameFromStoredJwt() && (
                     <FileStatusIndicator
                       tenant={AuthService.getUsernameFromStoredJwt()!}
