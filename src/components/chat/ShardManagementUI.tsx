@@ -37,6 +37,17 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
   reason: _reason,
   shardIds: _shardIds,
 }) => {
+  console.log("[ShardManagementUI] Component props:", {
+    campaignId,
+    shards,
+    total: _total,
+    action,
+    resourceId: _resourceId,
+    resourceName,
+    shardType,
+    reason: _reason,
+    shardIds: _shardIds,
+  });
   const [processing, setProcessing] = useState<string | null>(null);
   const [processingShard, setProcessingShard] = useState<{
     id: string;
@@ -58,9 +69,17 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
     undefined
   );
 
+  // Memoize the shards check to prevent unnecessary re-renders
+  const shouldFetchShards = React.useMemo(
+    () => !Array.isArray(shards) || shards.length === 0,
+    [Array.isArray(shards), shards?.length]
+  );
+
   React.useEffect(() => {
-    const shouldFetch = !Array.isArray(shards) || shards.length === 0;
-    if (!shouldFetch) return;
+    if (!shouldFetchShards) return;
+
+    // Prevent duplicate requests
+    if (isLoading) return;
     (async () => {
       try {
         setIsLoading(true);
@@ -115,6 +134,12 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
               },
             ]
           : [];
+        console.log("[ShardManagementUI] Fetched shards data:", {
+          itemsLength: items.length,
+          mappedLength: mapped.length,
+          items: items,
+          mapped: mapped,
+        });
         setFetchedShards(mapped);
       } catch (err) {
         console.error(
@@ -128,7 +153,7 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
         setIsLoading(false);
       }
     })();
-  }, [campaignId, shards]);
+  }, [campaignId, shouldFetchShards]);
 
   // Fetch campaign name for friendly header display
   React.useEffect(() => {
@@ -151,11 +176,8 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
     })();
   }, [campaignId]);
 
-  const effectiveShards: (StagedShardGroup | ShardCandidate)[] = Array.isArray(
-    shards
-  )
-    ? shards
-    : fetchedShards;
+  const effectiveShards: (StagedShardGroup | ShardCandidate)[] =
+    Array.isArray(shards) && shards.length > 0 ? shards : fetchedShards;
 
   // Normalize data structure - convert ShardCandidate[] to StagedShardGroup[] format
   const normalizedShards: StagedShardGroup[] = React.useMemo(() => {
@@ -409,6 +431,15 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
       shards: group.shards.filter((shard) => !processedShards.has(shard.id)),
     }))
     .filter((group) => group.shards.length > 0);
+
+  console.log("[ShardManagementUI] Shard processing debug:", {
+    effectiveShards: effectiveShards,
+    normalizedShards: normalizedShards,
+    visibleShards: visibleShards,
+    processedShards: Array.from(processedShards),
+    isLoading: isLoading,
+    loadError: loadError,
+  });
 
   const visibleShardCount = visibleShards.reduce(
     (total, group) => total + group.shards.length,
