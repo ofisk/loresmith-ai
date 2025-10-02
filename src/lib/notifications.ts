@@ -159,6 +159,8 @@ export async function notifyFileUploadCompleteWithData(
       // Also include individual fields for backward compatibility
       fileName: fileData.file_name,
       fileSize: fileData.file_size,
+      // Mark as hidden to prevent showing in notifications hub
+      hidden: true,
     },
   });
   console.log(
@@ -411,6 +413,8 @@ export async function notifyFileStatusUpdated(
       fileName,
       status,
       fileSize,
+      // Mark as hidden to prevent showing in notifications hub
+      hidden: true,
     },
   });
 }
@@ -446,6 +450,8 @@ export async function notifyFileUpdated(
       fileName: fileData.file_name,
       status: fileData.status,
       fileSize: fileData.file_size,
+      // Mark as hidden to prevent showing in notifications hub
+      hidden: true,
     },
   });
 }
