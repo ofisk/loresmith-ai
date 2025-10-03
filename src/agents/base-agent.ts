@@ -389,12 +389,14 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               const enhancedArgs = { ...args };
 
               // Check if the tool requires a JWT parameter and inject it if not provided
-              if (
+              // For Zod schemas, we need to check the shape property
+              const hasJwtParam =
                 tool.parameters &&
                 typeof tool.parameters === "object" &&
-                "jwt" in tool.parameters &&
-                !enhancedArgs.jwt
-              ) {
+                (tool.parameters as any).shape &&
+                "jwt" in (tool.parameters as any).shape;
+
+              if (hasJwtParam && !enhancedArgs.jwt) {
                 enhancedArgs.jwt = clientJwt;
                 console.log(
                   `[${this.constructor.name}] Injected JWT into tool ${toolName} parameters`
