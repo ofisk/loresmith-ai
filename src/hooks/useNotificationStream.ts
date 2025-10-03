@@ -34,9 +34,12 @@ export function useNotificationStream(
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttempts = useRef(0);
-  const maxReconnectAttempts = 5;
+  const maxReconnectAttempts = 3; // Reduced from 5 to 3
   const isConnectingRef = useRef(false);
   const hasConnectedRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const lastFailureTime = useRef(0);
+  const circuitBreakerTimeout = 30000; // 30 seconds
 
   // Keep latest callbacks without re-creating connect/disconnect
   const optsRef = useRef(options);
@@ -47,7 +50,16 @@ export function useNotificationStream(
   // Reconnect trigger is handled by the connect function dependency
 
   const connect = useCallback(async () => {
-    if (isConnectingRef.current) {
+    if (isConnectingRef.current || !isMountedRef.current) {
+      return;
+    }
+
+    // Circuit breaker: don't attempt connection if we've failed recently
+    const now = Date.now();
+    if (now - lastFailureTime.current < circuitBreakerTimeout) {
+      console.log(
+        "[useNotificationStream] Circuit breaker active, skipping connection attempt"
+      );
       return;
     }
 
@@ -180,6 +192,7 @@ export function useNotificationStream(
           error: null,
         }));
         reconnectAttempts.current = 0;
+        lastFailureTime.current = 0; // Reset circuit breaker on successful connection
         optsRef.current.onConnect?.();
         isConnectingRef.current = false;
       };
@@ -241,6 +254,7 @@ export function useNotificationStream(
       // Handle connection errors
       eventSource.onerror = (error) => {
         console.error("[useNotificationStream] ❌ Connection error:", error);
+        lastFailureTime.current = Date.now(); // Record failure time for circuit breaker
 
         // If CLOSED, allow immediate reconnection without clearing main auth JWT
         if (eventSource.readyState === 2) {
@@ -261,29 +275,36 @@ export function useNotificationStream(
           reconnectAttempts.current = 0;
         }
 
-        // Attempt to reconnect
-        if (reconnectAttempts.current < maxReconnectAttempts) {
-          const delay = Math.min(1000 * 2 ** reconnectAttempts.current, 30000); // Exponential backoff, max 30s
+        // Attempt to reconnect only if component is still mounted
+        if (
+          reconnectAttempts.current < maxReconnectAttempts &&
+          isMountedRef.current
+        ) {
+          const delay = Math.min(2000 * 2 ** reconnectAttempts.current, 60000); // Increased base delay and max delay
           reconnectAttempts.current++;
 
           reconnectTimeoutRef.current = setTimeout(() => {
-            isConnectingRef.current = false;
-            connect().catch((error) => {
-              console.error(
-                "[useNotificationStream] Reconnection failed:",
-                error
-              );
-            });
+            if (isMountedRef.current) {
+              isConnectingRef.current = false;
+              connect().catch((error) => {
+                console.error(
+                  "[useNotificationStream] Reconnection failed:",
+                  error
+                );
+              });
+            }
           }, delay);
         } else {
           console.error(
-            "[useNotificationStream] Max reconnection attempts reached"
+            "[useNotificationStream] Max reconnection attempts reached or component unmounted"
           );
-          setState((prev) => ({
-            ...prev,
-            error: "Failed to reconnect after multiple attempts",
-          }));
-          optsRef.current.onDisconnect?.();
+          if (isMountedRef.current) {
+            setState((prev) => ({
+              ...prev,
+              error: "Failed to reconnect after multiple attempts",
+            }));
+            optsRef.current.onDisconnect?.();
+          }
           isConnectingRef.current = false;
         }
       };
@@ -292,6 +313,7 @@ export function useNotificationStream(
         "[useNotificationStream] Failed to create EventSource:",
         error
       );
+      lastFailureTime.current = Date.now(); // Record failure time for circuit breaker
       setState((prev) => ({
         ...prev,
         error: "Failed to connect to notification stream",
@@ -302,6 +324,8 @@ export function useNotificationStream(
   }, []);
 
   const disconnect = useCallback(() => {
+    isMountedRef.current = false;
+
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
@@ -329,27 +353,32 @@ export function useNotificationStream(
 
   // Auto-connect on mount and when reconnect trigger changes
   useEffect(() => {
+    isMountedRef.current = true;
+
     const initConnection = async () => {
       try {
         await connect();
         hasConnectedRef.current = true;
       } catch (error) {
         console.error("[useNotificationStream] Failed to connect:", error);
-        setState((prev) => ({
-          ...prev,
-          error: "Failed to connect to notification stream",
-          isConnected: false,
-        }));
+        if (isMountedRef.current) {
+          setState((prev) => ({
+            ...prev,
+            error: "Failed to connect to notification stream",
+            isConnected: false,
+          }));
+        }
       }
     };
 
     initConnection();
 
-    // No cleanup needed - connect() function handles closing existing connections
+    // Proper cleanup on unmount
     return () => {
-      // Cleanup handled by connect() function
+      isMountedRef.current = false;
+      disconnect();
     };
-  }, [connect]);
+  }, [connect, disconnect]);
 
   return {
     ...state,

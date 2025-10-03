@@ -138,6 +138,7 @@ describe("Notification Helpers", () => {
         },
         fileName: "test-file.pdf",
         fileSize: 1024,
+        hidden: true,
       });
     });
   });

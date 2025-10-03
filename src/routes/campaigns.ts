@@ -1,17 +1,27 @@
 import type { Context } from "hono";
-import { ShardFactory } from "../lib/shard-factory";
 import { getDAOFactory } from "../dao/dao-factory";
-import {
-  notifyShardGeneration,
-  notifyCampaignCreated,
-  notifyCampaignFileAdded,
-  notifyShardParseIssue,
-} from "../lib/notifications";
-import { RPG_EXTRACTION_PROMPTS } from "../lib/prompts/rpg-extraction-prompts";
-import { getLibraryAutoRAGService } from "../lib/service-factory";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
-import { CampaignAutoRAG } from "../services/campaign-autorag-service";
+import {
+  createCampaign,
+  addResourceToCampaign,
+  checkResourceExists,
+  validateCampaignOwnership,
+  getCampaignRagBasePath,
+} from "../lib/campaign-operations";
+import {
+  generateShardsForResource,
+  notifyShardCount,
+} from "../services/shard-generation-service";
+import {
+  buildShardGenerationResponse,
+  buildResourceAdditionResponse,
+  buildCampaignCreationResponse,
+  buildCampaignUpdateResponse,
+  buildCampaignDeletionResponse,
+  buildBulkDeletionResponse,
+  buildResourceRemovalResponse,
+} from "../lib/response-builders";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -58,71 +68,15 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
       return c.json({ error: "Campaign name is required" }, 400);
     }
 
-    const campaignId = crypto.randomUUID();
-    const campaignRagBasePath = `campaigns/${campaignId}`;
-    const now = new Date().toISOString();
-
-    // Create campaign using DAO
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    console.log(`[Server] Creating campaign in database: ${campaignId}`);
-    try {
-      await campaignDAO.createCampaign(
-        campaignId,
-        name,
-        userAuth.username,
-        description || "",
-        campaignRagBasePath
-      );
-      console.log(
-        `[Server] Campaign created successfully in database: ${campaignId}`
-      );
-    } catch (dbError) {
-      console.error(
-        `[Server] Database error creating campaign ${campaignId}:`,
-        dbError
-      );
-      throw dbError;
-    }
-
-    // Initialize CampaignAutoRAG folders
-    try {
-      const campaignAutoRAG = new CampaignAutoRAG(
-        c.env,
-        c.env.AUTORAG_BASE_URL,
-        campaignRagBasePath
-      );
-      await campaignAutoRAG.initFolders();
-
-      console.log(
-        `[Server] Initialized CampaignAutoRAG folders for campaign: ${campaignId}`
-      );
-    } catch (autoRagError) {
-      console.error(
-        `[Server] Failed to initialize CampaignAutoRAG for campaign ${campaignId}:`,
-        autoRagError
-      );
-      // Don't fail the campaign creation if AutoRAG initialization fails
-    }
-
-    const newCampaign = {
-      campaignId,
+    const newCampaign = await createCampaign({
+      env: c.env,
+      username: userAuth.username,
       name,
-      description: description || "",
-      campaignRagBasePath,
-      createdAt: now,
-      updatedAt: now,
-    };
+      description,
+    });
 
-    console.log(
-      `[Server] Created campaign: ${campaignId} for user ${userAuth.username}`
-    );
-
-    // Notify campaign creation
-    try {
-      await notifyCampaignCreated(c.env, userAuth.username, name, description);
-    } catch (_e) {}
-
-    return c.json({ success: true, campaign: newCampaign }, 201);
+    const response = buildCampaignCreationResponse(newCampaign);
+    return c.json(response, 201);
   } catch (error) {
     console.error("Error creating campaign:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -180,11 +134,13 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
     console.log("[Server] User auth from middleware:", userAuth);
     console.log("[Server] Update data:", body);
 
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-
-    // First, check if the campaign exists and belongs to the user
-    const campaign = await campaignDAO.getCampaignById(campaignId);
-    if (!campaign || campaign.username !== userAuth.username) {
+    // Validate campaign ownership
+    const { valid, campaign } = await validateCampaignOwnership(
+      campaignId,
+      userAuth.username,
+      c.env
+    );
+    if (!valid) {
       console.log(
         `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
       );
@@ -194,8 +150,9 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
     console.log("[Server] Found campaign:", campaign);
 
     // Update the campaign using DAO
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
     await campaignDAO.updateCampaign(campaignId, {
-      name: body.name || campaign.name,
+      name: body.name || campaign!.name,
       description: body.description || "",
     });
 
@@ -207,11 +164,8 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
       userAuth.username
     );
 
-    return c.json({
-      success: true,
-      message: "Campaign updated successfully",
-      campaign: updatedCampaign,
-    });
+    const response = buildCampaignUpdateResponse(updatedCampaign);
+    return c.json(response);
   } catch (error) {
     console.error("Error updating campaign:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -226,11 +180,13 @@ export async function handleDeleteCampaign(c: ContextWithAuth) {
     console.log(`[Server] DELETE /campaigns/${campaignId} - starting request`);
     console.log("[Server] User auth from middleware:", userAuth);
 
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-
-    // First, check if the campaign exists and belongs to the user
-    const campaign = await campaignDAO.getCampaignById(campaignId);
-    if (!campaign || campaign.username !== userAuth.username) {
+    // Validate campaign ownership
+    const { valid, campaign } = await validateCampaignOwnership(
+      campaignId,
+      userAuth.username,
+      c.env
+    );
+    if (!valid) {
       console.log(
         `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
       );
@@ -240,15 +196,13 @@ export async function handleDeleteCampaign(c: ContextWithAuth) {
     console.log("[Server] Found campaign:", campaign);
 
     // Delete the campaign (DAO handles cascading deletes)
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
     await campaignDAO.deleteCampaign(campaignId);
 
     console.log(`[Server] Deleted campaign ${campaignId}`);
 
-    return c.json({
-      success: true,
-      message: "Campaign deleted successfully",
-      deletedCampaign: campaign,
-    });
+    const response = buildCampaignDeletionResponse(campaign!);
+    return c.json(response);
   } catch (error) {
     console.error("Error deleting campaign:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -274,21 +228,8 @@ export async function handleDeleteAllCampaigns(c: ContextWithAuth) {
       `[Server] Found ${deletedCampaigns.length} campaigns to delete`
     );
 
-    if (deletedCampaigns.length === 0) {
-      return c.json({
-        success: true,
-        message: "No campaigns found to delete",
-        deletedCount: 0,
-      });
-    }
-
-    console.log(`[Server] Deleted campaigns for user ${userAuth.username}`);
-    return c.json({
-      success: true,
-      message: "All campaigns deleted successfully",
-      deletedCount: deletedCampaigns.length,
-      deletedCampaigns,
-    });
+    const response = buildBulkDeletionResponse(deletedCampaigns);
+    return c.json(response);
   } catch (error) {
     console.error("Error deleting all campaigns:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -312,11 +253,13 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       return c.json({ error: "Resource type and id are required" }, 400);
     }
 
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-
-    // First, check if the campaign exists and belongs to the user
-    const campaign = await campaignDAO.getCampaignById(campaignId);
-    if (!campaign || campaign.username !== userAuth.username) {
+    // 1) Validate campaign ownership
+    const { valid, campaign } = await validateCampaignOwnership(
+      campaignId,
+      userAuth.username,
+      c.env
+    );
+    if (!valid) {
       console.log(
         `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
       );
@@ -325,68 +268,44 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 
     console.log("[Server] Found campaign:", campaign);
 
-    // Check if resource already exists in this campaign
-    const existingResource = await campaignDAO.getFileResourceByFileKey(
+    // 2) Check for existing resource (idempotency)
+    const { exists, resource: existingResource } = await checkResourceExists(
       campaignId,
-      id
+      id,
+      c.env
     );
-
-    if (existingResource) {
+    if (exists) {
       console.log(
         `[Server] Resource ${id} already exists in campaign ${campaignId}`
       );
-      // Return success instead of error - this is idempotent behavior
       return c.json(
         {
-          resource: {
-            id: existingResource.id,
-            campaignId,
-            fileKey: id,
-            fileName: existingResource.file_name,
-            description: "",
-            tags: "[]",
-            status: "active",
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
+          resource: existingResource,
           message: "Resource already exists in this campaign",
         },
         200
       );
     }
 
-    // Add the resource to the campaign
+    // 3) Add resource to campaign
     const resourceId = crypto.randomUUID();
-
-    await campaignDAO.addFileResourceToCampaign(
-      resourceId,
+    const newResource = await addResourceToCampaign({
+      env: c.env,
+      username: userAuth.username,
       campaignId,
-      id,
-      name || id,
-      "",
-      "[]",
-      "active"
-    );
+      resourceId,
+      fileKey: id,
+      fileName: name || id,
+    });
 
-    console.log(`[Server] Added resource ${id} to campaign ${campaignId}`);
-
-    // Notify file added to campaign (before shard generation)
-    try {
-      await notifyCampaignFileAdded(
-        c.env,
-        userAuth.username,
-        campaign.name,
-        name || id
-      );
-    } catch (_e) {}
-
-    // Generate shards for the newly added resource
+    // 4) Generate shards for the newly added resource
     try {
       console.log(`[Server] Generating shards for campaign: ${campaignId}`);
 
-      const campaignRagBasePath = await campaignDAO.getCampaignRagBasePath(
+      const campaignRagBasePath = await getCampaignRagBasePath(
         userAuth.username,
-        campaignId
+        campaignId,
+        c.env
       );
       if (!campaignRagBasePath) {
         console.warn(
@@ -395,578 +314,87 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
         // Continue without shard generation
       } else {
         // Fetch the specific resource we just created to avoid ordering issues
+        const campaignDAO = getDAOFactory(c.env).campaignDAO;
         const resource = await campaignDAO.getCampaignResourceById(
           resourceId,
           campaignId
         );
+
         if (!resource) {
           console.warn(
             `[Server] Newly added resource not found in campaign: ${campaignId} (resourceId: ${resourceId})`
           );
-          return c.json({
-            success: true,
-            message:
-              "Resource added to campaign. Shard generation deferred (resource lookup failed).",
-            resource: {
-              id: resourceId,
-              name: name || id,
-              type: "file",
-            },
-          });
-        } else {
-          const r = resource as any;
-          // Local helper to send a single consistent notification about shard count
-          const notifyShardCount = async (count: number) => {
-            try {
-              const campaignData =
-                await campaignDAO.getCampaignById(campaignId);
-              if (campaignData) {
-                await notifyShardGeneration(
-                  c.env,
-                  userAuth.username,
-                  campaignData.name,
-                  resource.file_name || resource.id,
-                  count,
-                  count > 0
-                    ? { campaignId, resourceId: resource.id }
-                    : undefined
-                );
-              }
-            } catch (error) {
-              console.error(
-                "[Server] Failed to send shard generation notification:",
-                error
-              );
-            }
-          };
-          console.log(`[Server] Generating shards for resource:`, resource);
+          const response = buildResourceAdditionResponse(
+            { id: resourceId, file_name: name || id },
+            "Resource added to campaign. Shard generation deferred (resource lookup failed)."
+          );
+          return c.json(response);
+        }
 
-          console.log(`[Server] Getting library AutoRAG service`);
-          const libraryAutoRAG = getLibraryAutoRAGService(
+        // Generate shards using the service
+        const shardResult = await generateShardsForResource({
+          env: c.env,
+          username: userAuth.username,
+          campaignId,
+          campaignName: campaign!.name,
+          resource,
+          campaignRagBasePath,
+        });
+
+        if (shardResult.success && shardResult.shardCount > 0) {
+          // Send notification about shard count
+          await notifyShardCount(
             c.env,
-            userAuth.username
-          );
-          console.log(`[Server] Library AutoRAG:`, libraryAutoRAG);
-
-          // Use the centralized RPG extraction prompt
-          const structuredExtractionPrompt =
-            RPG_EXTRACTION_PROMPTS.formatStructuredContentPrompt(
-              campaignId,
-              r.file_name || r.id
-            );
-
-          console.log(`{[Server]} Extracting structured content from ${r.id}`);
-
-          // Call AutoRAG AI Search with the detailed prompt
-          console.log(`[Server] Calling AutoRAG AI Search:`, {
-            filename: r.file_name,
-            prompt: `${structuredExtractionPrompt.substring(0, 200)}...`,
-          });
-
-          // Retry AI search once on transient failures (e.g., 400 due to race/format)
-          async function runAISearchOnce() {
-            const fileKey = (r as any).file_key as string;
-            const fileNameForFilter =
-              r.file_name ||
-              (typeof fileKey === "string"
-                ? fileKey.substring(fileKey.lastIndexOf("/") + 1)
-                : undefined);
-
-            console.log("[Server] AutoRAG filter inputs:", {
-              fileKey,
-              fileNameForFilter,
-            });
-
-            // Use the updated prompt format that matches the working manual prompt
-
-            // Helpers to match items to this resource's filename
-            const normalizeName = (s: string) =>
-              (s || "")
-                .toLowerCase()
-                .split("/")
-                .pop()!
-                .replace(/\.[a-z0-9]+$/, "")
-                .replace(/[^a-z0-9]+/g, "");
-            const targetDocNorm = normalizeName(r.file_name || r.id);
-            const docMatches = (doc: unknown) => {
-              if (typeof doc !== "string") return false;
-              const d = normalizeName(doc);
-              return (
-                d === targetDocNorm ||
-                d.includes(targetDocNorm) ||
-                targetDocNorm.includes(d)
-              );
-            };
-
-            // Helper for counting without throwing (returns total and matched-to-file)
-            const tryCount = (raw: string) => {
-              try {
-                let s = (raw || "").trim();
-                if (s.includes("```")) {
-                  s = s.replace(/^```[a-zA-Z]*\n?/, "").replace(/\n?```$/, "");
-                }
-                const first = s.indexOf("{");
-                const last = s.lastIndexOf("}");
-                if (first !== -1 && last !== -1 && last > first) {
-                  s = s.slice(first, last + 1);
-                }
-                const parsed = JSON.parse(s) as any;
-                const keys = Object.keys(parsed || {}).filter(
-                  (k) => k !== "meta" && Array.isArray(parsed[k])
-                );
-                const counts: Record<string, number> = {};
-                const matchedCounts: Record<string, number> = {};
-                let total = 0;
-                let matchedTotal = 0;
-
-                // Check if the meta.source.doc matches our target file
-                const metaDoc = parsed?.meta?.source?.doc;
-                const metaMatches = metaDoc ? docMatches(metaDoc) : false;
-
-                for (const k of keys) {
-                  const arr = (parsed[k] || []) as any[];
-                  const n = arr.length;
-                  counts[k] = n;
-                  total += n;
-
-                  // If meta matches, all items in this response are considered matched
-                  // since they all come from the same document
-                  const matched = metaMatches
-                    ? n
-                    : arr.filter((it) => docMatches((it as any)?.source?.doc))
-                        .length;
-                  matchedCounts[k] = matched;
-                  matchedTotal += matched;
-                }
-                return {
-                  ok: true,
-                  total,
-                  counts,
-                  keys,
-                  matchedCounts,
-                  matchedTotal,
-                };
-              } catch {
-                return {
-                  ok: false,
-                  total: 0,
-                  counts: {},
-                  keys: [] as string[],
-                  matchedCounts: {},
-                  matchedTotal: 0,
-                };
-              }
-            };
-
-            // First attempt: prompt-only (no metadata filters)
-            {
-              console.log(
-                "[Server][AI Search][prompt-only] full prompt:\n" +
-                  structuredExtractionPrompt
-              );
-              console.log(
-                `[Server][AI Search][DEBUG] About to call aiSearch with prompt length: ${structuredExtractionPrompt.length}`
-              );
-              console.log(
-                `[Server][AI Search][DEBUG] Prompt preview: ${structuredExtractionPrompt.substring(0, 200)}...`
-              );
-
-              const res = await libraryAutoRAG.aiSearch(
-                structuredExtractionPrompt,
-                {
-                  max_results: 50,
-                  rewrite_query: false,
-                }
-              );
-
-              console.log(
-                `[Server][AI Search][DEBUG] Raw response from AutoRAG:`,
-                JSON.stringify(res, null, 2)
-              );
-              // Extract the actual response from the nested structure
-              const actualResponse =
-                (res as any).result?.response || res.response || "";
-              const preview =
-                typeof actualResponse === "string" ? actualResponse : "";
-              console.log(
-                `[Server][AI Search][DEBUG] Response preview (first 500 chars): ${preview.substring(0, 500)}`
-              );
-              console.log(
-                `[Server][AI Search][DEBUG] Response type: ${typeof actualResponse}, length: ${preview.length}`
-              );
-
-              const info = tryCount(preview);
-              console.log(`[Server][AI Search][DEBUG] tryCount result:`, info);
-              const dataDocs = Array.isArray((res as any)?.data)
-                ? Array.from(
-                    new Set(
-                      (res as any).data
-                        .map((d: any) => d?.filename || d?.attributes?.filename)
-                        .filter((x: any) => typeof x === "string")
-                    )
-                  )
-                : [];
-              console.log("[Server][AI Search][prompt-only]", {
-                ...info,
-                dataDocs,
-              });
-
-              if (info.ok && (info.matchedTotal > 0 || info.total > 0)) {
-                return res;
-              }
-            }
-            // Return a proper response object even when no results found
-            return {
-              response: "",
-              data: [],
-              success: true,
-              result: { response: "", data: [] },
-            };
-          }
-          let aiSearchResult: any;
-          try {
-            aiSearchResult = await runAISearchOnce();
-          } catch (firstErr) {
-            console.warn(
-              "[Server] AI Search failed once, retrying in 500ms:",
-              firstErr
-            );
-            await new Promise((r) => setTimeout(r, 500));
-            aiSearchResult = await runAISearchOnce();
-          }
-
-          // Ensure we have a valid result object
-          if (!aiSearchResult) {
-            console.warn(
-              "[Server] AI Search returned undefined, using empty result"
-            );
-            aiSearchResult = {
-              response: "",
-              data: [],
-              success: true,
-              result: { response: "", data: [] },
-            };
-          }
-
-          console.log(`[Server] AutoRAG AI Search completed with result:`, {
-            hasResponse: !!aiSearchResult.response,
-            hasData: !!aiSearchResult.data,
-            dataLength: aiSearchResult.data?.length || 0,
-            resultKeys: Object.keys(aiSearchResult),
-          });
-
-          console.log(`[Server] AutoRAG AI Search completed for ${r.id}`);
-          // Type assertion to handle the actual API response structure
-          const actualResult = aiSearchResult as any;
-
-          console.log(`[Server] AI Search result structure:`, {
-            hasResponse: !!actualResult.response,
-            hasResult: !!actualResult.result,
-            hasSuccess: !!actualResult.success,
-            responseType: typeof actualResult.response,
-            resultType: typeof actualResult.result,
-            resultKeys: Object.keys(actualResult),
-          });
-
-          // Handle the actual API response structure
-          let aiResponse: string;
-          if (actualResult.result?.response) {
-            aiResponse = actualResult.result.response;
-          } else if (actualResult.response) {
-            aiResponse = actualResult.response;
-          } else if (
-            actualResult.result &&
-            typeof actualResult.result === "string"
-          ) {
-            aiResponse = actualResult.result;
-          } else {
-            console.warn(
-              `[Server] AI Search result has no accessible response property`
-            );
-            console.log(`[Server] Full AI Search result:`, actualResult);
-            await notifyShardCount(0);
-            return c.json({
-              success: true,
-              message:
-                "Resource added to campaign successfully. No shards could be generated from this resource.",
-              resource: { id: r.id, name: r.file_name || r.id, type: "file" },
-            });
-          }
-
-          console.log(
-            `[Server] AI Response: ${aiResponse.substring(0, 200)}...`
+            userAuth.username,
+            campaignId,
+            campaign!.name,
+            resource.file_name || resource.id,
+            resource.id,
+            shardResult.shardCount
           );
 
-          // Parse the AI response to extract structured content
-          try {
-            // Robust JSON extraction and cleaning
-            function extractJson(text: string): string | null {
-              let s = (text || "").trim();
-              if (s.includes("```")) {
-                s = s.replace(/^```[a-zA-Z]*\n?/, "").replace(/\n?```$/, "");
-              }
-              const firstIdx = s.indexOf("{");
-              const lastIdx = s.lastIndexOf("}");
-              if (firstIdx !== -1 && lastIdx !== -1 && lastIdx > firstIdx) {
-                return s.slice(firstIdx, lastIdx + 1);
-              }
-              return null;
-            }
+          // Return response with shard data
+          const response = buildShardGenerationResponse(
+            resource,
+            shardResult.shardCount,
+            campaignId,
+            shardResult.serverGroups
+          );
+          return c.json(response);
+        } else {
+          // Send zero shard notification
+          await notifyShardCount(
+            c.env,
+            userAuth.username,
+            campaignId,
+            campaign!.name,
+            resource.file_name || resource.id,
+            resource.id,
+            0
+          );
 
-            const cleanResponse = aiResponse.trim();
-            const jsonSlice = extractJson(cleanResponse);
-            const parsedContent = JSON.parse(jsonSlice || cleanResponse);
-
-            console.log(`[Server] Parsed AI Search response structure:`, {
-              keys: Object.keys(parsedContent),
-              hasMeta: !!parsedContent.meta,
-              contentTypes: Object.keys(parsedContent).filter(
-                (key) => key !== "meta" && Array.isArray(parsedContent[key])
-              ),
-            });
-
-            // Emit hidden debug counts per type
-            try {
-              const counts: Record<string, number> = {};
-              for (const k of Object.keys(parsedContent || {})) {
-                if (k !== "meta" && Array.isArray((parsedContent as any)[k])) {
-                  counts[k] = (parsedContent as any)[k].length;
-                }
-              }
-              await notifyShardParseIssue(
-                c.env,
-                userAuth.username,
-                campaign.name,
-                r.file_name || r.id,
-                {
-                  reason: "parsed_counts",
-                  counts,
-                  triedFilters: "folder+filename|folder|none",
-                }
-              );
-            } catch (_e) {}
-
-            if (parsedContent && typeof parsedContent === "object") {
-              // Filter parsed items to the current resource's document only
-              const normalizeName = (s: string) =>
-                (s || "")
-                  .toLowerCase()
-                  .split("/")
-                  .pop()!
-                  .replace(/\.[a-z0-9]+$/, "")
-                  .replace(/[^a-z0-9]+/g, "");
-              const targetDocNorm = normalizeName(r.file_name || r.id);
-              const docMatches = (doc: unknown) => {
-                if (typeof doc !== "string") return false;
-                const d = normalizeName(doc);
-                return (
-                  d === targetDocNorm ||
-                  d.includes(targetDocNorm) ||
-                  targetDocNorm.includes(d)
-                );
-              };
-
-              const preCounts: Record<string, number> = {};
-              const postCounts: Record<string, number> = {};
-              const filtered: Record<string, any> = {};
-              const docsSeen = new Set<string>();
-
-              // Check if the meta.source.doc matches our target file
-              const metaDoc = (parsedContent as any)?.meta?.source?.doc;
-              const metaMatches = metaDoc ? docMatches(metaDoc) : false;
-              if (metaDoc) docsSeen.add(metaDoc);
-
-              for (const key of Object.keys(parsedContent)) {
-                const val = (parsedContent as any)[key];
-                if (key === "meta" || !Array.isArray(val)) {
-                  filtered[key] = val;
-                  continue;
-                }
-                preCounts[key] = val.length;
-
-                // If meta matches, include all items since they all come from the same document
-                const arr = metaMatches
-                  ? val
-                  : (val as any[]).filter((it) => {
-                      const d = (it as any)?.source?.doc;
-                      if (typeof d === "string") docsSeen.add(d);
-                      return docMatches(d);
-                    });
-                postCounts[key] = arr.length;
-                filtered[key] = arr;
-              }
-
-              try {
-                await notifyShardParseIssue(
-                  c.env,
-                  userAuth.username,
-                  campaign.name,
-                  r.file_name || r.id,
-                  {
-                    reason: "post_filter_counts",
-                    preCounts,
-                    postCounts,
-                    docsSeen: Array.from(docsSeen),
-                  }
-                );
-              } catch (_e) {}
-              // Save shard candidates to R2 staging first (single file for this generation)
-              try {
-                const campaignAutoRAG = new CampaignAutoRAG(
-                  c.env,
-                  c.env.AUTORAG_BASE_URL,
-                  campaignRagBasePath || `campaigns/${campaignId}`
-                );
-                const shardCandidates = ShardFactory.parseAISearchResponse(
-                  filtered as any,
-                  resource as any,
-                  campaignId
-                );
-
-                // Write per-shard files for precise approvals
-                await campaignAutoRAG.saveShardCandidatesPerShard(
-                  r.id,
-                  shardCandidates,
-                  { fileName: r.file_name }
-                );
-
-                const createdCount = shardCandidates.length;
-                if (createdCount > 0) {
-                  await notifyShardCount(createdCount);
-                }
-
-                // Return an immediate UI hint using the generated candidates
-                const serverGroups = [
-                  {
-                    key: "focused_approval",
-                    sourceRef: {
-                      fileKey: resource.id,
-                      meta: {
-                        fileName: resource.file_name || resource.id,
-                        campaignId,
-                        entityType:
-                          shardCandidates[0]?.metadata?.entityType || "",
-                        chunkId: "",
-                        score: 0,
-                      },
-                    },
-                    shards: shardCandidates,
-                    created_at: new Date().toISOString(),
-                    campaignRagBasePath:
-                      campaignRagBasePath || `campaigns/${campaignId}`,
-                  },
-                ];
-
-                return c.json({
-                  success: true,
-                  message: `Resource added to campaign successfully. Generated ${createdCount} shards for review.`,
-                  resource: {
-                    id: r.id,
-                    name: r.file_name || r.id,
-                    type: "file",
-                  },
-                  shards: {
-                    count: createdCount,
-                    campaignId,
-                    resourceId: r.id,
-                    groups: serverGroups,
-                    message: `Generated ${createdCount} shards from "${r.file_name || r.id}".`,
-                  },
-                  ui_hint: {
-                    type: "shards_ready",
-                    data: {
-                      campaignId,
-                      resourceId: r.id,
-                      groups: serverGroups,
-                    },
-                  },
-                });
-              } catch (e) {
-                console.warn(
-                  "[Server] Failed to write candidates to R2 staging:",
-                  e
-                );
-              }
-              // If we reach here without returning, treat as zero created for safety
-              await notifyShardCount(0);
-              return c.json({
-                success: true,
-                message:
-                  "Resource added to campaign successfully. Shards were saved for review.",
-                resource: { id: r.id, name: r.file_name || r.id, type: "file" },
-              });
-            } else {
-              console.warn(
-                `[Server] Invalid structured content format for ${r.id}`
-              );
-              await notifyShardCount(0);
-              await notifyShardParseIssue(
-                c.env,
-                userAuth.username,
-                campaign.name,
-                r.file_name || r.id,
-                {
-                  reason: "invalid_structured_content",
-                  keys: Object.keys(parsedContent || {}),
-                }
-              );
-
-              return c.json({
-                success: true,
-                message:
-                  "Resource added to campaign successfully. Could not generate shards from this resource.",
-                resource: {
-                  id: r.id,
-                  name: r.file_name || r.id,
-                  type: "file",
-                },
-              });
-            }
-          } catch (parseError) {
-            console.error(
-              `[Server] Error parsing AI response for ${r.id}:`,
-              parseError
-            );
-            console.log(`[Server] Raw AI response: ${aiResponse}`);
-            await notifyShardCount(0);
-            await notifyShardParseIssue(
-              c.env,
-              userAuth.username,
-              campaign.name,
-              r.file_name || r.id,
-              {
-                reason: "parse_exception",
-                error: (parseError as Error)?.message,
-              }
-            );
-
-            return c.json({
-              success: true,
-              message:
-                "Resource added to campaign successfully. Error occurred while generating shards.",
-              resource: {
-                id: r.id,
-                name: r.file_name || r.id,
-                type: "file",
-              },
-              error: "Shard generation failed",
-            });
-          }
+          const response = buildResourceAdditionResponse(
+            resource,
+            "Resource added to campaign successfully. No shards could be generated from this resource."
+          );
+          return c.json(response);
         }
       }
     } catch (shardError) {
       console.error(`[Server] Error generating shards:`, shardError);
       // Still notify user with zero shards when generation fails
       try {
-        // reuse local helper if available
-        // If helper is not in scope (type narrowing), send directly
-        const campaignData = await campaignDAO.getCampaignById(campaignId);
+        const campaignData = await getDAOFactory(
+          c.env
+        ).campaignDAO.getCampaignById(campaignId);
         if (campaignData) {
-          await notifyShardGeneration(
+          await notifyShardCount(
             c.env,
             userAuth.username,
+            campaignId,
             campaignData.name,
             name || id,
+            resourceId,
             0
           );
         }
@@ -979,18 +407,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       // Don't fail the resource addition if shard generation fails
     }
 
-    const newResource = {
-      id: resourceId,
-      campaignId,
-      fileKey: id,
-      fileName: name || id,
-      description: "",
-      tags: "[]",
-      status: "active",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
+    // 5) Return success response without shards
     return c.json({ resource: newResource }, 201);
   } catch (error) {
     console.error("Error adding resource to campaign:", error);
@@ -1010,11 +427,13 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
     );
     console.log("[Server] User auth from middleware:", userAuth);
 
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-
-    // First, check if the campaign exists and belongs to the user
-    const campaign = await campaignDAO.getCampaignById(campaignId);
-    if (!campaign || campaign.username !== userAuth.username) {
+    // Validate campaign ownership
+    const { valid, campaign } = await validateCampaignOwnership(
+      campaignId,
+      userAuth.username,
+      c.env
+    );
+    if (!valid) {
       console.log(
         `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
       );
@@ -1024,6 +443,7 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
     console.log("[Server] Found campaign:", campaign);
 
     // Check if the resource exists in this campaign
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
     const resource = await campaignDAO.getCampaignResourceById(
       resourceId,
       campaignId
@@ -1045,11 +465,8 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
       `[Server] Removed resource ${resourceId} from campaign ${campaignId}`
     );
 
-    return c.json({
-      success: true,
-      message: "Resource removed from campaign successfully",
-      removedResource: resource,
-    });
+    const response = buildResourceRemovalResponse(resource);
+    return c.json(response);
   } catch (error) {
     console.error("Error removing resource from campaign:", error);
     return c.json({ error: "Internal server error" }, 500);

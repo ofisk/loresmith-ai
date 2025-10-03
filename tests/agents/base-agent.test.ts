@@ -1,17 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BaseAgent } from "../../src/agents/base-agent";
 import { SimpleChatAgent } from "../../src/agents/simple-chat-agent";
-import type { Env } from "../../src/middleware/auth";
 
 // Mock environment
-const mockEnv: Env = {
+const mockEnv = {
   DB: {} as D1Database,
-  FILE_BUCKET: {} as R2Bucket,
+  R2: {} as R2Bucket,
+  VECTORIZE: {} as any,
   AI: {} as any,
   ADMIN_SECRET: "test-secret",
   Chat: {} as DurableObjectNamespace,
   UserFileTracker: {} as DurableObjectNamespace,
-};
+  UploadSession: {} as DurableObjectNamespace,
+  ASSETS: {} as any,
+  NOTIFICATIONS: {} as DurableObjectNamespace,
+  AUTORAG_POLLING: {} as DurableObjectNamespace,
+  FILE_PROCESSING_QUEUE: {} as any,
+  FILE_PROCESSING_DLQ: {} as any,
+} as any;
 
 // Mock durable object context
 const mockCtx = {
@@ -45,6 +51,27 @@ const mockTools = {
     execute: vi.fn().mockRejectedValue(new Error("Tool execution failed")),
     description: "A tool that fails",
     parameters: { input: "string" },
+  },
+  // Tool that requires JWT (simulating Zod schema)
+  authenticatedTool: {
+    execute: vi.fn().mockResolvedValue("Authenticated tool executed"),
+    description: "A tool that requires JWT authentication",
+    parameters: {
+      shape: {
+        jwt: { description: "JWT token for authentication" },
+        action: { description: "Action to perform" },
+      },
+    },
+  },
+  // Tool that doesn't require JWT
+  publicTool: {
+    execute: vi.fn().mockResolvedValue("Public tool executed"),
+    description: "A tool that doesn't require authentication",
+    parameters: {
+      shape: {
+        action: { description: "Action to perform" },
+      },
+    },
   },
 };
 
@@ -163,6 +190,199 @@ describe("BaseAgent", () => {
     it("should have access to tools", () => {
       expect((agent as any).tools).toBeDefined();
       expect((agent as any).tools.testTool).toBeDefined();
+    });
+  });
+
+  describe("JWT injection for authenticated tools", () => {
+    const testJwt =
+      "eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6InRlc3QiLCJpYXQiOjE2MzQ1Njc4OTB9.test";
+
+    it("should inject JWT into tools that require authentication", () => {
+      const enhancedTools = (agent as any).createEnhancedTools(testJwt, null);
+
+      expect(enhancedTools.authenticatedTool).toBeDefined();
+      expect(enhancedTools.authenticatedTool.execute).toBeDefined();
+    });
+
+    it("should not inject JWT into tools that don't require authentication", () => {
+      const enhancedTools = (agent as any).createEnhancedTools(testJwt, null);
+
+      expect(enhancedTools.publicTool).toBeDefined();
+      expect(enhancedTools.publicTool.execute).toBeDefined();
+    });
+
+    it("should pass JWT to authenticated tool when executed", async () => {
+      const enhancedTools = (agent as any).createEnhancedTools(testJwt, null);
+      const mockContext = { toolCallId: "test-call-id" };
+
+      // Execute the authenticated tool
+      await enhancedTools.authenticatedTool.execute(
+        { action: "test-action" },
+        mockContext
+      );
+
+      // Verify the tool was called with JWT injected
+      expect(mockTools.authenticatedTool.execute).toHaveBeenCalledWith(
+        { action: "test-action", jwt: testJwt },
+        expect.objectContaining({ toolCallId: "test-call-id", env: mockEnv })
+      );
+    });
+
+    it("should not inject JWT when tool already has JWT parameter", async () => {
+      const enhancedTools = (agent as any).createEnhancedTools(testJwt, null);
+      const mockContext = { toolCallId: "test-call-id" };
+      const existingJwt = "existing-jwt-token";
+
+      // Execute the authenticated tool with existing JWT
+      await enhancedTools.authenticatedTool.execute(
+        { action: "test-action", jwt: existingJwt },
+        mockContext
+      );
+
+      // Verify the tool was called with the existing JWT, not the injected one
+      expect(mockTools.authenticatedTool.execute).toHaveBeenCalledWith(
+        { action: "test-action", jwt: existingJwt },
+        expect.objectContaining({ toolCallId: "test-call-id", env: mockEnv })
+      );
+    });
+
+    it("should handle null JWT gracefully", async () => {
+      const enhancedTools = (agent as any).createEnhancedTools(null, null);
+      const mockContext = { toolCallId: "test-call-id" };
+
+      // Execute the authenticated tool with null JWT
+      await enhancedTools.authenticatedTool.execute(
+        { action: "test-action" },
+        mockContext
+      );
+
+      // Verify the tool was called with null JWT
+      expect(mockTools.authenticatedTool.execute).toHaveBeenCalledWith(
+        { action: "test-action", jwt: null },
+        expect.objectContaining({ toolCallId: "test-call-id", env: mockEnv })
+      );
+    });
+
+    it("should not inject JWT into public tools", async () => {
+      const enhancedTools = (agent as any).createEnhancedTools(testJwt, null);
+      const mockContext = { toolCallId: "test-call-id" };
+
+      // Execute the public tool
+      await enhancedTools.publicTool.execute(
+        { action: "test-action" },
+        mockContext
+      );
+
+      // Verify the tool was called without JWT injection
+      expect(mockTools.publicTool.execute).toHaveBeenCalledWith(
+        { action: "test-action" },
+        expect.objectContaining({ toolCallId: "test-call-id", env: mockEnv })
+      );
+    });
+
+    it("should handle tools with legacy parameter structure", async () => {
+      // Create a tool with legacy parameter structure (no shape property)
+      const legacyTool = {
+        execute: vi.fn().mockResolvedValue("Legacy tool executed"),
+        description: "A legacy tool",
+        parameters: { jwt: "string", action: "string" },
+      };
+
+      const legacyTools = { legacyTool };
+      const legacyAgent = new (class extends BaseAgent {
+        constructor() {
+          super(mockCtx, mockEnv, mockModel, legacyTools);
+        }
+        async onChatMessage() {
+          return new Response("test");
+        }
+      })();
+
+      const enhancedTools = (legacyAgent as any).createEnhancedTools(
+        testJwt,
+        null
+      );
+      const mockContext = { toolCallId: "test-call-id" };
+
+      // Execute the legacy tool
+      await enhancedTools.legacyTool.execute(
+        { action: "test-action" },
+        mockContext
+      );
+
+      // Verify the tool was called without JWT injection (legacy tools don't get JWT injection)
+      expect(legacyTool.execute).toHaveBeenCalledWith(
+        { action: "test-action" },
+        expect.objectContaining({ toolCallId: "test-call-id", env: mockEnv })
+      );
+    });
+
+    it("should prevent infinite loops in tool execution", async () => {
+      const enhancedTools = (agent as any).createEnhancedTools(testJwt, null);
+      const mockContext = { toolCallId: "test-call-id" };
+
+      // Call the same tool multiple times with the same arguments
+      for (let i = 0; i < 5; i++) {
+        await enhancedTools.authenticatedTool.execute(
+          { action: "test-action" },
+          mockContext
+        );
+      }
+
+      // Should only be called 3 times (2 normal calls + 1 blocked call)
+      expect(mockTools.authenticatedTool.execute).toHaveBeenCalledTimes(3);
+    });
+
+    it("should handle stale command guard for mutating tools", async () => {
+      const mockContext = { toolCallId: "test-call-id" };
+
+      // Create a mutating tool
+      const mutatingTool = {
+        execute: vi.fn().mockResolvedValue("Mutating tool executed"),
+        description: "A mutating tool",
+        parameters: {
+          shape: {
+            jwt: { description: "JWT token" },
+            action: { description: "Action to perform" },
+          },
+        },
+      };
+
+      const mutatingTools = { approveShardsTool: mutatingTool };
+      const mutatingAgent = new (class extends BaseAgent {
+        constructor() {
+          super(mockCtx, mockEnv, mockModel, mutatingTools);
+        }
+        async onChatMessage() {
+          return new Response("test");
+        }
+      })();
+
+      const enhancedMutatingTools = (mutatingAgent as any).createEnhancedTools(
+        testJwt,
+        null,
+        { isStaleCommand: true }
+      );
+
+      // Execute the mutating tool with stale command
+      const result = await enhancedMutatingTools.approveShardsTool.execute(
+        { action: "test-action" },
+        mockContext
+      );
+
+      // Should return a blocked result, not execute the tool
+      expect(result).toEqual({
+        toolCallId: "test-call-id",
+        result: {
+          success: false,
+          message:
+            "IGNORED_STALE_COMMAND: Mutating action was blocked because the originating user command is stale.",
+          data: null,
+        },
+      });
+
+      // Tool should not have been executed
+      expect(mutatingTool.execute).not.toHaveBeenCalled();
     });
   });
 
