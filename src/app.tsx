@@ -464,8 +464,8 @@ export default function Chat() {
 
   return (
     <>
-      <div className="h-[100vh] w-full flex justify-center items-center bg-fixed p-6">
-        <div className="h-[calc(100vh-3rem)] w-full mx-auto max-w-[1400px] flex flex-col shadow-2xl rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950 overflow-hidden">
+      <div className="h-[100vh] w-full p-6 flex justify-center items-center bg-fixed">
+        <div className="h-[calc(100vh-3rem)] w-full mx-auto max-w-[1400px] flex flex-col shadow-2xl rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950">
           {/* Top Header - LoreSmith Branding */}
           <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 flex items-center gap-4 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-sm">
             <div
