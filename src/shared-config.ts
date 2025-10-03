@@ -30,13 +30,16 @@ function getApiUrl(env?: any): string {
     return env.VITE_API_URL;
   }
 
-  // Then try to get from process.env (Node.js environment)
-  if (process?.env?.VITE_API_URL && process.env.VITE_API_URL !== "undefined") {
-    return process.env.VITE_API_URL;
-  }
+  // For browser environment, use import.meta.env (Vite environment variables)
+  if (typeof window !== "undefined" && typeof import.meta !== "undefined") {
+    // Try to get from Vite environment variables first
+    if (
+      import.meta.env?.VITE_API_URL &&
+      import.meta.env.VITE_API_URL !== "undefined"
+    ) {
+      return import.meta.env.VITE_API_URL;
+    }
 
-  // For browser environment, try to get from window or use fallback
-  if (typeof window !== "undefined") {
     // In development, the API runs on a different port than the client
     if (
       window.location.hostname === "localhost" &&
@@ -46,6 +49,15 @@ function getApiUrl(env?: any): string {
     }
     // In production, use the same origin
     return window.location.origin;
+  }
+
+  // Then try to get from process.env (Node.js environment)
+  if (
+    typeof process !== "undefined" &&
+    process?.env?.VITE_API_URL &&
+    process.env.VITE_API_URL !== "undefined"
+  ) {
+    return process.env.VITE_API_URL;
   }
 
   // Fallback for development or when environment variable is not set
