@@ -31,7 +31,6 @@
   "durable_objects": {
     "bindings": [
       { "name": "Chat", "class_name": "Chat" },
-      { "name": "UserFileTracker", "class_name": "UserFileTracker" },
       { "name": "UploadSession", "class_name": "UploadSessionDO" },
     ],
   },
