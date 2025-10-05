@@ -154,16 +154,12 @@ export default function Chat() {
   // Handle authentication submission
   const handleAuthenticationSubmit = useCallback(
     async (username: string, adminKey: string, openaiApiKey: string) => {
-      try {
-        await authState.handleAuthenticationSubmit(
-          username,
-          adminKey,
-          openaiApiKey
-        );
-        modalState.setShowAuthModal(false);
-      } catch (error) {
-        throw error;
-      }
+      await authState.handleAuthenticationSubmit(
+        username,
+        adminKey,
+        openaiApiKey
+      );
+      modalState.setShowAuthModal(false);
     },
     [authState, modalState]
   );

@@ -813,26 +813,6 @@ app.get(
   handleIngestionStats
 );
 
-// Wrap Hono fetch in a plain function to satisfy Wrangler's export check
-export const fetch = (request: Request, env: Env, ctx: ExecutionContext) =>
-  app.fetch(request, env, ctx);
-export const queue = (
-  batch: MessageBatch<unknown>,
-  env: Env,
-  _ctx?: ExecutionContext
-) => queueFn(batch as any, env as any);
-export const scheduled = (
-  event: ScheduledEvent,
-  env: Env,
-  _ctx?: ExecutionContext
-) => scheduledFn(event as any, env as any);
-
-export default {
-  fetch,
-  queue,
-  scheduled,
-};
-
 // Root path handler - serve index.html
 app.get("/", async (c) => {
   return c.env.ASSETS.fetch(new Request("https://example.com/index.html"));
@@ -895,3 +875,15 @@ app.get("/agents/*", async (c) => {
 app.get("*", async (_c) => {
   return new Response("Route not found", { status: 404 });
 });
+
+export default {
+  fetch: (request: Request, env: Env, ctx: ExecutionContext) => {
+    return app.fetch(request, env, ctx);
+  },
+  queue: (batch: MessageBatch<unknown>, env: Env, _ctx?: ExecutionContext) => {
+    return queueFn(batch as any, env as any);
+  },
+  scheduled: (event: ScheduledEvent, env: Env, _ctx?: ExecutionContext) => {
+    return scheduledFn(event as any, env as any);
+  },
+};

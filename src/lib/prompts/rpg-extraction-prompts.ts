@@ -11,10 +11,10 @@ export const RPG_EXTRACTION_PROMPTS = {
   STRUCTURED_CONTENT: `You are extracting Dungeon Master prep data from RPG text.
 
 TASK
-From the provided text, identify and synthesize ALL relevant game-ready "primitives" and output a SINGLE JSON object that strictly follows the schema in the SPEC below. Return ONLY valid JSON (no comments, no markdown). If a field is unknown, omit it. Prefer concise, prep-usable summaries over flavor text.
+From the provided text, identify and synthesize ALL relevant game-ready "primitives" and output a SINGLE JSON object that strictly follows the schema in the SPEC below. Return ONLY valid JSON (no comments, no markdown). If a field is unknown, omit it. Be comprehensive - extract all potentially useful content for game preparation.
 
 CONTEXT & HINTS
-- Typical cues:
+- Look for these common RPG elements:
   - Monsters/Creatures: "Armor Class", "Hit Points", STR/DEX/CON/INT/WIS/CHA line, "Challenge".
   - Spells: "1st-level <school>", casting time, range, components, duration, "At Higher Levels".
   - Magic Items: rarity, type, "requires attunement".
@@ -22,21 +22,19 @@ CONTEXT & HINTS
   - Scenes/Rooms: numbered keys (e.g., "Area 12"), read-aloud boxed text, GM notes.
   - Hooks/Quests: imperative requests with stakes and links to NPCs/locations.
   - Tables: a dice column (d20/d100), range → result rows.
-- Keep "rejected" campaign content out of results if the shard indicates rejection (e.g., metadata flags).
-- Normalize names (title case), keep dice notation and DCs.
+- Normalize names (title case), preserve dice notation and DCs.
 - Include lightweight relationships in \`relations[]\` to connect items (e.g., a scene that contains a monster).
+- Extract any content that could be useful for game preparation, even if it doesn't fit standard categories.
 
 OUTPUT RULES
 - Output one JSON object with the top-level keys exactly as in SPEC.
 - Each predefined array can be empty, but must exist.
 - You may discover content that doesn't fit the predefined types - create a new "custom" array for these discoveries.
-- Do not invent rules outside the text; summarize faithfully.
-- Keep \`summary\` and \`one_line\` short (≤ 240 chars each).
+- Summarize faithfully from the text; do not invent or add information not present.
+- Keep \`summary\` and \`one_line\` concise but informative (≤ 240 chars each).
 - Output plain JSON without any markdown formatting.
-
-INPUT VARIABLES
-- campaignId: {{CAMPAIGN_ID}}
-- source: { "doc": "{{RESOURCE_NAME}}", "pages": "", "anchor": "" }
+- Be comprehensive and inclusive - extract everything that could be useful for game preparation.
+- When in doubt, include the content rather than exclude it.
 
 SPEC (fields not listed under a type are optional; always include common fields if known)
 COMMON FIELDS (for every primitive):
@@ -84,10 +82,11 @@ TYPES & REQUIRED MINIMUM FIELDS
 CUSTOM TYPES DISCOVERY
 If you find content that doesn't fit the predefined types above, create a "custom" array with items following this structure:
 - custom[]: { id, type: "custom_[descriptive_type]", name, summary, content_type: "brief description of what this is", details?: any, tags?, source, relations? }
+- Don't hesitate to create custom types for unique or unusual content that could be valuable for game preparation.
 
 TOP-LEVEL RETURN SHAPE (all keys required, arrays may be empty)
 {
-  "meta": { "campaignId": string, "source": { "doc": string, "pages"?: string, "anchor"?: string } },
+  "meta": { "source": { "doc": string, "pages"?: string, "anchor"?: string } },
   "monsters": [], "npcs": [], "spells": [], "items": [],
   "traps": [], "hazards": [], "conditions": [], "vehicles": [], "env_effects": [],
   "hooks": [], "plot_lines": [], "quests": [], "scenes": [],
@@ -99,20 +98,15 @@ TOP-LEVEL RETURN SHAPE (all keys required, arrays may be empty)
   "custom": []
 }
 
-RETURN ONLY JSON.
-
-Show results for the {{RESOURCE_NAME}} file`,
+RETURN ONLY JSON.`,
 
   /**
-   * Helper function to format the prompt with campaign-specific variables
+   * Helper function to format the prompt with resource-specific variables
    */
-  formatStructuredContentPrompt: (
-    campaignId: string,
-    resourceName: string
-  ): string => {
+  formatStructuredContentPrompt: (resourceName: string): string => {
     return RPG_EXTRACTION_PROMPTS.STRUCTURED_CONTENT.replace(
-      "{{CAMPAIGN_ID}}",
-      campaignId
-    ).replace("{{RESOURCE_NAME}}", resourceName);
+      "document",
+      resourceName
+    );
   },
 };

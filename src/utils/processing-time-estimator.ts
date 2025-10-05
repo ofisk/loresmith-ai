@@ -104,7 +104,7 @@ export function formatProcessingTime(estimate: ProcessingTimeEstimate): string {
  */
 export function getProcessingTimeMessage(
   fileSizeBytes: number,
-  fileName: string
+  _fileName: string
 ): string {
   const estimate = estimateProcessingTime(fileSizeBytes);
   const timeStr = formatProcessingTime(estimate);

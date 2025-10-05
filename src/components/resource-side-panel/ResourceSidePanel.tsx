@@ -49,7 +49,7 @@ export function ResourceSidePanel({
     campaignsLoading,
     campaignsError,
   } = useCampaignManagement({
-    isAuthenticated,
+    _isAuthenticated: isAuthenticated,
     campaigns, // Pass campaigns from parent
   });
 

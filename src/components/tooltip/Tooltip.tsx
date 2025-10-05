@@ -79,7 +79,7 @@ export const Tooltip = ({ children, className, content, id }: TooltipProps) => {
           <span
             aria-hidden={!isVisible}
             className={cn(
-              "bg-ob-base-1000 text-ob-inverted absolute w-max rounded-md px-2 py-1 text-sm shadow before:absolute before:top-0 before:left-0 before:size-full before:scale-[1.5] before:bg-transparent",
+              "bg-ob-base-1000 text-ob-inverted absolute w-max rounded-md px-2 py-1 text-sm shadow before:absolute before:top-0 before:left-0 before:size-full before:scale-[1.5] before:bg-transparent z-[99999]",
               {
                 "left-0 translate-x-0": positionX === "left",
                 "right-0 translate-x-0": positionX === "right",
@@ -133,7 +133,7 @@ export const Tooltip = ({ children, className, content, id }: TooltipProps) => {
         <span
           aria-hidden={!isVisible}
           className={cn(
-            "bg-ob-base-1000 text-ob-inverted absolute w-max rounded-md px-2 py-1 text-sm shadow before:absolute before:top-0 before:left-0 before:size-full before:scale-[1.5] before:bg-transparent",
+            "bg-ob-base-1000 text-ob-inverted absolute w-max rounded-md px-2 py-1 text-sm shadow before:absolute before:top-0 before:left-0 before:size-full before:scale-[1.5] before:bg-transparent z-[99999]",
             {
               "left-0 translate-x-0": positionX === "left",
               "right-0 translate-x-0": positionX === "right",

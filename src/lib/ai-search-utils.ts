@@ -140,16 +140,13 @@ export function filterParsedContentToResource(
 export async function executeAISearchWithRetry(
   env: any,
   username: string,
-  campaignId: string,
+  _campaignId: string,
   resourceFileName: string,
   maxRetries: number = 1
 ) {
   const libraryAutoRAG = getLibraryAutoRAGService(env, username);
   const structuredExtractionPrompt =
-    RPG_EXTRACTION_PROMPTS.formatStructuredContentPrompt(
-      campaignId,
-      resourceFileName
-    );
+    RPG_EXTRACTION_PROMPTS.formatStructuredContentPrompt(resourceFileName);
 
   console.log(
     `[AI Search] Extracting structured content from ${resourceFileName}`
@@ -162,10 +159,18 @@ export async function executeAISearchWithRetry(
     console.log(
       `[AI Search] Calling AutoRAG AI Search with prompt length: ${structuredExtractionPrompt.length}`
     );
+    console.log(
+      `[AI Search] Applying metadata filter: filename = "${resourceFileName}"`
+    );
 
     const res = await libraryAutoRAG.aiSearch(structuredExtractionPrompt, {
       max_results: 50,
       rewrite_query: false,
+      filters: {
+        type: "eq",
+        key: "filename",
+        value: resourceFileName,
+      },
     });
 
     console.log(

@@ -13,7 +13,7 @@ export function useShardRenderGate(
   // Memoize the unique campaign IDs to prevent unnecessary re-renders
   const uniqueCampaignIds = useMemo(
     () => Array.from(new Set(campaignIds)).filter(Boolean) as string[],
-    [campaignIds.join(",")] // Use join to create a stable dependency
+    [campaignIds] // Use the array directly
   );
 
   // Debounced fetch function
@@ -72,7 +72,7 @@ export function useShardRenderGate(
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [uniqueCampaignIds, getJwt, fetchCampaignPresence]);
+  }, [uniqueCampaignIds, getJwt, fetchCampaignPresence, presence, isLoading]);
 
   const shouldRender = useMemo(
     () => (cid?: string) => (cid ? presence[cid] === true : false),
