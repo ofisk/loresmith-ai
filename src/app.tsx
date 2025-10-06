@@ -3,7 +3,7 @@ import { Bug, PaperPlaneRight, Stop, Trash } from "@phosphor-icons/react";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import type React from "react";
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import loresmith from "@/assets/loresmith.png";
 
@@ -34,7 +34,8 @@ import { useModalState } from "./hooks/useModalState";
 import { useAppAuthentication } from "./hooks/useAppAuthentication";
 import { useCampaignAddition } from "./hooks/useCampaignAddition";
 import { useUiHints } from "./hooks/useUiHints";
-import { useShardRenderGate } from "./hooks/useShardRenderGate";
+import { useGlobalShardManager } from "./hooks/useGlobalShardManager";
+import { ShardOverlay } from "./components/shard/ShardOverlay";
 import { API_CONFIG } from "./shared-config";
 import { getHelpContent } from "./utils/helpContent";
 import { authenticatedFetchWithExpiration } from "./services/auth-service";
@@ -417,46 +418,40 @@ export default function Chat() {
             );
           if (!jwtExpired && response.ok) {
             const payload = (await response.json()) as { shards?: any[] };
-            const hasStaged =
-              Array.isArray(payload?.shards) && payload.shards.length > 0;
-            if (!hasStaged) return;
+            const shards = payload?.shards || [];
+            if (shards.length > 0) {
+              // Get campaign name from campaigns list
+              const campaign = campaigns.find(
+                (c) => c.campaignId === data.campaignId
+              );
+              const campaignName = campaign?.name || "Unknown Campaign";
+
+              console.log("Adding shards to global manager:", {
+                campaignId: data.campaignId,
+                campaignName,
+                shardCount: shards.length,
+                shards: shards,
+              });
+
+              // Add shards to global manager
+              addShardsFromCampaign(data.campaignId, campaignName, shards);
+            }
           }
-        } catch {
-          return;
+        } catch (error) {
+          console.error("Failed to fetch shards for UI hint:", error);
         }
-        append({
-          role: "assistant",
-          content: "",
-          data: {
-            type: "ui_hint",
-            hint: { type: "shards_ready", data },
-          },
-        });
       }
     },
   });
 
-  // Track whether campaigns referenced by shard UI messages still have staged shards
-  const campaignIdsForRender = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          (agentMessages as any[])
-            .map((m) => m?.data)
-            .filter(
-              (d: any) =>
-                d?.type === "ui_hint" && d?.hint?.type === "shards_ready"
-            )
-            .map((d: any) => d?.hint?.data?.campaignId)
-            .filter((cid: any) => typeof cid === "string")
-        )
-      ) as string[],
-    [agentMessages]
-  );
-  const { shouldRender: shouldRenderShardUI } = useShardRenderGate(
-    authState.getStoredJwt,
-    campaignIdsForRender
-  );
+  // Global shard manager for unified shard handling
+  const {
+    shards: globalShards,
+    isLoading: shardsLoading,
+    fetchAllStagedShards,
+    addShardsFromCampaign,
+    removeProcessedShards,
+  } = useGlobalShardManager(authState.getStoredJwt);
 
   return (
     <>
@@ -547,9 +542,6 @@ export default function Chat() {
                 <ChatMessageList
                   messages={agentMessages as Message[]}
                   showDebug={showDebug}
-                  shouldRenderShardUI={(cid?: string) =>
-                    shouldRenderShardUI(cid)
-                  }
                   addToolResult={addToolResult}
                   formatTime={formatTime}
                 />
@@ -623,6 +615,19 @@ export default function Chat() {
             </div>
           </div>
         </div>
+
+        {/* Shard Management Overlay */}
+        <ShardOverlay
+          shards={globalShards}
+          isLoading={shardsLoading}
+          onShardsProcessed={removeProcessedShards}
+          getJwt={authState.getStoredJwt}
+          onAutoExpand={() => {
+            // Optional: Add any additional logic when auto-expanding
+            console.log("Shard overlay auto-expanded due to new shards");
+          }}
+          onRefresh={fetchAllStagedShards}
+        />
       </div>
 
       <BlockingAuthenticationModal

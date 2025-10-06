@@ -76,7 +76,6 @@ export class AgentRegistryService {
       );
       const { OnboardingAgent } = await import("../agents/onboarding-agent");
       const { ResourceAgent } = await import("../agents/resource-agent");
-      const { ShardAgent } = await import("../agents/shard-agent");
       const { AgentRouter } = await import("./agent-router");
 
       // Register Campaign Agent
@@ -122,15 +121,6 @@ export class AgentRegistryService {
         ResourceAgent.agentMetadata.tools,
         ResourceAgent.agentMetadata.systemPrompt,
         ResourceAgent.agentMetadata.description
-      );
-
-      // Register Shard Agent
-      AgentRouter.registerAgent(
-        ShardAgent.agentMetadata.type as AgentType,
-        ShardAgent,
-        ShardAgent.agentMetadata.tools,
-        ShardAgent.agentMetadata.systemPrompt,
-        ShardAgent.agentMetadata.description
       );
 
       AgentRegistryService.initialized = true;
