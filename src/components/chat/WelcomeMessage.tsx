@@ -1,7 +1,7 @@
 import { Lightbulb } from "@phosphor-icons/react";
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
-import diceIcon from "../../assets/dice.png";
+import mapIcon from "../../assets/map.png";
 import addToLibraryIcon from "../../assets/add-to-library.png";
 
 interface WelcomeMessageProps {
@@ -49,7 +49,7 @@ export function WelcomeMessage({
             </div>
             <div className="bg-white/80 dark:bg-neutral-800/80 p-5 rounded-xl border border-neutral-200/50 dark:border-neutral-700/50 backdrop-blur-sm shadow-sm">
               <h4 className="font-medium text-base mb-2 flex items-center gap-2">
-                <img src={diceIcon} alt="Dice" className="w-12 h-12" />
+                <img src={mapIcon} alt="Map" className="w-12 h-12" />
                 Plan your campaign
               </h4>
               <p className="text-sm text-muted-foreground mb-4">

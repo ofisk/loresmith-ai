@@ -35,7 +35,7 @@ export function LibrarySection({
       >
         <div className="flex items-center gap-2">
           <img src={libraryIcon} alt="Library" className="w-12 h-12" />
-          <span className="font-medium">Your resource library</span>
+          <span className="font-medium text-sm">Your resource library</span>
         </div>
         {isOpen ? <CaretDown size={16} /> : <CaretRight size={16} />}
       </button>

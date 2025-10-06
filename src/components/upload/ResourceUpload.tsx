@@ -225,7 +225,7 @@ export const ResourceUpload = ({
           Add resource
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Upload files to your resource library
+          Add tomes and scrolls to your library
         </p>
       </div>
 
@@ -234,7 +234,7 @@ export const ResourceUpload = ({
         <button
           type="button"
           className={cn(
-            "border-2 border-dashed border-purple-300 dark:border-purple-600 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-purple-400 dark:hover:border-purple-500 focus:border-purple-400 dark:focus:border-purple-500 outline-none bg-purple-50/30 dark:bg-purple-900/10",
+            "w-full max-w-md border-2 border-dashed border-gray-300/80 dark:border-gray-600/80 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-violet-300/60 dark:hover:border-violet-500/60 focus:border-violet-300/60 dark:focus:border-violet-500/60 outline-none bg-gray-50/20 dark:bg-gray-800/10",
             loading && "opacity-50 pointer-events-none"
           )}
           aria-label="Upload resource file"
@@ -263,7 +263,42 @@ export const ResourceUpload = ({
             multiple
           />
           {currentFile ? (
-            <div className="text-center">
+            <div className="text-center relative w-full">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedFiles([]);
+                  setCurrentFileIndex(0);
+                  setFilename("");
+                  setDescription("");
+                  setTags([]);
+                  setTagInput("");
+                  setUploadSuccess(false);
+                  setIsValid(false);
+                  // Reset the file input so the same file can be selected again
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                  }
+                }}
+                className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition"
+                aria-label="Clear file"
+              >
+                <svg
+                  className="w-3 h-3"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <title>Clear file</title>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
               <div className="text-ob-base-300 text-sm font-medium mb-2">
                 {currentFile.name}
               </div>
@@ -274,10 +309,7 @@ export const ResourceUpload = ({
           ) : (
             <div className="text-center">
               <div className="text-ob-base-300 text-sm font-medium mb-2">
-                Click to select or drag and drop
-              </div>
-              <div className="text-ob-base-200 text-sm">
-                Supported resource types: PDF and other files (more coming soon)
+                Click to select or drag and drop files here
               </div>
             </div>
           )}

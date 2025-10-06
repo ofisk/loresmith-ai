@@ -101,7 +101,7 @@ export function CreateCampaignModal({
           Create new campaign
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Set up a new campaign
+          Forge a new adventure and gather your party
         </p>
       </div>
 
