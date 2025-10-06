@@ -1,0 +1,132 @@
+/**
+ * Development environment configuration for Wrangler
+ * This configuration uses separate dev resources to avoid conflicts with production
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "loresmith-ai-dev",
+  "main": "src/server.ts",
+  "compatibility_date": "2025-05-07",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "nodejs_compat_populate_process_env",
+  ],
+  "assets": {
+    "directory": "dist/client",
+  },
+  "vars": {
+    "VITE_API_URL": "http://localhost:8787",
+    "CORS_ALLOWED_ORIGINS": "http://localhost:5173,http://localhost:5174",
+    "MAX_INDEX_FILE_BYTES": "4194304",
+    "AUTORAG_PREFIX": "autorag-dev",
+    "STAGING_PREFIX": "staging-dev",
+    "READINESS_TIMEOUT_SEC": "600",
+    "READINESS_BACKOFF_MS": "2000",
+    "PRODUCTION_URL": "https://loresmith-ai-dev.oren-t-fisk.workers.dev",
+    "AUTORAG_ACCOUNT_ID": "Name",
+    "AUTORAG_BASE_URL": "https://api.cloudflare.com/client/v4/accounts/Name/autorag/rags/loresmith-library-autorag-dev",
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CHAT",
+        "class_name": "Chat",
+      },
+      {
+        "name": "UPLOAD_SESSION",
+        "class_name": "UploadSessionDO",
+      },
+      {
+        "name": "NOTIFICATIONS",
+        "class_name": "NotificationHub",
+      },
+      {
+        "name": "AUTORAG_POLLING",
+        "class_name": "AutoRAGPollingDO",
+      },
+    ],
+  },
+  "r2_buckets": [
+    {
+      "binding": "R2",
+      "bucket_name": "loresmith-files-dev",
+      "preview_bucket_name": "loresmith-files-dev",
+    },
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "loresmith-db-dev",
+      "database_id": "YOUR_DEV_DATABASE_ID",
+    },
+  ],
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "loresmith-embeddings-dev",
+    },
+  ],
+  "ai": {
+    "binding": "AI",
+  },
+  "queues": {
+    "producers": [
+      {
+        "queue": "upload-events-dev",
+        "binding": "FILE_PROCESSING_QUEUE",
+      },
+      {
+        "queue": "file-processing-dlq-dev",
+        "binding": "FILE_PROCESSING_DLQ",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "upload-events-dev",
+        "max_batch_size": 1,
+        "max_retries": 5,
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["Chat", "UserFileTracker"],
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["CampaignManager"],
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": [],
+    },
+    {
+      "tag": "v4",
+      "deleted_classes": ["CampaignManager"],
+    },
+    {
+      "tag": "v5",
+      "new_classes": ["UploadSessionDO"],
+    },
+    {
+      "tag": "v6",
+      "new_classes": [],
+    },
+    {
+      "tag": "v7",
+      "new_classes": ["NotificationHub"],
+    },
+    {
+      "tag": "v8",
+      "deleted_classes": ["UserFileTracker"],
+      "new_classes": ["AutoRAGPollingDO"],
+    },
+  ],
+  "observability": {
+    "enabled": true,
+  },
+  "triggers": {
+    "crons": ["*/5 * * * *"],
+  },
+}
