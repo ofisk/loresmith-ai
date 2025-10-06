@@ -36,7 +36,7 @@ export function CampaignsSection({
       >
         <div className="flex items-center gap-2">
           <img src={campaignIcon} alt="Campaign" className="w-12 h-12" />
-          <span className="font-medium">Your campaigns</span>
+          <span className="font-medium text-sm">Your campaigns</span>
         </div>
         {isOpen ? <CaretDown size={16} /> : <CaretRight size={16} />}
       </button>
