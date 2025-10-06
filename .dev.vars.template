@@ -1,0 +1,22 @@
+# Development Environment Variables Template
+# Copy this file to .dev.vars and fill in your actual values
+# This file should be added to .gitignore to keep secrets secure
+
+# Cloudflare AI Gateway (optional)
+# GATEWAY_BASE_URL=https://gateway.ai.cloudflare.com/v1/..
+
+# Local development environment variables
+ADMIN_SECRET=your-dev-admin-secret-here
+OPENAI_API_KEY=your-openai-api-key-here
+
+# CORS allowed origins (comma-separated list)
+# Development origins for local servers
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
+
+# AutoRAG Configuration
+# These will be set as secrets via wrangler secret put
+# AUTORAG_API_TOKEN=your-dev-autorag-api-token-here
+# AUTORAG_ACCOUNT_ID=your-dev-cloudflare-account-id-here
+
+# Development-specific URLs
+AUTORAG_BASE_URL=https://api.cloudflare.com/client/v4/accounts/YOUR_DEV_ACCOUNT_ID/autorag/rags/loresmith-library-autorag-dev
