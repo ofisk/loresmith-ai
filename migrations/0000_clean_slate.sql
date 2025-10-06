@@ -6,7 +6,6 @@
 PRAGMA foreign_keys = OFF;
 
 drop table if exists autorag_jobs;
-drop table if exists staged_shards;
 drop table if exists autorag_chunks;
 drop table if exists campaign_resources;
 drop table if exists campaign_context_chunks;
@@ -117,20 +116,6 @@ create table autorag_jobs (
   error_message text
 );
 
--- Create staged_shards table for better shard management
-create table staged_shards (
-  id text primary key,
-  campaign_id text not null,
-  resource_id text not null,
-  shard_type text not null, -- 'monster', 'spell', 'npc', etc.
-  content text not null, -- JSON content of the shard
-  metadata text, -- additional metadata as JSON
-  status text default 'staged', -- 'staged', 'approved', 'rejected'
-  created_at text not null,
-  updated_at text not null,
-  foreign key (campaign_id) references campaigns(id) on delete cascade,
-  foreign key (resource_id) references campaign_resources(id) on delete cascade
-);
 
 -- Create campaign context table
 create table campaign_context (
@@ -252,11 +237,6 @@ create index if not exists idx_autorag_jobs_username on autorag_jobs(username);
 create index if not exists idx_autorag_jobs_job_id on autorag_jobs(job_id);
 create index if not exists idx_autorag_jobs_file_key on autorag_jobs(file_key);
 create index if not exists idx_autorag_jobs_status on autorag_jobs(status);
-create index if not exists idx_staged_shards_campaign_id on staged_shards(campaign_id);
-create index if not exists idx_staged_shards_resource_id on staged_shards(resource_id);
-create index if not exists idx_staged_shards_status on staged_shards(status);
-create index if not exists idx_staged_shards_type on staged_shards(shard_type);
-create index if not exists idx_staged_shards_campaign_status on staged_shards(campaign_id, status);
 create index if not exists idx_campaign_context_campaign_id on campaign_context(campaign_id);
 create index if not exists idx_campaign_characters_campaign_id on campaign_characters(campaign_id);
 create index if not exists idx_campaign_planning_sessions_campaign_id on campaign_planning_sessions(campaign_id);

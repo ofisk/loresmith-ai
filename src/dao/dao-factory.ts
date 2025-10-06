@@ -1,7 +1,6 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import { CampaignDAO } from "./campaign-dao";
 import { FileDAO } from "./file-dao";
-import { StagedShardsDAO } from "./staged-shards-dao";
 import type { UserStorageUsage } from "./user-dao";
 import { UserDAO } from "./user-dao";
 
@@ -17,7 +16,6 @@ export interface DAOFactory {
   userDAO: UserDAO;
   campaignDAO: CampaignDAO;
   fileDAO: FileDAO;
-  stagedShardsDAO: StagedShardsDAO;
 
   // Convenience methods for common operations
   storeOpenAIKey(username: string, apiKey: string): Promise<void>;
@@ -31,13 +29,11 @@ export class DAOFactoryImpl implements DAOFactory {
   public readonly userDAO: UserDAO;
   public readonly campaignDAO: CampaignDAO;
   public readonly fileDAO: FileDAO;
-  public readonly stagedShardsDAO: StagedShardsDAO;
 
   constructor(db: D1Database) {
     this.userDAO = new UserDAO(db);
     this.campaignDAO = new CampaignDAO(db);
     this.fileDAO = new FileDAO(db);
-    this.stagedShardsDAO = new StagedShardsDAO(db);
   }
 
   // Convenience methods for common operations

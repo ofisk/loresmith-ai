@@ -99,21 +99,6 @@ export interface RejectedShard {
 }
 
 /**
- * Database shard interface for D1 storage
- */
-export interface DatabaseShard {
-  id: string;
-  campaign_id: string;
-  resource_id: string;
-  shard_type: string;
-  content: string;
-  metadata?: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-}
-
-/**
  * Staged shard group interface for UI display
  */
 export interface StagedShardGroup {

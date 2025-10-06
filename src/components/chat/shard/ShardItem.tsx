@@ -28,38 +28,38 @@ export const ShardItem: React.FC<ShardItemProps> = ({
   isRejecting = false,
 }) => {
   return (
-    <div className="border border-gray-200 rounded-lg p-3">
+    <div className="border border-neutral-600 dark:border-neutral-700 rounded-lg p-3 bg-neutral-800 dark:bg-neutral-800">
       <div className="flex items-start space-x-3">
         <input
           type="checkbox"
           checked={isSelected}
           onChange={(e) => onSelectionChange(shard.id, e.target.checked)}
-          className="mt-1 rounded border-gray-300"
+          className="mt-1 rounded border-neutral-600 dark:border-neutral-500 bg-neutral-700 dark:bg-neutral-700 text-white"
         />
 
         <div className="flex-1">
           <div className="flex items-center space-x-2 mb-2">
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-600 dark:bg-purple-600 text-white">
               {shard.metadata.entityType}
             </span>
             {typeof shard.metadata.confidence === "number" &&
               !Number.isNaN(shard.metadata.confidence) && (
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-neutral-300 dark:text-neutral-300">
                   Confidence: {Math.round(shard.metadata.confidence * 100)}%
                 </span>
               )}
           </div>
 
-          <p className="text-gray-700 whitespace-pre-wrap text-sm">
+          <p className="text-neutral-200 dark:text-neutral-200 whitespace-pre-wrap text-sm">
             {shard.text}
           </p>
 
           {shard.metadata.query && (
             <details className="mt-2">
-              <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700">
+              <summary className="cursor-pointer text-xs text-neutral-400 dark:text-neutral-400 hover:text-neutral-200 dark:hover:text-neutral-200">
                 View Query
               </summary>
-              <p className="mt-1 p-2 bg-gray-50 rounded text-xs">
+              <p className="mt-1 p-2 bg-neutral-700 dark:bg-neutral-700 rounded text-xs text-neutral-200 dark:text-neutral-200">
                 {shard.metadata.query}
               </p>
             </details>

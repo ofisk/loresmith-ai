@@ -49,11 +49,44 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
       : r2Staged;
 
     console.log(
-      `[Server] R2 staged: ${r2Filtered.length} for campaign ${campaignId}`
+      `[Server] R2 staged: ${r2Filtered.length} for campaign ${campaignId}`,
+      JSON.stringify(r2Filtered, null, 2)
     );
 
-    // For client simplicity, return the R2 items under 'shards'
-    return c.json({ shards: r2Filtered });
+    // Group shards by their key (staging key) to match StagedShardGroup interface
+    const groupedShards = new Map<
+      string,
+      {
+        key: string;
+        sourceRef: any;
+        shards: any[];
+        created_at: string;
+        campaignRagBasePath: string;
+      }
+    >();
+
+    for (const item of r2Filtered) {
+      if (!groupedShards.has(item.key)) {
+        groupedShards.set(item.key, {
+          key: item.key,
+          sourceRef: item.shard.sourceRef,
+          shards: [],
+          created_at: new Date().toISOString(), // Default to now since we don't have this info
+          campaignRagBasePath: basePath,
+        });
+      }
+      groupedShards.get(item.key)!.shards.push(item.shard);
+    }
+
+    const stagedShardGroups = Array.from(groupedShards.values());
+
+    console.log(
+      `[Server] Grouped into ${stagedShardGroups.length} shard groups`,
+      JSON.stringify(stagedShardGroups, null, 2)
+    );
+
+    // Return the grouped shards in the expected format
+    return c.json({ shards: stagedShardGroups });
   } catch (error) {
     console.error("[Server] Error getting staged shards:", error);
     return c.json({ error: "Failed to get staged shards" }, 500);
@@ -201,48 +234,5 @@ export async function handleRejectShards(c: ContextWithAuth) {
   } catch (error) {
     console.error("[Server] Error rejecting shards:", error);
     return c.json({ error: "Failed to reject shards" }, 500);
-  }
-}
-
-// Search approved shards for a campaign
-export async function handleSearchApprovedShards(c: ContextWithAuth) {
-  try {
-    const campaignId = c.req.param("campaignId");
-    const userAuth = (c as any).userAuth;
-    const { query } = await c.req.json();
-
-    if (!query) {
-      return c.json({ error: "query parameter is required" }, 400);
-    }
-
-    console.log(
-      `[Server] Searching approved shards for campaign: ${campaignId}, query: ${query}`
-    );
-
-    // Verify campaign belongs to user
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    const campaign = await campaignDAO.getCampaignByIdWithMapping(
-      campaignId,
-      userAuth.username
-    );
-
-    if (!campaign) {
-      return c.json({ error: "Campaign not found" }, 404);
-    }
-
-    const stagedShardsDAO = getDAOFactory(c.env).stagedShardsDAO;
-    const searchResults = await stagedShardsDAO.searchApprovedShards(
-      campaignId,
-      query
-    );
-
-    console.log(
-      `[Server] Found ${searchResults.length} search results for campaign: ${campaignId}`
-    );
-
-    return c.json({ results: searchResults });
-  } catch (error) {
-    console.error("[Server] Error searching approved shards:", error);
-    return c.json({ error: "Failed to search shards" }, 500);
   }
 }

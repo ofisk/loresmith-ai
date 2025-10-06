@@ -24,12 +24,12 @@ export const ShardGroup: React.FC<ShardGroupProps> = ({
   processingShard,
 }) => {
   return (
-    <Card className="p-4">
+    <Card className="p-4 bg-neutral-800 dark:bg-neutral-800 border-neutral-600 dark:border-neutral-700">
       <div className="mb-3">
-        <h4 className="font-medium text-gray-900">
+        <h4 className="font-medium text-white dark:text-white">
           From: {group.sourceRef.meta.fileName}
         </h4>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-neutral-400 dark:text-neutral-400">
           Generated: {new Date(group.created_at).toLocaleString()}
         </p>
       </div>

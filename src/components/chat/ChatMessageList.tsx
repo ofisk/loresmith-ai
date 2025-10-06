@@ -2,12 +2,10 @@ import type { Message } from "@ai-sdk/react";
 import { Card } from "@/components/card/Card";
 import { MemoizedMarkdown } from "@/components/MemoizedMarkdown";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
-import { ShardManagementUI } from "./ShardManagementUI";
 
 interface ChatMessageListProps {
   messages: Message[];
   showDebug: boolean;
-  shouldRenderShardUI: (campaignId?: string) => boolean;
   addToolResult: any;
   formatTime: (date: Date) => string;
 }
@@ -15,7 +13,6 @@ interface ChatMessageListProps {
 export function ChatMessageList({
   messages,
   showDebug,
-  shouldRenderShardUI,
   addToolResult,
   formatTime,
 }: ChatMessageListProps) {
@@ -53,42 +50,6 @@ export function ChatMessageList({
                 >
                   <div className={isUser ? "flex-1" : "w-full"}>
                     <div>
-                      {(() => {
-                        const topLevelData: any = (m as any)?.data;
-                        if (
-                          topLevelData?.type === "ui_hint" &&
-                          topLevelData?.hint?.type === "shards_ready"
-                        ) {
-                          const cid = topLevelData?.hint?.data?.campaignId as
-                            | string
-                            | undefined;
-                          if (!shouldRenderShardUI(cid)) return null;
-                          const Comp = ShardManagementUI;
-                          const groups = topLevelData.hint.data.groups || [];
-                          const total = Array.isArray(groups)
-                            ? groups.reduce(
-                                (t: number, g: any) =>
-                                  t + (g?.shards?.length || 0),
-                                0
-                              )
-                            : 0;
-                          return (
-                            <div
-                              key={`${m.id}-render-top-uihint`}
-                              className="w-full"
-                            >
-                              <Comp
-                                campaignId={cid!}
-                                resourceId={topLevelData.hint.data.resourceId}
-                                shards={groups}
-                                total={total}
-                                action="show_staged"
-                              />
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
                       {m.parts?.map((part, i) => {
                         const hasTopLevelRender = false;
                         if (part.type === "text" && hasTopLevelRender) {
