@@ -635,13 +635,19 @@ export default function Chat() {
       {/* Create Campaign Modal */}
       <Modal
         isOpen={modalState.isCreateCampaignModalOpen}
-        onClose={modalState.handleCreateCampaignClose}
+        onClose={() => {
+          modalState.setIsCreateCampaignModalOpen(false);
+          modalState.setIsAddResourceModalOpen(true);
+        }}
         cardStyle={{ width: 520, minHeight: 320 }}
         showCloseButton={true}
       >
         <CreateCampaignModal
           isOpen={modalState.isCreateCampaignModalOpen}
-          onClose={modalState.handleCreateCampaignClose}
+          onClose={() => {
+            modalState.setIsCreateCampaignModalOpen(false);
+            modalState.setIsAddResourceModalOpen(true);
+          }}
           campaignName={modalState.campaignName}
           onCampaignNameChange={modalState.setCampaignName}
           campaignDescription={modalState.campaignDescription}
@@ -705,12 +711,13 @@ export default function Chat() {
           onCancel={modalState.handleAddResourceClose}
           className="border-0 p-0 shadow-none"
           jwtUsername={authState.getStoredJwt() || ""}
-          campaigns={[]} // TODO: Get campaigns from context
+          campaigns={campaigns}
           selectedCampaigns={modalState.selectedCampaigns}
           onCampaignSelectionChange={modalState.setSelectedCampaigns}
           campaignName={modalState.campaignName}
           onCampaignNameChange={modalState.setCampaignName}
           onCreateCampaign={() => {
+            modalState.setSelectedCampaigns([]);
             modalState.setIsAddResourceModalOpen(false);
             modalState.setIsCreateCampaignModalOpen(true);
           }}

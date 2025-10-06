@@ -2,7 +2,6 @@ import { useId, useRef, useState } from "react";
 import { FormButton } from "@/components/button/FormButton";
 import { FormField } from "@/components/input/FormField";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
-import { MultiSelect } from "@/components/select/MultiSelect";
 import { cn } from "../../lib/utils";
 import type { Campaign } from "../../types/campaign";
 import type { ProcessingProgress } from "../../types/progress";
@@ -51,14 +50,13 @@ export const ResourceUpload = ({
   selectedCampaigns = [],
   onCampaignSelectionChange,
   campaignName = "",
-  onCampaignNameChange,
+  onCampaignNameChange: _onCampaignNameChange,
   onCreateCampaign,
   showCampaignSelection = false,
 }: ResourceUploadProps) => {
   const resourceFilenameId = useId();
   const resourceDescriptionId = useId();
   const resourceTagsId = useId();
-  const campaignNameId = useId();
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [filename, setFilename] = useState("");
@@ -381,60 +379,78 @@ export const ResourceUpload = ({
         </FormField>
 
         {/* Campaign Selection Section */}
-        {showCampaignSelection && currentFile && (
+        {showCampaignSelection && (
           <div className="space-y-3">
             <div className="border-t border-ob-base-600 pt-3">
               <h3 className="text-sm font-medium text-ob-base-200 mb-3">
-                Add to Campaign
+                Add to campaign
               </h3>
 
-              {campaigns.length > 0 && (
-                <div className="space-y-2">
-                  <div>
-                    <div className="block text-sm font-medium text-ob-base-200 mb-2">
-                      Select existing campaigns
-                    </div>
-                    <MultiSelect
-                      options={campaigns.map((campaign) => ({
-                        value: campaign.campaignId,
-                        label: campaign.name,
-                      }))}
-                      selectedValues={selectedCampaigns}
-                      onSelectionChange={
-                        onCampaignSelectionChange || (() => {})
-                      }
-                      placeholder="Choose campaigns..."
-                    />
+              <div className="space-y-2 mb-4">
+                <div>
+                  <div className="block text-sm font-medium text-ob-base-200 mb-3">
+                    Select campaigns
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {campaigns.map((campaign) => {
+                      const isSelected = selectedCampaigns.includes(
+                        campaign.campaignId
+                      );
+                      return (
+                        <button
+                          key={campaign.campaignId}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              // Remove from selection
+                              onCampaignSelectionChange?.(
+                                selectedCampaigns.filter(
+                                  (id) => id !== campaign.campaignId
+                                )
+                              );
+                            } else {
+                              // Add to selection
+                              onCampaignSelectionChange?.([
+                                ...selectedCampaigns,
+                                campaign.campaignId,
+                              ]);
+                            }
+                          }}
+                          className={cn(
+                            "px-3 py-1.5 text-sm transition-colors rounded border-2",
+                            "focus:outline-none",
+                            isSelected
+                              ? "font-medium bg-purple-200 dark:bg-purple-800/40 text-purple-800 dark:text-purple-200 border-purple-400 dark:border-purple-500 hover:bg-purple-300 dark:hover:bg-purple-800/50"
+                              : "font-normal bg-purple-50/30 dark:bg-purple-900/10 text-purple-400 dark:text-purple-500 border-purple-200 dark:border-purple-800 hover:bg-purple-50/50 dark:hover:bg-purple-900/15"
+                          )}
+                        >
+                          {campaign.name}
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={onCreateCampaign}
+                      className="flex items-center justify-center px-3 py-1.5 text-sm transition-colors rounded border-2 border-dashed bg-blue-50 dark:bg-blue-900/20 text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-700 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-purple-400 dark:hover:border-purple-600 focus:outline-none"
+                      title="Create new campaign"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                      >
+                        <title>Create new campaign</title>
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 4v16m8-8H4"
+                        />
+                      </svg>
+                    </button>
                   </div>
                 </div>
-              )}
-
-              <div className="space-y-2">
-                <div>
-                  <label
-                    htmlFor={campaignNameId}
-                    className="block text-sm font-medium text-ob-base-200 mb-2"
-                  >
-                    Or create a new campaign
-                  </label>
-                  <input
-                    id={campaignNameId}
-                    type="text"
-                    placeholder="Campaign name"
-                    value={campaignName}
-                    onChange={(e) => onCampaignNameChange?.(e.target.value)}
-                    className="w-full px-3 py-2 bg-ob-base-700 border border-ob-base-600 rounded text-ob-base-200 placeholder-ob-base-400 focus:outline-none focus:ring-2 focus:ring-ob-primary-500"
-                  />
-                </div>
-                {campaignName.trim() && (
-                  <FormButton
-                    onClick={onCreateCampaign}
-                    variant="secondary"
-                    className="w-full"
-                  >
-                    Create Campaign & Add File
-                  </FormButton>
-                )}
               </div>
             </div>
           </div>
