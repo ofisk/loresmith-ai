@@ -41,9 +41,11 @@ function getApiUrl(env?: any): string {
     }
 
     // In development, the API runs on a different port than the client
+    // Only use localhost:8787 if we're actually in development mode (Vite dev server)
     if (
       window.location.hostname === "localhost" &&
-      window.location.port === "5173"
+      window.location.port === "5173" &&
+      import.meta.env?.DEV === true
     ) {
       return "http://localhost:8787";
     }

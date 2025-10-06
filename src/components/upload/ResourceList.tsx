@@ -21,7 +21,7 @@ interface ResourceListProps {
   onEditFile?: (file: any) => void;
   campaigns?: Campaign[];
   campaignAdditionProgress?: Record<string, number>;
-  isAddingToCampaigns?: boolean;
+  _isAddingToCampaigns?: boolean;
 }
 
 interface ResourceFile {
@@ -52,7 +52,7 @@ export function ResourceList({
   onEditFile,
   campaigns = [],
   campaignAdditionProgress = {},
-  isAddingToCampaigns = false,
+  _isAddingToCampaigns = false,
 }: ResourceListProps) {
   const [files, setFiles] = useState<ResourceFileWithCampaigns[]>([]);
   const [_campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -769,9 +769,11 @@ export function ResourceList({
     <div className="h-full overflow-y-auto">
       <div className="space-y-3">
         {files.map((file) => (
-          <div
+          <button
             key={file.file_key}
-            className="relative p-2 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800 overflow-hidden"
+            type="button"
+            className="relative p-2 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800 overflow-hidden cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors duration-200 w-full text-left"
+            onClick={() => toggleFileExpansion(file.file_key)}
           >
             {/* Progress fill (transparent overlay) */}
             <div
@@ -832,7 +834,16 @@ export function ResourceList({
                     content={getDisplayName(file.file_name)}
                     id={file.file_key}
                   >
-                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-help">
+                    <h4
+                      className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-help max-w-[200px]"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }
+                      }}
+                    >
                       {getDisplayName(file.file_name)}
                     </h4>
                   </Tooltip>
@@ -849,7 +860,10 @@ export function ResourceList({
                   )}
                 </div>
                 <button
-                  onClick={() => toggleFileExpansion(file.file_key)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFileExpansion(file.file_key);
+                  }}
                   type="button"
                   className="flex-shrink-0 p-1 rounded-md hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors duration-200"
                 >
@@ -1011,7 +1025,7 @@ export function ResourceList({
                 </div>
               </div>
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>

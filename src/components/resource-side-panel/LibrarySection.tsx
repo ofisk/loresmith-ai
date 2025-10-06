@@ -58,7 +58,7 @@ export function LibrarySection({
               onEditFile={onEditFile}
               campaigns={campaigns}
               campaignAdditionProgress={campaignAdditionProgress}
-              isAddingToCampaigns={isAddingToCampaigns}
+              _isAddingToCampaigns={isAddingToCampaigns}
             />
             <StorageTracker />
           </div>

@@ -40,7 +40,7 @@ export default defineConfig({
     global: "globalThis",
     // Define environment variables for client-side
     "import.meta.env.VITE_API_URL": JSON.stringify(
-      process.env.VITE_API_URL || "http://localhost:8787"
+      process.env.VITE_API_URL || "https://loresmith-ai.oren-t-fisk.workers.dev"
     ),
   },
   envPrefix: ["VITE_"],

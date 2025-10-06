@@ -72,7 +72,7 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
   // Memoize the shards check to prevent unnecessary re-renders
   const shouldFetchShards = React.useMemo(
     () => !Array.isArray(shards) || shards.length === 0,
-    [Array.isArray(shards), shards?.length]
+    [shards]
   );
 
   React.useEffect(() => {
@@ -153,7 +153,7 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
         setIsLoading(false);
       }
     })();
-  }, [campaignId, shouldFetchShards]);
+  }, [campaignId, shouldFetchShards, isLoading]);
 
   // Fetch campaign name for friendly header display
   React.useEffect(() => {

@@ -32,12 +32,12 @@ function isValidUploadedFileInfo(
 }
 
 interface UseCampaignManagementProps {
-  isAuthenticated: boolean;
+  _isAuthenticated: boolean;
   campaigns?: Campaign[]; // Accept campaigns from parent instead of fetching
 }
 
 export function useCampaignManagement({
-  isAuthenticated,
+  _isAuthenticated,
   campaigns: externalCampaigns = [],
 }: UseCampaignManagementProps) {
   const [campaigns, setCampaigns] = useState<Campaign[]>(externalCampaigns);

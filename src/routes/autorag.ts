@@ -495,7 +495,7 @@ export async function checkSingleJobStatus(
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${env.AUTORAG_API_TOKEN ? env.AUTORAG_API_TOKEN.substring(0, 10) + "..." : "NOT_SET"}`,
+        Authorization: `Bearer ${env.AUTORAG_API_TOKEN ? `${env.AUTORAG_API_TOKEN.substring(0, 10)}...` : "NOT_SET"}`,
       },
     });
 
