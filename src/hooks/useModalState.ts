@@ -47,6 +47,7 @@ export function useModalState() {
 
   const handleAddResourceClose = useCallback(() => {
     setIsAddResourceModalOpen(false);
+    setSelectedCampaigns([]);
   }, []);
 
   const handleAddToCampaign = useCallback((file: any) => {
