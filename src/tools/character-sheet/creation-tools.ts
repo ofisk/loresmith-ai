@@ -8,6 +8,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
 } from "../utils";
+import { CampaignContextSyncService } from "../../services/campaign-context-sync-service";
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {
@@ -116,6 +117,29 @@ export const createCharacterSheet = tool({
           .run();
 
         console.log("[Tool] Created character sheet:", characterId);
+
+        // Sync to AutoRAG for searchability
+        try {
+          const syncService = new CampaignContextSyncService(env);
+          const characterData = {
+            class: characterClass,
+            level: characterLevel,
+            race: characterRace,
+          };
+          await syncService.syncCharacterSheetToAutoRAG(
+            campaignId,
+            characterId,
+            characterName,
+            characterData
+          );
+          console.log("[Tool] Synced character sheet to AutoRAG:", characterId);
+        } catch (syncError) {
+          console.error(
+            "[Tool] Failed to sync character sheet to AutoRAG:",
+            syncError
+          );
+          // Don't fail the whole operation if sync fails
+        }
 
         return createToolSuccess(
           `Successfully created character sheet for ${characterName}`,

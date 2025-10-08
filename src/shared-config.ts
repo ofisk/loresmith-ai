@@ -106,8 +106,6 @@ export const API_CONFIG = {
       SUGGESTIONS: (campaignId: string) =>
         `/campaigns/${campaignId}/suggestions`,
       READINESS: (campaignId: string) => `/campaigns/${campaignId}/readiness`,
-      CONTEXT_SEARCH: (campaignId: string) =>
-        `/campaigns/${campaignId}/context-search`,
       CAMPAIGN_AUTORAG: {
         APPROVE: (campaignId: string) =>
           `/campaigns/${campaignId}/autorag/approve`,
