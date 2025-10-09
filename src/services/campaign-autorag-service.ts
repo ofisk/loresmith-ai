@@ -12,7 +12,13 @@ import { AutoRAGClientBase } from "./autorag-client";
 
 /**
  * Campaign-specific AutoRAG service
- * Provides campaign-scoped RAG functionality with staging, approved, and rejected lanes
+ * Provides campaign-scoped RAG functionality with three-folder approval system:
+ *
+ * 1. /staging/ - Shards awaiting user review (not searchable)
+ * 2. /approved/ - User-approved shards (searchable via enforcedFilter)
+ * 3. /rejected/ - User-rejected shards (permanently excluded from search)
+ *
+ * All search operations automatically filter to approved content only via enforcedFilter()
  */
 export class CampaignAutoRAG extends AutoRAGClientBase {
   private campaignRagBasePath: string;

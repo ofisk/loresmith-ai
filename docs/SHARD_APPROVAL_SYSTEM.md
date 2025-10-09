@@ -148,6 +148,57 @@ async search(query: string, options: AutoRAGSearchOptions = {}) {
 
 **Key Point**: The enforced filter is applied **server-side** and cannot be bypassed by client code. Users can only search approved content.
 
+## Campaign State System
+
+### Descriptive States vs. Numerical Scores
+
+The system uses **descriptive campaign states** instead of raw numerical scores for better user experience:
+
+| State          | Score Range | Description                                                          |
+| -------------- | ----------- | -------------------------------------------------------------------- |
+| Fresh Start    | 0-19        | Just beginning the journey - perfect for exploring new possibilities |
+| Newly Forged   | 20-29       | Taking first steps - the foundation is being laid                    |
+| Taking Root    | 30-39       | Establishing foundations - the roots are growing strong              |
+| Taking Shape   | 40-49       | Developing identity - the form is becoming clearer                   |
+| Growing Strong | 50-59       | Building momentum - growth is steady and encouraging                 |
+| Flourishing    | 60-69       | Thriving - development is robust and promising                       |
+| Well-Traveled  | 70-79       | Matured beautifully - ready for complex adventures                   |
+| Epic-Ready     | 80-89       | Prepared for legendary quests - in excellent shape                   |
+| Legendary      | 90-100      | Achieved legendary status - a masterpiece of preparation             |
+
+### Campaign State Fluctuations
+
+**Important**: As users add new NPCs, locations, plot hooks, and other elements, their campaign state may shift "backwards" to reflect areas needing detail. This is **healthy growth** - the world is expanding and evolving!
+
+Example flow:
+
+1. Campaign starts at "Taking Root" with basic elements
+2. User adds 5 new NPCs → State shifts to "Taking Shape" (more quantity, needs detail)
+3. User develops NPC backgrounds → State rises to "Flourishing"
+4. User adds plot hooks → May shift again as new content awaits development
+
+This is by design - the system encourages iterative development: add content → flesh it out → add more → develop more.
+
+### Next Milestones
+
+The `getNextMilestone()` utility provides specific, actionable steps for each state transition:
+
+```typescript
+// Example for Fresh Start → Newly Forged
+{
+  threshold: 20,
+  state: "Newly Forged",
+  description: "Start by adding basic campaign elements to establish your foundation",
+  actionableSteps: [
+    "Create your first character (player or NPC) with a name and brief description",
+    "Upload a campaign resource like an adventure module, map, or reference document",
+    "Add a location description for your starting area or town"
+  ]
+}
+```
+
+Users receive clear guidance on what specific actions will help them progress to the next state.
+
 ## Campaign Context Integration
 
 ### Context Types Synced to AutoRAG

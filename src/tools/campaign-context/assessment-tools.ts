@@ -1,12 +1,16 @@
 import { getAssessmentService } from "../../lib/service-factory";
+import {
+  getCampaignState,
+  generateReadinessSummary,
+} from "../../lib/campaign-state-utils";
 import type { Env } from "../../middleware/auth";
 import type { Campaign, CampaignResource } from "../../types/campaign";
+import type { Recommendation } from "../../types/assessment";
 import {
   analyzeCampaignReadiness,
   type CampaignAssessment,
   extractModuleInformation,
   type ModuleAnalysis,
-  type Recommendation,
 } from "./assessment-core";
 
 /**
@@ -106,7 +110,8 @@ export async function integrateModuleIntoTool(
 }
 
 /**
- * Tool: Get campaign readiness assessment and descriptive state
+ * Tool: Get campaign readiness assessment with descriptive state and actionable guidance
+ * Returns campaign state (e.g., "Taking Root", "Legendary") instead of raw numerical score
  */
 export async function getCampaignReadinessScoreTool(
   campaignId: string,
@@ -126,11 +131,16 @@ export async function getCampaignReadinessScoreTool(
       resources
     );
 
-    const summary = generateReadinessSummary(assessment);
+    const campaignState = getCampaignState(assessment.overallScore);
+    const summary = generateReadinessSummary(
+      assessment.overallScore,
+      campaignState,
+      assessment.priorityAreas
+    );
     const priorityAreas = assessment.priorityAreas;
 
     return {
-      campaignState: assessment.campaignState,
+      campaignState,
       summary,
       priorityAreas,
     };
@@ -258,50 +268,6 @@ export async function analyzeCampaignDimensionTool(
   } catch (error) {
     console.error("Failed to analyze campaign dimension:", error);
     throw new Error("Failed to analyze campaign dimension");
-  }
-}
-
-// Helper functions
-function generateReadinessSummary(assessment: {
-  overallScore: number;
-  priorityAreas: string[];
-}): string {
-  const { overallScore } = assessment;
-  const campaignState = getCampaignState(overallScore);
-
-  if (overallScore >= 80) {
-    return `Your campaign is ${campaignState} and ready for epic adventures! All dimensions are well-developed.`;
-  } else if (overallScore >= 60) {
-    return `Your campaign is ${campaignState} with room to enhance some areas.`;
-  } else if (overallScore >= 40) {
-    return `Your campaign is ${campaignState}. Focus on the priority areas to level up your readiness.`;
-  } else {
-    return `Your campaign is ${campaignState}. Every great adventure starts with a single step!`;
-  }
-}
-
-/**
- * Convert numerical score to descriptive campaign state
- */
-function getCampaignState(score: number): string {
-  if (score >= 90) {
-    return "Legendary";
-  } else if (score >= 80) {
-    return "Epic-Ready";
-  } else if (score >= 70) {
-    return "Well-Traveled";
-  } else if (score >= 60) {
-    return "Flourishing";
-  } else if (score >= 50) {
-    return "Growing Strong";
-  } else if (score >= 40) {
-    return "Taking Shape";
-  } else if (score >= 30) {
-    return "Taking Root";
-  } else if (score >= 20) {
-    return "Newly Forged";
-  } else {
-    return "Fresh Start";
   }
 }
 

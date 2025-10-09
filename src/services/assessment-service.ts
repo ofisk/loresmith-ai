@@ -1,68 +1,22 @@
 import { type ActivityType, AssessmentDAO } from "../dao/assessment-dao";
+import { getCampaignState } from "../lib/campaign-state-utils";
 import type { Env } from "../middleware/auth";
 import type { ModuleAnalysis } from "../tools/campaign-context/assessment-core";
 import type { Campaign, CampaignResource } from "../types/campaign";
+import type {
+  UserState,
+  CampaignReadinessSummary,
+  ActionSuggestion,
+  ToolRecommendation,
+} from "../types/assessment";
 
-export interface UserState {
-  isFirstTime: boolean;
-  hasCampaigns: boolean;
-  hasResources: boolean;
-  campaignCount: number;
-  resourceCount: number;
-  recentActivity: ActivityType[];
-  lastLoginDate: string;
-  totalSessionTime: number;
-}
-
-export type { ActivityType };
-
-export interface CampaignReadinessSummary {
-  overallScore: number;
-  campaignState: string;
-  priorityAreas: string[];
-  recommendations: string[];
-}
-
-export interface ActionSuggestion {
-  title: string;
-  description: string;
-  action: string;
-  priority: "high" | "medium" | "low";
-  estimatedTime: string;
-}
-
-export interface ToolRecommendation {
-  name: string;
-  url: string;
-  description: string;
-  category: "inspiration" | "tools" | "community" | "content";
-  relevance: "high" | "medium" | "low";
-}
-
-/**
- * Convert numerical score to descriptive campaign state
- */
-function getCampaignState(score: number): string {
-  if (score >= 90) {
-    return "Legendary";
-  } else if (score >= 80) {
-    return "Epic-Ready";
-  } else if (score >= 70) {
-    return "Well-Traveled";
-  } else if (score >= 60) {
-    return "Flourishing";
-  } else if (score >= 50) {
-    return "Growing Strong";
-  } else if (score >= 40) {
-    return "Taking Shape";
-  } else if (score >= 30) {
-    return "Taking Root";
-  } else if (score >= 20) {
-    return "Newly Forged";
-  } else {
-    return "Fresh Start";
-  }
-}
+export type {
+  ActivityType,
+  UserState,
+  CampaignReadinessSummary,
+  ActionSuggestion,
+  ToolRecommendation,
+};
 
 export class AssessmentService {
   private assessmentDAO: AssessmentDAO;
@@ -110,6 +64,14 @@ export class AssessmentService {
 
   /**
    * Get campaign readiness summary for existing campaigns
+   *
+   * Scoring Algorithm:
+   * - Context (0-50 pts): 0 items=10, 1-2 items=30, 3+=50
+   * - Characters (0-50 pts): 0 chars=10, 1-2 chars=30, 3+=50
+   * - Resources (0-40 pts): 0 resources=10, 1-4 resources=30, 5+=40
+   * Total capped at 100, then mapped to descriptive state via getCampaignState()
+   *
+   * Returns campaignState (descriptive), priorityAreas, and recommendations
    */
   async getCampaignReadiness(
     campaignId: string,
