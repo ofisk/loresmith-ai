@@ -84,7 +84,7 @@ export const captureConversationalContext = tool({
       title,
       content,
       confidence = 0.8,
-      tags,
+      tags: _tags,
       sourceMessageId,
       jwt,
     },

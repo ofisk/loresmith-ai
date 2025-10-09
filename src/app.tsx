@@ -326,7 +326,7 @@ export default function Chat() {
     } catch (error) {
       console.error("Error requesting guidance:", error);
     }
-  }, [append]);
+  }, [append, authState.getStoredJwt]);
 
   // Scroll to bottom when messages change
   useEffect(() => {

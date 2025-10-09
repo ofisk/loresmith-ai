@@ -44,6 +44,7 @@ import {
   handleApproveShards,
   handleGetStagedShards,
   handleRejectShards,
+  handleUpdateShard,
 } from "./routes/campaign-autorag";
 import {
   handleAddResourceToCampaign,
@@ -651,6 +652,14 @@ app.post(
   API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.REJECT_SHARDS(":campaignId"),
   requireUserJwt,
   handleRejectShards
+);
+app.put(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.UPDATE_SHARD(
+    ":campaignId",
+    ":shardId"
+  ),
+  requireUserJwt,
+  handleUpdateShard
 );
 
 // Progress WebSocket

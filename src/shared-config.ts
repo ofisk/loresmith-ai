@@ -121,6 +121,8 @@ export const API_CONFIG = {
           `/campaigns/${campaignId}/shards/approve`,
         REJECT_SHARDS: (campaignId: string) =>
           `/campaigns/${campaignId}/shards/reject`,
+        UPDATE_SHARD: (campaignId: string, shardId: string) =>
+          `/campaigns/${campaignId}/shards/${shardId}`,
         SEARCH_APPROVED: (campaignId: string) =>
           `/campaigns/${campaignId}/shards/approved`,
       },

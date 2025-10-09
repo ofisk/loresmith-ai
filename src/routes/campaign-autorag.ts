@@ -236,3 +236,96 @@ export async function handleRejectShards(c: ContextWithAuth) {
     return c.json({ error: "Failed to reject shards" }, 500);
   }
 }
+
+// Update a single shard
+export async function handleUpdateShard(c: ContextWithAuth) {
+  try {
+    const campaignId = c.req.param("campaignId");
+    const shardId = c.req.param("shardId");
+    const userAuth = (c as any).userAuth;
+    const { text, metadata } = await c.req.json();
+
+    if (!text && !metadata) {
+      return c.json({ error: "Either text or metadata must be provided" }, 400);
+    }
+
+    console.log(
+      `[Server] Updating shard ${shardId} for campaign: ${campaignId}`
+    );
+
+    // Verify campaign belongs to user
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
+    const campaign = await campaignDAO.getCampaignByIdWithMapping(
+      campaignId,
+      userAuth.username
+    );
+
+    if (!campaign) {
+      return c.json({ error: "Campaign not found" }, 404);
+    }
+
+    // Get the base path for this campaign's AutoRAG data
+    const basePath = campaign.campaignRagBasePath || `campaigns/${campaignId}`;
+    const autoRAG = new CampaignAutoRAG(
+      c.env,
+      c.env.AUTORAG_BASE_URL,
+      basePath
+    );
+
+    // Find the shard in staging area and update it
+    const stagedShards = await autoRAG.getStagedShards();
+    let updatedShard: any = null;
+    let stagingKey: string | null = null;
+
+    // Search through all staged shard groups to find the shard
+    for (const [key, group] of stagedShards) {
+      const shard = group.shards.find((s: any) => s.id === shardId);
+      if (shard) {
+        // Create updated shard with new data
+        updatedShard = {
+          ...shard,
+          text: text || shard.text,
+          metadata: metadata
+            ? { ...shard.metadata, ...metadata }
+            : shard.metadata,
+        };
+
+        // Update the shard in the group
+        const updatedGroup = {
+          ...group,
+          shards: group.shards.map((s: any) =>
+            s.id === shardId ? updatedShard : s
+          ),
+        };
+
+        // Save the updated group back to staging
+        await (autoRAG as any).r2Helper.put(
+          key,
+          new TextEncoder().encode(JSON.stringify(updatedGroup)).buffer,
+          "application/json"
+        );
+
+        stagingKey = key;
+        break;
+      }
+    }
+
+    if (!updatedShard) {
+      return c.json({ error: "Shard not found in staging area" }, 404);
+    }
+
+    console.log(
+      `[Server] Successfully updated shard ${shardId} in staging key ${stagingKey}`
+    );
+
+    return c.json({
+      success: true,
+      message: "Shard updated successfully",
+      shard: updatedShard,
+      stagingKey,
+    });
+  } catch (error) {
+    console.error("[Server] Error updating shard:", error);
+    return c.json({ error: "Failed to update shard" }, 500);
+  }
+}

@@ -30,16 +30,21 @@
         "noNonNullAssertion": "off",
         "useImportType": "error"
       },
-      "suspicious": {
-        "noExplicitAny": "off",
-        "noConfusingVoidType": "off"
-      },
       "complexity": {
         "noBannedTypes": "off",
         "noStaticOnlyClass": "off"
       },
       "correctness": {
-        "useExhaustiveDependencies": "warn"
+        "useExhaustiveDependencies": "warn",
+        "noUnusedFunctionParameters": "warn"
+      },
+      "a11y": {
+        "noLabelWithoutControl": "warn"
+      },
+      "suspicious": {
+        "noExplicitAny": "off",
+        "noConfusingVoidType": "off",
+        "noArrayIndexKey": "warn"
       }
     }
   },
