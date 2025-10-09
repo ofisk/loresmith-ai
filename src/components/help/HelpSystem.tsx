@@ -19,7 +19,7 @@ export function useHelpSystem({
     switch (action) {
       case "upload_resource":
         response =
-          "## 📁 Uploading Resources\n\n" +
+          "## Uploading Resources\n\n" +
           "To upload resources to your inspiration library:\n\n" +
           "1. Look for the 'Add to library' button in the interface\n" +
           "2. Click the button to open the upload modal\n" +
@@ -30,7 +30,7 @@ export function useHelpSystem({
         break;
       case "create_campaign":
         response =
-          "## 🎲 Creating a Campaign\n\n" +
+          "## Creating a Campaign\n\n" +
           "To create a new campaign:\n\n" +
           "1. Look for the 'Create Campaign' button in the interface\n" +
           "2. Click the button to open the campaign creation form\n" +
@@ -43,7 +43,7 @@ export function useHelpSystem({
         break;
       case "start_chat":
         response =
-          "## 💬 Starting a Chat\n\n" +
+          "## Starting a Chat\n\n" +
           "You can start chatting with me right here! Just type your questions about:\n\n" +
           "Campaign Ideas:\n" +
           "- World building concepts\n" +
@@ -61,18 +61,18 @@ export function useHelpSystem({
         break;
       default:
         response =
-          "## 🎯 Getting Started\n\n" +
+          "## Getting Started\n\n" +
           "I can help you with various tasks:\n\n" +
-          "📁 Upload Resources:\n" +
+          "Upload Resources:\n" +
           "- Look for the 'Add to library' button\n" +
           "- Upload PDFs, images, and documents\n\n" +
-          "🎲 Create Campaigns:\n" +
+          "Create Campaigns:\n" +
           "- Use the 'Create Campaign' button\n" +
           "- Organize your story elements\n\n" +
-          "💬 Start Chatting:\n" +
+          "Start Chatting:\n" +
           "- Just type your questions here\n" +
           "- Ask about campaign ideas, world building, or GM topics\n\n" +
-          "💡 Pro Tip: Be specific with your questions to get the most helpful responses!";
+          "Pro Tip: Be specific with your questions to get the most helpful responses!";
     }
 
     // Add the help response as an assistant message

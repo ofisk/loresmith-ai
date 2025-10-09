@@ -18,7 +18,7 @@ export function WelcomeMessage({
       <Card className="p-8 max-w-4xl w-full bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-sm shadow-lg border border-neutral-200/50 dark:border-neutral-700/50">
         <div className="text-left space-y-6">
           <h3 className="font-semibold text-xl">
-            👋 Welcome to LoreSmith campaign planner!
+            Welcome to LoreSmith campaign planner!
           </h3>
           <div className="text-muted-foreground text-base space-y-4">
             <p>Choose your path to begin your RPG campaign journey:</p>
@@ -27,7 +27,7 @@ export function WelcomeMessage({
               <div>
                 <div className="font-semibold text-base mb-2 flex items-center gap-2">
                   <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-2 py-1 rounded-md text-sm">
-                    🎯 Build Your Campaign Library
+                    Build Your Campaign Library
                   </span>
                 </div>
                 <p className="text-sm mt-1">
@@ -41,7 +41,7 @@ export function WelcomeMessage({
               <div>
                 <div className="font-semibold text-base mb-2 flex items-center gap-2">
                   <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-2 py-1 rounded-md text-sm">
-                    🗺️ Organize Your Story
+                    Organize Your Story
                   </span>
                 </div>
                 <p className="text-sm mt-1">
@@ -55,7 +55,7 @@ export function WelcomeMessage({
               <div>
                 <div className="font-semibold text-base mb-2 flex items-center gap-2">
                   <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-2 py-1 rounded-md text-sm">
-                    💬 Start Brainstorming
+                    Start Brainstorming
                   </span>
                 </div>
                 <p className="text-sm mt-1">

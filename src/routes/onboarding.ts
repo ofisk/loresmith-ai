@@ -36,29 +36,29 @@ export async function handleGetWelcomeGuidance(c: ContextWithAuth) {
       "Here are some personalized recommendations for your campaign development:\n\n";
 
     if (campaigns.length === 0) {
-      guidanceMessage += "🎯 Start Your First Campaign\n";
+      guidanceMessage += "Start Your First Campaign\n";
       guidanceMessage +=
         "You don't have any campaigns yet. Create one to begin organizing your story ideas!\n\n";
-      guidanceMessage += "📚 Build Your Resource Library\n";
+      guidanceMessage += "Build Your Resource Library\n";
       guidanceMessage +=
         "Upload PDFs, images, or documents to expand your inspiration library.\n\n";
     } else {
-      guidanceMessage += `📊 Campaign Status\n`;
+      guidanceMessage += `Campaign Status\n`;
       guidanceMessage += `You have ${campaigns.length} campaign${campaigns.length !== 1 ? "s" : ""} and ${files.length} resources.\n\n`;
 
       if (recentCampaigns.length > 0) {
-        guidanceMessage += `🔥 Recent Activity\n`;
+        guidanceMessage += `Recent Activity\n`;
         guidanceMessage += `You've created ${recentCampaigns.length} campaign${recentCampaigns.length !== 1 ? "s" : ""} in the last week - great momentum!\n\n`;
       }
 
-      guidanceMessage += `🎲 Session Planning\n`;
+      guidanceMessage += `Session Planning\n`;
       guidanceMessage += `Ready to plan your next session? I can help you create engaging encounters and story hooks.\n\n`;
     }
 
-    guidanceMessage += `🛠️ Recommended Resources\n`;
+    guidanceMessage += `Recommended Resources\n`;
     guidanceMessage += `Check out DMsGuild, DriveThruRPG, and Pinterest for campaign inspiration and tools.\n\n`;
 
-    guidanceMessage += `💬 Need More Help?\n`;
+    guidanceMessage += `Need More Help?\n`;
     guidanceMessage += `Chat with me anytime to brainstorm ideas, plan sessions, or get specific guidance!`;
 
     const guidance = {
@@ -96,13 +96,13 @@ export async function handleGetWelcomeGuidance(c: ContextWithAuth) {
     // Fallback to generic guidance if analysis fails
     const fallbackGuidance = {
       message:
-        "👋 Welcome to LoreSmith campaign planner!\n\n" +
+        "Welcome to LoreSmith campaign planner!\n\n" +
         "Choose your path to begin your RPG campaign journey:\n\n" +
-        "🎯 Build Your Campaign Library\n" +
+        "Build Your Campaign Library\n" +
         "Upload adventure modules, homebrew content, maps, and reference materials. LoreSmith transforms your PDFs and documents into an intelligent, searchable knowledge base that helps you find exactly what you need when planning sessions.\n\n" +
-        "🗺️ Organize Your Story\n" +
+        "Organize Your Story\n" +
         "Create campaigns to organize your narrative, track NPCs, manage plot hooks, and build your world. Keep all your campaign context in one place and accessible at a moment's notice.\n\n" +
-        "💬 Start Brainstorming\n" +
+        "Start Brainstorming\n" +
         "Not sure where to begin? Chat with me! I can help you develop campaign ideas, create compelling NPCs, design encounters, plan sessions, and answer questions about D&D mechanics. Think of me as your always-available co-DM.\n\n" +
         "Ready to dive in? Pick an option below to get started:",
       actions: [
