@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, AUTH_CODES, type ToolResult } from "../../app-constants";
 import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
+import { getCampaignState } from "../../lib/campaign-state-utils";
 import {
   commonSchemas,
   createToolError,
@@ -271,11 +272,10 @@ export const assessCampaignReadiness = tool({
         console.log("[Tool] Assessment completed:", assessment.score);
 
         return createToolSuccess(
-          `Campaign readiness assessment completed (Score: ${assessment.score}/100)`,
+          `Campaign readiness assessment completed`,
           {
             assessmentType,
-            score: assessment.score,
-            status: assessment.status,
+            campaignState: assessment.campaignState,
             recommendations: assessment.recommendations,
             details: assessment.details,
           },
@@ -316,7 +316,7 @@ export const assessCampaignReadiness = tool({
 
       const result = (await response.json()) as any;
       return createToolSuccess(
-        `Campaign readiness assessment completed (Score: ${result.score}/100)`,
+        `Campaign readiness assessment completed`,
         result,
         toolCallId
       );

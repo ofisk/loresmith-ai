@@ -2,67 +2,25 @@ import { tool } from "ai";
 import { z } from "zod";
 import { getAssessmentService } from "../../lib/service-factory";
 import type { Campaign, CampaignResource } from "../../types/campaign";
+import type {
+  UserState,
+  ActivityType,
+  CampaignAwareGuidance,
+  CampaignReadinessSummary,
+  ActionSuggestion,
+  ToolRecommendation,
+} from "../../types/assessment";
 import { commonSchemas } from "../utils";
 import { createToolError, createToolSuccess } from "../utils";
 
-/**
- * User state analysis for contextual guidance
- */
-export interface UserState {
-  isFirstTime: boolean;
-  hasCampaigns: boolean;
-  hasResources: boolean;
-  campaignCount: number;
-  resourceCount: number;
-  recentActivity: ActivityType[];
-  lastLoginDate: string;
-  totalSessionTime: number;
-}
-
-export interface ActivityType {
-  type:
-    | "campaign_created"
-    | "resource_uploaded"
-    | "character_created"
-    | "session_planned";
-  timestamp: string;
-  details: string;
-}
-
-/**
- * Campaign-aware guidance response
- */
-export interface CampaignAwareGuidance {
-  userState: UserState;
-  campaignReadiness?: CampaignReadinessSummary;
-  primaryAction: ActionSuggestion;
-  secondaryActions: ActionSuggestion[];
-  explanation: string;
-  externalTools?: ToolRecommendation[];
-}
-
-export interface CampaignReadinessSummary {
-  overallScore: number;
-  campaignState: string;
-  priorityAreas: string[];
-  recommendations: string[];
-}
-
-export interface ActionSuggestion {
-  title: string;
-  description: string;
-  action: string;
-  priority: "high" | "medium" | "low";
-  estimatedTime: string;
-}
-
-export interface ToolRecommendation {
-  name: string;
-  url: string;
-  description: string;
-  category: "inspiration" | "tools" | "community" | "content";
-  relevance: "high" | "medium" | "low";
-}
+export type {
+  UserState,
+  ActivityType,
+  CampaignAwareGuidance,
+  CampaignReadinessSummary,
+  ActionSuggestion,
+  ToolRecommendation,
+};
 
 /**
  * Tool: Analyze user's current state for contextual guidance
