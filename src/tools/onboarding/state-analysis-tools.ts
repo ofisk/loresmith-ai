@@ -86,9 +86,11 @@ export const analyzeUserStateTool = tool({
 
 /**
  * Tool: Get campaign readiness summary for existing campaigns
+ * Returns user-friendly campaignState without numerical score for better UX
  */
 export const getCampaignReadinessTool = tool({
-  description: "Get campaign readiness summary for existing campaigns",
+  description:
+    "Get campaign readiness summary with descriptive state (e.g., 'Taking Root', 'Legendary') and actionable recommendations",
   parameters: z.object({
     campaignId: z.string().describe("The campaign ID to analyze"),
     jwt: commonSchemas.jwt,

@@ -110,7 +110,8 @@ export async function integrateModuleIntoTool(
 }
 
 /**
- * Tool: Get campaign readiness assessment and quick overview
+ * Tool: Get campaign readiness assessment with descriptive state and actionable guidance
+ * Returns campaign state (e.g., "Taking Root", "Legendary") instead of raw numerical score
  */
 export async function getCampaignReadinessScoreTool(
   campaignId: string,

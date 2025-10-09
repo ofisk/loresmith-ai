@@ -11,16 +11,6 @@ export interface CampaignSuggestion {
   relatedContext?: string[];
 }
 
-export interface CampaignReadinessAssessment {
-  readinessScore: number;
-  recommendations: string[];
-  contextCount: number;
-  characterCount: number;
-  resourceCount: number;
-  isReady: boolean;
-  missingElements: string[];
-}
-
 export interface CampaignContext {
   id: string;
   campaign_id: string;
@@ -100,85 +90,6 @@ export class CampaignService {
       };
     } catch (error) {
       console.error("Error getting intelligent suggestions:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Assess campaign readiness based on available information
-   */
-  async assessCampaignReadiness(
-    campaignId: string
-  ): Promise<CampaignReadinessAssessment> {
-    try {
-      // Get campaign data
-      const context = await this.campaignDAO.getCampaignContext(campaignId);
-      const characters =
-        await this.campaignDAO.getCampaignCharacters(campaignId);
-      const resources = await this.campaignDAO.getCampaignResources(campaignId);
-
-      let readinessScore = 0;
-      const recommendations = [];
-      const missingElements = [];
-
-      // Assess context completeness
-      const contextTypes = context.map((c) => c.context_type);
-
-      if (contextTypes.includes("world_description")) {
-        readinessScore += 20;
-      } else {
-        missingElements.push("World description");
-        recommendations.push(
-          "Add a world description to better understand your setting"
-        );
-      }
-
-      if (contextTypes.includes("campaign_notes")) {
-        readinessScore += 15;
-      } else {
-        missingElements.push("Campaign notes");
-        recommendations.push(
-          "Add campaign notes to track your planning progress"
-        );
-      }
-
-      if (contextTypes.includes("player_preferences")) {
-        readinessScore += 15;
-      } else {
-        missingElements.push("Player preferences");
-        recommendations.push("Add player preferences to tailor the experience");
-      }
-
-      // Assess character information
-      if (characters.length > 0) {
-        readinessScore += 25;
-        readinessScore += 15;
-      } else {
-        missingElements.push("Character information");
-        recommendations.push(
-          "Add character information to personalize the campaign"
-        );
-      }
-
-      // Assess resources
-      if (resources.length > 0) {
-        readinessScore += 10;
-      } else {
-        missingElements.push("Campaign resources");
-        recommendations.push("Add to Library for better planning support");
-      }
-
-      return {
-        readinessScore: Math.min(readinessScore, 100),
-        recommendations,
-        contextCount: context.length,
-        characterCount: characters.length,
-        resourceCount: resources.length,
-        isReady: readinessScore >= 70,
-        missingElements,
-      };
-    } catch (error) {
-      console.error("Error assessing campaign readiness:", error);
       throw error;
     }
   }

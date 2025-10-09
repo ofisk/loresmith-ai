@@ -64,6 +64,14 @@ export class AssessmentService {
 
   /**
    * Get campaign readiness summary for existing campaigns
+   *
+   * Scoring Algorithm:
+   * - Context (0-50 pts): 0 items=10, 1-2 items=30, 3+=50
+   * - Characters (0-50 pts): 0 chars=10, 1-2 chars=30, 3+=50
+   * - Resources (0-40 pts): 0 resources=10, 1-4 resources=30, 5+=40
+   * Total capped at 100, then mapped to descriptive state via getCampaignState()
+   *
+   * Returns campaignState (descriptive), priorityAreas, and recommendations
    */
   async getCampaignReadiness(
     campaignId: string,
