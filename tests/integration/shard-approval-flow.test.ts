@@ -122,7 +122,7 @@ describe("Shard Approval Flow Integration", () => {
     });
 
     // Verify shards are in staging
-    let stagedShards = await campaignAutoRAG.listStagedCandidates();
+    const stagedShards = await campaignAutoRAG.listStagedCandidates();
     expect(stagedShards).toHaveLength(2);
     expect(stagedShards[0].shard.id).toBe("shard-1");
     expect(stagedShards[1].shard.id).toBe("shard-2");

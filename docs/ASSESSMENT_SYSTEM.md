@@ -144,8 +144,6 @@ Agents have access to both:
 
 This allows agents to provide personalized guidance while presenting encouraging, non-technical feedback to users.
 
-## Implementation Details
-
 ### Service Layer
 
 **AssessmentService.getCampaignReadiness()**

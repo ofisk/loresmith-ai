@@ -119,7 +119,7 @@ describe("Campaign Context Capture Flow Integration", () => {
       total: 1,
     });
 
-    const searchResults = await autoRAG.search("Dragon Lords");
+    const searchResults = (await autoRAG.search("Dragon Lords")) as any;
     expect(searchResults.data).toHaveLength(1);
   });
 
@@ -153,7 +153,7 @@ describe("Campaign Context Capture Flow Integration", () => {
 
   it("should handle conversational context → staging → approval → searchable", async () => {
     // Step 1: AI detects context from conversation
-    const { stagingKey, shard } = await syncService.createStagingShard(
+    const { stagingKey } = await syncService.createStagingShard(
       campaignId,
       "conv-note-123",
       "Village of Barovia",
@@ -205,7 +205,7 @@ describe("Campaign Context Capture Flow Integration", () => {
       total: 1,
     });
 
-    const searchResults = await autoRAG.aiSearch("village");
+    const searchResults = (await autoRAG.aiSearch("village")) as any;
     expect(searchResults.data).toHaveLength(1);
   });
 
@@ -287,7 +287,7 @@ describe("Campaign Context Capture Flow Integration", () => {
       total: 2,
     });
 
-    const searchResults = await autoRAG.aiSearch("dragon");
+    const searchResults = (await autoRAG.aiSearch("dragon")) as any;
     expect(searchResults.data).toHaveLength(2);
   });
 
@@ -303,7 +303,7 @@ describe("Campaign Context Capture Flow Integration", () => {
       "Original Title"
     );
 
-    let approvedKey = `${campaignBasePath}/context/approved/${contextId}.json`;
+    const approvedKey = `${campaignBasePath}/context/approved/${contextId}.json`;
     let approvedData = await mockR2.get(approvedKey);
     let content = JSON.parse(await approvedData!.text());
 

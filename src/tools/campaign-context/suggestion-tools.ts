@@ -2,7 +2,6 @@ import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, AUTH_CODES, type ToolResult } from "../../app-constants";
 import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
-import { getCampaignState } from "../../lib/campaign-state-utils";
 import {
   commonSchemas,
   createToolError,

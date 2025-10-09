@@ -36,7 +36,7 @@ export function getCampaignState(score: number): string {
 export function generateReadinessSummary(
   overallScore: number,
   campaignState: string,
-  priorityAreas: string[]
+  _priorityAreas: string[]
 ): string {
   const scoreText = overallScore >= 90 ? "" : ` (${overallScore}/100)`;
 

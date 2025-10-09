@@ -216,7 +216,7 @@ describe("CampaignContextSyncService", () => {
     it("should use default confidence when not provided", async () => {
       mockR2.put.mockResolvedValue(undefined);
 
-      const result = await syncService.createStagingShard(
+      await syncService.createStagingShard(
         campaignId,
         "note-789",
         "Test Note",
