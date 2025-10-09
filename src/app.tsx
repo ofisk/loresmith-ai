@@ -2,6 +2,7 @@ import type { Message } from "@ai-sdk/react";
 import { Bug, PaperPlaneRight, Stop, Trash } from "@phosphor-icons/react";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
+import { generateId } from "ai";
 import type React from "react";
 import { useCallback, useEffect, useId, useState } from "react";
 
@@ -300,6 +301,33 @@ export default function Chat() {
     setInput("");
   };
 
+  // Handle guidance request from help button
+  const handleGuidanceRequest = useCallback(async () => {
+    console.log("[App] Guidance request triggered");
+
+    try {
+      const jwt = authState.getStoredJwt();
+      if (!jwt) {
+        console.error("No JWT available for guidance request");
+        return;
+      }
+
+      // Send a message to request personalized guidance
+      const guidanceMessage =
+        "I need help with what to do next. Can you analyze my current state and provide personalized guidance on next steps?";
+
+      // Use the existing append function to send the message with JWT data
+      await append({
+        id: generateId(),
+        role: "user",
+        content: guidanceMessage,
+        data: { jwt: jwt },
+      });
+    } catch (error) {
+      console.error("Error requesting guidance:", error);
+    }
+  }, [append]);
+
   // Scroll to bottom when messages change
   useEffect(() => {
     // Only scroll if there are messages and we're not in the initial load
@@ -485,7 +513,10 @@ export default function Chat() {
               />
             </div>
 
-            <HelpButton onActionClick={handleHelpAction} />
+            <HelpButton
+              onActionClick={handleHelpAction}
+              onGuidanceRequest={handleGuidanceRequest}
+            />
 
             <Button
               variant="ghost"

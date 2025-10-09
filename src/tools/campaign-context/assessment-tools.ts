@@ -106,14 +106,18 @@ export async function integrateModuleIntoTool(
 }
 
 /**
- * Tool: Get campaign readiness score and quick overview
+ * Tool: Get campaign readiness assessment and descriptive state
  */
 export async function getCampaignReadinessScoreTool(
   campaignId: string,
   campaign: Campaign,
   resources: CampaignResource[],
   env: Env
-): Promise<{ overallScore: number; summary: string; priorityAreas: string[] }> {
+): Promise<{
+  campaignState: string;
+  summary: string;
+  priorityAreas: string[];
+}> {
   try {
     const assessmentService = getAssessmentService(env);
     const assessment = await assessmentService.getCampaignReadiness(
@@ -126,12 +130,12 @@ export async function getCampaignReadinessScoreTool(
     const priorityAreas = assessment.priorityAreas;
 
     return {
-      overallScore: assessment.overallScore,
+      campaignState: assessment.campaignState,
       summary,
       priorityAreas,
     };
   } catch (error) {
-    console.error("Failed to get campaign readiness score:", error);
+    console.error("Failed to get campaign readiness assessment:", error);
     throw new Error("Failed to analyze campaign readiness");
   }
 }
@@ -263,15 +267,41 @@ function generateReadinessSummary(assessment: {
   priorityAreas: string[];
 }): string {
   const { overallScore } = assessment;
+  const campaignState = getCampaignState(overallScore);
 
   if (overallScore >= 80) {
-    return `Your campaign is legendary and ready for epic adventures (${overallScore}/100)! All dimensions are well-developed.`;
+    return `Your campaign is ${campaignState} and ready for epic adventures! All dimensions are well-developed.`;
   } else if (overallScore >= 60) {
-    return `Your campaign is well-prepared for adventure (${overallScore}/100) with room to enhance some areas.`;
+    return `Your campaign is ${campaignState} with room to enhance some areas.`;
   } else if (overallScore >= 40) {
-    return `Your campaign is getting there (${overallScore}/100). Focus on the priority areas to level up your readiness.`;
+    return `Your campaign is ${campaignState}. Focus on the priority areas to level up your readiness.`;
   } else {
-    return `Your campaign is just beginning its journey (${overallScore}/100). Every great adventure starts with a single step!`;
+    return `Your campaign is ${campaignState}. Every great adventure starts with a single step!`;
+  }
+}
+
+/**
+ * Convert numerical score to descriptive campaign state
+ */
+function getCampaignState(score: number): string {
+  if (score >= 90) {
+    return "Legendary";
+  } else if (score >= 80) {
+    return "Epic-Ready";
+  } else if (score >= 70) {
+    return "Well-Traveled";
+  } else if (score >= 60) {
+    return "Flourishing";
+  } else if (score >= 50) {
+    return "Growing Strong";
+  } else if (score >= 40) {
+    return "Taking Shape";
+  } else if (score >= 30) {
+    return "Taking Root";
+  } else if (score >= 20) {
+    return "Newly Forged";
+  } else {
+    return "Fresh Start";
   }
 }
 

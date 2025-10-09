@@ -33,14 +33,24 @@ interface HelpResponse {
 
 interface HelpButtonProps {
   onActionClick: (action: string) => void;
+  onGuidanceRequest?: () => void;
 }
 
-export function HelpButton({ onActionClick }: HelpButtonProps) {
+export function HelpButton({
+  onActionClick,
+  onGuidanceRequest,
+}: HelpButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [helpData, setHelpData] = useState<HelpResponse | null>(null);
   const [showHelp, setShowHelp] = useState(false);
 
   const handleHelpClick = async () => {
+    if (onGuidanceRequest) {
+      onGuidanceRequest();
+      return;
+    }
+
+    // Fallback to old popup behavior
     if (showHelp) {
       setShowHelp(false);
       setHelpData(null);

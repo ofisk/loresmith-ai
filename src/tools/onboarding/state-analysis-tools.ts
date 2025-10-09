@@ -43,6 +43,7 @@ export interface CampaignAwareGuidance {
 
 export interface CampaignReadinessSummary {
   overallScore: number;
+  campaignState: string;
   priorityAreas: string[];
   recommendations: string[];
 }
@@ -154,9 +155,15 @@ export const getCampaignReadinessTool = tool({
         [] as CampaignResource[]
       );
 
+      const userFriendlyAssessment = {
+        campaignState: campaignReadiness.campaignState,
+        priorityAreas: campaignReadiness.priorityAreas,
+        recommendations: campaignReadiness.recommendations,
+      };
+
       return createToolSuccess(
         `Campaign readiness analyzed successfully for campaign ${campaignId}`,
-        campaignReadiness,
+        userFriendlyAssessment,
         context?.toolCallId || "unknown"
       );
     } catch (error) {

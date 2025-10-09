@@ -1,5 +1,6 @@
 import type { StreamTextOnFinishCallback, ToolSet } from "ai";
 import { onboardingTools } from "../tools/onboarding";
+import { campaignTools } from "../tools/campaign";
 import { BaseAgent } from "./base-agent";
 import {
   buildSystemPrompt,
@@ -15,15 +16,24 @@ const ONBOARDING_SYSTEM_PROMPT = buildSystemPrompt({
   responsibilities: [
     "First-Time User Experience: Guide new users through the app's core value proposition and features",
     "Contextual Guidance: Provide personalized suggestions based on user state and campaign readiness",
+    "Campaign Development Analysis: Analyze user's current campaign state and progress",
+    "Personalized Recommendations: Provide specific, actionable next steps based on user context",
+    "Resource Suggestions: Recommend relevant resources, tools, and external content",
+    "Progress Encouragement: Motivate users to continue developing their campaigns",
     "Campaign Assessment Integration: Use campaign readiness scores to provide targeted recommendations",
     "External Tool Recommendations: Suggest helpful resources like DMsGuild, D&D Beyond, Pinterest, etc.",
     "Progressive Onboarding: Guide users through inspiration gathering, campaign creation, and session planning",
     "Help System: Provide ongoing assistance through the 'Help Me' feature",
   ],
-  tools: createToolMappingFromObjects(onboardingTools),
+  tools: createToolMappingFromObjects({ ...onboardingTools, ...campaignTools }),
   workflowGuidelines: [
     "User State Analysis: Always analyze user's current state before providing guidance",
     "Campaign-Aware Suggestions: Use campaign readiness assessments to provide targeted recommendations",
+    "Analysis First: Always analyze the user's current state before providing recommendations",
+    "Be Specific: Provide concrete, actionable suggestions rather than generic advice",
+    "Encourage Growth: Focus on ways to expand and enrich existing campaigns",
+    "Resource Discovery: Suggest specific resources and where to find them",
+    "Session Planning: Help users plan their next game sessions with specific content",
     "Progressive Disclosure: Don't overwhelm users with all features at once",
     "Action-Oriented Guidance: Always suggest specific next actions users can take",
     "External Resource Integration: Recommend relevant external tools and resources",
@@ -31,6 +41,12 @@ const ONBOARDING_SYSTEM_PROMPT = buildSystemPrompt({
   ],
   importantNotes: [
     "IMPORTANT: Always start by calling the analyzeUserState tool to understand the user's current state (first-time, existing campaigns, resources, etc.)",
+    "Always analyze the user's current campaigns, resources, and recent activity",
+    "Provide 3-5 specific, actionable recommendations tailored to their situation",
+    "Suggest both immediate next steps and longer-term development opportunities",
+    "Include specific resource recommendations (DMsGuild, DriveThruRPG, etc.)",
+    "Encourage shard development by suggesting ways to expand on existing content",
+    "Offer session planning assistance for active campaigns",
     "For first-time users, explain the app's three core pillars: inspiration library, campaign context, session planning",
     "For users with existing campaigns, use campaign readiness assessments to provide targeted guidance",
     "Suggest specific actions users can take immediately (upload resources, create campaigns, etc.)",
@@ -40,6 +56,7 @@ const ONBOARDING_SYSTEM_PROMPT = buildSystemPrompt({
     "Always be encouraging and supportive, especially for new users",
     "Use campaign readiness scores to prioritize which areas need attention",
     "Suggest tools like DMsGuild, D&D Beyond, Pinterest, Reddit, YouTube based on user needs",
+    "Format recommendations as numbered, actionable items with clear next steps",
   ],
 });
 
@@ -50,11 +67,13 @@ const ONBOARDING_SYSTEM_PROMPT = buildSystemPrompt({
  * guidance based on their current state and needs. It analyzes user state, campaign
  * health, and provides personalized recommendations for next steps.
  *
- * The agent can handle various scenarios:
+ * The agent combines onboarding capabilities with campaign-specific guidance:
  * - First-time users: Welcome and explain core features
  * - Empty state: Guide toward inspiration gathering
  * - Existing campaigns: Provide targeted improvement suggestions
  * - Resource-rich state: Guide toward campaign creation and session planning
+ * - Campaign development: Analyze campaign state and provide specific next steps
+ * - Session planning: Help users plan their next game sessions
  *
  * @extends BaseAgent - Inherits common agent functionality
  *
@@ -77,6 +96,8 @@ const ONBOARDING_SYSTEM_PROMPT = buildSystemPrompt({
  * // - "I'm new to this app"
  * // - "Help me improve my campaign"
  * // - "What tools should I use?"
+ * // - "Plan my next session"
+ * // - "Analyze my campaign readiness"
  * ```
  */
 export class OnboardingAgent extends BaseAgent {
@@ -84,9 +105,9 @@ export class OnboardingAgent extends BaseAgent {
   static readonly agentMetadata = {
     type: "onboarding",
     description:
-      "Provides contextual guidance, onboarding, and help for new and existing users.",
+      "Provides contextual guidance, onboarding, campaign development analysis, and help for new and existing users.",
     systemPrompt: ONBOARDING_SYSTEM_PROMPT,
-    tools: onboardingTools,
+    tools: { ...onboardingTools, ...campaignTools },
   };
 
   /**
@@ -97,7 +118,7 @@ export class OnboardingAgent extends BaseAgent {
    * @param model - The AI model instance for generating responses
    */
   constructor(ctx: DurableObjectState, env: any, model: any) {
-    super(ctx, env, model, onboardingTools);
+    super(ctx, env, model, { ...onboardingTools, ...campaignTools });
   }
 
   /**

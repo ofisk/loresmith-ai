@@ -435,14 +435,21 @@ function performReadinessAssessment(
     recommendations.push("Add more campaign resources");
   }
 
+  // Convert score to descriptive state
+  const getCampaignState = (score: number): string => {
+    if (score >= 90) return "Legendary";
+    else if (score >= 80) return "Epic-Ready";
+    else if (score >= 70) return "Well-Traveled";
+    else if (score >= 60) return "Flourishing";
+    else if (score >= 50) return "Growing Strong";
+    else if (score >= 40) return "Taking Shape";
+    else if (score >= 30) return "Taking Root";
+    else if (score >= 20) return "Newly Forged";
+    else return "Fresh Start";
+  };
+
   return {
-    score,
-    status:
-      score >= 70
-        ? "legendary"
-        : score >= 50
-          ? "getting_there"
-          : "just_beginning",
+    campaignState: getCampaignState(score),
     recommendations,
     details: {
       characters: characters.length,
