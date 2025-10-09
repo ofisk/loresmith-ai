@@ -22,6 +22,7 @@ import {
   buildBulkDeletionResponse,
   buildResourceRemovalResponse,
 } from "../lib/response-builders";
+import { CampaignContextSyncService } from "../services/campaign-context-sync-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -74,6 +75,41 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
       name,
       description,
     });
+
+    // Sync campaign title and description to AutoRAG as searchable context
+    try {
+      const syncService = new CampaignContextSyncService(c.env);
+
+      // Sync campaign title
+      await syncService.syncContextToAutoRAG(
+        newCampaign.campaignId,
+        `${newCampaign.campaignId}-title`,
+        "campaign_info",
+        "Campaign Title",
+        name,
+        { field: "title" }
+      );
+
+      // Sync campaign description if provided
+      if (description) {
+        await syncService.syncContextToAutoRAG(
+          newCampaign.campaignId,
+          `${newCampaign.campaignId}-description`,
+          "campaign_info",
+          "Campaign Description",
+          description,
+          { field: "description" }
+        );
+      }
+
+      console.log("[handleCreateCampaign] Synced campaign info to AutoRAG");
+    } catch (syncError) {
+      console.error(
+        "[handleCreateCampaign] Failed to sync campaign to AutoRAG:",
+        syncError
+      );
+      // Don't fail campaign creation if sync fails
+    }
 
     const response = buildCampaignCreationResponse(newCampaign);
     return c.json(response, 201);
@@ -157,6 +193,45 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
     });
 
     console.log(`[Server] Updated campaign ${campaignId}`);
+
+    // Sync updated campaign info to AutoRAG
+    try {
+      const syncService = new CampaignContextSyncService(c.env);
+
+      // Update campaign title if changed
+      if (body.name) {
+        await syncService.syncContextToAutoRAG(
+          campaignId,
+          `${campaignId}-title`,
+          "campaign_info",
+          "Campaign Title",
+          body.name,
+          { field: "title" }
+        );
+      }
+
+      // Update campaign description if changed
+      if (body.description !== undefined) {
+        await syncService.syncContextToAutoRAG(
+          campaignId,
+          `${campaignId}-description`,
+          "campaign_info",
+          "Campaign Description",
+          body.description,
+          { field: "description" }
+        );
+      }
+
+      console.log(
+        "[handleUpdateCampaign] Synced updated campaign info to AutoRAG"
+      );
+    } catch (syncError) {
+      console.error(
+        "[handleUpdateCampaign] Failed to sync campaign to AutoRAG:",
+        syncError
+      );
+      // Don't fail campaign update if sync fails
+    }
 
     // Fetch the updated campaign
     const updatedCampaign = await campaignDAO.getCampaignByIdWithMapping(

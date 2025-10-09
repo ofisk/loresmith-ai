@@ -14,6 +14,10 @@ import {
   listCampaignResources,
   removeResourceFromCampaign,
 } from "./resource-tools";
+import {
+  captureConversationalContext,
+  saveContextExplicitly,
+} from "../campaign-context/context-capture-tools";
 
 // Export all campaign tools
 export {
@@ -34,6 +38,9 @@ export {
   // Campaign file tools
   getFileLibraryStats,
   searchFileLibrary,
+  // Campaign context capture tools
+  captureConversationalContext,
+  saveContextExplicitly,
 };
 export { CampaignTool } from "./utils";
 
@@ -52,4 +59,6 @@ export const campaignTools = {
   planSession,
   generateSessionHooks,
   resolveCampaignIdentifier,
+  captureConversationalContext,
+  saveContextExplicitly,
 };

@@ -72,8 +72,39 @@ export abstract class AutoRAGClientBase {
   ): Promise<AutoRAGSearchResult> {
     await this.ensureInitialized();
 
-    console.log("[AutoRAGClientBase] Searching with options:", options);
-    return await this.autoRagClient.search(query, options);
+    // Apply enforced filter for security (e.g., approved-only content)
+    const enforcedPath = this.enforcedFilter();
+    const mergedOptions = { ...options };
+
+    if (enforcedPath) {
+      console.log(
+        "[AutoRAGClientBase] Applying enforced filter:",
+        enforcedPath
+      );
+
+      const pathFilter: ComparisonFilter = {
+        key: "path",
+        type: "eq", // Using 'eq' for exact path matching (will use StartsWith in AutoRAG layer)
+        value: enforcedPath,
+      };
+
+      if (options.filters) {
+        // Merge enforced path filter with existing filters
+        mergedOptions.filters = {
+          type: "and",
+          filters: [pathFilter, options.filters as ComparisonFilter],
+        } as CompoundFilter;
+      } else {
+        // Use enforced path filter alone
+        mergedOptions.filters = pathFilter;
+      }
+    }
+
+    console.log(
+      "[AutoRAGClientBase] Searching with merged options:",
+      mergedOptions
+    );
+    return await this.autoRagClient.search(query, mergedOptions);
   }
 
   /**
@@ -95,13 +126,39 @@ export abstract class AutoRAGClientBase {
   ): Promise<AutoRAGAISearchResult> {
     await this.ensureInitialized();
 
+    // Apply enforced filter for security (e.g., approved-only content)
+    const enforcedPath = this.enforcedFilter();
     const mergedOptions = { ...options } as any;
+
+    if (enforcedPath) {
+      console.log(
+        "[AutoRAGClientBase] Applying enforced filter to AI search:",
+        enforcedPath
+      );
+
+      const pathFilter: ComparisonFilter = {
+        key: "path",
+        type: "eq", // Using 'eq' for exact path matching (will use StartsWith in AutoRAG layer)
+        value: enforcedPath,
+      };
+
+      if (options.filters) {
+        // Merge enforced path filter with existing filters
+        mergedOptions.filters = {
+          type: "and",
+          filters: [pathFilter, options.filters as ComparisonFilter],
+        } as CompoundFilter;
+      } else {
+        // Use enforced path filter alone
+        mergedOptions.filters = pathFilter;
+      }
+    }
 
     console.log(
       "[AutoRAGClientBase] AI Searching with prompt:",
       `${prompt.substring(0, 100)}...`
     );
-    console.log("[AutoRAGClientBase] AI Search options:", mergedOptions);
+    console.log("[AutoRAGClientBase] AI Search merged options:", mergedOptions);
     return await this.autoRagClient.aiSearch(prompt, mergedOptions);
   }
 

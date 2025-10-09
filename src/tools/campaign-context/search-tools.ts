@@ -1,13 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { API_CONFIG, AUTH_CODES, type ToolResult } from "../../app-constants";
-import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
+import { AUTH_CODES, type ToolResult } from "../../app-constants";
 import {
   commonSchemas,
   createToolError,
   createToolSuccess,
   extractUsernameFromJwt,
 } from "../utils";
+import { CampaignAutoRAG } from "../../services/campaign-autorag-service";
+import { getDAOFactory } from "../../dao/dao-factory";
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {
@@ -53,7 +54,7 @@ export const searchCampaignContext = tool({
       console.log("[Tool] searchCampaignContext - Environment found:", !!env);
       console.log("[Tool] searchCampaignContext - JWT provided:", !!jwt);
 
-      // If we have environment, work directly with the database
+      // If we have environment, use AutoRAG search
       if (env) {
         const userId = extractUsernameFromJwt(jwt);
         console.log(
@@ -70,14 +71,14 @@ export const searchCampaignContext = tool({
           );
         }
 
-        // Verify campaign exists and belongs to user
-        const campaignResult = await env.DB.prepare(
-          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
-        )
-          .bind(campaignId, userId)
-          .first();
+        // Verify campaign exists and belongs to user using DAO
+        const campaignDAO = getDAOFactory(env).campaignDAO;
+        const campaign = await campaignDAO.getCampaignByIdWithMapping(
+          campaignId,
+          userId
+        );
 
-        if (!campaignResult) {
+        if (!campaign) {
           return createToolError(
             "Campaign not found",
             "Campaign not found",
@@ -86,53 +87,60 @@ export const searchCampaignContext = tool({
           );
         }
 
-        // Perform search based on type
-        const results = [];
-        const searchQuery = `%${query}%`;
+        // Use AutoRAG to search campaign content (includes approved shards and context)
+        const basePath =
+          campaign.campaignRagBasePath || `campaigns/${campaignId}`;
+        const autoRAG = new CampaignAutoRAG(
+          env,
+          env.AUTORAG_BASE_URL,
+          basePath
+        );
 
-        if (searchType === "all" || searchType === "characters") {
-          const characters = await env.DB.prepare(
-            "SELECT * FROM campaign_characters WHERE campaign_id = ? AND (character_name LIKE ? OR backstory LIKE ? OR personality_traits LIKE ? OR goals LIKE ?)"
-          )
-            .bind(
-              campaignId,
-              searchQuery,
-              searchQuery,
-              searchQuery,
-              searchQuery
-            )
-            .all();
-          results.push(
-            ...characters.results.map((c: any) => ({ ...c, type: "character" }))
-          );
+        // Build search query with type filter if specified
+        const searchQuery = query;
+        const filters: any = {};
+
+        if (searchType && searchType !== "all") {
+          filters.entityType =
+            searchType === "characters"
+              ? "character"
+              : searchType === "resources"
+                ? "resource"
+                : searchType === "context"
+                  ? "context"
+                  : searchType;
         }
 
-        if (searchType === "all" || searchType === "resources") {
-          const resources = await env.DB.prepare(
-            "SELECT * FROM campaign_resources WHERE campaign_id = ? AND (name LIKE ? OR description LIKE ? OR content LIKE ?)"
-          )
-            .bind(campaignId, searchQuery, searchQuery, searchQuery)
-            .all();
-          results.push(
-            ...resources.results.map((r: any) => ({ ...r, type: "resource" }))
-          );
-        }
+        // Use AI search for better semantic understanding
+        const searchResult = await autoRAG.aiSearch(searchQuery, {
+          max_results: 20,
+          filters:
+            Object.keys(filters).length > 0
+              ? {
+                  key: "entityType",
+                  type: "eq",
+                  value: filters.entityType,
+                }
+              : undefined,
+        });
 
-        if (searchType === "all" || searchType === "context") {
-          const context = await env.DB.prepare(
-            "SELECT * FROM campaign_context WHERE campaign_id = ? AND (title LIKE ? OR content LIKE ?)"
-          )
-            .bind(campaignId, searchQuery, searchQuery)
-            .all();
-          results.push(
-            ...context.results.map((c: any) => ({ ...c, type: "context" }))
-          );
-        }
+        console.log(
+          "[Tool] AutoRAG search results:",
+          searchResult.data?.length || 0
+        );
 
-        console.log("[Tool] Search results:", results.length);
+        // Transform AutoRAG AI search results to match expected format
+        const results = (searchResult.data || []).map((item: any) => ({
+          id: item.file_id,
+          text: item.content?.[0]?.text || "",
+          score: item.score,
+          filename: item.filename,
+          type: item.attributes?.entityType || "unknown",
+          ...item.attributes,
+        }));
 
         return createToolSuccess(
-          `Found ${results.length} results for "${query}"`,
+          `Found ${results.length} results for "${query}"${searchType && searchType !== "all" ? ` in ${searchType}` : ""}`,
           {
             query,
             searchType,
@@ -143,42 +151,11 @@ export const searchCampaignContext = tool({
         );
       }
 
-      const response = await authenticatedFetch(
-        API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.CONTEXT_SEARCH(campaignId)
-        ),
-        {
-          method: "POST",
-          jwt,
-          body: JSON.stringify({
-            query,
-            searchType,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const authError = await handleAuthError(response);
-        if (authError) {
-          return createToolError(
-            authError,
-            null,
-            AUTH_CODES.INVALID_KEY,
-            toolCallId
-          );
-        }
-        return createToolError(
-          "Failed to search campaign context",
-          `HTTP ${response.status}: ${await response.text()}`,
-          500,
-          toolCallId
-        );
-      }
-
-      const result = await response.json();
-      return createToolSuccess(
-        `Found ${(result as any).results?.length || 0} results for "${query}"`,
-        result,
+      // Fallback: Environment not available, return error
+      return createToolError(
+        "Environment not available for campaign search",
+        "Unable to access campaign data",
+        500,
         toolCallId
       );
     } catch (error) {
@@ -243,14 +220,14 @@ export const searchExternalResources = tool({
           );
         }
 
-        // Verify campaign exists and belongs to user
-        const campaignResult = await env.DB.prepare(
-          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
-        )
-          .bind(campaignId, userId)
-          .first();
+        // Verify campaign exists and belongs to user using DAO
+        const campaignDAO = getDAOFactory(env).campaignDAO;
+        const campaign = await campaignDAO.getCampaignByIdWithMapping(
+          campaignId,
+          userId
+        );
 
-        if (!campaignResult) {
+        if (!campaign) {
           return createToolError(
             "Campaign not found",
             "Campaign not found",
@@ -292,43 +269,11 @@ export const searchExternalResources = tool({
         );
       }
 
-      const response = await authenticatedFetch(
-        API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.CONTEXT_SEARCH(campaignId)
-        ),
-        {
-          method: "POST",
-          jwt,
-          body: JSON.stringify({
-            query,
-            searchType: "external",
-            resourceType,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const authError = await handleAuthError(response);
-        if (authError) {
-          return createToolError(
-            authError,
-            null,
-            AUTH_CODES.INVALID_KEY,
-            toolCallId
-          );
-        }
-        return createToolError(
-          "Failed to search external resources",
-          `HTTP ${response.status}: ${await response.text()}`,
-          500,
-          toolCallId
-        );
-      }
-
-      const result = await response.json();
-      return createToolSuccess(
-        `Found ${(result as any).results?.length || 0} external resources for "${query}"`,
-        result,
+      // Fallback: Environment not available, return error
+      return createToolError(
+        "Environment not available for external resource search",
+        "Unable to access external resources",
+        500,
         toolCallId
       );
     } catch (error) {

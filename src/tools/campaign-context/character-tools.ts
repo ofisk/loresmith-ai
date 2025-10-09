@@ -9,6 +9,7 @@ import {
   extractUsernameFromJwt,
 } from "../utils";
 import { generateCharacterWithAI } from "./ai-helpers";
+import { CampaignContextSyncService } from "../../services/campaign-context-sync-service";
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {
@@ -155,6 +156,34 @@ export const storeCharacterInfo = tool({
           "name:",
           characterName
         );
+
+        // Sync to AutoRAG for searchability
+        try {
+          const syncService = new CampaignContextSyncService(env);
+          const characterData = {
+            character_name: characterName,
+            character_class: characterClass || null,
+            character_level: characterLevel || null,
+            character_race: characterRace || null,
+            backstory: backstory || null,
+            personality_traits: personalityTraits || null,
+            goals: goals || null,
+            relationships: relationships ? JSON.stringify(relationships) : null,
+          };
+          await syncService.syncCharacterToAutoRAG(
+            campaignId,
+            characterId,
+            characterName,
+            characterData
+          );
+          console.log("[Tool] Synced character to AutoRAG:", characterId);
+        } catch (syncError) {
+          console.error(
+            "[Tool] Failed to sync character to AutoRAG:",
+            syncError
+          );
+          // Don't fail the whole operation if sync fails
+        }
 
         return createToolSuccess(
           `Successfully stored character information for ${characterName}`,
