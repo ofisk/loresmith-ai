@@ -18,6 +18,7 @@ export type { ActivityType };
 
 export interface CampaignReadinessSummary {
   overallScore: number;
+  campaignState: string;
   priorityAreas: string[];
   recommendations: string[];
 }
@@ -36,6 +37,31 @@ export interface ToolRecommendation {
   description: string;
   category: "inspiration" | "tools" | "community" | "content";
   relevance: "high" | "medium" | "low";
+}
+
+/**
+ * Convert numerical score to descriptive campaign state
+ */
+function getCampaignState(score: number): string {
+  if (score >= 90) {
+    return "Legendary";
+  } else if (score >= 80) {
+    return "Epic-Ready";
+  } else if (score >= 70) {
+    return "Well-Traveled";
+  } else if (score >= 60) {
+    return "Flourishing";
+  } else if (score >= 50) {
+    return "Growing Strong";
+  } else if (score >= 40) {
+    return "Taking Shape";
+  } else if (score >= 30) {
+    return "Taking Root";
+  } else if (score >= 20) {
+    return "Newly Forged";
+  } else {
+    return "Fresh Start";
+  }
 }
 
 export class AssessmentService {
@@ -155,6 +181,7 @@ export class AssessmentService {
 
       return {
         overallScore,
+        campaignState: getCampaignState(overallScore),
         priorityAreas,
         recommendations,
       };
