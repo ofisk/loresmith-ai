@@ -18,6 +18,7 @@ export interface ShardMetadata {
 
 export interface StructuredShard extends ShardMetadata {
   type: StructuredContentType;
+  contentId?: string; // Original content ID from parsed JSON (e.g., "night-hag")
 }
 
 export interface FlexibleShard extends ShardMetadata {

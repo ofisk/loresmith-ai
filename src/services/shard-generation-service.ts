@@ -6,10 +6,14 @@ import {
   parseAIResponse,
   filterParsedContentToResource,
 } from "../lib/ai-search-utils";
+import { notifyShardGeneration } from "../lib/notifications";
 import {
-  notifyShardGeneration,
-  notifyShardParseIssue,
-} from "../lib/notifications";
+  normalizeResourceForShardGeneration,
+  getAutoRAGSearchPath,
+  validateSearchPath,
+  logShardGenerationContext,
+  validateShardGenerationOptions,
+} from "../lib/shard-generation-utils";
 
 export interface ShardGenerationResult {
   success: boolean;
@@ -26,12 +30,16 @@ export interface ShardGenerationOptions {
   campaignName: string;
   resource: any;
   campaignRagBasePath: string;
+  onShardsDiscovered?: (shards: any[], chunkNumber: number) => Promise<void>;
 }
 
 // Generate shards for a campaign resource
 export async function generateShardsForResource(
   options: ShardGenerationOptions
 ): Promise<ShardGenerationResult> {
+  // Validate all options upfront
+  validateShardGenerationOptions(options);
+
   const {
     env,
     username,
@@ -39,19 +47,225 @@ export async function generateShardsForResource(
     campaignName,
     resource,
     campaignRagBasePath,
+    onShardsDiscovered,
   } = options;
-  const r = resource as any;
+
+  // Normalize and validate the resource
+  const normalizedResource = normalizeResourceForShardGeneration(resource);
+
+  // Get the correct search path
+  const searchPath = getAutoRAGSearchPath(normalizedResource);
+
+  // Validate the search path
+  validateSearchPath(searchPath);
+
+  // Log context for debugging
+  logShardGenerationContext(normalizedResource, searchPath, campaignId);
 
   try {
-    console.log(`[ShardGeneration] Starting for resource: ${r.id}`);
+    console.log(
+      `[ShardGeneration] Starting for resource: ${normalizedResource.id}`
+    );
 
-    // Execute AI search with retry logic
-    const aiSearchResult = await executeAISearchWithRetry(
+    // Track total shards discovered across all chunks
+    let totalShardsDiscovered = 0;
+    let allShardCandidates: any[] = [];
+
+    // Create streaming callback for chunk processing
+    const streamingCallback = async (chunkResult: any, chunkNumber: number) => {
+      console.log(
+        `[ShardGeneration] DEBUG: Streaming callback called for chunk ${chunkNumber}`
+      );
+      console.log(
+        `[ShardGeneration] DEBUG: Chunk result structure:`,
+        JSON.stringify(chunkResult, null, 2)
+      );
+      console.log(
+        `[ShardGeneration] DEBUG: Chunk result keys:`,
+        Object.keys(chunkResult || {})
+      );
+      console.log(
+        `[ShardGeneration] DEBUG: Response type: ${typeof chunkResult?.response}, value: ${chunkResult?.response}`
+      );
+      console.log(
+        `[ShardGeneration] DEBUG: Data type: ${typeof chunkResult?.data}, value: ${chunkResult?.data}`
+      );
+
+      // The chunk result should have 'result' with the structured content
+      if (!chunkResult || !chunkResult.result) {
+        console.log(
+          `[ShardGeneration] DEBUG: Early return - chunkResult: ${!!chunkResult}, result: ${!!chunkResult?.result}`
+        );
+        return;
+      }
+
+      console.log(
+        `[ShardGeneration] Processing chunk ${chunkNumber} with structured content`
+      );
+
+      try {
+        // Extract AI response from chunk result
+        let aiResponse: string;
+
+        // The structured content should be in chunkResult.result
+        if (chunkResult.result && typeof chunkResult.result === "string") {
+          aiResponse = chunkResult.result;
+        } else if (
+          chunkResult.result?.response &&
+          typeof chunkResult.result.response === "string"
+        ) {
+          aiResponse = chunkResult.result.response;
+        } else {
+          console.warn(
+            `[ShardGeneration] Chunk ${chunkNumber} has no accessible result property`
+          );
+          console.warn(
+            `[ShardGeneration] Chunk result structure:`,
+            JSON.stringify(chunkResult, null, 2)
+          );
+          console.warn(
+            `[ShardGeneration] Result type: ${typeof chunkResult.result}, value: ${chunkResult.result}`
+          );
+          return;
+        }
+
+        // Parse the AI response to extract structured content
+        console.log(
+          `[ShardGeneration] DEBUG: Raw AI response length: ${aiResponse.length}`
+        );
+        console.log(
+          `[ShardGeneration] DEBUG: Raw AI response preview: ${aiResponse.substring(0, 200)}...`
+        );
+
+        const parsedContent = parseAIResponse(aiResponse);
+        console.log(
+          `[ShardGeneration] DEBUG: Parsed content type: ${typeof parsedContent}`
+        );
+        console.log(
+          `[ShardGeneration] DEBUG: Parsed content keys:`,
+          parsedContent ? Object.keys(parsedContent) : "null"
+        );
+
+        if (parsedContent && typeof parsedContent === "object") {
+          // Focus parsed content to the current resource
+          const { filtered } = filterParsedContentToResource(
+            parsedContent as any,
+            searchPath
+          );
+
+          // Create shard candidates from this chunk
+          console.log(
+            `[ShardGeneration] DEBUG: About to parse AI response for chunk ${chunkNumber}`
+          );
+          console.log(
+            `[ShardGeneration] DEBUG: Filtered content keys:`,
+            Object.keys(filtered || {})
+          );
+          console.log(
+            `[ShardGeneration] DEBUG: Filtered content sample:`,
+            JSON.stringify(filtered, null, 2).substring(0, 500)
+          );
+
+          const shardCandidates = ShardFactory.parseAISearchResponse(
+            filtered as any,
+            resource as any,
+            campaignId
+          );
+
+          console.log(
+            `[ShardGeneration] DEBUG: ShardFactory returned ${shardCandidates.length} candidates`
+          );
+
+          if (shardCandidates.length > 0) {
+            console.log(
+              `[ShardGeneration] Chunk ${chunkNumber} generated ${shardCandidates.length} shards`
+            );
+
+            // Track total shards
+            totalShardsDiscovered += shardCandidates.length;
+            allShardCandidates.push(...shardCandidates);
+
+            // Save shard candidates to R2 staging
+            const campaignAutoRAG = new CampaignAutoRAG(
+              env,
+              env.AUTORAG_BASE_URL,
+              campaignRagBasePath
+            );
+
+            await campaignAutoRAG.saveShardCandidatesPerShard(
+              normalizedResource.id,
+              shardCandidates,
+              { fileName: normalizedResource.file_name }
+            );
+
+            // Send streaming notification
+            await notifyShardGeneration(
+              env,
+              username,
+              campaignName,
+              normalizedResource.file_name,
+              shardCandidates.length,
+              { campaignId, resourceId: normalizedResource.id, chunkNumber }
+            );
+
+            // Call the optional callback
+            if (onShardsDiscovered) {
+              await onShardsDiscovered(shardCandidates, chunkNumber);
+            }
+          }
+        }
+      } catch (chunkError) {
+        console.error(
+          `[ShardGeneration] Error processing chunk ${chunkNumber}:`,
+          chunkError
+        );
+        // Don't throw - continue with other chunks
+      }
+    };
+
+    // DEBUG: Make side-by-side calls to compare filtered vs unfiltered results
+    console.log(
+      `[ShardGeneration] DEBUG: Making side-by-side comparison calls`
+    );
+
+    // Call 1: Unfiltered search (no filters at all)
+    console.log(`[ShardGeneration] DEBUG: Call 1 - UNFILTERED search`);
+    const unfilteredResult = await executeAISearchWithRetry(
       env,
       username,
       campaignId,
-      r.file_name || r.id
+      searchPath,
+      1, // maxRetries
+      undefined, // No streaming callback for debug
+      true // debugUnfiltered = true
     );
+
+    console.log(
+      `[ShardGeneration] DEBUG: Unfiltered result:`,
+      JSON.stringify(unfilteredResult, null, 2)
+    );
+
+    // Call 2: Filtered search (current approach)
+    console.log(
+      `[ShardGeneration] DEBUG: Call 2 - FILTERED search with folder filter`
+    );
+    const filteredResult = await executeAISearchWithRetry(
+      env,
+      username,
+      campaignId,
+      searchPath,
+      1, // maxRetries
+      streamingCallback,
+      false // debugUnfiltered = false (use filters)
+    );
+
+    console.log(
+      `[ShardGeneration] DEBUG: Filtered result:`,
+      JSON.stringify(filteredResult, null, 2)
+    );
+
+    // Use the filtered result for the main flow
+    const aiSearchResult = filteredResult;
 
     // Ensure we have a valid result object
     if (!aiSearchResult) {
@@ -65,197 +279,63 @@ export async function generateShardsForResource(
       };
     }
 
-    console.log(`[ShardGeneration] AI Search completed for ${r.id}`);
-
-    // Extract AI response from the result structure
-    const actualResult = aiSearchResult as any;
-    let aiResponse: string;
-
-    if (actualResult.result?.response) {
-      aiResponse = actualResult.result.response;
-    } else if (actualResult.response) {
-      aiResponse = actualResult.response;
-    } else if (actualResult.result && typeof actualResult.result === "string") {
-      aiResponse = actualResult.result;
-    } else {
-      console.warn(
-        `[ShardGeneration] AI Search result has no accessible response property`
-      );
-      return {
-        success: false,
-        shardCount: 0,
-        error: "No accessible response property",
-      };
-    }
-
     console.log(
-      `[ShardGeneration] AI Response: ${aiResponse.substring(0, 200)}...`
+      `[ShardGeneration] AI Search completed for ${normalizedResource.id}. Total shards discovered: ${totalShardsDiscovered}`
     );
 
-    // Parse the AI response to extract structured content
-    try {
-      const parsedContent = parseAIResponse(aiResponse);
-
-      // Emit hidden debug counts per type
-      try {
-        const counts: Record<string, number> = {};
-        for (const k of Object.keys(parsedContent || {})) {
-          if (k !== "meta" && Array.isArray((parsedContent as any)[k])) {
-            counts[k] = (parsedContent as any)[k].length;
-          }
-        }
-        await notifyShardParseIssue(
-          env,
-          username,
-          campaignName,
-          r.file_name || r.id,
-          {
-            reason: "parsed_counts",
-            counts,
-            triedFilters: "folder+filename|folder|none",
-          }
-        );
-      } catch (_e) {}
-
-      if (parsedContent && typeof parsedContent === "object") {
-        // Focus parsed content to the current resource
-        const {
-          filtered,
-          preCounts,
-          postCounts,
-          docsSeen,
-          metaDoc,
-          metaMatches,
-        } = filterParsedContentToResource(
-          parsedContent as any,
-          r.file_name || r.id
-        );
-
-        console.log(`[ShardGeneration] Document matching debug:`, {
-          resourceFileName: r.file_name,
-          resourceId: r.id,
-          metaDoc,
-          metaMatches,
-        });
-
-        try {
-          await notifyShardParseIssue(
-            env,
-            username,
-            campaignName,
-            r.file_name || r.id,
-            {
-              reason: "post_filter_counts",
-              preCounts,
-              postCounts,
-              docsSeen: Array.from(docsSeen),
-            }
-          );
-        } catch (_e) {}
-
-        // Save shard candidates to R2 staging (per-shard files)
-        try {
-          const campaignAutoRAG = new CampaignAutoRAG(
-            env,
-            env.AUTORAG_BASE_URL,
-            campaignRagBasePath
-          );
-
-          const shardCandidates = ShardFactory.parseAISearchResponse(
-            filtered as any,
-            resource as any,
-            campaignId
-          );
-
-          // Write per-shard files for precise approvals
-          await campaignAutoRAG.saveShardCandidatesPerShard(
-            r.id,
-            shardCandidates,
-            { fileName: r.file_name }
-          );
-
-          const createdCount = shardCandidates.length;
-
-          // Create server groups for UI hint
-          const serverGroups = [
-            {
-              key: "focused_approval",
-              sourceRef: {
-                fileKey: resource.id,
-                meta: {
-                  fileName: resource.file_name || resource.id,
-                  campaignId,
-                  entityType: shardCandidates[0]?.metadata?.entityType || "",
-                  chunkId: "",
-                  score: 0,
-                },
-              },
-              shards: shardCandidates,
-              created_at: new Date().toISOString(),
-              campaignRagBasePath,
+    // Return aggregated results from streaming processing
+    if (totalShardsDiscovered > 0) {
+      // Create server groups for UI hint
+      const serverGroups = [
+        {
+          key: "focused_approval",
+          sourceRef: {
+            fileKey: resource.id,
+            meta: {
+              fileName: resource.file_name || resource.id,
+              campaignId,
+              entityType: allShardCandidates[0]?.metadata?.entityType || "",
+              chunkId: "",
+              score: 0,
             },
-          ];
+          },
+          shards: allShardCandidates,
+          created_at: new Date().toISOString(),
+          campaignRagBasePath,
+        },
+      ];
 
-          return {
-            success: true,
-            shardCount: createdCount,
-            shardCandidates,
-            serverGroups,
-          };
-        } catch (e) {
-          console.warn(
-            "[ShardGeneration] Failed to write candidates to R2 staging:",
-            e
-          );
-          return {
-            success: false,
-            shardCount: 0,
-            error: "Failed to write candidates to R2 staging",
-          };
-        }
-      } else {
-        console.warn(
-          `[ShardGeneration] Invalid structured content format for ${r.id}`
-        );
-        await notifyShardParseIssue(
-          env,
-          username,
-          campaignName,
-          r.file_name || r.id,
-          {
-            reason: "invalid_structured_content",
-            keys: Object.keys(parsedContent || {}),
-          }
-        );
-
-        return {
-          success: false,
-          shardCount: 0,
-          error: "Invalid structured content format",
-        };
-      }
-    } catch (parseError) {
-      console.error(
-        `[ShardGeneration] Error parsing AI response for ${r.id}:`,
-        parseError
-      );
-      console.log(`[ShardGeneration] Raw AI response: ${aiResponse}`);
-
-      await notifyShardParseIssue(
+      // Send final summary notification
+      await notifyShardGeneration(
         env,
         username,
         campaignName,
-        r.file_name || r.id,
-        {
-          reason: "parse_exception",
-          error: (parseError as Error)?.message,
-        }
+        normalizedResource.file_name,
+        totalShardsDiscovered,
+        { campaignId, resourceId: normalizedResource.id }
+      );
+
+      return {
+        success: true,
+        shardCount: totalShardsDiscovered,
+        shardCandidates: allShardCandidates,
+        serverGroups,
+      };
+    } else {
+      // No shards found - send final notification
+      await notifyShardGeneration(
+        env,
+        username,
+        campaignName,
+        normalizedResource.file_name,
+        0,
+        { campaignId, resourceId: normalizedResource.id }
       );
 
       return {
         success: false,
         shardCount: 0,
-        error: "Error parsing AI response",
+        error: "No shards discovered from any chunks",
       };
     }
   } catch (error) {

@@ -57,6 +57,11 @@ export class AutoRAGClient {
       );
     }
 
+    // DEBUG: Log token info (masked for security)
+    console.log(
+      `[AutoRAGClient] Token length: ${apiToken.length}, starts with: ${apiToken.substring(0, 8)}...`
+    );
+
     // Remove trailing slash if present
     const cleanBaseUrl = baseUrl.replace(/\/$/, "");
     this.searchUrl = `${cleanBaseUrl}/search`;

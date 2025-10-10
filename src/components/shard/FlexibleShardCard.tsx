@@ -101,7 +101,9 @@ export function FlexibleShardCard({
         return shard[field];
       }
     }
-    return `${displayName} #${shard.id.slice(-8)}`;
+    // Use contentId if available (for structured shards), otherwise fall back to ID suffix
+    const displayId = (shard as any).contentId || shard.id.slice(-8);
+    return `${displayName} #${displayId}`;
   };
 
   const getShardDescription = () => {
@@ -311,7 +313,9 @@ export function FlexibleShardCard({
 
           {/* Actions */}
           <div className="flex items-center justify-between pt-3 border-t border-gray-700">
-            <div className="text-xs text-gray-400">Shard ID: {shard.id}</div>
+            <div className="text-xs text-gray-400">
+              Shard ID: {(shard as any).contentId || shard.id.slice(-12)}
+            </div>
             {onDelete && (
               <button
                 type="button"

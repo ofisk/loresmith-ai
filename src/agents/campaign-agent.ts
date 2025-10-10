@@ -45,6 +45,8 @@ const getCampaignSystemPrompt = () =>
       "Assess campaign readiness based on available materials",
       "Offer recommendations for campaign improvement",
       "When users mention files, guide them to add files to campaigns from their library to extract shards and enhance planning capabilities",
+      "File Management: You can list user files with listFiles and add them to campaigns with addResourceToCampaign",
+      "When users ask to 'add all current files to my campaign' or similar, first use listFiles to see available files, then use addResourceToCampaign for each file",
       "Never ask for technical details like campaign IDs - guide users through the natural workflow instead",
 
       // Context Capture Guidelines
@@ -123,7 +125,7 @@ export class CampaignAgent extends BaseAgent {
     return {
       type: "campaign",
       description:
-        "Handles campaign management, session planning, world building, creating/listing/updating campaigns, and overall campaign coordination.",
+        "Handles campaign management, session planning, world building, creating/listing/updating campaigns, adding files from the library to campaigns, managing campaign resources, and overall campaign coordination. Specifically handles requests to add files to campaigns, organize campaign resources, and generate shards from campaign content.",
       systemPrompt: getCampaignSystemPrompt(),
       tools: campaignTools,
     };

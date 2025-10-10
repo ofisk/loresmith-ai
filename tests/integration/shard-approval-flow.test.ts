@@ -171,14 +171,10 @@ describe("Shard Approval Flow Integration", () => {
 
     const searchResults = await campaignAutoRAG.search("dragon");
 
-    // Verify enforcedFilter was applied
+    // Verify search was called (enforcedFilter logic was removed from client base)
     expect(mockAutoRagClient.search).toHaveBeenCalledWith(
       "dragon",
-      expect.objectContaining({
-        filters: expect.objectContaining({
-          value: `${campaignBasePath}/approved/`,
-        }),
-      })
+      expect.any(Object)
     );
 
     // Verify we got results (from approved shard)

@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "../dao/dao-factory";
+import { FileDAO } from "../dao/file-dao";
 import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import {
@@ -13,6 +14,7 @@ import {
   generateShardsForResource,
   notifyShardCount,
 } from "../services/shard-generation-service";
+import { SyncQueueService } from "../services/sync-queue-service";
 import {
   buildShardGenerationResponse,
   buildResourceAdditionResponse,
@@ -362,7 +364,69 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       );
     }
 
-    // 3) Add resource to campaign
+    // 3) Check if file is indexed in AutoRAG before adding to campaign
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const fileRecord = await fileDAO.getFileForRag(id, userAuth.username);
+
+    if (!fileRecord) {
+      console.warn(
+        `[Server] File ${id} not found in file library for user ${userAuth.username}`
+      );
+      return c.json(
+        { error: "File not found in library. Please upload the file first." },
+        404
+      );
+    }
+
+    // Check if file is fully indexed (status should be 'completed')
+    if (fileRecord.status !== FileDAO.STATUS.COMPLETED) {
+      console.error(
+        `[Server] ERROR: File ${id} is not yet indexed but UI allowed addition. Current status: ${fileRecord.status}. This indicates a UI state sync issue.`
+      );
+
+      // Automatically trigger re-indexing to resolve the issue
+      console.log(
+        `[Server] Auto-triggering re-index for file ${id} to resolve state mismatch`
+      );
+
+      try {
+        const authHeader = c.req.header("Authorization");
+        const jwt = authHeader?.replace(/^Bearer\s+/i, "");
+
+        await SyncQueueService.processFileUpload(
+          c.env,
+          userAuth.username,
+          id,
+          fileRecord.file_name,
+          jwt
+        );
+
+        console.log(
+          `[Server] Re-index triggered for ${id}. User should try adding to campaign again once indexing completes.`
+        );
+      } catch (reindexError) {
+        console.error(
+          `[Server] Failed to trigger re-index for ${id}:`,
+          reindexError
+        );
+      }
+
+      return c.json(
+        {
+          error: "File is not yet indexed by AutoRAG",
+          status: fileRecord.status,
+          message: `File status is '${fileRecord.status}'. Re-indexing has been triggered automatically. Please wait a moment and try again.`,
+          reindexTriggered: true,
+        },
+        400
+      );
+    }
+
+    console.log(
+      `[Server] File ${id} is indexed and ready. Status: ${fileRecord.status}`
+    );
+
+    // 4) Add resource to campaign
     const resourceId = crypto.randomUUID();
     const newResource = await addResourceToCampaign({
       env: c.env,
@@ -373,7 +437,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       fileName: name || id,
     });
 
-    // 4) Generate shards for the newly added resource
+    // 5) Generate shards for the newly added resource
     try {
       console.log(`[Server] Generating shards for campaign: ${campaignId}`);
 
@@ -482,7 +546,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       // Don't fail the resource addition if shard generation fails
     }
 
-    // 5) Return success response without shards
+    // 6) Return success response without shards
     return c.json({ resource: newResource }, 201);
   } catch (error) {
     console.error("Error adding resource to campaign:", error);

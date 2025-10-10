@@ -18,6 +18,8 @@ import {
   captureConversationalContext,
   saveContextExplicitly,
 } from "../campaign-context/context-capture-tools";
+// Import file management tools for campaign operations
+import { listFiles, getFileStats } from "../file/index";
 
 // Export all campaign tools
 export {
@@ -38,6 +40,9 @@ export {
   // Campaign file tools
   getFileLibraryStats,
   searchFileLibrary,
+  // File management tools for campaign operations
+  listFiles,
+  getFileStats,
   // Campaign context capture tools
   captureConversationalContext,
   saveContextExplicitly,
@@ -56,6 +61,9 @@ export const campaignTools = {
   removeResourceFromCampaign,
   searchFileLibrary,
   getFileLibraryStats,
+  // File management tools for campaign operations
+  listFiles,
+  getFileStats,
   planSession,
   generateSessionHooks,
   resolveCampaignIdentifier,

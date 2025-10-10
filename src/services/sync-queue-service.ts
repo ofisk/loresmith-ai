@@ -28,6 +28,28 @@ export class SyncQueueService {
     const ragId = AUTORAG_CONFIG.LIBRARY_RAG_ID;
     console.log(`[DEBUG] [SyncQueue] Using ragId: ${ragId}`);
 
+    // Clear any stuck jobs before processing
+    try {
+      const cleared = await fileDAO.clearStuckAutoRAGJobs();
+      if (cleared.cleared > 0) {
+        console.log(
+          `[DEBUG] [SyncQueue] Cleared ${cleared.cleared} stuck AutoRAG jobs before processing`
+        );
+      }
+
+      // Log health status for monitoring
+      const health = await fileDAO.getAutoRAGJobHealth();
+      console.log(`[DEBUG] [SyncQueue] AutoRAG job health:`, health);
+
+      if (health.stuck > 0) {
+        console.warn(
+          `[SyncQueue] Warning: ${health.stuck} jobs appear stuck (>5min old)`
+        );
+      }
+    } catch (error) {
+      console.error(`[DEBUG] [SyncQueue] Error clearing stuck jobs:`, error);
+    }
+
     // Check if there are any ongoing AutoRAG jobs globally (single AutoRAG instance)
     console.log(`[DEBUG] [SyncQueue] Checking for any ongoing jobs (global)`);
     const globalPending = await fileDAO.getAllPendingAutoRAGJobs();
@@ -51,68 +73,17 @@ export class SyncQueueService {
       console.log(
         `[DEBUG] [SyncQueue] Ongoing job detected globally, queuing file...`
       );
-      // Queue via Durable Object if a job is already in progress
-      const queueResult = await SyncQueueService.queueFileForSync(
-        env,
-        username,
-        fileKey,
-        fileName,
-        ragId
-      );
+      // Queue the file in database for later processing
+      await fileDAO.addToSyncQueue(username, fileKey, fileName, ragId);
 
-      console.log(`[DEBUG] [SyncQueue] Queue result:`, queueResult);
+      // Get queue position
+      const queueItems = await fileDAO.getSyncQueue(username);
+      const position =
+        queueItems.findIndex((item) => item.file_key === fileKey) + 1;
+
       console.log(
-        `[DEBUG] [SyncQueue] File ${fileName} ${queueResult.queued ? "queued" : "processing immediately"} for user ${username}`
+        `[DEBUG] [SyncQueue] File ${fileName} queued at position ${position}`
       );
-
-      // If DO reported not queued (no active polling), immediately trigger a sync here
-      if (!queueResult.queued) {
-        try {
-          console.log(
-            `[DEBUG] [SyncQueue] No active polling detected. Triggering immediate sync fallback...`
-          );
-          const jobId = await AutoRAGService.triggerSync(ragId, 0, jwt, env);
-          console.log(
-            `[DEBUG] [SyncQueue] Fallback immediate sync triggered successfully, jobId: ${jobId}`
-          );
-
-          await fileDAO.createAutoRAGJob(
-            jobId,
-            ragId,
-            username,
-            fileKey,
-            fileName
-          );
-
-          console.log(`[DEBUG] [SyncQueue] Updating file status to SYNCING...`);
-          await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.SYNCING);
-          console.log(`[DEBUG] [SyncQueue] File status updated to SYNCING`);
-
-          console.log(`[DEBUG] [SyncQueue] Starting polling for job...`);
-          await SyncQueueService.startPollingForJob(env, jobId, username);
-          console.log(`[DEBUG] [SyncQueue] Polling started for job: ${jobId}`);
-
-          const endTime = Date.now();
-          const duration = endTime - startTime;
-          console.log(
-            `[DEBUG] [SyncQueue] ===== FILE UPLOAD PROCESSING COMPLETED (IMMEDIATE VIA FALLBACK) =====`
-          );
-          console.log(`[DEBUG] [SyncQueue] Duration: ${duration}ms`);
-          console.log(`[DEBUG] [SyncQueue] Status: IMMEDIATE SYNC STARTED`);
-
-          return {
-            queued: false,
-            jobId,
-            message: `File ${fileName} indexing started immediately`,
-          };
-        } catch (error) {
-          console.error(
-            `[DEBUG] [SyncQueue] Fallback immediate sync failed, leaving in queue:`,
-            error
-          );
-          // Continue as queued below
-        }
-      }
 
       const endTime = Date.now();
       const duration = endTime - startTime;
@@ -124,7 +95,7 @@ export class SyncQueueService {
 
       return {
         queued: true,
-        message: `File ${fileName} queued for indexing (sync in progress)`,
+        message: `File ${fileName} queued for indexing (position ${position})`,
       };
     } else {
       console.log(
@@ -286,7 +257,19 @@ export class SyncQueueService {
         error
       );
 
-      // Remove from queue even if it fails to avoid infinite retries
+      // Check if it's a cooldown error
+      if (
+        error instanceof Error &&
+        error.message.includes("sync_in_cooldown")
+      ) {
+        console.log(
+          `[SyncQueue] AutoRAG is in cooldown, will retry later for ${firstItem.file_name}`
+        );
+        // Don't remove from queue, let it retry later
+        return { processed: 0 };
+      }
+
+      // Remove from queue for other errors to avoid infinite retries
       await fileDAO.removeFromSyncQueue(firstItem.file_key);
 
       return { processed: 0 };
@@ -323,6 +306,58 @@ export class SyncQueueService {
       ongoingJobs: hasOngoingJobs,
       queueItems,
     };
+  }
+
+  /**
+   * Schedule a retry for queued files after cooldown period
+   */
+  static async scheduleRetryForCooldown(
+    env: any,
+    username: string,
+    jwt?: string
+  ): Promise<void> {
+    console.log(
+      `[SyncQueue] Scheduling retry for user ${username} after cooldown`
+    );
+
+    // Wait for AutoRAG cooldown period (15 seconds)
+    setTimeout(async () => {
+      try {
+        console.log(
+          `[SyncQueue] Attempting to process queued files after cooldown for user ${username}`
+        );
+        const result = await SyncQueueService.processSyncQueue(
+          env,
+          username,
+          jwt
+        );
+
+        if (result.processed > 0) {
+          console.log(
+            `[SyncQueue] Successfully processed ${result.processed} queued files after cooldown`
+          );
+        } else {
+          console.log(
+            `[SyncQueue] No files processed after cooldown, will retry again later`
+          );
+          // Schedule another retry if there are still queued files
+          const queueStatus = await SyncQueueService.getQueueStatus(
+            env,
+            username
+          );
+          if (queueStatus.queuedCount > 0) {
+            console.log(
+              `[SyncQueue] Scheduling another retry in 30 seconds for ${queueStatus.queuedCount} queued files`
+            );
+            setTimeout(() => {
+              SyncQueueService.scheduleRetryForCooldown(env, username, jwt);
+            }, 30000); // 30 seconds
+          }
+        }
+      } catch (error) {
+        console.error(`[SyncQueue] Error during scheduled retry:`, error);
+      }
+    }, 15000); // 15 seconds
   }
 
   /**

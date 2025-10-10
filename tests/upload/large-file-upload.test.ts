@@ -21,6 +21,7 @@ const mockEnv = {
   AI: {} as any,
   FILE_PROCESSING_QUEUE: {} as any,
   FILE_PROCESSING_DLQ: {} as any,
+  AUTORAG_PREFIX: "loresmith-files/library",
 };
 
 // Mock context
@@ -69,13 +70,13 @@ describe("Large File Upload", () => {
       await handleStartLargeUpload(context as any);
 
       expect(mockEnv.R2.createMultipartUpload).toHaveBeenCalledWith(
-        "staging/testuser/large-file.pdf",
+        "library/testuser/c4be7b4dd6c8a355/large-file.pdf",
         {
           httpMetadata: {
             contentType: "application/pdf",
           },
           customMetadata: {
-            file_key: "staging/testuser/large-file.pdf",
+            file_key: "library/testuser/c4be7b4dd6c8a355/large-file.pdf",
             user: "testuser",
             original_name: "large-file.pdf",
           },
@@ -126,7 +127,7 @@ describe("Large File Upload", () => {
             ok: true,
             json: vi.fn().mockResolvedValue({
               userId: "testuser",
-              fileKey: "staging/testuser/test.pdf",
+              fileKey: "library/testuser/test.pdf",
               uploadId: "test-upload-id",
             }),
           })
@@ -153,7 +154,7 @@ describe("Large File Upload", () => {
       await handleUploadPart(context as any);
 
       expect(mockEnv.R2.resumeMultipartUpload).toHaveBeenCalledWith(
-        "staging/testuser/test.pdf",
+        "library/testuser/test.pdf",
         "test-upload-id"
       );
 
@@ -177,7 +178,7 @@ describe("Large File Upload", () => {
             ok: true,
             json: vi.fn().mockResolvedValue({
               userId: "testuser",
-              fileKey: "staging/testuser/test.pdf",
+              fileKey: "library/testuser/test.pdf",
               uploadId: "test-upload-id",
               filename: "test.pdf",
               fileSize: 150 * 1024 * 1024,

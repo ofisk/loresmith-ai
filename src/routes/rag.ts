@@ -300,6 +300,20 @@ export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
             `[handleTriggerAutoRAGIndexing] File queued for retry: ${file.file_name}`
           );
 
+          // Schedule retry after cooldown period
+          try {
+            await SyncQueueService.scheduleRetryForCooldown(
+              c.env,
+              userAuth.username,
+              jwt
+            );
+          } catch (scheduleError) {
+            console.error(
+              `[handleTriggerAutoRAGIndexing] Failed to schedule retry:`,
+              scheduleError
+            );
+          }
+
           // Send notification that indexing will start soon (queued)
           try {
             await notifyIndexingStarted(
@@ -316,7 +330,7 @@ export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
 
           return c.json({
             success: true,
-            message: `File ${file.file_name} queued for retry (sync in progress).`,
+            message: `File ${file.file_name} queued for retry (will retry after cooldown).`,
             queued: true,
             isIndexed: false,
           });

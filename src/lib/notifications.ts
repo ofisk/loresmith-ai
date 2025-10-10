@@ -91,13 +91,29 @@ export async function notifyShardGeneration(
   campaignName: string,
   fileName: string,
   shardCount: number,
-  context?: { campaignId: string; resourceId: string; groups?: any[] }
+  context?: {
+    campaignId: string;
+    resourceId: string;
+    groups?: any[];
+    chunkNumber?: number;
+  }
 ): Promise<void> {
   const isNone = !shardCount || shardCount === 0;
-  const title = isNone ? "No Shards Found" : "New Shards Ready!";
-  const message = isNone
-    ? `🔎 No shards were discovered from "${fileName}" in "${campaignName}".`
-    : `🎉 ${shardCount} new shards generated from "${fileName}" in "${campaignName}"!`;
+  const isStreaming = context?.chunkNumber !== undefined;
+
+  let title: string;
+  let message: string;
+
+  if (isNone) {
+    title = "No Shards Found";
+    message = `🔎 No shards were discovered from "${fileName}" in "${campaignName}".`;
+  } else if (isStreaming) {
+    title = "Shards Discovered";
+    message = `📦 ${shardCount} shards found in chunk ${context.chunkNumber} from "${fileName}" in "${campaignName}".`;
+  } else {
+    title = "New Shards Ready!";
+    message = `🎉 ${shardCount} new shards generated from "${fileName}" in "${campaignName}"!`;
+  }
 
   await notifyUser(env, userId, {
     type: NOTIFICATION_TYPES.SHARDS_GENERATED,

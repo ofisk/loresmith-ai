@@ -1094,6 +1094,54 @@ export class FileDAO extends BaseDAOClass {
   }
 
   /**
+   * Update retry count for a sync queue item
+   */
+  async updateSyncQueueRetryCount(
+    fileKey: string,
+    retryCount: number
+  ): Promise<void> {
+    const sql = `
+      UPDATE sync_queue 
+      SET retry_count = ?, updated_at = datetime('now')
+      WHERE file_key = ?
+    `;
+    await this.execute(sql, [retryCount, fileKey]);
+  }
+
+  /**
+   * Clear stuck AutoRAG jobs (older than 10 minutes)
+   */
+  async clearStuckAutoRAGJobs(): Promise<{ cleared: number }> {
+    const sql = `
+      UPDATE autorag_jobs 
+      SET status = 'error', 
+          error_message = 'Job timeout - manually cleared',
+          completed_at = datetime('now')
+      WHERE status IN ('pending', 'processing') 
+        AND created_at < datetime('now', '-10 minutes')
+    `;
+
+    const result = await this.execute(sql, []);
+    const cleared = (result as any).changes || 0;
+
+    // Also update corresponding file statuses
+    const updateFilesSql = `
+      UPDATE file_metadata 
+      SET status = 'error', 
+          analysis_error = 'AutoRAG job timeout - manually cleared'
+      WHERE file_key IN (
+        SELECT file_key FROM autorag_jobs 
+        WHERE status = 'error' 
+          AND error_message = 'Job timeout - manually cleared'
+      )
+    `;
+
+    await this.execute(updateFilesSql, []);
+
+    return { cleared };
+  }
+
+  /**
    * Check if there are any ongoing AutoRAG jobs for a user
    */
   async hasOngoingAutoRAGJobs(username: string): Promise<boolean> {
@@ -1115,5 +1163,39 @@ export class FileDAO extends BaseDAOClass {
       ORDER BY created_at ASC
     `;
     return await this.queryAll(sql, []);
+  }
+
+  /**
+   * Get health status of all AutoRAG jobs for monitoring
+   */
+  async getAutoRAGJobHealth(): Promise<{
+    total: number;
+    pending: number;
+    processing: number;
+    completed: number;
+    failed: number;
+    stuck: number;
+  }> {
+    const sql = `
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN status = 'error' OR status = 'failed' THEN 1 ELSE 0 END) as failed,
+        SUM(CASE WHEN status IN ('pending', 'processing') 
+                 AND created_at < datetime('now', '-5 minutes') THEN 1 ELSE 0 END) as stuck
+      FROM autorag_jobs
+    `;
+
+    const result = await this.queryFirst(sql, []);
+    return {
+      total: result.total || 0,
+      pending: result.pending || 0,
+      processing: result.processing || 0,
+      completed: result.completed || 0,
+      failed: result.failed || 0,
+      stuck: result.stuck || 0,
+    };
   }
 }

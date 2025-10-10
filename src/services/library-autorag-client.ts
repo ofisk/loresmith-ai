@@ -17,7 +17,10 @@ export class LibraryAutoRAGClient extends AutoRAGClientBase {
    * This ensures users can only search their own content
    */
   protected enforcedFilter(): string | null {
-    // Filter to the user's autorag folder for proper document isolation
-    return this.username ? `autorag/${this.username}/` : null;
+    // Filter to the user's library folder for proper document isolation
+    // Files are stored at library/username/ within the R2 bucket
+    return this.username
+      ? `${this.env.AUTORAG_PREFIX}/${this.username}/`
+      : null;
   }
 }

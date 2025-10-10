@@ -26,6 +26,18 @@ export const UPLOAD_CONFIG = {
   MAX_FILES_PER_USER: 100,
 } as const;
 
+// Library path constants - centralized for consistency across upload and search
+export const LIBRARY_CONFIG = {
+  // Always use "library" as the base path for file storage, regardless of AUTORAG_PREFIX
+  getBasePath: (_autoragPrefix: string) => "library",
+  // Generate library path for a specific user (without bucket name)
+  getUserLibraryPath: (username: string, _autoragPrefix: string) =>
+    `library/${username}`,
+  // Generate full file path for a specific file in user's library (without bucket name)
+  getFilePath: (username: string, filename: string, _autoragPrefix: string) =>
+    `library/${username}/${filename}`,
+} as const;
+
 // Campaign constants
 export const CAMPAIGN_CONFIG = {
   MAX_CAMPAIGNS_PER_USER: 50,

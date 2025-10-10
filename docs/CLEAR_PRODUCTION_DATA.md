@@ -28,20 +28,19 @@ This script clears everything:
 ./scripts/clear-production-data.sh
 ```
 
-### 2. Clear Database Only (Preserve R2 Files)
+### 2. Clear R2 Storage Only (Preserve Database)
 
-**Script**: `scripts/clear-database-only.sh`
+**Script**: `scripts/clear-r2-simple.sh`
 
-This script clears only database data:
+This script clears only R2 storage files:
 
-- All database records
-- All vector embeddings
-- **Preserves** R2 storage files
+- All uploaded files in R2 storage
+- **Preserves** database data and vector embeddings
 
 **Usage**:
 
 ```bash
-./scripts/clear-database-only.sh
+./scripts/clear-r2-simple.sh
 ```
 
 ## Manual Database Clearing

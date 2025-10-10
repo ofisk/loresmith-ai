@@ -16,7 +16,7 @@
   },
   "vars": {
     "MAX_INDEX_FILE_BYTES": "4194304",
-    "AUTORAG_PREFIX": "autorag",
+    "AUTORAG_PREFIX": "library",
     "STAGING_PREFIX": "staging",
     "READINESS_TIMEOUT_SEC": "600",
     "READINESS_BACKOFF_MS": "2000",
