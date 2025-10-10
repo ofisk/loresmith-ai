@@ -20,3 +20,9 @@ export { FileDAO } from "./file-dao";
 export type { UserOpenAIKey, UserStorageUsage } from "./user-dao";
 // User DAO
 export { UserDAO } from "./user-dao";
+export type {
+  CreateShardRegistryInput,
+  ShardRegistryRecord,
+} from "./shard-dao";
+// Shard DAO
+export { ShardDAO } from "./shard-dao";

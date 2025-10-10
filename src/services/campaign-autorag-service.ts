@@ -9,6 +9,7 @@ import type {
   AutoRAGSearchResult,
 } from "./autorag-client";
 import { AutoRAGClientBase } from "./autorag-client";
+import type { ShardDAO } from "../dao/shard-dao";
 
 /**
  * Campaign-specific AutoRAG service
@@ -22,10 +23,17 @@ import { AutoRAGClientBase } from "./autorag-client";
  */
 export class CampaignAutoRAG extends AutoRAGClientBase {
   private campaignRagBasePath: string;
+  private shardDAO: ShardDAO | null;
 
-  constructor(env: Env, baseUrl: string, campaignRagBasePath: string) {
+  constructor(
+    env: Env,
+    baseUrl: string,
+    campaignRagBasePath: string,
+    shardDAO?: ShardDAO
+  ) {
     super(env, baseUrl);
     this.campaignRagBasePath = campaignRagBasePath;
+    this.shardDAO = shardDAO || null;
   }
 
   /**
@@ -89,6 +97,9 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
       );
       return;
     }
+
+    const registryInputs = [];
+
     for (const shard of shards) {
       const key = `${this.campaignRagBasePath}/staging/${resourceId}/${shard.id}.json`;
       const payload = {
@@ -110,7 +121,31 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
         new TextEncoder().encode(JSON.stringify(payload)).buffer,
         "application/json"
       );
+
+      // Register in D1 if DAO is available
+      if (this.shardDAO) {
+        registryInputs.push({
+          shard_id: shard.id,
+          campaign_id: shard.metadata.campaignId,
+          resource_id: resourceId,
+          resource_name: extraMeta?.fileName || shard.metadata.fileName,
+          r2_key: key,
+          shard_type: shard.metadata.entityType,
+          status: "staging" as const,
+          confidence: shard.metadata.confidence,
+          source: shard.metadata.source,
+        });
+      }
     }
+
+    // Batch register all shards in D1
+    if (this.shardDAO && registryInputs.length > 0) {
+      await this.shardDAO.registerShardsBatch(registryInputs);
+      console.log(
+        `[CampaignAutoRAG] Registered ${registryInputs.length} shards in D1`
+      );
+    }
+
     console.log(
       `[CampaignAutoRAG] Saved ${shards.length} per-shard candidates under ${this.campaignRagBasePath}/staging/${resourceId}/`
     );

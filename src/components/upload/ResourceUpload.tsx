@@ -49,7 +49,7 @@ export const ResourceUpload = ({
   campaigns = [],
   selectedCampaigns = [],
   onCampaignSelectionChange,
-  campaignName = "",
+  campaignName: _campaignName = "",
   onCampaignNameChange: _onCampaignNameChange,
   onCreateCampaign,
   showCampaignSelection = false,

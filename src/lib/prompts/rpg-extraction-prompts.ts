@@ -46,6 +46,7 @@ COMMON FIELDS (for every primitive):
 - tags: array of short tags.
 - source: { doc, pages?, anchor? }
 - relations: array of { rel, target_id }.
+- display_metadata: { display_name?, subtitle?, quick_info?, primary_text? } - UI display hints (see below).
 
 TYPES & REQUIRED MINIMUM FIELDS
 - monsters[]: { id, type:"monster", name, summary, cr?, ac?, hp?, abilities?: {str, dex, con, int, wis, cha}, actions?, traits?, spellcasting?, tags?, source, relations? }
@@ -79,9 +80,18 @@ TYPES & REQUIRED MINIMUM FIELDS
 - timelines[]: { id, type:"timeline", title, phases?: string[], triggers?: string[], consequences?: string[], reset_rules?, tags?, source }
 - travel[]: { id, type:"travel", route, distance?, time?, encounters_table_ref?, costs?, checkpoints?, tags?, source }
 
+DISPLAY METADATA (recommended for all items)
+Provide display_metadata to help the UI intelligently show the content:
+{
+  "display_name": "The best name/title to show (e.g., 'Fireball' or 'Ancient Red Dragon')",
+  "subtitle": ["2-3 key identifying characteristics as strings (e.g., ['Level 3', 'Evocation'] or ['CR 24', 'Gargantuan', 'Dragon'])"],
+  "quick_info": ["2-4 property names that are most important at a glance (e.g., ['casting_time', 'range', 'duration'] or ['ac', 'hp', 'speed'])"],
+  "primary_text": "Name of the field containing main description (e.g., 'text', 'summary', or 'description')"
+}
+
 CUSTOM TYPES DISCOVERY
 If you find content that doesn't fit the predefined types above, create a "custom" array with items following this structure:
-- custom[]: { id, type: "custom_[descriptive_type]", name, summary, content_type: "brief description of what this is", details?: any, tags?, source, relations? }
+- custom[]: { id, type: "custom_[descriptive_type]", name, summary, content_type: "brief description of what this is", details?: any, tags?, source, relations?, display_metadata? }
 - Don't hesitate to create custom types for unique or unusual content that could be valuable for game preparation.
 
 TOP-LEVEL RETURN SHAPE (all keys required, arrays may be empty)

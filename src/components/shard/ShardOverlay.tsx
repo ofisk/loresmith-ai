@@ -106,7 +106,7 @@ export const ShardOverlay = ({
         className={`
           bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-xl
           transition-all duration-300 ease-in-out
-          ${isExpanded ? "w-96 opacity-100" : "w-0 opacity-0 overflow-hidden"}
+          ${isExpanded ? "w-[50vw] opacity-100" : "w-0 opacity-0 overflow-hidden"}
         `}
         style={{ height: "calc(100vh - 5rem)" }}
       >
@@ -162,13 +162,14 @@ export const ShardOverlay = ({
           </div>
 
           {/* Content - Scrollable */}
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex-1 overflow-y-auto min-h-0 pr-2">
             <div className="h-full">
               <UnifiedShardManager
                 shards={shards}
                 isLoading={isLoading}
                 onShardsProcessed={onShardsProcessed}
                 getJwt={getJwt}
+                onRefresh={onRefresh}
               />
             </div>
           </div>
