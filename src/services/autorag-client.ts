@@ -42,10 +42,22 @@ export abstract class AutoRAGClientBase {
   }
 
   private async initialize(baseUrl: string): Promise<void> {
+    console.log(`[AutoRAGClientBase] Initializing with baseUrl: ${baseUrl}`);
+    console.log(
+      `[AutoRAGClientBase] AUTORAG_API_TOKEN type: ${typeof this.env.AUTORAG_API_TOKEN}`
+    );
+
     const apiToken =
       typeof this.env.AUTORAG_API_TOKEN === "string"
         ? this.env.AUTORAG_API_TOKEN
         : await this.env.AUTORAG_API_TOKEN.get();
+
+    console.log(
+      `[AutoRAGClientBase] Retrieved token length: ${apiToken?.length || 0}`
+    );
+    console.log(
+      `[AutoRAGClientBase] Token starts with: ${apiToken?.substring(0, 8) || "undefined"}...`
+    );
 
     this.autoRagClient = new AutoRAGClient(baseUrl, apiToken);
   }
@@ -72,38 +84,11 @@ export abstract class AutoRAGClientBase {
   ): Promise<AutoRAGSearchResult> {
     await this.ensureInitialized();
 
-    // Apply enforced filter for security (e.g., approved-only content)
-    const enforcedPath = this.enforcedFilter();
+    // No enforced filter logic - let the search logic handle all filtering
+    // This ensures we only have one simple filter, not multiple combined filters
     const mergedOptions = { ...options };
 
-    if (enforcedPath) {
-      console.log(
-        "[AutoRAGClientBase] Applying enforced filter:",
-        enforcedPath
-      );
-
-      const pathFilter: ComparisonFilter = {
-        key: "path",
-        type: "eq", // Using 'eq' for exact path matching (will use StartsWith in AutoRAG layer)
-        value: enforcedPath,
-      };
-
-      if (options.filters) {
-        // Merge enforced path filter with existing filters
-        mergedOptions.filters = {
-          type: "and",
-          filters: [pathFilter, options.filters as ComparisonFilter],
-        } as CompoundFilter;
-      } else {
-        // Use enforced path filter alone
-        mergedOptions.filters = pathFilter;
-      }
-    }
-
-    console.log(
-      "[AutoRAGClientBase] Searching with merged options:",
-      mergedOptions
-    );
+    console.log("[AutoRAGClientBase] Searching with options:", mergedOptions);
     return await this.autoRagClient.search(query, mergedOptions);
   }
 
@@ -126,40 +111,44 @@ export abstract class AutoRAGClientBase {
   ): Promise<AutoRAGAISearchResult> {
     await this.ensureInitialized();
 
-    // Apply enforced filter for security (e.g., approved-only content)
-    const enforcedPath = this.enforcedFilter();
+    // No enforced filter logic - let the search logic handle all filtering
+    // This ensures we only have one simple filter, not multiple combined filters
     const mergedOptions = { ...options } as any;
-
-    if (enforcedPath) {
-      console.log(
-        "[AutoRAGClientBase] Applying enforced filter to AI search:",
-        enforcedPath
-      );
-
-      const pathFilter: ComparisonFilter = {
-        key: "path",
-        type: "eq", // Using 'eq' for exact path matching (will use StartsWith in AutoRAG layer)
-        value: enforcedPath,
-      };
-
-      if (options.filters) {
-        // Merge enforced path filter with existing filters
-        mergedOptions.filters = {
-          type: "and",
-          filters: [pathFilter, options.filters as ComparisonFilter],
-        } as CompoundFilter;
-      } else {
-        // Use enforced path filter alone
-        mergedOptions.filters = pathFilter;
-      }
-    }
 
     console.log(
       "[AutoRAGClientBase] AI Searching with prompt:",
       `${prompt.substring(0, 100)}...`
     );
-    console.log("[AutoRAGClientBase] AI Search merged options:", mergedOptions);
+    console.log("[AutoRAGClientBase] AI Search options:", mergedOptions);
     return await this.autoRagClient.aiSearch(prompt, mergedOptions);
+  }
+
+  /**
+   * AI Search without enforced filter
+   * This method bypasses the enforced filter for cases where the caller
+   * is already applying specific filters (e.g., exact file path)
+   */
+  async aiSearchWithoutEnforcedFilter(
+    prompt: string,
+    options: {
+      max_results?: number;
+      ranking_options?: {
+        ranker?: string;
+        score_threshold?: number;
+      };
+      rewrite_query?: boolean;
+      filters?: ComparisonFilter | CompoundFilter;
+      system_prompt?: string;
+    } = {}
+  ): Promise<AutoRAGAISearchResult> {
+    await this.ensureInitialized();
+
+    console.log(
+      "[AutoRAGClientBase] AI Search without enforced filter with prompt:",
+      `${prompt.substring(0, 100)}...`
+    );
+    console.log("[AutoRAGClientBase] AI Search options:", options);
+    return await this.autoRagClient.aiSearch(prompt, options);
   }
 
   /**

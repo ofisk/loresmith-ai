@@ -102,7 +102,7 @@ export class ResourceAgent extends BaseAgent {
   static readonly agentMetadata = {
     type: "resources",
     description:
-      "Manages file uploads, file processing, metadata updates, and file ingestion. Handles file upload completion, metadata management, and file processing operations. Specifically handles messages about uploaded files, file keys, metadata updates, and file ingestion. Informs users about asynchronous AutoRAG processing after uploads.",
+      "Manages file uploads, file processing, metadata updates, and file ingestion in the user's file library. Handles file upload completion, metadata management, and file processing operations. Specifically handles messages about uploaded files, file keys, metadata updates, and file ingestion. Informs users about asynchronous AutoRAG processing after uploads. Does NOT handle adding files to campaigns - that is handled by the campaign agent.",
     systemPrompt: RESOURCE_SYSTEM_PROMPT,
     tools: fileTools,
   };

@@ -8,6 +8,9 @@ export interface AutoRAGPollingState {
   currentJobId: string | null;
   pollingInterval: ReturnType<typeof setInterval> | null;
   pollingTimeout: ReturnType<typeof setTimeout> | null;
+  healthCheckTimeout: ReturnType<typeof setTimeout> | null;
+  consecutiveErrors: number;
+  lastPolledAt: number | null;
   queue: Array<{
     fileKey: string;
     fileName: string;
@@ -22,6 +25,9 @@ export class AutoRAGPollingDO extends DurableObject {
     currentJobId: null,
     pollingInterval: null,
     pollingTimeout: null,
+    healthCheckTimeout: null,
+    consecutiveErrors: 0,
+    lastPolledAt: null,
     queue: [],
     username: "",
   };
@@ -83,21 +89,26 @@ export class AutoRAGPollingDO extends DurableObject {
     this.state.currentJobId = jobId;
     this.state.username = username;
 
-    // Start polling every 10 seconds
+    // Start polling every 10 seconds (consistent with actual implementation)
+    const POLLING_INTERVAL = 10000; // 10 seconds
     this.state.pollingInterval = setInterval(() => {
       this.pollJobStatus(jobId);
-    }, 10000);
+    }, POLLING_INTERVAL);
 
     // Add timeout to stop polling after 30 minutes to prevent infinite loops
-    this.state.pollingTimeout = setTimeout(
-      () => {
-        console.log(
-          `[AutoRAGPollingDO] Polling timeout reached for job: ${jobId}, stopping`
-        );
-        this.handleStopPolling(new Request("http://localhost/stop-polling"));
-      },
-      30 * 60 * 1000
-    ); // 30 minutes
+    const POLLING_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+    this.state.pollingTimeout = setTimeout(() => {
+      console.log(
+        `[AutoRAGPollingDO] Polling timeout reached for job: ${jobId}, stopping`
+      );
+      this.handleStopPolling(new Request("http://localhost/stop-polling"));
+    }, POLLING_TIMEOUT);
+
+    // Add health check timeout to detect stuck polling
+    const HEALTH_CHECK_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+    this.state.healthCheckTimeout = setTimeout(() => {
+      this.checkPollingHealth(jobId);
+    }, HEALTH_CHECK_TIMEOUT);
 
     // Store state
     await this.ctx.storage.put("state", this.state);
@@ -105,8 +116,13 @@ export class AutoRAGPollingDO extends DurableObject {
     console.log(`[DEBUG] [AutoRAGPollingDO] ===== STARTED POLLING =====`);
     console.log(`[DEBUG] [AutoRAGPollingDO] Job ID: ${jobId}`);
     console.log(`[DEBUG] [AutoRAGPollingDO] User: ${username}`);
-    console.log(`[DEBUG] [AutoRAGPollingDO] Polling interval: 5000ms`);
-    console.log(`[DEBUG] [AutoRAGPollingDO] Timeout: 1800000ms`);
+    console.log(
+      `[DEBUG] [AutoRAGPollingDO] Polling interval: ${POLLING_INTERVAL}ms`
+    );
+    console.log(`[DEBUG] [AutoRAGPollingDO] Timeout: ${POLLING_TIMEOUT}ms`);
+    console.log(
+      `[DEBUG] [AutoRAGPollingDO] Health check: ${HEALTH_CHECK_TIMEOUT}ms`
+    );
     console.log(
       `[DEBUG] [AutoRAGPollingDO] Timestamp: ${new Date().toISOString()}`
     );
@@ -127,9 +143,16 @@ export class AutoRAGPollingDO extends DurableObject {
       this.state.pollingTimeout = null;
     }
 
+    if (this.state.healthCheckTimeout) {
+      clearTimeout(this.state.healthCheckTimeout);
+      this.state.healthCheckTimeout = null;
+    }
+
     this.state.isPolling = false;
     const completedJobId = this.state.currentJobId;
     this.state.currentJobId = null;
+    this.state.consecutiveErrors = 0;
+    this.state.lastPolledAt = null;
 
     // Store state
     await this.ctx.storage.put("state", this.state);
@@ -141,6 +164,59 @@ export class AutoRAGPollingDO extends DurableObject {
     return new Response(JSON.stringify({ success: true, completedJobId }), {
       headers: { "Content-Type": "application/json" },
     });
+  }
+
+  private async checkPollingHealth(jobId: string): Promise<void> {
+    try {
+      const now = Date.now();
+      const lastPolled = this.state.lastPolledAt || 0;
+      const timeSinceLastPoll = now - lastPolled;
+
+      console.log(`[AutoRAGPollingDO] Health check for job ${jobId}:`, {
+        lastPolled: new Date(lastPolled).toISOString(),
+        timeSinceLastPoll: `${timeSinceLastPoll}ms`,
+        isPolling: this.state.isPolling,
+        consecutiveErrors: this.state.consecutiveErrors,
+      });
+
+      // If no polling activity for 5+ minutes, consider it stuck
+      if (timeSinceLastPoll > 5 * 60 * 1000) {
+        console.error(
+          `[AutoRAGPollingDO] Polling appears stuck for job ${jobId} - no activity for ${timeSinceLastPoll}ms`
+        );
+
+        // Mark job as failed and stop polling
+        try {
+          const fileDAO = new FileDAO((this.env as any).DB);
+          await fileDAO.updateAutoRAGJobStatus(
+            jobId,
+            "error",
+            `Polling stuck - no activity for ${Math.round(timeSinceLastPoll / 1000)}s`
+          );
+        } catch (dbError) {
+          console.error(
+            `[AutoRAGPollingDO] Failed to update stuck job status:`,
+            dbError
+          );
+        }
+
+        await this.handleStopPolling(
+          new Request("http://localhost/stop-polling")
+        );
+        return;
+      }
+
+      // Schedule next health check
+      this.state.healthCheckTimeout = setTimeout(
+        () => {
+          this.checkPollingHealth(jobId);
+        },
+        5 * 60 * 1000 // Check again in 5 minutes
+      );
+      await this.ctx.storage.put("state", this.state);
+    } catch (error) {
+      console.error(`[AutoRAGPollingDO] Health check failed:`, error);
+    }
   }
 
   private async handleQueueSync(request: Request): Promise<Response> {
@@ -228,6 +304,10 @@ export class AutoRAGPollingDO extends DurableObject {
         `[DEBUG] [AutoRAGPollingDO] Timestamp: ${new Date().toISOString()}`
       );
 
+      // Update last polled timestamp for health monitoring
+      this.state.lastPolledAt = Date.now();
+      await this.ctx.storage.put("state", this.state);
+
       // Get the job from database
       console.log(`[DEBUG] [AutoRAGPollingDO] Fetching job from database...`);
       const fileDAO = new FileDAO((this.env as any).DB);
@@ -242,6 +322,21 @@ export class AutoRAGPollingDO extends DurableObject {
           found: false,
           timestamp: new Date().toISOString(),
         });
+        await this.handleStopPolling(
+          new Request("http://localhost/stop-polling")
+        );
+        return;
+      }
+
+      // Check if job is already completed/failed (defensive check)
+      if (
+        job.status === "completed" ||
+        job.status === "failed" ||
+        job.status === "error"
+      ) {
+        console.log(
+          `[DEBUG] [AutoRAGPollingDO] Job ${jobId} already finished with status: ${job.status}, stopping polling`
+        );
         await this.handleStopPolling(
           new Request("http://localhost/stop-polling")
         );
@@ -272,6 +367,10 @@ export class AutoRAGPollingDO extends DurableObject {
           `[DEBUG] [AutoRAGPollingDO] Job ${jobId} status updated to: ${result.status}`
         );
 
+        // Reset error count on successful update
+        this.state.consecutiveErrors = 0;
+        await this.ctx.storage.put("state", this.state);
+
         if (result.status === "completed" || result.status === "failed") {
           console.log(
             `[DEBUG] [AutoRAGPollingDO] Job ${jobId} finished with status: ${result.status}, stopping polling`
@@ -279,6 +378,40 @@ export class AutoRAGPollingDO extends DurableObject {
           await this.handleStopPolling(
             new Request("http://localhost/stop-polling")
           );
+
+          // Verify the file is actually indexed after sync completion
+          if (result.status === "completed") {
+            console.log(
+              `[DEBUG] [AutoRAGPollingDO] Verifying file is indexed...`
+            );
+            try {
+              const { getLibraryAutoRAGService } = await import(
+                "../lib/service-factory"
+              );
+              const libraryAutoRAG = getLibraryAutoRAGService(
+                this.env as any,
+                job.username
+              );
+              const testSearch = await libraryAutoRAG.aiSearch("test", {
+                max_results: 1,
+                filters: { type: "eq", key: "path", value: job.file_key },
+              });
+              if (!testSearch.data || testSearch.data.length === 0) {
+                console.warn(
+                  `[AutoRAGPollingDO] File ${job.file_name} completed sync but is not searchable yet`
+                );
+              } else {
+                console.log(
+                  `[AutoRAGPollingDO] File ${job.file_name} is successfully indexed and searchable`
+                );
+              }
+            } catch (verifyError) {
+              console.warn(
+                `[AutoRAGPollingDO] Failed to verify file indexing:`,
+                verifyError
+              );
+            }
+          }
 
           // Process the sync queue for this user
           console.log(
@@ -290,6 +423,10 @@ export class AutoRAGPollingDO extends DurableObject {
         console.log(
           `[DEBUG] [AutoRAGPollingDO] Job ${jobId} status unchanged, continuing polling`
         );
+
+        // Reset error count on successful polling (even if no update)
+        this.state.consecutiveErrors = 0;
+        await this.ctx.storage.put("state", this.state);
       }
 
       const endTime = Date.now();
@@ -322,6 +459,40 @@ export class AutoRAGPollingDO extends DurableObject {
         queueLength: this.state.queue.length,
         timestamp: new Date().toISOString(),
       });
+
+      // Increment error count and stop polling after too many consecutive errors
+      this.state.consecutiveErrors = (this.state.consecutiveErrors || 0) + 1;
+      await this.ctx.storage.put("state", this.state);
+
+      console.error(
+        `[AutoRAGPollingDO] Consecutive errors: ${this.state.consecutiveErrors}`
+      );
+
+      // Stop polling after 5 consecutive errors to prevent infinite failure loops
+      if (this.state.consecutiveErrors >= 5) {
+        console.error(
+          `[AutoRAGPollingDO] Too many consecutive errors (${this.state.consecutiveErrors}), stopping polling and marking job as failed`
+        );
+
+        // Mark job as failed in database
+        try {
+          const fileDAO = new FileDAO((this.env as any).DB);
+          await fileDAO.updateAutoRAGJobStatus(
+            jobId,
+            "error",
+            `Polling failed after ${this.state.consecutiveErrors} consecutive errors: ${error instanceof Error ? error.message : "Unknown error"}`
+          );
+        } catch (dbError) {
+          console.error(
+            `[AutoRAGPollingDO] Failed to update job status:`,
+            dbError
+          );
+        }
+
+        await this.handleStopPolling(
+          new Request("http://localhost/stop-polling")
+        );
+      }
     }
   }
 

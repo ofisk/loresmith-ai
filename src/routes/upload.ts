@@ -14,7 +14,7 @@ import type { Env } from "../middleware/auth";
 import type { AuthPayload } from "../services/auth-service";
 import { API_CONFIG } from "../shared-config";
 import { SyncQueueService } from "../services/sync-queue-service";
-import { buildStagingFileKey } from "../utils/file-keys";
+import { buildLibraryFileKey } from "../utils/file-keys";
 import { nanoid } from "../utils/nanoid";
 
 /**
@@ -63,32 +63,27 @@ async function processFileWithAutoRAG(
       );
     }
 
-    // Best-effort staging existence check (do not block processing)
+    // Best-effort library file existence check (do not block processing)
     console.log(
-      `[DEBUG] ${logPrefix} Checking staging file existence (HEAD)...`
+      `[DEBUG] ${logPrefix} Checking library file existence (HEAD)...`
     );
     try {
       const head = await env.R2.head(fileKey);
       if (head) {
         console.log(
-          `[DEBUG] ${logPrefix} Staging file present - Size: ${head.size} bytes`
+          `[DEBUG] ${logPrefix} Library file present - Size: ${head.size} bytes`
         );
       } else {
         console.warn(
-          `[DEBUG] ${logPrefix} Staging HEAD returned null for: ${fileKey} (continuing)`
+          `[DEBUG] ${logPrefix} Library HEAD returned null for: ${fileKey} (continuing)`
         );
       }
     } catch (headErr) {
       console.warn(
-        `[DEBUG] ${logPrefix} Staging HEAD check failed (continuing):`,
+        `[DEBUG] ${logPrefix} Library HEAD check failed (continuing):`,
         headErr
       );
     }
-
-    // AutoRAG will index the file directly from the staging location
-    console.log(
-      `[DEBUG] ${logPrefix} AutoRAG will index file from staging location: ${fileKey}`
-    );
 
     // Send indexing started notification (fire-and-forget)
     console.log(
@@ -113,7 +108,7 @@ async function processFileWithAutoRAG(
     );
 
     await fileDAO.updateFileRecord(
-      fileKey, // Use staging key for database operations too
+      fileKey, // Use the fileKey (already in library)
       FileDAO.STATUS.UPLOADED,
       r2Meta?.size || 0
     );
@@ -121,13 +116,13 @@ async function processFileWithAutoRAG(
       `[DEBUG] ${logPrefix} File marked as UPLOADED in database for: ${filename}`
     );
 
-    // Trigger AutoRAG processing using the staging key (where the file actually is)
+    // Trigger AutoRAG processing using the library fileKey
     console.log(
       `[DEBUG] ${logPrefix} Calling SyncQueueService.processFileUpload...`
     );
     console.log(`[DEBUG] ${logPrefix} SyncQueueService params:`, {
       userId,
-      fileKey: fileKey, // Use staging key instead of autorag key
+      fileKey: fileKey, // Use library fileKey
       filename,
       jwtPresent: jwt ? "YES" : "NO",
     });
@@ -135,7 +130,7 @@ async function processFileWithAutoRAG(
     const result = await SyncQueueService.processFileUpload(
       env,
       userId,
-      fileKey, // Use staging key instead of autorag key
+      fileKey, // Use library fileKey
       filename,
       jwt
     );
@@ -398,7 +393,11 @@ export async function handleUploadStatus(c: ContextWithAuth) {
       return c.json({ error: "Storage not available" }, 503);
     }
 
-    const key = buildStagingFileKey(tenant, filename);
+    const key = await buildLibraryFileKey(
+      tenant,
+      filename,
+      c.env.AUTORAG_PREFIX
+    );
     const object = await c.env.R2.head(key);
     const exists = object
       ? {
@@ -447,7 +446,11 @@ export async function handleDirectUpload(c: ContextWithAuth) {
 
     // Get the file content
     const fileBuffer = await c.req.arrayBuffer();
-    const key = buildStagingFileKey(tenant, filename);
+    const key = await buildLibraryFileKey(
+      tenant,
+      filename,
+      c.env.AUTORAG_PREFIX
+    );
 
     // Upload directly to R2
     await c.env.R2.put(key, fileBuffer, {
@@ -698,7 +701,11 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
 
     const tenant = userAuth.username;
     const sessionId = nanoid();
-    const fileKey = `staging/${tenant}/${filename}`;
+    const fileKey = await buildLibraryFileKey(
+      tenant,
+      filename,
+      c.env.AUTORAG_PREFIX
+    );
 
     // Create multipart upload in R2
     const multipartUpload = await c.env.R2.createMultipartUpload(fileKey, {

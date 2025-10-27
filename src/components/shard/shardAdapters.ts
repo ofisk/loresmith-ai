@@ -21,11 +21,12 @@ export function convertShardCandidateToShard(candidate: ShardCandidate): Shard {
       parsedData.type
     ) {
       return {
-        id: parsedData.id,
+        ...parsedData,
+        id: candidate.id, // ✅ CORRECT - uses candidate ID (overrides parsedData.id)
+        contentId: parsedData.id, // Store content ID separately for display
         type: parsedData.type,
         confidence: candidate.metadata.confidence,
         display_metadata: parsedData.display_metadata,
-        ...parsedData,
       } as StructuredShard;
     }
 

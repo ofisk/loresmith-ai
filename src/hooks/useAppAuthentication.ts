@@ -19,22 +19,6 @@ export function useAppAuthentication() {
     return localStorage.getItem(JWT_STORAGE_KEY);
   }, []);
 
-  // Check for stored OpenAI key
-  const checkStoredOpenAIKey = useCallback(async (username: string) => {
-    try {
-      const result = await fetchOpenAIKeyOnce(username);
-      if (result.hasKey) {
-        setStoredOpenAIKey(result.apiKey || "");
-        setIsAuthenticated(true);
-        return true;
-      }
-    } catch (error) {
-      console.error("Error checking stored OpenAI key:", error);
-    }
-    setIsAuthenticated(false);
-    return false; // Indicate that auth modal should be shown
-  }, []);
-
   // Check authentication status on mount
   const checkAuthenticationStatus = useCallback(async () => {
     const payload = AuthService.getJwtPayload();
@@ -47,15 +31,26 @@ export function useAppAuthentication() {
         setIsAuthenticated(false);
         return false; // Indicate that auth modal should be shown
       } else {
-        // JWT valid, check if we have stored OpenAI key
-        return await checkStoredOpenAIKey(payload.username);
+        // JWT valid, user is authenticated
+        setIsAuthenticated(true);
+        // Try to get stored OpenAI key, but don't block authentication if it fails
+        try {
+          const result = await fetchOpenAIKeyOnce(payload.username);
+          if (result.hasKey) {
+            setStoredOpenAIKey(result.apiKey || "");
+          }
+        } catch (error) {
+          console.error("Error checking stored OpenAI key:", error);
+          // Don't block authentication if we can't fetch the stored key
+        }
+        return true; // User is authenticated
       }
     } else {
       // No JWT, show auth modal
       setIsAuthenticated(false);
       return false; // Indicate that auth modal should be shown
     }
-  }, [checkStoredOpenAIKey, getStoredJwt]);
+  }, [getStoredJwt]);
 
   // Handle authentication submission
   const handleAuthenticationSubmit = useCallback(

@@ -371,6 +371,9 @@ export function ResourceList({
       try {
         console.log(`[ResourceList] Retrying file processing for: ${fileName}`);
 
+        // Immediately update UI to show retry in progress
+        setProgressByFileKey((prev) => ({ ...prev, [fileKey]: 0 }));
+
         const jwt = getStoredJwt();
         if (!jwt) {
           console.error("[ResourceList] No JWT token available for retry");
@@ -394,9 +397,26 @@ export function ResourceList({
           throw new Error(`Retry failed: ${response.response.status}`);
         }
 
+        const result = (await response.response.json()) as {
+          queued: boolean;
+          jobId?: string;
+        };
         console.log(
-          `[ResourceList] Retry initiated successfully for: ${fileName}`
+          `[ResourceList] Retry initiated successfully for: ${fileName}`,
+          result
         );
+
+        // If queued, show immediate feedback
+        if (result.queued) {
+          console.log(`[ResourceList] File ${fileName} queued for retry`);
+          // Keep progress at 0 to show "queued" state
+        } else {
+          console.log(
+            `[ResourceList] File ${fileName} retry started immediately`
+          );
+          // Start progress animation for immediate retry
+          setProgressByFileKey((prev) => ({ ...prev, [fileKey]: 25 }));
+        }
 
         // Refresh the file list to show updated status
         fetchResources();
@@ -405,9 +425,15 @@ export function ResourceList({
           `[ResourceList] Failed to retry file processing for ${fileName}:`,
           error
         );
+        // Reset progress on error
+        setProgressByFileKey((prev) => {
+          const newProgress = { ...prev };
+          delete newProgress[fileKey];
+          return newProgress;
+        });
       }
     },
-    [fetchResources]
+    [fetchResources, setProgressByFileKey]
   );
 
   const toggleFileExpansion = (fileKey: string) => {

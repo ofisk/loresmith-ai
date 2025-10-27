@@ -1,7 +1,6 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "../dao/dao-factory";
 import { FileDAO } from "../dao/file-dao";
-import { getLibraryAutoRAGService } from "../lib/service-factory";
 import {
   notifyFileStatusUpdated,
   notifyFileUpdated,
@@ -194,7 +193,7 @@ export async function handleAutoRAGSync(c: ContextWithAuth) {
 
       if (filename) {
         // Specific file upload - track the job for this file
-        const fileKey = `autorag/${username}/${filename}`;
+        const fileKey = `${c.env.AUTORAG_PREFIX}/${username}/${filename}`;
         await fileDAO.createAutoRAGJob(
           result.result.job_id,
           ragId,
@@ -999,8 +998,6 @@ export async function checkCompletedFilesSearchability(c: Context) {
       });
     }
 
-    const ragService = getLibraryAutoRAGService(c.env, userAuth.username);
-
     let nowSearchable = 0;
 
     for (const file of completedFiles) {
@@ -1008,7 +1005,7 @@ export async function checkCompletedFilesSearchability(c: Context) {
         const result = await fileDAO.checkFileIndexingStatus(
           file.file_key,
           userAuth.username,
-          ragService
+          c.env
         );
         if (result.isIndexed) {
           console.log(`[AutoRAG] File ${file.file_name} is now searchable`);

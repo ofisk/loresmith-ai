@@ -671,19 +671,13 @@ export default function Chat() {
       {/* Create Campaign Modal */}
       <Modal
         isOpen={modalState.isCreateCampaignModalOpen}
-        onClose={() => {
-          modalState.setIsCreateCampaignModalOpen(false);
-          modalState.setIsAddResourceModalOpen(true);
-        }}
+        onClose={modalState.handleCreateCampaignClose}
         cardStyle={{ width: 520, minHeight: 320 }}
         showCloseButton={true}
       >
         <CreateCampaignModal
           isOpen={modalState.isCreateCampaignModalOpen}
-          onClose={() => {
-            modalState.setIsCreateCampaignModalOpen(false);
-            modalState.setIsAddResourceModalOpen(true);
-          }}
+          onClose={modalState.handleCreateCampaignClose}
           campaignName={modalState.campaignName}
           onCampaignNameChange={modalState.setCampaignName}
           campaignDescription={modalState.campaignDescription}
