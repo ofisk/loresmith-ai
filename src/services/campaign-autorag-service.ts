@@ -16,8 +16,8 @@ import type { ShardDAO } from "../dao/shard-dao";
  * Provides campaign-scoped RAG functionality with three-folder approval system:
  *
  * 1. /staging/ - Shards awaiting user review (not searchable)
- * 2. /approved/ - User-approved shards (searchable via enforcedFilter)
- * 3. /rejected/ - User-rejected shards (permanently excluded from search)
+ * 2. /context/approved/ - User-approved shards (searchable via enforcedFilter)
+ * 3. /context/rejected/ - User-rejected shards (permanently excluded from search)
  *
  * All search operations automatically filter to approved content only via enforcedFilter()
  */
@@ -218,8 +218,19 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
     // Parse staging data to validate it exists
     JSON.parse(await stagingObject.text());
 
-    // Move to approved
-    const approvedKey = stagingKey.replace("/staging/", "/approved/");
+    // Move to approved (always use /context/approved/ regardless of staging path)
+    // Extract campaign base path by finding the campaign ID and reconstructing the path
+    const pathParts = stagingKey.split("/");
+    // Look for campaigns directory and take the next part as campaign ID
+    const campaignsIndex = pathParts.findIndex((part) => part === "campaigns");
+    if (campaignsIndex === -1) {
+      throw new Error(
+        `Invalid staging path - no campaigns directory found: ${stagingKey}`
+      );
+    }
+    const campaignBasePath = pathParts.slice(0, campaignsIndex + 2).join("/"); // campaigns + campaign-id
+    const filename = pathParts[pathParts.length - 1];
+    const approvedKey = `${campaignBasePath}/context/approved/${filename}`;
     await this.r2Helper.move(stagingKey, approvedKey);
 
     // If expansions provided, create expansion file
@@ -267,8 +278,19 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
       payload: stagingData,
     };
 
-    // Move to rejected
-    const rejectedKey = stagingKey.replace("/staging/", "/rejected/");
+    // Move to rejected (always use /context/rejected/ regardless of staging path)
+    // Extract campaign base path by finding the campaign ID and reconstructing the path
+    const pathParts = stagingKey.split("/");
+    // Look for campaigns directory and take the next part as campaign ID
+    const campaignsIndex = pathParts.findIndex((part) => part === "campaigns");
+    if (campaignsIndex === -1) {
+      throw new Error(
+        `Invalid staging path - no campaigns directory found: ${stagingKey}`
+      );
+    }
+    const campaignBasePath = pathParts.slice(0, campaignsIndex + 2).join("/"); // campaigns + campaign-id
+    const filename = pathParts[pathParts.length - 1];
+    const rejectedKey = `${campaignBasePath}/context/rejected/${filename}`;
     await this.r2Helper.put(
       rejectedKey,
       new TextEncoder().encode(JSON.stringify(rejectedData)).buffer,
@@ -299,7 +321,7 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
    * Enforced filter that scopes search to approved content only
    */
   protected enforcedFilter(): string | null {
-    return `${this.campaignRagBasePath}/approved/`;
+    return `${this.campaignRagBasePath}/context/approved/`;
   }
 
   /**

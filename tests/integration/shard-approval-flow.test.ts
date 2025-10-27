@@ -132,7 +132,16 @@ describe("Shard Approval Flow Integration", () => {
     await campaignAutoRAG.approveShards(stagingKey1);
 
     // Verify shard moved to approved
-    const approvedKey1 = stagingKey1.replace("/staging/", "/approved/");
+    // Extract filename from staging key and construct approved key
+    const stagingParts = stagingKey1.split("/");
+    const filename = stagingParts[stagingParts.length - 1];
+    const campaignsIndex = stagingParts.findIndex(
+      (part) => part === "campaigns"
+    );
+    const campaignBasePath = stagingParts
+      .slice(0, campaignsIndex + 2)
+      .join("/"); // campaigns + campaign-id
+    const approvedKey1 = `${campaignBasePath}/context/approved/${filename}`;
     const approvedData = await mockR2.get(approvedKey1);
     expect(approvedData).not.toBeNull();
 
@@ -148,7 +157,16 @@ describe("Shard Approval Flow Integration", () => {
     );
 
     // Verify shard moved to rejected with metadata
-    const rejectedKey = stagingKey2.replace("/staging/", "/rejected/");
+    // Extract filename from staging key and construct rejected key
+    const stagingParts2 = stagingKey2.split("/");
+    const filename2 = stagingParts2[stagingParts2.length - 1];
+    const campaignsIndex2 = stagingParts2.findIndex(
+      (part) => part === "campaigns"
+    );
+    const campaignBasePath2 = stagingParts2
+      .slice(0, campaignsIndex2 + 2)
+      .join("/"); // campaigns + campaign-id
+    const rejectedKey = `${campaignBasePath2}/context/rejected/${filename2}`;
     const rejectedData = await mockR2.get(rejectedKey);
     expect(rejectedData).not.toBeNull();
 
@@ -219,9 +237,16 @@ describe("Shard Approval Flow Integration", () => {
     await campaignAutoRAG.approveShards(stagingKey, [expansion]);
 
     // Verify expansion file was created
-    const expansionKey = stagingKey
-      .replace("/staging/", "/approved/")
-      .replace(".json", ".exp.json");
+    // Extract filename from staging key and construct expansion key
+    const stagingParts = stagingKey.split("/");
+    const filename = stagingParts[stagingParts.length - 1];
+    const campaignsIndex = stagingParts.findIndex(
+      (part) => part === "campaigns"
+    );
+    const campaignBasePath = stagingParts
+      .slice(0, campaignsIndex + 2)
+      .join("/"); // campaigns + campaign-id
+    const expansionKey = `${campaignBasePath}/context/approved/${filename.replace(".json", ".exp.json")}`;
     const expansionData = await mockR2.get(expansionKey);
 
     expect(expansionData).not.toBeNull();
@@ -270,13 +295,13 @@ describe("Shard Approval Flow Integration", () => {
 
     // Verify approved folder has 3 shards
     const approvedList = await mockR2.list({
-      prefix: `${campaignBasePath}/approved/`,
+      prefix: `${campaignBasePath}/context/approved/`,
     });
     expect(approvedList.objects).toHaveLength(3);
 
     // Verify rejected folder has 2 shards
     const rejectedList = await mockR2.list({
-      prefix: `${campaignBasePath}/rejected/`,
+      prefix: `${campaignBasePath}/context/rejected/`,
     });
     expect(rejectedList.objects).toHaveLength(2);
 

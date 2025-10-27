@@ -180,7 +180,7 @@ describe("Campaign Context Capture Flow Integration", () => {
     // Verify shard moved to approved
     const approvedKey = stagingKey.replace(
       "/conversation/staging/",
-      "/conversation/approved/"
+      "/context/approved/"
     );
     const approvedData = await mockR2.get(approvedKey);
     expect(approvedData).not.toBeNull();
@@ -234,7 +234,7 @@ describe("Campaign Context Capture Flow Integration", () => {
     // Verify moved to approved
     const approvedKey = stagingKey.replace(
       "/conversation/staging/",
-      "/conversation/approved/"
+      "/context/approved/"
     );
     const approvedData = await mockR2.get(approvedKey);
     expect(approvedData).not.toBeNull();

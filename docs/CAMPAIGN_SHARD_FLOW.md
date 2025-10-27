@@ -355,8 +355,9 @@ POST /campaigns/:campaignId/shards/reject
 └── campaigns/
     └── [campaign-id]/
         ├── staging/            # Temporary shard candidates
-        ├── approved/           # Curated campaign knowledge
-        └── rejected/           # Rejected content (for audit)
+        └── context/
+            ├── approved/       # Curated campaign knowledge
+            └── rejected/       # Rejected content (for audit)
 ```
 
 ## Benefits

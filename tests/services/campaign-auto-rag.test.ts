@@ -41,7 +41,7 @@ describe("CampaignAutoRAG", () => {
     it("should return the correct approved folder path", () => {
       // Access the protected method through the class instance
       const result = (campaignAutoRAG as any).enforcedFilter();
-      expect(result).toBe("campaigns/test-campaign-123/approved/");
+      expect(result).toBe("campaigns/test-campaign-123/context/approved/");
     });
   });
 

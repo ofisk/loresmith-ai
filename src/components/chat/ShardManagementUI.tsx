@@ -256,10 +256,35 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
     try {
       setProcessing(action);
 
+      // OPTIMISTIC UPDATE: Immediately mark shards as processed to prevent double-clicks
+      setProcessedShards((prev) => {
+        const newSet = new Set(prev);
+        for (const id of shardIds) {
+          newSet.add(id);
+        }
+        return newSet;
+      });
+
       const jwt = getStoredJwt();
       if (!jwt) {
         throw new Error("No authentication token available");
       }
+
+      // Find the staging keys for the selected shards
+      const stagingKeys: string[] = [];
+      if (shards && Array.isArray(shards)) {
+        for (const group of shards as StagedShardGroup[]) {
+          const groupShardIds = group.shards.map((shard) => shard.id);
+          const hasSelectedShards = shardIds.some((id) =>
+            groupShardIds.includes(id)
+          );
+          if (hasSelectedShards) {
+            stagingKeys.push(group.key);
+          }
+        }
+      }
+
+      console.log(`[ShardManagementUI] Found staging keys:`, stagingKeys);
 
       const endpoint =
         action === "approve"
@@ -280,6 +305,7 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
           },
           body: JSON.stringify({
             shardIds,
+            stagingKeys,
             reason: action === "reject" ? "Bulk rejection" : undefined,
           }),
         }
@@ -287,23 +313,26 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to ${action} shards: ${errorText}`);
+
+        // Handle specific error cases
+        if (errorText.includes("Staging file not found")) {
+          console.warn(
+            `[ShardManagementUI] Staging files already processed for ${action}`
+          );
+          // This is actually a success case - the files were already moved
+          // Don't throw an error, just refresh the UI
+        } else {
+          throw new Error(`Failed to ${action} shards: ${errorText}`);
+        }
+      } else {
+        const result = await response.json();
+        console.log(`[ShardManagementUI] Bulk ${action} result:`, result);
       }
 
-      const result = await response.json();
-      console.log(`[ShardManagementUI] Bulk ${action} result:`, result);
-
-      // Mark shards as processed
-      setProcessedShards((prev) => {
-        const newSet = new Set(prev);
-        for (const id of shardIds) {
-          newSet.add(id);
-        }
-        return newSet;
-      });
-
       // Trigger refresh of shard data from parent component
+      // Add a small delay to ensure backend operations complete
       if (onShardsUpdated) {
+        await new Promise((resolve) => setTimeout(resolve, 500)); // 500ms delay
         await onShardsUpdated();
       }
     } catch (error) {
@@ -311,6 +340,15 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
         `[ShardManagementUI] Error with bulk action ${action}:`,
         error
       );
+
+      // Revert optimistic update on error
+      setProcessedShards((prev) => {
+        const newSet = new Set(prev);
+        for (const id of shardIds) {
+          newSet.delete(id);
+        }
+        return newSet;
+      });
     } finally {
       setProcessing(null);
     }
@@ -374,6 +412,12 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
     );
   }
 
+  // Filter out processed shards for display
+  const displayShards = convertedShards.filter(
+    (shard) => !processedShards.has(shard.id)
+  );
+  const processedCount = convertedShards.length - displayShards.length;
+
   // Show empty state
   if (convertedShards.length === 0) {
     return (
@@ -388,18 +432,25 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
   return (
     <div className="space-y-4">
       {/* Success message */}
-      {processedShards.size > 0 && (
+      {processedCount > 0 && (
         <div className="bg-green-900 border border-green-700 rounded-lg p-3">
           <p className="text-green-300 text-sm">
-            ✅ {processedShards.size} shard
-            {processedShards.size !== 1 ? "s" : ""} processed successfully
+            ✅ {processedCount} shard
+            {processedCount !== 1 ? "s" : ""} processed successfully
           </p>
+        </div>
+      )}
+
+      {/* Show processing state */}
+      {processing && (
+        <div className="bg-blue-900 border border-blue-700 rounded-lg p-3">
+          <p className="text-blue-300 text-sm">🔄 {processing} shards...</p>
         </div>
       )}
 
       {/* Use our new ShardGrid component */}
       <ShardGrid
-        shards={convertedShards}
+        shards={displayShards}
         campaignId={campaignId}
         resourceName={displayResourceName}
         onShardEdit={handleShardEdit}
