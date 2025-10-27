@@ -61,7 +61,22 @@ export function PropertyField({
 
   const addArrayItem = () => {
     if (newArrayItem.trim() && Array.isArray(editValue)) {
-      const updatedArray = [...editValue, newArrayItem.trim()];
+      let itemToAdd: any = newArrayItem.trim();
+
+      // Try to parse as JSON if it looks like an object
+      if (
+        newArrayItem.trim().startsWith("{") ||
+        newArrayItem.trim().startsWith("[")
+      ) {
+        try {
+          itemToAdd = JSON.parse(newArrayItem.trim());
+        } catch {
+          // If JSON parsing fails, keep as string
+          itemToAdd = newArrayItem.trim();
+        }
+      }
+
+      const updatedArray = [...editValue, itemToAdd];
       setEditValue(updatedArray);
       setNewArrayItem("");
     }
@@ -102,22 +117,49 @@ export function PropertyField({
         case "array":
           return (
             <div className="space-y-2">
-              <div className="flex flex-wrap gap-1">
+              <div className="space-y-2">
                 {Array.isArray(editValue) &&
                   editValue.map((item, index) => (
-                    <span
-                      key={`${item}-${index}`}
-                      className="inline-flex items-center gap-1 px-2 py-1 bg-purple-700 text-purple-200 rounded text-xs"
+                    <div
+                      key={`${String(item)}-${index}`}
+                      className="border border-purple-600 rounded p-2 bg-purple-900/20"
                     >
-                      {item}
-                      <button
-                        type="button"
-                        onClick={() => removeArrayItem(index)}
-                        className="text-purple-300 hover:text-purple-100 transition-colors"
-                      >
-                        <X size={12} />
-                      </button>
-                    </span>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-purple-300">
+                          Item {index + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeArrayItem(index)}
+                          className="text-purple-300 hover:text-red-400 transition-colors"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                      {typeof item === "object" && item !== null ? (
+                        <div className="space-y-1">
+                          {Object.entries(item).map(([key, value]) => (
+                            <div
+                              key={key}
+                              className="flex items-center gap-2 text-xs"
+                            >
+                              <span className="text-purple-200 font-medium min-w-0 flex-shrink-0">
+                                {key}:
+                              </span>
+                              <span className="text-purple-100 truncate">
+                                {typeof value === "object" && value !== null
+                                  ? JSON.stringify(value)
+                                  : String(value)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-purple-100 text-xs">
+                          {String(item)}
+                        </span>
+                      )}
+                    </div>
                   ))}
               </div>
               <div className="flex gap-2">
@@ -126,7 +168,7 @@ export function PropertyField({
                   value={newArrayItem}
                   onChange={(e) => setNewArrayItem(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addArrayItem()}
-                  placeholder="Add new item"
+                  placeholder="Add new item (JSON for objects)"
                   className="flex-1 px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
                 />
                 <button
@@ -243,10 +285,10 @@ export function PropertyGrid({
 }: PropertyGridProps) {
   return (
     <div className={`space-y-3 ${className}`}>
-      {properties.map(({ key, value, type }) => (
+      {properties.map(({ key, value, type }, index) => (
         <PropertyField
-          key={key}
-          name={key}
+          key={key || `property-${index}`}
+          name={key || `property-${index}`}
           value={value}
           type={type}
           editable={editable}

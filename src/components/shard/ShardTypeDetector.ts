@@ -58,13 +58,23 @@ export function getEditableProperties(shard: Shard): Array<{
 }> {
   const excludeFields = ["id", "metadata", "created_at", "updated_at"];
 
-  return Object.entries(shard)
+  const properties = Object.entries(shard)
     .filter(([key]) => !excludeFields.includes(key))
     .map(([key, value]) => ({
-      key,
+      key: key || "unnamed",
       value,
       type: getValueType(value),
     }));
+
+  // Remove duplicates based on key
+  const seenKeys = new Set<string>();
+  return properties.filter(({ key }) => {
+    if (seenKeys.has(key)) {
+      return false;
+    }
+    seenKeys.add(key);
+    return true;
+  });
 }
 
 /**

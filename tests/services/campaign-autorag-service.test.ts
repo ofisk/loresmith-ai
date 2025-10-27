@@ -63,7 +63,7 @@ describe("CampaignAutoRAG", () => {
     it("should return correct approved path for filter enforcement", () => {
       const filter = (campaignAutoRAG as any).enforcedFilter();
 
-      expect(filter).toBe(`${campaignBasePath}/approved/`);
+      expect(filter).toBe(`${campaignBasePath}/context/approved/`);
     });
 
     it("should scope searches to approved content only", async () => {
@@ -326,7 +326,7 @@ describe("CampaignAutoRAG", () => {
   describe("rejectShards", () => {
     it("should wrap rejected data and move to rejected folder", async () => {
       const stagingKey = `${campaignBasePath}/staging/resource-123/shard-1.json`;
-      const rejectedKey = `${campaignBasePath}/rejected/resource-123/shard-1.json`;
+      const rejectedKey = `${campaignBasePath}/context/rejected/shard-1.json`;
       const reason = "Not relevant to campaign";
 
       const mockStagingData = {
