@@ -3,7 +3,7 @@
  */
 
 export interface EnvWithSecrets {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -47,10 +47,15 @@ export async function getEnvVar(
   }
 
   // Third priority: Cloudflare secrets store
-  if (envValue && typeof envValue.get === "function") {
+  if (
+    envValue &&
+    typeof envValue === "object" &&
+    "get" in envValue &&
+    typeof envValue.get === "function"
+  ) {
     try {
       console.log(`[getEnvVar] Using Cloudflare secrets store for ${varName}`);
-      return await envValue.get();
+      return await (envValue as { get(): Promise<string> }).get();
     } catch (_error) {
       throw new Error(`Failed to access ${varName} from secrets store`);
     }

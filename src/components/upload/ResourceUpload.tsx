@@ -2,9 +2,9 @@ import { useId, useRef, useState } from "react";
 import { FormButton } from "@/components/button/FormButton";
 import { FormField } from "@/components/input/FormField";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
-import { cn } from "../../lib/utils";
-import type { Campaign } from "../../types/campaign";
-import type { ProcessingProgress } from "../../types/progress";
+import { cn } from "@/lib/utils";
+import type { Campaign } from "@/types/campaign";
+import type { ProcessingProgress } from "@/types/progress";
 
 // Function to sanitize filename by removing/replacing URL-encoded characters
 const sanitizeFilename = (filename: string): string => {

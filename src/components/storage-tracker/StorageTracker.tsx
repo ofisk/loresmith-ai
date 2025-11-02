@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { useAuthReady } from "../../hooks/useAuthReady";
+import { useAuthReady } from "@/hooks/useAuthReady";
 import {
   authenticatedFetchWithExpiration,
   getStoredJwt,
-} from "../../services/auth-service";
-import { API_CONFIG } from "../../shared-config";
-import { Loader } from "../loader/Loader";
+} from "@/services/core/auth-service";
+import { API_CONFIG } from "@/shared-config";
+import { Loader } from "@/components/loader/Loader";
 
 interface StorageUsage {
   username: string;

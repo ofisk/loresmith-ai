@@ -1,11 +1,11 @@
 // Standardized response builders for API endpoints
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success?: boolean;
   message?: string;
   data?: T;
   error?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // Build success response

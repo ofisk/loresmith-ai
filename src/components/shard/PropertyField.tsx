@@ -4,10 +4,10 @@ import { Check, X, Plus, Trash2 } from "lucide-react";
 
 interface PropertyFieldProps {
   name: string;
-  value: any;
+  value: unknown;
   type: "string" | "number" | "array" | "object";
   editable?: boolean;
-  onChange?: (key: string, newValue: any) => void;
+  onChange?: (key: string, newValue: unknown) => void;
   onDelete?: (key: string) => void;
   className?: string;
 }
@@ -24,7 +24,7 @@ export function PropertyField({
   // Certain fields should never be editable
   const isFieldEditable =
     editable && !["confidence", "type", "id", "source"].includes(name);
-  const [editValue, setEditValue] = useState(value);
+  const [editValue, setEditValue] = useState<unknown>(value);
   const [newArrayItem, setNewArrayItem] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -48,7 +48,7 @@ export function PropertyField({
   };
 
   const handleCancel = () => {
-    setEditValue(value);
+    setEditValue(value as unknown);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -107,7 +107,11 @@ export function PropertyField({
             <input
               ref={inputRef}
               type="number"
-              value={editValue}
+              value={
+                typeof editValue === "number"
+                  ? editValue
+                  : Number(editValue) || 0
+              }
               onChange={(e) => setEditValue(Number(e.target.value))}
               onKeyDown={handleKeyDown}
               className="w-full px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
@@ -205,7 +209,11 @@ export function PropertyField({
             <input
               ref={inputRef}
               type="text"
-              value={editValue}
+              value={
+                typeof editValue === "string"
+                  ? editValue
+                  : String(editValue || "")
+              }
               onChange={(e) => setEditValue(e.target.value)}
               onKeyDown={handleKeyDown}
               className="w-full px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"

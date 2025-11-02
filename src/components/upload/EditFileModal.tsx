@@ -1,11 +1,11 @@
 import { useState, useEffect, useId } from "react";
 import { FloppyDisk } from "@phosphor-icons/react";
-import { authenticatedFetchWithExpiration } from "../../services/auth-service";
-import { API_CONFIG } from "../../shared-config";
-import { ERROR_MESSAGES } from "../../app-constants";
-import { Modal } from "../modal/Modal";
-import { FormField } from "../input/FormField";
-import { FormButton } from "../button/FormButton";
+import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
+import { API_CONFIG } from "@/shared-config";
+import { ERROR_MESSAGES } from "@/app-constants";
+import { Modal } from "@/components/modal/Modal";
+import { FormField } from "@/components/input/FormField";
+import { FormButton } from "@/components/button/FormButton";
 
 interface EditFileModalProps {
   isOpen: boolean;

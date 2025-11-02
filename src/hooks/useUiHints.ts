@@ -2,7 +2,7 @@ import { useEffect, useCallback } from "react";
 
 interface UiHint {
   type: string;
-  data?: any;
+  data?: unknown;
 }
 
 interface UseUiHintsOptions {
@@ -13,8 +13,8 @@ export function useUiHints(options: UseUiHintsOptions = {}) {
   const { onUiHint } = options;
 
   const handleUiHint = useCallback(
-    (e: CustomEvent) => {
-      const { type, data } = (e as any).detail || {};
+    (e: CustomEvent<{ type: string; data?: unknown }>) => {
+      const { type, data } = e.detail || {};
       if (!type) return;
       onUiHint?.({ type, data });
     },

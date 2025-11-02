@@ -1,20 +1,20 @@
 import type { Context } from "hono";
-import { getDAOFactory } from "../dao/dao-factory";
-import { FileDAO } from "../dao/file-dao";
-import type { Env } from "../middleware/auth";
-import type { AuthPayload } from "../services/auth-service";
+import { getDAOFactory } from "@/dao/dao-factory";
+import { FileDAO } from "@/dao/file-dao";
+import type { Env } from "@/middleware/auth";
+import type { AuthPayload } from "@/services/core/auth-service";
 import {
   createCampaign,
   addResourceToCampaign,
   checkResourceExists,
   validateCampaignOwnership,
   getCampaignRagBasePath,
-} from "../lib/campaign-operations";
+} from "@/lib/campaign-operations";
 import {
   generateShardsForResource,
   notifyShardCount,
-} from "../services/shard-generation-service";
-import { SyncQueueService } from "../services/sync-queue-service";
+} from "@/services/campaign/shard-generation-service";
+import { SyncQueueService } from "@/services/file/sync-queue-service";
 import {
   buildShardGenerationResponse,
   buildResourceAdditionResponse,
@@ -23,8 +23,8 @@ import {
   buildCampaignDeletionResponse,
   buildBulkDeletionResponse,
   buildResourceRemovalResponse,
-} from "../lib/response-builders";
-import { CampaignContextSyncService } from "../services/campaign-context-sync-service";
+} from "@/lib/response-builders";
+import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {

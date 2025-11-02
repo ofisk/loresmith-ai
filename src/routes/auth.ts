@@ -1,14 +1,14 @@
 import type { Context } from "hono";
 import { jwtVerify } from "jose";
-import { getDAOFactory } from "../dao";
-import { AgentRouter } from "../lib/agent-router";
+import { getDAOFactory } from "@/dao";
+import { AgentRouter } from "@/lib/agent-router";
 import {
   getAuthService,
   getLibraryAutoRAGService,
-} from "../lib/service-factory";
-import type { Env } from "../middleware/auth";
-import type { AuthPayload } from "../services/auth-service";
-import { AuthService } from "../services/auth-service";
+} from "@/lib/service-factory";
+import type { Env } from "@/middleware/auth";
+import type { AuthPayload } from "@/services/core/auth-service";
+import { AuthService } from "@/services/core/auth-service";
 
 // Helper to set user auth context
 export function setUserAuth(c: Context, payload: AuthPayload) {
@@ -323,7 +323,7 @@ export async function handleSetOpenAIApiKey(c: Context<{ Bindings: Env }>) {
 }
 
 // Check if user has OpenAI key in session
-//TODO: ofisk - check back
+// NOTE: Authentication flow may need review after testing
 export async function handleCheckUserOpenAIKey(c: Context<{ Bindings: Env }>) {
   try {
     const username = c.req.query("username");
@@ -345,7 +345,7 @@ export async function handleCheckUserOpenAIKey(c: Context<{ Bindings: Env }>) {
 }
 
 // Logout endpoint - clears stored JWT tokens
-//TODO: ofisk - check back
+// NOTE: Authentication flow may need review after testing
 export async function handleLogout(c: Context<{ Bindings: Env }>) {
   try {
     // This endpoint just returns success - the client should clear local storage

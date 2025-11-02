@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { AssessmentService } from "../../src/services/assessment-service";
+import { AssessmentService } from "../../src/services/core/assessment-service";
 import { AssessmentDAO } from "../../src/dao/assessment-dao";
 import type { Env } from "../../src/middleware/auth";
 import type { Campaign, CampaignResource } from "../../src/types/campaign";

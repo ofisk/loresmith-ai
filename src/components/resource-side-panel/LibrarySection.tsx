@@ -1,16 +1,17 @@
 import { CaretDown, CaretRight, Plus } from "@phosphor-icons/react";
-import { Card } from "../card/Card";
-import { StorageTracker } from "../storage-tracker";
-import { ResourceList } from "../upload/ResourceList";
-import type { Campaign } from "../../types/campaign";
-import libraryIcon from "../../assets/library.png";
+import { Card } from "@/components/card/Card";
+import { StorageTracker } from "@/components/storage-tracker";
+import { ResourceList } from "@/components/upload/ResourceList";
+import type { Campaign } from "@/types/campaign";
+import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
+import libraryIcon from "@/assets/library.png";
 
 interface LibrarySectionProps {
   isOpen: boolean;
   onToggle: () => void;
   onAddToLibrary: () => void;
-  onAddToCampaign?: (file: any) => void;
-  onEditFile?: (file: any) => void;
+  onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
+  onEditFile?: (file: ResourceFileWithCampaigns) => void;
   campaigns?: Campaign[];
   campaignAdditionProgress?: Record<string, number>;
   isAddingToCampaigns?: boolean;

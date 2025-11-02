@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useNotifications } from "../components/notifications/NotificationProvider";
+import { useNotifications } from "@/components/notifications/NotificationProvider";
 
 export function useLocalNotifications() {
   // Server notifications hook

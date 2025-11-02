@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { API_CONFIG } from "../shared-config";
-import { authenticatedFetchWithExpiration } from "../services/auth-service";
-import type { StagedShardGroup } from "../types/shard";
+import { API_CONFIG } from "@/shared-config";
+import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
+import type { StagedShardGroup } from "@/types/shard";
 
 interface GlobalShardState {
   shards: StagedShardGroup[];

@@ -3,16 +3,16 @@ import { useState, useMemo } from "react";
 import {
   authenticatedFetchWithExpiration,
   getStoredJwt,
-} from "../../services/auth-service";
-import { API_CONFIG } from "../../shared-config";
-import type { ShardCandidate, StagedShardGroup } from "../../types/shard";
-import { ShardGrid } from "../shard/ShardGrid";
+} from "@/services/core/auth-service";
+import { API_CONFIG } from "@/shared-config";
+import type { ShardCandidate, StagedShardGroup } from "@/types/shard";
+import { ShardGrid } from "@/components/shard/ShardGrid";
 import {
   convertStagedShardGroupsToShards,
   convertShardCandidatesToShards,
   convertShardToUpdate,
-} from "../shard/shardAdapters";
-import type { Shard } from "../shard/ShardTypeDetector";
+} from "@/components/shard/shardAdapters";
+import type { Shard } from "@/components/shard/ShardTypeDetector";
 
 interface ShardManagementUIProps {
   campaignId: string;
@@ -87,7 +87,7 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
   const displayResourceName =
     resourceName ||
     (convertedShards.length > 0 && "sourceRef" in convertedShards[0]
-      ? convertedShards[0].sourceRef?.meta?.fileName
+      ? (convertedShards[0].sourceRef as any)?.meta?.fileName
       : undefined);
 
   const handleShardEdit = async (shardId: string, updates: Partial<Shard>) => {

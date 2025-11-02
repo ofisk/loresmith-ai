@@ -2,14 +2,14 @@
 // Handles file listing, search, metadata updates, and file operations
 
 import { type Context, Hono } from "hono";
-import { getDAOFactory } from "../dao/dao-factory";
+import { getDAOFactory } from "@/dao/dao-factory";
 import {
   getLibraryAutoRAGService,
   getLibraryService,
-} from "../lib/service-factory";
-import { requireUserJwt } from "../middleware/auth";
-import type { AuthPayload } from "../services/auth-service";
-import type { SearchQuery } from "../types/upload";
+} from "@/lib/service-factory";
+import { requireUserJwt } from "@/middleware/auth";
+import type { AuthPayload } from "@/services/core/auth-service";
+import type { SearchQuery } from "@/types/upload";
 
 const library = new Hono<{
   Bindings: Env;
@@ -43,7 +43,9 @@ export const handleGetFiles = async (
       pagination: {
         limit,
         offset,
-        total: files.length, // TODO: Add total count
+        // Note: Using files.length as total count. For pagination support,
+        // we should query the database for total count separately.
+        total: files.length,
       },
     });
   } catch (error) {

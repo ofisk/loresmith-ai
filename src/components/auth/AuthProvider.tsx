@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { JWT_STORAGE_KEY } from "../../app-constants";
-import { fetchOpenAIKeyOnce } from "../../lib/openai-key-store";
-import { AuthService } from "@/services/auth-service";
-import { API_CONFIG } from "../../shared-config";
+import { JWT_STORAGE_KEY } from "@/app-constants";
+import { fetchOpenAIKeyOnce } from "@/lib/openai-key-store";
+import { AuthService } from "@/services/core/auth-service";
+import { API_CONFIG } from "@/shared-config";
 
 export interface AuthContextType {
   isAuthenticated: boolean;

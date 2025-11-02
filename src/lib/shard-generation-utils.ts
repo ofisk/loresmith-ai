@@ -1,5 +1,5 @@
 // Utilities for shard generation with robust path handling and validation
-import type { ShardGenerationOptions } from "../services/shard-generation-service";
+import type { ShardGenerationOptions } from "@/services/campaign/shard-generation-service";
 
 /**
  * Standardized resource interface for shard generation

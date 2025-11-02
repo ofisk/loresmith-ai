@@ -13,7 +13,7 @@ export interface ShardMetadata {
   id: string;
   type: string;
   confidence?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface StructuredShard extends ShardMetadata {
@@ -53,7 +53,7 @@ export function getShardStructure(_type: string) {
  */
 export function getEditableProperties(shard: Shard): Array<{
   key: string;
-  value: any;
+  value: unknown;
   type: "string" | "number" | "array" | "object";
 }> {
   const excludeFields = ["id", "metadata", "created_at", "updated_at"];
@@ -80,7 +80,9 @@ export function getEditableProperties(shard: Shard): Array<{
 /**
  * Determine the type of a value for appropriate editing UI
  */
-function getValueType(value: any): "string" | "number" | "array" | "object" {
+function getValueType(
+  value: unknown
+): "string" | "number" | "array" | "object" {
   if (Array.isArray(value)) return "array";
   if (typeof value === "number") return "number";
   if (typeof value === "object" && value !== null) return "object";

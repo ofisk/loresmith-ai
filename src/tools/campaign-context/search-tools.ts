@@ -7,7 +7,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
 } from "../utils";
-import { CampaignAutoRAG } from "../../services/campaign-autorag-service";
+import { CampaignAutoRAG } from "@/services/campaign/campaign-autorag-service";
 import { getDAOFactory } from "../../dao/dao-factory";
 
 // Helper function to get environment from context

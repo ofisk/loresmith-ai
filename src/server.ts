@@ -6,19 +6,19 @@ import {
   handleIngestionHealth,
   handleIngestionStats,
   handleIngestionStatus,
-} from "./api_status";
-import { JWT_STORAGE_KEY } from "./app-constants";
-import { UploadSessionDO } from "./durable-objects/upload-session";
-import type { AgentType } from "./lib/agent-router";
-import { AgentRouter } from "./lib/agent-router";
-import { ModelManager } from "./lib/model-manager";
-import { queue as queueFn, scheduled as scheduledFn } from "./queue_consumer";
+} from "@/api_status";
+import { JWT_STORAGE_KEY } from "@/app-constants";
+import { UploadSessionDO } from "@/durable-objects/upload-session";
+import type { AgentType } from "@/lib/agent-router";
+import { AgentRouter } from "@/lib/agent-router";
+import { ModelManager } from "@/lib/model-manager";
+import { queue as queueFn, scheduled as scheduledFn } from "@/queue_consumer";
 import {
   handleGetAssessmentRecommendations,
   handleGetUserActivity,
   handleGetUserState,
   handleModuleIntegration,
-} from "./routes/assessment";
+} from "@/routes/assessment";
 import {
   handleAuthenticate,
   handleCheckOpenAIKey,
@@ -29,7 +29,7 @@ import {
   handleSetOpenAIApiKey,
   handleStoreOpenAIKey,
   requireUserJwt,
-} from "./routes/auth";
+} from "@/routes/auth";
 import {
   handleAutoRAGJobDetails,
   handleAutoRAGJobLogs,
@@ -39,13 +39,13 @@ import {
   handleGetSyncQueueStatus,
   checkCompletedFilesSearchability,
   handleRetryFile,
-} from "./routes/autorag";
+} from "@/routes/autorag";
 import {
   handleApproveShards,
   handleGetStagedShards,
   handleRejectShards,
   handleUpdateShard,
-} from "./routes/campaign-autorag";
+} from "@/routes/campaign-autorag";
 import {
   handleAddResourceToCampaign,
   handleCreateCampaign,
@@ -56,13 +56,13 @@ import {
   handleGetCampaigns,
   handleRemoveResourceFromCampaign,
   handleUpdateCampaign,
-} from "./routes/campaigns";
+} from "@/routes/campaigns";
 import {
   handleGetExternalResourceRecommendations,
   handleGetExternalResourceSearch,
   handleGetGmResources,
-} from "./routes/external-resources";
-import fileAnalysisRoutes from "./routes/file-analysis";
+} from "@/routes/external-resources";
+import fileAnalysisRoutes from "@/routes/file-analysis";
 import {
   handleDeleteFile,
   handleGetFileDetails,
@@ -71,18 +71,18 @@ import {
   handleRegenerateFileMetadata,
   handleSearchFiles,
   handleUpdateFile,
-} from "./routes/library";
+} from "@/routes/library";
 import {
   handleMintStreamToken,
   handleNotificationPublish,
   handleNotificationStream,
-} from "./routes/notifications";
+} from "@/routes/notifications";
 import {
   handleGetNextActions,
   handleGetStateAnalysis,
   handleGetWelcomeGuidance,
-} from "./routes/onboarding";
-import { handleProgressWebSocket } from "./routes/progress";
+} from "@/routes/onboarding";
+import { handleProgressWebSocket } from "@/routes/progress";
 import {
   handleDeleteFileForRag,
   handleGetFileChunksForRag,
@@ -93,7 +93,7 @@ import {
   handleTriggerAutoRAGIndexing,
   handleCheckFileIndexingStatus,
   handleBulkCheckFileIndexingStatus,
-} from "./routes/rag";
+} from "@/routes/rag";
 
 import {
   handleAbortLargeUpload,
@@ -106,10 +106,10 @@ import {
   handleUpdateFileMetadata,
   handleUploadPart,
   handleUploadStatus,
-} from "./routes/upload";
-import type { AuthEnv } from "./services/auth-service";
-import { AuthService } from "./services/auth-service";
-import { API_CONFIG } from "./shared-config";
+} from "@/routes/upload";
+import type { AuthEnv } from "@/services/core/auth-service";
+import { AuthService } from "@/services/core/auth-service";
+import { API_CONFIG } from "@/shared-config";
 
 interface Env extends AuthEnv {
   ADMIN_SECRET?: string;

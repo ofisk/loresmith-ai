@@ -4,7 +4,7 @@ import {
   notifyCampaignCreated,
   notifyCampaignFileAdded,
 } from "./notifications";
-import { CampaignAutoRAG } from "../services/campaign-autorag-service";
+import { CampaignAutoRAG } from "@/services/campaign/campaign-autorag-service";
 
 export interface CreateCampaignOptions {
   env: any;

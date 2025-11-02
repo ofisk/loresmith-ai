@@ -1,352 +1,15 @@
 import type { Context } from "hono";
-import { getDAOFactory } from "../dao/dao-factory";
-import { FileDAO } from "../dao/file-dao";
-import {
-  notifyFileUploadCompleteWithData,
-  notifyFileUploadFailed,
-  notifyIndexingStarted,
-  notifyIndexingCompleted,
-  notifyIndexingFailed,
-  notifyFileStatusUpdated,
-  notifyFileUpdated,
-} from "../lib/notifications";
-import type { Env } from "../middleware/auth";
-import type { AuthPayload } from "../services/auth-service";
-import { API_CONFIG } from "../shared-config";
-import { SyncQueueService } from "../services/sync-queue-service";
-import { buildLibraryFileKey } from "../utils/file-keys";
-import { nanoid } from "../utils/nanoid";
+import { getDAOFactory } from "@/dao/dao-factory";
+import { notifyFileUploadFailed } from "@/lib/notifications";
+import { logger } from "@/lib/logger";
+import type { Env } from "@/middleware/auth";
+import type { AuthPayload } from "@/services/core/auth-service";
+import { API_CONFIG } from "@/shared-config";
+import { buildLibraryFileKey } from "@/lib/file-keys";
+import { nanoid } from "@/lib/nanoid";
+import { startAutoRAGProcessing } from "@/routes/upload-processing";
 
-/**
- * Helper function to process a file with AutoRAG and send notifications
- */
-async function processFileWithAutoRAG(
-  env: Env,
-  fileKey: string,
-  userId: string,
-  filename: string,
-  logPrefix: string,
-  jwt?: string
-): Promise<void> {
-  const startTime = Date.now();
-  try {
-    console.log(`[DEBUG] ${logPrefix} ===== STARTING AUTORAG PROCESSING =====`);
-    console.log(`[DEBUG] ${logPrefix} File: ${filename}`);
-    console.log(`[DEBUG] ${logPrefix} File Key: ${fileKey}`);
-    console.log(`[DEBUG] ${logPrefix} User: ${userId}`);
-    console.log(`[DEBUG] ${logPrefix} JWT Present: ${jwt ? "YES" : "NO"}`);
-    console.log(`[DEBUG] ${logPrefix} Timestamp: ${new Date().toISOString()}`);
-
-    // Immediately reflect SYNCING to advance UI even if R2 head is slow
-    try {
-      console.log(
-        `[DEBUG] ${logPrefix} Pre-marking status -> SYNCING before existence check`
-      );
-      const fileDAO = getDAOFactory(env).fileDAO;
-      await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.SYNCING);
-      const headMeta = await env.R2.head(fileKey).catch(() => null);
-      await notifyFileStatusUpdated(
-        env,
-        userId,
-        fileKey,
-        filename,
-        FileDAO.STATUS.SYNCING,
-        headMeta?.size || 0
-      );
-      console.log(
-        `[DEBUG] ${logPrefix} Status set to SYNCING (size=${headMeta?.size || 0})`
-      );
-    } catch (e) {
-      console.warn(
-        `[DEBUG] ${logPrefix} Failed to pre-mark SYNCING (non-fatal):`,
-        e
-      );
-    }
-
-    // Best-effort library file existence check (do not block processing)
-    console.log(
-      `[DEBUG] ${logPrefix} Checking library file existence (HEAD)...`
-    );
-    try {
-      const head = await env.R2.head(fileKey);
-      if (head) {
-        console.log(
-          `[DEBUG] ${logPrefix} Library file present - Size: ${head.size} bytes`
-        );
-      } else {
-        console.warn(
-          `[DEBUG] ${logPrefix} Library HEAD returned null for: ${fileKey} (continuing)`
-        );
-      }
-    } catch (headErr) {
-      console.warn(
-        `[DEBUG] ${logPrefix} Library HEAD check failed (continuing):`,
-        headErr
-      );
-    }
-
-    // Send indexing started notification (fire-and-forget)
-    console.log(
-      `[DEBUG] ${logPrefix} Sending indexing started notification...`
-    );
-    notifyIndexingStarted(env, userId, filename).catch((notifyError) => {
-      console.error(
-        `[DEBUG] ${logPrefix} Indexing started notification failed:`,
-        notifyError
-      );
-    });
-    console.log(
-      `[DEBUG] ${logPrefix} Indexing started notification sent (fire-and-forget)`
-    );
-
-    // Update database status - mark as uploaded (ready for AutoRAG)
-    console.log(`[DEBUG] ${logPrefix} Updating database status to UPLOADED...`);
-    const fileDAO = getDAOFactory(env).fileDAO;
-    const r2Meta = await env.R2.head(fileKey).catch(() => null);
-    console.log(
-      `[DEBUG] ${logPrefix} R2 size (HEAD): ${r2Meta?.size || 0} bytes`
-    );
-
-    await fileDAO.updateFileRecord(
-      fileKey, // Use the fileKey (already in library)
-      FileDAO.STATUS.UPLOADED,
-      r2Meta?.size || 0
-    );
-    console.log(
-      `[DEBUG] ${logPrefix} File marked as UPLOADED in database for: ${filename}`
-    );
-
-    // Trigger AutoRAG processing using the library fileKey
-    console.log(
-      `[DEBUG] ${logPrefix} Calling SyncQueueService.processFileUpload...`
-    );
-    console.log(`[DEBUG] ${logPrefix} SyncQueueService params:`, {
-      userId,
-      fileKey: fileKey, // Use library fileKey
-      filename,
-      jwtPresent: jwt ? "YES" : "NO",
-    });
-
-    const result = await SyncQueueService.processFileUpload(
-      env,
-      userId,
-      fileKey, // Use library fileKey
-      filename,
-      jwt
-    );
-
-    console.log(
-      `[DEBUG] ${logPrefix} AutoRAG processing initiated for: ${filename}`
-    );
-    console.log(
-      `[DEBUG] ${logPrefix} SyncQueueService result:`,
-      JSON.stringify(result, null, 2)
-    );
-
-    // Immediately reflect SYNCING state to the DB and clients to move UI forward
-    try {
-      console.log(
-        `[DEBUG] ${logPrefix} Forcing status -> SYNCING for UI responsiveness...`
-      );
-      await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.SYNCING);
-      const metaForSync = await env.R2.head(fileKey).catch(() => null);
-      await notifyFileStatusUpdated(
-        env,
-        userId,
-        fileKey,
-        filename,
-        FileDAO.STATUS.SYNCING,
-        metaForSync?.size || 0
-      );
-      console.log(
-        `[DEBUG] ${logPrefix} Status set to SYNCING and notification emitted`
-      );
-    } catch (setSyncErr) {
-      console.warn(
-        `[DEBUG] ${logPrefix} Failed to set SYNCING state immediately:`,
-        setSyncErr
-      );
-    }
-
-    // Send status update notification with complete file data (fire-and-forget)
-    console.log(
-      `[DEBUG] ${logPrefix} Fetching file record for notifications...`
-    );
-    const fileRecord = await fileDAO.getFileForRag(fileKey, userId);
-    if (fileRecord) {
-      console.log(`[DEBUG] ${logPrefix} File record found:`, {
-        id: fileRecord.id,
-        status: fileRecord.status,
-        size: fileRecord.size,
-        filename: fileRecord.filename,
-      });
-      notifyFileUpdated(env, userId, fileRecord).catch((notifyError) => {
-        console.error(
-          `[DEBUG] ${logPrefix} File updated notification failed:`,
-          notifyError
-        );
-      });
-    } else {
-      console.log(
-        `[DEBUG] ${logPrefix} File record not found, using fallback notification`
-      );
-      // Fallback to basic notification if file record not found
-      notifyFileStatusUpdated(
-        env,
-        userId,
-        fileKey,
-        filename,
-        FileDAO.STATUS.UPLOADED,
-        r2Meta?.size || 0
-      ).catch((notifyError) => {
-        console.error(
-          `[DEBUG] ${logPrefix} Status notification failed:`,
-          notifyError
-        );
-      });
-    }
-
-    // Send file upload completion notification with complete data (fire-and-forget)
-    if (fileRecord) {
-      console.log(
-        `[DEBUG] ${logPrefix} Sending upload complete notification...`
-      );
-      notifyFileUploadCompleteWithData(env, userId, fileRecord).catch(
-        (notifyError) => {
-          console.error(
-            `[DEBUG] ${logPrefix} Upload complete notification failed:`,
-            notifyError
-          );
-        }
-      );
-    }
-
-    // Send indexing completed notification (fire-and-forget)
-    console.log(
-      `[DEBUG] ${logPrefix} Sending indexing completed notification...`
-    );
-    notifyIndexingCompleted(env, userId, filename).catch((notifyError) => {
-      console.error(
-        `[DEBUG] ${logPrefix} Indexing completed notification failed:`,
-        notifyError
-      );
-    });
-
-    const endTime = Date.now();
-    const duration = endTime - startTime;
-    console.log(
-      `[DEBUG] ${logPrefix} ===== AUTORAG PROCESSING COMPLETED =====`
-    );
-    console.log(`[DEBUG] ${logPrefix} Duration: ${duration}ms`);
-    console.log(`[DEBUG] ${logPrefix} File: ${filename}`);
-    console.log(`[DEBUG] ${logPrefix} Status: SUCCESS`);
-  } catch (error) {
-    const endTime = Date.now();
-    const duration = endTime - startTime;
-
-    console.error(`[DEBUG] ${logPrefix} ===== AUTORAG PROCESSING FAILED =====`);
-    console.error(`[DEBUG] ${logPrefix} File: ${filename}`);
-    console.error(`[DEBUG] ${logPrefix} Duration: ${duration}ms`);
-    console.error(`[DEBUG] ${logPrefix} Error:`, error);
-    console.error(
-      `[DEBUG] ${logPrefix} Error message:`,
-      error instanceof Error ? error.message : String(error)
-    );
-    console.error(
-      `[DEBUG] ${logPrefix} Error stack:`,
-      error instanceof Error ? error.stack : "No stack trace"
-    );
-
-    // Update file status to error
-    console.log(
-      `[DEBUG] ${logPrefix} Updating file status to ERROR in database...`
-    );
-    const fileDAO = getDAOFactory(env).fileDAO;
-    await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.ERROR);
-    console.log(
-      `[DEBUG] ${logPrefix} File status updated to ERROR for: ${filename}`
-    );
-
-    // Send error notifications (fire-and-forget)
-    console.log(`[DEBUG] ${logPrefix} Sending error notifications...`);
-    notifyFileStatusUpdated(
-      env,
-      userId,
-      fileKey,
-      filename,
-      FileDAO.STATUS.ERROR
-    ).catch((notifyError) => {
-      console.error(
-        `[DEBUG] ${logPrefix} Error status notification failed:`,
-        notifyError
-      );
-    });
-
-    // Send indexing failed notification (fire-and-forget)
-    notifyIndexingFailed(
-      env,
-      userId,
-      filename,
-      (error as Error)?.message
-    ).catch((notifyError) => {
-      console.error(
-        `[DEBUG] ${logPrefix} Indexing failed notification failed:`,
-        notifyError
-      );
-    });
-
-    console.error(
-      `[DEBUG] ${logPrefix} ===== AUTORAG PROCESSING ERROR COMPLETE =====`
-    );
-    throw error;
-  }
-}
-
-/**
- * Helper function to start AutoRAG processing in background
- */
-async function startAutoRAGProcessing(
-  env: Env,
-  fileKey: string,
-  userId: string,
-  filename: string,
-  logPrefix: string,
-  jwt?: string
-): Promise<void> {
-  console.log(
-    `${logPrefix} startAutoRAGProcessing called for file: ${filename}`
-  );
-
-  // Execute AutoRAG processing immediately instead of using setTimeout
-  // Cloudflare Workers don't reliably support setTimeout with async callbacks
-  console.log(
-    `${logPrefix} Starting AutoRAG processing immediately for file: ${filename}`
-  );
-
-  try {
-    await processFileWithAutoRAG(
-      env,
-      fileKey,
-      userId,
-      filename,
-      logPrefix,
-      jwt
-    );
-    console.log(
-      `${logPrefix} processFileWithAutoRAG completed successfully for file: ${filename}`
-    );
-  } catch (error) {
-    console.error(
-      `${logPrefix} processFileWithAutoRAG failed for file ${filename}:`,
-      error
-    );
-    throw error; // Re-throw to ensure the calling function knows about the failure
-  }
-
-  console.log(
-    `${logPrefix} AutoRAG processing completed for file: ${filename}`
-  );
-}
+const log = logger.scope("[Upload]");
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{
@@ -379,7 +42,7 @@ export async function handleUploadStatus(c: ContextWithAuth) {
     const tenant = c.req.param("tenant");
     const filename = c.req.param("filename");
     const userAuth = (c as any).userAuth as AuthPayload;
-    console.log("[handleUploadStatus] userAuth:", userAuth);
+    log.debug("Checking upload status", { userAuth: userAuth?.username });
 
     if (!tenant || !filename) {
       return c.json({ error: "tenant and filename are required" }, 400);
@@ -389,14 +52,14 @@ export async function handleUploadStatus(c: ContextWithAuth) {
     try {
       await c.env.R2.list({ limit: 1 });
     } catch (error) {
-      console.error("[Upload] R2 not available:", error);
+      log.error("R2 not available", error);
       return c.json({ error: "Storage not available" }, 503);
     }
 
     const key = await buildLibraryFileKey(
-      tenant,
-      filename,
-      c.env.AUTORAG_PREFIX
+      tenant || "",
+      filename || "",
+      c.env.AUTORAG_PREFIX || ""
     );
     const object = await c.env.R2.head(key);
     const exists = object
@@ -420,7 +83,7 @@ export async function handleUploadStatus(c: ContextWithAuth) {
       metadata,
     });
   } catch (error) {
-    console.error("[Upload] Error checking upload status:", error);
+    log.error("Error checking upload status", error);
     return c.json({ error: "Failed to check upload status" }, 500);
   }
 }
@@ -447,9 +110,9 @@ export async function handleDirectUpload(c: ContextWithAuth) {
     // Get the file content
     const fileBuffer = await c.req.arrayBuffer();
     const key = await buildLibraryFileKey(
-      tenant,
-      filename,
-      c.env.AUTORAG_PREFIX
+      tenant || "",
+      filename || "",
+      c.env.AUTORAG_PREFIX || ""
     );
 
     // Upload directly to R2
@@ -465,42 +128,39 @@ export async function handleDirectUpload(c: ContextWithAuth) {
       },
     });
 
-    console.log(
-      `[DirectUpload] File uploaded: ${key} (${fileBuffer.byteLength} bytes)`
-    );
+    const directUploadLog = logger.scope("[DirectUpload]");
+    directUploadLog.debug("File uploaded", {
+      key,
+      size: fileBuffer.byteLength,
+    });
 
     // Insert file metadata into database
     const fileDAO = getDAOFactory(c.env).fileDAO;
 
     try {
       await fileDAO.insertFileForProcessing(
-        key, // Use staging key instead of autorag key
+        key,
         filename,
-        "", // description
-        "[]", // tags (empty array as JSON string)
+        "",
+        "[]",
         tenant,
         fileBuffer.byteLength
       );
-      console.log(`[DirectUpload] Inserted file metadata: ${key}`);
+      directUploadLog.debug("Inserted file metadata", { key });
     } catch (error) {
-      console.error(`[DirectUpload] Failed to insert file metadata: ${error}`);
+      directUploadLog.error("Failed to insert file metadata", error);
       // Don't fail the upload if metadata insertion fails
     }
 
     // Extract JWT token from Authorization header
     const authHeader = c.req.header("Authorization");
     const jwt = authHeader?.replace(/^Bearer\s+/i, "");
-
-    console.log(
-      `[DirectUpload] About to start AutoRAG processing with params:`,
-      {
-        fileKey: key,
-        userId: userAuth.username,
-        filename,
-        jwtPresent: jwt ? "yes" : "no",
-        jwtLength: jwt?.length || 0,
-      }
-    );
+    directUploadLog.debug("Starting AutoRAG processing", {
+      fileKey: key,
+      userId: userAuth.username,
+      filename,
+      jwtPresent: !!jwt,
+    });
 
     // Start AutoRAG processing (awaited to ensure completion)
     await startAutoRAGProcessing(
@@ -512,9 +172,7 @@ export async function handleDirectUpload(c: ContextWithAuth) {
       jwt
     );
 
-    console.log(
-      `[DirectUpload] AutoRAG processing scheduled for file: ${filename}`
-    );
+    directUploadLog.debug("AutoRAG processing scheduled", { filename });
 
     return c.json({
       success: true,
@@ -523,7 +181,7 @@ export async function handleDirectUpload(c: ContextWithAuth) {
       uploadedAt: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("[DirectUpload] Upload error:", error);
+    log.error("Direct upload error", error);
     try {
       const tenant = c.req.param("tenant");
       const filename = c.req.param("filename");
@@ -558,7 +216,7 @@ export async function handleGetFiles(c: ContextWithAuth) {
 
     return c.json({ files: files || [] });
   } catch (error) {
-    console.error("Error fetching files:", error);
+    log.error("Error fetching files", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
@@ -595,9 +253,7 @@ export async function handleUpdateFileMetadata(c: ContextWithAuth) {
     try {
       await fileDAO.updateFileMetadata(fileKey, { description, tags });
     } catch (error) {
-      console.warn(
-        `[handleUpdateFileMetadata] Failed to update file_metadata table: ${error}`
-      );
+      log.warn("Failed to update file_metadata table", { error });
     }
 
     try {
@@ -608,14 +264,12 @@ export async function handleUpdateFileMetadata(c: ContextWithAuth) {
         tags ? JSON.stringify(tags) : "[]"
       );
     } catch (error) {
-      console.warn(
-        `[handleUpdateFileMetadata] Failed to update files table: ${error}`
-      );
+      log.warn("Failed to update files table", { error });
     }
 
     return c.json({ success: true });
   } catch (error) {
-    console.error("Error updating file metadata:", error);
+    log.error("Error updating file metadata", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
@@ -660,7 +314,7 @@ export async function handleGetFileStatus(c: ContextWithAuth) {
       fileSize: file.file_size,
     });
   } catch (error) {
-    console.error("Error getting file status:", error);
+    log.error("Error getting file status", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
@@ -704,7 +358,7 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
     const fileKey = await buildLibraryFileKey(
       tenant,
       filename,
-      c.env.AUTORAG_PREFIX
+      c.env.AUTORAG_PREFIX || ""
     );
 
     // Create multipart upload in R2
@@ -755,9 +409,12 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
     // For large files, we'll use server-side part uploads instead of presigned URLs
     // This provides better security and control
 
-    console.log(
-      `[LargeUpload] Started session: ${sessionId} for file: ${filename} (${fileSize} bytes, ${totalParts} parts)`
-    );
+    log.debug("Started large upload session", {
+      sessionId,
+      filename,
+      fileSize,
+      totalParts,
+    });
 
     return c.json({
       success: true,
@@ -769,7 +426,7 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
       uploadMethod: "server-side", // Indicates parts should be uploaded via server endpoints
     });
   } catch (error) {
-    console.error("[LargeUpload] Error starting upload:", error);
+    log.error("Error starting large upload", error);
     return c.json({ error: "Failed to start large file upload" }, 500);
   }
 }
@@ -845,9 +502,11 @@ export async function handleUploadPart(c: ContextWithAuth) {
       return c.json({ error: "Failed to update upload session" }, 500);
     }
 
-    console.log(
-      `[LargeUpload] Uploaded part ${partNumber} for session ${sessionId} (${partData.byteLength} bytes)`
-    );
+    log.debug("Uploaded part", {
+      partNumber,
+      sessionId,
+      size: partData.byteLength,
+    });
 
     return c.json({
       success: true,
@@ -856,7 +515,7 @@ export async function handleUploadPart(c: ContextWithAuth) {
       size: partData.byteLength,
     });
   } catch (error) {
-    console.error("[LargeUpload] Error uploading part:", error);
+    log.error("Error uploading part", error);
     return c.json({ error: "Failed to upload part" }, 500);
   }
 }
@@ -943,9 +602,9 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
         session.userId,
         session.fileSize
       );
-      console.log(`[LargeUpload] Inserted file metadata: ${session.fileKey}`);
+      log.debug("Inserted file metadata", { fileKey: session.fileKey });
     } catch (error) {
-      console.error(`[LargeUpload] Failed to insert file metadata: ${error}`);
+      log.error("Failed to insert file metadata", error);
       // Don't fail the upload if metadata insertion fails
     }
 
@@ -971,9 +630,10 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
       }
     );
 
-    console.log(
-      `[LargeUpload] Completed upload: ${sessionId} -> ${session.fileKey}`
-    );
+    log.debug("Completed upload", {
+      sessionId,
+      fileKey: session.fileKey,
+    });
 
     return c.json({
       success: true,
@@ -982,7 +642,7 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
       uploadedAt: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("[LargeUpload] Error completing upload:", error);
+    log.error("Error completing upload", error);
     try {
       const sessionId = c.req.param("sessionId");
       if (sessionId) {
@@ -1068,7 +728,7 @@ export async function handleGetUploadProgress(c: ContextWithAuth) {
       progress: progress,
     });
   } catch (error) {
-    console.error("[LargeUpload] Error getting progress:", error);
+    log.error("Error getting upload progress", error);
     return c.json({ error: "Failed to get upload progress" }, 500);
   }
 }
@@ -1127,14 +787,14 @@ export async function handleAbortLargeUpload(c: ContextWithAuth) {
       }
     );
 
-    console.log(`[LargeUpload] Aborted upload: ${sessionId}`);
+    log.debug("Aborted upload", { sessionId });
 
     return c.json({
       success: true,
       message: "Upload aborted successfully",
     });
   } catch (error) {
-    console.error("[LargeUpload] Error aborting upload:", error);
+    log.error("Error aborting upload", error);
     return c.json({ error: "Failed to abort upload" }, 500);
   }
 }

@@ -1,7 +1,7 @@
 import type { Context } from "hono";
-import type { Env } from "../middleware/auth";
-import type { AuthPayload } from "../services/auth-service";
-import { getDAOFactory } from "../dao/dao-factory";
+import type { Env } from "@/middleware/auth";
+import type { AuthPayload } from "@/services/core/auth-service";
+import { getDAOFactory } from "@/dao/dao-factory";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {

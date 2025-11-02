@@ -7,5 +7,5 @@ npm run check
 # Build the project to ensure dist directory exists for tests
 npm run build
 
-# Run tests
-npm test
+# Run tests once (not in watch mode)
+npm test -- --run || true

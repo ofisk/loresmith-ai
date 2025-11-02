@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { JWT_STORAGE_KEY } from "../app-constants";
-import { NOTIFICATION_TYPES } from "../constants/notification-types";
-import type { NotificationPayload } from "../durable-objects/notification-hub";
-import { API_CONFIG } from "../shared-config";
+import { JWT_STORAGE_KEY } from "@/app-constants";
+import { NOTIFICATION_TYPES } from "@/constants/notification-types";
+import type { NotificationPayload } from "@/durable-objects/notification-hub";
+import { API_CONFIG } from "@/shared-config";
 
 export interface NotificationState {
   notifications: NotificationPayload[];

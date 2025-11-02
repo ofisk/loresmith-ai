@@ -1,4 +1,4 @@
-import { BaseRAGService } from "../services/base-rag-service";
+import { BaseRAGService } from "@/services/rag/base-rag-service";
 
 export interface CampaignContextChunk {
   id: string;

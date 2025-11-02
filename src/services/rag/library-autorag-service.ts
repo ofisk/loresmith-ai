@@ -1,4 +1,4 @@
-import { AutoRAGClientBase } from "./autorag-client";
+import { AutoRAGClientBase } from "./autorag-base-service";
 
 /**
  * Library AutoRAG client for searching library content

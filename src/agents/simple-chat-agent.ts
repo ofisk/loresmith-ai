@@ -4,7 +4,16 @@
 export interface SimpleChatAgentEnv {
   ADMIN_SECRET?: string;
   Chat: DurableObjectNamespace;
-  [key: string]: any;
+  [key: string]: unknown;
+}
+
+/**
+ * Basic message interface for chat messages
+ */
+export interface ChatMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+  [key: string]: unknown;
 }
 
 export abstract class SimpleChatAgent<
@@ -12,7 +21,7 @@ export abstract class SimpleChatAgent<
 > {
   protected ctx: DurableObjectState;
   protected env: T;
-  protected messages: any[] = [];
+  protected messages: ChatMessage[] = [];
 
   constructor(ctx: DurableObjectState, env: T) {
     this.ctx = ctx;
@@ -22,14 +31,14 @@ export abstract class SimpleChatAgent<
   /**
    * Add a message to the conversation
    */
-  addMessage(message: any): void {
+  addMessage(message: ChatMessage): void {
     this.messages.push(message);
   }
 
   /**
    * Get all messages in the conversation
    */
-  getMessages(): any[] {
+  getMessages(): ChatMessage[] {
     return this.messages;
   }
 
@@ -52,7 +61,7 @@ export abstract class SimpleChatAgent<
    * Abstract method for handling chat messages
    */
   abstract onChatMessage(
-    onFinish: any,
+    onFinish: (message: ChatMessage) => void | Promise<void>,
     options?: { abortSignal?: AbortSignal }
   ): Promise<Response>;
 }

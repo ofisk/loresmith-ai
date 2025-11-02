@@ -1,15 +1,11 @@
 import { formatDataStreamPart } from "@ai-sdk/ui-utils";
-import {
-  createDataStreamResponse,
-  type StreamTextOnFinishCallback,
-  streamText,
-  type ToolSet,
-} from "ai";
+import { createDataStreamResponse, streamText } from "ai";
 import { SimpleChatAgent } from "./simple-chat-agent";
 
 interface Env {
   ADMIN_SECRET?: string;
   Chat: DurableObjectNamespace;
+  [key: string]: unknown;
 }
 
 interface MessageData {
@@ -92,9 +88,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
    * ```
    */
   async onChatMessage(
-    onFinish: StreamTextOnFinishCallback<ToolSet>,
+    onFinish: (message: any) => void | Promise<void>,
     _options?: { abortSignal?: AbortSignal }
-  ) {
+  ): Promise<Response> {
     const dataStreamResponse = createDataStreamResponse({
       execute: async (dataStream) => {
         // Extract JWT from the last user message if available
@@ -153,8 +149,13 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
         // Filter out messages with incomplete tool invocations to prevent conversion errors
         const processedMessages = this.messages.filter((message) => {
           // If the message has tool invocations, check if they're all complete
-          if (message.toolInvocations && message.toolInvocations.length > 0) {
-            return message.toolInvocations.every(
+          const toolInvocations = (message as any).toolInvocations;
+          if (
+            toolInvocations &&
+            Array.isArray(toolInvocations) &&
+            toolInvocations.length > 0
+          ) {
+            return toolInvocations.every(
               (invocation: any) =>
                 invocation.state === "result" && invocation.result !== undefined
             );
@@ -275,9 +276,13 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               console.log(
                 `[${this.constructor.name}] onFinish steps count: ${args.steps?.length || 0}`
               );
-              (onFinish ?? (() => {}))(
-                args as Parameters<StreamTextOnFinishCallback<ToolSet>>[0]
-              );
+              // Convert the finish args to ChatMessage format
+              const message: any = {
+                role: "assistant" as const,
+                content: args.text || "",
+                ...args,
+              };
+              await (onFinish ?? (() => {}))(message);
             },
             onError: (error) => {
               console.error(

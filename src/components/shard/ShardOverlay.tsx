@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
-import { UnifiedShardManager } from "../chat/UnifiedShardManager";
-import type { StagedShardGroup } from "../../types/shard";
+import { UnifiedShardManager } from "@/components/chat/UnifiedShardManager";
+import type { StagedShardGroup } from "@/types/shard";
 
 interface ShardOverlayProps {
   shards: StagedShardGroup[];

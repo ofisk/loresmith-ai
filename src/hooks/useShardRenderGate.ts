@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { API_CONFIG } from "../shared-config";
-import { authenticatedFetchWithExpiration } from "../services/auth-service";
+import { API_CONFIG } from "@/shared-config";
+import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
 
 export function useShardRenderGate(
   getJwt: () => string | null,

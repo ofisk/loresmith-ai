@@ -7,7 +7,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
 } from "../utils";
-import { CampaignContextSyncService } from "../../services/campaign-context-sync-service";
+import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
 import { getDAOFactory } from "../../dao/dao-factory";
 import { notifyShardGeneration } from "../../lib/notifications";
 import { ALL_CONTEXT_TYPES } from "../../constants/context-types";

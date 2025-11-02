@@ -128,7 +128,11 @@ export const API_CONFIG = {
       },
     },
     CHARACTER_SHEETS: {
-      //TODO: character sheets are just files and can be added to campaign context in a generic way (probably). reassess and consider removing
+      // NOTE: Character sheets are currently handled as a separate entity type.
+      // Future consideration: Character sheets could be treated as regular files
+      // and added to campaign context generically, which would simplify the API.
+      // This would require migrating existing character sheet data and updating
+      // the UI to handle them as regular campaign resources.
       UPLOAD_URL: "/character-sheets/upload-url",
       PROCESS: (characterSheetId: string) =>
         `/character-sheets/${characterSheetId}/process`,

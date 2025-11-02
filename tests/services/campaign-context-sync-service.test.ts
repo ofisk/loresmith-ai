@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { CampaignContextSyncService } from "../../src/services/campaign-context-sync-service";
+import { CampaignContextSyncService } from "../../src/services/campaign/campaign-context-sync-service";
 import type { Env } from "../../src/middleware/auth";
 
 describe("CampaignContextSyncService", () => {

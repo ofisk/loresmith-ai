@@ -2,10 +2,10 @@ import type {
   ComparisonFilter,
   CompoundFilter,
 } from "@cloudflare/workers-types";
-import type { AutoRAGAISearchResult } from "../lib/autorag";
-import { AutoRAGClient } from "../lib/autorag";
-import { R2Helper } from "../lib/r2";
-import type { Env } from "../middleware/auth";
+import type { AutoRAGAISearchResult } from "@/lib/autorag";
+import { AutoRAGClient } from "@/lib/autorag";
+import { R2Helper } from "@/lib/r2";
+import type { Env } from "@/middleware/auth";
 
 export interface AutoRAGSearchOptions {
   limit?: number;

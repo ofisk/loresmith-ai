@@ -22,7 +22,11 @@ export const APP_CONFIG = {
 // File upload constants
 export const UPLOAD_CONFIG = {
   MAX_FILE_SIZE: 500 * 1024 * 1024, // 500MB for files
-  ALLOWED_FILE_TYPES: ["application/pdf"], //TODO: add other file types
+  // Currently only PDFs are supported. To add other file types:
+  // 1. Update this array with MIME types (e.g., "application/msword", "text/plain")
+  // 2. Add extraction logic in file-analysis-service.ts
+  // 3. Update frontend file picker to accept new types
+  ALLOWED_FILE_TYPES: ["application/pdf"],
   MAX_FILES_PER_USER: 100,
 } as const;
 

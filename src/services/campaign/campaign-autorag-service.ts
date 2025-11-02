@@ -1,15 +1,15 @@
-import type { Env } from "../middleware/auth";
+import type { Env } from "@/middleware/auth";
 import type {
   RejectedShard,
   ShardCandidate,
   ShardExpansion,
-} from "../types/shard";
+} from "@/types/shard";
 import type {
   AutoRAGSearchOptions,
   AutoRAGSearchResult,
-} from "./autorag-client";
-import { AutoRAGClientBase } from "./autorag-client";
-import type { ShardDAO } from "../dao/shard-dao";
+} from "@/services/rag/autorag-base-service";
+import { AutoRAGClientBase } from "@/services/rag/autorag-base-service";
+import type { ShardDAO } from "@/dao/shard-dao";
 
 /**
  * Campaign-specific AutoRAG service
@@ -222,7 +222,7 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
     // Extract campaign base path by finding the campaign ID and reconstructing the path
     const pathParts = stagingKey.split("/");
     // Look for campaigns directory and take the next part as campaign ID
-    const campaignsIndex = pathParts.findIndex((part) => part === "campaigns");
+    const campaignsIndex = pathParts.indexOf("campaigns");
     if (campaignsIndex === -1) {
       throw new Error(
         `Invalid staging path - no campaigns directory found: ${stagingKey}`
@@ -282,7 +282,7 @@ export class CampaignAutoRAG extends AutoRAGClientBase {
     // Extract campaign base path by finding the campaign ID and reconstructing the path
     const pathParts = stagingKey.split("/");
     // Look for campaigns directory and take the next part as campaign ID
-    const campaignsIndex = pathParts.findIndex((part) => part === "campaigns");
+    const campaignsIndex = pathParts.indexOf("campaigns");
     if (campaignsIndex === -1) {
       throw new Error(
         `Invalid staging path - no campaigns directory found: ${stagingKey}`

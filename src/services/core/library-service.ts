@@ -1,6 +1,6 @@
-import { getDAOFactory } from "../dao/dao-factory";
-import type { Env } from "../middleware/auth";
-import type { FileMetadata } from "../types/upload";
+import { getDAOFactory } from "@/dao/dao-factory";
+import type { Env } from "@/middleware/auth";
+import type { FileMetadata } from "@/types/upload";
 
 export interface StorageUsage {
   username: string;

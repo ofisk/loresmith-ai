@@ -34,7 +34,8 @@ export interface FileRecommendationResponse {
  * Tool for getting file recommendations based on enhanced metadata
  * This tool helps agents suggest relevant resources to users for their campaigns
  */
-//TODO: revisit recommendations parameters
+// NOTE: Recommendation parameters may need tuning based on user feedback.
+// Consider adding: minRelevanceScore, maxResults, includeMetadata options.
 export const getFileRecommendations = {
   name: "getFileRecommendations",
   description:

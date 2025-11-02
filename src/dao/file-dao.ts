@@ -428,7 +428,10 @@ export class FileDAO extends BaseDAOClass {
     await this.execute(sql, [description, tags, fileKey, username]);
   }
 
-  //TODO: once files are better associated with multiple campaigns (each with their own RAG), we should delete the file from the RAGs as well
+  // NOTE: Current implementation deletes file from global RAG index.
+  // Future enhancement: When files can be associated with multiple campaigns
+  // (each with their own RAG instance), we should also delete the file from
+  // all associated campaign RAGs. This requires tracking campaign-file associations.
   async deleteFile(
     fileKey: string,
     r2Bucket?: R2Bucket,

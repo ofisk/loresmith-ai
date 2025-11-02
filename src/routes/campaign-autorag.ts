@@ -1,12 +1,9 @@
 import type { Context } from "hono";
-import { getDAOFactory } from "../dao/dao-factory";
-import { CampaignAutoRAG } from "../services/campaign-autorag-service";
-import {
-  notifyShardApproval,
-  notifyShardRejection,
-} from "../lib/notifications";
-import type { Env } from "../middleware/auth";
-import type { AuthPayload } from "../services/auth-service";
+import { getDAOFactory } from "@/dao/dao-factory";
+import { CampaignAutoRAG } from "@/services/campaign/campaign-autorag-service";
+import { notifyShardApproval, notifyShardRejection } from "@/lib/notifications";
+import type { Env } from "@/middleware/auth";
+import type { AuthPayload } from "@/services/core/auth-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {

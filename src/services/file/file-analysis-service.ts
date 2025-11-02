@@ -1,4 +1,4 @@
-import { BaseRAGService } from "./base-rag-service";
+import { BaseRAGService } from "@/services/rag/base-rag-service";
 
 const AUTORAG_ENDPOINTS = {
   SEARCH: "/search",

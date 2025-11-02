@@ -1,7 +1,8 @@
 import { useCallback, useState } from "react";
-import { API_CONFIG } from "../shared-config";
-import { authenticatedFetchWithExpiration } from "../services/auth-service";
-import { NOTIFICATION_TYPES } from "../constants/notification-types";
+import { API_CONFIG } from "@/shared-config";
+import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
+import { NOTIFICATION_TYPES } from "@/constants/notification-types";
+import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 
 export function useCampaignAddition() {
   // Campaign addition progress tracking
@@ -12,7 +13,7 @@ export function useCampaignAddition() {
 
   const addFileToCampaigns = useCallback(
     async (
-      selectedFile: any,
+      selectedFile: ResourceFileWithCampaigns,
       selectedCampaigns: string[],
       getStoredJwt: () => string | null,
       addLocalNotification: (

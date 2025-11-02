@@ -1,9 +1,9 @@
 // Sync Queue Service for managing AutoRAG sync operations
 // This service ensures only one sync runs at a time per user and queues additional requests
 
-import { FileDAO } from "../dao/file-dao";
-import { AutoRAGService } from "./autorag-service";
-import { AUTORAG_CONFIG } from "../shared-config";
+import { FileDAO } from "@/dao/file-dao";
+import { AutoRAGService } from "@/services/rag/autorag-service";
+import { AUTORAG_CONFIG } from "@/shared-config";
 
 export class SyncQueueService {
   /**

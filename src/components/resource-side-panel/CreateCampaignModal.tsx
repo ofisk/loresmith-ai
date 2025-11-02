@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { FormField } from "../input/FormField";
-import { FormButton } from "../button/FormButton";
+import { FormField } from "@/components/input/FormField";
+import { FormButton } from "@/components/button/FormButton";
 
 interface CreateCampaignModalProps {
   isOpen: boolean;

@@ -1,17 +1,17 @@
 import type { Context } from "hono";
-import { getDAOFactory } from "../dao/dao-factory";
-import { FileDAO } from "../dao/file-dao";
+import { getDAOFactory } from "@/dao/dao-factory";
+import { FileDAO } from "@/dao/file-dao";
 import {
   notifyIndexingStarted,
   notifyIndexingCompleted,
   notifyIndexingFailed,
   notifyFileUploadCompleteWithData,
-} from "../lib/notifications";
-import { getLibraryAutoRAGService } from "../lib/service-factory";
-import type { Env } from "../middleware/auth";
-import type { AuthPayload } from "../services/auth-service";
-import { completeProgress } from "../services/progress-service";
-import { SyncQueueService } from "../services/sync-queue-service";
+} from "@/lib/notifications";
+import { getLibraryAutoRAGService } from "@/lib/service-factory";
+import type { Env } from "@/middleware/auth";
+import type { AuthPayload } from "@/services/core/auth-service";
+import { completeProgress } from "@/services/core/progress-service";
+import { SyncQueueService } from "@/services/file/sync-queue-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {

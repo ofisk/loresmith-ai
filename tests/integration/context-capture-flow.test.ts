@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { CampaignContextSyncService } from "../../src/services/campaign-context-sync-service";
-import { CampaignAutoRAG } from "../../src/services/campaign-autorag-service";
+import { CampaignContextSyncService } from "../../src/services/campaign/campaign-context-sync-service";
+import { CampaignAutoRAG } from "../../src/services/campaign/campaign-autorag-service";
 import type { Env } from "../../src/middleware/auth";
 
 describe("Campaign Context Capture Flow Integration", () => {

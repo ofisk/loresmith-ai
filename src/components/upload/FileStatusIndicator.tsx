@@ -5,11 +5,11 @@ import {
   ArrowClockwise,
 } from "@phosphor-icons/react";
 import { useCallback } from "react";
-import { FileDAO } from "../../dao/file-dao";
+import { FileDAO } from "@/dao/file-dao";
 import {
   estimateProcessingTime,
   formatProcessingTime,
-} from "../../utils/processing-time-estimator";
+} from "@/lib/processing-time-estimator";
 
 interface FileStatusIndicatorProps {
   className?: string;

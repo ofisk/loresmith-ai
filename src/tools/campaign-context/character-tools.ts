@@ -9,7 +9,7 @@ import {
   extractUsernameFromJwt,
 } from "../utils";
 import { generateCharacterWithAI } from "./ai-helpers";
-import { CampaignContextSyncService } from "../../services/campaign-context-sync-service";
+import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {

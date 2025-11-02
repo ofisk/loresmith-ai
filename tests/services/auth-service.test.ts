@@ -1,6 +1,9 @@
 import { jwtVerify } from "jose";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { type AuthRequest, AuthService } from "../../src/services/auth-service";
+import {
+  type AuthRequest,
+  AuthService,
+} from "../../src/services/core/auth-service";
 
 // Mock process.env to prevent interference with actual environment variables
 const originalEnv = process.env;

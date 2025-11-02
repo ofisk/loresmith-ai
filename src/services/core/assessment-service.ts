@@ -1,14 +1,14 @@
-import { type ActivityType, AssessmentDAO } from "../dao/assessment-dao";
-import { getCampaignState } from "../lib/campaign-state-utils";
-import type { Env } from "../middleware/auth";
-import type { ModuleAnalysis } from "../tools/campaign-context/assessment-core";
-import type { Campaign, CampaignResource } from "../types/campaign";
+import { type ActivityType, AssessmentDAO } from "@/dao/assessment-dao";
+import { getCampaignState } from "@/lib/campaign-state-utils";
+import type { Env } from "@/middleware/auth";
+import type { ModuleAnalysis } from "@/tools/campaign-context/assessment-core";
+import type { Campaign, CampaignResource } from "@/types/campaign";
 import type {
   UserState,
   CampaignReadinessSummary,
   ActionSuggestion,
   ToolRecommendation,
-} from "../types/assessment";
+} from "@/types/assessment";
 
 export type {
   ActivityType,

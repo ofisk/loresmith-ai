@@ -2,9 +2,9 @@
 // This service handles text extraction, embedding generation, and semantic search
 // Updated to work with AutoRAG for enhanced content processing
 
-import { getDAOFactory } from "../dao/dao-factory";
-import type { Env } from "../middleware/auth";
-import type { FileMetadata, SearchQuery, SearchResult } from "../types/upload";
+import { getDAOFactory } from "@/dao/dao-factory";
+import type { Env } from "@/middleware/auth";
+import type { FileMetadata, SearchQuery, SearchResult } from "@/types/upload";
 import { BaseRAGService } from "./base-rag-service";
 
 // LLM model configuration
@@ -358,7 +358,9 @@ export class LibraryRAGService extends BaseRAGService {
         };
       });
 
-      // TODO: Add semantic search using vector embeddings
+      // NOTE: Currently uses keyword-based search. Future enhancement:
+      // Implement semantic search using vector embeddings for better
+      // relevance matching, especially for similar content.
       if (includeSemantic && searchQuery.trim()) {
         // This would use the vector database for semantic search
         console.log(
