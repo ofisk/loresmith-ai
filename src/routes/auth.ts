@@ -322,8 +322,14 @@ export async function handleSetOpenAIApiKey(c: Context<{ Bindings: Env }>) {
   }
 }
 
-// Check if user has OpenAI key in session
-// NOTE: Authentication flow may need review after testing
+/**
+ * Check if user has OpenAI key stored in database
+ *
+ * This endpoint checks if a user has a stored OpenAI API key in the database.
+ * Used by the client to determine if the user needs to provide an API key during authentication.
+ *
+ * @see docs/AUTHENTICATION_FLOW.md for complete authentication flow documentation
+ */
 export async function handleCheckUserOpenAIKey(c: Context<{ Bindings: Env }>) {
   try {
     const username = c.req.query("username");
@@ -344,8 +350,16 @@ export async function handleCheckUserOpenAIKey(c: Context<{ Bindings: Env }>) {
   }
 }
 
-// Logout endpoint - clears stored JWT tokens
-// NOTE: Authentication flow may need review after testing
+/**
+ * Logout endpoint - initiates client-side token cleanup
+ *
+ * This endpoint returns success to indicate logout was initiated server-side.
+ * The client is responsible for clearing the JWT token from localStorage.
+ * The client should call AuthService.clearJwt() to remove the token and dispatch
+ * the jwt-changed event to notify other components.
+ *
+ * @see docs/AUTHENTICATION_FLOW.md for complete authentication flow documentation
+ */
 export async function handleLogout(c: Context<{ Bindings: Env }>) {
   try {
     // This endpoint just returns success - the client should clear local storage
