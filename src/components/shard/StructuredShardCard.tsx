@@ -35,18 +35,27 @@ export function StructuredShardCard({
   };
 
   // Use LLM-provided display metadata if available, otherwise fallback to sensible defaults
-  const displayMetadata = shard.display_metadata || {};
+  const displayMetadata = (shard.display_metadata || {}) as {
+    display_name?: string;
+    subtitle?: string[];
+    quick_info?: string[];
+    primary_text?: string;
+  };
 
-  const displayName =
-    displayMetadata.display_name ||
-    shard.name ||
-    shard.title ||
-    shard.id ||
+  const displayName: string =
+    (displayMetadata.display_name as string | undefined) ||
+    (shard.name as string | undefined) ||
+    (shard.title as string | undefined) ||
+    (shard.id as string | undefined) ||
     "Unnamed";
   const subtitleInfo = displayMetadata.subtitle || [];
 
   // Get quick info properties - use LLM suggestions if available
-  const getQuickInfoProperties = () => {
+  const getQuickInfoProperties = (): Array<{
+    key: string;
+    value: any;
+    type: "string" | "number" | "array" | "object";
+  }> => {
     if (displayMetadata.quick_info && displayMetadata.quick_info.length > 0) {
       // Use LLM-specified properties
       return displayMetadata.quick_info
@@ -104,11 +113,20 @@ export function StructuredShardCard({
   };
 
   // Get main text content - use LLM hint if available
-  const getMainText = () => {
-    if (displayMetadata.primary_text && shard[displayMetadata.primary_text]) {
-      return shard[displayMetadata.primary_text];
+  const getMainText = (): string => {
+    if (
+      displayMetadata.primary_text &&
+      shard[displayMetadata.primary_text as keyof typeof shard]
+    ) {
+      const value = shard[displayMetadata.primary_text as keyof typeof shard];
+      return typeof value === "string" ? value : String(value || "");
     }
-    return shard.text || shard.summary || shard.description;
+    return (
+      (shard.text as string | undefined) ||
+      (shard.summary as string | undefined) ||
+      (shard.description as string | undefined) ||
+      ""
+    );
   };
 
   const confidenceColor = getConfidenceColorClass(shard.confidence || 0);
@@ -233,7 +251,9 @@ export function StructuredShardCard({
                   value={mainText}
                   onChange={(e) => {
                     const fieldName = displayMetadata.primary_text || "text";
-                    onEdit(shard.id, { [fieldName]: e.target.value });
+                    onEdit(shard.id, {
+                      [fieldName]: e.target.value,
+                    } as Partial<StructuredShard>);
                   }}
                   className="w-full mt-1 px-3 py-2 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
                   rows={4}

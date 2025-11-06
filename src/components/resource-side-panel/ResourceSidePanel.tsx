@@ -1,8 +1,9 @@
 import { CaretDown, SignOut } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
-import { useCampaignManagement } from "../../hooks/useCampaignManagement";
-import { AuthService } from "../../services/auth-service";
-import type { Campaign } from "../../types/campaign";
+import { useCampaignManagement } from "@/hooks/useCampaignManagement";
+import { AuthService } from "@/services/core/auth-service";
+import type { Campaign } from "@/types/campaign";
+import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { CampaignsSection } from "./CampaignsSection";
 import { LibrarySection } from "./LibrarySection";
 
@@ -18,8 +19,8 @@ interface ResourceSidePanelProps {
   onCreateCampaign?: () => void;
   onCampaignClick?: (campaign: Campaign) => void;
   onAddResource?: () => void;
-  onAddToCampaign?: (file: any) => void;
-  onEditFile?: (file: any) => void;
+  onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
+  onEditFile?: (file: ResourceFileWithCampaigns) => void;
   campaignAdditionProgress?: Record<string, number>;
   isAddingToCampaigns?: boolean;
 }

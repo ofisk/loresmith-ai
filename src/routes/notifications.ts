@@ -1,8 +1,8 @@
 import type { Context } from "hono";
 import { SignJWT } from "jose";
-import type { Env } from "../middleware/auth";
-import { AuthService } from "../services/auth-service";
-import { API_CONFIG } from "../shared-config";
+import type { Env } from "@/middleware/auth";
+import { AuthService } from "@/services/core/auth-service";
+import { API_CONFIG } from "@/shared-config";
 
 /**
  * Handle minting short-lived stream tokens
@@ -179,11 +179,17 @@ export async function handleNotificationStream(
           "GET, POST, PUT, DELETE, PATCH, OPTIONS",
       };
 
+      // Convert Headers to plain object
+      const responseHeaders: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+
       return new Response(response.body, {
         status: response.status,
         statusText: response.statusText,
         headers: {
-          ...Object.fromEntries(response.headers.entries()),
+          ...responseHeaders,
           ...corsHeaders,
         },
       });

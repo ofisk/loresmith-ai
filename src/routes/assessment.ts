@@ -1,7 +1,7 @@
 import type { Context } from "hono";
-import { getAssessmentService } from "../lib/service-factory";
-import type { Env } from "../middleware/auth";
-import type { AuthPayload } from "../services/auth-service";
+import { getAssessmentService } from "@/lib/service-factory";
+import type { Env } from "@/middleware/auth";
+import type { AuthPayload } from "@/services/core/auth-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {

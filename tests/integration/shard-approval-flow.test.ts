@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { CampaignAutoRAG } from "../../src/services/campaign-autorag-service";
+import { CampaignAutoRAG } from "../../src/services/campaign/campaign-autorag-service";
 import type { Env } from "../../src/middleware/auth";
 import type { ShardCandidate } from "../../src/types/shard";
 
@@ -135,9 +135,7 @@ describe("Shard Approval Flow Integration", () => {
     // Extract filename from staging key and construct approved key
     const stagingParts = stagingKey1.split("/");
     const filename = stagingParts[stagingParts.length - 1];
-    const campaignsIndex = stagingParts.findIndex(
-      (part) => part === "campaigns"
-    );
+    const campaignsIndex = stagingParts.indexOf("campaigns");
     const campaignBasePath = stagingParts
       .slice(0, campaignsIndex + 2)
       .join("/"); // campaigns + campaign-id
@@ -160,9 +158,7 @@ describe("Shard Approval Flow Integration", () => {
     // Extract filename from staging key and construct rejected key
     const stagingParts2 = stagingKey2.split("/");
     const filename2 = stagingParts2[stagingParts2.length - 1];
-    const campaignsIndex2 = stagingParts2.findIndex(
-      (part) => part === "campaigns"
-    );
+    const campaignsIndex2 = stagingParts2.indexOf("campaigns");
     const campaignBasePath2 = stagingParts2
       .slice(0, campaignsIndex2 + 2)
       .join("/"); // campaigns + campaign-id
@@ -240,9 +236,7 @@ describe("Shard Approval Flow Integration", () => {
     // Extract filename from staging key and construct expansion key
     const stagingParts = stagingKey.split("/");
     const filename = stagingParts[stagingParts.length - 1];
-    const campaignsIndex = stagingParts.findIndex(
-      (part) => part === "campaigns"
-    );
+    const campaignsIndex = stagingParts.indexOf("campaigns");
     const campaignBasePath = stagingParts
       .slice(0, campaignsIndex + 2)
       .join("/"); // campaigns + campaign-id

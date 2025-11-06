@@ -403,7 +403,9 @@ export const resolveCampaignIdentifier = tool({
         };
       }
 
-      //TODO: AI-assisted resolution?
+      // NOTE: Currently uses exact name/ID matching. Future enhancement:
+      // Use AI to resolve ambiguous campaign references (e.g., "my D&D campaign"
+      // when user has multiple campaigns).
       return { success: false, message: "Campaign not found" } as any;
     } catch (error) {
       return { success: false, message: (error as Error).message } as any;

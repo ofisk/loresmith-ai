@@ -1,5 +1,5 @@
 import type { D1Database, VectorizeIndex } from "@cloudflare/workers-types";
-import { DatabaseUtils } from "../lib/dbUtils";
+import { DatabaseUtils } from "@/lib/dbUtils";
 
 /**
  * Base RAG Service that provides shared functionality for different RAG implementations.
@@ -123,7 +123,7 @@ export abstract class BaseRAGService {
     try {
       // Try to update file record if fileDAO is available
       if (this.env?.DB) {
-        const { getDAOFactory } = await import("../dao/dao-factory");
+        const { getDAOFactory } = await import("@/dao/dao-factory");
         const fileDAO = getDAOFactory(this.env).fileDAO;
         await fileDAO.updateFileRecord(identifier, status);
       } else {

@@ -1,4 +1,4 @@
-import type { ShardCandidate, StagedShardGroup } from "../../types/shard";
+import type { ShardCandidate, StagedShardGroup } from "@/types/shard";
 import type {
   Shard,
   StructuredShard,
@@ -107,7 +107,7 @@ export function convertShardToUpdate(
 
   // For flexible shards, just update the text
   return {
-    text: (shard as FlexibleShard).text,
+    text: String((shard as FlexibleShard).text || ""),
     metadata: {
       ...originalCandidate.metadata,
       confidence: shard.confidence || originalCandidate.metadata.confidence,

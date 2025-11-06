@@ -1,13 +1,13 @@
 import { useCallback, useState } from "react";
-import type { FileUploadEvent } from "../lib/event-bus";
-import { EVENT_TYPES, useEvent } from "../lib/event-bus";
+import type { FileUploadEvent } from "@/lib/event-bus";
+import { EVENT_TYPES, useEvent } from "@/lib/event-bus";
 import {
   AuthService,
   authenticatedFetchWithExpiration,
   getStoredJwt,
-} from "../services/auth-service";
-import { API_CONFIG } from "../shared-config";
-import { buildStagingFileKey } from "../utils/file-keys";
+} from "@/services/core/auth-service";
+import { API_CONFIG } from "@/shared-config";
+import { buildStagingFileKey } from "@/lib/file-keys";
 
 interface UseFileUploadProps {
   onUploadSuccess?: (filename: string, fileKey: string) => void;

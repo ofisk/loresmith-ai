@@ -1,10 +1,10 @@
 // Centralized AutoRAG AI Search Service
 // Consolidates all aiSearch calls to prevent path filtering bugs
 
-import { getLibraryAutoRAGService } from "../lib/service-factory";
-import { getCampaignAutoRAGService } from "../lib/service-factory";
-import { RPG_EXTRACTION_PROMPTS } from "../lib/prompts/rpg-extraction-prompts";
-import { getFileExistencePrompt } from "../lib/prompts/file-indexing-prompts";
+import { getLibraryAutoRAGService } from "@/lib/service-factory";
+import { getCampaignAutoRAGService } from "@/lib/service-factory";
+import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
+import { getFileExistencePrompt } from "@/lib/prompts/file-indexing-prompts";
 
 export interface AISearchOptions {
   maxResults?: number;

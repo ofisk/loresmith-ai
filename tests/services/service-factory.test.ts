@@ -3,9 +3,9 @@ import { AgentRegistryService } from "../../src/lib/agent-registry";
 import { AgentRouter } from "../../src/lib/agent-router";
 import { ModelManager } from "../../src/lib/model-manager";
 import { ServiceFactory } from "../../src/lib/service-factory";
-import { AuthService } from "../../src/services/auth-service";
-import { CampaignService } from "../../src/services/campaign-service";
-import { LibraryService } from "../../src/services/library-service";
+import { AuthService } from "../../src/services/core/auth-service";
+import { CampaignService } from "../../src/services/campaign/campaign-service";
+import { LibraryService } from "../../src/services/core/library-service";
 
 // Mock environment
 const mockEnv = {

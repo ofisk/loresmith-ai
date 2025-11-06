@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 /**
  * Common API response structure
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   code: number;
   message: string;
   data?: T;
@@ -33,16 +33,16 @@ export interface PaginatedResponse<T> {
 /**
  * Common loading states
  */
-export interface LoadingState {
+export interface LoadingState<T = unknown> {
   loading: boolean;
   error: string | null;
-  data: any | null;
+  data: T | null;
 }
 
 /**
  * Async operation result
  */
-export interface AsyncResult<T = any> {
+export interface AsyncResult<T = unknown> {
   data: T | null;
   loading: boolean;
   error: string | null;
@@ -69,14 +69,14 @@ export interface FormField {
   required?: boolean;
   placeholder?: string;
   options?: Array<{ value: string; label: string }>;
-  validation?: (value: any) => string | null;
+  validation?: (value: unknown) => string | null;
   disabled?: boolean;
 }
 
 /**
  * Form submission result
  */
-export interface FormSubmissionResult<T = any> {
+export interface FormSubmissionResult<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -114,7 +114,7 @@ export interface ResourceItem extends ListItem {
   size?: number;
   description?: string;
   tags?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -176,7 +176,7 @@ export interface FilterConfig {
   type: "text" | "select" | "date" | "checkbox" | "radio";
   options?: Array<{ value: string; label: string }>;
   placeholder?: string;
-  defaultValue?: any;
+  defaultValue?: unknown;
 }
 
 /**
@@ -421,7 +421,7 @@ export interface UserConfig {
   email: string;
   avatar?: string;
   role?: string;
-  preferences?: Record<string, any>;
+  preferences?: Record<string, unknown>;
 }
 
 /**

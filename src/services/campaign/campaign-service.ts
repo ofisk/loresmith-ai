@@ -1,6 +1,6 @@
-import type { CampaignCharacter, CampaignDAO } from "../dao/campaign-dao";
-import { getDAOFactory } from "../dao/dao-factory";
-import type { Env } from "../middleware/auth";
+import type { CampaignCharacter, CampaignDAO } from "@/dao/campaign-dao";
+import { getDAOFactory } from "@/dao/dao-factory";
+import type { Env } from "@/middleware/auth";
 
 export interface CampaignSuggestion {
   id: number;
@@ -22,7 +22,7 @@ export interface CampaignContext {
   updated_at: string;
 }
 
-export type { CampaignCharacter } from "../dao/campaign-dao";
+export type { CampaignCharacter } from "@/dao/campaign-dao";
 
 export class CampaignService {
   private campaignDAO: CampaignDAO;

@@ -4,9 +4,9 @@ import {
   DotsThreeVertical,
   Plus,
 } from "@phosphor-icons/react";
-import type { Campaign } from "../../types/campaign";
-import { Card } from "../card/Card";
-import campaignIcon from "../../assets/campaign.png";
+import type { Campaign } from "@/types/campaign";
+import { Card } from "@/components/card/Card";
+import campaignIcon from "@/assets/campaign.png";
 
 interface CampaignsSectionProps {
   campaigns: Campaign[];

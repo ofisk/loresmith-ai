@@ -1,49 +1,35 @@
 import type { Message } from "@ai-sdk/react";
-import { Bug, PaperPlaneRight, Stop, Trash } from "@phosphor-icons/react";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import { generateId } from "ai";
 import type React from "react";
-import { useCallback, useEffect, useId, useState } from "react";
-
-import loresmith from "@/assets/loresmith.png";
+import { useCallback, useEffect } from "react";
 
 // Component imports
-import { Button } from "@/components/button/Button";
-import { Card } from "@/components/card/Card";
-import { HelpButton } from "@/components/help/HelpButton";
-import { TopBarNotifications } from "./components/notifications/TopBarNotifications";
-import { NOTIFICATION_TYPES } from "./constants/notification-types";
+import { NOTIFICATION_TYPES } from "@/constants/notification-types";
+import { AppHeader } from "@/components/app/AppHeader";
+import { ChatArea } from "@/components/app/ChatArea";
+import { AppModals } from "@/components/app/AppModals";
 import { ResourceSidePanel } from "@/components/resource-side-panel";
-import { CreateCampaignModal } from "@/components/resource-side-panel/CreateCampaignModal";
-import { CampaignDetailsModal } from "@/components/resource-side-panel/CampaignDetailsModal";
-import { EditFileModal } from "@/components/upload/EditFileModal";
-import { ResourceUpload } from "@/components/upload/ResourceUpload";
-import { MultiSelect } from "@/components/select/MultiSelect";
-import { Modal } from "@/components/modal/Modal";
-import { ChatInput } from "@/components/input/ChatInput";
-import { ThinkingSpinner } from "@/components/thinking-spinner";
-import { Toggle } from "@/components/toggle/Toggle";
-import { ChatMessageList } from "@/components/chat/ChatMessageList";
-import { BlockingAuthenticationModal } from "./components/BlockingAuthenticationModal";
-import { WelcomeMessage } from "./components/chat/WelcomeMessage";
-import { useJwtExpiration } from "./hooks/useJwtExpiration";
-import { useFileUpload } from "./hooks/useFileUpload";
-import { useCampaigns } from "./hooks/useCampaigns";
-import { useLocalNotifications } from "./hooks/useLocalNotifications";
-import { useModalState } from "./hooks/useModalState";
-import { useAppAuthentication } from "./hooks/useAppAuthentication";
-import { useCampaignAddition } from "./hooks/useCampaignAddition";
-import { useUiHints } from "./hooks/useUiHints";
-import { useGlobalShardManager } from "./hooks/useGlobalShardManager";
-import { ShardOverlay } from "./components/shard/ShardOverlay";
-import { API_CONFIG } from "./shared-config";
-import { getHelpContent } from "./utils/helpContent";
-import { authenticatedFetchWithExpiration } from "./services/auth-service";
+import { useFileUpload } from "@/hooks/useFileUpload";
+import { useCampaigns } from "@/hooks/useCampaigns";
+import { useLocalNotifications } from "@/hooks/useLocalNotifications";
+import { useModalState } from "@/hooks/useModalState";
+import { useAppAuthentication } from "@/hooks/useAppAuthentication";
+import { useCampaignAddition } from "@/hooks/useCampaignAddition";
+import { useAppState } from "@/hooks/useAppState";
+import { useUiHints } from "@/hooks/useUiHints";
+import { useGlobalShardManager } from "@/hooks/useGlobalShardManager";
+import { ShardOverlay } from "@/components/shard/ShardOverlay";
+import { API_CONFIG } from "@/shared-config";
+import { getHelpContent } from "@/lib/help-content";
+import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
 
-import type { campaignTools } from "./tools/campaign";
-import type { fileTools } from "./tools/file";
-import type { generalTools } from "./tools/general";
+import type { campaignTools } from "@/tools/campaign";
+import type { fileTools } from "@/tools/file";
+import type { generalTools } from "@/tools/general";
+import type { FileMetadata } from "@/dao/file-dao";
+import type { StagedShardGroup } from "@/types/shard";
 
 // List of tools that require human confirmation
 // NOTE: this should match the keys in the executions object in tools.ts
@@ -60,45 +46,34 @@ const toolsRequiringConfirmation: (
   "deleteFile",
 ];
 
-/**
- * Generate a unique session ID for this browser session
- * This will be used to create a unique Durable Object ID for each session
- */
-function generateSessionId(): string {
-  return `session-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-}
-
-/**
- * Get or create a session ID, persisting it in localStorage
- * This ensures the same session ID is used across browser sessions
- */
-function getSessionId(): string {
-  const existingSessionId = localStorage.getItem("chat-session-id");
-  if (existingSessionId) {
-    return existingSessionId;
-  }
-
-  const newSessionId = generateSessionId();
-  localStorage.setItem("chat-session-id", newSessionId);
-  return newSessionId;
-}
-
 export default function Chat() {
-  const chatContainerId = useId();
+  // Modal state must be created first so it can be shared
+  const modalState = useModalState();
+  const authState = useAppAuthentication();
 
-  const [showDebug, setShowDebug] = useState(false);
-  const [textareaHeight, setTextareaHeight] = useState("auto");
-  const [triggerFileUpload, setTriggerFileUpload] = useState(false);
+  // Consolidated app state - pass modalState so it uses the same instance
+  const {
+    chatContainerId,
+    showDebug,
+    setShowDebug,
+    textareaHeight,
+    setTextareaHeight,
+    triggerFileUpload,
+    setTriggerFileUpload,
+    sessionId,
+  } = useAppState({ modalState });
 
-  const { createCampaign, campaigns } = useCampaigns();
+  const {
+    createCampaign,
+    campaigns,
+    refetch: refetchCampaigns,
+  } = useCampaigns();
   const {
     allNotifications,
     addLocalNotification,
     dismissNotification,
     clearAllNotifications,
   } = useLocalNotifications();
-  const modalState = useModalState();
-  const authState = useAppAuthentication();
   const { campaignAdditionProgress, isAddingToCampaigns, addFileToCampaigns } =
     useCampaignAddition();
 
@@ -120,50 +95,21 @@ export default function Chat() {
   // Handle file upload trigger callback
   const handleFileUploadTriggered = useCallback(() => {
     setTriggerFileUpload(false);
-  }, []);
+  }, [setTriggerFileUpload]);
 
   const handleFileUpdate = useCallback(
-    (updatedFile: any) => {
-      // TODO: Implement file update logic
+    async (updatedFile: FileMetadata) => {
+      // File metadata update is handled by EditFileModal component
+      // This callback is triggered after successful update to provide feedback
       console.log("File updated:", updatedFile);
+      addLocalNotification(
+        NOTIFICATION_TYPES.SUCCESS,
+        "File Updated",
+        `"${updatedFile.file_name}" has been updated successfully.`
+      );
       modalState.handleEditFileClose();
     },
-    [modalState]
-  );
-
-  // Check authentication status on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      const shouldShowAuthModal =
-        !(await authState.checkAuthenticationStatus());
-      if (shouldShowAuthModal) {
-        modalState.setShowAuthModal(true);
-      }
-    };
-    checkAuth();
-  }, [authState, modalState]);
-
-  // Get session ID for this browser session
-  const sessionId = getSessionId();
-
-  // Handle JWT expiration globally
-  useJwtExpiration({
-    onExpiration: () => {
-      // JWT expired - no annoying toasts needed
-    },
-  });
-
-  // Handle authentication submission
-  const handleAuthenticationSubmit = useCallback(
-    async (username: string, adminKey: string, openaiApiKey: string) => {
-      await authState.handleAuthenticationSubmit(
-        username,
-        adminKey,
-        openaiApiKey
-      );
-      modalState.setShowAuthModal(false);
-    },
-    [authState, modalState]
+    [modalState, addLocalNotification]
   );
 
   const handleLogout = useCallback(async () => {
@@ -281,10 +227,9 @@ export default function Chat() {
   // Enhanced clear history function that creates a new session
   const handleClearHistory = () => {
     clearHistory();
-    // Optionally create a new session ID when clearing history
-    // This creates a completely fresh chat session
-    const newSessionId = generateSessionId();
-    localStorage.setItem("chat-session-id", newSessionId);
+    // Create a completely fresh chat session
+    const freshSessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    localStorage.setItem("chat-session-id", freshSessionId);
     // Reload the page to reinitialize with the new session ID
     window.location.reload();
   };
@@ -431,7 +376,14 @@ export default function Chat() {
   // Listen for decoupled UI hints
   useUiHints({
     onUiHint: async ({ type, data }) => {
-      if (type === "shards_ready" && data?.campaignId) {
+      if (
+        type === "shards_ready" &&
+        data &&
+        typeof data === "object" &&
+        "campaignId" in data &&
+        typeof data.campaignId === "string"
+      ) {
+        const campaignId = data.campaignId;
         try {
           const jwt = authState.getStoredJwt();
           if (!jwt) return;
@@ -439,30 +391,47 @@ export default function Chat() {
             await authenticatedFetchWithExpiration(
               API_CONFIG.buildUrl(
                 API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SHARDS(
-                  data.campaignId
+                  campaignId
                 )
               ),
               { jwt }
             );
           if (!jwtExpired && response.ok) {
-            const payload = (await response.json()) as { shards?: any[] };
-            const shards = payload?.shards || [];
-            if (shards.length > 0) {
+            const payload = (await response.json()) as {
+              shards?: Array<{
+                id: string;
+                content: string;
+                campaignId?: string;
+                resourceId?: string;
+                [key: string]: unknown;
+              }>;
+            };
+            const rawShards = payload?.shards || [];
+            if (rawShards.length > 0) {
               // Get campaign name from campaigns list
               const campaign = campaigns.find(
-                (c) => c.campaignId === data.campaignId
+                (c) => c.campaignId === campaignId
               );
               const campaignName = campaign?.name || "Unknown Campaign";
 
+              // Map to StagedShardGroup format
+              // Note: The API returns a simplified shard structure, so we use unknown
+              // and let the hook handle proper transformation
+              const shards = rawShards.map((shard) => ({
+                ...shard,
+                campaignId: campaignId,
+                resourceId: shard.resourceId || "unknown",
+              })) as unknown as StagedShardGroup[];
+
               console.log("Adding shards to global manager:", {
-                campaignId: data.campaignId,
+                campaignId: campaignId,
                 campaignName,
                 shardCount: shards.length,
                 shards: shards,
               });
 
               // Add shards to global manager
-              addShardsFromCampaign(data.campaignId, campaignName, shards);
+              addShardsFromCampaign(campaignId, campaignName, shards);
             }
           }
         } catch (error) {
@@ -486,55 +455,16 @@ export default function Chat() {
       <div className="h-[100vh] w-full p-6 flex justify-center items-center bg-fixed">
         <div className="h-[calc(100vh-3rem)] w-full mx-auto max-w-[1400px] flex flex-col shadow-2xl rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950">
           {/* Top Header - LoreSmith Branding */}
-          <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 flex items-center gap-4 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-sm">
-            <div
-              className="flex items-center justify-center rounded-lg"
-              style={{ width: 48, height: 48 }}
-            >
-              <img
-                src={loresmith}
-                alt="LoreSmith logo"
-                width={48}
-                height={48}
-                className="object-contain"
-              />
-            </div>
-
-            <div className="flex-1">
-              <h1 className="font-semibold text-2xl">LoreSmith</h1>
-            </div>
-
-            <div className="flex items-center gap-2 mr-2">
-              <Bug size={16} />
-              <Toggle
-                toggled={showDebug}
-                aria-label="Toggle debug mode"
-                onClick={() => setShowDebug((prev) => !prev)}
-              />
-            </div>
-
-            <HelpButton
-              onActionClick={handleHelpAction}
-              onGuidanceRequest={handleGuidanceRequest}
-            />
-
-            <Button
-              variant="ghost"
-              size="md"
-              shape="square"
-              className="rounded-full h-9 w-9"
-              onClick={handleClearHistory}
-            >
-              <Trash size={20} />
-            </Button>
-
-            {/* Notifications button styled like other top bar buttons */}
-            <TopBarNotifications
-              notifications={allNotifications}
-              onDismiss={dismissNotification}
-              onDismissAll={clearAllNotifications}
-            />
-          </div>
+          <AppHeader
+            showDebug={showDebug}
+            onToggleDebug={() => setShowDebug((prev) => !prev)}
+            onClearHistory={handleClearHistory}
+            onHelpAction={handleHelpAction}
+            onGuidanceRequest={handleGuidanceRequest}
+            notifications={allNotifications}
+            onDismissNotification={dismissNotification}
+            onClearAllNotifications={clearAllNotifications}
+          />
 
           {/* Main Content Area */}
           <div className="flex-1 flex min-h-0 overflow-hidden">
@@ -557,93 +487,35 @@ export default function Chat() {
             />
 
             {/* Chat Area */}
-            <div className="flex-1 flex flex-col min-h-0">
-              {/* Main Content Area */}
-              <div
-                id={chatContainerId}
-                className="flex-1 overflow-y-auto px-8 py-6 space-y-6 pb-6 min-h-0"
-              >
-                {agentMessages.length === 0 && (
-                  <WelcomeMessage
-                    onSuggestionSubmit={handleSuggestionSubmit}
-                    onUploadFiles={() => setTriggerFileUpload(true)}
-                  />
-                )}
-
-                <ChatMessageList
-                  messages={agentMessages as Message[]}
-                  showDebug={showDebug}
-                  addToolResult={addToolResult}
-                  formatTime={formatTime}
-                />
-
-                {/* Thinking Spinner - shown when agent is processing */}
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="w-full">
-                      <Card className="p-4 rounded-xl bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-sm rounded-bl-none border-assistant-border shadow-sm border border-neutral-200/50 dark:border-neutral-700/50">
-                        <ThinkingSpinner />
-                      </Card>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Input Area */}
-              <form
-                onSubmit={handleFormSubmit}
-                className="p-6 bg-neutral-50/50 border-t border-neutral-200 dark:border-neutral-700 dark:bg-neutral-900/50 backdrop-blur-sm"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 relative">
-                    <ChatInput
-                      disabled={pendingToolCallConfirmation}
-                      placeholder={
-                        pendingToolCallConfirmation
-                          ? "Please respond to the tool confirmation above..."
-                          : "What knowledge do you seek today?"
-                      }
-                      className="flex w-full border border-neutral-200/50 dark:border-neutral-700/50 px-4 py-3 text-base placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-12 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm"
-                      value={agentInput}
-                      onChange={(e) => {
-                        handleAgentInputChange(e);
-                        // Auto-resize the textarea
-                        e.target.style.height = "auto";
-                        e.target.style.height = `${e.target.scrollHeight}px`;
-                        setTextareaHeight(`${e.target.scrollHeight}px`);
-                      }}
-                      onKeyDown={handleKeyDown}
-                      multiline
-                      rows={2}
-                      style={{ height: textareaHeight }}
-                    />
-                    <div className="absolute bottom-1 right-1 p-2 w-fit flex flex-row justify-end">
-                      {isLoading ? (
-                        <button
-                          type="button"
-                          onClick={stop}
-                          className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-2 h-fit border border-neutral-200/50 dark:border-neutral-700/50 shadow-sm backdrop-blur-sm"
-                          aria-label="Stop generation"
-                        >
-                          <Stop size={16} />
-                        </button>
-                      ) : (
-                        <button
-                          type="submit"
-                          className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-2 h-fit border border-neutral-200/50 dark:border-neutral-700/50 shadow-sm backdrop-blur-sm"
-                          disabled={
-                            pendingToolCallConfirmation || !agentInput.trim()
-                          }
-                          aria-label="Send message"
-                        >
-                          <PaperPlaneRight size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </form>
-            </div>
+            <ChatArea
+              chatContainerId={chatContainerId}
+              messages={agentMessages as Message[]}
+              input={agentInput}
+              onInputChange={(e) => {
+                handleAgentInputChange(e);
+                // Auto-resize the textarea
+                e.target.style.height = "auto";
+                e.target.style.height = `${e.target.scrollHeight}px`;
+                setTextareaHeight(`${e.target.scrollHeight}px`);
+              }}
+              onFormSubmit={handleFormSubmit}
+              onKeyDown={handleKeyDown}
+              isLoading={isLoading}
+              onStop={stop}
+              showDebug={showDebug}
+              addToolResult={
+                addToolResult as (args: {
+                  toolCallId: string;
+                  result: unknown;
+                }) => void
+              }
+              formatTime={formatTime}
+              onSuggestionSubmit={handleSuggestionSubmit}
+              onUploadFiles={() => setTriggerFileUpload(true)}
+              textareaHeight={textareaHeight}
+              onTextareaHeightChange={setTextareaHeight}
+              pendingToolCallConfirmation={pendingToolCallConfirmation}
+            />
           </div>
         </div>
 
@@ -661,206 +533,17 @@ export default function Chat() {
         />
       </div>
 
-      <BlockingAuthenticationModal
-        isOpen={modalState.showAuthModal}
-        username={authState.username}
-        storedOpenAIKey={authState.storedOpenAIKey}
-        onSubmit={handleAuthenticationSubmit}
+      <AppModals
+        modalState={modalState}
+        authState={authState}
+        campaigns={campaigns}
+        refetchCampaigns={refetchCampaigns}
+        createCampaign={createCampaign}
+        handleUpload={handleUpload}
+        handleFileUpdate={handleFileUpdate}
+        addFileToCampaigns={addFileToCampaigns}
+        addLocalNotification={addLocalNotification}
       />
-
-      {/* Create Campaign Modal */}
-      <Modal
-        isOpen={modalState.isCreateCampaignModalOpen}
-        onClose={modalState.handleCreateCampaignClose}
-        cardStyle={{ width: 520, minHeight: 320 }}
-        showCloseButton={true}
-      >
-        <CreateCampaignModal
-          isOpen={modalState.isCreateCampaignModalOpen}
-          onClose={modalState.handleCreateCampaignClose}
-          campaignName={modalState.campaignName}
-          onCampaignNameChange={modalState.setCampaignName}
-          campaignDescription={modalState.campaignDescription}
-          onCampaignDescriptionChange={modalState.setCampaignDescription}
-          onCreateCampaign={async (name, description) => {
-            try {
-              await createCampaign(name, description);
-              modalState.handleCreateCampaignClose();
-            } catch (error) {
-              // Keep modal open on error so user can retry
-              console.error("Campaign creation failed:", error);
-            }
-          }}
-        />
-      </Modal>
-
-      {/* Campaign Details Modal */}
-      <CampaignDetailsModal
-        campaign={modalState.selectedCampaign}
-        isOpen={modalState.isCampaignDetailsModalOpen}
-        onClose={modalState.handleCampaignDetailsClose}
-        onDelete={async (campaignId) => {
-          // TODO: Implement actual campaign deletion
-          console.log("Deleting campaign:", campaignId);
-          modalState.handleCampaignDetailsClose();
-        }}
-        onUpdate={async (campaignId, updates) => {
-          // TODO: Implement actual campaign update
-          console.log("Updating campaign:", campaignId, updates);
-          modalState.handleCampaignDetailsClose();
-        }}
-      />
-
-      {/* Add Resource Modal */}
-      <Modal
-        isOpen={modalState.isAddResourceModalOpen}
-        onClose={modalState.handleAddResourceClose}
-        cardStyle={{ width: 600, minHeight: 400 }}
-        showCloseButton={true}
-      >
-        <ResourceUpload
-          onUpload={async (file, filename, description, tags) => {
-            console.log("Uploading file:", file);
-
-            // Close modal immediately
-            modalState.handleAddResourceClose();
-
-            // Start upload in background
-            try {
-              await handleUpload(file, filename, description, tags);
-            } catch (error) {
-              console.error("Upload failed:", error);
-              // Show error notification since modal is already closed
-              addLocalNotification(
-                NOTIFICATION_TYPES.ERROR,
-                "Upload Failed",
-                `Failed to upload "${filename}". Please try again.`
-              );
-            }
-          }}
-          onCancel={modalState.handleAddResourceClose}
-          className="border-0 p-0 shadow-none"
-          jwtUsername={authState.getStoredJwt() || ""}
-          campaigns={campaigns}
-          selectedCampaigns={modalState.selectedCampaigns}
-          onCampaignSelectionChange={modalState.setSelectedCampaigns}
-          campaignName={modalState.campaignName}
-          onCampaignNameChange={modalState.setCampaignName}
-          onCreateCampaign={() => {
-            modalState.setSelectedCampaigns([]);
-            modalState.setIsAddResourceModalOpen(false);
-            modalState.setIsCreateCampaignModalOpen(true);
-          }}
-          showCampaignSelection={true}
-        />
-      </Modal>
-
-      {/* Add to Campaign Modal */}
-      <Modal
-        isOpen={modalState.isAddToCampaignModalOpen}
-        onClose={modalState.handleAddToCampaignClose}
-        cardStyle={{ width: 500, maxHeight: "90vh" }}
-        showCloseButton={true}
-      >
-        <div className="p-6">
-          <h3 className="text-lg font-semibold mb-4">
-            "{modalState.selectedFile ? modalState.selectedFile.file_name : ""}"
-            - Add to Campaign
-          </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Choose which legendary adventures this tome shall join:
-          </p>
-          <div className="space-y-3">
-            {(() => {
-              // Filter out campaigns that already contain this file
-              const availableCampaigns = campaigns.filter((campaign) => {
-                if (!modalState.selectedFile?.campaigns) return true;
-                return !modalState.selectedFile.campaigns.some(
-                  (existingCampaign: any) =>
-                    existingCampaign.campaignId === campaign.campaignId
-                );
-              });
-
-              return (
-                <>
-                  {availableCampaigns.length === 0 ? (
-                    <div className="text-center py-6">
-                      <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                        This file has already been added to all available
-                        campaigns.
-                      </div>
-                      <div className="text-xs text-gray-400 dark:text-gray-500">
-                        Create a new campaign to add this file to additional
-                        adventures.
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Select campaigns to add this file to:
-                      </div>
-                      <MultiSelect
-                        options={availableCampaigns.map((campaign) => ({
-                          value: campaign.campaignId,
-                          label: campaign.name,
-                        }))}
-                        selectedValues={modalState.selectedCampaigns}
-                        onSelectionChange={modalState.setSelectedCampaigns}
-                        placeholder="Choose campaigns..."
-                        closeOnSelect={true}
-                      />
-                    </div>
-                  )}
-
-                  <div className="flex justify-end gap-3 mt-6">
-                    <button
-                      type="button"
-                      onClick={modalState.handleAddToCampaignClose}
-                      className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                    >
-                      {availableCampaigns.length === 0 ? "Close" : "Cancel"}
-                    </button>
-                    {availableCampaigns.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          // Close modal and clear selections immediately
-                          modalState.setSelectedCampaigns([]);
-                          modalState.handleAddToCampaignClose();
-
-                          // Use the extracted campaign addition logic
-                          await addFileToCampaigns(
-                            modalState.selectedFile,
-                            modalState.selectedCampaigns,
-                            authState.getStoredJwt,
-                            addLocalNotification,
-                            () => {
-                              // Success callback - modal is already closed
-                            }
-                          );
-                        }}
-                        className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md"
-                      >
-                        Add to Campaigns
-                      </button>
-                    )}
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        </div>
-      </Modal>
-
-      {/* Edit File Modal */}
-      {modalState.editingFile && (
-        <EditFileModal
-          isOpen={modalState.isEditFileModalOpen}
-          onClose={modalState.handleEditFileClose}
-          file={modalState.editingFile}
-          onUpdate={handleFileUpdate}
-        />
-      )}
     </>
   );
 }

@@ -1,10 +1,11 @@
 import type { JWTPayload } from "jose";
 import { jwtVerify, SignJWT } from "jose";
-import { ERROR_MESSAGES, JWT_STORAGE_KEY } from "../app-constants";
-import { getDAOFactory } from "../dao";
-import { getEnvVar } from "../lib/env-utils";
-import { getAuthService } from "../lib/service-factory";
-import type { Env } from "../middleware/auth";
+import { ERROR_MESSAGES, JWT_STORAGE_KEY } from "@/app-constants";
+import { getDAOFactory } from "@/dao";
+import { getEnvVar } from "@/lib/env-utils";
+import { getAuthService } from "@/lib/service-factory";
+import type { Env } from "@/middleware/auth";
+import { logger } from "@/lib/logger";
 
 export interface AuthPayload extends JWTPayload {
   type: "user-auth";
@@ -221,12 +222,44 @@ export class AuthService {
    * Check if JWT is expired
    */
   static isJwtExpired(jwt: string): boolean {
+    const log = logger.scope("[AuthService]");
     try {
-      const payload = JSON.parse(atob(jwt.split(".")[1]));
-      const exp = payload.exp * 1000; // Convert to milliseconds
-      return Date.now() >= exp;
+      // JWT uses Base64URL encoding, need to handle it properly
+      const parts = jwt.split(".");
+      if (parts.length !== 3) {
+        log.warn("Invalid JWT format - expected 3 parts");
+        return true;
+      }
+
+      // Convert Base64URL to Base64 for atob
+      const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const padded = base64 + "===".slice((base64.length + 3) % 4);
+
+      const payload = JSON.parse(atob(padded));
+
+      if (!payload.exp) {
+        log.warn("JWT payload missing 'exp' claim");
+        return true; // Consider expired if no expiration claim
+      }
+
+      // JWT exp is in seconds, convert to milliseconds for comparison
+      const exp = payload.exp * 1000;
+      const now = Date.now();
+      const isExpired = now >= exp;
+
+      if (isExpired) {
+        log.debug("JWT expired", {
+          exp: new Date(exp).toISOString(),
+          now: new Date(now).toISOString(),
+          secondsUntilExp: Math.floor((exp - now) / 1000),
+        });
+      }
+
+      return isExpired;
     } catch (error) {
-      console.error("[AuthService] Error checking JWT expiration:", error);
+      log.error("Error checking JWT expiration", error, {
+        jwtPreview: jwt.substring(0, 50),
+      });
       return true; // Consider expired if we can't parse
     }
   }
@@ -246,13 +279,32 @@ export class AuthService {
   }
 
   static storeJwt(token: string): void {
-    if (typeof window === "undefined") return;
+    const log = logger.scope("[AuthService.storeJwt]");
+    if (typeof window === "undefined") {
+      log.warn("window is undefined, cannot store JWT");
+      return;
+    }
+    log.debug("Storing JWT token", { length: token.length });
     localStorage.setItem(JWT_STORAGE_KEY, token);
+
+    // Verify storage
+    const stored = localStorage.getItem(JWT_STORAGE_KEY);
+    if (stored !== token) {
+      log.error("Failed to store JWT - storage mismatch!", undefined);
+      return;
+    }
+
+    log.info("JWT stored successfully, dispatching jwt-changed event");
+    // Dispatch custom event to notify hooks that JWT changed
+    // This helps useAuthReady detect authentication immediately
+    window.dispatchEvent(new CustomEvent("jwt-changed"));
   }
 
   static clearJwt(): void {
     if (typeof window === "undefined") return;
     localStorage.removeItem(JWT_STORAGE_KEY);
+    // Dispatch custom event to notify hooks that JWT was cleared
+    window.dispatchEvent(new CustomEvent("jwt-changed"));
   }
 
   /**
@@ -305,6 +357,16 @@ export class AuthService {
     const jwtExpired = response.status === 401;
     if (jwtExpired) {
       AuthService.clearJwt();
+      // Dispatch jwt-expired event to trigger auth modal
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("jwt-expired", {
+            detail: {
+              message: "Your session has expired. Please sign in again.",
+            },
+          })
+        );
+      }
     }
 
     return { response, jwtExpired };
@@ -419,13 +481,33 @@ export class AuthService {
    * This is useful for components that need more than just the username
    */
   static getJwtPayload(): any | null {
+    const log = logger.scope("[AuthService]");
     try {
       const jwt = AuthService.getStoredJwt();
-      if (!jwt) return null;
-      const payload = JSON.parse(atob(jwt.split(".")[1]));
+      if (!jwt) {
+        log.debug("No JWT found in storage");
+        return null;
+      }
+
+      // JWT uses Base64URL encoding, need to handle it properly
+      const parts = jwt.split(".");
+      if (parts.length !== 3) {
+        log.warn("Invalid JWT format - expected 3 parts");
+        return null;
+      }
+
+      // Convert Base64URL to Base64 for atob
+      const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const padded = base64 + "===".slice((base64.length + 3) % 4);
+
+      const payload = JSON.parse(atob(padded));
+      log.debug("Successfully parsed JWT payload", {
+        hasUsername: !!payload.username,
+        hasExp: !!payload.exp,
+      });
       return payload;
     } catch (error) {
-      console.error("Error getting JWT payload:", error);
+      log.error("Error getting JWT payload", error);
       return null;
     }
   }

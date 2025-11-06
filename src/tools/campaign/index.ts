@@ -47,7 +47,6 @@ export {
   captureConversationalContext,
   saveContextExplicitly,
 };
-export { CampaignTool } from "./utils";
 
 // Export the tools object for backward compatibility
 export const campaignTools = {

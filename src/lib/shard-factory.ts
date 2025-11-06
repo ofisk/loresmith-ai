@@ -173,7 +173,7 @@ export class ShardFactory {
 
     // Process each content type
     for (const contentType of foundContentTypes) {
-      const shardArray = aiSearchResponse[contentType];
+      const shardArray = aiSearchResponse[contentType] as unknown[];
       console.log(
         `[DEBUG] [ShardFactory] Processing ${shardArray.length} ${contentType} items`
       );

@@ -1,4 +1,4 @@
-import type { ProcessingProgress, ProgressMessage } from "../types/progress";
+import type { ProcessingProgress, ProgressMessage } from "@/types/progress";
 
 // Progress tracking store
 const progressStore = new Map<string, ProcessingProgress>();

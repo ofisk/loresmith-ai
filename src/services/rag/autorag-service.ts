@@ -1,8 +1,11 @@
 // AutoRAG service for managing AutoRAG operations
 // This service handles sync operations and job tracking
 
-import { API_CONFIG } from "../shared-config";
-import { AuthService, authenticatedFetchWithExpiration } from "./auth-service";
+import { API_CONFIG } from "@/shared-config";
+import {
+  AuthService,
+  authenticatedFetchWithExpiration,
+} from "@/services/core/auth-service";
 
 export class AutoRAGService {
   /**

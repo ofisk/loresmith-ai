@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../../src/middleware/auth";
-import { CampaignAutoRAG } from "../../src/services/campaign-autorag-service";
+import { CampaignAutoRAG } from "../../src/services/campaign/campaign-autorag-service";
 
 // Mock environment
 const mockEnv: Env = {

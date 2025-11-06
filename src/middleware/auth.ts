@@ -1,21 +1,23 @@
 import type { Context } from "hono";
 import { jwtVerify } from "jose";
-import { type EnvWithSecrets, getEnvVar } from "../lib/env-utils";
-import type { AuthEnv, AuthPayload } from "../services/auth-service";
+import { type EnvWithSecrets, getEnvVar } from "@/lib/env-utils";
+import type { AuthEnv, AuthPayload } from "@/services/core/auth-service";
 
 export interface Env extends AuthEnv, EnvWithSecrets {
   R2: R2Bucket;
   DB: D1Database;
   VECTORIZE: VectorizeIndex;
   AI: Ai;
-  Chat: DurableObjectNamespace;
-  UploadSession: DurableObjectNamespace;
+  CHAT: DurableObjectNamespace;
+  NOTIFICATIONS: DurableObjectNamespace;
+  UPLOAD_SESSION: DurableObjectNamespace;
   ASSETS: Fetcher;
   FILE_PROCESSING_QUEUE: Queue;
   FILE_PROCESSING_DLQ: Queue;
   AUTORAG_BASE_URL: string;
   AUTORAG_ACCOUNT_ID: string;
   AUTORAG_API_TOKEN: string | { get(): Promise<string> };
+  AUTORAG_PREFIX?: string;
 }
 
 // Set user authentication data in context

@@ -1,4 +1,4 @@
-import type { StructuredContentType } from "../lib/content-types";
+import type { StructuredContentType } from "@/lib/content-types";
 
 /**
  * Unified shard types for the entire system
@@ -68,7 +68,7 @@ export interface CampaignResource {
  * AI Search response structure for parsing
  */
 export interface AISearchResponse {
-  [key: string]: any;
+  [key: string]: unknown;
   meta?: {
     campaignId: string;
     source: {

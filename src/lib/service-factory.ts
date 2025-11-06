@@ -1,16 +1,16 @@
 // Service Factory - Provides cached service instances to reduce memory usage and initialization overhead
 // Uses per-request caching to reuse services within the same request context
 
-import { getDatabaseKey } from "../dao/dao-factory";
-import type { Env } from "../middleware/auth";
-import { AssessmentService } from "../services/assessment-service";
-import { AuthService } from "../services/auth-service";
-import { CampaignAutoRAG } from "../services/campaign-autorag-service";
-import { CampaignService } from "../services/campaign-service";
-import { ErrorHandlingService } from "../services/error-handling-service";
-import { LibraryAutoRAGClient } from "../services/library-autorag-client";
-import { LibraryService } from "../services/library-service";
-import { MetadataService } from "../services/metadata-service";
+import { getDatabaseKey } from "@/dao/dao-factory";
+import type { Env } from "@/middleware/auth";
+import { AssessmentService } from "@/services/core/assessment-service";
+import { AuthService } from "@/services/core/auth-service";
+import { CampaignAutoRAG } from "@/services/campaign/campaign-autorag-service";
+import { CampaignService } from "@/services/campaign/campaign-service";
+import { ErrorHandlingService } from "@/services/core/error-handling-service";
+import { LibraryAutoRAGClient } from "@/services/rag/library-autorag-service";
+import { LibraryService } from "@/services/core/library-service";
+import { MetadataService } from "@/services/core/metadata-service";
 import { AgentRegistryService } from "./agent-registry";
 import { AgentRouter } from "./agent-router";
 import { CampaignRAGService } from "./campaignRag";

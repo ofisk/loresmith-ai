@@ -156,7 +156,7 @@ export async function executeAISearchWithRetry(
   if (fullPathForFilter.startsWith("/library/")) {
     fullPathForFilter = fullPathForFilter.substring(1); // Remove leading slash
   } else if (!fullPathForFilter.startsWith("library/")) {
-    fullPathForFilter = "library/" + fullPathForFilter;
+    fullPathForFilter = `library/${fullPathForFilter}`;
   }
 
   // Extract the directory path (remove the filename from the end)
@@ -166,7 +166,9 @@ export async function executeAISearchWithRetry(
     fullPathForFilter = fullPathForFilter.substring(0, lastSlashIndex + 1);
   }
 
-  //TODO: remove the redundant search once file upload and autorag indexing are more reliable
+  // NOTE: Currently performs both file-based and AutoRAG-based searches.
+  // Future optimization: Once file upload and AutoRAG indexing are fully reliable,
+  // we can remove the redundant file-based search and rely solely on AutoRAG.
   // First, try a simple search to see if the file is indexed at all
   console.log(`[AI Search] Testing basic search for file: ${resourceFileName}`);
 
@@ -213,7 +215,7 @@ async function executeChunkedAISearch(
   const MAX_CHUNKS = 2; // Maximum 2 chunks (10 total results)
   const CHUNK_DELAY = 5000; // 5 second delay between chunks
 
-  let allResults: any[] = [];
+  const allResults: any[] = [];
   let hasMoreResults = true;
   let chunkNumber = 0;
 
@@ -360,7 +362,7 @@ async function executeChunkedAISearch(
 async function executeSingleChunk(
   libraryAutoRAG: any,
   structuredExtractionPrompt: string,
-  resourceFileName: string,
+  _resourceFileName: string,
   fullPathForFilter: string,
   chunkSize: number,
   maxRetries: number,

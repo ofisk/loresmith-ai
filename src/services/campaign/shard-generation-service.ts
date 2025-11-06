@@ -1,19 +1,19 @@
 // Shard generation service for campaign resources
-import { ShardFactory } from "../lib/shard-factory";
+import { ShardFactory } from "@/lib/shard-factory";
 import { CampaignAutoRAG } from "./campaign-autorag-service";
 import {
   executeAISearchWithRetry,
   parseAIResponse,
   filterParsedContentToResource,
-} from "../lib/ai-search-utils";
-import { notifyShardGeneration } from "../lib/notifications";
+} from "@/lib/ai-search-utils";
+import { notifyShardGeneration } from "@/lib/notifications";
 import {
   normalizeResourceForShardGeneration,
   getAutoRAGSearchPath,
   validateSearchPath,
   logShardGenerationContext,
   validateShardGenerationOptions,
-} from "../lib/shard-generation-utils";
+} from "@/lib/shard-generation-utils";
 
 export interface ShardGenerationResult {
   success: boolean;
@@ -69,7 +69,7 @@ export async function generateShardsForResource(
 
     // Track total shards discovered across all chunks
     let totalShardsDiscovered = 0;
-    let allShardCandidates: any[] = [];
+    const allShardCandidates: any[] = [];
 
     // Create streaming callback for chunk processing
     const streamingCallback = async (chunkResult: any, chunkNumber: number) => {

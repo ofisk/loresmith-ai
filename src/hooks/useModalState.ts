@@ -1,8 +1,18 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { Campaign } from "@/types/campaign";
+import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
+import { logger } from "@/lib/logger";
 
 export function useModalState() {
   // Modal state
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // Log auth modal state changes for debugging
+  useEffect(() => {
+    logger.scope("[useModalState]").debug("Auth modal state changed", {
+      showAuthModal,
+    });
+  }, [showAuthModal]);
   const [isCreateCampaignModalOpen, setIsCreateCampaignModalOpen] =
     useState(false);
   const [isCampaignDetailsModalOpen, setIsCampaignDetailsModalOpen] =
@@ -15,10 +25,14 @@ export function useModalState() {
   // Modal data state
   const [campaignName, setCampaignName] = useState("");
   const [campaignDescription, setCampaignDescription] = useState("");
-  const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(
+    null
+  );
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
-  const [selectedFile, setSelectedFile] = useState<any>(null);
-  const [editingFile, setEditingFile] = useState<any>(null);
+  const [selectedFile, setSelectedFile] =
+    useState<ResourceFileWithCampaigns | null>(null);
+  const [editingFile, setEditingFile] =
+    useState<ResourceFileWithCampaigns | null>(null);
 
   // Modal handlers
   const handleCreateCampaign = useCallback(() => {
@@ -31,7 +45,7 @@ export function useModalState() {
     setCampaignDescription("");
   }, []);
 
-  const handleCampaignClick = useCallback((campaign: any) => {
+  const handleCampaignClick = useCallback((campaign: Campaign) => {
     setSelectedCampaign(campaign);
     setIsCampaignDetailsModalOpen(true);
   }, []);
@@ -50,7 +64,7 @@ export function useModalState() {
     setSelectedCampaigns([]);
   }, []);
 
-  const handleAddToCampaign = useCallback((file: any) => {
+  const handleAddToCampaign = useCallback((file: ResourceFileWithCampaigns) => {
     setSelectedFile(file);
     setIsAddToCampaignModalOpen(true);
   }, []);
@@ -60,7 +74,7 @@ export function useModalState() {
     setSelectedFile(null);
   }, []);
 
-  const handleEditFile = useCallback((file: any) => {
+  const handleEditFile = useCallback((file: ResourceFileWithCampaigns) => {
     setEditingFile(file);
     setIsEditFileModalOpen(true);
   }, []);

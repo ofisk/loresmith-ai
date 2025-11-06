@@ -3,19 +3,7 @@ import { AgentRegistryService } from "../../src/lib/agent-registry";
 import type { AgentType } from "../../src/lib/agent-router";
 import { AgentRouter } from "../../src/lib/agent-router";
 
-// Mock AgentRouter with proper method implementations
-vi.mock("../../src/services/agent-router", () => ({
-  AgentRouter: {
-    registerAgent: vi.fn(),
-    getAgentRegistry: vi.fn().mockReturnValue({}),
-    getAgentTools: vi.fn(),
-    getAgentSystemPrompt: vi.fn(),
-    getAgentDescription: vi.fn(),
-    getRegisteredAgentTypes: vi.fn().mockReturnValue([]),
-  },
-}));
-
-// Mock agent classes
+// Mock agent classes (defined first to be available in mocks)
 const MockCampaignAgent = {
   agentMetadata: {
     type: "campaign",
@@ -24,6 +12,81 @@ const MockCampaignAgent = {
     tools: { createCampaign: {}, listCampaigns: {} },
   },
 };
+
+// Mock jose module to avoid import issues in test environment
+vi.mock("jose", () => ({
+  jwtVerify: vi.fn(),
+  SignJWT: vi.fn(),
+}));
+
+// Mock ai-sdk packages to avoid import issues in test environment
+vi.mock("@ai-sdk/openai", () => ({
+  createOpenAI: vi.fn(),
+}));
+
+vi.mock("ai", () => ({
+  streamText: vi.fn(),
+  createDataStreamResponse: vi.fn(),
+}));
+
+// Mock model-manager to avoid import chain issues
+vi.mock("../../src/lib/model-manager", () => ({
+  createModelManager: vi.fn(),
+  getModelManager: vi.fn(),
+}));
+
+// Mock agent imports to prevent module loading issues
+vi.mock("../../src/agents/campaign-agent", () => ({
+  CampaignAgent: MockCampaignAgent,
+}));
+
+vi.mock("../../src/agents/campaign-context-agent", () => ({
+  CampaignContextAgent: MockCampaignAgent,
+}));
+
+vi.mock("../../src/agents/character-sheet-agent", () => ({
+  CharacterSheetAgent: MockCharacterSheetAgent,
+}));
+
+vi.mock("../../src/agents/onboarding-agent", () => ({
+  OnboardingAgent: MockOnboardingAgent,
+}));
+
+vi.mock("../../src/agents/resource-agent", () => ({
+  ResourceAgent: MockCampaignAgent,
+}));
+
+// Mock AgentRouter with proper method implementations
+vi.mock("../../src/lib/agent-router", () => {
+  const MockCampaignAgent = {
+    agentMetadata: {
+      type: "campaign",
+      description: "Campaign management agent",
+      systemPrompt: "You are a campaign agent",
+      tools: { createCampaign: {}, listCampaigns: {} },
+    },
+  };
+
+  return {
+    AgentRouter: {
+      registerAgent: vi.fn(),
+      getAgentRegistry: vi.fn().mockReturnValue({
+        campaign: {
+          agentClass: MockCampaignAgent,
+          tools: { createCampaign: {}, listCampaigns: {} },
+          systemPrompt: "You are a campaign agent",
+          description: "Campaign management agent",
+        },
+      }),
+      getAgentTools: vi
+        .fn()
+        .mockReturnValue({ createCampaign: {}, listCampaigns: {} }),
+      getAgentSystemPrompt: vi.fn().mockReturnValue("You are a campaign agent"),
+      getAgentDescription: vi.fn().mockReturnValue("Campaign management agent"),
+      getRegisteredAgentTypes: vi.fn().mockReturnValue(["campaign"]),
+    },
+  };
+});
 
 const MockCharacterSheetAgent = {
   agentMetadata: {

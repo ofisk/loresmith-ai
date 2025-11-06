@@ -1,7 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
-import { checkSingleJobStatus } from "../routes/autorag";
-import { FileDAO } from "../dao/file-dao";
-import { SyncQueueService } from "../services/sync-queue-service";
+import { checkSingleJobStatus } from "@/services/file/job-status-service";
+import { FileDAO } from "@/dao/file-dao";
+import { SyncQueueService } from "@/services/file/sync-queue-service";
+import type { Env } from "@/middleware/auth";
 
 export interface AutoRAGPollingState {
   isPolling: boolean;
@@ -359,7 +360,7 @@ export class AutoRAGPollingDO extends DurableObject {
       console.log(
         `[DEBUG] [AutoRAGPollingDO] Checking job status with AutoRAG API...`
       );
-      const result = await checkSingleJobStatus(job, this.env);
+      const result = await checkSingleJobStatus(job, this.env as Env);
       console.log(`[DEBUG] [AutoRAGPollingDO] AutoRAG API result:`, result);
 
       if (result.updated) {

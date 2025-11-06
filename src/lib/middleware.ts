@@ -3,7 +3,7 @@ import {
   type AuthContext,
   type AuthEnv,
   extractAuthFromHeader,
-} from "../services/auth-service";
+} from "@/services/core/auth-service";
 
 /**
  * Middleware to require JWT authentication

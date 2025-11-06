@@ -1,10 +1,10 @@
 import { useEffect, useState, useMemo } from "react";
-import { USER_MESSAGES } from "../app-constants";
-import { API_CONFIG } from "../shared-config";
-import type { Campaign, CampaignResource } from "../types/campaign";
-import { useAuthenticatedRequest } from "./useAuthenticatedRequest";
-import { useAuthReady } from "./useAuthReady";
-import { useBaseAsync } from "./useBaseAsync";
+import { USER_MESSAGES } from "@/app-constants";
+import { API_CONFIG } from "@/shared-config";
+import type { Campaign, CampaignResource } from "@/types/campaign";
+import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
+import { useAuthReady } from "@/hooks/useAuthReady";
+import { useBaseAsync } from "@/hooks/useBaseAsync";
 
 /**
  * Comprehensive hook for managing all campaign operations.

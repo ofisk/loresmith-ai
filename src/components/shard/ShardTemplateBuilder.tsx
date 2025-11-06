@@ -10,7 +10,7 @@ interface ShardTemplate {
   description: string;
   fields: string[];
   fieldTypes: { [key: string]: "string" | "number" | "array" | "object" };
-  sampleData: any;
+  sampleData: Record<string, unknown>;
   created: string;
   updated: string;
 }

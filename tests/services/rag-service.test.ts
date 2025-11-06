@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { LibraryRAGService } from "../../src/services/rag-service";
+import { LibraryRAGService } from "../../src/services/rag/rag-service";
 import type { FileMetadata, SearchQuery } from "../../src/types/upload";
 
 // Mock DAO factory

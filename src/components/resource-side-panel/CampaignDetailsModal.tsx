@@ -1,10 +1,10 @@
 import { FloppyDisk, PencilSimple, Trash } from "@phosphor-icons/react";
 import { useEffect, useId, useRef, useState } from "react";
-import type { Campaign } from "../../types/campaign";
-import { Button } from "../button/Button";
-import { FormButton } from "../button/FormButton";
-import { FormField } from "../input/FormField";
-import { Modal } from "../modal/Modal";
+import type { Campaign } from "@/types/campaign";
+import { Button } from "@/components/button/Button";
+import { FormButton } from "@/components/button/FormButton";
+import { FormField } from "@/components/input/FormField";
+import { Modal } from "@/components/modal/Modal";
 
 interface CampaignDetailsModalProps {
   campaign: Campaign | null;

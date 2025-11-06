@@ -1,4 +1,4 @@
-import type { Env } from "../middleware/auth";
+import type { Env } from "@/middleware/auth";
 
 export interface Metadata {
   description: string;

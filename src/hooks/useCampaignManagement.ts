@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { NOTIFICATION_TYPES } from "../constants/notification-types";
-import type { CampaignEvent } from "../lib/event-bus";
-import { EVENT_TYPES, useEvent } from "../lib/event-bus";
+import { NOTIFICATION_TYPES } from "@/constants/notification-types";
+import type { CampaignEvent } from "@/lib/event-bus";
+import { EVENT_TYPES, useEvent } from "@/lib/event-bus";
 import {
   authenticatedFetchWithExpiration,
   getStoredJwt,
-} from "../services/auth-service";
-import { API_CONFIG } from "../shared-config";
-import type { Campaign } from "../types/campaign";
+} from "@/services/core/auth-service";
+import { API_CONFIG } from "@/shared-config";
+import type { Campaign } from "@/types/campaign";
 
 // Type-safe helper functions
 function isValidString(value: string | null | undefined): value is string {

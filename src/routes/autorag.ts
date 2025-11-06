@@ -1,18 +1,18 @@
 import type { Context } from "hono";
-import { getDAOFactory } from "../dao/dao-factory";
-import { FileDAO } from "../dao/file-dao";
-import {
-  notifyFileStatusUpdated,
-  notifyFileUpdated,
-  notifyFileUploadCompleteWithData,
-} from "../lib/notifications";
-import type { Env } from "../middleware/auth";
-import type { AuthPayload } from "../services/auth-service";
-import { FileAnalysisOrchestrator } from "../services/file-analysis-orchestrator-service";
-import { FileAnalysisService } from "../services/file-analysis-service";
-import { SyncQueueService } from "../services/sync-queue-service";
-import { AUTORAG_CONFIG } from "../shared-config";
-import { evaluateTimeout } from "../utils/processing-time-estimator";
+import { getDAOFactory } from "@/dao/dao-factory";
+import { FileDAO } from "@/dao/file-dao";
+import { notifyFileStatusUpdated } from "@/lib/notifications";
+import { logger } from "@/lib/logger";
+import type { Env } from "@/middleware/auth";
+import type { AuthPayload } from "@/services/core/auth-service";
+import { FileAnalysisOrchestrator } from "@/services/file/file-analysis-orchestrator-service";
+import { FileAnalysisService } from "@/services/file/file-analysis-service";
+import { checkSingleJobStatus } from "@/services/file/job-status-service";
+import { SyncQueueService } from "@/services/file/sync-queue-service";
+import { AUTORAG_CONFIG } from "@/shared-config";
+import { evaluateTimeout } from "@/lib/processing-time-estimator";
+
+const log = logger.scope("[AutoRAG]");
 
 const AUTORAG_ENDPOINTS = {
   SYNC: "/sync",
@@ -454,323 +454,9 @@ export async function handleAutoRAGJobs(c: ContextWithAuth) {
   }
 }
 
-/**
- * Check the status of a single AutoRAG job and update file status accordingly
- */
-export async function checkSingleJobStatus(
-  job: any,
-  env: any
-): Promise<{ status: string; updated: boolean }> {
-  const startTime = Date.now();
-  const fileDAO = new FileDAO(env.DB);
-
-  console.log(`[DEBUG] [AutoRAG] ===== CHECKING SINGLE JOB STATUS =====`);
-  console.log(`[DEBUG] [AutoRAG] Job ID: ${job.job_id}`);
-  console.log(`[DEBUG] [AutoRAG] File Name: ${job.file_name}`);
-  console.log(`[DEBUG] [AutoRAG] Current Status: ${job.status}`);
-  console.log(`[DEBUG] [AutoRAG] Timestamp: ${new Date().toISOString()}`);
-
-  // Call the Cloudflare AutoRAG API to check job status
-  const baseUrl = env.AUTORAG_BASE_URL;
-
-  if (!baseUrl) {
-    throw new Error("AutoRAG configuration missing: AUTORAG_BASE_URL");
-  }
-
-  const jobDetailsUrl = AUTORAG_CONFIG.buildLibraryAutoRAGUrl(
-    baseUrl,
-    AUTORAG_ENDPOINTS.JOB_DETAILS.replace("{jobId}", job.job_id)
-  );
-
-  console.log(`[DEBUG] [AutoRAG] Job details URL: ${jobDetailsUrl}`);
-  console.log(
-    `[DEBUG] [AutoRAG] API Token present: ${env.AUTORAG_API_TOKEN ? "YES" : "NO"}`
-  );
-
-  try {
-    console.log(`[DEBUG] [AutoRAG] Making GET request to AutoRAG API...`);
-    console.log(`[DEBUG] [AutoRAG] Request details:`, {
-      url: jobDetailsUrl,
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${env.AUTORAG_API_TOKEN ? `${env.AUTORAG_API_TOKEN.substring(0, 10)}...` : "NOT_SET"}`,
-      },
-    });
-
-    const jobResponse = await fetch(jobDetailsUrl, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${env.AUTORAG_API_TOKEN}`,
-      },
-    });
-
-    console.log(`[DEBUG] [AutoRAG] Job response status: ${jobResponse.status}`);
-    console.log(`[DEBUG] [AutoRAG] Job response ok: ${jobResponse.ok}`);
-    console.log(`[DEBUG] [AutoRAG] Job response headers:`, {
-      "content-type": jobResponse.headers.get("content-type"),
-      "content-length": jobResponse.headers.get("content-length"),
-      date: jobResponse.headers.get("date"),
-      server: jobResponse.headers.get("server"),
-    });
-
-    if (jobResponse.ok) {
-      console.log(`[DEBUG] [AutoRAG] Response OK, parsing JSON...`);
-      const jobResult = (await jobResponse.json()) as any;
-      console.log(
-        `[DEBUG] [AutoRAG] Job result:`,
-        JSON.stringify(jobResult, null, 2)
-      );
-
-      // Extract job status from the response
-      let jobStatus = jobResult.result?.status || jobResult.status;
-      console.log(`[DEBUG] [AutoRAG] Initial job status: ${jobStatus}`);
-      console.log(
-        `[DEBUG] [AutoRAG] Full job result structure:`,
-        JSON.stringify(jobResult, null, 2)
-      );
-
-      // Check if there are any error messages in the response
-      if (jobResult.result?.error) {
-        console.error(
-          `[DEBUG] [AutoRAG] Job has error:`,
-          jobResult.result.error
-        );
-      }
-
-      // Check if there are any logs that might indicate issues
-      if (jobResult.result?.logs && Array.isArray(jobResult.result.logs)) {
-        console.log(
-          `[DEBUG] [AutoRAG] Job has ${jobResult.result.logs.length} log entries`
-        );
-        jobResult.result.logs.forEach((log: any, index: number) => {
-          console.log(`[DEBUG] [AutoRAG] Log ${index}:`, log);
-        });
-      }
-
-      // If no explicit status field, determine status from other fields
-      if (!jobStatus) {
-        console.log(
-          `[DEBUG] [AutoRAG] No explicit status, determining from other fields...`
-        );
-        if (jobResult.result?.ended_at) {
-          // Job has ended, check if it was successful
-          if (jobResult.result?.end_reason === null) {
-            jobStatus = "completed";
-            console.log(
-              `[DEBUG] [AutoRAG] Job ended with no end_reason, status: completed`
-            );
-          } else {
-            jobStatus = "failed";
-            console.log(
-              `[DEBUG] [AutoRAG] Job ended with end_reason: ${jobResult.result?.end_reason}, status: failed`
-            );
-          }
-        } else if (jobResult.result?.started_at) {
-          // Job has started but not ended
-          jobStatus = "processing";
-          console.log(
-            `[DEBUG] [AutoRAG] Job started but not ended, status: processing`
-          );
-        } else {
-          // Job hasn't started yet
-          jobStatus = "pending";
-          console.log(`[DEBUG] [AutoRAG] Job not started yet, status: pending`);
-        }
-      }
-
-      console.log(`[DEBUG] [AutoRAG] Final job status: ${jobStatus}`);
-
-      // Ensure jobStatus is never undefined
-      if (!jobStatus) {
-        jobStatus = "unknown";
-        console.log(
-          `[DEBUG] [AutoRAG] Job status was undefined, set to: unknown`
-        );
-      }
-
-      // Map AutoRAG job status to our file status
-      let fileStatus = "processing";
-      let updated = false;
-
-      if (jobStatus === "completed" || jobStatus === "success") {
-        console.log(`[DEBUG] [AutoRAG] Job completed, updating database...`);
-        // Job completed - mark as completed and stop polling
-        await fileDAO.updateAutoRAGJobStatus(job.job_id, "completed");
-        fileStatus = FileDAO.STATUS.COMPLETED;
-        updated = true;
-        console.log(
-          `[DEBUG] [AutoRAG] Job completed for ${job.file_name}, marked as completed`
-        );
-
-        // Note: We don't verify searchability here to avoid infinite polling
-        // The file will become searchable eventually, and we can check that separately
-      } else if (jobStatus === "failed" || jobStatus === "error") {
-        console.log(`[DEBUG] [AutoRAG] Job failed, updating database...`);
-        await fileDAO.updateAutoRAGJobStatus(job.job_id, "failed");
-        fileStatus = FileDAO.STATUS.ERROR;
-        updated = true;
-        console.log(
-          `[DEBUG] [AutoRAG] Job failed for ${job.file_name}, marked as error`
-        );
-      } else if (jobStatus === "processing") {
-        console.log(`[DEBUG] [AutoRAG] Job processing, updating database...`);
-        await fileDAO.updateAutoRAGJobStatus(job.job_id, "processing");
-        fileStatus = FileDAO.STATUS.PROCESSING;
-        updated = true;
-        console.log(
-          `[DEBUG] [AutoRAG] Job processing for ${job.file_name}, marked as processing`
-        );
-      }
-
-      // Update file status if it changed
-      if (updated) {
-        console.log(
-          `[DEBUG] [AutoRAG] Status changed, updating file status...`
-        );
-        await fileDAO.updateFileStatusByJobId(job.job_id, fileStatus);
-        console.log(
-          `[DEBUG] [AutoRAG] Updated file ${job.file_name} to status: ${fileStatus}`
-        );
-
-        // Send status update notification with complete file data for in-place UI updates
-        try {
-          // Get the complete file record for the notification
-          const fileRecord = await fileDAO.getFileForRag(
-            job.file_key,
-            job.username
-          );
-          if (fileRecord) {
-            await notifyFileUpdated(env, job.username, fileRecord);
-          } else {
-            // Fallback to basic notification if file record not found
-            await notifyFileStatusUpdated(
-              env,
-              job.username,
-              job.file_key,
-              job.file_name,
-              fileStatus
-            );
-          }
-        } catch (notifyError) {
-          console.error(
-            `[AutoRAG] Failed to send status update notification:`,
-            notifyError
-          );
-        }
-
-        // If the job completed, emit a user notification via SSE and process sync queue
-        if (fileStatus === "completed") {
-          try {
-            const meta = await fileDAO.getFileMetadata(job.file_key);
-            const size = meta?.file_size ?? 0;
-            console.log(
-              `[AutoRAG] Sending FILE_UPLOADED notification for ${job.file_name} (size=${size}) to ${job.username}`
-            );
-            // Get the complete file record for the notification
-            const fileRecord = await fileDAO.getFileForRag(
-              job.file_key,
-              job.username
-            );
-            if (fileRecord) {
-              await notifyFileUploadCompleteWithData(
-                env,
-                job.username,
-                fileRecord
-              );
-            } else {
-              console.error(
-                `[AutoRAG] File record not found for upload completion notification: ${job.file_key}`
-              );
-            }
-          } catch (notifyError) {
-            console.error(
-              `[AutoRAG] Failed to send file upload notification for ${job.file_name}:`,
-              notifyError
-            );
-          }
-
-          // Process sync queue for this user since a job just completed
-          try {
-            const queueResult = await SyncQueueService.processSyncQueue(
-              env,
-              job.username
-            );
-
-            if (queueResult.processed > 0) {
-              console.log(
-                `[AutoRAG] Processed ${queueResult.processed} queued items for user ${job.username}, new job: ${queueResult.jobId}`
-              );
-            }
-          } catch (queueError) {
-            console.error(
-              `[AutoRAG] Failed to process sync queue for user ${job.username}:`,
-              queueError
-            );
-          }
-        }
-      }
-
-      const endTime = Date.now();
-      const duration = endTime - startTime;
-      console.log(`[DEBUG] [AutoRAG] ===== JOB STATUS CHECK COMPLETED =====`);
-      console.log(`[DEBUG] [AutoRAG] Duration: ${duration}ms`);
-      console.log(`[DEBUG] [AutoRAG] Status: ${fileStatus}`);
-      console.log(`[DEBUG] [AutoRAG] Updated: ${updated}`);
-
-      return { status: fileStatus, updated };
-    } else {
-      const errorText = await jobResponse.text();
-      console.error(`[DEBUG] [AutoRAG] ===== JOB STATUS CHECK FAILED =====`);
-      console.error(`[DEBUG] [AutoRAG] Response status: ${jobResponse.status}`);
-      console.error(`[DEBUG] [AutoRAG] Error text: ${errorText}`);
-
-      // Mark job as failed if we can't reach the API
-      console.log(
-        `[DEBUG] [AutoRAG] Marking job as failed due to API error...`
-      );
-      await fileDAO.updateAutoRAGJobStatus(
-        job.job_id,
-        "error",
-        `API Error: ${jobResponse.status}`
-      );
-      console.log(`[DEBUG] [AutoRAG] Job marked as failed`);
-      return { status: "error", updated: true };
-    }
-  } catch (error) {
-    const endTime = Date.now();
-    const duration = endTime - startTime;
-    console.error(`[DEBUG] [AutoRAG] ===== JOB STATUS CHECK ERROR =====`);
-    console.error(`[DEBUG] [AutoRAG] Duration: ${duration}ms`);
-    console.error(`[DEBUG] [AutoRAG] Job ID: ${job.job_id}`);
-    console.error(`[DEBUG] [AutoRAG] Error:`, error);
-    console.error(
-      `[DEBUG] [AutoRAG] Error message:`,
-      error instanceof Error ? error.message : String(error)
-    );
-    console.error(
-      `[DEBUG] [AutoRAG] Error stack:`,
-      error instanceof Error ? error.stack : "No stack trace"
-    );
-    console.error(`[DEBUG] [AutoRAG] Context:`, {
-      jobId: job.job_id,
-      fileName: job.file_name,
-      currentStatus: job.status,
-      ragId: job.rag_id,
-      username: job.username,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Mark job as failed on exception
-    await fileDAO.updateAutoRAGJobStatus(
-      job.job_id,
-      "error",
-      `Exception: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
-    return { status: "error", updated: true };
-  }
-}
+// checkSingleJobStatus has been moved to services/job-status-service.ts
+// Re-export for backward compatibility
+export { checkSingleJobStatus } from "@/services/file/job-status-service";
 
 /**
  * Refresh all file statuses for a user
@@ -956,7 +642,7 @@ export async function handleGetSyncQueueStatus(c: ContextWithAuth) {
     const userAuth = (c as any).userAuth;
     const username = userAuth.username;
 
-    console.log(`[AutoRAG] Getting sync queue status for user: ${username}`);
+    log.debug("Getting sync queue status", { username });
 
     const status = await SyncQueueService.getQueueStatus(c.env, username);
 
@@ -966,7 +652,7 @@ export async function handleGetSyncQueueStatus(c: ContextWithAuth) {
       message: `Found ${status.queuedCount} queued items and ${status.ongoingJobs ? "ongoing" : "no ongoing"} jobs`,
     });
   } catch (error) {
-    console.error("[AutoRAG] Error getting sync queue status:", error);
+    log.error("Error getting sync queue status", error);
     return c.json(
       {
         success: false,

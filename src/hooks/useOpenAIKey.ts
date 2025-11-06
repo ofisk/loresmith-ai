@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { API_CONFIG } from "../app-constants";
-import { createAuthHeadersFromStorage } from "../services/auth-service";
-import { useBaseAsync } from "./useBaseAsync";
+import { API_CONFIG } from "@/app-constants";
+import { createAuthHeadersFromStorage } from "@/services/core/auth-service";
+import { useBaseAsync } from "@/hooks/useBaseAsync";
 
 interface UseOpenAIKeyReturn {
   hasApiKey: boolean;

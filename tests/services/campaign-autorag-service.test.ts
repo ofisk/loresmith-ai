@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { CampaignAutoRAG } from "../../src/services/campaign-autorag-service";
+import { CampaignAutoRAG } from "../../src/services/campaign/campaign-autorag-service";
 import type { Env } from "../../src/middleware/auth";
 import type { ShardCandidate, RejectedShard } from "../../src/types/shard";
 
