@@ -22,7 +22,6 @@ interface ChatAreaProps {
   onSuggestionSubmit: (suggestion: string) => void;
   onUploadFiles: () => void;
   textareaHeight: string;
-  onTextareaHeightChange: (height: string) => void;
   pendingToolCallConfirmation: boolean;
 }
 
@@ -44,7 +43,6 @@ export function ChatArea({
   onSuggestionSubmit,
   onUploadFiles,
   textareaHeight,
-  onTextareaHeightChange,
   pendingToolCallConfirmation,
 }: ChatAreaProps) {
   return (

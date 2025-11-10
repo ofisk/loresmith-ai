@@ -7,16 +7,15 @@ import type { StagedShardGroup } from "@/types/shard";
 vi.mock("@/components/chat/UnifiedShardManager", () => ({
   UnifiedShardManager: ({
     shards,
-    onShardsProcessed,
   }: {
     shards: StagedShardGroup[];
     onShardsProcessed: (ids: string[]) => void;
   }) => (
     <div data-testid="unified-shard-manager">
-      {shards.map((group, idx) => (
-        <div key={idx} data-testid={`shard-group-${idx}`}>
-          {group.shards?.map((shard, shardIdx) => (
-            <div key={shardIdx} data-testid={`shard-${shard.id || shardIdx}`}>
+      {shards.map((group) => (
+        <div key={group.key} data-testid={`shard-group-${group.key}`}>
+          {group.shards?.map((shard) => (
+            <div key={shard.id} data-testid={`shard-${shard.id}`}>
               {shard.text}
             </div>
           ))}

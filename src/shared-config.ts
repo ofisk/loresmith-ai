@@ -126,6 +126,21 @@ export const API_CONFIG = {
         SEARCH_APPROVED: (campaignId: string) =>
           `/campaigns/${campaignId}/shards/approved`,
       },
+      ENTITIES: {
+        LIST: (campaignId: string) => `/campaigns/${campaignId}/entities`,
+        DETAILS: (campaignId: string, entityId: string) =>
+          `/campaigns/${campaignId}/entities/${entityId}`,
+        RELATIONSHIPS: (campaignId: string, entityId: string) =>
+          `/campaigns/${campaignId}/entities/${entityId}/relationships`,
+        EXTRACT: (campaignId: string) =>
+          `/campaigns/${campaignId}/entities/extract`,
+        DEDUPLICATE: (campaignId: string) =>
+          `/campaigns/${campaignId}/entities/deduplicate`,
+        DEDUP_PENDING: (campaignId: string) =>
+          `/campaigns/${campaignId}/entities/deduplication-pending`,
+        DEDUP_RESOLVE: (campaignId: string, entryId: string) =>
+          `/campaigns/${campaignId}/entities/deduplication-pending/${entryId}`,
+      },
     },
     CHARACTER_SHEETS: {
       // NOTE: Character sheets are currently handled as a separate entity type.

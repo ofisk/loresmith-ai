@@ -4,6 +4,7 @@ import { FileDAO } from "./file-dao";
 import { ShardDAO } from "./shard-dao";
 import type { UserStorageUsage } from "./user-dao";
 import { UserDAO } from "./user-dao";
+import { EntityDAO } from "./entity-dao";
 
 // Cache for DAO factory instances
 const daoFactoryCache = new Map<string, DAOFactory>();
@@ -18,6 +19,7 @@ export interface DAOFactory {
   campaignDAO: CampaignDAO;
   fileDAO: FileDAO;
   shardDAO: ShardDAO;
+  entityDAO: EntityDAO;
 
   // Convenience methods for common operations
   storeOpenAIKey(username: string, apiKey: string): Promise<void>;
@@ -32,12 +34,14 @@ export class DAOFactoryImpl implements DAOFactory {
   public readonly campaignDAO: CampaignDAO;
   public readonly fileDAO: FileDAO;
   public readonly shardDAO: ShardDAO;
+  public readonly entityDAO: EntityDAO;
 
   constructor(db: D1Database) {
     this.userDAO = new UserDAO(db);
     this.campaignDAO = new CampaignDAO(db);
     this.fileDAO = new FileDAO(db);
     this.shardDAO = new ShardDAO(db);
+    this.entityDAO = new EntityDAO(db);
   }
 
   // Convenience methods for common operations
