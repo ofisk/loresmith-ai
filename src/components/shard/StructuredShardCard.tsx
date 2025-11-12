@@ -167,8 +167,11 @@ export function StructuredShardCard({
             )}
             <div className="flex items-center gap-2 text-sm text-gray-300 flex-wrap">
               <span className="capitalize">{typeDisplayName}</span>
-              {subtitleInfo.map((info: string, i: number) => (
-                <span key={`${info}-${i}`} className="flex items-center gap-2">
+              {subtitleInfo.map((info: string) => (
+                <span
+                  key={`${typeDisplayName}-${info}`}
+                  className="flex items-center gap-2"
+                >
                   <span>•</span>
                   <span>{info}</span>
                 </span>
@@ -243,11 +246,15 @@ export function StructuredShardCard({
           {/* Main text content */}
           {mainText && (
             <div>
-              <label className="text-sm font-medium text-gray-300">
+              <label
+                htmlFor={`structured-description-${shard.id}`}
+                className="text-sm font-medium text-gray-300"
+              >
                 Description:
               </label>
               {isEditing && onEdit ? (
                 <textarea
+                  id={`structured-description-${shard.id}`}
                   value={mainText}
                   onChange={(e) => {
                     const fieldName = displayMetadata.primary_text || "text";

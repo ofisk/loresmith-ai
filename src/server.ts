@@ -58,6 +58,15 @@ import {
   handleUpdateCampaign,
 } from "@/routes/campaigns";
 import {
+  handleGetEntity,
+  handleGetEntityRelationships,
+  handleListEntities,
+  handleTriggerEntityDeduplication,
+  handleTriggerEntityExtraction,
+  handleListPendingDeduplication,
+  handleResolveDeduplicationEntry,
+} from "@/routes/entities";
+import {
   handleGetExternalResourceRecommendations,
   handleGetExternalResourceSearch,
   handleGetGmResources,
@@ -623,6 +632,49 @@ app.delete(
   API_CONFIG.ENDPOINTS.CAMPAIGNS.DELETE_ALL,
   requireUserJwt,
   handleDeleteAllCampaigns
+);
+
+// Campaign entity routes
+app.get(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.LIST(":campaignId"),
+  requireUserJwt,
+  handleListEntities
+);
+app.get(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DETAILS(":campaignId", ":entityId"),
+  requireUserJwt,
+  handleGetEntity
+);
+app.get(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIPS(
+    ":campaignId",
+    ":entityId"
+  ),
+  requireUserJwt,
+  handleGetEntityRelationships
+);
+app.post(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.EXTRACT(":campaignId"),
+  requireUserJwt,
+  handleTriggerEntityExtraction
+);
+app.post(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DEDUPLICATE(":campaignId"),
+  requireUserJwt,
+  handleTriggerEntityDeduplication
+);
+app.get(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DEDUP_PENDING(":campaignId"),
+  requireUserJwt,
+  handleListPendingDeduplication
+);
+app.post(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DEDUP_RESOLVE(
+    ":campaignId",
+    ":entryId"
+  ),
+  requireUserJwt,
+  handleResolveDeduplicationEntry
 );
 
 // Campaign AutoRAG Routes

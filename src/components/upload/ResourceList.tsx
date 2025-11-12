@@ -225,7 +225,7 @@ export function ResourceList({
         handleJwtChanged as EventListener
       );
     };
-  }, [fetchResources, setLoading, setError]);
+  }, [fetchResources, setLoading, setError, authReady]);
 
   // Listen for campaign changes to refresh campaign associations
   useEffect(() => {

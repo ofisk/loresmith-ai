@@ -513,7 +513,6 @@ export default function Chat() {
               onSuggestionSubmit={handleSuggestionSubmit}
               onUploadFiles={() => setTriggerFileUpload(true)}
               textareaHeight={textareaHeight}
-              onTextareaHeightChange={setTextareaHeight}
               pendingToolCallConfirmation={pendingToolCallConfirmation}
             />
           </div>

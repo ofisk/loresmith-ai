@@ -99,6 +99,10 @@ export function PropertyField({
     return String(val);
   };
 
+  const fieldId = `property-field-${String(name)
+    .replace(/\s+/g, "-")
+    .toLowerCase()}`;
+
   const renderValue = () => {
     if (isFieldEditable) {
       switch (type) {
@@ -114,6 +118,7 @@ export function PropertyField({
               }
               onChange={(e) => setEditValue(Number(e.target.value))}
               onKeyDown={handleKeyDown}
+              id={fieldId}
               className="w-full px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
             />
           );
@@ -199,6 +204,7 @@ export function PropertyField({
                 }
               }}
               onKeyDown={handleKeyDown}
+              id={fieldId}
               className="w-full px-2 py-1 border border-gray-600 rounded text-sm font-mono bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
               rows={4}
             />
@@ -216,6 +222,7 @@ export function PropertyField({
               }
               onChange={(e) => setEditValue(e.target.value)}
               onKeyDown={handleKeyDown}
+              id={fieldId}
               className="w-full px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
             />
           );
@@ -231,7 +238,10 @@ export function PropertyField({
     <div className={`flex items-start gap-2 ${className}`}>
       <div className="flex-1">
         <div className="flex items-center gap-2 mb-1">
-          <label className="text-xs font-medium text-gray-400 min-w-0 flex-shrink-0">
+          <label
+            htmlFor={isFieldEditable && type !== "array" ? fieldId : undefined}
+            className="text-xs font-medium text-gray-400 min-w-0 flex-shrink-0"
+          >
             {name}
           </label>
           {isFieldEditable && onDelete && (

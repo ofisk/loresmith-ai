@@ -168,14 +168,21 @@ export function ShardTemplateBuilder({
         <div className="space-y-3">
           {(template.fields || []).map((field) => {
             const fieldType = template.fieldTypes?.[field] || "string";
+            const fieldId = `template-preview-${field
+              .replace(/\s+/g, "-")
+              .toLowerCase()}`;
 
             return (
               <div key={field}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor={fieldId}
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   {field}
                 </label>
                 {fieldType === "string" && (
                   <input
+                    id={fieldId}
                     type="text"
                     className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
                     placeholder={`Enter ${field}...`}
@@ -184,6 +191,7 @@ export function ShardTemplateBuilder({
                 )}
                 {fieldType === "number" && (
                   <input
+                    id={fieldId}
                     type="number"
                     className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
                     placeholder="Enter number..."
@@ -198,6 +206,7 @@ export function ShardTemplateBuilder({
                       </span>
                     </div>
                     <input
+                      id={fieldId}
                       type="text"
                       className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
                       placeholder="Add new item..."
@@ -207,6 +216,7 @@ export function ShardTemplateBuilder({
                 )}
                 {fieldType === "object" && (
                   <textarea
+                    id={fieldId}
                     className="w-full px-3 py-2 border border-gray-300 rounded text-sm font-mono"
                     rows={3}
                     placeholder='{"key": "value"}'
@@ -259,10 +269,14 @@ export function ShardTemplateBuilder({
           <h4 className="font-medium text-gray-900">Template Information</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="template-name"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Template Name *
               </label>
               <input
+                id="template-name"
                 type="text"
                 value={template.name || ""}
                 onChange={(e) =>
@@ -273,10 +287,14 @@ export function ShardTemplateBuilder({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="template-type"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Shard Type *
               </label>
               <input
+                id="template-type"
                 type="text"
                 value={template.type || ""}
                 onChange={(e) =>
@@ -288,10 +306,14 @@ export function ShardTemplateBuilder({
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="template-description"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Description
             </label>
             <textarea
+              id="template-description"
               value={template.description || ""}
               onChange={(e) =>
                 setTemplate((prev) => ({

@@ -253,12 +253,16 @@ export function FlexibleShardCard({
           {/* Description */}
           {getShardDescription() && (
             <div>
-              <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+              <label
+                htmlFor={`shard-description-${shard.id}`}
+                className="text-sm font-medium text-gray-300 flex items-center gap-2"
+              >
                 <FileText size={14} />
                 Description
               </label>
               <div className="mt-1">
                 <textarea
+                  id={`shard-description-${shard.id}`}
                   value={descriptionValue}
                   onChange={(e) => setDescriptionValue(e.target.value)}
                   onBlur={handleDescriptionSave}
