@@ -115,7 +115,7 @@ Main container component with:
 
 ### Structured Types (with dynamic UI)
 
-All types from `src/lib/content-types.ts` are supported:
+All types from `src/lib/entity-types.ts` are supported:
 
 - **monsters**: Creatures with CR, AC, HP, abilities, etc.
 - **npcs**: Non-statblock characters with roles, goals, relationships
