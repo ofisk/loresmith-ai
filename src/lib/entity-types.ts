@@ -1,10 +1,10 @@
 /**
- * Structured content types for RPG/D&D content extraction
- * These define the types of "primitives" that can be extracted from documents
+ * Structured entity types for RPG/D&D content extraction.
+ * These define the categories of "primitives" that can be extracted from documents
  * and used in campaign management and AI agent interactions.
  */
 
-export const STRUCTURED_CONTENT_TYPES = [
+export const STRUCTURED_ENTITY_TYPES = [
   // Core entities (things you can drop into play)
   "monsters", // Monster stat blocks with CR, abilities, actions, etc.
   "npcs", // Non-statblock characters with roles, goals, relationships
@@ -55,22 +55,20 @@ export const STRUCTURED_CONTENT_TYPES = [
   "custom", // Custom content types discovered during extraction
 ] as const;
 
-export type StructuredContentType = (typeof STRUCTURED_CONTENT_TYPES)[number];
+export type StructuredEntityType = (typeof STRUCTURED_ENTITY_TYPES)[number];
 
 /**
- * Helper function to check if a string is a valid content type
+ * Helper function to check if a string is a valid entity type.
  */
-export function isValidContentType(
-  type: string
-): type is StructuredContentType {
-  return STRUCTURED_CONTENT_TYPES.includes(type as StructuredContentType);
+export function isValidEntityType(type: string): type is StructuredEntityType {
+  return STRUCTURED_ENTITY_TYPES.includes(type as StructuredEntityType);
 }
 
 /**
- * Get a human-readable name for a content type
+ * Get a human-readable name for an entity type.
  */
-export function getContentTypeDisplayName(type: StructuredContentType): string {
-  const displayNames: Record<StructuredContentType, string> = {
+export function getEntityTypeDisplayName(type: StructuredEntityType): string {
+  const displayNames: Record<StructuredEntityType, string> = {
     monsters: "Monsters",
     npcs: "NPCs",
     spells: "Spells",

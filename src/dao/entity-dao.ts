@@ -1,4 +1,8 @@
 import { BaseDAOClass } from "./base-dao";
+import {
+  normalizeRelationshipType,
+  type RelationshipType,
+} from "@/lib/relationship-types";
 
 // Raw row shape returned directly from D1 queries against the `entities` table.
 // All fields mirror the database column names and use snake_case to match D1 results.
@@ -66,11 +70,13 @@ export interface UpdateEntityInput {
 export interface EntityRelationshipRecord {
   id: string;
   campaign_id: string;
-  source_entity_id: string;
-  target_entity_id: string;
+  from_entity_id: string;
+  to_entity_id: string;
   relationship_type: string;
+  strength: number | null;
   metadata: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 // Application-facing relationship shape with camelCase keys and parsed metadata.
@@ -78,21 +84,24 @@ export interface EntityRelationshipRecord {
 export interface EntityRelationship {
   id: string;
   campaignId: string;
-  sourceEntityId: string;
-  targetEntityId: string;
-  relationshipType: string;
+  fromEntityId: string;
+  toEntityId: string;
+  relationshipType: RelationshipType;
+  strength?: number | null;
   metadata?: unknown;
   createdAt: string;
+  updatedAt: string;
 }
 
 // Parameters required to create a new directional relationship between two entities.
 // The caller is responsible for providing a unique ID (usually crypto.randomUUID()).
 export interface CreateEntityRelationshipInput {
-  id: string;
+  id?: string;
   campaignId: string;
-  sourceEntityId: string;
-  targetEntityId: string;
-  relationshipType: string;
+  fromEntityId: string;
+  toEntityId: string;
+  relationshipType: RelationshipType;
+  strength?: number | null;
   metadata?: unknown;
 }
 
@@ -101,7 +110,7 @@ export interface CreateEntityRelationshipInput {
 export interface EntityNeighbor {
   entityId: string;
   depth: number;
-  relationshipType: string;
+  relationshipType: RelationshipType;
   name: string;
   entityType: string;
 }
@@ -277,37 +286,53 @@ export class EntityDAO extends BaseDAOClass {
 
   async deleteEntity(entityId: string): Promise<void> {
     await this.execute(
-      "DELETE FROM entity_relationships WHERE source_entity_id = ? OR target_entity_id = ?",
+      "DELETE FROM entity_relationships WHERE from_entity_id = ? OR to_entity_id = ?",
       [entityId, entityId]
     );
     await this.execute("DELETE FROM entities WHERE id = ?", [entityId]);
   }
 
-  async createRelationship(
+  async upsertRelationship(
     relationship: CreateEntityRelationshipInput
-  ): Promise<void> {
+  ): Promise<EntityRelationship> {
+    const relationshipId = relationship.id ?? crypto.randomUUID();
     const sql = `
       INSERT INTO entity_relationships (
         id,
         campaign_id,
-        source_entity_id,
-        target_entity_id,
+        from_entity_id,
+        to_entity_id,
         relationship_type,
+        strength,
         metadata,
-        created_at
+        created_at,
+        updated_at
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
+        ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
+      ON CONFLICT(from_entity_id, to_entity_id, relationship_type)
+      DO UPDATE SET
+        strength = excluded.strength,
+        metadata = excluded.metadata,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *;
     `;
 
-    await this.execute(sql, [
-      relationship.id,
+    const record = await this.queryFirst<EntityRelationshipRecord>(sql, [
+      relationshipId,
       relationship.campaignId,
-      relationship.sourceEntityId,
-      relationship.targetEntityId,
+      relationship.fromEntityId,
+      relationship.toEntityId,
       relationship.relationshipType,
+      relationship.strength ?? null,
       relationship.metadata ? JSON.stringify(relationship.metadata) : null,
     ]);
+
+    if (!record) {
+      throw new Error("Failed to upsert relationship");
+    }
+
+    return this.mapRelationshipRecord(record);
   }
 
   async deleteRelationship(relationshipId: string): Promise<void> {
@@ -316,57 +341,115 @@ export class EntityDAO extends BaseDAOClass {
     ]);
   }
 
+  async deleteRelationshipByCompositeKey(
+    fromEntityId: string,
+    toEntityId: string,
+    relationshipType: RelationshipType
+  ): Promise<void> {
+    await this.execute(
+      `
+        DELETE FROM entity_relationships
+        WHERE from_entity_id = ? AND to_entity_id = ? AND relationship_type = ?
+      `,
+      [fromEntityId, toEntityId, relationshipType]
+    );
+  }
+
   async getRelationshipsForEntity(
-    entityId: string
+    entityId: string,
+    options: { relationshipType?: RelationshipType } = {}
   ): Promise<EntityRelationship[]> {
+    const params: any[] = [entityId, entityId];
+    const filters: string[] = ["(from_entity_id = ? OR to_entity_id = ?)"];
+
+    if (options.relationshipType) {
+      filters.push("relationship_type = ?");
+      params.push(options.relationshipType);
+    }
+
     const sql = `
       SELECT * FROM entity_relationships
-      WHERE source_entity_id = ? OR target_entity_id = ?
+      WHERE ${filters.join(" AND ")}
       ORDER BY created_at DESC
     `;
-    const records = await this.queryAll<EntityRelationshipRecord>(sql, [
-      entityId,
-      entityId,
-    ]);
+
+    const records = await this.queryAll<EntityRelationshipRecord>(sql, params);
     return records.map((record) => this.mapRelationshipRecord(record));
   }
 
-  async getNeighbors(
+  async getRelationshipsByType(
     campaignId: string,
+    relationshipType: RelationshipType
+  ): Promise<EntityRelationship[]> {
+    const sql = `
+      SELECT * FROM entity_relationships
+      WHERE campaign_id = ? AND relationship_type = ?
+      ORDER BY created_at DESC
+    `;
+
+    const records = await this.queryAll<EntityRelationshipRecord>(sql, [
+      campaignId,
+      relationshipType,
+    ]);
+
+    return records.map((record) => this.mapRelationshipRecord(record));
+  }
+
+  async getRelationshipNeighborhood(
     entityId: string,
-    maxDepth: number = 1
+    options: {
+      maxDepth?: number;
+      relationshipTypes?: RelationshipType[];
+    } = {}
   ): Promise<EntityNeighbor[]> {
-    if (maxDepth < 1) {
-      return [];
-    }
+    const maxDepth = Math.max(1, options.maxDepth ?? 1);
+    const relationshipTypes = options.relationshipTypes ?? [];
+
+    const typePlaceholders =
+      relationshipTypes.length > 0
+        ? `AND er.relationship_type IN (${relationshipTypes
+            .map(() => "?")
+            .join(", ")})`
+        : "";
+
+    const params: any[] = [
+      entityId,
+      ...relationshipTypes,
+      maxDepth,
+      ...relationshipTypes,
+      entityId,
+    ];
 
     const sql = `
       WITH RECURSIVE neighbor_tree AS (
         SELECT
-          er.source_entity_id,
-          er.target_entity_id,
+          er.from_entity_id,
+          er.to_entity_id,
           er.relationship_type,
           1 AS depth
         FROM entity_relationships er
-        WHERE er.campaign_id = ? AND er.source_entity_id = ?
+        WHERE er.from_entity_id = ?
+          ${typePlaceholders}
         UNION ALL
         SELECT
-          er.source_entity_id,
-          er.target_entity_id,
+          er.from_entity_id,
+          er.to_entity_id,
           er.relationship_type,
           nt.depth + 1 AS depth
         FROM entity_relationships er
-        INNER JOIN neighbor_tree nt ON er.source_entity_id = nt.target_entity_id
-        WHERE er.campaign_id = ? AND nt.depth < ?
+        INNER JOIN neighbor_tree nt ON er.from_entity_id = nt.to_entity_id
+        WHERE nt.depth < ?
+          ${typePlaceholders}
       )
       SELECT
-        nt.target_entity_id AS entity_id,
+        nt.to_entity_id AS entity_id,
         nt.relationship_type,
         nt.depth,
         e.name,
         e.entity_type
       FROM neighbor_tree nt
-      INNER JOIN entities e ON e.id = nt.target_entity_id
+      INNER JOIN entities e ON e.id = nt.to_entity_id
+      WHERE nt.to_entity_id != ?
       ORDER BY nt.depth, e.name
     `;
 
@@ -376,11 +459,11 @@ export class EntityDAO extends BaseDAOClass {
       depth: number;
       name: string;
       entity_type: string;
-    }>(sql, [campaignId, entityId, campaignId, maxDepth]);
+    }>(sql, params);
 
     return records.map((row) => ({
       entityId: row.entity_id,
-      relationshipType: row.relationship_type,
+      relationshipType: normalizeRelationshipType(row.relationship_type),
       depth: row.depth,
       name: row.name,
       entityType: row.entity_type,
@@ -410,13 +493,15 @@ export class EntityDAO extends BaseDAOClass {
     return {
       id: record.id,
       campaignId: record.campaign_id,
-      sourceEntityId: record.source_entity_id,
-      targetEntityId: record.target_entity_id,
-      relationshipType: record.relationship_type,
+      fromEntityId: record.from_entity_id,
+      toEntityId: record.to_entity_id,
+      relationshipType: normalizeRelationshipType(record.relationship_type),
+      strength: record.strength,
       metadata: record.metadata
         ? this.safeParseJson(record.metadata)
         : undefined,
       createdAt: record.created_at,
+      updatedAt: record.updated_at,
     };
   }
 

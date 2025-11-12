@@ -70,7 +70,7 @@ function MyShardManagement() {
 
 Utility functions for detecting and categorizing shard types:
 
-- `isKnownStructure()` - Determines if shard matches a known type from STRUCTURED_CONTENT_TYPES
+- `isKnownStructure()` - Determines if shard matches a known type from STRUCTURED_ENTITY_TYPES
 - `getEditableProperties()` - Extracts editable properties from shard
 - No required property validation - users can edit anything
 
@@ -132,7 +132,7 @@ The UI automatically adapts to whatever properties each shard has - no hardcodin
 
 ### Flexible Types (generic display)
 
-- Any custom type not in STRUCTURED_CONTENT_TYPES
+- Any custom type not in STRUCTURED_ENTITY_TYPES
 - Automatically detected and displayed with flexible UI
 - Same editing capabilities as structured types
 
@@ -140,11 +140,11 @@ The UI automatically adapts to whatever properties each shard has - no hardcodin
 
 ### Adding New Structured Types
 
-1. **Update content types**:
+1. **Update entity types**:
 
 ```typescript
-// In src/lib/content-types.ts
-export const STRUCTURED_CONTENT_TYPES = [
+// In src/lib/entity-types.ts
+export const STRUCTURED_ENTITY_TYPES = [
   // ... existing types
   "custom_type",
 ] as const;
@@ -153,9 +153,9 @@ export const STRUCTURED_CONTENT_TYPES = [
 2. **Add display name**:
 
 ```typescript
-// In src/lib/content-types.ts
-export function getContentTypeDisplayName(type: StructuredContentType): string {
-  const displayNames: Record<StructuredContentType, string> = {
+// In src/lib/entity-types.ts
+export function getEntityTypeDisplayName(type: StructuredEntityType): string {
+  const displayNames: Record<StructuredEntityType, string> = {
     // ... existing types
     custom_type: "Custom Type",
   };
@@ -225,7 +225,7 @@ The system uses Tailwind CSS classes and follows a consistent design pattern:
 1. **LLM-Driven Display**: Display logic is determined by the LLM during extraction via `display_metadata`, not hardcoded
 2. **No Hardcoded Properties**: Components discover and adapt to whatever properties are present
 3. **No Required Fields**: Users can edit anything, system doesn't enforce structure
-4. **Single Source of Truth**: Uses existing STRUCTURED_CONTENT_TYPES from `src/lib/content-types.ts`
+4. **Single Source of Truth**: Uses existing STRUCTURED_ENTITY_TYPES from `src/lib/entity-types.ts`
 5. **Dynamic Rendering**: All cards use the same dynamic rendering logic
 6. **Graceful Degradation**: Unknown types get flexible display automatically
 
@@ -254,4 +254,4 @@ interface DisplayMetadata {
 ## Related Documentation
 
 - [Campaign Shard Flow](./CAMPAIGN_SHARD_FLOW.md) - Overview of the shard curation system
-- [Content Types](../src/lib/content-types.ts) - Defined structured content types
+- [Entity Types](../src/lib/entity-types.ts) - Defined structured entity types

@@ -3,6 +3,7 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import type { EntityDAO } from "@/dao/entity-dao";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
+import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
 import { EntityExtractionPipeline } from "@/services/rag/entity-extraction-pipeline";
 import { EntityDeduplicationService } from "@/services/rag/entity-deduplication-service";
@@ -22,6 +23,7 @@ interface EntityServiceBundle {
   extractionService: EntityExtractionService;
   pipeline: EntityExtractionPipeline;
   dedupeService: EntityDeduplicationService;
+  graphService: EntityGraphService;
 }
 
 interface CampaignHandlerContext {
@@ -62,13 +64,16 @@ function buildEntityServiceAccessor(
     if (!bundle) {
       const embeddingService = new EntityEmbeddingService(c.env.VECTORIZE);
       const extractionService = new EntityExtractionService(c.env);
+      const graphService = new EntityGraphService(entityDAO);
       bundle = {
         embeddingService,
         extractionService,
+        graphService,
         pipeline: new EntityExtractionPipeline(
           entityDAO,
           extractionService,
           embeddingService,
+          graphService,
           c.env
         ),
         dedupeService: new EntityDeduplicationService(
@@ -155,14 +160,161 @@ export async function handleGetEntityRelationships(c: ContextWithAuth) {
   return withCampaignContext(
     c,
     "Failed to get relationships",
-    async ({ c: ctx, campaignId, entityDAO }) => {
+    async ({ c: ctx, campaignId, entityDAO, getServices }) => {
       const entityId = ctx.req.param("entityId");
       const entity = await entityDAO.getEntityById(entityId);
       if (!entity || entity.campaignId !== campaignId) {
         return ctx.json({ error: "Entity not found" }, 404);
       }
-      const relationships = await entityDAO.getRelationshipsForEntity(entityId);
-      return ctx.json({ relationships });
+
+      const relationshipType = ctx.req.query("relationshipType");
+      const { graphService } = getServices();
+      try {
+        const relationships = await graphService.getRelationshipsForEntity(
+          campaignId,
+          entityId,
+          {
+            relationshipType: relationshipType ?? undefined,
+          }
+        );
+        return ctx.json({ relationships });
+      } catch (error) {
+        console.warn(
+          `[Entities] Failed to fetch relationships for ${entityId}`,
+          error
+        );
+        return ctx.json({ error: "Failed to fetch relationships" }, 400);
+      }
+    }
+  );
+}
+
+export async function handleGetEntityNeighbors(c: ContextWithAuth) {
+  return withCampaignContext(
+    c,
+    "Failed to get neighbors",
+    async ({ c: ctx, campaignId, entityDAO, getServices }) => {
+      const entityId = ctx.req.param("entityId");
+      const entity = await entityDAO.getEntityById(entityId);
+      if (!entity || entity.campaignId !== campaignId) {
+        return ctx.json({ error: "Entity not found" }, 404);
+      }
+
+      const maxDepth = ctx.req.query("maxDepth");
+      const relationshipTypes = ctx.req.query("relationshipTypes");
+      const types = relationshipTypes
+        ? relationshipTypes.split(",").map((value) => value.trim())
+        : undefined;
+
+      const { graphService } = getServices();
+      try {
+        const neighbors = await graphService.getNeighbors(
+          campaignId,
+          entityId,
+          {
+            maxDepth: maxDepth ? Number(maxDepth) : undefined,
+            relationshipTypes: types,
+          }
+        );
+        return ctx.json({ neighbors });
+      } catch (error) {
+        console.warn(
+          `[Entities] Failed to fetch neighbors for ${entityId}`,
+          error
+        );
+        return ctx.json({ error: "Failed to fetch neighbors" }, 400);
+      }
+    }
+  );
+}
+
+export async function handleListRelationshipTypes(c: ContextWithAuth) {
+  return withCampaignContext(
+    c,
+    "Failed to fetch relationship types",
+    async ({ c: ctx, getServices }) => {
+      const { graphService } = getServices();
+      return ctx.json({
+        relationshipTypes: graphService.getSupportedRelationshipTypes(),
+      });
+    }
+  );
+}
+
+export async function handleCreateEntityRelationship(c: ContextWithAuth) {
+  return withCampaignContext(
+    c,
+    "Failed to create relationship",
+    async ({ c: ctx, campaignId, entityDAO, getServices }) => {
+      const entityId = ctx.req.param("entityId");
+      const entity = await entityDAO.getEntityById(entityId);
+      if (!entity || entity.campaignId !== campaignId) {
+        return ctx.json({ error: "Entity not found" }, 404);
+      }
+
+      const body = (await ctx.req.json()) as {
+        targetEntityId?: string;
+        relationshipType?: string;
+        strength?: number;
+        metadata?: unknown;
+        allowSelfRelation?: boolean;
+      };
+
+      if (!body.targetEntityId || !body.relationshipType) {
+        return ctx.json(
+          { error: "targetEntityId and relationshipType are required" },
+          400
+        );
+      }
+
+      const { graphService } = getServices();
+      try {
+        const relationships = await graphService.upsertEdge({
+          campaignId,
+          fromEntityId: entityId,
+          toEntityId: body.targetEntityId,
+          relationshipType: body.relationshipType,
+          strength: body.strength,
+          metadata: body.metadata,
+          allowSelfRelation: body.allowSelfRelation ?? false,
+        });
+
+        return ctx.json({ relationships });
+      } catch (error) {
+        console.warn(
+          `[Entities] Failed to create relationship for ${entityId}`,
+          error
+        );
+        return ctx.json({ error: "Failed to create relationship" }, 400);
+      }
+    }
+  );
+}
+
+export async function handleDeleteEntityRelationship(c: ContextWithAuth) {
+  return withCampaignContext(
+    c,
+    "Failed to delete relationship",
+    async ({ c: ctx, campaignId, entityDAO, getServices }) => {
+      const entityId = ctx.req.param("entityId");
+      const relationshipId = ctx.req.param("relationshipId");
+
+      const entity = await entityDAO.getEntityById(entityId);
+      if (!entity || entity.campaignId !== campaignId) {
+        return ctx.json({ error: "Entity not found" }, 404);
+      }
+
+      const { graphService } = getServices();
+      try {
+        await graphService.removeEdgeById(relationshipId);
+        return ctx.json({ status: "deleted" });
+      } catch (error) {
+        console.warn(
+          `[Entities] Failed to delete relationship ${relationshipId}`,
+          error
+        );
+        return ctx.json({ error: "Failed to delete relationship" }, 400);
+      }
     }
   );
 }

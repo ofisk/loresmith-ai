@@ -1,7 +1,13 @@
-import { STRUCTURED_CONTENT_TYPES } from "@/lib/content-types";
+import {
+  STRUCTURED_ENTITY_TYPES,
+  type StructuredEntityType,
+} from "@/lib/entity-types";
+import {
+  normalizeRelationshipStrength,
+  normalizeRelationshipType,
+  type RelationshipType,
+} from "@/lib/relationship-types";
 import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
-
-export type StructuredContentType = (typeof STRUCTURED_CONTENT_TYPES)[number];
 
 export interface ExtractEntitiesOptions {
   content: string;
@@ -13,14 +19,15 @@ export interface ExtractEntitiesOptions {
 }
 
 export interface ExtractedRelationship {
-  relationshipType: string;
+  relationshipType: RelationshipType;
   targetId: string;
   metadata?: Record<string, unknown>;
+  strength?: number | null;
 }
 
 export interface ExtractedEntity {
   id: string;
-  entityType: StructuredContentType;
+  entityType: StructuredEntityType;
   name: string;
   content: unknown;
   metadata: Record<string, unknown>;
@@ -55,7 +62,7 @@ CONTENT END`;
     }
 
     const results: ExtractedEntity[] = [];
-    for (const type of STRUCTURED_CONTENT_TYPES) {
+    for (const type of STRUCTURED_ENTITY_TYPES) {
       const entries = (parsed as Record<string, unknown>)[type];
       if (!Array.isArray(entries)) {
         continue;
@@ -132,17 +139,20 @@ CONTENT END`;
       }
 
       const rel = relation as Record<string, unknown>;
-      const typeValue = rel.rel ?? rel.type ?? rel.relationship_type;
+      const rawType = rel.rel ?? rel.type ?? rel.relationship_type;
       const targetValue =
         rel.target_id ?? rel.targetId ?? rel.target ?? rel.targetId;
 
-      if (typeof typeValue !== "string" || typeof targetValue !== "string") {
+      if (typeof targetValue !== "string") {
         return acc;
       }
 
+      const normalizedType = normalizeRelationshipType(rawType);
+
       const normalized: ExtractedRelationship = {
-        relationshipType: typeValue,
+        relationshipType: normalizedType,
         targetId: targetValue,
+        strength: normalizeRelationshipStrength(rel.strength ?? rel.confidence),
       };
 
       if (

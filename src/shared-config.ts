@@ -132,6 +132,16 @@ export const API_CONFIG = {
           `/campaigns/${campaignId}/entities/${entityId}`,
         RELATIONSHIPS: (campaignId: string, entityId: string) =>
           `/campaigns/${campaignId}/entities/${entityId}/relationships`,
+        RELATIONSHIP_DETAIL: (
+          campaignId: string,
+          entityId: string,
+          relationshipId: string
+        ) =>
+          `/campaigns/${campaignId}/entities/${entityId}/relationships/${relationshipId}`,
+        RELATIONSHIP_TYPES: (campaignId: string) =>
+          `/campaigns/${campaignId}/entities/relationship-types`,
+        GRAPH_NEIGHBORS: (campaignId: string, entityId: string) =>
+          `/campaigns/${campaignId}/entities/${entityId}/graph/neighbors`,
         EXTRACT: (campaignId: string) =>
           `/campaigns/${campaignId}/entities/extract`,
         DEDUPLICATE: (campaignId: string) =>
