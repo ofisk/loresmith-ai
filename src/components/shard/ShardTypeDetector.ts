@@ -4,10 +4,10 @@
  */
 
 import {
-  STRUCTURED_CONTENT_TYPES,
-  type StructuredContentType,
-  getContentTypeDisplayName,
-} from "../../lib/content-types";
+  STRUCTURED_ENTITY_TYPES,
+  type StructuredEntityType,
+  getEntityTypeDisplayName,
+} from "../../lib/entity-types";
 
 export interface ShardMetadata {
   id: string;
@@ -17,12 +17,12 @@ export interface ShardMetadata {
 }
 
 export interface StructuredShard extends ShardMetadata {
-  type: StructuredContentType;
+  type: StructuredEntityType;
   contentId?: string; // Original content ID from parsed JSON (e.g., "night-hag")
 }
 
 export interface FlexibleShard extends ShardMetadata {
-  type: string; // Any other type not in STRUCTURED_CONTENT_TYPES
+  type: string; // Any other type not in STRUCTURED_ENTITY_TYPES
 }
 
 export type Shard = StructuredShard | FlexibleShard;
@@ -37,7 +37,7 @@ export type Shard = StructuredShard | FlexibleShard;
  * Simply checks if the type is in our structured content types list
  */
 export function isKnownStructure(shard: Shard): shard is StructuredShard {
-  return STRUCTURED_CONTENT_TYPES.includes(shard.type as StructuredContentType);
+  return STRUCTURED_ENTITY_TYPES.includes(shard.type as StructuredEntityType);
 }
 
 /**
@@ -107,12 +107,12 @@ export function validateShardStructure(_shard: Shard): {
 
 /**
  * Get display-friendly name for a shard type
- * Uses the existing getContentTypeDisplayName function when possible
+ * Uses the existing getEntityTypeDisplayName function when possible
  */
 export function getShardTypeDisplayName(type: string): string {
-  // Use existing function for structured content types
-  if (STRUCTURED_CONTENT_TYPES.includes(type as StructuredContentType)) {
-    return getContentTypeDisplayName(type as StructuredContentType);
+  // Use existing function for structured entity types
+  if (STRUCTURED_ENTITY_TYPES.includes(type as StructuredEntityType)) {
+    return getEntityTypeDisplayName(type as StructuredEntityType);
   }
 
   // Handle custom types not in the structured list

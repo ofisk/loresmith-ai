@@ -1,9 +1,5 @@
-import type {
-  EntityDAO,
-  Entity,
-  EntityRelationship,
-  CreateEntityRelationshipInput,
-} from "@/dao/entity-dao";
+import type { EntityDAO, Entity, EntityRelationship } from "@/dao/entity-dao";
+import type { EntityGraphService } from "@/services/graph/entity-graph-service";
 import type { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import type { EntityExtractionService } from "./entity-extraction-service";
 
@@ -30,6 +26,7 @@ export class EntityExtractionPipeline {
     private readonly entityDAO: EntityDAO,
     private readonly extractionService: EntityExtractionService,
     private readonly embeddingService: EntityEmbeddingService,
+    private readonly graphService: EntityGraphService,
     private readonly env: any
   ) {}
 
@@ -102,30 +99,23 @@ export class EntityExtractionPipeline {
     }
 
     const relationships: EntityRelationship[] = [];
+    const createdRelationshipKeys = new Set<string>();
     for (const extracted of extractedEntities) {
       if (!entityIdSet.has(extracted.id)) {
         continue;
       }
-
-      const existingRelations = await this.entityDAO.getRelationshipsForEntity(
-        extracted.id
-      );
-      const outgoingRelationKeys = new Set(
-        existingRelations
-          .filter((relation) => relation.sourceEntityId === extracted.id)
-          .map(
-            (relation) =>
-              `${relation.sourceEntityId}:${relation.targetEntityId}:${relation.relationshipType}`
-          )
-      );
 
       for (const relation of extracted.relations) {
         if (!relation.targetId) {
           continue;
         }
 
+        if (relation.targetId === extracted.id) {
+          continue;
+        }
+
         const relationKey = `${extracted.id}:${relation.targetId}:${relation.relationshipType}`;
-        if (outgoingRelationKeys.has(relationKey)) {
+        if (createdRelationshipKeys.has(relationKey)) {
           continue;
         }
 
@@ -142,30 +132,27 @@ export class EntityExtractionPipeline {
           continue;
         }
 
-        const relationshipRecord: CreateEntityRelationshipInput = {
-          id: crypto.randomUUID(),
+        const edges = await this.graphService.upsertEdge({
           campaignId: options.campaignId,
-          sourceEntityId: extracted.id,
-          targetEntityId: relation.targetId,
+          fromEntityId: extracted.id,
+          toEntityId: relation.targetId,
           relationshipType: relation.relationshipType,
+          strength: relation.strength ?? null,
           metadata:
             relation.metadata && typeof relation.metadata === "object"
               ? relation.metadata
               : undefined,
-        };
-
-        await this.entityDAO.createRelationship(relationshipRecord);
-        outgoingRelationKeys.add(relationKey);
-
-        relationships.push({
-          id: relationshipRecord.id,
-          campaignId: relationshipRecord.campaignId,
-          sourceEntityId: relationshipRecord.sourceEntityId,
-          targetEntityId: relationshipRecord.targetEntityId,
-          relationshipType: relationshipRecord.relationshipType,
-          metadata: relationshipRecord.metadata,
-          createdAt: new Date().toISOString(),
+          allowSelfRelation: false,
         });
+
+        createdRelationshipKeys.add(relationKey);
+        for (const edge of edges) {
+          const key = `${edge.fromEntityId}:${edge.toEntityId}:${edge.relationshipType}`;
+          if (!createdRelationshipKeys.has(key)) {
+            relationships.push(edge);
+            createdRelationshipKeys.add(key);
+          }
+        }
       }
     }
 

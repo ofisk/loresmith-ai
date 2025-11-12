@@ -60,11 +60,15 @@ import {
 import {
   handleGetEntity,
   handleGetEntityRelationships,
+  handleGetEntityNeighbors,
   handleListEntities,
+  handleListRelationshipTypes,
   handleTriggerEntityDeduplication,
   handleTriggerEntityExtraction,
   handleListPendingDeduplication,
   handleResolveDeduplicationEntry,
+  handleCreateEntityRelationship,
+  handleDeleteEntityRelationship,
 } from "@/routes/entities";
 import {
   handleGetExternalResourceRecommendations,
@@ -652,6 +656,36 @@ app.get(
   ),
   requireUserJwt,
   handleGetEntityRelationships
+);
+app.get(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.GRAPH_NEIGHBORS(
+    ":campaignId",
+    ":entityId"
+  ),
+  requireUserJwt,
+  handleGetEntityNeighbors
+);
+app.get(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIP_TYPES(":campaignId"),
+  requireUserJwt,
+  handleListRelationshipTypes
+);
+app.post(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIPS(
+    ":campaignId",
+    ":entityId"
+  ),
+  requireUserJwt,
+  handleCreateEntityRelationship
+);
+app.delete(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIP_DETAIL(
+    ":campaignId",
+    ":entityId",
+    ":relationshipId"
+  ),
+  requireUserJwt,
+  handleDeleteEntityRelationship
 );
 app.post(
   API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.EXTRACT(":campaignId"),

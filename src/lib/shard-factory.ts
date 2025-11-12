@@ -6,7 +6,7 @@ import type {
   ShardMetadata,
   ShardSourceRef,
 } from "../types/shard";
-import { STRUCTURED_CONTENT_TYPES } from "./content-types";
+import { STRUCTURED_ENTITY_TYPES } from "./entity-types";
 
 /**
  * Unified Shard Factory
@@ -19,7 +19,7 @@ export class ShardFactory {
    */
   static createShardCandidate(
     shard: any,
-    contentType: string,
+    entityType: string,
     resource: CampaignResource,
     campaignId: string,
     source: string = "library_autorag_ai_search",
@@ -39,13 +39,13 @@ export class ShardFactory {
       shardKeys: shard ? Object.keys(shard) : "null",
       resourceId,
       resourceName,
-      contentType,
+      entityType,
       campaignId,
     });
 
-    // Validate content type
-    if (!STRUCTURED_CONTENT_TYPES.includes(contentType as any)) {
-      console.warn(`[ShardFactory] Invalid content type: ${contentType}`);
+    // Validate entity type
+    if (!STRUCTURED_ENTITY_TYPES.includes(entityType as any)) {
+      console.warn(`[ShardFactory] Invalid entity type: ${entityType}`);
     }
 
     // Generate chunk ID if not provided
@@ -53,11 +53,7 @@ export class ShardFactory {
 
     // Create shard ID - ensure uniqueness by using the generateShardId method
     const index = originalMetadata?.index;
-    const shardId = ShardFactory.generateShardId(
-      resourceId,
-      contentType,
-      index
-    );
+    const shardId = ShardFactory.generateShardId(resourceId, entityType, index);
 
     // Create metadata
     const metadata: ShardMetadata = {
@@ -65,11 +61,11 @@ export class ShardFactory {
       fileName: resourceName,
       source,
       campaignId,
-      entityType: contentType as any,
+      entityType: entityType as any,
       confidence,
       originalMetadata: {
         structuredContent: shard,
-        contentType,
+        entityType,
         ...originalMetadata,
       },
       sourceRef: {
@@ -77,7 +73,7 @@ export class ShardFactory {
         meta: {
           fileName: resourceName,
           campaignId,
-          entityType: contentType,
+          entityType,
           chunkId: finalChunkId,
           score: confidence,
         },
@@ -90,7 +86,7 @@ export class ShardFactory {
       meta: {
         fileName: resourceName,
         campaignId,
-        entityType: contentType,
+        entityType,
         chunkId: finalChunkId,
         score: confidence,
       },
@@ -150,35 +146,35 @@ export class ShardFactory {
       return [];
     }
 
-    // Find all content type arrays in the response
+    // Find all entity type arrays in the response
     console.log(
-      `[DEBUG] [ShardFactory] Searching for content types in response...`
+      `[DEBUG] [ShardFactory] Searching for entity types in response...`
     );
-    const foundContentTypes = Object.keys(aiSearchResponse).filter((key) => {
+    const foundEntityTypes = Object.keys(aiSearchResponse).filter((key) => {
       const arr = (aiSearchResponse as any)[key];
-      const isType = STRUCTURED_CONTENT_TYPES.includes(key as any);
+      const isType = STRUCTURED_ENTITY_TYPES.includes(key as any);
       const len = Array.isArray(arr) ? arr.length : 0;
       if (isType) {
         console.log(
-          `[DEBUG] [ShardFactory] Found content type: ${key} with ${len} items`
+          `[DEBUG] [ShardFactory] Found entity type: ${key} with ${len} items`
         );
       }
       return isType && Array.isArray(arr) && len > 0;
     });
 
     console.log(
-      `[DEBUG] [ShardFactory] Found ${foundContentTypes.length} content types:`,
-      foundContentTypes
+      `[DEBUG] [ShardFactory] Found ${foundEntityTypes.length} entity types:`,
+      foundEntityTypes
     );
 
-    // Process each content type
-    for (const contentType of foundContentTypes) {
-      const shardArray = aiSearchResponse[contentType] as unknown[];
+    // Process each entity type
+    for (const entityType of foundEntityTypes) {
+      const shardArray = aiSearchResponse[entityType] as unknown[];
       console.log(
-        `[DEBUG] [ShardFactory] Processing ${shardArray.length} ${contentType} items`
+        `[DEBUG] [ShardFactory] Processing ${shardArray.length} ${entityType} items`
       );
 
-      // Process each shard in the content type array
+      // Process each shard in the entity type array
       for (let i = 0; i < shardArray.length; i++) {
         const shard = shardArray[i];
         if (!shard || typeof shard !== "object") {
@@ -189,11 +185,11 @@ export class ShardFactory {
         }
 
         console.log(
-          `[DEBUG] [ShardFactory] Creating shard candidate ${i + 1}/${shardArray.length} for ${contentType}`
+          `[DEBUG] [ShardFactory] Creating shard candidate ${i + 1}/${shardArray.length} for ${entityType}`
         );
         const candidateUnknown: unknown = ShardFactory.createShardCandidate(
           shard,
-          contentType,
+          entityType,
           resource,
           campaignId,
           "library_autorag_ai_search",
@@ -217,7 +213,7 @@ export class ShardFactory {
       }
 
       console.log(
-        `[DEBUG] [ShardFactory] Processed ${shardArray.length} ${contentType} shards from AI Search response`
+        `[DEBUG] [ShardFactory] Processed ${shardArray.length} ${entityType} shards from AI Search response`
       );
     }
 
@@ -284,18 +280,18 @@ export class ShardFactory {
   }
 
   /**
-   * Create shard ID from resource and content type
+   * Create shard ID from resource and entity type
    */
   static generateShardId(
     resourceId: string,
-    contentType: string,
+    entityType: string,
     index?: number
   ): string {
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substr(2, 9);
     const indexSuffix = index !== undefined ? `_${index}` : "";
 
-    return `${resourceId}_${contentType}_${timestamp}${indexSuffix}_${randomSuffix}`;
+    return `${resourceId}_${entityType}_${timestamp}${indexSuffix}_${randomSuffix}`;
   }
 
   /**

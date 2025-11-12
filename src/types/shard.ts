@@ -1,4 +1,4 @@
-import type { StructuredContentType } from "@/lib/content-types";
+import type { StructuredEntityType } from "@/lib/entity-types";
 
 /**
  * Unified shard types for the entire system
@@ -23,7 +23,7 @@ export interface ShardMetadata {
   fileName: string;
   source: string;
   campaignId: string;
-  entityType: StructuredContentType;
+  entityType: StructuredEntityType;
   confidence: number;
   originalMetadata?: Record<string, any>;
   query?: string; // Optional query that generated this shard

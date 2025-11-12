@@ -1,8 +1,8 @@
 import { describe, expect, it, vi, beforeAll } from "vitest";
 import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
 import { EntityDeduplicationService } from "@/services/rag/entity-deduplication-service";
-import type { Entity } from "@/dao/entity-dao";
-import type { EntityDAO } from "@/dao/entity-dao";
+import { EntityGraphService } from "@/services/graph/entity-graph-service";
+import type { Entity, EntityDAO } from "@/dao/entity-dao";
 import type { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 
 beforeAll(() => {
@@ -54,9 +54,10 @@ describe("EntityExtractionService", () => {
     expect(entity.name).toBe("Aria Fenwick");
     expect(entity.metadata.sourceType).toBe("campaign_context");
     expect(entity.relations[0]).toEqual({
-      relationshipType: "ally",
+      relationshipType: "allied_with",
       targetId: "npc-2",
       metadata: undefined,
+      strength: null,
     });
   });
 });
@@ -117,5 +118,132 @@ describe("EntityDeduplicationService", () => {
     expect(result.highConfidenceMatches[0].entity.id).toBe("duplicate-high");
     expect(entityDAO.createDeduplicationEntry).toHaveBeenCalledTimes(1);
     expect(result.pendingEntryId).toBeDefined();
+  });
+});
+
+describe("EntityGraphService", () => {
+  const baseEntity: Entity = {
+    id: "entity-1",
+    campaignId: "campaign-123",
+    entityType: "npcs",
+    name: "Entity 1",
+    content: {},
+    metadata: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const createMockDAO = () => {
+    const entityDAO = {
+      getEntityById: vi.fn().mockImplementation(async (id: string) => ({
+        ...baseEntity,
+        id,
+        name: `Entity ${id}`,
+      })),
+      upsertRelationship: vi
+        .fn()
+        .mockImplementation(
+          async (input: Parameters<EntityDAO["upsertRelationship"]>[0]) => ({
+            id: `rel-${input.fromEntityId}-${input.toEntityId}`,
+            campaignId: input.campaignId,
+            fromEntityId: input.fromEntityId,
+            toEntityId: input.toEntityId,
+            relationshipType: input.relationshipType,
+            strength: input.strength ?? null,
+            metadata: input.metadata,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          })
+        ),
+      deleteRelationship: vi.fn().mockResolvedValue(undefined),
+      deleteRelationshipByCompositeKey: vi.fn().mockResolvedValue(undefined),
+      getRelationshipsForEntity: vi.fn().mockResolvedValue([
+        {
+          id: "rel-1",
+          campaignId: "campaign-123",
+          fromEntityId: "entity-1",
+          toEntityId: "entity-2",
+          relationshipType: "allied_with",
+          strength: 0.8,
+          metadata: {},
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ]),
+      getRelationshipNeighborhood: vi.fn().mockResolvedValue([
+        {
+          entityId: "entity-2",
+          depth: 1,
+          relationshipType: "allied_with",
+          name: "Entity entity-2",
+          entityType: "npcs",
+        },
+      ]),
+    } as unknown as EntityDAO;
+
+    return entityDAO;
+  };
+
+  it("creates bidirectional edges for symmetric relationship types", async () => {
+    const entityDAO = createMockDAO();
+    const service = new EntityGraphService(entityDAO);
+
+    const edges = await service.upsertEdge({
+      campaignId: "campaign-123",
+      fromEntityId: "entity-1",
+      toEntityId: "entity-2",
+      relationshipType: "ally",
+      strength: 85,
+      metadata: { context: "battle" },
+    });
+
+    expect(edges).toHaveLength(2);
+    expect(entityDAO.upsertRelationship).toHaveBeenCalledTimes(2);
+    expect(entityDAO.upsertRelationship).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relationshipType: "allied_with",
+        strength: 0.85,
+      })
+    );
+    expect(edges[0].relationshipType).toBe("allied_with");
+    expect(edges[1].fromEntityId).toBe("entity-2");
+    expect(edges[1].toEntityId).toBe("entity-1");
+  });
+
+  it("retrieves relationships filtered by type", async () => {
+    const entityDAO = createMockDAO();
+    const service = new EntityGraphService(entityDAO);
+
+    const relationships = await service.getRelationshipsForEntity(
+      "campaign-123",
+      "entity-1",
+      { relationshipType: "ALLIED WITH" }
+    );
+
+    expect(entityDAO.getRelationshipsForEntity).toHaveBeenCalledWith(
+      "entity-1",
+      { relationshipType: "allied_with" }
+    );
+    expect(relationships).toHaveLength(1);
+  });
+
+  it("fetches neighbors with normalized relationship filters", async () => {
+    const entityDAO = createMockDAO();
+    const service = new EntityGraphService(entityDAO);
+
+    const neighbors = await service.getNeighbors("campaign-123", "entity-1", {
+      maxDepth: 2,
+      relationshipTypes: ["ALLY"],
+    });
+
+    expect(entityDAO.getRelationshipNeighborhood).toHaveBeenCalledWith(
+      "entity-1",
+      {
+        maxDepth: 2,
+        relationshipTypes: ["allied_with"],
+      }
+    );
+    expect(neighbors).toHaveLength(1);
+    expect(neighbors[0].relationshipType).toBe("allied_with");
   });
 });
