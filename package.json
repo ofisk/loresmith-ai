@@ -12,7 +12,7 @@
     "node": ">=22.0.0"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,css,md}": [
+    "*.{js,jsx,ts,tsx,json,css,md,mjs}": [
       "prettier --write"
     ]
   },
@@ -22,7 +22,7 @@
     "dev:cloudflare": "wrangler dev --config wrangler.dev.jsonc --port 8787",
     "dev:setup": "./scripts/setup-dev.sh",
     "clean": "rimraf dist .wrangler/tmp .wrangler/build .wrangler/cache .wrangler/kv-assets",
-    "build": "npm run clean && vite build",
+    "build": "node scripts/debug-build.mjs",
     "deploy": "vite build && wrangler deploy --config wrangler.jsonc",
     "deploy:dev": "vite build && wrangler deploy --config wrangler.dev.jsonc",
     "migrate": "./scripts/migrate.sh",
