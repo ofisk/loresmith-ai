@@ -1,8 +1,7 @@
-// Utilities for shard generation with robust path handling and validation
-import type { ShardGenerationOptions } from "@/services/campaign/shard-generation-service";
+// Utilities for entity/staging generation with robust path handling and validation
 
 /**
- * Standardized resource interface for shard generation
+ * Standardized resource interface for entity staging
  * This ensures consistent field names across the system
  */
 export interface ShardGenerationResource {
@@ -10,6 +9,18 @@ export interface ShardGenerationResource {
   file_key: string; // Full file path (e.g., "staging/ofisk/file.pdf")
   file_name: string; // Just filename (e.g., "file.pdf")
   campaign_id: string; // Campaign UUID
+}
+
+/**
+ * Options interface for entity staging (replaces old ShardGenerationOptions)
+ */
+export interface EntityStagingOptionsLike {
+  env?: any;
+  username?: string;
+  campaignId?: string;
+  campaignName?: string;
+  resource?: any;
+  campaignRagBasePath?: string;
 }
 
 /**
@@ -129,32 +140,32 @@ export function logShardGenerationContext(
 }
 
 /**
- * Validates the complete shard generation options
+ * Validates the complete entity staging options
  */
 export function validateShardGenerationOptions(
-  options: ShardGenerationOptions
+  options: EntityStagingOptionsLike
 ): void {
   if (!options.env) {
-    throw new Error("Environment is required for shard generation");
+    throw new Error("Environment is required for entity staging");
   }
 
   if (!options.username) {
-    throw new Error("Username is required for shard generation");
+    throw new Error("Username is required for entity staging");
   }
 
   if (!options.campaignId) {
-    throw new Error("Campaign ID is required for shard generation");
+    throw new Error("Campaign ID is required for entity staging");
   }
 
   if (!options.campaignName) {
-    throw new Error("Campaign name is required for shard generation");
+    throw new Error("Campaign name is required for entity staging");
   }
 
   if (!options.resource) {
-    throw new Error("Resource is required for shard generation");
+    throw new Error("Resource is required for entity staging");
   }
 
   if (!options.campaignRagBasePath) {
-    throw new Error("Campaign RAG base path is required for shard generation");
+    throw new Error("Campaign RAG base path is required for entity staging");
   }
 }

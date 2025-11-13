@@ -19,6 +19,9 @@ const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
     "Campaign Assessment: Analyze campaign readiness and provide scoring across narrative, character, plot hooks, and session readiness",
     "File Analysis: Extract campaign information from uploaded module files and integrate into campaign context",
     "Module Integration: Parse published modules and extract key story elements, NPCs, locations, and plot hooks",
+    "Community Detection: Analyze entity relationship graphs to identify clusters of related entities using graph algorithms",
+    "Entity Extraction: Extract structured entities (NPCs, locations, items, monsters, etc.) from text content and add them to the entity graph",
+    "Relationship Management: Create relationships between entities in the graph when users mention connections between entities",
   ],
   tools: createToolMappingFromObjects(campaignContextTools),
   workflowGuidelines: [
@@ -29,6 +32,8 @@ const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
     "Campaign Analysis: When users ask about campaign readiness or need guidance, use assessment tools to provide detailed analysis",
     "File Processing: When users upload module files, extract key story elements and integrate them into campaign context",
     "Module Integration: Parse module structure, extract NPCs, locations, plot hooks, and story beats for campaign context",
+    "Entity Extraction: When users provide text content (from files or chat) containing entities like NPCs, locations, items, or monsters, use extractEntitiesFromContentTool to extract and add them to the graph",
+    "Relationship Creation: When users mention relationships between entities (e.g., 'NPC X lives in Location Y', 'Character A is allied with Character B'), use createEntityRelationshipTool to create the relationship in the graph",
   ],
   importantNotes: [
     "Always store character information using storeCharacterInfo tool",
@@ -48,6 +53,12 @@ const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
     "Focus on high-impact areas when providing campaign improvement suggestions",
     "When users mention files, guide them to add files to campaigns from their library to extract shards and enhance planning capabilities",
     "Never ask for technical details like campaign IDs - guide users through the natural workflow instead",
+    "Community Detection: When users want to understand how entities cluster or find related groups, use detectCommunitiesTool to analyze the entity graph",
+    "Community Analysis: Use getCommunitiesTool or getCommunityHierarchyTool to show users existing communities and their structure",
+    "Graph Analysis: Community detection works on the entity relationship graph - entities and relationships must exist first (created via entity extraction from files)",
+    "Entity Extraction: When users mention creating entities (e.g., 'I'm creating a new NPC named X'), extract the entity information from their message and use extractEntitiesFromContentTool to add it to the graph",
+    "Entity Relationships: When users mention relationships (e.g., 'NPC X lives in Location Y'), first ensure both entities exist, then use createEntityRelationshipTool to create the relationship",
+    "Graph Building: Help users build their entity graph by extracting entities from text content and creating relationships between them as they describe their campaign world",
   ],
 });
 

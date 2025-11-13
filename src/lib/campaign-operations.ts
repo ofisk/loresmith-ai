@@ -4,7 +4,6 @@ import {
   notifyCampaignCreated,
   notifyCampaignFileAdded,
 } from "./notifications";
-import { CampaignAutoRAG } from "@/services/campaign/campaign-autorag-service";
 
 export interface CreateCampaignOptions {
   env: any;
@@ -51,25 +50,6 @@ export async function createCampaign(options: CreateCampaignOptions) {
       dbError
     );
     throw dbError;
-  }
-
-  // Initialize CampaignAutoRAG folders
-  try {
-    const campaignAutoRAG = new CampaignAutoRAG(
-      env,
-      env.AUTORAG_BASE_URL,
-      campaignRagBasePath
-    );
-    await campaignAutoRAG.initFolders();
-    console.log(
-      `[CampaignOps] Initialized CampaignAutoRAG folders for campaign: ${campaignId}`
-    );
-  } catch (autoRagError) {
-    console.error(
-      `[CampaignOps] Failed to initialize CampaignAutoRAG for campaign ${campaignId}:`,
-      autoRagError
-    );
-    // Don't fail the campaign creation if AutoRAG initialization fails
   }
 
   const newCampaign = {

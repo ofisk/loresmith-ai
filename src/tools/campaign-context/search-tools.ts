@@ -7,7 +7,6 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
 } from "../utils";
-import { CampaignAutoRAG } from "@/services/campaign/campaign-autorag-service";
 import { getDAOFactory } from "../../dao/dao-factory";
 
 // Helper function to get environment from context
@@ -87,21 +86,19 @@ export const searchCampaignContext = tool({
           );
         }
 
-        // Use AutoRAG to search campaign content (includes approved shards and context)
-        const basePath =
-          campaign.campaignRagBasePath || `campaigns/${campaignId}`;
-        const autoRAG = new CampaignAutoRAG(
-          env,
-          env.AUTORAG_BASE_URL,
-          basePath
-        );
+        // TODO: Replace with graph-based entity search
+        // Entities are now stored in D1 graph, not R2
+        // Need to implement graph search using EntityDAO/EntityGraphService
+        // For now, return empty results with a note that graph search needs to be implemented
+        const daoFactory = getDAOFactory(env);
 
-        // Build search query with type filter if specified
-        const searchQuery = query;
-        const filters: any = {};
-
+        // Basic entity search by type (temporary implementation)
+        // TODO: Implement semantic search through entity graph using embeddings
+        let entities: Awaited<
+          ReturnType<typeof daoFactory.entityDAO.listEntitiesByCampaign>
+        >;
         if (searchType && searchType !== "all") {
-          filters.entityType =
+          const entityType =
             searchType === "characters"
               ? "character"
               : searchType === "resources"
@@ -109,34 +106,47 @@ export const searchCampaignContext = tool({
                 : searchType === "context"
                   ? "context"
                   : searchType;
+          entities = await daoFactory.entityDAO.listEntitiesByCampaign(
+            campaignId,
+            {
+              entityType,
+              limit: 20,
+            }
+          );
+        } else {
+          entities = await daoFactory.entityDAO.listEntitiesByCampaign(
+            campaignId,
+            {
+              limit: 20,
+            }
+          );
         }
 
-        // Use AI search for better semantic understanding
-        const searchResult = await autoRAG.aiSearch(searchQuery, {
-          max_results: 20,
-          filters:
-            Object.keys(filters).length > 0
-              ? {
-                  key: "entityType",
-                  type: "eq",
-                  value: filters.entityType,
-                }
-              : undefined,
+        // Filter out rejected/ignored entities
+        const approvedEntities = entities.filter((entity) => {
+          try {
+            const metadata = entity.metadata
+              ? (JSON.parse(entity.metadata as string) as Record<
+                  string,
+                  unknown
+                >)
+              : {};
+            const shardStatus = metadata.shardStatus;
+            const ignored = metadata.ignored === true;
+            const rejected = metadata.rejected === true;
+            return shardStatus !== "rejected" && !ignored && !rejected;
+          } catch {
+            return true; // Include if metadata parsing fails
+          }
         });
 
-        console.log(
-          "[Tool] AutoRAG search results:",
-          searchResult.data?.length || 0
-        );
-
-        // Transform AutoRAG AI search results to match expected format
-        const results = (searchResult.data || []).map((item: any) => ({
-          id: item.file_id,
-          text: item.content?.[0]?.text || "",
-          score: item.score,
-          filename: item.filename,
-          type: item.attributes?.entityType || "unknown",
-          ...item.attributes,
+        // Transform entities to match expected format
+        const results = approvedEntities.map((entity) => ({
+          ...entity,
+          text: JSON.stringify(entity.content),
+          score: 1.0, // TODO: Implement semantic similarity scoring
+          filename: entity.name,
+          type: entity.entityType,
         }));
 
         return createToolSuccess(

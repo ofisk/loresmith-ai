@@ -395,6 +395,63 @@ export class EntityDAO extends BaseDAOClass {
     return records.map((record) => this.mapRelationshipRecord(record));
   }
 
+  /**
+   * Get minimal relationship data for a campaign (for memory-efficient graph operations)
+   * Returns only from/to/strength/metadata fields needed for community detection
+   */
+  async getMinimalRelationshipsForCampaign(campaignId: string): Promise<
+    Array<{
+      fromEntityId: string;
+      toEntityId: string;
+      strength: number | null;
+      metadata: string | null;
+    }>
+  > {
+    const sql = `
+      SELECT from_entity_id, to_entity_id, strength, metadata
+      FROM entity_relationships
+      WHERE campaign_id = ?
+    `;
+
+    const records = await this.queryAll<{
+      from_entity_id: string;
+      to_entity_id: string;
+      strength: number | null;
+      metadata: string | null;
+    }>(sql, [campaignId]);
+
+    return records.map((record) => ({
+      fromEntityId: record.from_entity_id,
+      toEntityId: record.to_entity_id,
+      strength: record.strength,
+      metadata: record.metadata,
+    }));
+  }
+
+  /**
+   * Get minimal entity data for a campaign (for memory-efficient graph operations)
+   * Returns only id and metadata fields needed for filtering rejected/ignored entities
+   */
+  async getMinimalEntitiesForCampaign(
+    campaignId: string
+  ): Promise<Array<{ id: string; metadata: string | null }>> {
+    const sql = `
+      SELECT id, metadata
+      FROM entities
+      WHERE campaign_id = ?
+    `;
+
+    const records = await this.queryAll<{
+      id: string;
+      metadata: string | null;
+    }>(sql, [campaignId]);
+
+    return records.map((record) => ({
+      id: record.id,
+      metadata: record.metadata,
+    }));
+  }
+
   async getRelationshipNeighborhood(
     entityId: string,
     options: {

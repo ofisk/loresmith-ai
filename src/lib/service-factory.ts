@@ -5,7 +5,6 @@ import { getDatabaseKey } from "@/dao/dao-factory";
 import type { Env } from "@/middleware/auth";
 import { AssessmentService } from "@/services/core/assessment-service";
 import { AuthService } from "@/services/core/auth-service";
-import { CampaignAutoRAG } from "@/services/campaign/campaign-autorag-service";
 import { CampaignService } from "@/services/campaign/campaign-service";
 import { ErrorHandlingService } from "@/services/core/error-handling-service";
 import { LibraryAutoRAGClient } from "@/services/rag/library-autorag-service";
@@ -157,23 +156,6 @@ export class ServiceFactory {
   }
 
   /**
-   * Get campaign AutoRAG service for a specific campaign
-   */
-  static getCampaignAutoRAGService(
-    env: Env,
-    campaignRagBasePath: string
-  ): CampaignAutoRAG {
-    const key = `campaign-auto-rag-${campaignRagBasePath}`;
-    if (!ServiceFactory.services.has(key)) {
-      ServiceFactory.services.set(
-        key,
-        new CampaignAutoRAG(env, env.AUTORAG_BASE_URL, campaignRagBasePath)
-      );
-    }
-    return ServiceFactory.services.get(key);
-  }
-
-  /**
    * Get library AutoRAG service for searching library content
    */
   static getLibraryAutoRAGService(
@@ -249,11 +231,6 @@ export const initializeAgentRegistry = (env: Env) =>
 
 export const getCampaignRAGService = (env: Env) =>
   ServiceFactory.getCampaignRAGService(env);
-
-export const getCampaignAutoRAGService = (
-  env: Env,
-  campaignRagBasePath: string
-) => ServiceFactory.getCampaignAutoRAGService(env, campaignRagBasePath);
 
 export const getLibraryAutoRAGService = (env: Env, username?: string) =>
   ServiceFactory.getLibraryAutoRAGService(env, username);

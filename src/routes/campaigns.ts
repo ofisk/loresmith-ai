@@ -10,11 +10,9 @@ import {
   validateCampaignOwnership,
   getCampaignRagBasePath,
 } from "@/lib/campaign-operations";
-import {
-  generateShardsForResource,
-  notifyShardCount,
-} from "@/services/campaign/shard-generation-service";
+import { stageEntitiesFromResource } from "@/services/campaign/entity-staging-service";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
+import { notifyShardGeneration } from "@/lib/notifications";
 import {
   buildShardGenerationResponse,
   buildResourceAdditionResponse,
@@ -437,9 +435,9 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       fileName: name || id,
     });
 
-    // 5) Generate shards for the newly added resource
+    // 5) Extract and stage entities for the newly added resource
     try {
-      console.log(`[Server] Generating shards for campaign: ${campaignId}`);
+      console.log(`[Server] Extracting entities for campaign: ${campaignId}`);
 
       const campaignRagBasePath = await getCampaignRagBasePath(
         userAuth.username,
@@ -450,7 +448,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
         console.warn(
           `[Server] Campaign AutoRAG not initialized for campaign: ${campaignId}`
         );
-        // Continue without shard generation
+        // Continue without entity extraction
       } else {
         // Fetch the specific resource we just created to avoid ordering issues
         const campaignDAO = getDAOFactory(c.env).campaignDAO;
@@ -465,13 +463,13 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
           );
           const response = buildResourceAdditionResponse(
             { id: resourceId, file_name: name || id },
-            "Resource added to campaign. Shard generation deferred (resource lookup failed)."
+            "Resource added to campaign. Entity extraction deferred (resource lookup failed)."
           );
           return c.json(response);
         }
 
-        // Generate shards using the service
-        const shardResult = await generateShardsForResource({
+        // Stage entities using the new entity staging service
+        const entityResult = await stageEntitiesFromResource({
           env: c.env,
           username: userAuth.username,
           campaignId,
@@ -480,70 +478,116 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
           campaignRagBasePath,
         });
 
-        if (shardResult.success && shardResult.shardCount > 0) {
-          // Send notification about shard count
-          await notifyShardCount(
+        if (entityResult.success && entityResult.entityCount > 0) {
+          // Send notification about entity count (UI uses "shard" terminology)
+          await notifyShardGeneration(
             c.env,
             userAuth.username,
-            campaignId,
             campaign!.name,
             resource.file_name || resource.id,
-            resource.id,
-            shardResult.shardCount
+            entityResult.entityCount,
+            {
+              campaignId,
+              resourceId: resource.id,
+            }
           );
 
-          // Return response with shard data
+          // Return response with entity data (formatted as shards for UI compatibility)
           const response = buildShardGenerationResponse(
             resource,
-            shardResult.shardCount,
+            entityResult.entityCount,
             campaignId,
-            shardResult.serverGroups
+            // Convert staged entities to server groups format for UI (UI uses "shard" terminology)
+            entityResult.stagedEntities
+              ? [
+                  {
+                    key: `entity_staging_${resourceId}`,
+                    sourceRef: {
+                      fileKey: resource.file_key || resource.id,
+                      meta: {
+                        fileName: resource.file_name || resource.id,
+                        campaignId,
+                        entityType: "mixed",
+                        chunkId: "",
+                        score: 0,
+                      },
+                    },
+                    shards: entityResult.stagedEntities.map((entity) => ({
+                      id: entity.id,
+                      text: JSON.stringify(entity.content),
+                      metadata: {
+                        ...entity.metadata,
+                        entityType: entity.entityType,
+                        confidence:
+                          (entity.metadata.confidence as number) || 0.9,
+                      },
+                      sourceRef: {
+                        fileKey: resource.file_key || resource.id,
+                        meta: {
+                          fileName: resource.file_name || resource.id,
+                          campaignId,
+                          entityType: entity.entityType,
+                          chunkId: entity.id,
+                          score: 0,
+                        },
+                      },
+                    })),
+                    created_at: new Date().toISOString(),
+                    campaignRagBasePath,
+                  },
+                ]
+              : undefined
           );
           return c.json(response);
         } else {
-          // Send zero shard notification
-          await notifyShardCount(
+          // Send zero entity notification (UI uses "shard" terminology)
+          await notifyShardGeneration(
             c.env,
             userAuth.username,
-            campaignId,
             campaign!.name,
             resource.file_name || resource.id,
-            resource.id,
-            0
+            0,
+            {
+              campaignId,
+              resourceId: resource.id,
+            }
           );
 
           const response = buildResourceAdditionResponse(
             resource,
-            "Resource added to campaign successfully. No shards could be generated from this resource."
+            "Resource added to campaign successfully. No entities could be extracted from this resource."
           );
           return c.json(response);
         }
       }
-    } catch (shardError) {
-      console.error(`[Server] Error generating shards:`, shardError);
-      // Still notify user with zero shards when generation fails
+    } catch (entityError) {
+      console.error(`[Server] Error extracting entities:`, entityError);
+      // Still notify user with zero entities when extraction fails
       try {
         const campaignData = await getDAOFactory(
           c.env
         ).campaignDAO.getCampaignById(campaignId);
         if (campaignData) {
-          await notifyShardCount(
+          // Send zero entity notification (UI uses "shard" terminology)
+          await notifyShardGeneration(
             c.env,
             userAuth.username,
-            campaignId,
             campaignData.name,
             name || id,
-            resourceId,
-            0
+            0,
+            {
+              campaignId,
+              resourceId,
+            }
           );
         }
       } catch (notifyErr) {
         console.error(
-          "[Server] Failed to send zero-shard notification after error:",
+          "[Server] Failed to send zero-entity notification after error:",
           notifyErr
         );
       }
-      // Don't fail the resource addition if shard generation fails
+      // Don't fail the resource addition if entity extraction fails
     }
 
     // 6) Return success response without shards
