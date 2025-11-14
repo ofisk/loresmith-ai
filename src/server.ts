@@ -71,6 +71,14 @@ import {
   handleDeleteEntityRelationship,
 } from "@/routes/entities";
 import {
+  handleDetectCommunities,
+  handleListCommunities,
+  handleGetCommunity,
+  handleGetCommunitiesByLevel,
+  handleGetChildCommunities,
+  handleGetCommunityHierarchy,
+} from "@/routes/communities";
+import {
   handleGetExternalResourceRecommendations,
   handleGetExternalResourceSearch,
   handleGetGmResources,
@@ -709,6 +717,44 @@ app.post(
   ),
   requireUserJwt,
   handleResolveDeduplicationEntry
+);
+
+// Community Detection Routes
+app.post(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.DETECT(":campaignId"),
+  requireUserJwt,
+  handleDetectCommunities
+);
+app.get(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.LIST(":campaignId"),
+  requireUserJwt,
+  handleListCommunities
+);
+app.get(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.DETAILS(
+    ":campaignId",
+    ":communityId"
+  ),
+  requireUserJwt,
+  handleGetCommunity
+);
+app.get(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.BY_LEVEL(":campaignId", ":level"),
+  requireUserJwt,
+  handleGetCommunitiesByLevel
+);
+app.get(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.CHILDREN(
+    ":campaignId",
+    ":communityId"
+  ),
+  requireUserJwt,
+  handleGetChildCommunities
+);
+app.get(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.HIERARCHY(":campaignId"),
+  requireUserJwt,
+  handleGetCommunityHierarchy
 );
 
 // Campaign AutoRAG Routes

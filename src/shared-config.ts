@@ -151,6 +151,19 @@ export const API_CONFIG = {
         DEDUP_RESOLVE: (campaignId: string, entryId: string) =>
           `/campaigns/${campaignId}/entities/deduplication-pending/${entryId}`,
       },
+      COMMUNITIES: {
+        DETECT: (campaignId: string) =>
+          `/campaigns/${campaignId}/communities/detect`,
+        LIST: (campaignId: string) => `/campaigns/${campaignId}/communities`,
+        DETAILS: (campaignId: string, communityId: string) =>
+          `/campaigns/${campaignId}/communities/${communityId}`,
+        BY_LEVEL: (campaignId: string, level: string) =>
+          `/campaigns/${campaignId}/communities/level/${level}`,
+        CHILDREN: (campaignId: string, communityId: string) =>
+          `/campaigns/${campaignId}/communities/${communityId}/children`,
+        HIERARCHY: (campaignId: string) =>
+          `/campaigns/${campaignId}/communities/hierarchy`,
+      },
     },
     CHARACTER_SHEETS: {
       // NOTE: Character sheets are currently handled as a separate entity type.

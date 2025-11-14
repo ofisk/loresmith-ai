@@ -2,7 +2,6 @@
 // Consolidates all aiSearch calls to prevent path filtering bugs
 
 import { getLibraryAutoRAGService } from "@/lib/service-factory";
-import { getCampaignAutoRAGService } from "@/lib/service-factory";
 import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
 import { getFileExistencePrompt } from "@/lib/prompts/file-indexing-prompts";
 
@@ -136,34 +135,27 @@ export class AISearchService {
 
   /**
    * Search campaign context with entity type filtering
+   * TODO: Replace with graph-based entity search
+   * Entities are now stored in D1 graph, not R2
+   * This method needs to be updated to search through the entity graph using EntityDAO/EntityGraphService
    */
   static async searchCampaignContext(
-    env: any,
-    campaignRagBasePath: string,
+    _env: any,
+    _campaignRagBasePath: string,
     query: string,
-    options: CampaignContextSearchOptions = {}
+    _options: CampaignContextSearchOptions = {}
   ) {
-    const autoRAG = getCampaignAutoRAGService(env, campaignRagBasePath);
+    console.warn(
+      `[CentralizedAISearch] searchCampaignContext is deprecated - entities are now in D1 graph, not R2. ` +
+        `Need to implement graph-based search. Query: ${query}`
+    );
 
-    const searchOptions: any = {
-      max_results: options.maxResults || 20,
-      rewrite_query: options.rewriteQuery || false,
-      system_prompt: options.systemPrompt,
+    // Return empty result for now - needs graph search implementation
+    return {
+      response: "",
+      data: [],
+      metadata: {},
     };
-
-    if (options.entityType) {
-      searchOptions.filters = {
-        key: "entityType",
-        type: "eq",
-        value: options.entityType,
-      };
-    } else if (options.filters) {
-      searchOptions.filters = options.filters;
-    }
-
-    console.log(`[CentralizedAISearch] Searching campaign context: ${query}`);
-
-    return await autoRAG.aiSearch(query, searchOptions);
   }
 
   /**

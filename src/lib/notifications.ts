@@ -83,7 +83,8 @@ export async function notifyUser(
 }
 
 /**
- * Publish a shard generation notification
+ * Publish an entity generation notification
+ * This function name is kept for UI compatibility
  */
 export async function notifyShardGeneration(
   env: Env,
@@ -323,7 +324,8 @@ export async function notifyError(
 }
 
 /**
- * Publish a shard approval notification
+ * Publish an entity approval notification
+ * This function name is kept for UI compatibility
  */
 export async function notifyShardApproval(
   env: Env,
@@ -343,7 +345,8 @@ export async function notifyShardApproval(
 }
 
 /**
- * Publish a shard rejection notification
+ * Publish an entity rejection notification
+ * This function name is kept for UI compatibility
  */
 export async function notifyShardRejection(
   env: Env,
@@ -391,7 +394,8 @@ export async function notifyCampaignFileAdded(
 }
 
 /**
- * Publish a shard parsing issue notification
+ * Publish an entity parsing issue notification
+ * This function name is kept for UI compatibility
  */
 export async function notifyShardParseIssue(
   env: Env,

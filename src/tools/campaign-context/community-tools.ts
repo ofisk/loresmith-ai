@@ -1,0 +1,443 @@
+import { tool } from "ai";
+import { z } from "zod";
+import { commonSchemas } from "../utils";
+import { createToolError, createToolSuccess } from "../utils";
+import type { ToolResult } from "@/app-constants";
+import { API_CONFIG } from "@/shared-config";
+import { extractUsernameFromJwt } from "../utils";
+import { authenticatedFetch, handleAuthError } from "@/lib/toolAuth";
+import { getDAOFactory } from "@/dao/dao-factory";
+import { CommunityDetectionService } from "@/services/graph/community-detection-service";
+import { buildCommunityHierarchyTree } from "@/lib/graph/community-utils";
+
+function getEnvFromContext(context: any): any {
+  if (context?.env) {
+    return context.env;
+  }
+  if ((globalThis as any).env) {
+    return (globalThis as any).env;
+  }
+  return null;
+}
+
+/**
+ * Tool: Detect communities in the entity relationship graph
+ * Uses the Leiden algorithm to identify communities/clusters of related entities
+ */
+export const detectCommunitiesTool = tool({
+  description:
+    "Detect communities (clusters) of related entities in a campaign using graph analysis. " +
+    "This analyzes the entity relationship graph to find groups of entities that are highly connected. " +
+    "Use this when the user wants to understand how entities cluster together or find related groups.",
+  parameters: z.object({
+    campaignId: commonSchemas.campaignId,
+    resolution: z
+      .number()
+      .optional()
+      .describe(
+        "Resolution parameter (0.5-2.0). Lower values find larger communities, higher values find smaller communities. Default: 1.0"
+      ),
+    minCommunitySize: z
+      .number()
+      .optional()
+      .describe(
+        "Minimum number of entities in a community. Communities smaller than this will be filtered out. Default: 2"
+      ),
+    maxLevels: z
+      .number()
+      .optional()
+      .describe(
+        "Maximum hierarchy levels for multi-level community detection. Set to 1 for flat communities, higher for hierarchical. Default: 1"
+      ),
+    jwt: commonSchemas.jwt,
+  }),
+  execute: async (
+    { campaignId, resolution, minCommunitySize, maxLevels, jwt },
+    context?: any
+  ): Promise<ToolResult> => {
+    const toolCallId = crypto.randomUUID();
+
+    try {
+      const env = getEnvFromContext(context);
+      if (!env) {
+        // Fallback to API call
+        const response = await authenticatedFetch(
+          API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.DETECT(campaignId)
+          ),
+          {
+            method: "POST",
+            jwt,
+            body: JSON.stringify({
+              resolution,
+              minCommunitySize,
+              maxLevels,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const authError = handleAuthError(response);
+          if (authError) {
+            return createToolError(
+              authError,
+              "Authentication failed",
+              response.status,
+              toolCallId
+            );
+          }
+
+          const errorData = (await response.json()) as {
+            error?: string;
+            message?: string;
+          };
+          return createToolError(
+            errorData.error || "Failed to detect communities",
+            errorData.message || "Unknown error",
+            response.status,
+            toolCallId
+          );
+        }
+
+        const data = (await response.json()) as {
+          count?: number;
+          communities?: unknown[];
+        };
+        return createToolSuccess(
+          `Detected ${data.count || 0} communities in campaign`,
+          data,
+          toolCallId
+        );
+      }
+
+      // Direct database access
+      const userId = extractUsernameFromJwt(jwt);
+      if (!userId) {
+        return createToolError(
+          "Invalid authentication token",
+          "Authentication failed",
+          401,
+          toolCallId
+        );
+      }
+
+      // Use the service directly
+      const daoFactory = getDAOFactory(env);
+
+      // Verify campaign ownership using DAO
+      const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+        campaignId,
+        userId
+      );
+
+      if (!campaign) {
+        return createToolError(
+          "Campaign not found",
+          "Campaign not found or access denied",
+          404,
+          toolCallId
+        );
+      }
+      const communityDetectionService = new CommunityDetectionService(
+        daoFactory.entityDAO,
+        daoFactory.communityDAO
+      );
+
+      const useMultiLevel = maxLevels && maxLevels > 1;
+      let communities: any[];
+
+      if (useMultiLevel) {
+        const hierarchies =
+          await communityDetectionService.detectMultiLevelCommunities(
+            campaignId,
+            {
+              resolution,
+              minCommunitySize,
+              maxLevels,
+            }
+          );
+        // Flatten hierarchies for response
+        const allCommunities: any[] = [];
+        function collectCommunities(hierarchy: any) {
+          allCommunities.push(hierarchy.community);
+          for (const child of hierarchy.children) {
+            collectCommunities(child);
+          }
+        }
+        for (const hierarchy of hierarchies) {
+          collectCommunities(hierarchy);
+        }
+        communities = allCommunities;
+      } else {
+        communities = await communityDetectionService.detectCommunities(
+          campaignId,
+          {
+            resolution,
+            minCommunitySize,
+          }
+        );
+      }
+
+      return createToolSuccess(
+        `Detected ${communities.length} communities in campaign`,
+        {
+          communities,
+          count: communities.length,
+        },
+        toolCallId
+      );
+    } catch (error) {
+      console.error("[detectCommunitiesTool] Error:", error);
+      return createToolError(
+        "Failed to detect communities",
+        error instanceof Error ? error.message : "Unknown error",
+        500,
+        toolCallId
+      );
+    }
+  },
+});
+
+/**
+ * Tool: Get communities for a campaign
+ * Retrieves previously detected communities
+ */
+export const getCommunitiesTool = tool({
+  description:
+    "Get the list of communities (entity clusters) for a campaign. " +
+    "Returns communities that were previously detected. Use this to show users what communities exist.",
+  parameters: z.object({
+    campaignId: commonSchemas.campaignId,
+    level: z
+      .number()
+      .optional()
+      .describe(
+        "Filter communities by hierarchy level. 0 = top level. Omit to get all levels."
+      ),
+    jwt: commonSchemas.jwt,
+  }),
+  execute: async (
+    { campaignId, level, jwt },
+    context?: any
+  ): Promise<ToolResult> => {
+    const toolCallId = crypto.randomUUID();
+
+    try {
+      const env = getEnvFromContext(context);
+      if (!env) {
+        // Fallback to API call
+        const url = new URL(
+          API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.LIST(campaignId)
+          )
+        );
+        if (level !== undefined) {
+          url.searchParams.set("level", level.toString());
+        }
+
+        const response = await authenticatedFetch(url.toString(), {
+          method: "GET",
+          jwt,
+        });
+
+        if (!response.ok) {
+          const authError = handleAuthError(response);
+          if (authError) {
+            return createToolError(
+              authError,
+              "Authentication failed",
+              response.status,
+              toolCallId
+            );
+          }
+
+          const errorData = (await response.json()) as {
+            error?: string;
+            message?: string;
+          };
+          return createToolError(
+            errorData.error || "Failed to get communities",
+            errorData.message || "Unknown error",
+            response.status,
+            toolCallId
+          );
+        }
+
+        const data = (await response.json()) as {
+          count?: number;
+          communities?: unknown[];
+        };
+        return createToolSuccess(
+          `Found ${data.count || 0} communities`,
+          data,
+          toolCallId
+        );
+      }
+
+      // Direct database access
+      const userId = extractUsernameFromJwt(jwt);
+      if (!userId) {
+        return createToolError(
+          "Invalid authentication token",
+          "Authentication failed",
+          401,
+          toolCallId
+        );
+      }
+
+      // Get DAO factory
+      const daoFactory = getDAOFactory(env);
+
+      // Verify campaign ownership using DAO
+      const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+        campaignId,
+        userId
+      );
+
+      if (!campaign) {
+        return createToolError(
+          "Campaign not found",
+          "Campaign not found or access denied",
+          404,
+          toolCallId
+        );
+      }
+
+      const communities =
+        await daoFactory.communityDAO.listCommunitiesByCampaign(
+          campaignId,
+          level !== undefined ? { level } : {}
+        );
+
+      return createToolSuccess(
+        `Found ${communities.length} communities`,
+        {
+          communities,
+          count: communities.length,
+        },
+        toolCallId
+      );
+    } catch (error) {
+      console.error("[getCommunitiesTool] Error:", error);
+      return createToolError(
+        "Failed to get communities",
+        error instanceof Error ? error.message : "Unknown error",
+        500,
+        toolCallId
+      );
+    }
+  },
+});
+
+/**
+ * Tool: Get community hierarchy
+ * Retrieves the hierarchical structure of communities
+ */
+export const getCommunityHierarchyTool = tool({
+  description:
+    "Get the hierarchical structure of communities for a campaign. " +
+    "Returns communities organized in a tree structure showing parent-child relationships. " +
+    "Use this when the user wants to see how communities are organized hierarchically.",
+  parameters: z.object({
+    campaignId: commonSchemas.campaignId,
+    jwt: commonSchemas.jwt,
+  }),
+  execute: async ({ campaignId, jwt }, context?: any): Promise<ToolResult> => {
+    const toolCallId = crypto.randomUUID();
+
+    try {
+      const env = getEnvFromContext(context);
+      if (!env) {
+        // Fallback to API call
+        const response = await authenticatedFetch(
+          API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.HIERARCHY(campaignId)
+          ),
+          {
+            method: "GET",
+            jwt,
+          }
+        );
+
+        if (!response.ok) {
+          const authError = handleAuthError(response);
+          if (authError) {
+            return createToolError(
+              authError,
+              "Authentication failed",
+              response.status,
+              toolCallId
+            );
+          }
+
+          const errorData = (await response.json()) as {
+            error?: string;
+            message?: string;
+          };
+          return createToolError(
+            errorData.error || "Failed to get community hierarchy",
+            errorData.message || "Unknown error",
+            response.status,
+            toolCallId
+          );
+        }
+
+        const data = await response.json();
+        return createToolSuccess(
+          "Retrieved community hierarchy",
+          data,
+          toolCallId
+        );
+      }
+
+      // Direct database access
+      const userId = extractUsernameFromJwt(jwt);
+      if (!userId) {
+        return createToolError(
+          "Invalid authentication token",
+          "Authentication failed",
+          401,
+          toolCallId
+        );
+      }
+
+      // Get DAO factory and utilities
+      const daoFactory = getDAOFactory(env);
+
+      // Verify campaign ownership using DAO
+      const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+        campaignId,
+        userId
+      );
+
+      if (!campaign) {
+        return createToolError(
+          "Campaign not found",
+          "Campaign not found or access denied",
+          404,
+          toolCallId
+        );
+      }
+      const communities =
+        await daoFactory.communityDAO.listCommunitiesByCampaign(campaignId);
+
+      const hierarchy = buildCommunityHierarchyTree(communities);
+
+      return createToolSuccess(
+        "Retrieved community hierarchy",
+        {
+          hierarchy,
+        },
+        toolCallId
+      );
+    } catch (error) {
+      console.error("[getCommunityHierarchyTool] Error:", error);
+      return createToolError(
+        "Failed to get community hierarchy",
+        error instanceof Error ? error.message : "Unknown error",
+        500,
+        toolCallId
+      );
+    }
+  },
+});

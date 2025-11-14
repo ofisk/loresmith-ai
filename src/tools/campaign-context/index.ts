@@ -9,6 +9,15 @@ import {
   assessCampaignReadiness,
   getCampaignSuggestions,
 } from "./suggestion-tools";
+import {
+  detectCommunitiesTool,
+  getCommunitiesTool,
+  getCommunityHierarchyTool,
+} from "./community-tools";
+import {
+  extractEntitiesFromContentTool,
+  createEntityRelationshipTool,
+} from "./entity-tools";
 
 export {
   // Character tools
@@ -23,6 +32,13 @@ export {
   // Suggestion tools
   getCampaignSuggestions,
   assessCampaignReadiness,
+  // Community tools
+  detectCommunitiesTool,
+  getCommunitiesTool,
+  getCommunityHierarchyTool,
+  // Entity tools
+  extractEntitiesFromContentTool,
+  createEntityRelationshipTool,
 };
 
 // Export the tools object for backward compatibility
@@ -35,4 +51,9 @@ export const campaignContextTools = {
   assessCampaignReadiness,
   searchCampaignContext,
   searchExternalResources,
+  detectCommunitiesTool,
+  getCommunitiesTool,
+  getCommunityHierarchyTool,
+  extractEntitiesFromContentTool,
+  createEntityRelationshipTool,
 };

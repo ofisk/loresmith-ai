@@ -409,10 +409,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               }
 
               // Block mutating tools if the last user command is stale
+              // Note: Legacy shard tools removed - entity approval/rejection now handled via API routes
               const mutatingTools = new Set([
-                "approveShardsTool",
-                "rejectShardsTool",
-                "createShardsTool",
+                "createShardsTool", // Keep for backward compatibility if still used
               ]);
               if (staleGuard?.isStaleCommand && mutatingTools.has(toolName)) {
                 console.warn(

@@ -38,7 +38,8 @@ export function buildErrorResponse(
   };
 }
 
-// Build shard generation response
+// Build entity generation response
+// This function name is kept for UI compatibility
 export function buildShardGenerationResponse(
   resource: any,
   shardCount: number,

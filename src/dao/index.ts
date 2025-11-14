@@ -26,3 +26,10 @@ export type {
 } from "./shard-dao";
 // Shard DAO
 export { ShardDAO } from "./shard-dao";
+export type {
+  Community,
+  CreateCommunityInput,
+  UpdateCommunityInput,
+} from "./community-dao";
+// Community DAO
+export { CommunityDAO } from "./community-dao";
