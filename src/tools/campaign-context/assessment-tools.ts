@@ -12,6 +12,12 @@ import {
   extractModuleInformation,
   type ModuleAnalysis,
 } from "./assessment-core";
+import {
+  CampaignReadinessAnalysisError,
+  ModuleExtractionError,
+  RecommendationGenerationError,
+  CampaignDimensionAnalysisError,
+} from "@/lib/errors";
 
 /**
  * Tool: Analyze campaign readiness and provide detailed assessment
@@ -54,7 +60,7 @@ export async function assessCampaignReadinessTool(
     return assessment;
   } catch (error) {
     console.error("Failed to assess campaign readiness:", error);
-    throw new Error("Failed to analyze campaign readiness");
+    throw new CampaignReadinessAnalysisError();
   }
 }
 
@@ -75,7 +81,7 @@ export async function extractModuleFromPDFTool(
     return analysis;
   } catch (error) {
     console.error("Failed to extract module information:", error);
-    throw new Error("Failed to extract module information from PDF");
+    throw new ModuleExtractionError();
   }
 }
 
@@ -219,7 +225,7 @@ export async function getCampaignRecommendationsTool(
     };
   } catch (error) {
     console.error("Failed to get campaign recommendations:", error);
-    throw new Error("Failed to generate recommendations");
+    throw new RecommendationGenerationError();
   }
 }
 
@@ -267,7 +273,7 @@ export async function analyzeCampaignDimensionTool(
     };
   } catch (error) {
     console.error("Failed to analyze campaign dimension:", error);
-    throw new Error("Failed to analyze campaign dimension");
+    throw new CampaignDimensionAnalysisError();
   }
 }
 

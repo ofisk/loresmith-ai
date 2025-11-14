@@ -11,6 +11,7 @@ import type { Env } from "../../middleware/auth";
 import { AUTH_CODES } from "../../shared-config";
 import { commonSchemas } from "../utils";
 import { createToolError, createToolSuccess } from "../utils";
+import { EnvironmentRequiredError } from "@/lib/errors";
 
 // Core campaign operations
 
@@ -380,7 +381,7 @@ export const resolveCampaignIdentifier = tool({
     try {
       const env = context?.env as Env | undefined;
       if (!env) {
-        throw new Error("Environment not available");
+        throw new EnvironmentRequiredError();
       }
 
       const campaignDAO = getDAOFactory(env).campaignDAO;

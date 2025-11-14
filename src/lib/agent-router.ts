@@ -1,5 +1,6 @@
 import { streamText } from "ai";
 import { ModelManager } from "./model-manager";
+import { AgentNotRegisteredError } from "@/lib/errors";
 
 export type AgentType =
   | "campaign"
@@ -73,7 +74,7 @@ export class AgentRouter {
   ): any {
     const agentInfo = AgentRouter.agentRegistry[agentType];
     if (!agentInfo) {
-      throw new Error(`Agent type '${agentType}' not registered`);
+      throw new AgentNotRegisteredError(agentType);
     }
 
     // Use the provided model or get from global model manager
@@ -87,7 +88,7 @@ export class AgentRouter {
   static getAgentTools(agentType: string): Record<string, any> {
     const agentInfo = AgentRouter.agentRegistry[agentType];
     if (!agentInfo) {
-      throw new Error(`Agent type '${agentType}' not registered`);
+      throw new AgentNotRegisteredError(agentType);
     }
 
     return agentInfo.tools;
@@ -99,7 +100,7 @@ export class AgentRouter {
   static getAgentSystemPrompt(agentType: string): string {
     const agentInfo = AgentRouter.agentRegistry[agentType];
     if (!agentInfo) {
-      throw new Error(`Agent type '${agentType}' not registered`);
+      throw new AgentNotRegisteredError(agentType);
     }
 
     return agentInfo.systemPrompt;

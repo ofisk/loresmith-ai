@@ -3,28 +3,110 @@
  * Centralized prompts for extracting structured RPG/D&D content from documents
  */
 
+import {
+  STRUCTURED_ENTITY_TYPES,
+  ENTITY_TYPE_CATEGORIES,
+  ENTITY_TYPE_EXTRACTION_HINTS,
+  getEntityTypeDisplayName,
+  type StructuredEntityType,
+} from "@/lib/entity-types";
+import { RELATIONSHIP_TYPE_CATEGORIES } from "@/lib/relationship-types";
+
+/**
+ * Build the entity type list for the prompt
+ */
+function buildEntityTypeList(): string {
+  return Object.entries(ENTITY_TYPE_CATEGORIES)
+    .map(([category, types]) => {
+      const typeList = types.join(", ");
+      return `- ${category}: ${typeList}`;
+    })
+    .join("\n");
+}
+
+/**
+ * Build the relationship type list for the prompt
+ */
+function buildRelationshipTypeList(): string {
+  return Object.entries(RELATIONSHIP_TYPE_CATEGORIES)
+    .map(([category, types]) => {
+      const typeList = types.join(", ");
+      return `- ${category}: ${typeList}`;
+    })
+    .join("\n");
+}
+
+/**
+ * Build the extraction hints list for the prompt
+ */
+function buildExtractionHints(): string {
+  const hints = Object.entries(ENTITY_TYPE_EXTRACTION_HINTS)
+    .map(([type, hint]) => {
+      const displayName = getEntityTypeDisplayName(
+        type as StructuredEntityType
+      );
+      return `- ${displayName}: ${hint}`;
+    })
+    .join("\n");
+
+  return (
+    hints ||
+    "- Look for structured content matching the entity type definitions above."
+  );
+}
+
+/**
+ * Build the top-level return shape JSON structure
+ */
+function buildTopLevelReturnShape(): string {
+  const entityTypeKeys = STRUCTURED_ENTITY_TYPES.map(
+    (type) => `"${type}": []`
+  ).join(",\n  ");
+  return `{
+  "meta": { "source": { "doc": string, "pages"?: string, "anchor"?: string } },
+  ${entityTypeKeys}
+}`;
+}
+
 export const RPG_EXTRACTION_PROMPTS = {
   /**
-   * Main prompt for extracting structured RPG content from text
-   * Used by AutoRAG AI Search to identify game-ready primitives
+   * Main prompt for extracting structured RPG content from text for GraphRAG
+   * Used by AutoRAG AI Search to identify game-ready primitives and build a knowledge graph
    */
-  STRUCTURED_CONTENT: `You are extracting Dungeon Master prep data from RPG text.
+  STRUCTURED_CONTENT: `You are extracting Dungeon Master prep data from RPG text to build a knowledge graph for GraphRAG (Graph-based Retrieval Augmented Generation).
+
+PURPOSE
+Your output will be used to construct a knowledge graph where entities are nodes and relationships are edges. This graph enables:
+- Graph traversal queries (e.g., "find all NPCs connected to this location")
+- Relationship-based retrieval (e.g., "what items does this NPC own?")
+- Multi-hop reasoning across connected entities
+- Contextual understanding of entity connections
 
 TASK
-From the provided text, identify and synthesize ALL relevant game-ready "primitives" and output a SINGLE JSON object that strictly follows the schema in the SPEC below. Return ONLY valid JSON (no comments, no markdown). If a field is unknown, omit it. Be comprehensive - extract all potentially useful content for game preparation.
+From the provided text, identify and synthesize ALL relevant game-ready "primitives" (entities) and their relationships. Output a SINGLE JSON object that strictly follows the schema in the SPEC below. Return ONLY valid JSON (no comments, no markdown). If a field is unknown, omit it. Be comprehensive - extract all potentially useful content for game preparation.
 
-CONTEXT & HINTS
-- Look for these common RPG elements:
-  - Monsters/Creatures: "Armor Class", "Hit Points", STR/DEX/CON/INT/WIS/CHA line, "Challenge".
-  - Spells: "1st-level <school>", casting time, range, components, duration, "At Higher Levels".
-  - Magic Items: rarity, type, "requires attunement".
-  - Traps/Hazards: Trigger/Effect/DCs/Countermeasures.
-  - Scenes/Rooms: numbered keys (e.g., "Area 12"), read-aloud boxed text, GM notes.
-  - Hooks/Quests: imperative requests with stakes and links to NPCs/locations.
-  - Tables: a dice column (d20/d100), range → result rows.
+ENTITY EXTRACTION
+Extract entities from these categories (use the exact type names):
+${buildEntityTypeList()}
+
+Look for these common RPG elements:
+${buildExtractionHints()}
 - Normalize names (title case), preserve dice notation and DCs.
-- Include lightweight relationships in \`relations[]\` to connect items (e.g., a scene that contains a monster).
-- Extract any content that could be useful for game preparation, even if it doesn't fit standard categories.
+
+RELATIONSHIP EXTRACTION (CRITICAL FOR GRAPHRAG)
+Extracting relationships is THE MOST IMPORTANT aspect of this task. The knowledge graph's power comes from these connections.
+
+Rules:
+1. The \`target_id\` in each relation MUST match the exact \`id\` of another entity extracted in the same response
+2. Use ONLY the relationship types listed below (exact matches required)
+3. If a relationship doesn't fit exactly, use "related_to" as a fallback
+4. Extract relationships aggressively - when in doubt, include the relationship
+5. For NPCs especially: extract family relationships (parent_of, married_to), social connections (allied_with, enemy_of, rival_of, mentor_of), and organizational ties (member_of, ruled_by)
+
+Valid relationship types (use these exact strings):
+${buildRelationshipTypeList()}
+
+Example: If you extract NPC "elizabeth-durst" and NPC "rose-durst", and the text says "Elizabeth is Rose's mother", add: \`{ "rel": "parent_of", "target_id": "rose-durst" }\` to Elizabeth's relations array. If the text also mentions "Elizabeth and Gustav are married", add: \`{ "rel": "married_to", "target_id": "gustav-durst" }\` to Elizabeth's relations.
 
 OUTPUT RULES
 - Output one JSON object with the top-level keys exactly as in SPEC.
@@ -45,7 +127,7 @@ COMMON FIELDS (for every primitive):
 - summary: 1–3 sentence DM-usable summary.
 - tags: array of short tags.
 - source: { doc, pages?, anchor? }
-- relations: array of { rel, target_id }.
+- relations: array of { rel, target_id } where \`rel\` is one of the valid relationship types listed above (e.g., "parent_of", "married_to", "allied_with", "enemy_of", "located_in", "owns", "member_of", etc.) and \`target_id\` is the exact \`id\` of another entity extracted in the same response. This creates edges in the knowledge graph.
 - display_metadata: { display_name?, subtitle?, quick_info?, primary_text? } - UI display hints (see below).
 
 TYPES & REQUIRED MINIMUM FIELDS
@@ -69,6 +151,8 @@ TYPES & REQUIRED MINIMUM FIELDS
 - backgrounds[]: { id, type:"background", name, proficiencies?, tools?, languages?, equipment?, feature?, suggested_traits?, tags?, source }
 - feats[]: { id, type:"feat", name, prerequisites?, effect, scaling?, tags?, source }
 - subclasses[]: { id, type:"subclass", name, parent_class, level_features: { [level:number]: string }, spell_list_adds?, restrictions?, tags?, source }
+- characters[]: { id, type:"character", name, race?, class?, level?, background?, alignment?, stats?: {str, dex, con, int, wis, cha}, summary, tags?, source, relations? }
+- character_sheets[]: { id, type:"character_sheet", name, full_stats?: any, summary, tags?, source, relations? }
 - rules[]: { id, type:"rule", name, modifies?, text, examples?, safety_notes?, tags?, source }
 - downtime[]: { id, type:"downtime", name, requirements?, procedure, checks?, time_cost?, outcomes?, complications?, tags?, source }
 - tables[]: { id, type:"table", title, dice, rows: [{range:string, result:string}], usage_notes?, tags?, source }
@@ -95,18 +179,7 @@ If you find content that doesn't fit the predefined types above, create a "custo
 - Don't hesitate to create custom types for unique or unusual content that could be valuable for game preparation.
 
 TOP-LEVEL RETURN SHAPE (all keys required, arrays may be empty)
-{
-  "meta": { "source": { "doc": string, "pages"?: string, "anchor"?: string } },
-  "monsters": [], "npcs": [], "spells": [], "items": [],
-  "traps": [], "hazards": [], "conditions": [], "vehicles": [], "env_effects": [],
-  "hooks": [], "plot_lines": [], "quests": [], "scenes": [],
-  "locations": [], "lairs": [], "factions": [], "deities": [],
-  "backgrounds": [], "feats": [], "subclasses": [], "rules": [], "downtime": [],
-  "tables": [], "encounter_tables": [], "treasure_tables": [],
-  "maps": [], "handouts": [], "puzzles": [],
-  "timelines": [], "travel": [],
-  "custom": []
-}
+${buildTopLevelReturnShape()}
 
 RETURN ONLY JSON.`,
 

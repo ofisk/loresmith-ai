@@ -9,6 +9,11 @@ import type {
   ActionSuggestion,
   ToolRecommendation,
 } from "@/types/assessment";
+import {
+  UserStateAnalysisError,
+  CampaignReadinessAnalysisError,
+  DataRetrievalError,
+} from "@/lib/errors";
 
 export type {
   ActivityType,
@@ -58,7 +63,7 @@ export class AssessmentService {
       };
     } catch (error) {
       console.error("Failed to analyze user state:", error);
-      throw new Error("Failed to analyze user state");
+      throw new UserStateAnalysisError();
     }
   }
 
@@ -149,7 +154,7 @@ export class AssessmentService {
       };
     } catch (error) {
       console.error("Failed to get campaign readiness:", error);
-      throw new Error("Failed to analyze campaign readiness");
+      throw new CampaignReadinessAnalysisError();
     }
   }
 
@@ -161,7 +166,7 @@ export class AssessmentService {
       return await this.assessmentDAO.getUserActivity(username);
     } catch (error) {
       console.error("Failed to get user activity:", error);
-      throw new Error("Failed to retrieve user activity");
+      throw new DataRetrievalError("Failed to retrieve user activity");
     }
   }
 
@@ -222,7 +227,7 @@ export class AssessmentService {
       return await this.assessmentDAO.getCampaignContextOrdered(campaignId);
     } catch (error) {
       console.error("Failed to get campaign context:", error);
-      throw new Error("Failed to retrieve campaign context");
+      throw new DataRetrievalError("Failed to retrieve campaign context");
     }
   }
 
@@ -234,7 +239,7 @@ export class AssessmentService {
       return await this.assessmentDAO.getCampaignCharactersOrdered(campaignId);
     } catch (error) {
       console.error("Failed to get campaign characters:", error);
-      throw new Error("Failed to retrieve campaign characters");
+      throw new DataRetrievalError("Failed to retrieve campaign characters");
     }
   }
 
@@ -246,7 +251,7 @@ export class AssessmentService {
       return await this.assessmentDAO.getCampaignResourcesOrdered(campaignId);
     } catch (error) {
       console.error("Failed to get campaign resources:", error);
-      throw new Error("Failed to retrieve campaign resources");
+      throw new DataRetrievalError("Failed to retrieve campaign resources");
     }
   }
 }

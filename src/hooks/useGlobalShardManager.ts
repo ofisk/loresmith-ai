@@ -50,7 +50,7 @@ export function useGlobalShardManager(getJwt: () => string | null) {
         try {
           const shardsResponse = await authenticatedFetchWithExpiration(
             API_CONFIG.buildUrl(
-              API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SHARDS(
+              API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.STAGED_SHARDS(
                 campaign.campaignId
               )
             ),

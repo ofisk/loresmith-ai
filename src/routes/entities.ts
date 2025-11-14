@@ -8,6 +8,7 @@ import { EntityExtractionService } from "@/services/rag/entity-extraction-servic
 import { EntityExtractionPipeline } from "@/services/rag/entity-extraction-pipeline";
 import { EntityDeduplicationService } from "@/services/rag/entity-deduplication-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
+import { UserAuthenticationMissingError } from "@/lib/errors";
 
 type ContextWithAuth = Context<{
   Bindings: Env;
@@ -37,7 +38,7 @@ interface CampaignHandlerContext {
 function getUserAuth(c: ContextWithAuth): AuthPayload {
   const userAuth = (c as any).userAuth ?? c.get("userAuth");
   if (!userAuth) {
-    throw new Error("User authentication missing from context");
+    throw new UserAuthenticationMissingError();
   }
   return userAuth;
 }
@@ -63,7 +64,9 @@ function buildEntityServiceAccessor(
   return () => {
     if (!bundle) {
       const embeddingService = new EntityEmbeddingService(c.env.VECTORIZE);
-      const extractionService = new EntityExtractionService(c.env);
+      const extractionService = new EntityExtractionService(
+        c.env.OPENAI_API_KEY || null
+      );
       const graphService = new EntityGraphService(entityDAO);
       bundle = {
         embeddingService,

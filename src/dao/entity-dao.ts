@@ -3,6 +3,7 @@ import {
   normalizeRelationshipType,
   type RelationshipType,
 } from "@/lib/relationship-types";
+import { RelationshipUpsertError } from "@/lib/errors";
 
 // Raw row shape returned directly from D1 queries against the `entities` table.
 // All fields mirror the database column names and use snake_case to match D1 results.
@@ -247,6 +248,8 @@ export class EntityDAO extends BaseDAOClass {
   }
 
   async getEntityById(entityId: string): Promise<Entity | null> {
+    // Entity IDs are campaign-scoped with format: ${campaignId}_${baseId}
+    // So we only need to check by ID - the campaign is already encoded in the ID
     const sql = `SELECT * FROM entities WHERE id = ?`;
     const record = await this.queryFirst<EntityRecord>(sql, [entityId]);
     return record ? this.mapEntityRecord(record) : null;
@@ -329,7 +332,7 @@ export class EntityDAO extends BaseDAOClass {
     ]);
 
     if (!record) {
-      throw new Error("Failed to upsert relationship");
+      throw new RelationshipUpsertError();
     }
 
     return this.mapRelationshipRecord(record);

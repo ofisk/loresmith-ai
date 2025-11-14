@@ -152,7 +152,7 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 
       const { response } = await authenticatedFetchWithExpiration(
         API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.UPDATE_SHARD(
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.UPDATE_SHARD(
             campaignId,
             shardId
           )
@@ -208,7 +208,7 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 
       const { response } = await authenticatedFetchWithExpiration(
         API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.REJECT_SHARDS(
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.REJECT_SHARDS(
             campaignId
           )
         ),
@@ -288,10 +288,10 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 
       const endpoint =
         action === "approve"
-          ? API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.APPROVE_SHARDS(
+          ? API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.APPROVE_SHARDS(
               campaignId
             )
-          : API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.REJECT_SHARDS(
+          : API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.REJECT_SHARDS(
               campaignId
             );
 
@@ -369,7 +369,7 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
       // Fetch the latest staged shards from the API
       const { response } = await authenticatedFetchWithExpiration(
         API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SHARDS(
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.STAGED_SHARDS(
             campaignId
           )
         ),

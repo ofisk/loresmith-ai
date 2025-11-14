@@ -1,5 +1,13 @@
 import type { D1Database, VectorizeIndex } from "@cloudflare/workers-types";
 import { DatabaseUtils } from "@/lib/dbUtils";
+import {
+  OpenAIAPIKeyError,
+  EmbeddingGenerationError,
+  DatabaseConnectionError,
+  VectorizeIndexRequiredError,
+  AutoRAGSearchConfigError,
+  AutoRAGSearchError,
+} from "@/lib/errors";
 
 /**
  * Base RAG Service that provides shared functionality for different RAG implementations.
@@ -32,7 +40,7 @@ export abstract class BaseRAGService {
    */
   protected async generateEmbeddings(texts: string[]): Promise<number[][]> {
     if (!this.openaiApiKey) {
-      throw new Error("OpenAI API key is required for embedding generation");
+      throw new OpenAIAPIKeyError();
     }
 
     try {
@@ -49,14 +57,22 @@ export abstract class BaseRAGService {
       });
 
       if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.statusText}`);
+        throw new EmbeddingGenerationError(
+          `OpenAI API error: ${response.statusText}`
+        );
       }
 
       const result = (await response.json()) as any;
       return result.data.map((item: any) => item.embedding);
     } catch (error) {
       console.error("Error generating embeddings:", error);
-      throw new Error("Failed to generate embeddings");
+      if (
+        error instanceof EmbeddingGenerationError ||
+        error instanceof OpenAIAPIKeyError
+      ) {
+        throw error;
+      }
+      throw new EmbeddingGenerationError();
     }
   }
 
@@ -146,10 +162,10 @@ export abstract class BaseRAGService {
    */
   protected validateDependencies(): void {
     if (!this.db) {
-      throw new Error("Database connection is required");
+      throw new DatabaseConnectionError();
     }
     if (!this.vectorize) {
-      throw new Error("Vectorize index is required");
+      throw new VectorizeIndexRequiredError();
     }
   }
 
@@ -189,7 +205,7 @@ export abstract class BaseRAGService {
     } = {}
   ): Promise<any> {
     if (!searchUrl || !apiToken) {
-      throw new Error("AutoRAG search configuration not available");
+      throw new AutoRAGSearchConfigError();
     }
 
     const {
@@ -216,7 +232,7 @@ export abstract class BaseRAGService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`AutoRAG search failed: ${response.status} ${errorText}`);
+      throw new AutoRAGSearchError(response.status, errorText);
     }
 
     return await response.json();

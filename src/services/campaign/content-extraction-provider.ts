@@ -1,19 +1,21 @@
 // Content extraction provider interface
-// Allows swapping between different content extraction mechanisms (AutoRAG, direct file reading, etc.)
+// Allows swapping between different content extraction mechanisms (direct file reading, future image support, etc.)
 export interface ContentExtractionOptions {
   resource: {
     id: string;
     file_name?: string | null;
     file_key?: string | null;
   };
-  searchPath: string;
-  maxResults?: number;
 }
 
 export interface ContentExtractionResult {
   content: string;
   success: boolean;
   error?: string;
+  metadata?: {
+    isPDF?: boolean;
+    contentType?: string;
+  };
 }
 
 /**

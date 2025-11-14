@@ -6,6 +6,13 @@ import {
   AuthService,
   authenticatedFetchWithExpiration,
 } from "@/services/core/auth-service";
+import {
+  AutoRAGAPITokenError,
+  AutoRAGSyncError,
+  AuthenticationExpiredError,
+  AuthenticationRequiredError,
+  AutoRAGResponseError,
+} from "@/lib/errors";
 
 export class AutoRAGService {
   /**
@@ -36,7 +43,7 @@ export class AutoRAGService {
       );
 
       if (!env?.AUTORAG_API_TOKEN) {
-        throw new Error("No AutoRAG API token found in environment");
+        throw new AutoRAGAPITokenError();
       }
 
       // Get the Cloudflare API token (could be a string or a KV binding)
@@ -51,7 +58,9 @@ export class AutoRAGService {
       }
 
       if (!cloudflareApiToken) {
-        throw new Error("AutoRAG API token is empty or not accessible");
+        throw new AutoRAGAPITokenError(
+          "AutoRAG API token is empty or not accessible"
+        );
       }
       console.log(
         `[DEBUG] [AutoRAGService] API token retrieved successfully (length: ${cloudflareApiToken.length})`
@@ -219,7 +228,7 @@ export class AutoRAGService {
           return AutoRAGService.triggerSync(ragId, retryCount + 1, jwt, env);
         }
 
-        throw new Error(`AutoRAG sync failed: ${response.status} ${errorText}`);
+        throw new AutoRAGSyncError(response.status, errorText);
       }
 
       console.log(`[DEBUG] [AutoRAGService] Response ok, parsing JSON...`);
@@ -234,7 +243,9 @@ export class AutoRAGService {
       );
 
       if (!result.success || !result.result.job_id) {
-        throw new Error("Failed to get job_id from AutoRAG sync response");
+        throw new AutoRAGResponseError(
+          "Failed to get job_id from AutoRAG sync response"
+        );
       }
 
       const endTime = Date.now();
@@ -281,7 +292,7 @@ export class AutoRAGService {
     try {
       const jwt = AuthService.getStoredJwt();
       if (!jwt) {
-        throw new Error("No authentication token found");
+        throw new AuthenticationRequiredError();
       }
 
       const response = await authenticatedFetchWithExpiration(
@@ -298,7 +309,7 @@ export class AutoRAGService {
       );
 
       if (response.jwtExpired) {
-        throw new Error("Authentication expired. Please log in again.");
+        throw new AuthenticationExpiredError();
       }
 
       if (!response.response.ok) {

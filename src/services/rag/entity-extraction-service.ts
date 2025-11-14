@@ -8,6 +8,70 @@ import {
   type RelationshipType,
 } from "@/lib/relationship-types";
 import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
+import { createOpenAI } from "@ai-sdk/openai";
+import { generateObject } from "ai";
+import { z } from "zod";
+import { OpenAIAPIKeyError, EntityExtractionError } from "@/lib/errors";
+
+/**
+ * Maximum tokens for entity extraction responses.
+ *
+ * GPT-4o supports up to 128k tokens in the context window, but we limit the response
+ * to 16,384 tokens (~12,000 words) to:
+ * 1. Keep response sizes manageable for parsing and processing
+ * 2. Reduce API costs for large extractions
+ * 3. Ensure consistent performance across different document sizes
+ *
+ * This limit allows for extraction of hundreds of entities while staying well within
+ * the model's capabilities and reasonable cost bounds.
+ */
+const MAX_EXTRACTION_RESPONSE_TOKENS = 16384;
+
+// Zod schema for entity extraction response
+// This matches the structure expected by the RPG extraction prompt
+// Using z.record(z.unknown()) for array items to allow flexible entity structures
+const EntityItemSchema = z.record(z.unknown());
+
+const EntityExtractionSchema = z.object({
+  meta: z.object({
+    source: z.object({
+      doc: z.string(),
+      pages: z.string().optional(),
+      anchor: z.string().optional(),
+    }),
+  }),
+  monsters: z.array(EntityItemSchema).default([]),
+  npcs: z.array(EntityItemSchema).default([]),
+  spells: z.array(EntityItemSchema).default([]),
+  items: z.array(EntityItemSchema).default([]),
+  traps: z.array(EntityItemSchema).default([]),
+  hazards: z.array(EntityItemSchema).default([]),
+  conditions: z.array(EntityItemSchema).default([]),
+  vehicles: z.array(EntityItemSchema).default([]),
+  env_effects: z.array(EntityItemSchema).default([]),
+  hooks: z.array(EntityItemSchema).default([]),
+  plot_lines: z.array(EntityItemSchema).default([]),
+  quests: z.array(EntityItemSchema).default([]),
+  scenes: z.array(EntityItemSchema).default([]),
+  locations: z.array(EntityItemSchema).default([]),
+  lairs: z.array(EntityItemSchema).default([]),
+  factions: z.array(EntityItemSchema).default([]),
+  deities: z.array(EntityItemSchema).default([]),
+  backgrounds: z.array(EntityItemSchema).default([]),
+  feats: z.array(EntityItemSchema).default([]),
+  subclasses: z.array(EntityItemSchema).default([]),
+  rules: z.array(EntityItemSchema).default([]),
+  downtime: z.array(EntityItemSchema).default([]),
+  tables: z.array(EntityItemSchema).default([]),
+  encounter_tables: z.array(EntityItemSchema).default([]),
+  treasure_tables: z.array(EntityItemSchema).default([]),
+  maps: z.array(EntityItemSchema).default([]),
+  handouts: z.array(EntityItemSchema).default([]),
+  puzzles: z.array(EntityItemSchema).default([]),
+  timelines: z.array(EntityItemSchema).default([]),
+  travel: z.array(EntityItemSchema).default([]),
+  custom: z.array(EntityItemSchema).default([]),
+});
 
 export interface ExtractEntitiesOptions {
   content: string;
@@ -16,6 +80,7 @@ export interface ExtractEntitiesOptions {
   sourceId: string;
   sourceType: string;
   metadata?: Record<string, unknown>;
+  openaiApiKey?: string;
 }
 
 export interface ExtractedRelationship {
@@ -35,14 +100,18 @@ export interface ExtractedEntity {
 }
 
 export class EntityExtractionService {
-  constructor(
-    private readonly env: any,
-    private readonly model: string = "@cf/meta/llama-3.1-8b-instruct"
-  ) {}
+  constructor(private readonly openaiApiKey: string | null = null) {}
 
   async extractEntities(
     options: ExtractEntitiesOptions
   ): Promise<ExtractedEntity[]> {
+    const apiKey = options.openaiApiKey || this.openaiApiKey;
+    if (!apiKey) {
+      throw new OpenAIAPIKeyError(
+        "OpenAI API key is required for entity extraction. Please provide openaiApiKey in options or constructor."
+      );
+    }
+
     const prompt = RPG_EXTRACTION_PROMPTS.formatStructuredContentPrompt(
       options.sourceName
     );
@@ -53,20 +122,26 @@ CONTENT START
 ${options.content}
 CONTENT END`;
 
-    const response = await this.callModel(fullPrompt);
-    const parsed = this.safeParseJson(response);
+    // Use generateObject to guarantee structured JSON output
+    const parsed = await this.callOpenAIModelStructured(fullPrompt, apiKey);
 
-    if (!parsed || typeof parsed !== "object") {
-      console.warn("[EntityExtractionService] No structured content parsed");
+    if (!parsed) {
+      console.warn(
+        "[EntityExtractionService] No structured content returned from model"
+      );
       return [];
     }
 
     const results: ExtractedEntity[] = [];
+    const entityCountsByType: Record<string, number> = {};
+
     for (const type of STRUCTURED_ENTITY_TYPES) {
       const entries = (parsed as Record<string, unknown>)[type];
       if (!Array.isArray(entries)) {
         continue;
       }
+
+      entityCountsByType[type] = entries.length;
 
       for (const entry of entries) {
         if (!entry || typeof entry !== "object") {
@@ -74,10 +149,12 @@ CONTENT END`;
         }
 
         const record = entry as Record<string, unknown>;
-        const entityId =
+        // Make entity IDs campaign-scoped from the start
+        const baseId =
           typeof record.id === "string" && record.id.length > 0
             ? record.id
             : crypto.randomUUID();
+        const entityId = `${options.campaignId}_${baseId}`;
 
         const name =
           this.getFirstString(record, [
@@ -90,6 +167,13 @@ CONTENT END`;
         const relations = Array.isArray(record.relations)
           ? this.normalizeRelationships(record.relations)
           : [];
+
+        if (relations.length > 0) {
+          console.log(
+            `[EntityExtractionService] Extracted ${relations.length} relationships for entity ${entityId} (${name}):`,
+            relations.map((r) => `${r.relationshipType} -> ${r.targetId}`)
+          );
+        }
 
         results.push({
           id: entityId,
@@ -107,27 +191,55 @@ CONTENT END`;
       }
     }
 
+    const totalEntities = results.length;
+    const entitiesWithRelations = results.filter(
+      (e) => e.relations.length > 0
+    ).length;
+    console.log(
+      `[EntityExtractionService] Extracted ${totalEntities} total entities (${entitiesWithRelations} with relationships) from ${options.sourceName}. Breakdown by type:`,
+      Object.entries(entityCountsByType)
+        .filter(([_, count]) => count > 0)
+        .map(([type, count]) => `${type}: ${count}`)
+        .join(", ")
+    );
+
     return results;
   }
 
-  private async callModel(prompt: string): Promise<string> {
-    if (!this.env?.AI) {
-      throw new Error("AI binding not available for entity extraction");
-    }
+  /**
+   * Call OpenAI with structured output using generateObject
+   * This guarantees we get valid JSON matching our schema
+   */
+  private async callOpenAIModelStructured(
+    prompt: string,
+    apiKey: string
+  ): Promise<z.infer<typeof EntityExtractionSchema> | null> {
+    try {
+      // Create OpenAI provider with custom API key
+      const openaiProvider = createOpenAI({
+        apiKey,
+      });
 
-    const result = await this.env.AI.run(this.model, { prompt });
-    if (typeof result === "string") {
-      return result.trim();
-    }
+      const model = openaiProvider("gpt-4o");
 
-    if (result && typeof result === "object" && "response" in result) {
-      const response = (result as Record<string, unknown>).response;
-      if (typeof response === "string") {
-        return response.trim();
-      }
-    }
+      const result = await generateObject({
+        model,
+        schema: EntityExtractionSchema,
+        prompt,
+        temperature: 0.1, // Lower temperature for more consistent structured extraction
+        maxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
+      });
 
-    return JSON.stringify(result);
+      return result.object;
+    } catch (error) {
+      console.error(
+        "[EntityExtractionService] Error calling OpenAI API with structured output:",
+        error
+      );
+      throw new EntityExtractionError(
+        error instanceof Error ? error.message : "Unknown error"
+      );
+    }
   }
 
   private normalizeRelationships(
@@ -166,23 +278,6 @@ CONTENT END`;
       acc.push(normalized);
       return acc;
     }, []);
-  }
-
-  private safeParseJson(content: string): unknown {
-    const jsonMatch = content.match(/\{[\s\S]*\}$/);
-    if (!jsonMatch) {
-      return undefined;
-    }
-
-    try {
-      return JSON.parse(jsonMatch[0]);
-    } catch (error) {
-      console.warn(
-        "[EntityExtractionService] Failed to parse JSON response",
-        error
-      );
-      return undefined;
-    }
   }
 
   private getFirstString(

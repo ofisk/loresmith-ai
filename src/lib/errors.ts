@@ -1,0 +1,396 @@
+/**
+ * Custom error classes for consistent error handling across the application.
+ * Each error class has a standard message that is automatically set.
+ */
+
+// ============================================================================
+// Authentication & Authorization Errors
+// ============================================================================
+
+export class OpenAIAPIKeyError extends Error {
+  constructor(message?: string) {
+    super(
+      message ||
+        "OpenAI API key is required. Please provide an OpenAI API key to continue."
+    );
+    this.name = "OpenAIAPIKeyError";
+  }
+}
+
+export class AuthenticationRequiredError extends Error {
+  constructor(message?: string) {
+    super(
+      message ||
+        "Authentication required. Please log in to access this feature."
+    );
+    this.name = "AuthenticationRequiredError";
+  }
+}
+
+export class AuthenticationExpiredError extends Error {
+  constructor(message?: string) {
+    super(
+      message ||
+        "Authentication expired. Please log in again to continue using the application."
+    );
+    this.name = "AuthenticationExpiredError";
+  }
+}
+
+export class AuthenticationFailedError extends Error {
+  constructor(message?: string) {
+    super(message || "Authentication failed. Please check your credentials.");
+    this.name = "AuthenticationFailedError";
+  }
+}
+
+export class UserAuthenticationMissingError extends Error {
+  constructor(message?: string) {
+    super(
+      message ||
+        "User authentication missing from context. Please ensure you are logged in."
+    );
+    this.name = "UserAuthenticationMissingError";
+  }
+}
+
+// ============================================================================
+// File & Storage Errors
+// ============================================================================
+
+export class FileNotFoundError extends Error {
+  constructor(fileKey?: string) {
+    super(
+      fileKey
+        ? `File not found in R2: ${fileKey}`
+        : "File not found in R2 storage."
+    );
+    this.name = "FileNotFoundError";
+  }
+}
+
+export class SourceObjectNotFoundError extends Error {
+  constructor(sourceKey: string) {
+    super(`Source object not found: ${sourceKey}`);
+    this.name = "SourceObjectNotFoundError";
+  }
+}
+
+// ============================================================================
+// Validation Errors
+// ============================================================================
+
+export class ResourceRequiredError extends Error {
+  constructor(message?: string) {
+    super(message || "Resource is required for this operation.");
+    this.name = "ResourceRequiredError";
+  }
+}
+
+export class ResourceIdRequiredError extends Error {
+  constructor(message?: string) {
+    super(message || "Resource ID is required for this operation.");
+    this.name = "ResourceIdRequiredError";
+  }
+}
+
+export class ResourceFileKeyRequiredError extends Error {
+  constructor(message?: string) {
+    super(message || "Resource file_key is required for this operation.");
+    this.name = "ResourceFileKeyRequiredError";
+  }
+}
+
+export class ResourceFileNameRequiredError extends Error {
+  constructor(message?: string) {
+    super(message || "Resource file_name is required for this operation.");
+    this.name = "ResourceFileNameRequiredError";
+  }
+}
+
+export class CampaignIdRequiredError extends Error {
+  constructor(message?: string) {
+    super(message || "Campaign ID is required for this operation.");
+    this.name = "CampaignIdRequiredError";
+  }
+}
+
+export class CampaignNameRequiredError extends Error {
+  constructor(message?: string) {
+    super(message || "Campaign name is required for this operation.");
+    this.name = "CampaignNameRequiredError";
+  }
+}
+
+export class UsernameRequiredError extends Error {
+  constructor(message?: string) {
+    super(message || "Username is required for this operation.");
+    this.name = "UsernameRequiredError";
+  }
+}
+
+export class EnvironmentRequiredError extends Error {
+  constructor(message?: string) {
+    super(message || "Environment is required for this operation.");
+    this.name = "EnvironmentRequiredError";
+  }
+}
+
+export class SearchPathValidationError extends Error {
+  constructor(searchPath: string, reason?: string) {
+    super(
+      reason
+        ? `Search path validation failed: ${reason} (path: "${searchPath}")`
+        : `Search path validation failed for: "${searchPath}"`
+    );
+    this.name = "SearchPathValidationError";
+  }
+}
+
+export class CampaignRagBasePathRequiredError extends Error {
+  constructor(message?: string) {
+    super(message || "Campaign RAG base path is required for this operation.");
+    this.name = "CampaignRagBasePathRequiredError";
+  }
+}
+
+// ============================================================================
+// Database & DAO Errors
+// ============================================================================
+
+export class DatabaseConnectionError extends Error {
+  constructor(message?: string) {
+    super(message || "Database connection is required for this operation.");
+    this.name = "DatabaseConnectionError";
+  }
+}
+
+export class DAOFactoryError extends Error {
+  constructor(message?: string) {
+    super(message || "Cannot create DAO factory with undefined database.");
+    this.name = "DAOFactoryError";
+  }
+}
+
+export class EntityNotFoundError extends Error {
+  constructor(entityId?: string, campaignId?: string) {
+    super(
+      entityId && campaignId
+        ? `Entity not found for campaign: ${entityId} in campaign ${campaignId}`
+        : entityId
+          ? `Entity not found: ${entityId}`
+          : "Entity not found."
+    );
+    this.name = "EntityNotFoundError";
+  }
+}
+
+export class RelationshipUpsertError extends Error {
+  constructor(message?: string) {
+    super(message || "Failed to upsert relationship.");
+    this.name = "RelationshipUpsertError";
+  }
+}
+
+export class SelfReferentialRelationshipError extends Error {
+  constructor(message?: string) {
+    super(message || "Self-referential relationships are not permitted.");
+    this.name = "SelfReferentialRelationshipError";
+  }
+}
+
+// ============================================================================
+// Vectorize & Index Errors
+// ============================================================================
+
+export class VectorizeIndexRequiredError extends Error {
+  constructor(message?: string) {
+    super(message || "Vectorize index is required for this operation.");
+    this.name = "VectorizeIndexRequiredError";
+  }
+}
+
+export class InvalidEmbeddingResponseError extends Error {
+  constructor(message?: string) {
+    super(message || "Invalid embedding response format.");
+    this.name = "InvalidEmbeddingResponseError";
+  }
+}
+
+// ============================================================================
+// AutoRAG Errors
+// ============================================================================
+
+export class AutoRAGConfigurationError extends Error {
+  constructor(configKey?: string) {
+    super(
+      configKey
+        ? `AutoRAG configuration missing: ${configKey}`
+        : "AutoRAG configuration is missing or invalid."
+    );
+    this.name = "AutoRAGConfigurationError";
+  }
+}
+
+export class AutoRAGAPITokenError extends Error {
+  constructor(message?: string) {
+    super(
+      message ||
+        "No AutoRAG API token found in environment. Please configure AUTORAG_API_TOKEN."
+    );
+    this.name = "AutoRAGAPITokenError";
+  }
+}
+
+export class AutoRAGSearchError extends Error {
+  constructor(status?: number, errorText?: string) {
+    super(
+      status && errorText
+        ? `AutoRAG search failed: ${status} ${errorText}`
+        : status
+          ? `AutoRAG search failed with status: ${status}`
+          : "AutoRAG search failed."
+    );
+    this.name = "AutoRAGSearchError";
+  }
+}
+
+export class AutoRAGSyncError extends Error {
+  constructor(status?: number, errorText?: string) {
+    super(
+      status && errorText
+        ? `AutoRAG sync failed: ${status} ${errorText}`
+        : status
+          ? `AutoRAG sync failed with status: ${status}`
+          : "AutoRAG sync failed."
+    );
+    this.name = "AutoRAGSyncError";
+  }
+}
+
+export class AutoRAGSearchConfigError extends Error {
+  constructor(message?: string) {
+    super(message || "AutoRAG search configuration not available.");
+    this.name = "AutoRAGSearchConfigError";
+  }
+}
+
+export class AutoRAGResponseError extends Error {
+  constructor(message?: string) {
+    super(message || "Invalid response from AutoRAG API.");
+    this.name = "AutoRAGResponseError";
+  }
+}
+
+// ============================================================================
+// Agent & Routing Errors
+// ============================================================================
+
+export class AgentNotRegisteredError extends Error {
+  constructor(agentType: string) {
+    super(`Agent type '${agentType}' is not registered.`);
+    this.name = "AgentNotRegisteredError";
+  }
+}
+
+// ============================================================================
+// Processing & Service Errors
+// ============================================================================
+
+export class EntityExtractionError extends Error {
+  constructor(message?: string) {
+    super(message || "Failed to extract entities from content.");
+    this.name = "EntityExtractionError";
+  }
+}
+
+export class EmbeddingGenerationError extends Error {
+  constructor(message?: string) {
+    super(message || "Failed to generate embeddings.");
+    this.name = "EmbeddingGenerationError";
+  }
+}
+
+export class AIBindingError extends Error {
+  constructor(message?: string) {
+    super(message || "AI binding not available for this operation.");
+    this.name = "AIBindingError";
+  }
+}
+
+export class PDFExtractionError extends Error {
+  constructor(message?: string) {
+    super(message || "Failed to extract text from PDF.");
+    this.name = "PDFExtractionError";
+  }
+}
+
+export class CampaignReadinessAnalysisError extends Error {
+  constructor(message?: string) {
+    super(message || "Failed to analyze campaign readiness.");
+    this.name = "CampaignReadinessAnalysisError";
+  }
+}
+
+export class ModuleExtractionError extends Error {
+  constructor(message?: string) {
+    super(message || "Failed to extract module information from PDF.");
+    this.name = "ModuleExtractionError";
+  }
+}
+
+export class RecommendationGenerationError extends Error {
+  constructor(message?: string) {
+    super(message || "Failed to generate recommendations.");
+    this.name = "RecommendationGenerationError";
+  }
+}
+
+export class CampaignDimensionAnalysisError extends Error {
+  constructor(message?: string) {
+    super(message || "Failed to analyze campaign dimension.");
+    this.name = "CampaignDimensionAnalysisError";
+  }
+}
+
+export class StorageUsageError extends Error {
+  constructor(message?: string) {
+    super(message || "Failed to get storage usage.");
+    this.name = "StorageUsageError";
+  }
+}
+
+export class UserStateAnalysisError extends Error {
+  constructor(message?: string) {
+    super(message || "Failed to analyze user state.");
+    this.name = "UserStateAnalysisError";
+  }
+}
+
+export class DataRetrievalError extends Error {
+  constructor(message?: string) {
+    super(message || "Failed to retrieve data.");
+    this.name = "DataRetrievalError";
+  }
+}
+
+// ============================================================================
+// Environment & Configuration Errors
+// ============================================================================
+
+export class EnvironmentVariableError extends Error {
+  constructor(varName: string, message?: string) {
+    super(
+      message ||
+        `Failed to access ${varName} from environment or secrets store.`
+    );
+    this.name = "EnvironmentVariableError";
+  }
+}
+
+export class SecretStoreAccessError extends Error {
+  constructor(varName: string) {
+    super(`Failed to access ${varName} from secrets store.`);
+    this.name = "SecretStoreAccessError";
+  }
+}

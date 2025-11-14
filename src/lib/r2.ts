@@ -1,4 +1,5 @@
 import type { Env } from "../middleware/auth";
+import { SourceObjectNotFoundError } from "@/lib/errors";
 
 export interface R2Object {
   key: string;
@@ -73,7 +74,7 @@ export class R2Helper {
     // Copy the object
     const sourceObject = await this.env.R2.get(sourceKey);
     if (!sourceObject) {
-      throw new Error(`Source object not found: ${sourceKey}`);
+      throw new SourceObjectNotFoundError(sourceKey);
     }
 
     const content = await sourceObject.arrayBuffer();
@@ -95,7 +96,7 @@ export class R2Helper {
   async copy(sourceKey: string, destKey: string): Promise<void> {
     const sourceObject = await this.env.R2.get(sourceKey);
     if (!sourceObject) {
-      throw new Error(`Source object not found: ${sourceKey}`);
+      throw new SourceObjectNotFoundError(sourceKey);
     }
 
     const content = await sourceObject.arrayBuffer();

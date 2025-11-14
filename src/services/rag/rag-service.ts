@@ -6,6 +6,11 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import type { Env } from "@/middleware/auth";
 import type { FileMetadata, SearchQuery, SearchResult } from "@/types/upload";
 import { BaseRAGService } from "./base-rag-service";
+import {
+  FileNotFoundError,
+  VectorizeIndexRequiredError,
+  InvalidEmbeddingResponseError,
+} from "@/lib/errors";
 
 // LLM model configuration
 const LLM_MODEL = "@cf/meta/llama-3.1-8b-instruct";
@@ -26,7 +31,7 @@ export class LibraryRAGService extends BaseRAGService {
     try {
       const file = await this.env.R2.get(metadata.fileKey);
       if (!file) {
-        throw new Error("File not found in R2");
+        throw new FileNotFoundError(metadata.fileKey);
       }
 
       // Extract text based on file type
@@ -195,7 +200,7 @@ export class LibraryRAGService extends BaseRAGService {
   ): Promise<string> {
     try {
       if (!this.vectorize) {
-        throw new Error("Vectorize index is required");
+        throw new VectorizeIndexRequiredError();
       }
 
       // Generate embeddings using AutoRAG if available
@@ -228,7 +233,7 @@ export class LibraryRAGService extends BaseRAGService {
           if (Array.isArray(parsedResponse)) {
             embeddings = parsedResponse;
           } else {
-            throw new Error("Invalid embedding response format");
+            throw new InvalidEmbeddingResponseError();
           }
         } catch (error) {
           console.warn(
@@ -793,7 +798,7 @@ RETURN ONLY JSON in this format:
       // Get file from R2
       const file = await fileBucket.get(fileKey);
       if (!file) {
-        throw new Error("File not found in R2");
+        throw new FileNotFoundError(fileKey);
       }
 
       // Extract text based on file type

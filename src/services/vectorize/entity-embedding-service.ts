@@ -1,4 +1,5 @@
 import type { VectorizeIndex } from "@cloudflare/workers-types";
+import { VectorizeIndexRequiredError } from "@/lib/errors";
 
 export interface UpsertEntityEmbeddingOptions {
   entityId: string;
@@ -21,7 +22,7 @@ export class EntityEmbeddingService {
 
   private ensureIndex(): VectorizeIndex {
     if (!this.vectorize) {
-      throw new Error("Vectorize index is required for entity embeddings");
+      throw new VectorizeIndexRequiredError();
     }
     return this.vectorize;
   }

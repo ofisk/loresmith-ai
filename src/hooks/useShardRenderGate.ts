@@ -27,7 +27,7 @@ export function useShardRenderGate(
       try {
         const { response, jwtExpired } = await authenticatedFetchWithExpiration(
           API_CONFIG.buildUrl(
-            API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SHARDS(cid)
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.STAGED_SHARDS(cid)
           ),
           { jwt }
         );

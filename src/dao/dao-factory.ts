@@ -1,4 +1,5 @@
 import type { D1Database } from "@cloudflare/workers-types";
+import { DAOFactoryError } from "@/lib/errors";
 import { CampaignDAO } from "./campaign-dao";
 import { FileDAO } from "./file-dao";
 import { ShardDAO } from "./shard-dao";
@@ -115,7 +116,7 @@ export function getDatabaseKey(db: D1Database | undefined): string {
 
 export function createDAOFactory(db: D1Database | undefined): DAOFactory {
   if (!db) {
-    throw new Error("Cannot create DAO factory with undefined database");
+    throw new DAOFactoryError();
   }
 
   const factory = new DAOFactoryImpl(db);
