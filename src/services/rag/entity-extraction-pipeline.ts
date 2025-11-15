@@ -2,6 +2,7 @@ import type { EntityDAO, Entity, EntityRelationship } from "@/dao/entity-dao";
 import type { EntityGraphService } from "@/services/graph/entity-graph-service";
 import type { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import type { EntityExtractionService } from "./entity-extraction-service";
+import { AIBindingError } from "@/lib/errors";
 
 export interface EntityExtractionPipelineOptions {
   campaignId: string;
@@ -209,7 +210,7 @@ export class EntityExtractionPipeline {
 
   private async generateEmbedding(text: string): Promise<number[]> {
     if (!this.env?.AI) {
-      throw new Error("AI binding not available for embedding generation");
+      throw new AIBindingError();
     }
 
     try {

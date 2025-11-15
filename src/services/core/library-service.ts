@@ -1,6 +1,7 @@
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { Env } from "@/middleware/auth";
 import type { FileMetadata } from "@/types/upload";
+import { StorageUsageError, FileNotFoundError } from "@/lib/errors";
 
 export interface StorageUsage {
   username: string;
@@ -79,7 +80,7 @@ export class LibraryService {
         "[LibraryService] Error getting user storage usage:",
         error
       );
-      throw new Error("Failed to get storage usage");
+      throw new StorageUsageError();
     }
   }
 
@@ -188,7 +189,7 @@ export class LibraryService {
         "[LibraryService] Error getting all users storage usage:",
         error
       );
-      throw new Error("Failed to get all users storage usage");
+      throw new StorageUsageError();
     }
   }
 
@@ -239,7 +240,7 @@ export class LibraryService {
       // Get file metadata from database
       const fileMetadata = await this.getFileMetadata(fileKey, username);
       if (!fileMetadata) {
-        throw new Error("File metadata not found");
+        throw new FileNotFoundError();
       }
 
       // AutoRAG automatically processes files from R2, no manual processing needed

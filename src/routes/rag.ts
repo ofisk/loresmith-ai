@@ -12,6 +12,7 @@ import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { completeProgress } from "@/services/core/progress-service";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
+import { FileNotFoundError } from "@/lib/errors";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -87,7 +88,7 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
         // Get file from R2
         const file = await c.env.R2.get(fileKey);
         if (!file) {
-          throw new Error("File not found in R2");
+          throw new FileNotFoundError(fileKey);
         }
 
         // Process with RAG service
@@ -195,7 +196,7 @@ export async function handleProcessFileFromR2ForRag(c: ContextWithAuth) {
         // Get file from R2
         const file = await c.env.R2.get(fileKey);
         if (!file) {
-          throw new Error("File not found in R2");
+          throw new FileNotFoundError(fileKey);
         }
 
         // Process with RAG service

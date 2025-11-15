@@ -13,6 +13,7 @@ import {
 import type { Env } from "@/middleware/auth";
 import { SyncQueueService } from "./sync-queue-service";
 import { AUTORAG_CONFIG } from "@/shared-config";
+import { AutoRAGConfigurationError } from "@/lib/errors";
 
 const log = logger.scope("[JobStatusService]");
 
@@ -52,7 +53,7 @@ export async function checkSingleJobStatus(
 
   const baseUrl = env.AUTORAG_BASE_URL;
   if (!baseUrl) {
-    throw new Error("AutoRAG configuration missing: AUTORAG_BASE_URL");
+    throw new AutoRAGConfigurationError("AUTORAG_BASE_URL");
   }
 
   const jobDetailsUrl = AUTORAG_CONFIG.buildLibraryAutoRAGUrl(

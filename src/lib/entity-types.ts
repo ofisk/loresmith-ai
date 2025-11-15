@@ -58,6 +58,38 @@ export const STRUCTURED_ENTITY_TYPES = [
 export type StructuredEntityType = (typeof STRUCTURED_ENTITY_TYPES)[number];
 
 /**
+ * Entity types grouped by category for prompt generation and organization
+ */
+export const ENTITY_TYPE_CATEGORIES = {
+  "Core entities": [
+    "monsters",
+    "npcs",
+    "spells",
+    "items",
+    "traps",
+    "hazards",
+    "conditions",
+    "vehicles",
+    "env_effects",
+  ],
+  "Adventure structure": ["hooks", "plot_lines", "quests", "scenes"],
+  "Locations & world": ["locations", "lairs", "factions", "deities"],
+  "Player mechanics": [
+    "backgrounds",
+    "feats",
+    "subclasses",
+    "characters",
+    "character_sheets",
+    "rules",
+    "downtime",
+  ],
+  "Reference & generators": ["tables", "encounter_tables", "treasure_tables"],
+  Assets: ["maps", "handouts", "puzzles"],
+  "Campaign glue": ["timelines", "travel"],
+  Custom: ["custom"],
+} as const;
+
+/**
  * Helper function to check if a string is a valid entity type.
  */
 export function isValidEntityType(type: string): type is StructuredEntityType {
@@ -106,3 +138,25 @@ export function getEntityTypeDisplayName(type: StructuredEntityType): string {
 
   return displayNames[type];
 }
+
+/**
+ * Extraction hints for each entity type to guide the LLM in identifying content.
+ * These hints describe common patterns, keywords, and structures to look for.
+ */
+export const ENTITY_TYPE_EXTRACTION_HINTS: Partial<
+  Record<StructuredEntityType, string>
+> = {
+  monsters:
+    '"Armor Class", "Hit Points", STR/DEX/CON/INT/WIS/CHA line, "Challenge"',
+  spells:
+    '"1st-level <school>", casting time, range, components, duration, "At Higher Levels"',
+  items: 'rarity, type, "requires attunement"',
+  traps: "Trigger/Effect/DCs/Countermeasures",
+  hazards: "Trigger/Effect/DCs/Countermeasures",
+  scenes: 'numbered keys (e.g., "Area 12"), read-aloud boxed text, GM notes',
+  hooks: "imperative requests with stakes and links to NPCs/locations",
+  quests: "imperative requests with stakes and links to NPCs/locations",
+  tables: "a dice column (d20/d100), range → result rows",
+  encounter_tables: "a dice column (d20/d100), range → result rows",
+  treasure_tables: "a dice column (d20/d100), range → result rows",
+};

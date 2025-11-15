@@ -45,7 +45,7 @@ import {
   handleGetStagedShards,
   handleRejectShards,
   handleUpdateShard,
-} from "@/routes/campaign-autorag";
+} from "@/routes/campaign-graphrag";
 import {
   handleAddResourceToCampaign,
   handleCreateCampaign,
@@ -757,36 +757,38 @@ app.get(
   handleGetCommunityHierarchy
 );
 
-// Campaign AutoRAG Routes
+// Campaign GraphRAG Routes
 app.post(
-  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.APPROVE(":campaignId"),
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.APPROVE(":campaignId"),
   requireUserJwt,
   handleApproveShards
 );
 app.post(
-  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.REJECT(":campaignId"),
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.REJECT(":campaignId"),
   requireUserJwt,
   handleRejectShards
 );
 
-// New Campaign AutoRAG Shard Management Routes
+// Campaign GraphRAG Shard Management Routes
 app.get(
-  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.STAGED_SHARDS(":campaignId"),
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.STAGED_SHARDS(":campaignId"),
   requireUserJwt,
   handleGetStagedShards
 );
 app.post(
-  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.APPROVE_SHARDS(":campaignId"),
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.APPROVE_SHARDS(
+    ":campaignId"
+  ),
   requireUserJwt,
   handleApproveShards
 );
 app.post(
-  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.REJECT_SHARDS(":campaignId"),
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.REJECT_SHARDS(":campaignId"),
   requireUserJwt,
   handleRejectShards
 );
 app.put(
-  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_AUTORAG.UPDATE_SHARD(
+  API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.UPDATE_SHARD(
     ":campaignId",
     ":shardId"
   ),

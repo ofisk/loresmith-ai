@@ -1,4 +1,16 @@
 // Utilities for entity/staging generation with robust path handling and validation
+import {
+  ResourceRequiredError,
+  ResourceIdRequiredError,
+  ResourceFileKeyRequiredError,
+  ResourceFileNameRequiredError,
+  SearchPathValidationError,
+  EnvironmentRequiredError,
+  UsernameRequiredError,
+  CampaignIdRequiredError,
+  CampaignNameRequiredError,
+  CampaignRagBasePathRequiredError,
+} from "@/lib/errors";
 
 /**
  * Standardized resource interface for entity staging
@@ -30,19 +42,19 @@ export function validateShardGenerationResource(
   resource: any
 ): ShardGenerationResource {
   if (!resource) {
-    throw new Error("Resource is required for shard generation");
+    throw new ResourceRequiredError();
   }
 
   if (!resource.id) {
-    throw new Error("Resource ID is required");
+    throw new ResourceIdRequiredError();
   }
 
   if (!resource.file_key) {
-    throw new Error("Resource file_key is required for AutoRAG search");
+    throw new ResourceFileKeyRequiredError();
   }
 
   if (!resource.file_name) {
-    throw new Error("Resource file_name is required");
+    throw new ResourceFileNameRequiredError();
   }
 
   return {
@@ -77,16 +89,22 @@ export function getAutoRAGSearchPath(
  */
 export function validateSearchPath(searchPath: string): void {
   if (!searchPath || searchPath.trim().length === 0) {
-    throw new Error("Search path cannot be empty");
+    throw new SearchPathValidationError(
+      searchPath,
+      "Search path cannot be empty"
+    );
   }
 
   if (searchPath.length < 3) {
-    throw new Error(`Search path too short: "${searchPath}"`);
+    throw new SearchPathValidationError(searchPath, "Search path too short");
   }
 
   // Check for common issues
   if (searchPath.includes("undefined") || searchPath.includes("null")) {
-    throw new Error(`Search path contains undefined/null: "${searchPath}"`);
+    throw new SearchPathValidationError(
+      searchPath,
+      "Search path contains undefined/null"
+    );
   }
 
   // Warn about potential issues
@@ -146,26 +164,26 @@ export function validateShardGenerationOptions(
   options: EntityStagingOptionsLike
 ): void {
   if (!options.env) {
-    throw new Error("Environment is required for entity staging");
+    throw new EnvironmentRequiredError();
   }
 
   if (!options.username) {
-    throw new Error("Username is required for entity staging");
+    throw new UsernameRequiredError();
   }
 
   if (!options.campaignId) {
-    throw new Error("Campaign ID is required for entity staging");
+    throw new CampaignIdRequiredError();
   }
 
   if (!options.campaignName) {
-    throw new Error("Campaign name is required for entity staging");
+    throw new CampaignNameRequiredError();
   }
 
   if (!options.resource) {
-    throw new Error("Resource is required for entity staging");
+    throw new ResourceRequiredError();
   }
 
   if (!options.campaignRagBasePath) {
-    throw new Error("Campaign RAG base path is required for entity staging");
+    throw new CampaignRagBasePathRequiredError();
   }
 }

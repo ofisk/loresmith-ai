@@ -476,6 +476,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
           campaignName: campaign!.name,
           resource,
           campaignRagBasePath,
+          openaiApiKey: userAuth.openaiApiKey,
         });
 
         if (entityResult.success && entityResult.entityCount > 0) {

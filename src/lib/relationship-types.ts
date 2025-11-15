@@ -54,6 +54,73 @@ export const RELATIONSHIP_TYPES = [
 
 export type RelationshipType = (typeof RELATIONSHIP_TYPES)[number];
 
+/**
+ * Relationship types grouped by category for prompt generation and organization
+ */
+export const RELATIONSHIP_TYPE_CATEGORIES = {
+  "Family & Social": [
+    "parent_of",
+    "married_to",
+    "allied_with",
+    "enemy_of",
+    "related_to",
+    "rival_of",
+    "mentor_of",
+    "owes_debt_to",
+  ],
+  "Location & Spatial": [
+    "located_in",
+    "resides_in",
+    "adjacent_to",
+    "route_to",
+    "occurs_at",
+  ],
+  "Ownership & Control": [
+    "owns",
+    "owned_by",
+    "wielded_by",
+    "crafted_by",
+    "blessed_by",
+    "guards",
+    "controls",
+  ],
+  "Religious & Divine": ["worships", "champion_of", "sacred_to"],
+  "Quest & Narrative": [
+    "quest_giver",
+    "quest_target",
+    "quest_requires",
+    "preceded_by",
+    "followed_by",
+    "occurs_after",
+    "spawns",
+    "summons",
+    "transforms_into",
+  ],
+  "Content & Reference": [
+    "contains_entry",
+    "appears_in",
+    "featured_in",
+    "references",
+    "reveals",
+    "depicts",
+    "documented_by",
+  ],
+  Organizational: ["member_of", "ruled_by", "connected_to"],
+  "Game Mechanics": [
+    "grants_feat",
+    "unlocks_subclass",
+    "grants_proficiency",
+    "enables_activity",
+    "related_rule",
+  ],
+  "Generative & Structural": [
+    "generates",
+    "unlocks_content",
+    "includes_event",
+    "represents",
+  ],
+} as const;
+
 const BIDIRECTIONAL_RELATIONSHIPS: RelationshipType[] = [
   "allied_with",
   "enemy_of",

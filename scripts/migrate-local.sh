@@ -42,15 +42,32 @@ FAILED_MIGRATIONS=""
 
 # Execute each migration file
 for migration_file in $MIGRATION_FILES; do
-    echo "🔄 Running migration: $(basename "$migration_file")"
+    migration_name=$(basename "$migration_file")
+    echo "🔄 Running migration: $migration_name"
+    
+    # Special handling for clean slate migration
+    if [[ "$migration_name" == "0000_clean_slate.sql" ]]; then
+        # Check if campaigns table exists (indicates database has data)
+        HAS_DATA=$(wrangler d1 execute "$DB_NAME" --command="SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='campaigns';" --local 2>/dev/null | grep -o '"count":[0-9]*' | grep -o '[0-9]*' || echo "0")
+        
+        if [ "$HAS_DATA" != "0" ]; then
+            echo "⚠️  Skipping clean slate migration - database already has tables (safe to skip)"
+            echo "✅ Success: $migration_name (skipped - tables already exist)"
+            ((SUCCESS_COUNT++))
+            echo ""
+            continue
+        else
+            echo "ℹ️  Running clean slate migration on fresh database"
+        fi
+    fi
     
     if wrangler d1 execute "$DB_NAME" --file="$migration_file" --local; then
-        echo "✅ Success: $(basename "$migration_file")"
+        echo "✅ Success: $migration_name"
         ((SUCCESS_COUNT++))
     else
-        echo "❌ Failed: $(basename "$migration_file")"
+        echo "❌ Failed: $migration_name"
         ((FAILURE_COUNT++))
-        FAILED_MIGRATIONS="$FAILED_MIGRATIONS\n  - $(basename "$migration_file")"
+        FAILED_MIGRATIONS="$FAILED_MIGRATIONS\n  - $migration_name"
     fi
     
     echo ""

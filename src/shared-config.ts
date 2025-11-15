@@ -106,15 +106,15 @@ export const API_CONFIG = {
       SUGGESTIONS: (campaignId: string) =>
         `/campaigns/${campaignId}/suggestions`,
       READINESS: (campaignId: string) => `/campaigns/${campaignId}/readiness`,
-      CAMPAIGN_AUTORAG: {
+      CAMPAIGN_GRAPHRAG: {
         APPROVE: (campaignId: string) =>
-          `/campaigns/${campaignId}/autorag/approve`,
+          `/campaigns/${campaignId}/graphrag/approve`,
         REJECT: (campaignId: string) =>
-          `/campaigns/${campaignId}/autorag/reject`,
+          `/campaigns/${campaignId}/graphrag/reject`,
         SEARCH: (campaignId: string) =>
-          `/campaigns/${campaignId}/autorag/search`,
+          `/campaigns/${campaignId}/graphrag/search`,
         SEARCH_REJECTED: (campaignId: string) =>
-          `/campaigns/${campaignId}/autorag/search-rejected`,
+          `/campaigns/${campaignId}/graphrag/search-rejected`,
         STAGED_SHARDS: (campaignId: string) =>
           `/campaigns/${campaignId}/shards/staged`,
         APPROVE_SHARDS: (campaignId: string) =>

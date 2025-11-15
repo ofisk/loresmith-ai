@@ -12,6 +12,10 @@ import {
   getReciprocalRelationshipType,
 } from "@/lib/relationship-types";
 import type { RelationshipType } from "@/lib/relationship-types";
+import {
+  SelfReferentialRelationshipError,
+  EntityNotFoundError,
+} from "@/lib/errors";
 
 interface UpsertGraphEdgeInput {
   campaignId: string;
@@ -40,7 +44,7 @@ export class EntityGraphService {
     const normalizedStrength = normalizeRelationshipStrength(input.strength);
 
     if (!input.allowSelfRelation && input.fromEntityId === input.toEntityId) {
-      throw new Error("Self-referential relationships are not permitted");
+      throw new SelfReferentialRelationshipError();
     }
 
     await this.ensureEntitiesInCampaign(input.campaignId, [
@@ -144,9 +148,11 @@ export class EntityGraphService {
       uniqueIds.map((id) => this.entityDAO.getEntityById(id))
     );
 
-    for (const entity of entities) {
+    for (let i = 0; i < entities.length; i++) {
+      const entity = entities[i];
+      const entityId = uniqueIds[i];
       if (!entity || entity.campaignId !== campaignId) {
-        throw new Error("Entity not found for campaign");
+        throw new EntityNotFoundError(entityId, campaignId);
       }
     }
   }

@@ -11,6 +11,11 @@ import { checkSingleJobStatus } from "@/services/file/job-status-service";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
 import { AUTORAG_CONFIG } from "@/shared-config";
 import { evaluateTimeout } from "@/lib/processing-time-estimator";
+import {
+  AutoRAGSyncError,
+  AutoRAGConfigurationError,
+  AutoRAGResponseError,
+} from "@/lib/errors";
 
 const log = logger.scope("[AutoRAG]");
 
@@ -42,7 +47,7 @@ async function triggerAutoRAGSync(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`AutoRAG sync API failed: ${response.status} ${errorText}`);
+    throw new AutoRAGSyncError(response.status, errorText);
   }
 
   return (await response.json()) as AutoRAGSyncResponse;
@@ -172,7 +177,7 @@ export async function handleAutoRAGSync(c: ContextWithAuth) {
     const baseUrl = c.env.AUTORAG_BASE_URL;
 
     if (!baseUrl) {
-      throw new Error("AutoRAG configuration missing: AUTORAG_BASE_URL");
+      throw new AutoRAGConfigurationError("AUTORAG_BASE_URL");
     }
 
     // Trigger AutoRAG sync
@@ -180,7 +185,9 @@ export async function handleAutoRAGSync(c: ContextWithAuth) {
     console.log(`[AutoRAG] Sync API response:`, result);
 
     if (!result.success || !result.result?.job_id) {
-      throw new Error("Invalid response from AutoRAG sync API: missing job_id");
+      throw new AutoRAGResponseError(
+        "Invalid response from AutoRAG sync API: missing job_id"
+      );
     }
 
     console.log(
@@ -272,7 +279,7 @@ export async function handleAutoRAGJobDetails(c: ContextWithAuth) {
     const baseUrl = c.env.AUTORAG_BASE_URL;
 
     if (!baseUrl) {
-      throw new Error("AutoRAG configuration missing: AUTORAG_BASE_URL");
+      throw new AutoRAGConfigurationError("AUTORAG_BASE_URL");
     }
 
     const jobDetailsUrl = AUTORAG_CONFIG.buildLibraryAutoRAGUrl(
@@ -300,7 +307,9 @@ export async function handleAutoRAGJobDetails(c: ContextWithAuth) {
     console.log(`[AutoRAG] Job details API response:`, result);
 
     if (!result.success || !result.result) {
-      throw new Error("Invalid response from AutoRAG job details API");
+      throw new AutoRAGResponseError(
+        "Invalid response from AutoRAG job details API"
+      );
     }
 
     console.log(
@@ -341,7 +350,7 @@ export async function handleAutoRAGJobLogs(c: ContextWithAuth) {
     const baseUrl = c.env.AUTORAG_BASE_URL;
 
     if (!baseUrl) {
-      throw new Error("AutoRAG configuration missing: AUTORAG_BASE_URL");
+      throw new AutoRAGConfigurationError("AUTORAG_BASE_URL");
     }
 
     const jobLogsUrl = AUTORAG_CONFIG.buildLibraryAutoRAGUrl(
@@ -406,7 +415,7 @@ export async function handleAutoRAGJobs(c: ContextWithAuth) {
     const baseUrl = c.env.AUTORAG_BASE_URL;
 
     if (!baseUrl) {
-      throw new Error("AutoRAG configuration missing: AUTORAG_BASE_URL");
+      throw new AutoRAGConfigurationError("AUTORAG_BASE_URL");
     }
 
     const jobsUrl = AUTORAG_CONFIG.buildLibraryAutoRAGUrl(

@@ -2,6 +2,8 @@
  * Utility functions for environment variable access
  */
 
+import { SecretStoreAccessError, EnvironmentVariableError } from "@/lib/errors";
+
 export interface EnvWithSecrets {
   [key: string]: unknown;
 }
@@ -57,13 +59,14 @@ export async function getEnvVar(
       console.log(`[getEnvVar] Using Cloudflare secrets store for ${varName}`);
       return await (envValue as { get(): Promise<string> }).get();
     } catch (_error) {
-      throw new Error(`Failed to access ${varName} from secrets store`);
+      throw new SecretStoreAccessError(varName);
     }
   }
 
   // No value available
   if (required) {
-    throw new Error(
+    throw new EnvironmentVariableError(
+      varName,
       `${varName} not configured in .dev.vars, environment binding, or secrets store`
     );
   }

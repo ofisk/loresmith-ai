@@ -11,6 +11,271 @@ type ContextWithAuth = Context<{ Bindings: Env }> & {
   userAuth?: AuthPayload;
 };
 
+interface PendingRelation {
+  relationshipType: string;
+  targetId: string;
+  strength?: number | null;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Verify campaign belongs to user and return campaign info
+ */
+async function verifyCampaignAccess(
+  env: Env,
+  campaignId: string,
+  username: string
+): Promise<{
+  campaignId: string;
+  name: string;
+  campaignRagBasePath: string;
+} | null> {
+  const campaignDAO = getDAOFactory(env).campaignDAO;
+  const campaign = await campaignDAO.getCampaignByIdWithMapping(
+    campaignId,
+    username
+  );
+
+  if (!campaign) {
+    return null;
+  }
+
+  return {
+    campaignId: campaign.campaignId,
+    name: campaign.name,
+    campaignRagBasePath:
+      campaign.campaignRagBasePath || `campaigns/${campaignId}`,
+  };
+}
+
+/**
+ * Extract pendingRelations from entity metadata
+ */
+function extractPendingRelations(
+  metadata: Record<string, unknown>
+): PendingRelation[] {
+  return (metadata.pendingRelations as Array<PendingRelation>) || [];
+}
+
+/**
+ * Check if there are remaining staging entities and run Leiden algorithm if none remain
+ */
+async function checkAndRunCommunityDetection(
+  daoFactory: ReturnType<typeof getDAOFactory>,
+  campaignId: string
+): Promise<void> {
+  const allEntities =
+    await daoFactory.entityDAO.listEntitiesByCampaign(campaignId);
+  const remainingStagingEntities = allEntities.filter((entity) => {
+    const metadata = (entity.metadata as Record<string, unknown>) || {};
+    return metadata.shardStatus === "staging";
+  });
+
+  if (remainingStagingEntities.length === 0) {
+    console.log(
+      `[Server] All pending shards processed for campaign ${campaignId}, running Leiden algorithm for community detection`
+    );
+    try {
+      const communityDetectionService = new CommunityDetectionService(
+        daoFactory.entityDAO,
+        daoFactory.communityDAO
+      );
+      const communities =
+        await communityDetectionService.detectCommunities(campaignId);
+      console.log(
+        `[Server] Community detection completed: found ${communities.length} communities for campaign ${campaignId}`
+      );
+    } catch (communityError) {
+      console.error(
+        `[Server] Error running community detection for campaign ${campaignId}:`,
+        communityError
+      );
+      // Don't fail the operation if community detection fails
+    }
+  } else {
+    console.log(
+      `[Server] ${remainingStagingEntities.length} staging entities remaining for campaign ${campaignId}, skipping community detection`
+    );
+  }
+}
+
+/**
+ * Validate entity exists and is in staging status
+ */
+async function validateStagingEntity(
+  daoFactory: ReturnType<typeof getDAOFactory>,
+  entityId: string,
+  campaignId: string
+): Promise<{ entity: any; pendingRelations: PendingRelation[] } | null> {
+  const entity = await daoFactory.entityDAO.getEntityById(entityId);
+
+  if (!entity || entity.campaignId !== campaignId) {
+    console.warn(
+      `[Server] Entity ${entityId} not found or wrong campaign, skipping`
+    );
+    return null;
+  }
+
+  const metadata = (entity.metadata as Record<string, unknown>) || {};
+  if (metadata.shardStatus !== "staging") {
+    console.log(
+      `[Server] Entity ${entityId} is not in staging (status: ${metadata.shardStatus}), skipping`
+    );
+    return null;
+  }
+
+  const pendingRelations = extractPendingRelations(metadata);
+
+  return { entity, pendingRelations };
+}
+
+/**
+ * Create relationships from pendingRelations for an approved entity
+ */
+async function createApprovedRelationships(
+  graphService: EntityGraphService,
+  daoFactory: ReturnType<typeof getDAOFactory>,
+  campaignId: string,
+  entityId: string,
+  entityName: string,
+  pendingRelations: PendingRelation[]
+): Promise<number> {
+  let relationshipCount = 0;
+
+  if (pendingRelations.length > 0) {
+    console.log(
+      `[Server] Found ${pendingRelations.length} pending relationships for entity ${entityId} (${entityName}):`,
+      pendingRelations.map((r) => `${r.relationshipType} -> ${r.targetId}`)
+    );
+  } else {
+    console.log(
+      `[Server] No pending relationships found for entity ${entityId} (${entityName})`
+    );
+  }
+
+  for (const relation of pendingRelations) {
+    try {
+      console.log(
+        `[Server] Processing relationship: ${entityId} --[${relation.relationshipType}]--> ${relation.targetId}`
+      );
+
+      const targetEntity = await daoFactory.entityDAO.getEntityById(
+        relation.targetId
+      );
+
+      if (!targetEntity) {
+        console.warn(
+          `[Server] Target entity ${relation.targetId} not found in database, skipping relationship`
+        );
+        continue;
+      }
+
+      if (targetEntity.campaignId !== campaignId) {
+        console.warn(
+          `[Server] Target entity ${relation.targetId} belongs to different campaign (${targetEntity.campaignId} vs ${campaignId}), skipping relationship`
+        );
+        continue;
+      }
+
+      console.log(
+        `[Server] Target entity found: ${targetEntity.id} (${targetEntity.name}), creating relationship`
+      );
+
+      const createdRelationships = await graphService.upsertEdge({
+        campaignId,
+        fromEntityId: entityId,
+        toEntityId: relation.targetId,
+        relationshipType: relation.relationshipType,
+        strength: relation.strength ?? null,
+        metadata: relation.metadata,
+        allowSelfRelation: false,
+      });
+
+      console.log(
+        `[Server] Successfully created ${createdRelationships.length} relationship(s) for ${entityId} -> ${relation.targetId}`
+      );
+
+      // Verify the relationship was actually created in the database
+      const verifyRelationships =
+        await daoFactory.entityDAO.getRelationshipsForEntity(entityId);
+      const foundRelationship = verifyRelationships.find(
+        (r) => r.toEntityId === relation.targetId
+      );
+      if (!foundRelationship) {
+        console.error(
+          `[Server] WARNING: Relationship ${entityId} --[${relation.relationshipType}]--> ${relation.targetId} was not found in database after creation!`
+        );
+      } else {
+        console.log(
+          `[Server] Verified relationship exists in database: ${foundRelationship.id}`
+        );
+      }
+
+      relationshipCount += createdRelationships.length;
+    } catch (relError) {
+      console.error(
+        `[Server] Error creating relationship for entity ${entityId} -> ${relation.targetId}:`,
+        relError
+      );
+    }
+  }
+
+  return relationshipCount;
+}
+
+/**
+ * Create relationships from pendingRelations for a rejected entity
+ */
+async function createRejectedRelationships(
+  graphService: EntityGraphService,
+  daoFactory: ReturnType<typeof getDAOFactory>,
+  campaignId: string,
+  entityId: string,
+  pendingRelations: PendingRelation[],
+  rejectionReason: string
+): Promise<number> {
+  let relationshipCount = 0;
+
+  for (const relation of pendingRelations) {
+    try {
+      const targetEntity = await daoFactory.entityDAO.getEntityById(
+        relation.targetId
+      );
+
+      if (!targetEntity || targetEntity.campaignId !== campaignId) {
+        console.warn(
+          `[Server] Target entity ${relation.targetId} not found for relationship, skipping`
+        );
+        continue;
+      }
+
+      await graphService.upsertEdge({
+        campaignId,
+        fromEntityId: entityId,
+        toEntityId: relation.targetId,
+        relationshipType: relation.relationshipType,
+        strength: relation.strength ?? null,
+        metadata: {
+          ...relation.metadata,
+          rejected: true,
+          ignored: true,
+          rejectionReason,
+        },
+        allowSelfRelation: false,
+      });
+
+      relationshipCount++;
+    } catch (relError) {
+      console.error(
+        `[Server] Error creating rejected relationship for entity ${entityId}:`,
+        relError
+      );
+    }
+  }
+
+  return relationshipCount;
+}
+
 // Get staged entities for a campaign (UI refers to them as "shards")
 export async function handleGetStagedShards(c: ContextWithAuth) {
   try {
@@ -21,8 +286,8 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
     console.log(`[Server] Getting staged entities for campaign: ${campaignId}`);
 
     // Verify campaign belongs to user
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    const campaign = await campaignDAO.getCampaignByIdWithMapping(
+    const campaign = await verifyCampaignAccess(
+      c.env,
       campaignId,
       userAuth.username
     );
@@ -31,7 +296,7 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
       return c.json({ error: "Campaign not found" }, 404);
     }
 
-    const basePath = campaign?.campaignRagBasePath || `campaigns/${campaignId}`;
+    const basePath = campaign.campaignRagBasePath;
 
     // Get all entities for the campaign with staging status
     const daoFactory = getDAOFactory(c.env);
@@ -147,8 +412,8 @@ export async function handleApproveShards(c: ContextWithAuth) {
     );
 
     // Verify campaign belongs to user
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    const campaign = await campaignDAO.getCampaignByIdWithMapping(
+    const campaign = await verifyCampaignAccess(
+      c.env,
       campaignId,
       userAuth.username
     );
@@ -173,44 +438,20 @@ export async function handleApproveShards(c: ContextWithAuth) {
 
     // Approve each entity (shardIds from UI are entity IDs) and create its relationships
     for (const entityId of shardIds) {
-      const entity = await daoFactory.entityDAO.getEntityById(entityId);
+      const validationResult = await validateStagingEntity(
+        daoFactory,
+        entityId,
+        campaignId
+      );
 
-      if (!entity || entity.campaignId !== campaignId) {
-        console.warn(
-          `[Server] Entity ${entityId} not found or wrong campaign, skipping`
-        );
+      if (!validationResult) {
         continue;
       }
 
-      const metadata = (entity.metadata as Record<string, unknown>) || {};
-      if (metadata.shardStatus !== "staging") {
-        console.log(
-          `[Server] Entity ${entityId} is not in staging (status: ${metadata.shardStatus}), skipping`
-        );
-        continue;
-      }
-
-      // Extract pendingRelations before updating metadata
-      const pendingRelations =
-        (metadata.pendingRelations as Array<{
-          relationshipType: string;
-          targetId: string;
-          strength?: number | null;
-          metadata?: Record<string, unknown>;
-        }>) || [];
-
-      if (pendingRelations.length > 0) {
-        console.log(
-          `[Server] Found ${pendingRelations.length} pending relationships for entity ${entityId} (${entity.name}):`,
-          pendingRelations.map((r) => `${r.relationshipType} -> ${r.targetId}`)
-        );
-      } else {
-        console.log(
-          `[Server] No pending relationships found for entity ${entityId} (${entity.name})`
-        );
-      }
+      const { entity, pendingRelations } = validationResult;
 
       // Update entity status to approved (remove pendingRelations from metadata)
+      const metadata = (entity.metadata as Record<string, unknown>) || {};
       const { pendingRelations: _, ...metadataWithoutPending } = metadata;
       const updatedMetadata = {
         ...metadataWithoutPending,
@@ -226,117 +467,22 @@ export async function handleApproveShards(c: ContextWithAuth) {
       approvedCount++;
 
       // Create relationships for this entity
-      for (const relation of pendingRelations) {
-        try {
-          console.log(
-            `[Server] Processing relationship: ${entityId} --[${relation.relationshipType}]--> ${relation.targetId}`
-          );
-
-          // Check if target entity exists
-          const targetEntity = await daoFactory.entityDAO.getEntityById(
-            relation.targetId
-          );
-
-          if (!targetEntity) {
-            console.warn(
-              `[Server] Target entity ${relation.targetId} not found in database, skipping relationship`
-            );
-            continue;
-          }
-
-          if (targetEntity.campaignId !== campaignId) {
-            console.warn(
-              `[Server] Target entity ${relation.targetId} belongs to different campaign (${targetEntity.campaignId} vs ${campaignId}), skipping relationship`
-            );
-            continue;
-          }
-
-          console.log(
-            `[Server] Target entity found: ${targetEntity.id} (${targetEntity.name}), creating relationship`
-          );
-
-          // Create the relationship
-          const createdRelationships = await graphService.upsertEdge({
-            campaignId,
-            fromEntityId: entityId,
-            toEntityId: relation.targetId,
-            relationshipType: relation.relationshipType,
-            strength: relation.strength ?? null,
-            metadata: relation.metadata,
-            allowSelfRelation: false,
-          });
-
-          console.log(
-            `[Server] Successfully created ${createdRelationships.length} relationship(s) for ${entityId} -> ${relation.targetId}`
-          );
-
-          // Verify the relationship was actually created in the database
-          // Note: We verify without filtering by type since the relationship type might be normalized
-          const verifyRelationships =
-            await daoFactory.entityDAO.getRelationshipsForEntity(entityId);
-          const foundRelationship = verifyRelationships.find(
-            (r) => r.toEntityId === relation.targetId
-          );
-          if (!foundRelationship) {
-            console.error(
-              `[Server] WARNING: Relationship ${entityId} --[${relation.relationshipType}]--> ${relation.targetId} was not found in database after creation!`
-            );
-          } else {
-            console.log(
-              `[Server] Verified relationship exists in database: ${foundRelationship.id}`
-            );
-          }
-
-          relationshipCount += createdRelationships.length;
-        } catch (relError) {
-          console.error(
-            `[Server] Error creating relationship for entity ${entityId} -> ${relation.targetId}:`,
-            relError
-          );
-          // Continue with other relationships
-        }
-      }
+      relationshipCount += await createApprovedRelationships(
+        graphService,
+        daoFactory,
+        campaignId,
+        entityId,
+        entity.name,
+        pendingRelations
+      );
     }
 
     console.log(
       `[Server] Approved ${approvedCount} entities and created ${relationshipCount} relationships for campaign: ${campaignId}`
     );
 
-    // Check if there are any remaining staging entities
-    const allEntities =
-      await daoFactory.entityDAO.listEntitiesByCampaign(campaignId);
-    const remainingStagingEntities = allEntities.filter((entity) => {
-      const metadata = (entity.metadata as Record<string, unknown>) || {};
-      return metadata.shardStatus === "staging";
-    });
-
-    // If this was the last pending shard, run Leiden algorithm
-    if (remainingStagingEntities.length === 0) {
-      console.log(
-        `[Server] All pending shards processed for campaign ${campaignId}, running Leiden algorithm for community detection`
-      );
-      try {
-        const communityDetectionService = new CommunityDetectionService(
-          daoFactory.entityDAO,
-          daoFactory.communityDAO
-        );
-        const communities =
-          await communityDetectionService.detectCommunities(campaignId);
-        console.log(
-          `[Server] Community detection completed: found ${communities.length} communities for campaign ${campaignId}`
-        );
-      } catch (communityError) {
-        console.error(
-          `[Server] Error running community detection for campaign ${campaignId}:`,
-          communityError
-        );
-        // Don't fail the approval if community detection fails
-      }
-    } else {
-      console.log(
-        `[Server] ${remainingStagingEntities.length} staging entities remaining for campaign ${campaignId}, skipping community detection`
-      );
-    }
+    // Check if there are any remaining staging entities and run Leiden algorithm if none remain
+    await checkAndRunCommunityDetection(daoFactory, campaignId);
 
     // Send notification about entity approval (UI uses "shard" terminology)
     try {
@@ -384,8 +530,8 @@ export async function handleRejectShards(c: ContextWithAuth) {
     );
 
     // Verify campaign belongs to user
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    const campaign = await campaignDAO.getCampaignByIdWithMapping(
+    const campaign = await verifyCampaignAccess(
+      c.env,
       campaignId,
       userAuth.username
     );
@@ -402,33 +548,20 @@ export async function handleRejectShards(c: ContextWithAuth) {
 
     // Reject each entity (shardIds from UI are entity IDs) - mark as rejected but keep in graph with ignore flag
     for (const entityId of shardIds) {
-      const entity = await daoFactory.entityDAO.getEntityById(entityId);
+      const validationResult = await validateStagingEntity(
+        daoFactory,
+        entityId,
+        campaignId
+      );
 
-      if (!entity || entity.campaignId !== campaignId) {
-        console.warn(
-          `[Server] Entity ${entityId} not found or wrong campaign, skipping`
-        );
+      if (!validationResult) {
         continue;
       }
 
-      const metadata = (entity.metadata as Record<string, unknown>) || {};
-      if (metadata.shardStatus !== "staging") {
-        console.log(
-          `[Server] Entity ${entityId} is not in staging (status: ${metadata.shardStatus}), skipping`
-        );
-        continue;
-      }
-
-      // Extract pendingRelations before updating metadata
-      const pendingRelations =
-        (metadata.pendingRelations as Array<{
-          relationshipType: string;
-          targetId: string;
-          strength?: number | null;
-          metadata?: Record<string, unknown>;
-        }>) || [];
+      const { entity, pendingRelations } = validationResult;
 
       // Update entity status to rejected with ignore flag (remove pendingRelations from metadata)
+      const metadata = (entity.metadata as Record<string, unknown>) || {};
       const { pendingRelations: _, ...metadataWithoutPending } = metadata;
       const updatedMetadata = {
         ...metadataWithoutPending,
@@ -446,86 +579,22 @@ export async function handleRejectShards(c: ContextWithAuth) {
       rejectedCount++;
 
       // Still create relationships but mark them as rejected/ignored
-      for (const relation of pendingRelations) {
-        try {
-          // Check if target entity exists
-          const targetEntity = await daoFactory.entityDAO.getEntityById(
-            relation.targetId
-          );
-
-          if (!targetEntity || targetEntity.campaignId !== campaignId) {
-            console.warn(
-              `[Server] Target entity ${relation.targetId} not found for relationship, skipping`
-            );
-            continue;
-          }
-
-          // Create the relationship with rejected metadata
-          await graphService.upsertEdge({
-            campaignId,
-            fromEntityId: entityId,
-            toEntityId: relation.targetId,
-            relationshipType: relation.relationshipType,
-            strength: relation.strength ?? null,
-            metadata: {
-              ...relation.metadata,
-              rejected: true,
-              ignored: true,
-              rejectionReason: reason,
-            },
-            allowSelfRelation: false,
-          });
-
-          relationshipCount++;
-        } catch (relError) {
-          console.error(
-            `[Server] Error creating rejected relationship for entity ${entityId}:`,
-            relError
-          );
-          // Continue with other relationships
-        }
-      }
+      relationshipCount += await createRejectedRelationships(
+        graphService,
+        daoFactory,
+        campaignId,
+        entityId,
+        pendingRelations,
+        reason
+      );
     }
 
     console.log(
       `[Server] Rejected ${rejectedCount} entities and created ${relationshipCount} relationships (marked as ignored) for campaign: ${campaignId}`
     );
 
-    // Check if there are any remaining staging entities
-    const allEntities =
-      await daoFactory.entityDAO.listEntitiesByCampaign(campaignId);
-    const remainingStagingEntities = allEntities.filter((entity) => {
-      const metadata = (entity.metadata as Record<string, unknown>) || {};
-      return metadata.shardStatus === "staging";
-    });
-
-    // If this was the last pending shard, run Leiden algorithm
-    if (remainingStagingEntities.length === 0) {
-      console.log(
-        `[Server] All pending shards processed for campaign ${campaignId}, running Leiden algorithm for community detection`
-      );
-      try {
-        const communityDetectionService = new CommunityDetectionService(
-          daoFactory.entityDAO,
-          daoFactory.communityDAO
-        );
-        const communities =
-          await communityDetectionService.detectCommunities(campaignId);
-        console.log(
-          `[Server] Community detection completed: found ${communities.length} communities for campaign ${campaignId}`
-        );
-      } catch (communityError) {
-        console.error(
-          `[Server] Error running community detection for campaign ${campaignId}:`,
-          communityError
-        );
-        // Don't fail the rejection if community detection fails
-      }
-    } else {
-      console.log(
-        `[Server] ${remainingStagingEntities.length} staging entities remaining for campaign ${campaignId}, skipping community detection`
-      );
-    }
+    // Check if there are any remaining staging entities and run Leiden algorithm if none remain
+    await checkAndRunCommunityDetection(daoFactory, campaignId);
 
     // Send notification about entity rejection (UI uses "shard" terminology)
     try {
@@ -571,8 +640,8 @@ export async function handleUpdateShard(c: ContextWithAuth) {
     );
 
     // Verify campaign belongs to user
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    const campaign = await campaignDAO.getCampaignByIdWithMapping(
+    const campaign = await verifyCampaignAccess(
+      c.env,
       campaignId,
       userAuth.username
     );
