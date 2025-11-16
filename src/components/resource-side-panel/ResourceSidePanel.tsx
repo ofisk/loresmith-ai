@@ -11,6 +11,7 @@ interface ResourceSidePanelProps {
   className?: string;
   isAuthenticated?: boolean;
   campaigns?: Campaign[]; // Accept campaigns from parent
+  selectedCampaignId?: string;
   onLogout?: () => Promise<void>;
   showUserMenu?: boolean;
   setShowUserMenu?: (show: boolean) => void;
@@ -29,6 +30,7 @@ export function ResourceSidePanel({
   className = "",
   isAuthenticated = false,
   campaigns = [],
+  selectedCampaignId,
   onLogout,
   showUserMenu = false,
   setShowUserMenu,

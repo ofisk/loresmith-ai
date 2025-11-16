@@ -9,6 +9,7 @@ import {
   buildCommunityHierarchyTree,
   calculateCommunityStats,
 } from "@/lib/graph/community-utils";
+import { CommunitySummaryService } from "@/services/graph/community-summary-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -51,7 +52,9 @@ export async function handleDetectCommunities(c: ContextWithAuth) {
     // Create service
     const communityDetectionService = new CommunityDetectionService(
       daoFactory.entityDAO,
-      daoFactory.communityDAO
+      daoFactory.communityDAO,
+      daoFactory.communitySummaryDAO,
+      userAuth.openaiApiKey || c.env.OPENAI_API_KEY
     );
 
     // Detect communities (multi-level if maxLevels > 1)
@@ -367,6 +370,220 @@ export async function handleGetCommunityHierarchy(c: ContextWithAuth) {
     return c.json(
       {
         error: "Failed to get community hierarchy",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
+      500
+    );
+  }
+}
+
+/**
+ * GET /api/campaigns/:campaignId/communities/:communityId/summary
+ * Get summary for a specific community
+ */
+export async function handleGetCommunitySummary(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    if (!userAuth) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    const campaignId = c.req.param("campaignId");
+    const communityId = c.req.param("communityId");
+
+    if (!campaignId || !communityId) {
+      return c.json({ error: "Campaign ID and Community ID required" }, 400);
+    }
+
+    // Verify campaign ownership
+    const daoFactory = getDAOFactory(c.env);
+    const campaign = await daoFactory.campaignDAO.getCampaignById(campaignId);
+    if (!campaign || campaign.username !== userAuth.username) {
+      return c.json({ error: "Campaign not found or access denied" }, 404);
+    }
+
+    const community =
+      await daoFactory.communityDAO.getCommunityById(communityId);
+
+    if (!community || community.campaignId !== campaignId) {
+      return c.json({ error: "Community not found" }, 404);
+    }
+
+    const summary =
+      await daoFactory.communitySummaryDAO.getSummaryByCommunityId(
+        communityId,
+        campaignId
+      );
+
+    if (!summary) {
+      return c.json({ error: "Summary not found" }, 404);
+    }
+
+    return c.json({
+      success: true,
+      summary,
+    });
+  } catch (error) {
+    console.error("[Communities] Error getting community summary:", error);
+    return c.json(
+      {
+        error: "Failed to get community summary",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
+      500
+    );
+  }
+}
+
+/**
+ * GET /api/campaigns/:campaignId/communities/summaries
+ * List all summaries for a campaign (with optional level filter)
+ */
+export async function handleListCommunitySummaries(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    if (!userAuth) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    const campaignId = c.req.param("campaignId");
+    if (!campaignId) {
+      return c.json({ error: "Campaign ID required" }, 400);
+    }
+
+    // Verify campaign ownership
+    const daoFactory = getDAOFactory(c.env);
+    const campaign = await daoFactory.campaignDAO.getCampaignById(campaignId);
+    if (!campaign || campaign.username !== userAuth.username) {
+      return c.json({ error: "Campaign not found or access denied" }, 404);
+    }
+
+    // Parse query parameters
+    const level = c.req.query("level");
+    const limit = c.req.query("limit");
+    const offset = c.req.query("offset");
+
+    const options: {
+      level?: number;
+      limit?: number;
+      offset?: number;
+    } = {};
+
+    if (level) {
+      options.level = parseInt(level, 10);
+    }
+    if (limit) {
+      options.limit = parseInt(limit, 10);
+    }
+    if (offset) {
+      options.offset = parseInt(offset, 10);
+    }
+
+    const summaries =
+      await daoFactory.communitySummaryDAO.listSummariesByCampaign(
+        campaignId,
+        options
+      );
+
+    return c.json({
+      success: true,
+      summaries,
+      count: summaries.length,
+    });
+  } catch (error) {
+    console.error("[Communities] Error listing community summaries:", error);
+    return c.json(
+      {
+        error: "Failed to list community summaries",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
+      500
+    );
+  }
+}
+
+/**
+ * POST /api/campaigns/:campaignId/communities/:communityId/summaries/generate
+ * Manually trigger summary generation for a community
+ */
+export async function handleGenerateCommunitySummary(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    if (!userAuth) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    const campaignId = c.req.param("campaignId");
+    const communityId = c.req.param("communityId");
+
+    if (!campaignId || !communityId) {
+      return c.json({ error: "Campaign ID and Community ID required" }, 400);
+    }
+
+    // Verify campaign ownership
+    const daoFactory = getDAOFactory(c.env);
+    const campaign = await daoFactory.campaignDAO.getCampaignById(campaignId);
+    if (!campaign || campaign.username !== userAuth.username) {
+      return c.json({ error: "Campaign not found or access denied" }, 404);
+    }
+
+    const community =
+      await daoFactory.communityDAO.getCommunityById(communityId);
+
+    if (!community || community.campaignId !== campaignId) {
+      return c.json({ error: "Community not found" }, 404);
+    }
+
+    // Get OpenAI API key
+    const openaiApiKey =
+      userAuth.openaiApiKey || c.env.OPENAI_API_KEY || undefined;
+
+    if (!openaiApiKey) {
+      return c.json(
+        {
+          error: "OpenAI API key required",
+          message:
+            "OpenAI API key is required for summary generation. Please provide an API key.",
+        },
+        400
+      );
+    }
+
+    // Parse request body for options
+    const body = await c.req.json().catch(() => ({}));
+    const options = {
+      forceRegenerate: body.forceRegenerate ?? false,
+      model: body.model,
+      temperature: body.temperature,
+      maxTokens: body.maxTokens,
+    };
+
+    // Create summary service
+    const summaryService = new CommunitySummaryService(
+      daoFactory.entityDAO,
+      daoFactory.communitySummaryDAO,
+      openaiApiKey
+    );
+
+    // Generate summary
+    const result = await summaryService.generateOrGetSummary(community, {
+      openaiApiKey,
+      forceRegenerate: options.forceRegenerate,
+      model: options.model,
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+    });
+
+    return c.json({
+      success: true,
+      summary: result.summary,
+      keyEntities: result.keyEntities,
+    });
+  } catch (error) {
+    console.error("[Communities] Error generating community summary:", error);
+    return c.json(
+      {
+        error: "Failed to generate community summary",
         message: error instanceof Error ? error.message : "Unknown error",
       },
       500

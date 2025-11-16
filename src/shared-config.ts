@@ -163,6 +163,12 @@ export const API_CONFIG = {
           `/campaigns/${campaignId}/communities/${communityId}/children`,
         HIERARCHY: (campaignId: string) =>
           `/campaigns/${campaignId}/communities/hierarchy`,
+        SUMMARY: (campaignId: string, communityId: string) =>
+          `/campaigns/${campaignId}/communities/${communityId}/summary`,
+        SUMMARIES: (campaignId: string) =>
+          `/campaigns/${campaignId}/communities/summaries`,
+        GENERATE_SUMMARY: (campaignId: string, communityId: string) =>
+          `/campaigns/${campaignId}/communities/${communityId}/summaries/generate`,
       },
     },
     CHARACTER_SHEETS: {

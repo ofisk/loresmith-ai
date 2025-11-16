@@ -140,7 +140,9 @@ export const detectCommunitiesTool = tool({
       }
       const communityDetectionService = new CommunityDetectionService(
         daoFactory.entityDAO,
-        daoFactory.communityDAO
+        daoFactory.communityDAO,
+        daoFactory.communitySummaryDAO,
+        env?.OPENAI_API_KEY
       );
 
       const useMultiLevel = maxLevels && maxLevels > 1;

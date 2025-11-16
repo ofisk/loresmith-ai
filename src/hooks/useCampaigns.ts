@@ -40,9 +40,14 @@ import { useBaseAsync } from "@/hooks/useBaseAsync";
  * await fetchCampaign("campaign-id");
  * ```
  */
+const ACTIVE_CAMPAIGN_STORAGE_KEY = "loresmith-active-campaign-id";
+
 export function useCampaigns() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [currentCampaign, setCurrentCampaign] = useState<Campaign | null>(null);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
 
   const { makeRequestWithData } = useAuthenticatedRequest();
@@ -61,7 +66,25 @@ export function useCampaigns() {
     ),
     useMemo(
       () => ({
-        onSuccess: (campaigns: Campaign[]) => setCampaigns(campaigns),
+        onSuccess: (campaigns: Campaign[]) => {
+          setCampaigns(campaigns);
+
+          // Initialize selected campaign from storage if present
+          const storedId = window.localStorage.getItem(
+            ACTIVE_CAMPAIGN_STORAGE_KEY
+          );
+          if (storedId) {
+            const matchingCampaign = campaigns.find(
+              (campaign) => campaign.campaignId === storedId
+            );
+            if (matchingCampaign) {
+              setSelectedCampaignId(matchingCampaign.campaignId);
+            } else {
+              setSelectedCampaignId(null);
+              window.localStorage.removeItem(ACTIVE_CAMPAIGN_STORAGE_KEY);
+            }
+          }
+        },
         onError: (error: string) => setError(error),
         errorMessage: USER_MESSAGES.HOOK_FAILED_TO_FETCH_CAMPAIGNS,
       }),
@@ -113,6 +136,11 @@ export function useCampaigns() {
         onSuccess: (campaign: Campaign) => {
           setCampaigns((prev) => [...prev, campaign]);
           setCurrentCampaign(campaign);
+          setSelectedCampaignId(campaign.campaignId);
+          window.localStorage.setItem(
+            ACTIVE_CAMPAIGN_STORAGE_KEY,
+            campaign.campaignId
+          );
         },
         onError: (error: string) => setError(error),
         errorMessage: USER_MESSAGES.HOOK_FAILED_TO_CREATE_CAMPAIGN,
@@ -174,6 +202,9 @@ export function useCampaigns() {
     // State
     campaigns,
     currentCampaign,
+    selectedCampaignId,
+    selectedCampaign:
+      campaigns.find((c) => c.campaignId === selectedCampaignId) ?? null,
     loading: fetchCampaigns.loading || createCampaign.loading,
     error: error || fetchCampaigns.error || createCampaign.error,
 
@@ -186,9 +217,18 @@ export function useCampaigns() {
 
     // Utilities
     refetch: fetchCampaigns.execute,
+    setSelectedCampaignId: (campaignId: string | null) => {
+      setSelectedCampaignId(campaignId);
+      if (campaignId) {
+        window.localStorage.setItem(ACTIVE_CAMPAIGN_STORAGE_KEY, campaignId);
+      } else {
+        window.localStorage.removeItem(ACTIVE_CAMPAIGN_STORAGE_KEY);
+      }
+    },
     reset: () => {
       setCampaigns([]);
       setCurrentCampaign(null);
+      setSelectedCampaignId(null);
       setError(null);
     },
   };

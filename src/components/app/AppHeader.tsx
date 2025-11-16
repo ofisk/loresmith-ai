@@ -1,10 +1,11 @@
-import { Bug, Trash } from "@phosphor-icons/react";
+import { Bug, MapPin, Trash } from "@phosphor-icons/react";
 import { Button } from "@/components/button/Button";
 import { HelpButton } from "@/components/help/HelpButton";
 import { TopBarNotifications } from "@/components/notifications/TopBarNotifications";
 import { Toggle } from "@/components/toggle/Toggle";
 import loresmith from "@/assets/loresmith.png";
 import type { NotificationPayload } from "@/durable-objects/notification-hub";
+import type { Campaign } from "@/types/campaign";
 
 interface AppHeaderProps {
   showDebug: boolean;
@@ -24,6 +25,9 @@ interface AppHeaderProps {
   )[];
   onDismissNotification: (timestamp: number) => void;
   onClearAllNotifications: () => void;
+  campaigns: Campaign[];
+  selectedCampaignId: string | null;
+  onSelectedCampaignChange: (campaignId: string | null) => void;
 }
 
 /**
@@ -38,7 +42,21 @@ export function AppHeader({
   notifications,
   onDismissNotification,
   onClearAllNotifications,
+  campaigns,
+  selectedCampaignId,
+  onSelectedCampaignChange,
 }: AppHeaderProps) {
+  const handleCampaignChange = (
+    event: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    const value = event.target.value;
+    if (!value) {
+      onSelectedCampaignChange(null);
+    } else {
+      onSelectedCampaignChange(value);
+    }
+  };
+
   return (
     <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 flex items-center gap-4 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-sm">
       <div
@@ -54,8 +72,27 @@ export function AppHeader({
         />
       </div>
 
-      <div className="flex-1">
-        <h1 className="font-semibold text-2xl">LoreSmith</h1>
+      <div className="flex-1 flex items-center gap-4 min-w-0">
+        <h1 className="font-semibold text-2xl whitespace-nowrap">LoreSmith</h1>
+
+        <div className="hidden sm:flex items-center gap-2 min-w-0">
+          <MapPin
+            size={16}
+            className="text-neutral-500 dark:text-neutral-400"
+          />
+          <select
+            className="max-w-xs truncate rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-neutral-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:ring-blue-400"
+            value={selectedCampaignId ?? ""}
+            onChange={handleCampaignChange}
+          >
+            <option value="">No campaign selected</option>
+            {campaigns.map((campaign) => (
+              <option key={campaign.campaignId} value={campaign.campaignId}>
+                {campaign.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 mr-2">

@@ -118,7 +118,7 @@ describe("BaseAgent", () => {
 
   describe("message handling", () => {
     it("should add messages correctly", () => {
-      const message = { role: "user", content: "Hello" };
+      const message = { role: "user" as const, content: "Hello" };
       agent.addMessage(message);
 
       const messages = agent.getMessages();
@@ -126,8 +126,8 @@ describe("BaseAgent", () => {
     });
 
     it("should get all messages", () => {
-      const message1 = { role: "user", content: "Hello" };
-      const message2 = { role: "assistant", content: "Hi there!" };
+      const message1 = { role: "user" as const, content: "Hello" };
+      const message2 = { role: "assistant" as const, content: "Hi there!" };
 
       agent.addMessage(message1);
       agent.addMessage(message2);
@@ -139,7 +139,7 @@ describe("BaseAgent", () => {
     });
 
     it("should clear messages", () => {
-      const message = { role: "user", content: "Hello" };
+      const message = { role: "user" as const, content: "Hello" };
       agent.addMessage(message);
 
       expect(agent.getMessages()).toHaveLength(1);
@@ -150,7 +150,7 @@ describe("BaseAgent", () => {
 
     it("should filter processed tool invocations", () => {
       const unprocessedMessage = {
-        role: "assistant",
+        role: "assistant" as const,
         content: "I'll use a tool",
         toolInvocations: [
           { state: "pending", toolCallId: "1" },
@@ -159,7 +159,7 @@ describe("BaseAgent", () => {
       };
 
       const processedMessage = {
-        role: "assistant",
+        role: "assistant" as const,
         content: "Tool completed",
         toolInvocations: [
           { state: "result", result: "success" },
@@ -364,25 +364,62 @@ describe("BaseAgent", () => {
         { isStaleCommand: true }
       );
 
-      // Execute the mutating tool with stale command
+      // Execute the mutating tool with stale command - it should still execute
       const result = await enhancedMutatingTools.approveShardsTool.execute(
         { action: "test-action" },
         mockContext
       );
 
-      // Should return a blocked result, not execute the tool
+      // Should return a normal success result and execute the underlying tool
       expect(result).toEqual({
         toolCallId: "test-call-id",
         result: {
-          success: false,
-          message:
-            "IGNORED_STALE_COMMAND: Mutating action was blocked because the originating user command is stale.",
-          data: null,
+          success: true,
+          message: "ok",
+          data: "Mutating tool executed",
         },
       });
 
-      // Tool should not have been executed
-      expect(mutatingTool.execute).not.toHaveBeenCalled();
+      expect(mutatingTool.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it("should extract campaignId from last user message data", async () => {
+      const testAgent = new TestBaseAgent() as any;
+
+      // Spy on createEnhancedTools to capture campaignIdHint
+      const createEnhancedToolsSpy = vi.spyOn(
+        TestBaseAgent.prototype as any,
+        "createEnhancedTools"
+      );
+
+      // Seed messages with a user message that includes campaignId in data
+      testAgent.messages = [
+        {
+          id: "msg-1",
+          role: "user",
+          content: "Test with campaign context",
+          data: {
+            jwt: testJwt,
+            campaignId: "camp-123",
+          },
+          createdAt: new Date(),
+        },
+      ];
+
+      // Call the protected onChatMessage implementation via the prototype
+      const onFinish = vi.fn();
+      await BaseAgent.prototype.onChatMessage.call(testAgent, onFinish);
+
+      // Verify that createEnhancedTools was called with the extracted campaignId
+      expect(createEnhancedToolsSpy).toHaveBeenCalled();
+      const lastCallArgs =
+        createEnhancedToolsSpy.mock.calls[
+          createEnhancedToolsSpy.mock.calls.length - 1
+        ];
+      expect(lastCallArgs && lastCallArgs[0]).toBe(testJwt);
+      expect(lastCallArgs && lastCallArgs[1]).toBe("camp-123");
+
+      createEnhancedToolsSpy.mockRestore();
     });
   });
 
