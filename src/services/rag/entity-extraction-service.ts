@@ -8,10 +8,9 @@ import {
   type RelationshipType,
 } from "@/lib/relationship-types";
 import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
-import { createOpenAI } from "@ai-sdk/openai";
-import { generateObject } from "ai";
 import { z } from "zod";
 import { OpenAIAPIKeyError, EntityExtractionError } from "@/lib/errors";
+import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 
 /**
  * Maximum tokens for entity extraction responses.
@@ -122,7 +121,7 @@ CONTENT START
 ${options.content}
 CONTENT END`;
 
-    // Use generateObject to guarantee structured JSON output
+    // Use OpenAIProvider to generate structured JSON output
     const parsed = await this.callOpenAIModelStructured(fullPrompt, apiKey);
 
     if (!parsed) {
@@ -207,35 +206,50 @@ CONTENT END`;
   }
 
   /**
-   * Call OpenAI with structured output using generateObject
-   * This guarantees we get valid JSON matching our schema
+   * Call OpenAI with structured output using OpenAIProvider
+   * This generates JSON and validates it against our Zod schema
    */
   private async callOpenAIModelStructured(
     prompt: string,
     apiKey: string
   ): Promise<z.infer<typeof EntityExtractionSchema> | null> {
     try {
-      // Create OpenAI provider with custom API key
-      const openaiProvider = createOpenAI({
+      // Create LLM provider with OpenAI
+      const llmProvider = createLLMProvider({
+        provider: "openai",
         apiKey,
+        defaultModel: "gpt-4o",
+        defaultTemperature: 0.1,
+        defaultMaxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
       });
 
-      const model = openaiProvider("gpt-4o");
-
-      const result = await generateObject({
-        model,
-        schema: EntityExtractionSchema,
-        prompt,
-        temperature: 0.1, // Lower temperature for more consistent structured extraction
+      // Generate structured output (returns parsed JSON)
+      const result = await llmProvider.generateStructuredOutput<
+        z.infer<typeof EntityExtractionSchema>
+      >(prompt, {
+        model: "gpt-4o",
+        temperature: 0.1,
         maxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
       });
 
-      return result.object;
+      // Validate the result against our Zod schema
+      const validated = EntityExtractionSchema.parse(result);
+
+      return validated;
     } catch (error) {
       console.error(
         "[EntityExtractionService] Error calling OpenAI API with structured output:",
         error
       );
+      if (error instanceof z.ZodError) {
+        console.error(
+          "[EntityExtractionService] Schema validation failed:",
+          error.errors
+        );
+        throw new EntityExtractionError(
+          `Schema validation failed: ${error.errors.map((e) => e.message).join(", ")}`
+        );
+      }
       throw new EntityExtractionError(
         error instanceof Error ? error.message : "Unknown error"
       );

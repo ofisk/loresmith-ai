@@ -66,6 +66,8 @@ export default function Chat() {
   const {
     createCampaign,
     campaigns,
+    selectedCampaignId,
+    setSelectedCampaignId,
     refetch: refetchCampaigns,
   } = useCampaigns();
   const {
@@ -207,7 +209,9 @@ export default function Chat() {
     append({
       role: "user",
       content: suggestion,
-      data: jwt ? { jwt } : undefined,
+      data: jwt
+        ? { jwt, campaignId: selectedCampaignId ?? null }
+        : { campaignId: selectedCampaignId ?? null },
     });
     // Emit a system marker indicating this user message is now processed client-side
     // We cannot reference the id synchronously here; a subsequent append will attach the id.
@@ -241,7 +245,9 @@ export default function Chat() {
     append({
       role: "assistant",
       content: response,
-      data: jwt ? { jwt } : undefined,
+      data: jwt
+        ? { jwt, campaignId: selectedCampaignId ?? null }
+        : { campaignId: selectedCampaignId ?? null },
     });
     setInput("");
   };
@@ -266,12 +272,15 @@ export default function Chat() {
         id: generateId(),
         role: "user",
         content: guidanceMessage,
-        data: { jwt: jwt },
+        data: {
+          jwt: jwt,
+          campaignId: selectedCampaignId ?? null,
+        },
       });
     } catch (error) {
       console.error("Error requesting guidance:", error);
     }
-  }, [append, authState.getStoredJwt]);
+  }, [append, authState.getStoredJwt, selectedCampaignId]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -315,7 +324,9 @@ export default function Chat() {
     append({
       role: "user",
       content: agentInput,
-      data: jwt ? { jwt } : undefined,
+      data: jwt
+        ? { jwt, campaignId: selectedCampaignId ?? null }
+        : { campaignId: selectedCampaignId ?? null },
     });
     // Immediately send a hidden system marker referencing the last user message
     setTimeout(() => {
@@ -324,7 +335,11 @@ export default function Chat() {
       append({
         role: "system",
         content: "",
-        data: { type: "client_marker", processedMessageId },
+        data: {
+          type: "client_marker",
+          processedMessageId,
+          campaignId: selectedCampaignId ?? null,
+        },
       });
     }, 0);
     setInput("");
@@ -354,7 +369,9 @@ export default function Chat() {
       append({
         role: "user",
         content: agentInput,
-        data: jwt ? { jwt } : undefined,
+        data: jwt
+          ? { jwt, campaignId: selectedCampaignId ?? null }
+          : { campaignId: selectedCampaignId ?? null },
       });
       setInput("");
       setTextareaHeight("auto"); // Reset height on Enter submission
@@ -464,6 +481,9 @@ export default function Chat() {
             notifications={allNotifications}
             onDismissNotification={dismissNotification}
             onClearAllNotifications={clearAllNotifications}
+            campaigns={campaigns}
+            selectedCampaignId={selectedCampaignId}
+            onSelectedCampaignChange={setSelectedCampaignId}
           />
 
           {/* Main Content Area */}
@@ -472,6 +492,7 @@ export default function Chat() {
             <ResourceSidePanel
               isAuthenticated={authState.isAuthenticated}
               campaigns={campaigns}
+              selectedCampaignId={selectedCampaignId ?? undefined}
               onLogout={handleLogout}
               showUserMenu={authState.showUserMenu}
               setShowUserMenu={authState.setShowUserMenu}

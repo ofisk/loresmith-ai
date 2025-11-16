@@ -4,11 +4,13 @@ import type {
   Community,
   CreateCommunityInput,
 } from "@/dao/community-dao";
+import type { CommunitySummaryDAO } from "@/dao/community-summary-dao";
 import {
   detectCommunities,
   type GraphEdge,
   type LeidenOptions,
 } from "@/lib/graph/leiden-algorithm";
+import { CommunitySummaryService } from "./community-summary-service";
 
 export interface CommunityDetectionOptions extends LeidenOptions {
   minCommunitySize?: number; // Minimum number of entities in a community
@@ -48,11 +50,29 @@ export interface CommunityHierarchy {
   children: CommunityHierarchy[];
 }
 
+export interface CommunityDetectionSummaryOptions {
+  generateSummaries?: boolean;
+  openaiApiKey?: string;
+}
+
 export class CommunityDetectionService {
+  private summaryService: CommunitySummaryService | null = null;
+
   constructor(
     private readonly entityDAO: EntityDAO,
-    private readonly communityDAO: CommunityDAO
-  ) {}
+    private readonly communityDAO: CommunityDAO,
+    private readonly summaryDAO?: CommunitySummaryDAO,
+    private readonly defaultOpenAIKey?: string
+  ) {
+    // Initialize summary service if summaryDAO is provided
+    if (this.summaryDAO) {
+      this.summaryService = new CommunitySummaryService(
+        this.entityDAO,
+        this.summaryDAO,
+        this.defaultOpenAIKey
+      );
+    }
+  }
 
   /**
    * Load minimal graph data (only IDs and edge weights) for memory efficiency
@@ -251,6 +271,27 @@ export class CommunityDetectionService {
       );
       if (created) {
         createdCommunities.push(created);
+      }
+    }
+
+    // Generate summaries asynchronously if enabled
+    if (
+      this.summaryService &&
+      createdCommunities.length > 0 &&
+      (options as any).generateSummaries !== false
+    ) {
+      const openaiApiKey =
+        (options as any).openaiApiKey || this.defaultOpenAIKey;
+      if (openaiApiKey) {
+        // Generate summaries asynchronously (don't block return)
+        this.generateSummariesAsync(createdCommunities, openaiApiKey).catch(
+          (error) => {
+            console.error(
+              `[CommunityDetection] Error generating summaries:`,
+              error
+            );
+          }
+        );
       }
     }
 
@@ -480,6 +521,27 @@ export class CommunityDetectionService {
           }
         }
 
+        // Generate summaries for affected communities if enabled
+        if (
+          this.summaryService &&
+          createdCommunities.length > 0 &&
+          (options as any).generateSummaries !== false
+        ) {
+          const openaiApiKey =
+            (options as any).openaiApiKey || this.defaultOpenAIKey;
+          if (openaiApiKey) {
+            // Generate summaries asynchronously
+            this.generateSummariesAsync(createdCommunities, openaiApiKey).catch(
+              (error) => {
+                console.error(
+                  `[CommunityDetection] Error generating summaries for incremental update:`,
+                  error
+                );
+              }
+            );
+          }
+        }
+
         return createdCommunities;
       }
     }
@@ -531,5 +593,32 @@ export class CommunityDetectionService {
       to: rel.toEntityId,
       weight: rel.strength ?? 1.0, // Use strength if available, default to 1.0
     }));
+  }
+
+  /**
+   * Generate summaries asynchronously for communities
+   */
+  private async generateSummariesAsync(
+    communities: Community[],
+    openaiApiKey: string
+  ): Promise<void> {
+    if (!this.summaryService) {
+      return;
+    }
+
+    console.log(
+      `[CommunityDetection] Generating summaries for ${communities.length} communities...`
+    );
+
+    try {
+      await this.summaryService.generateSummariesForCommunities(communities, {
+        openaiApiKey,
+      });
+      console.log(
+        `[CommunityDetection] Successfully generated summaries for ${communities.length} communities`
+      );
+    } catch (error) {
+      console.error(`[CommunityDetection] Error generating summaries:`, error);
+    }
   }
 }

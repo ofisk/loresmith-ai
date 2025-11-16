@@ -62,7 +62,8 @@ function extractPendingRelations(
  */
 async function checkAndRunCommunityDetection(
   daoFactory: ReturnType<typeof getDAOFactory>,
-  campaignId: string
+  campaignId: string,
+  env: Env
 ): Promise<void> {
   const allEntities =
     await daoFactory.entityDAO.listEntitiesByCampaign(campaignId);
@@ -78,7 +79,9 @@ async function checkAndRunCommunityDetection(
     try {
       const communityDetectionService = new CommunityDetectionService(
         daoFactory.entityDAO,
-        daoFactory.communityDAO
+        daoFactory.communityDAO,
+        daoFactory.communitySummaryDAO,
+        env.OPENAI_API_KEY
       );
       const communities =
         await communityDetectionService.detectCommunities(campaignId);
@@ -482,7 +485,7 @@ export async function handleApproveShards(c: ContextWithAuth) {
     );
 
     // Check if there are any remaining staging entities and run Leiden algorithm if none remain
-    await checkAndRunCommunityDetection(daoFactory, campaignId);
+    await checkAndRunCommunityDetection(daoFactory, campaignId, c.env);
 
     // Send notification about entity approval (UI uses "shard" terminology)
     try {
@@ -594,7 +597,7 @@ export async function handleRejectShards(c: ContextWithAuth) {
     );
 
     // Check if there are any remaining staging entities and run Leiden algorithm if none remain
-    await checkAndRunCommunityDetection(daoFactory, campaignId);
+    await checkAndRunCommunityDetection(daoFactory, campaignId, c.env);
 
     // Send notification about entity rejection (UI uses "shard" terminology)
     try {

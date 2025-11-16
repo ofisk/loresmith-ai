@@ -318,7 +318,9 @@ export async function handleApproveShards(c: ContextWithAuth) {
       try {
         const communityDetectionService = new CommunityDetectionService(
           daoFactory.entityDAO,
-          daoFactory.communityDAO
+          daoFactory.communityDAO,
+          daoFactory.communitySummaryDAO,
+          c.env.OPENAI_API_KEY
         );
         const communities =
           await communityDetectionService.detectCommunities(campaignId);
@@ -507,7 +509,9 @@ export async function handleRejectShards(c: ContextWithAuth) {
       try {
         const communityDetectionService = new CommunityDetectionService(
           daoFactory.entityDAO,
-          daoFactory.communityDAO
+          daoFactory.communityDAO,
+          daoFactory.communitySummaryDAO,
+          c.env.OPENAI_API_KEY
         );
         const communities =
           await communityDetectionService.detectCommunities(campaignId);
