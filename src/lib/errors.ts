@@ -304,6 +304,19 @@ export class EntityExtractionError extends Error {
   }
 }
 
+export class ImportanceCalculationError extends Error {
+  constructor(
+    message?: string,
+    public readonly statusCode?: number
+  ) {
+    super(
+      message ||
+        "Failed to calculate or update entity importance. Please try again."
+    );
+    this.name = "ImportanceCalculationError";
+  }
+}
+
 export class EmbeddingGenerationError extends Error {
   constructor(message?: string) {
     super(message || "Failed to generate embeddings.");
