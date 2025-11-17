@@ -18,6 +18,11 @@ import {
   captureConversationalContext,
   saveContextExplicitly,
 } from "../campaign-context/context-capture-tools";
+import {
+  recordWorldEventTool,
+  updateEntityWorldStateTool,
+  updateRelationshipWorldStateTool,
+} from "../campaign-context/world-state-tools";
 // Import file management tools for campaign operations
 import { listFiles, getFileStats } from "../file/index";
 
@@ -46,6 +51,9 @@ export {
   // Campaign context capture tools
   captureConversationalContext,
   saveContextExplicitly,
+  recordWorldEventTool,
+  updateEntityWorldStateTool,
+  updateRelationshipWorldStateTool,
 };
 
 // Export the tools object for backward compatibility
@@ -68,4 +76,7 @@ export const campaignTools = {
   resolveCampaignIdentifier,
   captureConversationalContext,
   saveContextExplicitly,
+  recordWorldEventTool,
+  updateEntityWorldStateTool,
+  updateRelationshipWorldStateTool,
 };

@@ -135,6 +135,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           clientJwt = messageData.jwt || null;
           if (typeof messageData.campaignId === "string") {
             campaignIdHint = messageData.campaignId;
+            console.log(
+              `[${this.constructor.name}] Extracted campaignId from user message:`,
+              campaignIdHint
+            );
           }
           console.log(
             `[${this.constructor.name}] Extracted JWT from user message:`,
@@ -162,6 +166,32 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           }
           return true;
         });
+
+        // If a campaign is explicitly selected, add it to the generation context
+        if (campaignIdHint) {
+          // Remove any existing campaign context messages (in case campaign changed)
+          const filteredWithoutCampaignContext = processedMessages.filter(
+            (msg: any) =>
+              !(
+                msg.role === "system" &&
+                msg.content?.includes("Active Campaign:")
+              )
+          );
+
+          // Add explicit campaign context as a system message
+          filteredWithoutCampaignContext.push({
+            role: "system",
+            content: `Active Campaign: You are currently working with campaign ID ${campaignIdHint}. All operations, context storage, world state updates, and generation should be scoped to this specific campaign. Use this campaign ID when calling tools that require a campaignId parameter.`,
+          });
+
+          // Update processedMessages to use the filtered version with campaign context
+          processedMessages.length = 0;
+          processedMessages.push(...filteredWithoutCampaignContext);
+
+          console.log(
+            `[${this.constructor.name}] Added explicit campaign context: ${campaignIdHint}`
+          );
+        }
 
         console.log(
           `[${this.constructor.name}] Filtered messages from ${this.messages.length} to ${processedMessages.length}`
@@ -358,7 +388,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
    */
   protected createEnhancedTools(
     clientJwt: string | null,
-    _campaignIdHint: string | null,
+    campaignIdHint: string | null,
     staleGuard?: { isStaleCommand?: boolean }
   ): Record<string, any> {
     // Track tool calls to prevent infinite loops
@@ -405,6 +435,24 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 enhancedArgs.jwt = clientJwt;
                 console.log(
                   `[${this.constructor.name}] Injected JWT into tool ${toolName} parameters`
+                );
+              }
+
+              // Check if the tool requires a campaignId parameter and inject it if not provided
+              const hasCampaignIdParam =
+                tool.parameters &&
+                typeof tool.parameters === "object" &&
+                (tool.parameters as any).shape &&
+                "campaignId" in (tool.parameters as any).shape;
+
+              if (
+                hasCampaignIdParam &&
+                !enhancedArgs.campaignId &&
+                campaignIdHint
+              ) {
+                enhancedArgs.campaignId = campaignIdHint;
+                console.log(
+                  `[${this.constructor.name}] Injected campaignId into tool ${toolName} parameters: ${campaignIdHint}`
                 );
               }
 

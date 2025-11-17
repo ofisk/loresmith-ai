@@ -10,11 +10,19 @@ import {
   calculateCommunityStats,
 } from "@/lib/graph/community-utils";
 import { CommunitySummaryService } from "@/services/graph/community-summary-service";
+import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
   userAuth?: AuthPayload;
 };
+
+function getWorldStateService(c: ContextWithAuth) {
+  if (!c.env.DB) {
+    throw new Error("Database binding missing");
+  }
+  return new WorldStateChangelogService({ db: c.env.DB });
+}
 
 /**
  * POST /api/campaigns/:campaignId/communities/detect
@@ -419,9 +427,17 @@ export async function handleGetCommunitySummary(c: ContextWithAuth) {
       return c.json({ error: "Summary not found" }, 404);
     }
 
+    const worldStateService = getWorldStateService(c);
+    const overlay = await worldStateService.getOverlaySnapshot(campaignId);
+
     return c.json({
       success: true,
       summary,
+      worldStateOverlay: {
+        entityState: overlay.entityState,
+        relationshipState: overlay.relationshipState,
+        newEntities: Object.values(overlay.newEntities),
+      },
     });
   } catch (error) {
     console.error("[Communities] Error getting community summary:", error);
@@ -485,10 +501,18 @@ export async function handleListCommunitySummaries(c: ContextWithAuth) {
         options
       );
 
+    const worldStateService = getWorldStateService(c);
+    const overlay = await worldStateService.getOverlaySnapshot(campaignId);
+
     return c.json({
       success: true,
       summaries,
       count: summaries.length,
+      worldStateOverlay: {
+        entityState: overlay.entityState,
+        relationshipState: overlay.relationshipState,
+        newEntities: Object.values(overlay.newEntities),
+      },
     });
   } catch (error) {
     console.error("[Communities] Error listing community summaries:", error);

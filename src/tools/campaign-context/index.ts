@@ -18,6 +18,11 @@ import {
   extractEntitiesFromContentTool,
   createEntityRelationshipTool,
 } from "./entity-tools";
+import {
+  recordWorldEventTool,
+  updateEntityWorldStateTool,
+  updateRelationshipWorldStateTool,
+} from "./world-state-tools";
 
 export {
   // Character tools
@@ -39,6 +44,10 @@ export {
   // Entity tools
   extractEntitiesFromContentTool,
   createEntityRelationshipTool,
+  // World state tools
+  recordWorldEventTool,
+  updateEntityWorldStateTool,
+  updateRelationshipWorldStateTool,
 };
 
 // Export the tools object for backward compatibility
@@ -56,4 +65,7 @@ export const campaignContextTools = {
   getCommunityHierarchyTool,
   extractEntitiesFromContentTool,
   createEntityRelationshipTool,
+  recordWorldEventTool,
+  updateEntityWorldStateTool,
+  updateRelationshipWorldStateTool,
 };

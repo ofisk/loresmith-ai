@@ -416,8 +416,8 @@ describe("BaseAgent", () => {
         createEnhancedToolsSpy.mock.calls[
           createEnhancedToolsSpy.mock.calls.length - 1
         ];
-      expect(lastCallArgs && lastCallArgs[0]).toBe(testJwt);
-      expect(lastCallArgs && lastCallArgs[1]).toBe("camp-123");
+      expect(lastCallArgs?.[0]).toBe(testJwt);
+      expect(lastCallArgs?.[1]).toBe("camp-123");
 
       createEnhancedToolsSpy.mockRestore();
     });

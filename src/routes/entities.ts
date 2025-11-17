@@ -4,6 +4,7 @@ import type { EntityDAO } from "@/dao/entity-dao";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
+import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
 import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
 import { EntityExtractionPipeline } from "@/services/rag/entity-extraction-pipeline";
 import { EntityDeduplicationService } from "@/services/rag/entity-deduplication-service";
@@ -89,6 +90,13 @@ function buildEntityServiceAccessor(
   };
 }
 
+function getWorldStateService(c: ContextWithAuth): WorldStateChangelogService {
+  if (!c.env.DB) {
+    throw new Error("Database binding missing");
+  }
+  return new WorldStateChangelogService({ db: c.env.DB });
+}
+
 async function withCampaignContext(
   c: ContextWithAuth,
   errorMessage: string,
@@ -139,7 +147,13 @@ export async function handleListEntities(c: ContextWithAuth) {
         offset: offset ? Number(offset) : undefined,
       });
 
-      return ctx.json({ entities });
+      const worldStateService = getWorldStateService(ctx);
+      const overlay = await worldStateService.getOverlaySnapshot(campaignId);
+      const entitiesWithOverlay = entities.map((entity) =>
+        worldStateService.applyEntityOverlay(entity, overlay)
+      );
+
+      return ctx.json({ entities: entitiesWithOverlay });
     }
   );
 }
@@ -154,7 +168,13 @@ export async function handleGetEntity(c: ContextWithAuth) {
       if (!entity || entity.campaignId !== campaignId) {
         return ctx.json({ error: "Entity not found" }, 404);
       }
-      return ctx.json({ entity });
+      const worldStateService = getWorldStateService(ctx);
+      const overlay = await worldStateService.getOverlaySnapshot(campaignId);
+      const entityWithOverlay = worldStateService.applyEntityOverlay(
+        entity,
+        overlay
+      );
+      return ctx.json({ entity: entityWithOverlay });
     }
   );
 }
@@ -180,7 +200,11 @@ export async function handleGetEntityRelationships(c: ContextWithAuth) {
             relationshipType: relationshipType ?? undefined,
           }
         );
-        return ctx.json({ relationships });
+        const worldStateService = getWorldStateService(ctx);
+        const overlay = await worldStateService.getOverlaySnapshot(campaignId);
+        const relationshipsWithOverlay =
+          worldStateService.applyRelationshipOverlay(relationships, overlay);
+        return ctx.json({ relationships: relationshipsWithOverlay });
       } catch (error) {
         console.warn(
           `[Entities] Failed to fetch relationships for ${entityId}`,
@@ -219,7 +243,16 @@ export async function handleGetEntityNeighbors(c: ContextWithAuth) {
             relationshipTypes: types,
           }
         );
-        return ctx.json({ neighbors });
+        const worldStateService = getWorldStateService(ctx);
+        const overlay = await worldStateService.getOverlaySnapshot(campaignId);
+        const neighborsWithOverlay = neighbors.map((neighbor) => {
+          const state = overlay.entityState[neighbor.entityId];
+          if (!state) {
+            return neighbor;
+          }
+          return { ...neighbor, worldState: state };
+        });
+        return ctx.json({ neighbors: neighborsWithOverlay });
       } catch (error) {
         console.warn(
           `[Entities] Failed to fetch neighbors for ${entityId}`,

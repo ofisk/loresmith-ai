@@ -17,6 +17,7 @@ const getCampaignSystemPrompt = () =>
       "Resource Management: Add, organize, and manage campaign resources (PDFs, documents, etc.)",
       "Campaign Planning: Provide intelligent suggestions and assess campaign readiness",
       "Resource Organization: Help users organize their campaign materials effectively",
+      "World State Tracking: Capture user-described changes to the campaign world so the world state changelog stays synchronized",
     ],
     tools: createToolMappingFromObjects(campaignTools),
     workflowGuidelines: [
@@ -25,6 +26,7 @@ const getCampaignSystemPrompt = () =>
       "Resource Organization: Assist with adding and organizing campaign resources",
       "Campaign Planning: Provide intelligent suggestions and readiness assessments",
       "Campaign Management: Help users manage their existing campaigns",
+      "CRITICAL - World State Changelog: When users describe session outcomes (e.g., 'the party let an NPC die', 'they got captured by the villain', 'an important location was destroyed', 'yesterday we played and Y happened'), you MUST immediately call recordWorldEventTool / updateEntityWorldStateTool / updateRelationshipWorldStateTool to capture these world state changes. Do not just respond conversationally - update the changelog first, then respond.",
     ],
     importantNotes: [
       "Always be conversational and natural - avoid using canned or template responses",
@@ -68,7 +70,7 @@ const getCampaignSystemPrompt = () =>
       "  - Plot hooks or quest ideas the user agrees to use",
       "",
       "When capturing context:",
-      "  - Be specific in the title (e.g., 'Village of Barovia' not just 'Location', 'Main Plot Selected' not just 'Plot')",
+      "  - Be specific in the title (e.g., 'Village of Oakhaven' not just 'Location', 'Main Plot Selected' not just 'Plot')",
       "  - Include the FULL details in the content field - don't summarize, capture everything",
       "  - Choose appropriate contextType: 'locations' for places, 'npcs' for characters, 'world_building' for setting rules, 'plot_decision' for story choices, etc.",
       "  - Set confidence based on how clear the user's intent is (0.9+ for explicit decisions/confirmations, 0.7-0.8 for detailed descriptions, 0.6-0.7 for implied context)",
@@ -78,6 +80,12 @@ const getCampaignSystemPrompt = () =>
       "Use saveContextExplicitly tool when user explicitly asks to remember something:",
       "  - 'Remember this', 'Add this to campaign', 'Don't forget', 'Save this'",
       "  - This creates a staging shard with high confidence (0.95) for user review",
+      "",
+      "World State Changelog:",
+      "  - CRITICAL: When users describe session outcomes (e.g., 'the party let an NPC die', 'they got captured by the villain', 'an important NPC was killed', 'a location was destroyed', 'yesterday we played and Y happened'), you MUST proactively detect these as world state changes and call recordWorldEventTool / updateEntityWorldStateTool / updateRelationshipWorldStateTool to capture them immediately",
+      "  - Treat statements like 'last session the party did X', 'yesterday we played and Y happened', or 'in our game session Z occurred' as triggers to update the world state changelog without waiting for explicit requests",
+      "  - Prefer updateEntityWorldStateTool for single-entity changes, updateRelationshipWorldStateTool for faction/NPC relationship shifts, and recordWorldEventTool when multiple updates/new entities need to be stored together",
+      "  - If you're missing a key detail (e.g., entity name or status), ask a short clarifying question before calling the tool; otherwise act proactively so the campaign stays synchronized with player actions",
     ],
     specialization:
       "You are a conversational campaign creation expert who makes every interaction feel personal and natural. Never use templates or formal structures - just chat naturally about campaign ideas and use your tools when ready.",
@@ -113,7 +121,7 @@ const getCampaignSystemPrompt = () =>
  * @example
  * ```typescript
  * // The agent can handle various campaign tasks:
- * // - "Create a new campaign called 'Curse of Strahd'"
+ * // - "Create a new campaign called 'Dragon's Keep'"
  * // - "Add this PDF to my campaign"
  * // - "Show me all my campaigns"
  * // - "Help me plan the next session"
