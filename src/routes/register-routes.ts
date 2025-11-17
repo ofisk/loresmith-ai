@@ -73,6 +73,11 @@ import {
   handleGetCommunityHierarchy,
 } from "@/routes/communities";
 import {
+  handleCreateWorldStateChangelog,
+  handleGetWorldStateOverlay,
+  handleListWorldStateChangelog,
+} from "@/routes/world-state";
+import {
   handleGetExternalResourceRecommendations,
   handleGetExternalResourceSearch,
   handleGetGmResources,
@@ -290,6 +295,22 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.CAMPAIGNS.DELETE_ALL,
     requireUserJwt,
     handleDeleteAllCampaigns
+  );
+
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.CHANGELOG(":campaignId"),
+    requireUserJwt,
+    handleCreateWorldStateChangelog
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.CHANGELOG(":campaignId"),
+    requireUserJwt,
+    handleListWorldStateChangelog
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.OVERLAY(":campaignId"),
+    requireUserJwt,
+    handleGetWorldStateOverlay
   );
 
   app.get(

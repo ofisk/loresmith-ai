@@ -22,6 +22,7 @@ const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
     "Community Detection: Analyze entity relationship graphs to identify clusters of related entities using graph algorithms",
     "Entity Extraction: Extract structured entities (NPCs, locations, items, monsters, etc.) from text content and add them to the entity graph",
     "Relationship Management: Create relationships between entities in the graph when users mention connections between entities",
+    "World State Tracking: Detect and record user-described changes to NPCs, locations, factions, and relationships using world state changelog tools",
   ],
   tools: createToolMappingFromObjects(campaignContextTools),
   workflowGuidelines: [
@@ -34,6 +35,7 @@ const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
     "Module Integration: Parse module structure, extract NPCs, locations, plot hooks, and story beats for campaign context",
     "Entity Extraction: When users provide text content (from files or chat) containing entities like NPCs, locations, items, or monsters, use extractEntitiesFromContentTool to extract and add them to the graph",
     "Relationship Creation: When users mention relationships between entities (e.g., 'NPC X lives in Location Y', 'Character A is allied with Character B'), use createEntityRelationshipTool to create the relationship in the graph",
+    "CRITICAL - World State Changelog: When users describe session outcomes (e.g., 'the party let an NPC die', 'they got captured by the villain', 'an important location was destroyed', 'yesterday we played and Y happened'), you MUST immediately call recordWorldEventTool / updateEntityWorldStateTool / updateRelationshipWorldStateTool to capture these world state changes. Do not just respond conversationally - update the changelog first, then respond.",
   ],
   importantNotes: [
     "Always store character information using storeCharacterInfo tool",
@@ -59,6 +61,9 @@ const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
     "Entity Extraction: When users mention creating entities (e.g., 'I'm creating a new NPC named X'), extract the entity information from their message and use extractEntitiesFromContentTool to add it to the graph",
     "Entity Relationships: When users mention relationships (e.g., 'NPC X lives in Location Y'), first ensure both entities exist, then use createEntityRelationshipTool to create the relationship",
     "Graph Building: Help users build their entity graph by extracting entities from text content and creating relationships between them as they describe their campaign world",
+    "World State Changelog: Treat statements like “last session the party burned down the tavern”, “the duke allied with the rebels”, or “introduce a new NPC who runs the bank” as triggers to update the world state changelog without waiting for the user to repeat themselves",
+    "Use updateEntityWorldStateTool when the status of a single entity (NPC, location, faction, artifact) changes, use updateRelationshipWorldStateTool when the relationship between two entities shifts, and fall back to recordWorldEventTool for multi-entity updates or when adding new entities",
+    "If the user’s statement is ambiguous, ask a brief clarifying question before writing to the world state changelog; otherwise act proactively so the campaign stays synchronized with player actions",
   ],
 });
 
@@ -107,7 +112,7 @@ export class CampaignContextAgent extends BaseAgent {
   static readonly agentMetadata = {
     type: "campaign-context",
     description:
-      "Manages character backstories, player characters, NPCs, character motivations, personality traits, and character context information.",
+      "Manages character backstories, player characters, NPCs, character motivations, personality traits, session notes, world state tracking, and character context information.",
     systemPrompt: CAMPAIGN_CONTEXT_SYSTEM_PROMPT,
     tools: campaignContextTools,
   };

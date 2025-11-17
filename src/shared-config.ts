@@ -170,6 +170,12 @@ export const API_CONFIG = {
         GENERATE_SUMMARY: (campaignId: string, communityId: string) =>
           `/campaigns/${campaignId}/communities/${communityId}/summaries/generate`,
       },
+      WORLD_STATE: {
+        CHANGELOG: (campaignId: string) =>
+          `/campaigns/${campaignId}/world-state/changelog`,
+        OVERLAY: (campaignId: string) =>
+          `/campaigns/${campaignId}/world-state/overlay`,
+      },
     },
     CHARACTER_SHEETS: {
       // NOTE: Character sheets are currently handled as a separate entity type.
