@@ -1,4 +1,10 @@
-import { Bug, MapPin, Trash } from "@phosphor-icons/react";
+import {
+  Bug,
+  MapPin,
+  Trash,
+  NotePencil,
+  Lightbulb,
+} from "@phosphor-icons/react";
 import { Button } from "@/components/button/Button";
 import { HelpButton } from "@/components/help/HelpButton";
 import { TopBarNotifications } from "@/components/notifications/TopBarNotifications";
@@ -13,6 +19,8 @@ interface AppHeaderProps {
   onClearHistory: () => void;
   onHelpAction: (action: string) => void;
   onGuidanceRequest: () => void;
+  onSessionRecapRequest?: () => void;
+  onNextStepsRequest?: () => void;
   notifications: (
     | NotificationPayload
     | {
@@ -39,6 +47,8 @@ export function AppHeader({
   onClearHistory,
   onHelpAction,
   onGuidanceRequest,
+  onSessionRecapRequest,
+  onNextStepsRequest,
   notifications,
   onDismissNotification,
   onClearAllNotifications,
@@ -103,6 +113,42 @@ export function AppHeader({
           onClick={onToggleDebug}
         />
       </div>
+
+      {onSessionRecapRequest && (
+        <Button
+          variant="ghost"
+          size="md"
+          shape="square"
+          className="rounded-full h-9 w-9"
+          onClick={onSessionRecapRequest}
+          disabled={!selectedCampaignId}
+          tooltip={
+            selectedCampaignId
+              ? "Record session recap"
+              : "Select a campaign to record a session recap"
+          }
+        >
+          <NotePencil size={20} />
+        </Button>
+      )}
+
+      {onNextStepsRequest && (
+        <Button
+          variant="ghost"
+          size="md"
+          shape="square"
+          className="rounded-full h-9 w-9"
+          onClick={onNextStepsRequest}
+          disabled={!selectedCampaignId}
+          tooltip={
+            selectedCampaignId
+              ? "What should I do next?"
+              : "Select a campaign to get next-step suggestions"
+          }
+        >
+          <Lightbulb size={20} />
+        </Button>
+      )}
 
       <HelpButton
         onActionClick={onHelpAction}

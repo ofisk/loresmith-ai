@@ -81,6 +81,13 @@ import {
   handleListWorldStateChangelog,
 } from "@/routes/world-state";
 import {
+  handleCreateSessionDigest,
+  handleGetSessionDigest,
+  handleGetSessionDigests,
+  handleUpdateSessionDigest,
+  handleDeleteSessionDigest,
+} from "@/routes/session-digests";
+import {
   handleGetExternalResourceRecommendations,
   handleGetExternalResourceSearch,
   handleGetGmResources,
@@ -314,6 +321,41 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.OVERLAY(":campaignId"),
     requireUserJwt,
     handleGetWorldStateOverlay
+  );
+
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.BASE(":campaignId"),
+    requireUserJwt,
+    handleCreateSessionDigest
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.BASE(":campaignId"),
+    requireUserJwt,
+    handleGetSessionDigests
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
+      ":campaignId",
+      ":digestId"
+    ),
+    requireUserJwt,
+    handleGetSessionDigest
+  );
+  app.put(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
+      ":campaignId",
+      ":digestId"
+    ),
+    requireUserJwt,
+    handleUpdateSessionDigest
+  );
+  app.delete(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
+      ":campaignId",
+      ":digestId"
+    ),
+    requireUserJwt,
+    handleDeleteSessionDigest
   );
 
   app.get(

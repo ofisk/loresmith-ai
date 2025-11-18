@@ -7,11 +7,11 @@ import {
 } from "./systemPrompts";
 
 /**
- * System prompt configuration for the Onboarding & Guidance Agent.
- * Defines the agent's role in providing contextual guidance and onboarding.
+ * System prompt configuration for the Campaign Help Agent.
+ * Defines the agent's role in providing contextual guidance and campaign help.
  */
-const ONBOARDING_SYSTEM_PROMPT = buildSystemPrompt({
-  agentName: "Onboarding & Guidance Agent",
+const CAMPAIGN_HELP_SYSTEM_PROMPT = buildSystemPrompt({
+  agentName: "Campaign Help Agent",
   responsibilities: [
     "First-Time User Experience: Guide new users through the app's core value proposition and features",
     "Prompt Suggestions: Suggest useful prompts and actions users can try to get value from the app",
@@ -35,6 +35,9 @@ const ONBOARDING_SYSTEM_PROMPT = buildSystemPrompt({
     "IMPORTANT: Always start by calling the analyzeUserState tool to understand the user's current state (first-time, existing campaigns, resources, etc.)",
     "For first-time users: Explain the app's three core pillars (inspiration library, campaign context, session planning) and suggest their first prompt",
     "For returning users: Suggest new prompts and features they might not have tried yet",
+    "Campaign-Specific Guidance: When a campaign is selected, use getRecentSessionDigests to understand recent session history and provide context-aware suggestions",
+    "Next-Step Suggestions: Based on recent session digests, suggest actions like: chat more about the campaign to add more context, upload files to enrich your campaign world, record notes for a session, expand on important characters or locations that need more detail",
+    "Session Digest Context: Reference information from recent session digests when making suggestions (e.g., 'You mentioned X in your last session, consider following up on Y')",
     "Prompt Suggestions: Provide 3-5 specific prompts users can copy and try, formatted clearly",
     "Educational Content: When suggesting prompts, explain what kinds of things users should be thinking about (e.g., 'When planning a session, consider: NPC motivations, player character goals, environmental details, pacing, etc.')",
     "Campaign Planning Concepts: Educate users on important considerations like:",
@@ -55,6 +58,13 @@ const ONBOARDING_SYSTEM_PROMPT = buildSystemPrompt({
     "  - Social interaction opportunities",
     "  - Pacing considerations",
     "  - Backup plans for when players go off-script",
+    "Campaign-Specific Next Steps: When a campaign is selected, provide specific suggestions:",
+    "  - Review recent session digests to understand what happened",
+    "  - Suggest recording a session recap if one hasn't been created recently",
+    "  - Recommend expanding on characters, locations, or story elements mentioned in recent sessions",
+    "  - Suggest uploading files related to upcoming session content",
+    "  - Recommend chatting about the campaign to add more world details and context",
+    "  - Suggest focusing on important characters or locations that could use more development",
     "Feature Discovery: Introduce features through suggested prompts rather than explaining everything upfront",
     "Redirect Strategy: When users ask to do something specific (create campaign, update world state, etc.), suggest the prompt they should use rather than doing it yourself",
     "Format: Provide suggestions as numbered lists with clear, actionable prompts users can copy",
@@ -63,9 +73,9 @@ const ONBOARDING_SYSTEM_PROMPT = buildSystemPrompt({
 });
 
 /**
- * Onboarding & Guidance Agent for LoreSmith AI.
+ * Campaign Help Agent for LoreSmith AI.
  *
- * This agent focuses specifically on getting new users up and running by:
+ * This agent focuses specifically on helping users with campaign guidance by:
  * - Suggesting useful prompts they can try
  * - Educating users on campaign and session planning concepts
  * - Helping users understand what to think about when planning
@@ -80,12 +90,12 @@ const ONBOARDING_SYSTEM_PROMPT = buildSystemPrompt({
  *
  * @example
  * ```typescript
- * // Create an onboarding agent instance
- * const onboardingAgent = new OnboardingAgent(ctx, env, model);
+ * // Create a campaign help agent instance
+ * const campaignHelpAgent = new CampaignHelpAgent(ctx, env, model);
  *
  * // Process a guidance request
- * await onboardingAgent.onChatMessage((response) => {
- *   console.log('Onboarding response:', response);
+ * await campaignHelpAgent.onChatMessage((response) => {
+ *   console.log('Campaign help response:', response);
  * });
  * ```
  *
@@ -99,18 +109,18 @@ const ONBOARDING_SYSTEM_PROMPT = buildSystemPrompt({
  * // - "Suggest some prompts I can try"
  * ```
  */
-export class OnboardingAgent extends BaseAgent {
+export class CampaignHelpAgent extends BaseAgent {
   /** Agent metadata for registration and routing */
   static readonly agentMetadata = {
     type: "onboarding",
     description:
       "Helps new users get started by suggesting useful prompts and educating on campaign/session planning concepts. Focuses on onboarding and feature discovery rather than direct campaign operations.",
-    systemPrompt: ONBOARDING_SYSTEM_PROMPT,
+    systemPrompt: CAMPAIGN_HELP_SYSTEM_PROMPT,
     tools: onboardingTools,
   };
 
   /**
-   * Creates a new OnboardingAgent instance.
+   * Creates a new CampaignHelpAgent instance.
    *
    * @param ctx - The Durable Object state for persistence
    * @param env - The environment containing Cloudflare bindings
@@ -142,7 +152,9 @@ export class OnboardingAgent extends BaseAgent {
     // If we have a JWT, automatically call analyzeUserState first
     if (clientJwt) {
       try {
-        console.log("[OnboardingAgent] Automatically calling analyzeUserState");
+        console.log(
+          "[CampaignHelpAgent] Automatically calling analyzeUserState"
+        );
         const enhancedTools = this.createEnhancedTools(clientJwt, null);
         const analyzeUserStateTool = enhancedTools.analyzeUserState;
 
@@ -153,7 +165,7 @@ export class OnboardingAgent extends BaseAgent {
           );
 
           console.log(
-            "[OnboardingAgent] User state analysis result:",
+            "[CampaignHelpAgent] User state analysis result:",
             userStateResult
           );
 
@@ -173,7 +185,10 @@ export class OnboardingAgent extends BaseAgent {
           }
         }
       } catch (error) {
-        console.error("[OnboardingAgent] Failed to analyze user state:", error);
+        console.error(
+          "[CampaignHelpAgent] Failed to analyze user state:",
+          error
+        );
       }
     }
 
