@@ -391,7 +391,8 @@ export async function handleApproveShards(c: ContextWithAuth) {
       try {
         const importanceService = new EntityImportanceService(
           daoFactory.entityDAO,
-          daoFactory.communityDAO
+          daoFactory.communityDAO,
+          daoFactory.entityImportanceDAO
         );
         console.log(
           `[Server] Batch recalculating importance for ${approvedCount} approved entities`
@@ -547,7 +548,8 @@ export async function handleRejectShards(c: ContextWithAuth) {
       try {
         const importanceService = new EntityImportanceService(
           daoFactory.entityDAO,
-          daoFactory.communityDAO
+          daoFactory.communityDAO,
+          daoFactory.entityImportanceDAO
         );
         console.log(
           `[Server] Batch recalculating importance for ${rejectedCount} rejected entities`

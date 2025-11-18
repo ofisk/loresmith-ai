@@ -182,6 +182,21 @@ CREATE TABLE IF NOT EXISTS communities (
   foreign key (parent_community_id) references communities(id) on delete set null
 );
 
+-- Create entity_importance table for storing precomputed centrality metrics
+CREATE TABLE IF NOT EXISTS entity_importance (
+  entity_id text primary key,
+  campaign_id text not null,
+  pagerank real not null,
+  betweenness_centrality real not null,
+  hierarchy_level integer not null,
+  importance_score real not null, -- Composite score
+  computed_at datetime default current_timestamp,
+  foreign key (entity_id) references entities(id) on delete cascade,
+  foreign key (campaign_id) references campaigns(id) on delete cascade
+);
+
+CREATE INDEX idx_importance_campaign ON entity_importance(campaign_id);
+CREATE INDEX idx_importance_score ON entity_importance(importance_score DESC);
 
 -- Create campaign context table
 CREATE TABLE IF NOT EXISTS campaign_context (

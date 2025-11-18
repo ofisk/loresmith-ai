@@ -394,7 +394,8 @@ export async function stageEntitiesFromResource(
       try {
         const importanceService = new EntityImportanceService(
           daoFactory.entityDAO,
-          daoFactory.communityDAO
+          daoFactory.communityDAO,
+          daoFactory.entityImportanceDAO
         );
 
         console.log(
