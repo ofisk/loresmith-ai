@@ -33,3 +33,10 @@ export type {
 } from "./community-dao";
 // Community DAO
 export { CommunityDAO } from "./community-dao";
+export type {
+  EntityImportance,
+  UpsertEntityImportanceInput,
+  EntityImportanceQueryOptions,
+} from "./entity-importance-dao";
+// Entity Importance DAO
+export { EntityImportanceDAO } from "./entity-importance-dao";

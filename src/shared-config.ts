@@ -144,6 +144,8 @@ export const API_CONFIG = {
           `/campaigns/${campaignId}/entities/${entityId}/graph/neighbors`,
         IMPORTANCE: (campaignId: string, entityId: string) =>
           `/campaigns/${campaignId}/entities/${entityId}/importance`,
+        IMPORTANCE_TOP: (campaignId: string) =>
+          `/campaigns/${campaignId}/entities/importance/top`,
         EXTRACT: (campaignId: string) =>
           `/campaigns/${campaignId}/entities/extract`,
         DEDUPLICATE: (campaignId: string) =>

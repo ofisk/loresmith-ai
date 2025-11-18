@@ -1,5 +1,6 @@
 import type { EntityDAO } from "@/dao/entity-dao";
 import type { CommunityDAO } from "@/dao/community-dao";
+import type { EntityImportanceDAO } from "@/dao/entity-importance-dao";
 import {
   mapOverrideToScore,
   type ImportanceLevel,
@@ -20,7 +21,8 @@ interface Graph {
 export class EntityImportanceService {
   constructor(
     private readonly entityDAO: EntityDAO,
-    private readonly communityDAO?: CommunityDAO
+    private readonly communityDAO?: CommunityDAO,
+    private readonly importanceDAO?: EntityImportanceDAO
   ) {}
 
   async calculatePageRank(
@@ -296,6 +298,7 @@ export class EntityImportanceService {
     entityId: string,
     includeStaging = true
   ): Promise<number> {
+    const readStart = Date.now();
     const entity = await this.entityDAO.getEntityById(entityId);
     if (!entity || entity.campaignId !== campaignId) {
       return 50;
@@ -307,7 +310,28 @@ export class EntityImportanceService {
       | null
       | undefined;
 
+    // Try to read from table first (if DAO is available)
+    if (this.importanceDAO) {
+      const tableReadStart = Date.now();
+      const importance = await this.importanceDAO.getImportance(entityId);
+      const tableReadTime = Date.now() - tableReadStart;
+
+      if (importance) {
+        const tableReadTotal = Date.now() - readStart;
+        console.log(
+          `[EntityImportance] Read from table in ${tableReadTime}ms (total: ${tableReadTotal}ms)`
+        );
+
+        if (override) {
+          return mapOverrideToScore(override, importance.importanceScore);
+        }
+        return importance.importanceScore;
+      }
+    }
+
+    // Fallback to metadata for backward compatibility
     if (override) {
+      const metadataReadStart = Date.now();
       const currentScore =
         (metadata.importanceScore as number) ??
         (await this.calculateCombinedImportance(
@@ -315,25 +339,56 @@ export class EntityImportanceService {
           entityId,
           includeStaging
         ));
+      const metadataReadTime = Date.now() - metadataReadStart;
+      console.log(
+        `[EntityImportance] Read from metadata in ${metadataReadTime}ms (fallback)`
+      );
       return mapOverrideToScore(override, currentScore);
     }
 
     if (typeof metadata.importanceScore === "number") {
+      const metadataReadTime = Date.now() - readStart;
+      console.log(
+        `[EntityImportance] Read from metadata in ${metadataReadTime}ms (fallback)`
+      );
       return metadata.importanceScore;
     }
 
+    // Calculate and store (prefer table if available)
     const calculated = await this.calculateCombinedImportance(
       campaignId,
       entityId,
       includeStaging
     );
 
-    await this.entityDAO.updateEntity(entityId, {
-      metadata: {
-        ...metadata,
+    if (this.importanceDAO) {
+      const writeStart = Date.now();
+      // Need to calculate individual components for table storage
+      const [pagerank, betweenness, hierarchy] = await Promise.all([
+        this.calculatePageRank(campaignId, includeStaging),
+        this.calculateBetweennessCentrality(campaignId, includeStaging),
+        this.calculateHierarchyLevel(campaignId, entityId),
+      ]);
+
+      await this.importanceDAO.upsertImportance({
+        entityId,
+        campaignId,
+        pagerank: pagerank.get(entityId) ?? 0,
+        betweennessCentrality: betweenness.get(entityId) ?? 0,
+        hierarchyLevel: Math.round(hierarchy),
         importanceScore: calculated,
-      },
-    });
+      });
+      const writeTime = Date.now() - writeStart;
+      console.log(`[EntityImportance] Wrote to table in ${writeTime}ms`);
+    } else {
+      // Fallback to metadata
+      await this.entityDAO.updateEntity(entityId, {
+        metadata: {
+          ...metadata,
+          importanceScore: calculated,
+        },
+      });
+    }
 
     return calculated;
   }
@@ -342,15 +397,24 @@ export class EntityImportanceService {
     campaignId: string,
     entityId: string
   ): Promise<number> {
-    const calculated = await this.calculateCombinedImportance(
-      campaignId,
-      entityId,
-      true
-    );
+    const startTime = Date.now();
+    const [pagerank, betweenness, hierarchy] = await Promise.all([
+      this.calculatePageRank(campaignId, true),
+      this.calculateBetweennessCentrality(campaignId, true),
+      this.calculateHierarchyLevel(campaignId, entityId),
+    ]);
+
+    const pagerankScore = pagerank.get(entityId) ?? 0;
+    const betweennessScore = betweenness.get(entityId) ?? 0;
+    const hierarchyScore = hierarchy;
+
+    const calculated =
+      pagerankScore * 0.4 + betweennessScore * 0.4 + hierarchyScore * 0.2;
+    const finalCalculated = Math.max(0, Math.min(100, calculated));
 
     const entity = await this.entityDAO.getEntityById(entityId);
     if (!entity) {
-      return calculated;
+      return finalCalculated;
     }
 
     const metadata = (entity.metadata as Record<string, unknown>) || {};
@@ -360,15 +424,34 @@ export class EntityImportanceService {
       | undefined;
 
     const finalScore = override
-      ? mapOverrideToScore(override, calculated)
-      : calculated;
+      ? mapOverrideToScore(override, finalCalculated)
+      : finalCalculated;
 
-    await this.entityDAO.updateEntity(entityId, {
-      metadata: {
-        ...metadata,
-        importanceScore: calculated,
-      },
-    });
+    // Store in table if available, otherwise fallback to metadata
+    if (this.importanceDAO) {
+      const writeStart = Date.now();
+      await this.importanceDAO.upsertImportance({
+        entityId,
+        campaignId,
+        pagerank: pagerankScore,
+        betweennessCentrality: betweennessScore,
+        hierarchyLevel: Math.round(hierarchyScore),
+        importanceScore: finalCalculated,
+      });
+      const writeTime = Date.now() - writeStart;
+      const totalTime = Date.now() - startTime;
+      console.log(
+        `[EntityImportance] Recalculated for entity ${entityId}: ${totalTime}ms (write: ${writeTime}ms)`
+      );
+    } else {
+      // Fallback to metadata
+      await this.entityDAO.updateEntity(entityId, {
+        metadata: {
+          ...metadata,
+          importanceScore: finalCalculated,
+        },
+      });
+    }
 
     return finalScore;
   }
@@ -395,14 +478,25 @@ export class EntityImportanceService {
     const entities = await this.entityDAO.listEntitiesByCampaign(campaignId);
     const results = new Map<string, number>();
 
-    for (const entity of entities) {
+    const hierarchyCalcStart = Date.now();
+    const hierarchyPromises = entities.map((entity) =>
+      this.calculateHierarchyLevel(campaignId, entity.id)
+    );
+    const hierarchyScores = await Promise.all(hierarchyPromises);
+    const hierarchyCalcTime = Date.now() - hierarchyCalcStart;
+    console.log(
+      `[EntityImportance] Hierarchy levels calculated in ${hierarchyCalcTime}ms (${hierarchyScores.length} entities)`
+    );
+
+    const writeStart = Date.now();
+    const writePromises: Promise<void>[] = [];
+
+    for (let i = 0; i < entities.length; i++) {
+      const entity = entities[i];
       const metadata = (entity.metadata as Record<string, unknown>) || {};
       const pagerankScore = pagerank.get(entity.id) ?? 0;
       const betweennessScore = betweenness.get(entity.id) ?? 0;
-      const hierarchyScore = await this.calculateHierarchyLevel(
-        campaignId,
-        entity.id
-      );
+      const hierarchyScore = hierarchyScores[i];
 
       const calculated =
         pagerankScore * 0.4 + betweennessScore * 0.4 + hierarchyScore * 0.2;
@@ -417,19 +511,38 @@ export class EntityImportanceService {
         ? mapOverrideToScore(override, finalScore)
         : finalScore;
 
-      await this.entityDAO.updateEntity(entity.id, {
-        metadata: {
-          ...metadata,
-          importanceScore: finalScore,
-        },
-      });
-
       results.set(entity.id, importanceScore);
+
+      // Store in table if available, otherwise fallback to metadata
+      if (this.importanceDAO) {
+        writePromises.push(
+          this.importanceDAO.upsertImportance({
+            entityId: entity.id,
+            campaignId,
+            pagerank: pagerankScore,
+            betweennessCentrality: betweennessScore,
+            hierarchyLevel: Math.round(hierarchyScore),
+            importanceScore: finalScore,
+          })
+        );
+      } else {
+        // Fallback to metadata
+        writePromises.push(
+          this.entityDAO.updateEntity(entity.id, {
+            metadata: {
+              ...metadata,
+              importanceScore: finalScore,
+            },
+          })
+        );
+      }
     }
 
+    await Promise.all(writePromises);
+    const writeTime = Date.now() - writeStart;
     const totalTime = Date.now() - startTime;
     console.log(
-      `[EntityImportance] Batch importance calculation completed for campaign ${campaignId}: ${results.size} entities processed in ${totalTime}ms`
+      `[EntityImportance] Batch importance calculation completed for campaign ${campaignId}: ${results.size} entities processed in ${totalTime}ms (graph: ${graphCalcTime}ms, hierarchy: ${hierarchyCalcTime}ms, write: ${writeTime}ms)`
     );
 
     return results;

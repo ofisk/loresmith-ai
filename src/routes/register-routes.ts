@@ -61,6 +61,8 @@ import {
   handleCreateEntityRelationship,
   handleDeleteEntityRelationship,
   handleUpdateEntityImportance,
+  handleGetEntityImportance,
+  handleListTopEntitiesByImportance,
 } from "@/routes/entities";
 import {
   handleDetectCommunities,
@@ -352,6 +354,19 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     ),
     requireUserJwt,
     handleUpdateEntityImportance
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.IMPORTANCE(
+      ":campaignId",
+      ":entityId"
+    ),
+    requireUserJwt,
+    handleGetEntityImportance
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.IMPORTANCE_TOP(":campaignId"),
+    requireUserJwt,
+    handleListTopEntitiesByImportance
   );
   app.post(
     API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIPS(

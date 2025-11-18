@@ -218,7 +218,8 @@ export async function handleUpdateEntityImportance(c: ContextWithAuth) {
       const daoFactory = getDAOFactory(ctx.env);
       const importanceService = new EntityImportanceService(
         entityDAO,
-        daoFactory.communityDAO
+        daoFactory.communityDAO,
+        daoFactory.entityImportanceDAO
       );
 
       const currentCalculated =
@@ -244,6 +245,56 @@ export async function handleUpdateEntityImportance(c: ContextWithAuth) {
 
       const updatedEntity = await entityDAO.getEntityById(entityId);
       return ctx.json({ entity: updatedEntity });
+    }
+  );
+}
+
+export async function handleGetEntityImportance(c: ContextWithAuth) {
+  return withCampaignContext(
+    c,
+    "Failed to get entity importance",
+    async ({ c: ctx, campaignId, entityDAO }) => {
+      const entityId = ctx.req.param("entityId");
+      const entity = await entityDAO.getEntityById(entityId);
+      if (!entity || entity.campaignId !== campaignId) {
+        return ctx.json({ error: "Entity not found" }, 404);
+      }
+
+      const daoFactory = getDAOFactory(ctx.env);
+      const importanceDAO = daoFactory.entityImportanceDAO;
+      const importance = await importanceDAO.getImportance(entityId);
+
+      if (!importance) {
+        return ctx.json({ error: "Importance not found" }, 404);
+      }
+
+      return ctx.json({ importance });
+    }
+  );
+}
+
+export async function handleListTopEntitiesByImportance(c: ContextWithAuth) {
+  return withCampaignContext(
+    c,
+    "Failed to list top entities by importance",
+    async ({ c: ctx, campaignId }) => {
+      const limit = ctx.req.query("limit");
+      const minScore = ctx.req.query("minScore");
+
+      const daoFactory = getDAOFactory(ctx.env);
+      const importanceDAO = daoFactory.entityImportanceDAO;
+
+      const options = {
+        limit: limit ? Number(limit) : 10,
+        minScore: minScore ? Number(minScore) : undefined,
+      };
+
+      const importanceList = await importanceDAO.getImportanceForCampaign(
+        campaignId,
+        options
+      );
+
+      return ctx.json({ importance: importanceList });
     }
   );
 }
