@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -6,6 +6,7 @@ import {
   FileText,
   Check,
   X,
+  Star,
 } from "lucide-react";
 import type { FlexibleShard } from "./ShardTypeDetector";
 import {
@@ -14,6 +15,14 @@ import {
   getEditableProperties,
 } from "./ShardTypeDetector";
 import { PropertyGrid } from "./PropertyField";
+import {
+  authenticatedFetchWithExpiration,
+  getStoredJwt,
+} from "@/services/core/auth-service";
+import { API_CONFIG } from "@/shared-config";
+import { ImportanceCalculationError } from "@/lib/errors";
+
+type ImportanceLevel = "high" | "medium" | "low" | null;
 
 interface FlexibleShardCardProps {
   shard: FlexibleShard;
@@ -23,6 +32,7 @@ interface FlexibleShardCardProps {
   onDelete?: (shardId: string) => void;
   onDeleteProperty?: (shardId: string, key: string) => void;
   className?: string;
+  campaignId?: string;
 }
 
 export function FlexibleShardCard({
@@ -33,8 +43,120 @@ export function FlexibleShardCard({
   onDelete,
   onDeleteProperty,
   className = "",
+  campaignId,
 }: FlexibleShardCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [importanceLoading, setImportanceLoading] = useState(false);
+
+  // Get importance from metadata
+  const importanceScore = (shard.metadata as any)?.importanceScore as
+    | number
+    | undefined;
+  const importanceOverride = (shard.metadata as any)?.importanceOverride as
+    | ImportanceLevel
+    | undefined;
+
+  // Determine current importance level from score or override
+  const getImportanceLevel = useMemo((): ImportanceLevel => {
+    if (importanceOverride !== undefined) {
+      return importanceOverride;
+    }
+    if (importanceScore !== undefined) {
+      if (importanceScore >= 80) return "high";
+      if (importanceScore >= 60) return "medium";
+      return "low";
+    }
+    return null;
+  }, [importanceScore, importanceOverride]);
+
+  const [currentImportance, setCurrentImportance] =
+    useState<ImportanceLevel>(getImportanceLevel);
+
+  // Update local state when shard metadata changes
+  useEffect(() => {
+    setCurrentImportance(getImportanceLevel);
+  }, [getImportanceLevel]);
+
+  const handleImportanceChange = async (newLevel: ImportanceLevel) => {
+    if (!campaignId) {
+      console.warn(
+        "[FlexibleShardCard] Cannot update importance: campaignId not provided"
+      );
+      return;
+    }
+
+    setImportanceLoading(true);
+    try {
+      const jwt = getStoredJwt();
+      if (!jwt) {
+        throw new Error("No authentication token available");
+      }
+
+      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
+        API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.IMPORTANCE(
+            campaignId,
+            shard.id
+          )
+        ),
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${jwt}`,
+          },
+          body: JSON.stringify({ importanceLevel: newLevel }),
+        }
+      );
+
+      if (jwtExpired) {
+        throw new Error("Session expired. Please refresh the page.");
+      }
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new ImportanceCalculationError(
+          errorData.error || `Failed to update importance`,
+          response.status
+        );
+      }
+
+      const result = (await response.json()) as {
+        entity?: {
+          metadata?: Record<string, unknown>;
+        };
+      };
+      if (result.entity) {
+        // Update local state
+        setCurrentImportance(newLevel);
+        // Notify parent component if onEdit is provided
+        if (onEdit) {
+          const currentMetadata =
+            typeof shard.metadata === "object" && shard.metadata !== null
+              ? shard.metadata
+              : {};
+          onEdit(shard.id, {
+            metadata: {
+              ...currentMetadata,
+              importanceOverride: newLevel,
+              importanceScore: (result.entity.metadata as any)?.importanceScore,
+            },
+          } as Partial<FlexibleShard>);
+        }
+      }
+    } catch (error) {
+      console.error("[FlexibleShardCard] Failed to update importance:", error);
+      alert(
+        error instanceof Error ? error.message : "Failed to update importance"
+      );
+      // Revert to previous value on error
+      setCurrentImportance(getImportanceLevel);
+    } finally {
+      setImportanceLoading(false);
+    }
+  };
 
   const editableProperties = useMemo(
     () =>
@@ -298,6 +420,44 @@ export function FlexibleShardCard({
                   </span>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Importance */}
+          {campaignId && (
+            <div>
+              <label
+                htmlFor={`shard-importance-${shard.id}`}
+                className="text-sm font-medium text-gray-300 flex items-center gap-2 mb-2"
+              >
+                <Star size={14} />
+                Importance
+                {importanceScore !== undefined && (
+                  <span className="text-xs text-gray-400">
+                    (Score: {Math.round(importanceScore)})
+                  </span>
+                )}
+              </label>
+              <select
+                id={`shard-importance-${shard.id}`}
+                value={currentImportance || ""}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  handleImportanceChange(
+                    value === "" ? null : (value as ImportanceLevel)
+                  );
+                }}
+                disabled={importanceLoading}
+                className="w-full px-3 py-2 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value="">Auto (calculated)</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+              {importanceLoading && (
+                <p className="text-xs text-gray-400 mt-1">Updating...</p>
+              )}
             </div>
           )}
 

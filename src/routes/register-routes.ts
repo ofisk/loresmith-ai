@@ -60,6 +60,7 @@ import {
   handleResolveDeduplicationEntry,
   handleCreateEntityRelationship,
   handleDeleteEntityRelationship,
+  handleUpdateEntityImportance,
 } from "@/routes/entities";
 import {
   handleDetectCommunities,
@@ -343,6 +344,14 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIP_TYPES(":campaignId"),
     requireUserJwt,
     handleListRelationshipTypes
+  );
+  app.patch(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.IMPORTANCE(
+      ":campaignId",
+      ":entityId"
+    ),
+    requireUserJwt,
+    handleUpdateEntityImportance
   );
   app.post(
     API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIPS(

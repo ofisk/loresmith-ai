@@ -6,6 +6,7 @@ export interface Campaign {
   username: string;
   description?: string;
   campaignRagBasePath?: string;
+  metadata?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -155,19 +156,38 @@ export class CampaignDAO extends BaseDAOClass {
 
   async updateCampaign(
     campaignId: string,
-    updates: Partial<Pick<Campaign, "name" | "description">>
+    updates: Partial<Pick<Campaign, "name" | "description">> & {
+      metadata?: Record<string, unknown> | string | null;
+    }
   ): Promise<void> {
-    const setClause = Object.keys(updates)
-      .map((key) => `${key} = ?`)
-      .join(", ");
+    const setClause: string[] = [];
+    const values: any[] = [];
+
+    for (const [key, value] of Object.entries(updates)) {
+      if (key === "metadata") {
+        setClause.push("metadata = ?");
+        values.push(
+          typeof value === "string" || value === null
+            ? value
+            : JSON.stringify(value)
+        );
+      } else {
+        setClause.push(`${key} = ?`);
+        values.push(value);
+      }
+    }
+
+    if (setClause.length === 0) {
+      return;
+    }
 
     const sql = `
       update campaigns 
-      set ${setClause}, updated_at = current_timestamp
+      set ${setClause.join(", ")}, updated_at = current_timestamp
       where id = ?
     `;
 
-    const values = [...Object.values(updates), campaignId];
+    values.push(campaignId);
     await this.execute(sql, values);
   }
 

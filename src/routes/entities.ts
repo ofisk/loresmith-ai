@@ -5,11 +5,16 @@ import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
+import { EntityImportanceService } from "@/services/graph/entity-importance-service";
 import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
 import { EntityExtractionPipeline } from "@/services/rag/entity-extraction-pipeline";
 import { EntityDeduplicationService } from "@/services/rag/entity-deduplication-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import { UserAuthenticationMissingError } from "@/lib/errors";
+import {
+  mapOverrideToScore,
+  type ImportanceLevel,
+} from "@/lib/importance-config";
 
 type ContextWithAuth = Context<{
   Bindings: Env;
@@ -90,11 +95,17 @@ function buildEntityServiceAccessor(
   };
 }
 
-function getWorldStateService(c: ContextWithAuth): WorldStateChangelogService {
+function getWorldStateService(
+  c: ContextWithAuth,
+  importanceService?: EntityImportanceService
+): WorldStateChangelogService {
   if (!c.env.DB) {
     throw new Error("Database binding missing");
   }
-  return new WorldStateChangelogService({ db: c.env.DB });
+  return new WorldStateChangelogService({
+    db: c.env.DB,
+    importanceService,
+  });
 }
 
 async function withCampaignContext(
@@ -175,6 +186,64 @@ export async function handleGetEntity(c: ContextWithAuth) {
         overlay
       );
       return ctx.json({ entity: entityWithOverlay });
+    }
+  );
+}
+
+export async function handleUpdateEntityImportance(c: ContextWithAuth) {
+  return withCampaignContext(
+    c,
+    "Failed to update entity importance",
+    async ({ c: ctx, campaignId, entityDAO }) => {
+      const entityId = ctx.req.param("entityId");
+      const entity = await entityDAO.getEntityById(entityId);
+      if (!entity || entity.campaignId !== campaignId) {
+        return ctx.json({ error: "Entity not found" }, 404);
+      }
+
+      const body = (await ctx.req.json()) as {
+        importanceLevel: ImportanceLevel | null;
+      };
+
+      if (
+        body.importanceLevel !== null &&
+        !["high", "medium", "low"].includes(body.importanceLevel)
+      ) {
+        return ctx.json(
+          { error: "importanceLevel must be 'high', 'medium', 'low', or null" },
+          400
+        );
+      }
+
+      const daoFactory = getDAOFactory(ctx.env);
+      const importanceService = new EntityImportanceService(
+        entityDAO,
+        daoFactory.communityDAO
+      );
+
+      const currentCalculated =
+        await importanceService.calculateCombinedImportance(
+          campaignId,
+          entityId,
+          true
+        );
+
+      const metadata = (entity.metadata as Record<string, unknown>) || {};
+      const finalScore = mapOverrideToScore(
+        body.importanceLevel,
+        currentCalculated
+      );
+
+      await entityDAO.updateEntity(entityId, {
+        metadata: {
+          ...metadata,
+          importanceOverride: body.importanceLevel,
+          importanceScore: finalScore,
+        },
+      });
+
+      const updatedEntity = await entityDAO.getEntityById(entityId);
+      return ctx.json({ entity: updatedEntity });
     }
   );
 }

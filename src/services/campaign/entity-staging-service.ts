@@ -12,6 +12,8 @@ import type { ContentExtractionProvider } from "./content-extraction-provider";
 import { DirectFileContentExtractionProvider } from "./impl/direct-file-content-extraction-provider";
 import { R2Helper } from "@/lib/r2";
 import type { ExtractedEntity } from "@/services/rag/entity-extraction-service";
+import { EntityGraphService } from "@/services/graph/entity-graph-service";
+import { EntityImportanceService } from "@/services/graph/entity-importance-service";
 
 /**
  * Chunk text by pages (for PDFs) or by character count to stay under token limits
@@ -345,7 +347,31 @@ export async function stageEntitiesFromResource(
         createdCount++;
       }
 
-      // Store staged entity info (without persisting relationships yet - those come after approval)
+      // Create relationships immediately with staging status so importance can be calculated
+      const graphService = new EntityGraphService(daoFactory.entityDAO);
+      for (const rel of updatedRelations) {
+        try {
+          await graphService.upsertEdge({
+            campaignId,
+            fromEntityId: entityId,
+            toEntityId: rel.targetId,
+            relationshipType: rel.relationshipType,
+            strength: rel.strength,
+            metadata: {
+              ...(rel.metadata as Record<string, unknown>),
+              status: "staging",
+            },
+            allowSelfRelation: false,
+          });
+        } catch (error) {
+          console.warn(
+            `[EntityStaging] Failed to create relationship ${entityId} -> ${rel.targetId}:`,
+            error
+          );
+        }
+      }
+
+      // Store staged entity info
       stagedEntities.push({
         id: entityId,
         entityType: extracted.entityType,
@@ -359,6 +385,37 @@ export async function stageEntitiesFromResource(
           metadata: rel.metadata,
         })),
       });
+    }
+
+    // Calculate importance for all entities in batch (including newly staged entities)
+    // This is much more efficient than calculating per-entity, as it runs PageRank
+    // and Betweenness Centrality once for the entire graph instead of N times
+    if (stagedEntities.length > 0) {
+      try {
+        const importanceService = new EntityImportanceService(
+          daoFactory.entityDAO,
+          daoFactory.communityDAO
+        );
+
+        console.log(
+          `[EntityStaging] Calculating importance scores in batch for ${stagedEntities.length} newly staged entities`
+        );
+
+        // Batch calculate importance for all entities in the campaign
+        // This calculates PageRank and Betweenness Centrality once, then
+        // calculates hierarchy level for each entity
+        await importanceService.recalculateImportanceForCampaign(campaignId);
+
+        console.log(
+          `[EntityStaging] Batch importance calculation completed for campaign: ${campaignId}`
+        );
+      } catch (error) {
+        console.error(
+          `[EntityStaging] Failed to calculate importance in batch:`,
+          error
+        );
+        // Continue even if importance calculation fails - entities are still staged
+      }
     }
 
     console.log(

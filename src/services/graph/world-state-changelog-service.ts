@@ -9,10 +9,12 @@ import type {
   WorldStateChangelogPayload,
   WorldStateNewEntity,
 } from "@/types/world-state";
+import type { EntityImportanceService } from "./entity-importance-service";
 
 export interface WorldStateChangelogServiceOptions {
   db: D1Database;
   dao?: WorldStateChangelogDAO;
+  importanceService?: EntityImportanceService;
 }
 
 export interface WorldStateEntityOverlay {
@@ -42,9 +44,62 @@ export interface WorldStateOverlaySnapshot {
 
 export class WorldStateChangelogService {
   private readonly dao: WorldStateChangelogDAO;
+  private readonly importanceService?: EntityImportanceService;
 
   constructor(options: WorldStateChangelogServiceOptions) {
     this.dao = options.dao ?? new WorldStateChangelogDAO(options.db);
+    this.importanceService = options.importanceService;
+  }
+
+  /**
+   * Normalize entity IDs to ensure they are campaign-scoped.
+   * Entity IDs should be in the format: <campaignId>_<entityName>
+   */
+  private normalizeEntityId(campaignId: string, entityId: string): string {
+    if (!entityId) {
+      return entityId;
+    }
+    // If already campaign-scoped, return as-is
+    if (entityId.startsWith(`${campaignId}_`)) {
+      return entityId;
+    }
+    // Otherwise, add campaign prefix
+    return `${campaignId}_${entityId}`;
+  }
+
+  /**
+   * Normalize all entity IDs in a changelog payload to be campaign-scoped.
+   */
+  private normalizePayloadEntityIds(
+    campaignId: string,
+    payload: WorldStateChangelogPayload
+  ): WorldStateChangelogPayload {
+    return {
+      ...payload,
+      entity_updates: (payload.entity_updates || []).map((update) => ({
+        ...update,
+        entity_id: update.entity_id
+          ? this.normalizeEntityId(campaignId, update.entity_id)
+          : update.entity_id,
+      })),
+      relationship_updates: (payload.relationship_updates || []).map(
+        (update) => ({
+          ...update,
+          from: update.from
+            ? this.normalizeEntityId(campaignId, update.from)
+            : update.from,
+          to: update.to
+            ? this.normalizeEntityId(campaignId, update.to)
+            : update.to,
+        })
+      ),
+      new_entities: (payload.new_entities || []).map((entity) => ({
+        ...entity,
+        entity_id: entity.entity_id
+          ? this.normalizeEntityId(campaignId, entity.entity_id)
+          : entity.entity_id,
+      })),
+    };
   }
 
   /**
@@ -56,13 +111,22 @@ export class WorldStateChangelogService {
   ): Promise<WorldStateChangelogEntry> {
     this.validatePayload(payload);
 
-    const impactScore = this.calculateImpactScore(payload);
+    // Normalize entity IDs to ensure they are campaign-scoped
+    const normalizedPayload = this.normalizePayloadEntityIds(
+      campaignId,
+      payload
+    );
+
+    const impactScore = await this.calculateImpactScore(
+      campaignId,
+      normalizedPayload
+    );
     const entry: CreateWorldStateChangelogInput = {
       id: generateId(),
       campaignId,
-      campaignSessionId: payload.campaign_session_id,
-      timestamp: payload.timestamp,
-      payload,
+      campaignSessionId: normalizedPayload.campaign_session_id,
+      timestamp: normalizedPayload.timestamp,
+      payload: normalizedPayload,
       impactScore,
     };
 
@@ -70,8 +134,8 @@ export class WorldStateChangelogService {
 
     // Return the normalized entry as stored
     const [created] = await this.dao.listEntriesForCampaign(campaignId, {
-      fromTimestamp: payload.timestamp,
-      toTimestamp: payload.timestamp,
+      fromTimestamp: normalizedPayload.timestamp,
+      toTimestamp: normalizedPayload.timestamp,
       limit: 1,
     });
     return created;
@@ -166,9 +230,88 @@ export class WorldStateChangelogService {
   }
 
   /**
-   * Simple heuristic: count of changes, weighted by type.
+   * Calculate impact score based on entity importance and change types.
+   * Formula: impact_score = change_type_weight × entity_importance × relationship_weight
    */
-  private calculateImpactScore(payload: WorldStateChangelogPayload): number {
+  private async calculateImpactScore(
+    campaignId: string,
+    payload: WorldStateChangelogPayload
+  ): Promise<number> {
+    if (!this.importanceService) {
+      return this.calculateSimpleImpactScore(payload);
+    }
+
+    const changeTypeWeights = {
+      entity_deleted: 3.0,
+      entity_modified: 1.5,
+      relationship_changed: 1.0,
+      new_entity: 1.2,
+    };
+
+    let totalImpact = 0;
+
+    for (const update of payload.entity_updates || []) {
+      if (!update.entity_id) continue;
+
+      const importance = await this.importanceService.getEntityImportance(
+        campaignId,
+        update.entity_id,
+        true
+      );
+
+      const importanceMultiplier = importance / 100;
+      const changeType = (update as any).change_type || "entity_modified";
+      const weight =
+        changeTypeWeights[changeType as keyof typeof changeTypeWeights] ??
+        changeTypeWeights.entity_modified;
+
+      totalImpact += weight * importanceMultiplier;
+    }
+
+    for (const update of payload.relationship_updates || []) {
+      if (!update.from || !update.to) continue;
+
+      const fromImportance = await this.importanceService.getEntityImportance(
+        campaignId,
+        update.from,
+        true
+      );
+      const toImportance = await this.importanceService.getEntityImportance(
+        campaignId,
+        update.to,
+        true
+      );
+
+      const avgImportance = (fromImportance + toImportance) / 2;
+      const importanceMultiplier = avgImportance / 100;
+      const relationshipWeight = 1.0 + (avgImportance / 100) * 0.5;
+
+      totalImpact +=
+        changeTypeWeights.relationship_changed *
+        importanceMultiplier *
+        relationshipWeight;
+    }
+
+    for (const entity of payload.new_entities || []) {
+      if (!entity.entity_id) continue;
+
+      const importance = await this.importanceService.getEntityImportance(
+        campaignId,
+        entity.entity_id,
+        true
+      );
+
+      const importanceMultiplier = importance / 100;
+
+      totalImpact += changeTypeWeights.new_entity * importanceMultiplier;
+    }
+
+    return Math.max(0, totalImpact);
+  }
+
+  private calculateSimpleImpactScore(
+    payload: WorldStateChangelogPayload
+  ): number {
     const entityWeight = 1;
     const relationshipWeight = 1.5;
     const newEntityWeight = 1.2;

@@ -362,6 +362,7 @@ export function ShardGrid({
                         onSelect={handleSelectShard}
                         onEdit={onShardEdit}
                         onDelete={onShardDelete}
+                        campaignId={campaignId}
                       />
                     ) : (
                       <FlexibleShardCard
@@ -370,6 +371,7 @@ export function ShardGrid({
                         onSelect={handleSelectShard}
                         onEdit={onShardEdit}
                         onDelete={onShardDelete}
+                        campaignId={campaignId}
                       />
                     )}
                   </div>
