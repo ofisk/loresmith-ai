@@ -74,8 +74,13 @@ export class AgentRegistryService {
       const { CharacterSheetAgent } = await import(
         "../agents/character-sheet-agent"
       );
-      const { OnboardingAgent } = await import("../agents/onboarding-agent");
+      const { CampaignHelpAgent } = await import(
+        "../agents/campaign-help-agent"
+      );
       const { ResourceAgent } = await import("../agents/resource-agent");
+      const { SessionDigestAgent } = await import(
+        "../agents/session-digest-agent"
+      );
       const { AgentRouter } = await import("./agent-router");
 
       // Register Campaign Agent
@@ -105,13 +110,13 @@ export class AgentRegistryService {
         CharacterSheetAgent.agentMetadata.description
       );
 
-      // Register Onboarding Agent
+      // Register Campaign Help Agent
       AgentRouter.registerAgent(
-        OnboardingAgent.agentMetadata.type as AgentType,
-        OnboardingAgent,
-        OnboardingAgent.agentMetadata.tools,
-        OnboardingAgent.agentMetadata.systemPrompt,
-        OnboardingAgent.agentMetadata.description
+        CampaignHelpAgent.agentMetadata.type as AgentType,
+        CampaignHelpAgent,
+        CampaignHelpAgent.agentMetadata.tools,
+        CampaignHelpAgent.agentMetadata.systemPrompt,
+        CampaignHelpAgent.agentMetadata.description
       );
 
       // Register Resource Agent
@@ -121,6 +126,15 @@ export class AgentRegistryService {
         ResourceAgent.agentMetadata.tools,
         ResourceAgent.agentMetadata.systemPrompt,
         ResourceAgent.agentMetadata.description
+      );
+
+      // Register Session Digest Agent
+      AgentRouter.registerAgent(
+        SessionDigestAgent.agentMetadata.type as AgentType,
+        SessionDigestAgent,
+        SessionDigestAgent.agentMetadata.tools,
+        SessionDigestAgent.agentMetadata.systemPrompt,
+        SessionDigestAgent.agentMetadata.description
       );
 
       AgentRegistryService.initialized = true;

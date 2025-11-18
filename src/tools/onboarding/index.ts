@@ -13,10 +13,12 @@ import {
   getCampaignReadinessTool,
   getUserActivityTool,
 } from "./state-analysis-tools";
+import { getRecentSessionDigestsTool } from "./session-digest-tools";
 
 export * from "./external-resources-tools";
 export * from "./guidance-tools";
 export * from "./state-analysis-tools";
+export * from "./session-digest-tools";
 
 // Export the tools object for the agent
 export const onboardingTools = {
@@ -34,4 +36,7 @@ export const onboardingTools = {
   recommendExternalTools: recommendExternalToolsTool,
   suggestInspirationSources: suggestInspirationSourcesTool,
   recommendGMResources: recommendGMResourcesTool,
+
+  // Session digest tools
+  getRecentSessionDigests: getRecentSessionDigestsTool,
 } as const;

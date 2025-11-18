@@ -8,6 +8,7 @@ export type AgentType =
   | "character-sheets"
   | "onboarding"
   | "resources"
+  | "session-digest"
   | "shards";
 
 export interface AgentIntent {
@@ -155,6 +156,7 @@ Important routing rules:
 - If the message mentions "campaign" or campaign management → route to "campaign"
 - If the message mentions "character" or character sheets → route to "campaign-context"
 - If the message is asking for help or guidance → route to "onboarding"
+- If the message mentions "session recap", "record session", "session digest", "what happened last session", or similar session recap requests → route to "session-digest"
 - For file upload completion messages or processing status inquiries → route to "resources"
 
 Respond with only the agent name (${registeredAgents.join(", ")}) and a confidence score 0-100.
@@ -166,7 +168,9 @@ Examples:
 - "When will my uploaded file be searchable?" → resources|90|AutoRAG processing inquiry
 - "show me all campaigns" → campaign|85|Campaign listing request
 - "create a new campaign" → campaign|90|Campaign creation
-- "upload a character sheet" → campaign-context|85|Character sheet upload`;
+- "upload a character sheet" → campaign-context|85|Character sheet upload
+- "I want to record a session recap" → session-digest|95|Session recap request
+- "Let's create a session digest" → session-digest|90|Session digest creation`;
 
     try {
       // Use a simple LLM call to determine intent

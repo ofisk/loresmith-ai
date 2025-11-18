@@ -282,6 +282,74 @@ export default function Chat() {
     }
   }, [append, authState.getStoredJwt, selectedCampaignId]);
 
+  // Handle session recap request
+  const handleSessionRecapRequest = useCallback(async () => {
+    console.log("[App] Session recap request triggered");
+
+    if (!selectedCampaignId) {
+      console.error("No campaign selected for session recap");
+      return;
+    }
+
+    try {
+      const jwt = authState.getStoredJwt();
+      if (!jwt) {
+        console.error("No JWT available for session recap request");
+        return;
+      }
+
+      // Send a message to trigger session digest agent
+      const recapMessage =
+        "I want to record a session recap. Can you guide me through creating a session digest?";
+
+      await append({
+        id: generateId(),
+        role: "user",
+        content: recapMessage,
+        data: {
+          jwt: jwt,
+          campaignId: selectedCampaignId,
+        },
+      });
+    } catch (error) {
+      console.error("Error requesting session recap:", error);
+    }
+  }, [append, authState.getStoredJwt, selectedCampaignId]);
+
+  // Handle next steps request
+  const handleNextStepsRequest = useCallback(async () => {
+    console.log("[App] Next steps request triggered");
+
+    if (!selectedCampaignId) {
+      console.error("No campaign selected for next steps");
+      return;
+    }
+
+    try {
+      const jwt = authState.getStoredJwt();
+      if (!jwt) {
+        console.error("No JWT available for next steps request");
+        return;
+      }
+
+      // Send a message to trigger onboarding agent with campaign context
+      const nextStepsMessage =
+        "What should I do next for this campaign? Can you analyze my current state and provide personalized suggestions based on my campaign?";
+
+      await append({
+        id: generateId(),
+        role: "user",
+        content: nextStepsMessage,
+        data: {
+          jwt: jwt,
+          campaignId: selectedCampaignId,
+        },
+      });
+    } catch (error) {
+      console.error("Error requesting next steps:", error);
+    }
+  }, [append, authState.getStoredJwt, selectedCampaignId]);
+
   // Scroll to bottom when messages change
   useEffect(() => {
     // Only scroll if there are messages and we're not in the initial load
@@ -478,6 +546,8 @@ export default function Chat() {
             onClearHistory={handleClearHistory}
             onHelpAction={handleHelpAction}
             onGuidanceRequest={handleGuidanceRequest}
+            onSessionRecapRequest={handleSessionRecapRequest}
+            onNextStepsRequest={handleNextStepsRequest}
             notifications={allNotifications}
             onDismissNotification={dismissNotification}
             onClearAllNotifications={clearAllNotifications}

@@ -180,6 +180,12 @@ export const API_CONFIG = {
         OVERLAY: (campaignId: string) =>
           `/campaigns/${campaignId}/world-state/overlay`,
       },
+      SESSION_DIGESTS: {
+        BASE: (campaignId: string) =>
+          `/campaigns/${campaignId}/session-digests`,
+        DETAILS: (campaignId: string, digestId: string) =>
+          `/campaigns/${campaignId}/session-digests/${digestId}`,
+      },
     },
     CHARACTER_SHEETS: {
       // NOTE: Character sheets are currently handled as a separate entity type.
