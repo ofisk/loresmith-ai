@@ -88,6 +88,10 @@ import {
   handleDeleteSessionDigest,
 } from "@/routes/session-digests";
 import {
+  handleSearchPlanningContext,
+  handleGetRecentPlanningContext,
+} from "@/routes/planning-context";
+import {
   handleGetExternalResourceRecommendations,
   handleGetExternalResourceSearch,
   handleGetGmResources,
@@ -356,6 +360,17 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     ),
     requireUserJwt,
     handleDeleteSessionDigest
+  );
+
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_CONTEXT.SEARCH(":campaignId"),
+    requireUserJwt,
+    handleSearchPlanningContext
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_CONTEXT.RECENT(":campaignId"),
+    requireUserJwt,
+    handleGetRecentPlanningContext
   );
 
   app.get(
@@ -712,7 +727,18 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
   );
 
   app.get("/", async (c) => {
-    return c.env.ASSETS.fetch(new Request("https://example.com/index.html"));
+    try {
+      // Serve index.html from assets
+      const indexUrl = new URL(c.req.url);
+      indexUrl.pathname = "/index.html";
+      const assetResponse = await c.env.ASSETS.fetch(new Request(indexUrl));
+      if (assetResponse.status === 200) {
+        return assetResponse;
+      }
+    } catch (_error) {
+      console.log("Index.html not found in assets");
+    }
+    return new Response("Index.html not found", { status: 404 });
   });
 
   app.get("/assets/*", async (c) => {

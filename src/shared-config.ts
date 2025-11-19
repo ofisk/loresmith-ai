@@ -186,6 +186,12 @@ export const API_CONFIG = {
         DETAILS: (campaignId: string, digestId: string) =>
           `/campaigns/${campaignId}/session-digests/${digestId}`,
       },
+      PLANNING_CONTEXT: {
+        SEARCH: (campaignId: string) =>
+          `/campaigns/${campaignId}/planning-context/search`,
+        RECENT: (campaignId: string) =>
+          `/campaigns/${campaignId}/planning-context/recent`,
+      },
     },
     CHARACTER_SHEETS: {
       // NOTE: Character sheets are currently handled as a separate entity type.

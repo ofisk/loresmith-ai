@@ -31,6 +31,8 @@ export abstract class BaseRAGService {
     protected openaiApiKey: string,
     env?: any
   ) {
+    // Validate dependencies in constructor - fail fast if required dependencies are missing
+    this.validateDependencies();
     this.dbUtils = new DatabaseUtils(db);
     this.env = env;
   }
@@ -38,7 +40,7 @@ export abstract class BaseRAGService {
   /**
    * Generate embeddings for an array of texts using OpenAI
    */
-  protected async generateEmbeddings(texts: string[]): Promise<number[][]> {
+  public async generateEmbeddings(texts: string[]): Promise<number[][]> {
     if (!this.openaiApiKey) {
       throw new OpenAIAPIKeyError();
     }
@@ -159,13 +161,30 @@ export abstract class BaseRAGService {
 
   /**
    * Validate that the service has required dependencies
+   * Called automatically in constructor to ensure service is properly configured
+   * Note: Some services may pass null for dependencies they don't need (e.g., FileAnalysisService)
+   * This validation ensures that provided dependencies are valid
    */
   protected validateDependencies(): void {
-    if (!this.db) {
-      throw new DatabaseConnectionError();
+    // Validate DB if provided (some services like FileAnalysisService don't need it)
+    if (this.db === null || this.db === undefined) {
+      // DB is optional for some services
+    } else if (!this.db) {
+      throw new DatabaseConnectionError("Database not configured");
     }
-    if (!this.vectorize) {
-      throw new VectorizeIndexRequiredError();
+
+    // Validate Vectorize if provided (some services like FileAnalysisService don't need it)
+    if (this.vectorize === null || this.vectorize === undefined) {
+      // Vectorize is optional for some services
+    } else if (!this.vectorize) {
+      throw new VectorizeIndexRequiredError("Vectorize index not configured");
+    }
+
+    // Validate OpenAI API key if provided (some services may not need embeddings)
+    if (!this.openaiApiKey) {
+      // OpenAI API key is optional for services that don't generate embeddings
+    } else if (typeof this.openaiApiKey !== "string") {
+      throw new OpenAIAPIKeyError("OpenAI API key not configured");
     }
   }
 

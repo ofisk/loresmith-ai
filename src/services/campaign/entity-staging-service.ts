@@ -53,6 +53,40 @@ function chunkTextByPages(text: string, maxChunkSize: number): string[] {
   return chunks.length > 0 ? chunks : [text];
 }
 
+/**
+ * Chunk text by character count, trying to break at word boundaries
+ */
+function chunkTextByCharacterCount(
+  text: string,
+  maxChunkSize: number
+): string[] {
+  const chunks: string[] = [];
+  let currentPos = 0;
+
+  while (currentPos < text.length) {
+    const remainingText = text.slice(currentPos);
+    let chunkSize = Math.min(maxChunkSize, remainingText.length);
+
+    // Try to break at word boundary (space or newline)
+    if (chunkSize < remainingText.length) {
+      const lastSpace = remainingText.lastIndexOf(" ", chunkSize);
+      const lastNewline = remainingText.lastIndexOf("\n", chunkSize);
+      const breakPoint = Math.max(lastSpace, lastNewline);
+
+      // Only break at word boundary if it's not too far back (within 20% of chunk size)
+      if (breakPoint > chunkSize * 0.8) {
+        chunkSize = breakPoint;
+      }
+    }
+
+    const chunk = remainingText.slice(0, chunkSize);
+    chunks.push(chunk);
+    currentPos += chunkSize;
+  }
+
+  return chunks.length > 0 ? chunks : [text];
+}
+
 export interface EntityStagingResult {
   success: boolean;
   entityCount: number;
@@ -164,24 +198,52 @@ export async function stageEntitiesFromResource(
     const fileContent = extractionResult.content;
     const isPDF = extractionResult.metadata?.isPDF || false;
 
-    // Chunk content if it's a large PDF (estimate ~4 chars per token, max ~128k tokens for gpt-4o)
-    // We'll use a conservative limit of ~400k characters to stay well under token limits
-    const MAX_CHUNK_SIZE = 400000; // ~100k tokens
+    // Chunk content to respect GPT-4o TPM (tokens per minute) limits: 30,000 tokens per request
+    // Token estimation: ~4 characters per token for English text
+    // We need to account for:
+    // - System prompt: ~3,000 tokens
+    // - Max response: ~16,384 tokens (MAX_EXTRACTION_RESPONSE_TOKENS)
+    // - Content: 30,000 - 3,000 - 16,384 = ~10,616 tokens = ~42,000 characters
+    // Using conservative estimate to leave safety margin for prompt variations
+    const CHARS_PER_TOKEN = 4;
+    const PROMPT_TOKENS_ESTIMATE = 3000;
+    const MAX_RESPONSE_TOKENS = 16384;
+    const TPM_LIMIT = 30000;
+    const MAX_CONTENT_TOKENS =
+      TPM_LIMIT - PROMPT_TOKENS_ESTIMATE - MAX_RESPONSE_TOKENS;
+    const MAX_CHUNK_SIZE = Math.floor(MAX_CONTENT_TOKENS * CHARS_PER_TOKEN); // ~42k characters (~10.6k tokens)
+
     const chunks =
-      isPDF && fileContent.length > MAX_CHUNK_SIZE
-        ? chunkTextByPages(fileContent, MAX_CHUNK_SIZE)
+      fileContent.length > MAX_CHUNK_SIZE
+        ? isPDF
+          ? chunkTextByPages(fileContent, MAX_CHUNK_SIZE)
+          : chunkTextByCharacterCount(fileContent, MAX_CHUNK_SIZE)
         : [fileContent];
 
     console.log(
-      `[EntityStaging] Processing ${chunks.length} chunk(s) for resource: ${normalizedResource.id}`
+      `[EntityStaging] Processing ${chunks.length} chunk(s) for resource: ${normalizedResource.id} (max chunk size: ${MAX_CHUNK_SIZE} chars, ~${Math.floor(MAX_CHUNK_SIZE / CHARS_PER_TOKEN)} tokens)`
     );
 
     // Extract entities from each chunk and merge results
     const extractionService = new EntityExtractionService(openaiApiKey);
     const allExtractedEntities: Map<string, ExtractedEntity> = new Map();
 
+    // Rate limit: Process chunks with delay to respect TPM limits
+    // If processing multiple chunks, add a delay to stay under 30k tokens per minute
+    const CHUNK_PROCESSING_DELAY_MS = chunks.length > 1 ? 2000 : 0; // 2 second delay between chunks
+
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
+
+      // Add delay before processing (except for first chunk)
+      if (i > 0 && CHUNK_PROCESSING_DELAY_MS > 0) {
+        console.log(
+          `[EntityStaging] Rate limiting: waiting ${CHUNK_PROCESSING_DELAY_MS}ms before processing chunk ${i + 1}/${chunks.length}`
+        );
+        await new Promise((resolve) =>
+          setTimeout(resolve, CHUNK_PROCESSING_DELAY_MS)
+        );
+      }
       const chunkEntities = await extractionService.extractEntities({
         content: chunk,
         sourceName: normalizedResource.file_name || normalizedResource.id,

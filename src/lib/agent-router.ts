@@ -5,7 +5,10 @@ import { AgentNotRegisteredError } from "@/lib/errors";
 export type AgentType =
   | "campaign"
   | "campaign-context"
+  | "campaign-analysis"
+  | "character"
   | "character-sheets"
+  | "entity-graph"
   | "onboarding"
   | "resources"
   | "session-digest"

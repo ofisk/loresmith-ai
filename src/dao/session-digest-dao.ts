@@ -142,6 +142,92 @@ export class SessionDigestDAO extends BaseDAOClass {
   }
 
   /**
+   * Get session digests by date range for a campaign
+   */
+  async getSessionDigestsByDateRange(
+    campaignId: string,
+    fromDate?: string,
+    toDate?: string
+  ): Promise<SessionDigestWithData[]> {
+    const conditions: string[] = ["campaign_id = ?"];
+    const params: any[] = [campaignId];
+
+    if (fromDate) {
+      conditions.push("session_date >= ?");
+      params.push(fromDate);
+    }
+
+    if (toDate) {
+      conditions.push("session_date <= ?");
+      params.push(toDate);
+    }
+
+    const sql = `
+      SELECT 
+        id,
+        campaign_id,
+        session_number,
+        session_date,
+        digest_data,
+        created_at,
+        updated_at
+      FROM session_digests
+      WHERE ${conditions.join(" AND ")}
+      ORDER BY session_number DESC, created_at DESC
+    `;
+
+    const records = await this.queryAll<SessionDigest>(sql, params);
+    return records.map((record) => this.mapRecord(record));
+  }
+
+  /**
+   * Get recent session digests for a campaign
+   */
+  async getRecentSessionDigests(
+    campaignId: string,
+    limit: number = 10
+  ): Promise<SessionDigestWithData[]> {
+    const sql = `
+      SELECT 
+        id,
+        campaign_id,
+        session_number,
+        session_date,
+        digest_data,
+        created_at,
+        updated_at
+      FROM session_digests
+      WHERE campaign_id = ?
+      ORDER BY session_number DESC, created_at DESC
+      LIMIT ?
+    `;
+
+    const records = await this.queryAll<SessionDigest>(sql, [
+      campaignId,
+      limit,
+    ]);
+    return records.map((record) => this.mapRecord(record));
+  }
+
+  /**
+   * Get the maximum session number for a campaign
+   */
+  async getMaxSessionNumber(campaignId: string): Promise<number | null> {
+    const sql = `
+      SELECT MAX(session_number) as max_session_number
+      FROM session_digests
+      WHERE campaign_id = ?
+    `;
+
+    const result = await this.queryFirst<{ max_session_number: number | null }>(
+      sql,
+      [campaignId]
+    );
+
+    return result?.max_session_number ?? null;
+  }
+
+  /**
    * Update a session digest
    */
   async updateSessionDigest(

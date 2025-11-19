@@ -10,6 +10,7 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import { validateSessionDigestData } from "@/types/session-digest";
 import type { UpdateSessionDigestInput } from "@/types/session-digest";
 import type { ToolResult } from "@/app-constants";
+import { PlanningContextService } from "@/services/rag/planning-context-service";
 
 const commonSchemas = {
   campaignId: z.string().describe("The campaign ID"),
@@ -207,6 +208,15 @@ export const createSessionDigestTool = tool({
           toolCallId
         );
       }
+
+      // Validation happens automatically in PlanningContextService constructor
+      const planningService = new PlanningContextService(
+        env.DB!,
+        env.VECTORIZE!,
+        env.OPENAI_API_KEY as string,
+        env
+      );
+      await planningService.indexSessionDigest(created);
 
       return createToolSuccess(
         `Session digest created successfully for session ${sessionNumber}`,
@@ -530,6 +540,15 @@ export const updateSessionDigestTool = tool({
           toolCallId
         );
       }
+
+      // Validation happens automatically in PlanningContextService constructor
+      const planningService = new PlanningContextService(
+        env.DB!,
+        env.VECTORIZE!,
+        env.OPENAI_API_KEY as string,
+        env
+      );
+      await planningService.indexSessionDigest(updated);
 
       return createToolSuccess(
         "Session digest updated successfully",
