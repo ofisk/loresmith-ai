@@ -145,7 +145,17 @@ chmod +x scripts/migrate-local.sh
 
 This will create all necessary tables including `user_openai_keys`, `campaigns`, `file_metadata`, etc.
 
-#### 3. Start the Cloudflare Worker server
+#### 3. Build the Frontend (First Time Only)
+
+Before starting the dev server for the first time, build the frontend to create the required `dist` directory:
+
+```bash
+npm run build
+```
+
+**Note**: You only need to do this once. During development, `npm start` will run Vite with hot module replacement, so you won't need to rebuild after each UI change.
+
+#### 4. Start the Cloudflare Worker server
 
 The backend server runs as a Cloudflare Worker. Start it using the local configuration:
 
@@ -159,7 +169,7 @@ wrangler dev --config wrangler.local.jsonc --port 8787 --local
 
 This will start the server locally at `http://localhost:8787` and provide you with a local endpoint for API requests.
 
-#### 4. Start the React client
+#### 5. Start the React client
 
 In a separate terminal, start the client development server:
 
@@ -167,16 +177,16 @@ In a separate terminal, start the client development server:
 npm start
 ```
 
-This will launch the React frontend at `http://localhost:5173`.
+This will launch the React frontend at `http://localhost:5173` with hot module replacement for instant UI updates.
 
-#### 5. Access the Application
+#### 6. Access the Application
 
 Open your browser and navigate to:
 
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:8787
 
-#### 6. Authenticate
+#### 7. Authenticate
 
 When you first access the application, you'll need to authenticate:
 
