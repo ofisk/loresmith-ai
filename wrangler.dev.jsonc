@@ -40,10 +40,6 @@
         "name": "NOTIFICATIONS",
         "class_name": "NotificationHub",
       },
-      {
-        "name": "AUTORAG_POLLING",
-        "class_name": "AutoRAGPollingDO",
-      },
     ],
   },
   "r2_buckets": [

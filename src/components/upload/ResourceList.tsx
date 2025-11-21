@@ -71,9 +71,9 @@ export function ResourceList({
           return;
         }
 
-        // Call the retry endpoint
+        // Call the RAG process file endpoint to retry processing
         const retryUrl = API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.AUTORAG.RETRY_FILE
+          API_CONFIG.ENDPOINTS.RAG.PROCESS_FILE
         );
         const response = await authenticatedFetchWithExpiration(retryUrl, {
           method: "POST",

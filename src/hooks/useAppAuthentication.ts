@@ -88,12 +88,19 @@ export function useAppAuthentication() {
   const handleAuthenticationSubmit = useCallback(
     async (username: string, adminKey: string, openaiApiKey: string) => {
       try {
+        // Get session ID from localStorage to ensure we target the correct Chat Durable Object
+        const sessionId =
+          typeof window !== "undefined"
+            ? localStorage.getItem("chat-session-id") || "default"
+            : "default";
+
         const response = await fetch(
           API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
+              "X-Session-ID": sessionId, // Include session ID to target the correct Chat Durable Object
             },
             body: JSON.stringify({
               username,

@@ -1,9 +1,5 @@
 import { BaseRAGService } from "@/services/rag/base-rag-service";
-
-const AUTORAG_ENDPOINTS = {
-  SEARCH: "/search",
-  AI_SEARCH: "/ai-search",
-} as const;
+import { LibraryRAGService } from "@/services/rag/rag-service";
 
 export interface FileAnalysisResult {
   content_summary: string;
@@ -25,33 +21,26 @@ export interface FileAnalysisRequest {
 }
 
 export class FileAnalysisService extends BaseRAGService {
-  private apiToken: string;
-  private searchUrl: string;
+  private libraryRAGService: LibraryRAGService;
 
   constructor(env: any) {
     // Initialize with dummy values since we don't need the base RAG functionality
-    // We only need the AutoRAG query capability
+    // We only need the LibraryRAGService search capability
     super(null as any, null as any, "", env);
-    this.apiToken = env.AUTORAG_API_TOKEN;
-    this.searchUrl = `${env.AUTORAG_BASE_URL}${AUTORAG_ENDPOINTS.SEARCH}`;
+    this.libraryRAGService = new LibraryRAGService(env);
   }
 
   /**
-   * Analyze a file using AutoRAG to generate enhanced metadata
+   * Analyze a file using LibraryRAGService to generate enhanced metadata
    */
   async analyzeFile(request: FileAnalysisRequest): Promise<FileAnalysisResult> {
     try {
-      // Query AutoRAG to understand the file content
+      // Query LibraryRAGService to understand the file content
       const analysisPrompt = this.buildAnalysisPrompt(request);
-      const searchResults = await this.queryAutoRAG(
+      const searchResults = await this.libraryRAGService.searchContent(
+        request.username,
         analysisPrompt,
-        this.searchUrl,
-        this.apiToken,
-        {
-          maxResults: 5,
-          includeMetadata: true,
-          includeChunks: false,
-        }
+        5
       );
 
       // Parse and structure the analysis results
@@ -110,18 +99,23 @@ Focus on making this resource discoverable and useful for campaign planning and 
   ): Promise<FileAnalysisResult> {
     try {
       // Extract the most relevant result and use it to generate analysis
-      const results = searchResults.result?.results || [];
+      // LibraryRAGService.searchContent returns an array of results
+      const results = Array.isArray(searchResults) ? searchResults : [];
 
       if (results.length === 0) {
-        throw new Error("No AutoRAG results found for analysis");
+        throw new Error("No LibraryRAGService results found for analysis");
       }
 
-      // Extract content from AutoRAG results to generate analysis
+      // Extract content from LibraryRAGService results to generate analysis
       const primaryResult = results[0];
-      const resultText = primaryResult.text || primaryResult.content || "";
+      const resultText =
+        primaryResult.text ||
+        primaryResult.content ||
+        primaryResult.summary ||
+        "";
 
-      // Parse the structured response from AutoRAG
-      const analysis = this.parseAutoRAGResponse(resultText);
+      // Parse the structured response
+      const analysis = this.parseResponse(resultText);
       return analysis;
     } catch (error) {
       console.error(
@@ -133,11 +127,11 @@ Focus on making this resource discoverable and useful for campaign planning and 
   }
 
   /**
-   * Parse structured analysis response from AutoRAG
+   * Parse structured analysis response
    */
-  private parseAutoRAGResponse(content: string): FileAnalysisResult {
+  private parseResponse(content: string): FileAnalysisResult {
     try {
-      // Try to extract JSON from the AutoRAG response
+      // Try to extract JSON from the LibraryRAGService response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
@@ -167,14 +161,16 @@ Focus on making this resource discoverable and useful for campaign planning and 
       }
 
       // Fallback if no JSON found
-      throw new Error("No structured JSON response found in AutoRAG output");
+      throw new Error(
+        "No structured JSON response found in LibraryRAGService output"
+      );
     } catch (error) {
       console.error(
-        "[FileAnalysisService] Failed to parse AutoRAG response:",
+        "[FileAnalysisService] Failed to parse LibraryRAGService response:",
         error
       );
       throw new Error(
-        `Failed to parse AutoRAG analysis response: ${error instanceof Error ? error.message : "Invalid format"}`
+        `Failed to parse LibraryRAGService analysis response: ${error instanceof Error ? error.message : "Invalid format"}`
       );
     }
   }

@@ -8,10 +8,9 @@ import { ModelManager } from "@/lib/model-manager";
 import { AgentRegistryService } from "@/lib/agent-registry";
 import type { AuthEnv } from "@/services/core/auth-service";
 import { AuthService } from "@/services/core/auth-service";
-import {
-  AuthenticationRequiredError,
-  EnvironmentVariableError,
-} from "@/lib/errors";
+import { AuthenticationRequiredError, OpenAIAPIKeyError } from "@/lib/errors";
+import { notifyAuthenticationRequired } from "@/lib/notifications";
+import type { Env as MiddlewareEnv } from "@/middleware/auth";
 
 interface Env extends AuthEnv {
   ADMIN_SECRET?: string;
@@ -45,21 +44,94 @@ export class Chat extends AIChatAgent<Env> {
   }
 
   /**
-   * Load the user's OpenAI API key from storage
+   * Extract and store JWT token from message data if available
+   * @param lastUserMessage - The last user message to extract JWT from
+   * @returns The JWT token if found in storage or message data, null otherwise
+   */
+  private async extractAndStoreJwtFromMessage(
+    lastUserMessage: any
+  ): Promise<string | null> {
+    // First check durable object storage
+    let jwtToken = await this.ctx.storage.get<string>(JWT_STORAGE_KEY);
+
+    // If not in storage, try to extract from message data
+    if (
+      !jwtToken &&
+      lastUserMessage &&
+      "data" in lastUserMessage &&
+      lastUserMessage.data
+    ) {
+      const messageData = lastUserMessage.data as { jwt?: string };
+      if (messageData.jwt) {
+        jwtToken = messageData.jwt;
+        await this.ctx.storage.put(JWT_STORAGE_KEY, jwtToken);
+        console.log("[Chat] Extracted and stored JWT token from message data");
+      }
+    }
+
+    return jwtToken || null;
+  }
+
+  /**
+   * Load the user's OpenAI API key from storage or database
    */
   private async loadUserOpenAIKey() {
     try {
-      const storedKey = await this.ctx.storage.get<string>("userOpenAIKey");
+      // First check durable object storage
+      let storedKey = await this.ctx.storage.get<string>("userOpenAIKey");
+
       if (storedKey) {
-        console.log("Loaded user OpenAI API key from storage");
+        console.log(
+          "[Chat] Loaded user OpenAI API key from durable object storage"
+        );
         this.userOpenAIKey = storedKey;
         await this.initializeAgents(storedKey);
-      } else {
-        console.log("No user API key stored - will use default OPENAI_API_KEY");
-        await this.initializeAgents(null);
+        return;
       }
+
+      // If not in storage, try loading from database if we have a JWT token
+      const jwtToken = await this.ctx.storage.get<string>(JWT_STORAGE_KEY);
+      if (jwtToken) {
+        const username = AuthService.parseJwtForUsername(jwtToken);
+        if (username && this.env.DB) {
+          console.log(
+            "[Chat] Key not in storage, loading from database for user:",
+            username
+          );
+          const dbKey = await AuthService.loadUserOpenAIKeyWithCache(
+            username,
+            this.env.DB,
+            this
+          );
+
+          if (dbKey) {
+            console.log(
+              "[Chat] Loaded user OpenAI API key from database, storing in durable object"
+            );
+            storedKey = dbKey;
+            this.userOpenAIKey = dbKey;
+            await this.ctx.storage.put("userOpenAIKey", dbKey);
+            await this.initializeAgents(dbKey);
+            return;
+          }
+        }
+      }
+
+      console.log(
+        "[Chat] No user API key found in storage or database - user must authenticate through the application"
+      );
+      // Don't initialize agents if no key is stored - this will cause an error
+      // when onChatMessage is called, which will trigger the authentication flow
     } catch (error) {
-      console.error("Error loading user OpenAI API key:", error);
+      console.error("[Chat] Error loading user OpenAI API key:", error);
+      // Re-throw authentication errors so they can be handled properly
+      if (
+        error instanceof AuthenticationRequiredError ||
+        error instanceof OpenAIAPIKeyError
+      ) {
+        throw error;
+      }
+      // For other errors, log but don't throw - allow onChatMessage to handle auth errors
     }
   }
 
@@ -71,14 +143,9 @@ export class Chat extends AIChatAgent<Env> {
         modelManager.initializeModel(openAIAPIKey);
         console.log("[Chat] Initialized model with user OpenAI API key");
       } else {
-        if (!this.env.OPENAI_API_KEY) {
-          throw new EnvironmentVariableError(
-            "OPENAI_API_KEY",
-            "OPENAI_API_KEY is required for application functionality"
-          );
-        }
-        modelManager.initializeModel(this.env.OPENAI_API_KEY);
-        console.log("[Chat] Initialized model with default OPENAI_API_KEY");
+        throw new OpenAIAPIKeyError(
+          "OpenAI API key is required. Please authenticate through the application to provide your OpenAI API key."
+        );
       }
 
       const registeredAgentTypes =
@@ -212,87 +279,183 @@ export class Chat extends AIChatAgent<Env> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
-    const lastUserMessage = this.messages
-      .slice()
-      .reverse()
-      .find((msg) => msg.role === "user");
+    try {
+      const lastUserMessage = this.messages
+        .slice()
+        .reverse()
+        .find((msg) => msg.role === "user");
 
-    if (this.agents.size === 0) {
-      const jwtToken = await this.ctx.storage.get<string>(JWT_STORAGE_KEY);
+      // Extract JWT from message data if available and store it
+      const jwtToken =
+        await this.extractAndStoreJwtFromMessage(lastUserMessage);
 
-      if (!jwtToken) {
-        console.log(
-          "[Chat] No JWT token found in storage, requiring authentication"
+      if (this.agents.size === 0) {
+        if (!jwtToken) {
+          console.log(
+            "[Chat] No JWT token found in storage or message data, requiring authentication"
+          );
+
+          // Try to get username from message data JWT if available (for notification purposes)
+          let username: string | null = null;
+          if (
+            lastUserMessage &&
+            "data" in lastUserMessage &&
+            lastUserMessage.data
+          ) {
+            const messageData = lastUserMessage.data as { jwt?: string };
+            if (messageData.jwt) {
+              try {
+                username = AuthService.parseJwtForUsername(messageData.jwt);
+              } catch (error) {
+                console.warn(
+                  "[Chat] Failed to parse username from message data JWT:",
+                  error
+                );
+              }
+            }
+          }
+
+          // Send notification if we have a username, otherwise just throw error
+          if (username) {
+            try {
+              await notifyAuthenticationRequired(
+                this.env as unknown as MiddlewareEnv,
+                username,
+                "OpenAI API key required. Please authenticate to continue."
+              );
+            } catch (notifyError) {
+              console.error(
+                "[Chat] Failed to send authentication notification:",
+                notifyError
+              );
+            }
+          }
+
+          throw new AuthenticationRequiredError(
+            "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
+          );
+        }
+
+        const username = AuthService.parseJwtForUsername(jwtToken);
+        const authResult = await AuthService.handleAgentAuthentication(
+          username,
+          this.messages.some((msg) => msg.role === "user"),
+          this.env.DB,
+          this,
+          jwtToken
         );
-        throw new AuthenticationRequiredError(
-          "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
-        );
+
+        if (!authResult.shouldProceed) {
+          console.log("[Chat] Authentication failed, requiring authentication");
+          throw new AuthenticationRequiredError(
+            "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
+          );
+        }
+
+        if (authResult.openAIAPIKey) {
+          console.log("[Chat] Initializing agents with user OpenAI API key");
+          // Store the key in durable object storage for persistence
+          this.userOpenAIKey = authResult.openAIAPIKey;
+          await this.ctx.storage.put("userOpenAIKey", authResult.openAIAPIKey);
+          await this.initializeAgents(authResult.openAIAPIKey);
+        } else {
+          console.log(
+            "[Chat] No user OpenAI API key found, requiring authentication"
+          );
+          throw new AuthenticationRequiredError(
+            "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
+          );
+        }
       }
 
-      const username = AuthService.parseJwtForUsername(jwtToken);
-      const authResult = await AuthService.handleAgentAuthentication(
-        username,
-        this.messages.some((msg) => msg.role === "user"),
-        this.env.DB,
-        this,
-        jwtToken
-      );
+      if (!lastUserMessage) {
+        if (this.agents.size === 0) {
+          console.log(
+            "[Chat] No agents initialized and no user messages, returning empty response"
+          );
+          return;
+        }
 
-      if (!authResult.shouldProceed) {
-        console.log("[Chat] Authentication failed, requiring authentication");
-        throw new AuthenticationRequiredError(
-          "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
-        );
+        const targetAgentInstance = this.getAgentInstance("campaign-context");
+        targetAgentInstance.messages = [...this.messages];
+        return targetAgentInstance.onChatMessage(onFinish, {
+          abortSignal: _options?.abortSignal,
+        });
       }
 
-      if (authResult.openAIAPIKey) {
-        console.log("[Chat] Initializing agents with user OpenAI API key");
-        await this.initializeAgents(authResult.openAIAPIKey);
-      } else {
-        console.log(
-          "[Chat] No user OpenAI API key found, requiring authentication"
-        );
-        throw new AuthenticationRequiredError(
-          "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
-        );
-      }
-    }
-
-    if (!lastUserMessage) {
       if (this.agents.size === 0) {
         console.log(
-          "[Chat] No agents initialized and no user messages, returning empty response"
+          "[Chat] Agents not initialized for message processing, requiring authentication"
         );
-        return;
+        throw new AuthenticationRequiredError(
+          "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
+        );
       }
 
-      const targetAgentInstance = this.getAgentInstance("campaign-context");
+      const targetAgent = await this.determineAgent(lastUserMessage.content);
+      console.log(
+        `[Chat] Routing to ${targetAgent} agent for message: "${lastUserMessage.content}"`
+      );
+
+      const targetAgentInstance = this.getAgentInstance(targetAgent);
       targetAgentInstance.messages = [...this.messages];
+
       return targetAgentInstance.onChatMessage(onFinish, {
         abortSignal: _options?.abortSignal,
       });
+    } catch (error) {
+      // Ensure authentication errors are properly propagated to the client
+      if (
+        error instanceof AuthenticationRequiredError ||
+        error instanceof OpenAIAPIKeyError
+      ) {
+        console.error("[Chat] Authentication error in onChatMessage:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+
+        // Send structured notification via notification stream
+        try {
+          // Try to get JWT token from storage or message data
+          const lastUserMessage = this.messages
+            .slice()
+            .reverse()
+            .find((msg) => msg.role === "user");
+          const jwtToken =
+            await this.extractAndStoreJwtFromMessage(lastUserMessage);
+
+          if (jwtToken) {
+            const username = AuthService.parseJwtForUsername(jwtToken);
+            if (username) {
+              await notifyAuthenticationRequired(
+                this.env as unknown as MiddlewareEnv,
+                username,
+                errorMessage
+              );
+              console.log(
+                "[Chat] Sent authentication notification to user:",
+                username
+              );
+            }
+          } else {
+            console.log(
+              "[Chat] No JWT token available to send authentication notification"
+            );
+          }
+        } catch (notifyError) {
+          console.error(
+            "[Chat] Failed to send authentication notification:",
+            notifyError
+          );
+        }
+
+        // Re-throw the error so the framework propagates it to the client's onError callback
+        // The notification system will also trigger the auth modal if possible
+        throw error;
+      }
+      // For other errors, log and re-throw
+      console.error("[Chat] Error in onChatMessage:", error);
+      throw error;
     }
-
-    if (this.agents.size === 0) {
-      console.log(
-        "[Chat] Agents not initialized for message processing, requiring authentication"
-      );
-      throw new AuthenticationRequiredError(
-        "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
-      );
-    }
-
-    const targetAgent = await this.determineAgent(lastUserMessage.content);
-    console.log(
-      `[Chat] Routing to ${targetAgent} agent for message: "${lastUserMessage.content}"`
-    );
-
-    const targetAgentInstance = this.getAgentInstance(targetAgent);
-    targetAgentInstance.messages = [...this.messages];
-
-    return targetAgentInstance.onChatMessage(onFinish, {
-      abortSignal: _options?.abortSignal,
-    });
   }
 
   /**
@@ -313,6 +476,28 @@ export class Chat extends AIChatAgent<Env> {
     }
 
     return agentInstance;
+  }
+
+  /**
+   * Override onError to properly handle authentication errors and send them to the client
+   */
+  override onError(error: unknown): void {
+    // Check if this is an authentication error
+    if (
+      error instanceof AuthenticationRequiredError ||
+      error instanceof OpenAIAPIKeyError
+    ) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error("[Chat] Authentication error in onError:", errorMessage);
+
+      // The error will be caught by the AIChatAgent framework and sent to the client
+      // We just need to ensure it's properly thrown so the framework can handle it
+      super.onError(error);
+    } else {
+      // For other errors, call the parent implementation
+      super.onError(error);
+    }
   }
 
   async executeTask(description: string, _task: Schedule<string>) {

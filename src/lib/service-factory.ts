@@ -7,13 +7,13 @@ import { AssessmentService } from "@/services/core/assessment-service";
 import { AuthService } from "@/services/core/auth-service";
 import { CampaignService } from "@/services/campaign/campaign-service";
 import { ErrorHandlingService } from "@/services/core/error-handling-service";
-import { LibraryAutoRAGClient } from "@/services/rag/library-autorag-service";
 import { LibraryService } from "@/services/core/library-service";
 import { MetadataService } from "@/services/core/metadata-service";
 import { AgentRegistryService } from "./agent-registry";
 import { AgentRouter } from "./agent-router";
 import { CampaignRAGService } from "./campaignRag";
 import { ModelManager } from "./model-manager";
+import { LibraryRAGService } from "@/services/rag/rag-service";
 
 // Service factory class with per-request caching
 export class ServiceFactory {
@@ -155,43 +155,6 @@ export class ServiceFactory {
     return ServiceFactory.services.get(key);
   }
 
-  /**
-   * Get library AutoRAG service for searching library content
-   */
-  static getLibraryAutoRAGService(
-    env: Env,
-    username?: string
-  ): LibraryAutoRAGClient {
-    console.log(`[ServiceFactory] getLibraryAutoRAGService called with env:`, {
-      hasAutoragBaseUrl: !!env.AUTORAG_BASE_URL,
-      autoragBaseUrl: env.AUTORAG_BASE_URL,
-      username,
-      envKeys: Object.keys(env).filter((key) => key.includes("AUTORAG")),
-    });
-
-    const key = `library-auto-rag-${env.AUTORAG_BASE_URL}-${username || "no-user"}`;
-    console.log(`[ServiceFactory] Getting library AutoRAG service: ${key}`);
-    if (!ServiceFactory.services.has(key)) {
-      if (!env.AUTORAG_BASE_URL) {
-        throw new Error(
-          `AUTORAG_BASE_URL environment variable is not set. Available AUTORAG env vars: ${Object.keys(
-            env
-          )
-            .filter((key) => key.includes("AUTORAG"))
-            .join(", ")}`
-        );
-      }
-
-      console.log(`[ServiceFactory] Setting library AutoRAG service: ${key}`);
-      ServiceFactory.services.set(
-        key,
-        new LibraryAutoRAGClient(env, env.AUTORAG_BASE_URL, username)
-      );
-    }
-    console.log(`[ServiceFactory] Returning library AutoRAG service: ${key}`);
-    return ServiceFactory.services.get(key);
-  }
-
   // Get or create AgentRouter (static class, no instance needed)
   static getAgentRouter(env: Env): typeof AgentRouter {
     const key = `agent-router-${env.DB ? "has-db" : "no-db"}`;
@@ -202,7 +165,7 @@ export class ServiceFactory {
   }
 }
 
-// Helper functions for backward compatibility
+// Helper functions for service access
 export const getAssessmentService = (env: Env) =>
   ServiceFactory.getAssessmentService(env);
 
@@ -232,7 +195,7 @@ export const initializeAgentRegistry = (env: Env) =>
 export const getCampaignRAGService = (env: Env) =>
   ServiceFactory.getCampaignRAGService(env);
 
-export const getLibraryAutoRAGService = (env: Env, username?: string) =>
-  ServiceFactory.getLibraryAutoRAGService(env, username);
-
 export const getAgentRouter = (env: Env) => ServiceFactory.getAgentRouter(env);
+
+// Re-export LibraryRAGService for convenience
+export { LibraryRAGService };

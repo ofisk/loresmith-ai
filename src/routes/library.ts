@@ -3,10 +3,7 @@
 
 import { type Context, Hono } from "hono";
 import { getDAOFactory } from "@/dao/dao-factory";
-import {
-  getLibraryAutoRAGService,
-  getLibraryService,
-} from "@/lib/service-factory";
+import { LibraryRAGService, getLibraryService } from "@/lib/service-factory";
 import { requireUserJwt } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import type { SearchQuery } from "@/types/upload";
@@ -75,25 +72,27 @@ export const handleSearchFiles = async (
       includeSemantic,
     };
 
-    const ragService = getLibraryAutoRAGService(c.env, userId);
-    const results = await ragService.aiSearch(searchQuery.query, {
-      max_results: searchQuery.limit,
-    });
+    const ragService = new LibraryRAGService(c.env);
+    const results = await ragService.searchContent(
+      userId,
+      searchQuery.query,
+      searchQuery.limit
+    );
 
     console.log(`[Library] Search results:`, {
       query,
       userId,
-      resultsCount: results?.data?.length || 0,
+      resultsCount: Array.isArray(results) ? results.length : 0,
     });
 
     return c.json({
       success: true,
-      results: results?.data || [],
+      results: Array.isArray(results) ? results : [],
       query,
       pagination: {
         limit,
         offset,
-        total: results?.data?.length || 0,
+        total: Array.isArray(results) ? results.length : 0,
       },
     });
   } catch (error) {

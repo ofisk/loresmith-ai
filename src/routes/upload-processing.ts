@@ -10,7 +10,7 @@ import type { Env } from "@/middleware/auth";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
 
 /**
- * Process a file with AutoRAG and update status
+ * Process a file with LibraryRAGService and update status
  */
 export async function processFileWithAutoRAG(
   env: Env,
@@ -22,8 +22,8 @@ export async function processFileWithAutoRAG(
 ): Promise<void> {
   const scopedLog = logger.scope(logPrefix);
 
-  return scopedLog.operation("AUTORAG PROCESSING", async () => {
-    scopedLog.debug("Starting AutoRAG processing", {
+  return scopedLog.operation("FILE PROCESSING", async () => {
+    scopedLog.debug("Starting file processing", {
       file: filename,
       fileKey,
       user: userId,
@@ -47,7 +47,7 @@ export async function processFileWithAutoRAG(
     // Update database status to UPLOADED
     await updateFileStatusToUploaded(env, fileKey, fileDAO, scopedLog);
 
-    // Trigger AutoRAG processing
+    // Trigger file indexing with LibraryRAGService
     const result = await SyncQueueService.processFileUpload(
       env,
       userId,
@@ -56,7 +56,7 @@ export async function processFileWithAutoRAG(
       jwt
     );
 
-    scopedLog.debug("AutoRAG processing initiated", { result });
+    scopedLog.debug("File processing initiated", { result });
 
     // Force SYNCING state for UI responsiveness
     await markFileAsSyncing(env, fileKey, userId, filename, fileDAO, scopedLog);
@@ -145,7 +145,7 @@ async function updateFileStatusToUploaded(
 }
 
 /**
- * Start AutoRAG processing in background
+ * Start file processing in background
  */
 export async function startAutoRAGProcessing(
   env: Env,
@@ -156,7 +156,7 @@ export async function startAutoRAGProcessing(
   jwt?: string
 ): Promise<void> {
   const scopedLog = logger.scope(logPrefix);
-  scopedLog.debug("Starting AutoRAG processing in background", { filename });
+  scopedLog.debug("Starting file processing in background", { filename });
 
   try {
     await processFileWithAutoRAG(
@@ -168,7 +168,7 @@ export async function startAutoRAGProcessing(
       jwt
     );
   } catch (error) {
-    scopedLog.error("AutoRAG processing failed", error);
+    scopedLog.error("File processing failed", error);
     await handleProcessingError(
       env,
       fileKey,
