@@ -71,9 +71,14 @@ export class AgentRegistryService {
       const { CampaignContextAgent } = await import(
         "../agents/campaign-context-agent"
       );
+      const { CampaignAnalysisAgent } = await import(
+        "../agents/campaign-analysis-agent"
+      );
+      const { CharacterAgent } = await import("../agents/character-agent");
       const { CharacterSheetAgent } = await import(
         "../agents/character-sheet-agent"
       );
+      const { EntityGraphAgent } = await import("../agents/entity-graph-agent");
       const { CampaignHelpAgent } = await import(
         "../agents/campaign-help-agent"
       );
@@ -99,6 +104,33 @@ export class AgentRegistryService {
         CampaignContextAgent.agentMetadata.tools,
         CampaignContextAgent.agentMetadata.systemPrompt,
         CampaignContextAgent.agentMetadata.description
+      );
+
+      // Register Campaign Analysis Agent
+      AgentRouter.registerAgent(
+        CampaignAnalysisAgent.agentMetadata.type as AgentType,
+        CampaignAnalysisAgent,
+        CampaignAnalysisAgent.agentMetadata.tools,
+        CampaignAnalysisAgent.agentMetadata.systemPrompt,
+        CampaignAnalysisAgent.agentMetadata.description
+      );
+
+      // Register Character Agent
+      AgentRouter.registerAgent(
+        CharacterAgent.agentMetadata.type as AgentType,
+        CharacterAgent,
+        CharacterAgent.agentMetadata.tools,
+        CharacterAgent.agentMetadata.systemPrompt,
+        CharacterAgent.agentMetadata.description
+      );
+
+      // Register Entity Graph Agent
+      AgentRouter.registerAgent(
+        EntityGraphAgent.agentMetadata.type as AgentType,
+        EntityGraphAgent,
+        EntityGraphAgent.agentMetadata.tools,
+        EntityGraphAgent.agentMetadata.systemPrompt,
+        EntityGraphAgent.agentMetadata.description
       );
 
       // Register Character Sheet Agent

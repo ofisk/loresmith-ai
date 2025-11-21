@@ -2,7 +2,22 @@
  * Utility functions for environment variable access
  */
 
-import { SecretStoreAccessError, EnvironmentVariableError } from "@/lib/errors";
+import {
+  SecretStoreAccessError,
+  EnvironmentVariableError,
+  DatabaseConnectionError,
+  VectorizeIndexRequiredError,
+  OpenAIAPIKeyError,
+} from "@/lib/errors";
+import type { ToolResult } from "@/app-constants";
+import { createToolError } from "@/tools/utils";
+
+export interface EnvWithBindings {
+  DB?: unknown;
+  VECTORIZE?: unknown;
+  OPENAI_API_KEY?: string | unknown;
+  [key: string]: unknown;
+}
 
 export interface EnvWithSecrets {
   [key: string]: unknown;
@@ -80,4 +95,68 @@ export async function getEnvVar(
  */
 export async function getAdminSecret(env: EnvWithSecrets): Promise<string> {
   return getEnvVar(env, "ADMIN_SECRET");
+}
+
+/**
+ * Validate that all required dependencies for PlanningContextService are available.
+ * Throws appropriate errors if any dependencies are missing.
+ *
+ * @param env - Environment object with DB, VECTORIZE, and OPENAI_API_KEY bindings
+ * @throws DatabaseConnectionError if DB is not configured
+ * @throws VectorizeIndexRequiredError if VECTORIZE is not configured
+ * @throws OpenAIAPIKeyError if OPENAI_API_KEY is not configured
+ */
+export function validatePlanningContextDependencies(
+  env: EnvWithBindings
+): void {
+  if (!env.DB) {
+    throw new DatabaseConnectionError("Database not configured");
+  }
+  if (!env.VECTORIZE) {
+    throw new VectorizeIndexRequiredError("Vectorize index not configured");
+  }
+  if (!env.OPENAI_API_KEY || typeof env.OPENAI_API_KEY !== "string") {
+    throw new OpenAIAPIKeyError("OpenAI API key not configured");
+  }
+}
+
+/**
+ * Validate PlanningContextService dependencies for use in tools.
+ * Returns a ToolResult error if validation fails, otherwise returns null.
+ *
+ * @param env - Environment object with DB, VECTORIZE, and OPENAI_API_KEY bindings
+ * @param toolCallId - Tool call ID for error response
+ * @param contextMessage - Optional context message for error
+ * @returns ToolResult error if validation fails, null if validation passes
+ */
+export function validatePlanningContextDependenciesForTool(
+  env: EnvWithBindings,
+  toolCallId: string,
+  contextMessage?: string
+): ToolResult | null {
+  if (!env.DB) {
+    return createToolError(
+      "Database not configured",
+      contextMessage || "Planning context search requires database access",
+      500,
+      toolCallId
+    );
+  }
+  if (!env.VECTORIZE) {
+    return createToolError(
+      "Vectorize index not configured",
+      contextMessage || "Planning context search requires vector index access",
+      500,
+      toolCallId
+    );
+  }
+  if (!env.OPENAI_API_KEY || typeof env.OPENAI_API_KEY !== "string") {
+    return createToolError(
+      "OpenAI API key not configured",
+      contextMessage || "Planning context search requires OpenAI API key",
+      500,
+      toolCallId
+    );
+  }
+  return null;
 }

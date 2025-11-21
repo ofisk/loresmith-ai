@@ -287,6 +287,44 @@ export class EntityDAO extends BaseDAOClass {
     return records.map((record) => this.mapEntityRecord(record));
   }
 
+  /**
+   * Search entities by name keywords (case-insensitive partial match)
+   */
+  async searchEntitiesByName(
+    campaignId: string,
+    keywords: string[],
+    options: { entityType?: string; limit?: number } = {}
+  ): Promise<Entity[]> {
+    const conditions = ["campaign_id = ?"];
+    const params: any[] = [campaignId];
+
+    if (options.entityType) {
+      conditions.push("entity_type = ?");
+      params.push(options.entityType);
+    }
+
+    // Build OR conditions for each keyword
+    if (keywords.length > 0) {
+      const keywordConditions = keywords.map(() => "LOWER(name) LIKE ?");
+      conditions.push(`(${keywordConditions.join(" OR ")})`);
+      params.push(...keywords.map((kw) => `%${kw.toLowerCase()}%`));
+    }
+
+    let sql = `
+      SELECT * FROM entities
+      WHERE ${conditions.join(" AND ")}
+      ORDER BY updated_at DESC
+    `;
+
+    if (typeof options.limit === "number") {
+      sql += " LIMIT ?";
+      params.push(options.limit);
+    }
+
+    const records = await this.queryAll<EntityRecord>(sql, params);
+    return records.map((record) => this.mapEntityRecord(record));
+  }
+
   async deleteEntity(entityId: string): Promise<void> {
     await this.execute(
       "DELETE FROM entity_relationships WHERE from_entity_id = ? OR to_entity_id = ?",

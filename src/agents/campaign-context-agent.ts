@@ -1,4 +1,4 @@
-import { campaignContextTools } from "../tools/campaign-context";
+import { campaignContextToolsBundle } from "../tools/campaign-context/context-tools-bundle";
 import { BaseAgent } from "./base-agent";
 import {
   buildSystemPrompt,
@@ -7,81 +7,36 @@ import {
 
 /**
  * System prompt configuration for the Campaign Context Agent.
- * Defines the agent's role in analyzing and managing campaign context.
+ * Focused on context search, storage, and world state tracking.
  */
 const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
   agentName: "Campaign Context Agent",
   responsibilities: [
-    "Character Management: Create, store, and manage character information and backstories",
+    "Context Search: Search through session digests, changelog entries, and entity graph relationships using semantic search",
     "Context Storage: Store and retrieve campaign context like world descriptions, session notes, and plot hooks",
-    "AI Character Generation: Create detailed characters with AI-generated backstories, personalities, and relationships",
-    "Context Search: Help users find relevant campaign context and character information",
-    "Campaign Assessment: Analyze campaign readiness and provide scoring across narrative, character, plot hooks, and session readiness",
-    "File Analysis: Extract campaign information from uploaded module files and integrate into campaign context",
-    "Module Integration: Parse published modules and extract key story elements, NPCs, locations, and plot hooks",
-    "Community Detection: Analyze entity relationship graphs to identify clusters of related entities using graph algorithms",
-    "Entity Extraction: Extract structured entities (NPCs, locations, items, monsters, etc.) from text content and add them to the entity graph",
-    "Relationship Management: Create relationships between entities in the graph when users mention connections between entities",
-    "World State Tracking: Detect and record user-described changes to NPCs, locations, factions, and relationships using world state changelog tools",
+    "World State Tracking: Detect and record changes to NPCs, locations, factions, and relationships using world state changelog",
   ],
-  tools: createToolMappingFromObjects(campaignContextTools),
+  tools: createToolMappingFromObjects(campaignContextToolsBundle),
   workflowGuidelines: [
-    "Character Creation: When users want to create characters, offer to use the createCharacter tool for AI-powered generation",
+    "MANDATORY: Before answering ANY question about campaigns, characters, NPCs, locations, story arcs, plot threads, past events, relationships, or campaign history, you MUST call searchCampaignContext tool FIRST. This tool searches: (1) session digests (recaps, planning notes, key events), (2) world state changelog entries, and (3) entity graph relationships. You MUST use the retrieved results - responses based on training data alone are incorrect. Only skip if the query is explicitly about creating brand new content with no existing references.",
     "Context Storage: Help users store important campaign information like backstories, world details, and session notes",
-    "Information Retrieval: Help users find relevant context and character information when needed",
-    "AI Enhancement: Use AI to generate rich character details, backstories, and personality traits",
-    "Campaign Analysis: When users ask about campaign readiness or need guidance, use assessment tools to provide detailed analysis",
-    "File Processing: When users upload module files, extract key story elements and integrate them into campaign context",
-    "Module Integration: Parse module structure, extract NPCs, locations, plot hooks, and story beats for campaign context",
-    "Entity Extraction: When users provide text content (from files or chat) containing entities like NPCs, locations, items, or monsters, use extractEntitiesFromContentTool to extract and add them to the graph",
-    "Relationship Creation: When users mention relationships between entities (e.g., 'NPC X lives in Location Y', 'Character A is allied with Character B'), use createEntityRelationshipTool to create the relationship in the graph",
-    "CRITICAL - World State Changelog: When users describe session outcomes (e.g., 'the party let an NPC die', 'they got captured by the villain', 'an important location was destroyed', 'yesterday we played and Y happened'), you MUST immediately call recordWorldEventTool / updateEntityWorldStateTool / updateRelationshipWorldStateTool to capture these world state changes. Do not just respond conversationally - update the changelog first, then respond.",
+    "World State Updates: When users describe session outcomes or world changes, immediately call recordWorldEventTool / updateEntityWorldStateTool / updateRelationshipWorldStateTool to capture these changes",
   ],
   importantNotes: [
-    "Always store character information using storeCharacterInfo tool",
-    "Store detailed backstories using storeCampaignContext tool",
-    "Offer to create characters using AI with createCharacter tool",
-    "Ask for character name, class, race, and level",
-    "Use AI to generate compelling backstories and personality traits",
-    "Create meaningful relationships with other party members",
-    "Store all character information for future reference",
-    "Help users organize campaign information by type (character_backstory, world_description, session_notes, etc.)",
-    "Provide intelligent suggestions based on stored context",
-    "Maintain consistency across campaign information",
-    "When analyzing campaigns, provide detailed scoring across narrative, character, plot hooks, and session readiness",
-    "Extract key information from uploaded module files including NPCs, locations, plot hooks, and story structure",
-    "Integrate module content with existing campaign context to create comprehensive campaign understanding",
-    "Provide actionable recommendations based on campaign assessment scores",
-    "Focus on high-impact areas when providing campaign improvement suggestions",
-    "When users mention files, guide them to add files to campaigns from their library to extract shards and enhance planning capabilities",
-    "Never ask for technical details like campaign IDs - guide users through the natural workflow instead",
-    "Community Detection: When users want to understand how entities cluster or find related groups, use detectCommunitiesTool to analyze the entity graph",
-    "Community Analysis: Use getCommunitiesTool or getCommunityHierarchyTool to show users existing communities and their structure",
-    "Graph Analysis: Community detection works on the entity relationship graph - entities and relationships must exist first (created via entity extraction from files)",
-    "Entity Extraction: When users mention creating entities (e.g., 'I'm creating a new NPC named X'), extract the entity information from their message and use extractEntitiesFromContentTool to add it to the graph",
-    "Entity Relationships: When users mention relationships (e.g., 'NPC X lives in Location Y'), first ensure both entities exist, then use createEntityRelationshipTool to create the relationship",
-    "Graph Building: Help users build their entity graph by extracting entities from text content and creating relationships between them as they describe their campaign world",
-    "World State Changelog: Treat statements like “last session the party burned down the tavern”, “the duke allied with the rebels”, or “introduce a new NPC who runs the bank” as triggers to update the world state changelog without waiting for the user to repeat themselves",
-    "Use updateEntityWorldStateTool when the status of a single entity (NPC, location, faction, artifact) changes, use updateRelationshipWorldStateTool when the relationship between two entities shifts, and fall back to recordWorldEventTool for multi-entity updates or when adding new entities",
-    "If the user’s statement is ambiguous, ask a brief clarifying question before writing to the world state changelog; otherwise act proactively so the campaign stays synchronized with player actions",
+    "You are FORBIDDEN from answering questions about campaigns, characters, NPCs, locations, story arcs, relationships, or past events without first calling searchCampaignContext. The tool retrieves actual campaign data - use it.",
   ],
 });
 
 /**
  * Campaign Context Agent for LoreSmith AI.
  *
- * This agent specializes in managing and analyzing campaign context, including:
- * - Character creation and management with AI-generated content
- * - Campaign context storage and retrieval
- * - World building and session note management
- * - Intelligent context analysis and suggestions
- * - Campaign readiness assessment and scoring
- * - File module analysis and integration
+ * This agent specializes in campaign context search, storage, and world state tracking:
+ * - Context Search: Semantic search across session digests, changelog entries, and entity graph relationships
+ * - Context Storage: Store and retrieve campaign information like world descriptions, session notes, and plot hooks
+ * - World State Tracking: Record changes to NPCs, locations, factions, and relationships
  *
- * The agent uses AI to generate rich character backstories, personalities, and
- * relationships, while also helping users organize and retrieve campaign information
- * like world descriptions, session notes, and plot hooks. It can analyze campaign
- * health across multiple dimensions and extract information from uploaded module files.
+ * The agent MUST call searchCampaignContext before answering questions about campaigns,
+ * characters, NPCs, locations, story arcs, or past events to ground responses in actual campaign data.
  *
  * @extends BaseAgent - Inherits common agent functionality
  *
@@ -99,12 +54,10 @@ const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
  * @example
  * ```typescript
  * // The agent can handle various context tasks:
- * // - "Create a character named Thorin, a dwarf fighter"
- * // - "Store this world description"
  * // - "Find information about the Black Dragon"
- * // - "Generate a backstory for my character"
- * // - "Analyze my campaign's readiness"
- * // - "Extract information from this uploaded module file"
+ * // - "What happened in session 5?"
+ * // - "Store this world description"
+ * // - "Update: the party burned down the tavern"
  * ```
  */
 export class CampaignContextAgent extends BaseAgent {
@@ -112,9 +65,9 @@ export class CampaignContextAgent extends BaseAgent {
   static readonly agentMetadata = {
     type: "campaign-context",
     description:
-      "Manages character backstories, player characters, NPCs, character motivations, personality traits, session notes, world state tracking, and character context information.",
+      "Searches campaign context (session digests, changelog, entity graph), stores campaign information, and tracks world state changes.",
     systemPrompt: CAMPAIGN_CONTEXT_SYSTEM_PROMPT,
-    tools: campaignContextTools,
+    tools: campaignContextToolsBundle,
   };
 
   /**
@@ -125,6 +78,6 @@ export class CampaignContextAgent extends BaseAgent {
    * @param model - The AI model instance for generating responses
    */
   constructor(ctx: DurableObjectState, env: any, model: any) {
-    super(ctx, env, model, campaignContextTools);
+    super(ctx, env, model, campaignContextToolsBundle);
   }
 }

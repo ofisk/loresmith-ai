@@ -8,6 +8,8 @@ import {
   extractUsernameFromJwt,
 } from "../utils";
 import { getDAOFactory } from "../../dao/dao-factory";
+import { PlanningContextService } from "../../services/rag/planning-context-service";
+import { EntityEmbeddingService } from "../../services/vectorize/entity-embedding-service";
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {
@@ -23,14 +25,20 @@ function getEnvFromContext(context: any): any {
 // Tool to search campaign context
 export const searchCampaignContext = tool({
   description:
-    "Search through campaign context, characters, and resources to find relevant information",
+    "Search through campaign context using semantic search. Searches session digests (recaps, planning notes, key events) and world state changelog entries. Results include graph-augmented entity relationships when relevant entities are mentioned in the query. Use this to find relevant past sessions, character development, plot threads, and world state information.",
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
-    query: z.string().describe("The search query"),
+    query: z
+      .string()
+      .describe(
+        "The search query - can include entity names, plot points, or topics"
+      ),
     searchType: z
       .enum(["all", "characters", "resources", "context"])
       .optional()
-      .describe("Type of content to search (default: all)"),
+      .describe(
+        "Type of content to search (default: all). 'context' searches session digests and changelog; 'characters'/'resources' searches entities; 'all' searches everything"
+      ),
     jwt: commonSchemas.jwt,
   }),
   execute: async (
@@ -53,7 +61,7 @@ export const searchCampaignContext = tool({
       console.log("[Tool] searchCampaignContext - Environment found:", !!env);
       console.log("[Tool] searchCampaignContext - JWT provided:", !!jwt);
 
-      // If we have environment, use AutoRAG search
+      // If we have environment, use semantic search
       if (env) {
         const userId = extractUsernameFromJwt(jwt);
         console.log(
@@ -86,68 +94,199 @@ export const searchCampaignContext = tool({
           );
         }
 
-        // TODO: Replace with graph-based entity search
-        // Entities are now stored in D1 graph, not R2
-        // Need to implement graph search using EntityDAO/EntityGraphService
-        // For now, return empty results with a note that graph search needs to be implemented
+        const results: any[] = [];
         const daoFactory = getDAOFactory(env);
+        const requiresPlanningContext =
+          searchType === "all" || searchType === "context";
+        let planningService: PlanningContextService | null = null;
 
-        // Basic entity search by type (temporary implementation)
-        // TODO: Implement semantic search through entity graph using embeddings
-        let entities: Awaited<
-          ReturnType<typeof daoFactory.entityDAO.listEntitiesByCampaign>
-        >;
-        if (searchType && searchType !== "all") {
-          const entityType =
-            searchType === "characters"
-              ? "character"
-              : searchType === "resources"
-                ? "resource"
-                : searchType === "context"
-                  ? "context"
-                  : searchType;
-          entities = await daoFactory.entityDAO.listEntitiesByCampaign(
-            campaignId,
-            {
-              entityType,
-              limit: 20,
-            }
+        try {
+          planningService = new PlanningContextService(
+            env.DB!,
+            env.VECTORIZE!,
+            env.OPENAI_API_KEY as string,
+            env
           );
-        } else {
-          entities = await daoFactory.entityDAO.listEntitiesByCampaign(
-            campaignId,
-            {
-              limit: 20,
-            }
+        } catch (error) {
+          // If required, this is an error; if optional, just log and continue
+          if (requiresPlanningContext) {
+            return createToolError(
+              "Failed to initialize PlanningContextService",
+              error instanceof Error ? error.message : String(error),
+              500,
+              toolCallId
+            );
+          }
+          console.warn(
+            "[Tool] searchCampaignContext - PlanningContextService initialization failed (optional for entity search):",
+            error
           );
         }
 
-        // Filter out rejected/ignored entities
-        const approvedEntities = entities.filter((entity) => {
-          try {
-            const metadata = entity.metadata
-              ? (JSON.parse(entity.metadata as string) as Record<
-                  string,
-                  unknown
-                >)
-              : {};
-            const shardStatus = metadata.shardStatus;
-            const ignored = metadata.ignored === true;
-            const rejected = metadata.rejected === true;
-            return shardStatus !== "rejected" && !ignored && !rejected;
-          } catch {
-            return true; // Include if metadata parsing fails
-          }
-        });
+        // Primary search: Use PlanningContextService for semantic search of session digests and changelog
+        // This searches through session recaps, planning notes, key events, and world state changes
+        if (requiresPlanningContext && planningService) {
+          console.log(
+            "[Tool] searchCampaignContext - Using PlanningContextService for semantic search"
+          );
 
-        // Transform entities to match expected format
-        const results = approvedEntities.map((entity) => ({
-          ...entity,
-          text: JSON.stringify(entity.content),
-          score: 1.0, // TODO: Implement semantic similarity scoring
-          filename: entity.name,
-          type: entity.entityType,
-        }));
+          const planningResults = await planningService.search({
+            campaignId,
+            query,
+            limit: 10,
+            applyRecencyWeighting: true,
+          });
+
+          // Transform planning context results to match expected format
+          for (const result of planningResults) {
+            results.push({
+              type: "planning_context",
+              source: "session_digest",
+              sessionNumber: result.sessionNumber,
+              sessionDate: result.sessionDate,
+              sectionType: result.sectionType,
+              title: `Session ${result.sessionNumber} - ${result.sectionType}`,
+              text: result.sectionContent,
+              score: result.recencyWeightedScore,
+              similarityScore: result.similarityScore,
+              digestId: result.digestId,
+              relatedEntities: result.relatedEntities,
+              filename: `session-${result.sessionNumber}`,
+            });
+          }
+
+          console.log(
+            `[Tool] searchCampaignContext - Found ${planningResults.length} planning context results`
+          );
+        }
+
+        // Secondary search: Entity search (characters, resources, etc.)
+        if (
+          searchType === "all" ||
+          searchType === "characters" ||
+          searchType === "resources"
+        ) {
+          try {
+            let entities: Awaited<
+              ReturnType<typeof daoFactory.entityDAO.listEntitiesByCampaign>
+            >;
+
+            if (searchType === "characters") {
+              entities = await daoFactory.entityDAO.listEntitiesByCampaign(
+                campaignId,
+                {
+                  entityType: "character",
+                  limit: 20,
+                }
+              );
+            } else if (searchType === "resources") {
+              entities = await daoFactory.entityDAO.listEntitiesByCampaign(
+                campaignId,
+                {
+                  entityType: "resource",
+                  limit: 20,
+                }
+              );
+            } else {
+              // For "all", try semantic entity search if available
+              try {
+                if (planningService && env.VECTORIZE) {
+                  // Use PlanningContextService to generate embeddings
+                  const queryEmbeddings =
+                    await planningService.generateEmbeddings([query]);
+                  const queryEmbedding = queryEmbeddings[0];
+
+                  if (queryEmbedding) {
+                    const entityEmbeddingService = new EntityEmbeddingService(
+                      env.VECTORIZE
+                    );
+
+                    const similarEntities =
+                      await entityEmbeddingService.findSimilarByEmbedding(
+                        queryEmbedding,
+                        {
+                          campaignId,
+                          topK: 10,
+                        }
+                      );
+
+                    // Get full entity details for semantic matches
+                    const entityIds = similarEntities.map((e) => e.entityId);
+                    const allEntities =
+                      await daoFactory.entityDAO.listEntitiesByCampaign(
+                        campaignId,
+                        { limit: 100 }
+                      );
+                    entities = allEntities.filter((e) =>
+                      entityIds.includes(e.id)
+                    );
+                  } else {
+                    throw new Error("Failed to generate embedding");
+                  }
+                } else {
+                  // Fallback to keyword-based entity search
+                  throw new Error("PlanningService or VECTORIZE not available");
+                }
+              } catch {
+                // Fallback to keyword-based entity search
+                const keywordNames = query
+                  .split(/\s+/)
+                  .filter((w) => w.length > 2)
+                  .slice(0, 5);
+                entities = await daoFactory.entityDAO.searchEntitiesByName(
+                  campaignId,
+                  keywordNames,
+                  { limit: 20 }
+                );
+              }
+            }
+
+            // Filter out rejected/ignored entities
+            const approvedEntities = entities.filter((entity) => {
+              try {
+                const metadata = entity.metadata
+                  ? (JSON.parse(entity.metadata as string) as Record<
+                      string,
+                      unknown
+                    >)
+                  : {};
+                const shardStatus = metadata.shardStatus;
+                const ignored = metadata.ignored === true;
+                const rejected = metadata.rejected === true;
+                return shardStatus !== "rejected" && !ignored && !rejected;
+              } catch {
+                return true; // Include if metadata parsing fails
+              }
+            });
+
+            // Transform entities to match expected format
+            for (const entity of approvedEntities) {
+              results.push({
+                type: "entity",
+                source: "entity_graph",
+                entityType: entity.entityType,
+                title: entity.name,
+                text: JSON.stringify(entity.content),
+                score: 0.8, // Default score for entity matches
+                entityId: entity.id,
+                filename: entity.name,
+              });
+            }
+
+            console.log(
+              `[Tool] searchCampaignContext - Found ${approvedEntities.length} entity results`
+            );
+          } catch (error) {
+            console.warn(
+              "[Tool] searchCampaignContext - Entity search failed:",
+              error
+            );
+            // Continue even if entity search fails
+          }
+        }
+
+        // Sort results by score (highest first)
+        results.sort((a, b) => (b.score || 0) - (a.score || 0));
 
         return createToolSuccess(
           `Found ${results.length} results for "${query}"${searchType && searchType !== "all" ? ` in ${searchType}` : ""}`,

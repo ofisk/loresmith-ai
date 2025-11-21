@@ -4,6 +4,7 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { UserAuthenticationMissingError } from "@/lib/errors";
+import { PlanningContextService } from "@/services/rag/planning-context-service";
 import type {
   CreateSessionDigestInput,
   SessionDigestData,
@@ -34,6 +35,16 @@ async function ensureCampaignAccess(
     username
   );
   return Boolean(campaign);
+}
+
+function getPlanningContextService(c: ContextWithAuth): PlanningContextService {
+  // Validation happens automatically in PlanningContextService constructor
+  return new PlanningContextService(
+    c.env.DB!,
+    c.env.VECTORIZE!,
+    c.env.OPENAI_API_KEY as string,
+    c.env
+  );
 }
 
 // Create a new session digest
@@ -95,6 +106,9 @@ export async function handleCreateSessionDigest(c: ContextWithAuth) {
     if (!created) {
       return c.json({ error: "Failed to retrieve created digest" }, 500);
     }
+
+    const planningService = getPlanningContextService(c);
+    await planningService.indexSessionDigest(created);
 
     return c.json({ digest: created }, 201);
   } catch (error) {
@@ -219,6 +233,9 @@ export async function handleUpdateSessionDigest(c: ContextWithAuth) {
       return c.json({ error: "Failed to retrieve updated digest" }, 500);
     }
 
+    const planningService = getPlanningContextService(c);
+    await planningService.indexSessionDigest(updated);
+
     return c.json({ digest: updated });
   } catch (error) {
     console.error("[SessionDigest] Failed to update digest:", error);
@@ -256,6 +273,12 @@ export async function handleDeleteSessionDigest(c: ContextWithAuth) {
       );
     }
 
+    // Delete embeddings first to maintain consistency
+    // If this fails, we don't delete the digest to avoid orphaned embeddings
+    const planningService = getPlanningContextService(c);
+    await planningService.deleteSessionDigest(digestId);
+
+    // Only delete from database after successful embedding deletion
     await daoFactory.sessionDigestDAO.deleteSessionDigest(digestId);
 
     return c.json({ success: true });
