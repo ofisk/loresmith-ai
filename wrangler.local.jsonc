@@ -101,6 +101,14 @@
       "tag": "v6",
       "new_classes": [],
     },
+    {
+      "tag": "v7",
+      "new_classes": ["NotificationHub"],
+    },
+    {
+      "tag": "v8",
+      "deleted_classes": ["UserFileTracker"],
+    },
   ],
   "observability": {
     "enabled": true,

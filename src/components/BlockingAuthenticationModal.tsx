@@ -37,6 +37,15 @@ export function BlockingAuthenticationModal({
     }
   }, [storedOpenAIKey, isOpen]);
 
+  // Keep user-provided values when modal is shown due to errors
+  // Don't reset form fields when modal is opened (only clear error)
+  useEffect(() => {
+    if (isOpen) {
+      setError(null); // Clear error when modal opens
+      // Don't reset form fields - preserve user input
+    }
+  }, [isOpen]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -44,8 +53,12 @@ export function BlockingAuthenticationModal({
 
     try {
       await onSubmit(currentUsername, adminKey, openaiApiKey);
+      // Only clear form on success - preserve values on error
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Authentication failed");
+      // Keep user-provided values on error so they can retry
+      // Don't clear the form fields
     } finally {
       setIsLoading(false);
     }

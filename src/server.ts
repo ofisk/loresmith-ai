@@ -4,7 +4,7 @@ import { queue as queueFn, scheduled as scheduledFn } from "@/queue_consumer";
 import { registerRoutes, type Env } from "@/routes/register-routes";
 
 export { Chat } from "@/durable-objects/chat";
-export { NotificationHub, AutoRAGPollingDO } from "./durable-objects";
+export { NotificationHub } from "./durable-objects";
 export { UploadSessionDO };
 
 /**

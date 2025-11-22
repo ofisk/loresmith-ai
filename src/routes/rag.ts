@@ -7,7 +7,7 @@ import {
   notifyIndexingFailed,
   notifyFileUploadCompleteWithData,
 } from "@/lib/notifications";
-import { getLibraryAutoRAGService } from "@/lib/service-factory";
+import { LibraryRAGService } from "@/services/rag/rag-service";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { completeProgress } from "@/services/core/progress-service";
@@ -29,10 +29,16 @@ export async function handleRagSearch(c: ContextWithAuth) {
       return c.json({ error: "Query is required" }, 400);
     }
 
-    const ragService = getLibraryAutoRAGService(c.env, userAuth.username);
-    const results = await ragService.aiSearch(query, { max_results: limit });
+    const ragService = new LibraryRAGService(c.env);
+    const results = await ragService.searchContent(
+      userAuth.username,
+      query,
+      limit
+    );
 
-    return c.json({ results });
+    return c.json({
+      results: Array.isArray(results) ? results : [],
+    });
   } catch (error) {
     console.error("Error searching RAG:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -93,7 +99,7 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
 
         // Process with RAG service
         console.log(
-          `[RAG] File ${filename} uploaded to R2, AutoRAG will process it`
+          `[RAG] File ${filename} uploaded to R2, LibraryRAGService will process it`
         );
 
         // Update database status and file size - mark as uploaded, not completed
@@ -200,9 +206,9 @@ export async function handleProcessFileFromR2ForRag(c: ContextWithAuth) {
         }
 
         // Process with RAG service
-        // AutoRAG will process files from R2, but it takes time
+        // LibraryRAGService will process files directly
         console.log(
-          `[RAG] File ${filename} uploaded to R2, AutoRAG will process it`
+          `[RAG] File ${filename} uploaded to R2, processing with LibraryRAGService`
         );
 
         // Update database status and file size - mark as uploaded, not completed
@@ -260,14 +266,14 @@ export async function handleProcessFileFromR2ForRag(c: ContextWithAuth) {
   }
 }
 
-// Update file metadata for RAG
+// Update file metadata for RAG - trigger indexing with LibraryRAGService
 export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
     const { fileKey } = await c.req.json();
 
     console.log(
-      `[handleTriggerAutoRAGIndexing] Processing request for fileKey: ${fileKey}`
+      `[handleTriggerIndexing] Processing request for fileKey: ${fileKey}`
     );
 
     if (fileKey) {
@@ -279,10 +285,10 @@ export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
         return c.json({ error: "File not found" }, 404);
       }
 
-      // Use sync queue service to handle AutoRAG sync intelligently
+      // Use sync queue service to handle indexing
       try {
         console.log(
-          `[handleTriggerAutoRAGIndexing] Processing retry with sync queue for file: ${file.file_name}`
+          `[handleTriggerIndexing] Processing file with LibraryRAGService: ${file.file_name}`
         );
         // Extract JWT token from Authorization header
         const authHeader = c.req.header("Authorization");
@@ -296,75 +302,25 @@ export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
           jwt
         );
 
-        if (result.queued) {
-          console.log(
-            `[handleTriggerAutoRAGIndexing] File queued for retry: ${file.file_name}`
+        // Send notification that indexing has started/completed
+        try {
+          await notifyIndexingStarted(c.env, userAuth.username, file.file_name);
+        } catch (notifyError) {
+          console.error(
+            `[handleTriggerIndexing] Failed to send indexing started notification:`,
+            notifyError
           );
-
-          // Schedule retry after cooldown period
-          try {
-            await SyncQueueService.scheduleRetryForCooldown(
-              c.env,
-              userAuth.username,
-              jwt
-            );
-          } catch (scheduleError) {
-            console.error(
-              `[handleTriggerAutoRAGIndexing] Failed to schedule retry:`,
-              scheduleError
-            );
-          }
-
-          // Send notification that indexing will start soon (queued)
-          try {
-            await notifyIndexingStarted(
-              c.env,
-              userAuth.username,
-              file.file_name
-            );
-          } catch (notifyError) {
-            console.error(
-              `[handleTriggerAutoRAGIndexing] Failed to send indexing started notification:`,
-              notifyError
-            );
-          }
-
-          return c.json({
-            success: true,
-            message: `File ${file.file_name} queued for retry (will retry after cooldown).`,
-            queued: true,
-            isIndexed: false,
-          });
-        } else {
-          console.log(
-            `[handleTriggerAutoRAGIndexing] Retry triggered immediately, job: ${result.jobId}`
-          );
-
-          // Send immediate notification that indexing has started
-          try {
-            await notifyIndexingStarted(
-              c.env,
-              userAuth.username,
-              file.file_name
-            );
-          } catch (notifyError) {
-            console.error(
-              `[handleTriggerAutoRAGIndexing] Failed to send indexing started notification:`,
-              notifyError
-            );
-          }
-
-          return c.json({
-            success: true,
-            message: `File ${file.file_name} retry started immediately. AutoRAG job ${result.jobId} is being tracked.`,
-            jobId: result.jobId,
-            queued: false,
-            isIndexed: false,
-          });
         }
+
+        return c.json({
+          success: true,
+          message: result.message,
+          queued: result.queued,
+          isIndexed: !result.queued,
+        });
       } catch (syncError) {
         console.error(
-          `[handleTriggerAutoRAGIndexing] Failed to trigger AutoRAG sync for ${fileKey}:`,
+          `[handleTriggerIndexing] Failed to trigger indexing for ${fileKey}:`,
           syncError
         );
         return c.json({
@@ -374,16 +330,15 @@ export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
         });
       }
     } else {
-      // AutoRAG automatically handles indexing from R2 bucket
-      console.log("[RAG] AutoRAG automatically indexes content from R2 bucket");
+      console.log("[RAG] No fileKey provided, cannot trigger indexing");
 
       return c.json({
-        success: true,
-        message: "AutoRAG indexing is automatic - no manual trigger needed",
+        success: false,
+        message: "File key is required to trigger indexing",
       });
     }
   } catch (error) {
-    console.error("Error triggering AutoRAG indexing:", error);
+    console.error("Error triggering indexing:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
@@ -396,7 +351,7 @@ export async function handleGetFilesForRag(c: ContextWithAuth) {
     const fileDAO = getDAOFactory(c.env).fileDAO;
     const files = await fileDAO.getFilesForRag(userAuth.username);
 
-    // Metadata updates are now handled by AutoRAG automatically
+    // Metadata updates are handled by LibraryRAGService
 
     return c.json({ files });
   } catch (error) {
@@ -424,7 +379,7 @@ export async function handleGetFileChunksForRag(c: ContextWithAuth) {
   }
 }
 
-// Check AutoRAG indexing status and update metadata
+// Check indexing status and update metadata
 export async function handleCheckAutoRAGStatus(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
@@ -437,13 +392,13 @@ export async function handleCheckAutoRAGStatus(c: ContextWithAuth) {
       ...stats,
       message:
         stats.uploaded > 0
-          ? `${stats.uploaded} files uploaded and waiting for AutoRAG indexing`
+          ? `${stats.uploaded} files uploaded and waiting for indexing`
           : stats.processed > 0
             ? "All files have been indexed and processed"
             : "No files found",
     });
   } catch (error) {
-    console.error("Error checking AutoRAG status:", error);
+    console.error("Error checking indexing status:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
@@ -459,13 +414,12 @@ export async function handleCheckFileIndexingStatus(c: ContextWithAuth) {
     }
 
     const fileDAO = getDAOFactory(c.env).fileDAO;
-    const ragService = getLibraryAutoRAGService(c.env, userAuth.username);
 
     // Check if file is indexed
     const { isIndexed, error } = await fileDAO.checkFileIndexingStatus(
       fileKey,
       userAuth.username,
-      ragService
+      c.env
     );
 
     // Update file status based on indexing result
@@ -502,7 +456,6 @@ export async function handleBulkCheckFileIndexingStatus(c: ContextWithAuth) {
     const userAuth = (c as any).userAuth;
 
     const fileDAO = getDAOFactory(c.env).fileDAO;
-    const ragService = getLibraryAutoRAGService(c.env, userAuth.username);
 
     // Get all files that might need checking (skip completed files as they're verified indexed)
     const files = await fileDAO.getFilesForRag(userAuth.username);
@@ -522,7 +475,7 @@ export async function handleBulkCheckFileIndexingStatus(c: ContextWithAuth) {
         const { isIndexed, error } = await fileDAO.checkFileIndexingStatus(
           file.file_key,
           userAuth.username,
-          ragService
+          c.env
         );
 
         if (!isIndexed) {

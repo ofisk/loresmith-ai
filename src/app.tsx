@@ -144,7 +144,13 @@ export default function Chat() {
     maxSteps: 5,
     onFinish: (result) => {
       // Check if the response indicates authentication is required
-      if (result.content?.includes("AUTHENTICATION_REQUIRED:")) {
+      const resultContent = result.content || "";
+      if (
+        resultContent.includes("AUTHENTICATION_REQUIRED:") ||
+        resultContent.includes("OpenAI API key required") ||
+        resultContent.includes("OpenAI API key")
+      ) {
+        console.log("[App] Authentication required detected in finish result");
         modalState.setShowAuthModal(true);
       }
 
@@ -162,15 +168,57 @@ export default function Chat() {
       }
     },
     onError: (error) => {
-      // Check if the error is related to missing OpenAI API key
-      if (
-        error.message.includes("AUTHENTICATION_REQUIRED:") ||
-        error.message.includes("OpenAI API key required")
-      ) {
+      // Check if the error is related to missing OpenAI API key or authentication
+      const errorMessage = error?.message || "";
+      const errorName = error?.name || "";
+
+      // Check for authentication-related errors by name or message
+      const isAuthError =
+        errorName === "AuthenticationRequiredError" ||
+        errorName === "OpenAIAPIKeyError" ||
+        errorMessage.includes("AUTHENTICATION_REQUIRED:") ||
+        errorMessage.includes("OpenAI API key required") ||
+        errorMessage.includes("OpenAI API key") ||
+        errorMessage.includes("Authentication required");
+
+      if (isAuthError) {
+        console.log(
+          "[App] Authentication error detected, showing auth modal:",
+          {
+            errorName,
+            errorMessage,
+          }
+        );
         modalState.setShowAuthModal(true);
+      } else {
+        console.error("[App] Non-authentication error:", error);
       }
     },
   });
+  // Listen for authentication required notifications via ui-hint events
+  useEffect(() => {
+    const handleUiHint = (e: CustomEvent<{ type: string; data?: unknown }>) => {
+      const { type } = e.detail || {};
+      if (type === "show_auth_modal") {
+        console.log(
+          "[App] Authentication required ui-hint received, showing auth modal"
+        );
+        modalState.setShowAuthModal(true);
+      }
+    };
+
+    window.addEventListener(
+      "ui-hint",
+      handleUiHint as unknown as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        "ui-hint",
+        handleUiHint as unknown as EventListener
+      );
+    };
+  }, [modalState]);
+
   useEffect(() => {
     void agentMessages;
   }, [agentMessages]);

@@ -1,5 +1,6 @@
 import { openai } from "@ai-sdk/openai";
 import { MODEL_CONFIG } from "../app-constants";
+import { OpenAIAPIKeyError } from "./errors";
 
 export class ModelManager {
   private static instance: ModelManager;
@@ -19,19 +20,32 @@ export class ModelManager {
    * Initialize the model with a user's API key
    */
   initializeModel(apiKey: string): void {
-    if (this.apiKey === apiKey && this.model) {
+    if (!apiKey || typeof apiKey !== "string") {
+      throw new OpenAIAPIKeyError("API key must be a non-empty string");
+    }
+
+    const trimmedKey = apiKey.trim();
+
+    // Validate that the API key is not a placeholder
+    if (trimmedKey === "your-openai-api-key-here") {
+      throw new OpenAIAPIKeyError(
+        "Invalid OpenAI API key detected (placeholder value). Please provide a valid OpenAI API key through the application authentication."
+      );
+    }
+
+    if (this.apiKey === trimmedKey && this.model) {
       // Already initialized with the same key
       return;
     }
 
     // Set the API key in the environment for the model creation
     const originalApiKey = process.env.OPENAI_API_KEY;
-    process.env.OPENAI_API_KEY = apiKey;
+    process.env.OPENAI_API_KEY = trimmedKey;
 
     try {
       // Create the model instance
       this.model = openai(MODEL_CONFIG.OPENAI.PRIMARY as any);
-      this.apiKey = apiKey;
+      this.apiKey = trimmedKey;
 
       console.log("[ModelManager] Model initialized with user API key");
     } catch (error) {
@@ -50,20 +64,11 @@ export class ModelManager {
    */
   getModel(): any {
     if (!this.model) {
-      // Auto-initialize with a default API key if not already initialized
-      const defaultApiKey = process.env.OPENAI_API_KEY;
-      if (!defaultApiKey) {
-        // In production, users provide their own API keys, so this is expected
-        // Return null to indicate no model is available yet
-        console.log(
-          "[ModelManager] No default API key found - user must provide their own key"
-        );
-        return null;
-      }
+      // No auto-initialization - users must authenticate through the app
       console.log(
-        "[ModelManager] Auto-initializing model with default API key"
+        "[ModelManager] No model initialized - user must authenticate through the application"
       );
-      this.initializeModel(defaultApiKey);
+      return null;
     }
     return this.model;
   }
@@ -73,13 +78,6 @@ export class ModelManager {
    */
   isInitialized(): boolean {
     return this.model !== null;
-  }
-
-  /**
-   * Check if we can auto-initialize with a default API key
-   */
-  canAutoInitialize(): boolean {
-    return !this.isInitialized() && !!process.env.OPENAI_API_KEY;
   }
 
   /**

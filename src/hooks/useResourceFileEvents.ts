@@ -73,8 +73,9 @@ export function useResourceFileEvents(
         "[ResourceList] Refreshing all file statuses - CALL #",
         Date.now()
       );
+      // Use bulk check file indexing endpoint to refresh file statuses
       const { response, jwtExpired } = await authenticatedFetchWithExpiration(
-        API_CONFIG.ENDPOINTS.AUTORAG.REFRESH_ALL_FILE_STATUSES,
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.RAG.BULK_CHECK_FILE_INDEXING),
         {
           method: "POST",
           jwt,

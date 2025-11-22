@@ -25,6 +25,7 @@ export const NOTIFICATION_TYPES = {
   SUCCESS: "success",
   ERROR: "error",
   CONNECTED: "connected",
+  AUTHENTICATION_REQUIRED: "authentication_required",
 } as const;
 
 /**

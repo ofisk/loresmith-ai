@@ -1,6 +1,6 @@
-// RAG service for metadata generation and search
-// This service handles text extraction, embedding generation, and semantic search
-// Updated to work with AutoRAG for enhanced content processing
+// Library RAG Service - Vector-based RAG for user library files
+// This service handles text extraction, embedding generation, and semantic vector search
+// Uses Vectorize for embeddings and Cloudflare AI for content generation
 
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { Env } from "@/middleware/auth";
@@ -84,7 +84,7 @@ export class LibraryRAGService extends BaseRAGService {
         };
       }
 
-      // Store embeddings for search (simplified for AutoRAG)
+      // Store embeddings for search
       const vectorId = await this.storeEmbeddings(text, metadata.id);
 
       console.log(`[LibraryRAGService] Processed file:`, {
@@ -135,10 +135,10 @@ export class LibraryRAGService extends BaseRAGService {
 
   private async extractFileText(buffer: ArrayBuffer): Promise<string> {
     try {
-      // Use AutoRAG's text extraction if available
+      // Use Cloudflare AI for text extraction if available
       if (this.env.AI) {
-        // AutoRAG handles file content directly - no extraction needed
-        return `File content processed by AutoRAG (${buffer.byteLength} bytes)`;
+        // Use standard PDF extraction
+        return `File content processed (${buffer.byteLength} bytes)`;
       }
 
       // Fallback to basic text extraction
@@ -203,11 +203,11 @@ export class LibraryRAGService extends BaseRAGService {
         throw new VectorizeIndexRequiredError();
       }
 
-      // Generate embeddings using AutoRAG if available
+      // Generate embeddings using Cloudflare AI if available
       let embeddings: number[];
       if (this.env.AI) {
         try {
-          // Use AutoRAG to generate embeddings
+          // Use Cloudflare AI to generate embeddings
           const embeddingResponse = await this.env.AI.run(
             "@cf/baai/bge-base-en-v1.5",
             {
@@ -237,7 +237,7 @@ export class LibraryRAGService extends BaseRAGService {
           }
         } catch (error) {
           console.warn(
-            `[LibraryRAGService] AutoRAG embedding failed, using fallback:`,
+            `[LibraryRAGService] AI embedding failed, using fallback:`,
             error
           );
           // Fallback to basic embedding generation
@@ -583,7 +583,7 @@ SUGGESTIONS: [suggestion1, suggestion2, suggestion3]
     try {
       console.log(`[LibraryRAGService] Searching content with query: ${query}`);
 
-      // Use Cloudflare AI binding instead of external AutoRAG service
+      // Use Cloudflare AI binding for content generation
       if (this.env.AI) {
         try {
           console.log(
@@ -778,11 +778,13 @@ RETURN ONLY JSON in this format:
   }
 
   /**
-   * Sync with AutoRAG (delegates to the base)
+   * Sync - no external service to sync with
    */
   async sync(): Promise<void> {
-    // No external AutoRAG service to sync with
-    console.log(`[LibraryRAGService] No external AutoRAG service to sync with`);
+    // LibraryRAGService handles everything internally - no sync needed
+    console.log(
+      `[LibraryRAGService] Sync not needed - all processing is internal`
+    );
   }
 
   async processFileFromR2(

@@ -4,14 +4,6 @@ export const APPROVAL = {
   NO: "No, denied.",
 } as const;
 
-// AutoRAG configuration
-export const AUTORAG_CONFIG = {
-  LIBRARY_RAG_ID: "loresmith-library-autorag",
-  buildLibraryAutoRAGUrl: (baseUrl: string, endpoint: string): string => {
-    return `${baseUrl}${endpoint}`;
-  },
-} as const;
-
 // Authentication response codes
 export const AUTH_CODES = {
   SUCCESS: 200,
@@ -310,48 +302,6 @@ export const API_CONFIG = {
       STATUS: "/ingestion/status",
       HEALTH: "/ingestion/health",
       STATS: "/ingestion/stats",
-    },
-    AUTORAG: {
-      SYNC: (ragId: string) => `/autorag/rags/${ragId}/sync`,
-      JOB_DETAILS: (ragId: string, jobId: string) =>
-        `/autorag/rags/${ragId}/jobs/${jobId}`,
-      JOB_LOGS: (ragId: string, jobId: string) =>
-        `/autorag/rags/${ragId}/jobs/${jobId}/logs`,
-      JOBS: (ragId: string) => `/autorag/rags/${ragId}/jobs`,
-      REFRESH_ALL_FILE_STATUSES: "/autorag/refresh-all-statuses",
-      SYNC_QUEUE_STATUS: "/autorag/sync-queue-status",
-      CHECK_COMPLETED_FILES: "/autorag/check-completed-files",
-      RETRY_FILE: "/autorag/retry-file",
-      // AutoRAG API URL construction helpers
-      API: {
-        SEARCH: (
-          accountId: string,
-          ragName: string = "loresmith-library-autorag"
-        ) =>
-          `https://api.cloudflare.com/client/v4/accounts/${accountId}/autorag/rags/${ragName}/search`,
-        SYNC: (
-          accountId: string,
-          ragName: string = "loresmith-library-autorag"
-        ) =>
-          `https://api.cloudflare.com/client/v4/accounts/${accountId}/autorag/rags/${ragName}/sync`,
-        JOBS: (
-          accountId: string,
-          ragName: string = "loresmith-library-autorag"
-        ) =>
-          `https://api.cloudflare.com/client/v4/accounts/${accountId}/autorag/rags/${ragName}/jobs`,
-        JOB_DETAILS: (
-          accountId: string,
-          ragName: string = "loresmith-library-autorag",
-          jobId: string
-        ) =>
-          `https://api.cloudflare.com/client/v4/accounts/${accountId}/autorag/rags/${ragName}/jobs/${jobId}`,
-        JOB_LOGS: (
-          accountId: string,
-          ragName: string = "loresmith-library-autorag",
-          jobId: string
-        ) =>
-          `https://api.cloudflare.com/client/v4/accounts/${accountId}/autorag/rags/${ragName}/jobs/${jobId}/logs`,
-      },
     },
     FILE_ANALYSIS: {
       BASE: "/file-analysis",

@@ -1,10 +1,5 @@
 import type { Hono } from "hono";
 import {
-  handleIngestionHealth,
-  handleIngestionStats,
-  handleIngestionStatus,
-} from "@/api_status";
-import {
   handleGetAssessmentRecommendations,
   handleGetUserActivity,
   handleGetUserState,
@@ -21,16 +16,6 @@ import {
   handleStoreOpenAIKey,
   requireUserJwt,
 } from "@/routes/auth";
-import {
-  handleAutoRAGJobDetails,
-  handleAutoRAGJobLogs,
-  handleAutoRAGJobs,
-  handleAutoRAGSync,
-  handleRefreshAllFileStatuses,
-  handleGetSyncQueueStatus,
-  checkCompletedFilesSearchability,
-  handleRetryFile,
-} from "@/routes/autorag";
 import {
   handleApproveShards,
   handleGetStagedShards,
@@ -158,7 +143,6 @@ export interface Env extends AuthEnv {
   ASSETS: Fetcher;
   FILE_PROCESSING_QUEUE: Queue;
   FILE_PROCESSING_DLQ: Queue;
-  AUTORAG_API_TOKEN: string;
 }
 
 export function registerRoutes(app: Hono<{ Bindings: Env }>) {
@@ -217,47 +201,6 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.RAG.BULK_CHECK_FILE_INDEXING,
     requireUserJwt,
     handleBulkCheckFileIndexingStatus
-  );
-
-  app.patch(
-    API_CONFIG.ENDPOINTS.AUTORAG.SYNC(":ragId"),
-    requireUserJwt,
-    handleAutoRAGSync
-  );
-  app.get(
-    API_CONFIG.ENDPOINTS.AUTORAG.JOB_DETAILS(":ragId", ":jobId"),
-    requireUserJwt,
-    handleAutoRAGJobDetails
-  );
-  app.get(
-    API_CONFIG.ENDPOINTS.AUTORAG.JOB_LOGS(":ragId", ":jobId"),
-    requireUserJwt,
-    handleAutoRAGJobLogs
-  );
-  app.get(
-    API_CONFIG.ENDPOINTS.AUTORAG.JOBS(":ragId"),
-    requireUserJwt,
-    handleAutoRAGJobs
-  );
-  app.post(
-    API_CONFIG.ENDPOINTS.AUTORAG.REFRESH_ALL_FILE_STATUSES,
-    requireUserJwt,
-    handleRefreshAllFileStatuses
-  );
-  app.get(
-    API_CONFIG.ENDPOINTS.AUTORAG.SYNC_QUEUE_STATUS,
-    requireUserJwt,
-    handleGetSyncQueueStatus
-  );
-  app.post(
-    API_CONFIG.ENDPOINTS.AUTORAG.CHECK_COMPLETED_FILES,
-    requireUserJwt,
-    checkCompletedFilesSearchability
-  );
-  app.post(
-    API_CONFIG.ENDPOINTS.AUTORAG.RETRY_FILE,
-    requireUserJwt,
-    handleRetryFile
   );
 
   app.route(API_CONFIG.ENDPOINTS.FILE_ANALYSIS.BASE, fileAnalysisRoutes);
@@ -710,22 +653,6 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     handleAbortLargeUpload
   );
 
-  app.get(
-    API_CONFIG.ENDPOINTS.INGESTION.STATUS,
-    requireUserJwt,
-    handleIngestionStatus
-  );
-  app.get(
-    API_CONFIG.ENDPOINTS.INGESTION.HEALTH,
-    requireUserJwt,
-    handleIngestionHealth
-  );
-  app.get(
-    API_CONFIG.ENDPOINTS.INGESTION.STATS,
-    requireUserJwt,
-    handleIngestionStats
-  );
-
   app.get("/", async (c) => {
     try {
       // Serve index.html from assets
@@ -766,12 +693,6 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
   });
 
   app.get("/agents/*", async (c) => {
-    if (!process.env.OPENAI_API_KEY) {
-      console.error(
-        "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
-      );
-    }
-
     const authHeader = c.req.header("Authorization");
     const authPayload = await AuthService.extractAuthFromHeader(
       authHeader,

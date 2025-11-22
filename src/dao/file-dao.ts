@@ -1,6 +1,6 @@
 import type { R2Bucket, VectorizeIndex } from "@cloudflare/workers-types";
 import { BaseDAOClass } from "./base-dao";
-import { getFileExistencePrompt } from "../lib/prompts/file-indexing-prompts";
+import { LibraryRAGService } from "@/services/rag/rag-service";
 
 export interface FileMetadata {
   id: string;
@@ -15,7 +15,6 @@ export interface FileMetadata {
   chunk_count?: number;
   created_at: string;
   updated_at: string;
-  // Enhanced metadata fields for AutoRAG analysis
   content_summary?: string;
   key_topics?: string;
   content_type_categories?: string;
@@ -324,41 +323,39 @@ export class FileDAO extends BaseDAOClass {
   }
 
   /**
-   * Check if a file is indexed in AutoRAG by attempting a search
+   * Check if a file is indexed by attempting a search with LibraryRAGService
    */
   async checkFileIndexingStatus(
     fileKey: string,
-    _username: string,
-    ragService: any
+    username: string,
+    env: any
   ): Promise<{ isIndexed: boolean; error?: string }> {
     try {
       // Extract filename from fileKey for search
       const filename = fileKey.split("/").pop() || "";
 
-      // Ask AutoRAG directly if it has information from this specific file
-      const searchResult = await ragService.aiSearch(
-        getFileExistencePrompt(filename),
-        {
-          max_results: 1,
-        }
+      // Use LibraryRAGService to check if file is indexed
+      const ragService = new LibraryRAGService(env);
+
+      // Check if file exists by searching for it
+      const searchQuery = `Find the file named "${filename}"`;
+      const searchResult = await ragService.searchContent(
+        username,
+        searchQuery,
+        1
       );
 
       console.log(
-        `[FileDAO] AutoRAG search result for ${filename}:`,
+        `[FileDAO] LibraryRAGService search result for ${filename}:`,
         JSON.stringify(searchResult, null, 2)
       );
 
-      // Check if the response contains "yes" (case insensitive)
-      const response =
-        searchResult?.response || searchResult?.result || searchResult;
-      const hasResults =
-        response &&
-        typeof response === "string" &&
-        response.toLowerCase().includes("yes");
+      // Check if we have results (file is indexed)
+      const hasResults = Array.isArray(searchResult) && searchResult.length > 0;
 
       console.log(`[FileDAO] Parsed response for ${filename}:`, {
-        response,
         hasResults,
+        resultCount: Array.isArray(searchResult) ? searchResult.length : 0,
       });
 
       return { isIndexed: hasResults };

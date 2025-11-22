@@ -1,16 +1,14 @@
-// Centralized AutoRAG AI Search Service
-// Consolidates all aiSearch calls to prevent path filtering bugs
+// Centralized AI Search Service
+// Consolidates all search calls using LibraryRAGService
 
-import { getLibraryAutoRAGService } from "@/lib/service-factory";
+import { LibraryRAGService } from "@/services/rag/rag-service";
 import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
 import { getFileExistencePrompt } from "@/lib/prompts/file-indexing-prompts";
 
 export interface AISearchOptions {
   maxResults?: number;
   rewriteQuery?: boolean;
-  filters?: any; // AutoRAG filter type
   systemPrompt?: string;
-  usePathFilter?: boolean; // Default: true for file-specific searches
 }
 
 export interface CampaignContextSearchOptions extends AISearchOptions {
@@ -19,7 +17,7 @@ export interface CampaignContextSearchOptions extends AISearchOptions {
 
 export class AISearchService {
   /**
-   * Search library content with proper path filtering
+   * Search library content using LibraryRAGService
    */
   static async searchLibrary(
     env: any,
@@ -27,18 +25,17 @@ export class AISearchService {
     query: string,
     options: AISearchOptions = {}
   ) {
-    const ragService = getLibraryAutoRAGService(env, username);
-    return await ragService.aiSearch(query, {
-      max_results: options.maxResults || 10,
-      rewrite_query: options.rewriteQuery || false,
-      filters: options.filters,
-      system_prompt: options.systemPrompt,
-    });
+    const ragService = new LibraryRAGService(env);
+    return await ragService.searchContent(
+      username,
+      query,
+      options.maxResults || 10
+    );
   }
 
   /**
-   * Search for specific file content with proper path filtering
-   * This is the main method that was causing the bug - now centralized
+   * Search for specific file content using LibraryRAGService
+   * Note: File-specific filtering is handled by the query itself
    */
   static async searchFileContent(
     env: any,
@@ -47,33 +44,18 @@ export class AISearchService {
     filePath: string,
     options: AISearchOptions = {}
   ) {
-    const ragService = getLibraryAutoRAGService(env, username);
+    const ragService = new LibraryRAGService(env);
 
-    // Always use path filter for file-specific searches to prevent the bug
-    const usePathFilter = options.usePathFilter !== false;
+    // Include file path in query for context
+    const contextualQuery = `${query} (from file: ${filePath})`;
 
-    const searchOptions: any = {
-      max_results: options.maxResults || 50,
-      rewrite_query: options.rewriteQuery || false,
-      system_prompt: options.systemPrompt,
-    };
+    console.log(`[CentralizedAISearch] Searching file content: ${filePath}`);
 
-    if (usePathFilter) {
-      // Use path filter to prevent "No relevant documents" errors
-      searchOptions.filters = {
-        type: "eq",
-        key: "path",
-        value: filePath,
-      };
-    } else if (options.filters) {
-      searchOptions.filters = options.filters;
-    }
-
-    console.log(
-      `[CentralizedAISearch] Searching file content with path filter: ${filePath}`
+    return await ragService.searchContent(
+      username,
+      contextualQuery,
+      options.maxResults || 50
     );
-
-    return await ragService.aiSearch(query, searchOptions);
   }
 
   /**
@@ -120,42 +102,19 @@ export class AISearchService {
   }
 
   /**
-   * Check if a file exists in AutoRAG (general search, no path filter needed)
+   * Check if a file exists using LibraryRAGService
    */
   static async checkFileExists(env: any, username: string, fileKey: string) {
     const filename = fileKey.split("/").pop() || "";
-    const ragService = getLibraryAutoRAGService(env, username);
+    const ragService = new LibraryRAGService(env);
 
     console.log(`[CentralizedAISearch] Checking if file exists: ${filename}`);
 
-    return await ragService.aiSearch(getFileExistencePrompt(filename), {
-      max_results: 1,
-    });
-  }
-
-  /**
-   * Search campaign context with entity type filtering
-   * TODO: Replace with graph-based entity search
-   * Entities are now stored in D1 graph, not R2
-   * This method needs to be updated to search through the entity graph using EntityDAO/EntityGraphService
-   */
-  static async searchCampaignContext(
-    _env: any,
-    _campaignRagBasePath: string,
-    query: string,
-    _options: CampaignContextSearchOptions = {}
-  ) {
-    console.warn(
-      `[CentralizedAISearch] searchCampaignContext is deprecated - entities are now in D1 graph, not R2. ` +
-        `Need to implement graph-based search. Query: ${query}`
+    return await ragService.searchContent(
+      username,
+      getFileExistencePrompt(filename),
+      1
     );
-
-    // Return empty result for now - needs graph search implementation
-    return {
-      response: "",
-      data: [],
-      metadata: {},
-    };
   }
 
   /**

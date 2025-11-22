@@ -477,6 +477,31 @@ export async function notifyFileUpdated(
 }
 
 /**
+ * Publish an authentication required notification
+ */
+export async function notifyAuthenticationRequired(
+  env: Env,
+  userId: string,
+  message?: string
+): Promise<void> {
+  await notifyUser(env, userId, {
+    type: NOTIFICATION_TYPES.AUTHENTICATION_REQUIRED,
+    title: "Authentication Required",
+    message:
+      message || "OpenAI API key required. Please authenticate to continue.",
+    data: {
+      // Mark as hidden to prevent showing in notification bell
+      hidden: true,
+      // UI hint to trigger the authentication modal
+      ui_hint: {
+        type: "show_auth_modal",
+        data: {},
+      },
+    },
+  });
+}
+
+/**
  * Format file size in human-readable format
  */
 function formatFileSize(bytes: number): string {
