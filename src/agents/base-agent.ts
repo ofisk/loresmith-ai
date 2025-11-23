@@ -291,6 +291,27 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           `[${this.constructor.name}] Enhanced tools count: ${Object.keys(enhancedTools).length}`
         );
 
+        // Log request details for debugging
+        const requestDetails = {
+          agent: this.constructor.name,
+          model: this.model?.modelId || "unknown",
+          messageCount: processedMessages.length,
+          toolCount: Object.keys(enhancedTools).length,
+          toolNames: Object.keys(enhancedTools),
+          toolChoice,
+          maxSteps: 5,
+          lastUserMessage: processedMessages
+            .slice()
+            .reverse()
+            .find((m: any) => m.role === "user")
+            ?.content?.slice(0, 100),
+        };
+
+        console.log(
+          `[${this.constructor.name}] 🚀 Making OpenAI API request:`,
+          JSON.stringify(requestDetails, null, 2)
+        );
+
         try {
           const result = streamText({
             model: this.model,
@@ -314,11 +335,39 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               };
               await (onFinish ?? (() => {}))(message);
             },
-            onError: (error) => {
+            onError: (errorObj) => {
+              // Extract all error details
+              const error = errorObj.error as Error & Record<string, any>;
+              const errorDetails = {
+                message: error?.message || String(error),
+                name: error?.name || "Unknown",
+                stack: error?.stack,
+                // OpenAI specific fields
+                statusCode: error?.statusCode,
+                code: error?.code,
+                type: error?.type,
+                param: error?.param,
+                // Additional properties
+                ...Object.fromEntries(
+                  Object.entries(error || {}).filter(
+                    ([key]) => !["message", "name", "stack"].includes(key)
+                  )
+                ),
+              };
+
               console.error(
-                `Error in ${this.constructor.name} streamText:`,
-                error
+                `[${this.constructor.name}] ❌ OpenAI API Call Failed`
               );
+              console.error(
+                `Request Details:`,
+                JSON.stringify(requestDetails, null, 2)
+              );
+              console.error(
+                `Error Details:`,
+                JSON.stringify(errorDetails, null, 2)
+              );
+              console.error(`Full Error Object:`, errorObj);
+
               // Send error message to user
               dataStream.write(
                 formatDataStreamPart(
