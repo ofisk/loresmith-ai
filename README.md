@@ -90,6 +90,8 @@ The application supports two modes for OpenAI API key configuration:
 
 This project consists of a React client and a Cloudflare Worker server. You need to start both for full functionality during development.
 
+**⚠️ Important:** For normal development, use `npm run dev:cloudflare` (not `npm run dev`) to connect to remote Cloudflare resources. This ensures all features work properly, including database access and internal API calls.
+
 #### Prerequisites for Local Development
 
 1. **Install Wrangler CLI** (if not already installed):
@@ -157,17 +159,36 @@ npm run build
 
 #### 4. Start the Cloudflare Worker server
 
-The backend server runs as a Cloudflare Worker. Start it using the local configuration:
+The backend server runs as a Cloudflare Worker. You have two options:
+
+**Option A: Remote Resources (Recommended for full functionality)**
 
 ```bash
-# Use the npm script (recommended)
-npm run dev
-
-# Or manually with wrangler
-wrangler dev --config wrangler.local.jsonc --port 8787 --local
+npm run dev:cloudflare
 ```
 
-This will start the server locally at `http://localhost:8787` and provide you with a local endpoint for API requests.
+This runs your Worker locally but connects to **remote** Cloudflare resources:
+
+- ✅ Remote D1 database (production/dev database)
+- ✅ Remote R2 storage
+- ✅ Remote Vectorize and other Cloudflare services
+- ✅ Internal API calls work properly
+- ✅ Full feature parity with production
+
+**Option B: Fully Local (Limited functionality)**
+
+```bash
+npm run dev
+```
+
+This runs everything locally using mock/local resources:
+
+- ❌ Local SQLite database (requires running migrations first)
+- ❌ Limited Cloudflare service functionality
+- ❌ Some internal API calls may fail
+- ⚠️ Use only for testing database migrations or offline development
+
+**For normal development, use `npm run dev:cloudflare`** to connect to remote resources while running locally at `http://localhost:8787`.
 
 #### 5. Start the React client
 
@@ -219,9 +240,10 @@ The project includes several useful npm scripts for development:
 
 ```bash
 # Development
-npm start          # Start React development server
-npm run dev        # Start Cloudflare Worker with local config
-npm run build      # Build the React application
+npm start               # Start React development server (frontend)
+npm run dev:cloudflare  # Start Worker with REMOTE Cloudflare resources (recommended)
+npm run dev             # Start Worker with LOCAL resources only (limited functionality)
+npm run build           # Build the React application
 
 # Testing
 npm test           # Run all tests

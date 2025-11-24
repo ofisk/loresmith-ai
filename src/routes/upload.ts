@@ -59,7 +59,7 @@ export async function handleUploadStatus(c: ContextWithAuth) {
     const key = await buildLibraryFileKey(
       tenant || "",
       filename || "",
-      c.env.AUTORAG_PREFIX || ""
+      (c.env as any).AUTORAG_PREFIX || "library"
     );
     const object = await c.env.R2.head(key);
     const exists = object
@@ -112,7 +112,7 @@ export async function handleDirectUpload(c: ContextWithAuth) {
     const key = await buildLibraryFileKey(
       tenant || "",
       filename || "",
-      c.env.AUTORAG_PREFIX || ""
+      (c.env as any).AUTORAG_PREFIX || "library"
     );
 
     // Upload directly to R2
@@ -358,7 +358,7 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
     const fileKey = await buildLibraryFileKey(
       tenant,
       filename,
-      c.env.AUTORAG_PREFIX || ""
+      (c.env as any).AUTORAG_PREFIX || "library"
     );
 
     // Create multipart upload in R2

@@ -1,5 +1,6 @@
 import { openai } from "@ai-sdk/openai";
 import { MODEL_CONFIG } from "../app-constants";
+import { OpenAIAPIKeyError } from "./errors";
 
 /**
  * Centralized model configuration for Loresmith AI
@@ -12,14 +13,13 @@ import { MODEL_CONFIG } from "../app-constants";
  * Validate that an API key is available
  */
 function validateApiKey(apiKey?: string): string {
-  const key = apiKey || process.env.OPENAI_API_KEY;
-  if (!key) {
-    console.error("OpenAI API key not provided and no default key configured");
-    throw new Error(
-      "OpenAI API key is required - users must provide their own key"
+  if (!apiKey) {
+    console.error("OpenAI API key not provided");
+    throw new OpenAIAPIKeyError(
+      "OpenAI API key is required - users must provide their own key through application authentication"
     );
   }
-  return key;
+  return apiKey;
 }
 
 /**

@@ -2,10 +2,7 @@ import type { Context } from "hono";
 import { jwtVerify } from "jose";
 import { getDAOFactory } from "@/dao";
 import { AgentRouter } from "@/lib/agent-router";
-import {
-  getAuthService,
-  getLibraryAutoRAGService,
-} from "@/lib/service-factory";
+import { getAuthService, LibraryRAGService } from "@/lib/service-factory";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { AuthService } from "@/services/core/auth-service";
@@ -80,13 +77,13 @@ export async function determineAgent(
     ? AuthService.extractUsernameFromMessage(lastUserMessage)
     : null;
 
-  // Create AutoRAG service if we have a username
+  // Create LibraryRAGService if we have a username
   let ragService = null;
   if (username) {
     try {
-      ragService = getLibraryAutoRAGService(env, username);
+      ragService = new LibraryRAGService(env);
     } catch (error) {
-      console.warn("Failed to initialize AutoRAG service:", error);
+      console.warn("Failed to initialize LibraryRAGService:", error);
     }
   }
 
@@ -144,7 +141,70 @@ export async function handleAuthenticate(c: Context<{ Bindings: Env }>) {
     const daoFactory = getDAOFactory(c.env);
     await daoFactory.storeOpenAIKey(username, openaiApiKey);
 
-    console.log("[handleAuthenticate] OpenAI API key stored successfully");
+    console.log("[handleAuthenticate] OpenAI API key stored in database");
+
+    // Also store OpenAI API key in Chat durable object for this session
+    console.log(
+      "[handleAuthenticate] Storing OpenAI API key in Chat durable object for session:",
+      sessionId
+    );
+
+    try {
+      console.log(
+        "[handleAuthenticate] Getting Chat durable object for session:",
+        sessionId
+      );
+      const chatId = c.env.CHAT.idFromName(sessionId);
+      const chat = c.env.CHAT.get(chatId);
+
+      // Set the API key directly in the Chat durable object
+      const chatRequestUrl = new URL(c.req.url);
+      chatRequestUrl.pathname = "/set-user-openai-key";
+
+      console.log(
+        "[handleAuthenticate] Calling Chat durable object set-user-openai-key endpoint"
+      );
+
+      const response = await chat.fetch(
+        new Request(chatRequestUrl.toString(), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${result.token}`, // Use the JWT token we just created
+          },
+          body: JSON.stringify({ openaiApiKey: openaiApiKey.trim() }),
+        })
+      );
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error(
+          "[handleAuthenticate] Failed to store OpenAI API key in Chat durable object:",
+          {
+            status: response.status,
+            statusText: response.statusText,
+            error,
+            sessionId,
+          }
+        );
+        // Don't fail authentication if Chat storage fails - database storage is sufficient
+      } else {
+        const responseData = await response.json();
+        console.log(
+          "[handleAuthenticate] OpenAI API key stored in Chat durable object:",
+          {
+            sessionId,
+            response: responseData,
+          }
+        );
+      }
+    } catch (error) {
+      console.error(
+        "[handleAuthenticate] Error storing OpenAI API key in Chat durable object:",
+        error
+      );
+      // Don't fail authentication if Chat storage fails - database storage is sufficient
+    }
 
     return c.json({
       token: result.token,
