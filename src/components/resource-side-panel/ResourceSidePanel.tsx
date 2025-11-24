@@ -30,7 +30,7 @@ export function ResourceSidePanel({
   className = "",
   isAuthenticated = false,
   campaigns = [],
-  selectedCampaignId,
+  selectedCampaignId: _selectedCampaignId,
   onLogout,
   showUserMenu = false,
   setShowUserMenu,
