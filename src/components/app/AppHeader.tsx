@@ -159,7 +159,7 @@ export function AppHeader({
         variant="ghost"
         size="md"
         shape="square"
-        className="rounded-full h-9 w-9"
+        className="rounded-full h-9 w-9 flex items-center justify-center"
         onClick={onClearHistory}
       >
         <Trash size={20} />

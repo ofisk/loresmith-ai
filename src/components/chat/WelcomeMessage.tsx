@@ -1,5 +1,3 @@
-import { Lightbulb } from "@phosphor-icons/react";
-import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import mapIcon from "../../assets/map.png";
 import addToLibraryIcon from "../../assets/add-to-library.png";
@@ -71,8 +69,12 @@ export function WelcomeMessage({
               Ready to dive in? Pick an option below to get started:
             </p>
           </div>
-          <div className="space-y-4">
-            <div className="bg-white/80 dark:bg-neutral-800/80 p-5 rounded-xl border border-neutral-200/50 dark:border-neutral-700/50 backdrop-blur-sm shadow-sm">
+          <div className="flex gap-4">
+            <button
+              type="button"
+              className="flex-1 bg-white/80 dark:bg-neutral-800/80 p-5 rounded-xl border border-neutral-200/50 dark:border-neutral-700/50 backdrop-blur-sm shadow-sm hover:shadow-md hover:bg-white dark:hover:bg-neutral-800 transition-all cursor-pointer text-left"
+              onClick={onUploadFiles}
+            >
               <h4 className="font-medium text-base mb-2 flex items-center gap-2">
                 <img
                   src={addToLibraryIcon}
@@ -81,41 +83,25 @@ export function WelcomeMessage({
                 />
                 Build your library
               </h4>
-              <p className="text-sm text-muted-foreground mb-4">
+              <p className="text-sm text-muted-foreground">
                 Upload maps, adventure modules, campaign primers, and notes to
                 build a searchable knowledge base
               </p>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="bg-neutral-100 dark:bg-neutral-600 rounded-lg"
-                onClick={onUploadFiles}
-              >
-                <Lightbulb size={14} />
-                Upload resources
-              </Button>
-            </div>
-            <div className="bg-white/80 dark:bg-neutral-800/80 p-5 rounded-xl border border-neutral-200/50 dark:border-neutral-700/50 backdrop-blur-sm shadow-sm">
+            </button>
+            <button
+              type="button"
+              className="flex-1 bg-white/80 dark:bg-neutral-800/80 p-5 rounded-xl border border-neutral-200/50 dark:border-neutral-700/50 backdrop-blur-sm shadow-sm hover:shadow-md hover:bg-white dark:hover:bg-neutral-800 transition-all cursor-pointer text-left"
+              onClick={() => onSuggestionSubmit("Help me plan a new campaign")}
+            >
               <h4 className="font-medium text-base mb-2 flex items-center gap-2">
                 <img src={mapIcon} alt="Map" className="w-12 h-12" />
                 Plan your campaign
               </h4>
-              <p className="text-sm text-muted-foreground mb-4">
+              <p className="text-sm text-muted-foreground">
                 Chat with me to brainstorm ideas, create campaigns, and plan
                 adventures
               </p>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="bg-neutral-100 dark:bg-neutral-600 rounded-lg"
-                onClick={() =>
-                  onSuggestionSubmit("Help me plan a new campaign")
-                }
-              >
-                <Lightbulb size={14} />
-                Start planning
-              </Button>
-            </div>
+            </button>
           </div>
         </div>
       </Card>
