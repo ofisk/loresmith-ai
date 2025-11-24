@@ -12,7 +12,7 @@ import { SyncQueueService } from "@/services/file/sync-queue-service";
 /**
  * Process a file with LibraryRAGService and update status
  */
-export async function processFileWithAutoRAG(
+export async function processFile(
   env: Env,
   fileKey: string,
   userId: string,
@@ -147,7 +147,7 @@ async function updateFileStatusToUploaded(
 /**
  * Start file processing in background
  */
-export async function startAutoRAGProcessing(
+export async function startFileProcessing(
   env: Env,
   fileKey: string,
   userId: string,
@@ -159,14 +159,7 @@ export async function startAutoRAGProcessing(
   scopedLog.debug("Starting file processing in background", { filename });
 
   try {
-    await processFileWithAutoRAG(
-      env,
-      fileKey,
-      userId,
-      filename,
-      logPrefix,
-      jwt
-    );
+    await processFile(env, fileKey, userId, filename, logPrefix, jwt);
   } catch (error) {
     scopedLog.error("File processing failed", error);
     await handleProcessingError(

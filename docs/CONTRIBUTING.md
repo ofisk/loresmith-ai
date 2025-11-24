@@ -58,12 +58,12 @@ Services are organized into logical subdirectories:
 // ✅ Good
 src / services / core / auth - service.ts;
 src / services / file / job - status - service.ts;
-src / services / campaign / campaign - autorag - service.ts;
+src / services / campaign / campaign - service.ts;
 
 // ❌ Bad
 src / services / auth.ts;
 src / services / jobStatus.ts;
-src / services / campaign - autorag - client.ts;
+src / services / campaign / planning - context - service.ts;
 ```
 
 ### Service Patterns

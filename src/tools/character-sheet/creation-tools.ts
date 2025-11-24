@@ -118,7 +118,7 @@ export const createCharacterSheet = tool({
 
         console.log("[Tool] Created character sheet:", characterId);
 
-        // Sync to AutoRAG for searchability
+        // Sync to RAG for searchability
         try {
           const syncService = new CampaignContextSyncService(env);
           const characterData = {
@@ -126,18 +126,15 @@ export const createCharacterSheet = tool({
             level: characterLevel,
             race: characterRace,
           };
-          await syncService.syncCharacterSheetToAutoRAG(
+          await syncService.syncCharacterSheet(
             campaignId,
             characterId,
             characterName,
             characterData
           );
-          console.log("[Tool] Synced character sheet to AutoRAG:", characterId);
+          console.log("[Tool] Synced character sheet:", characterId);
         } catch (syncError) {
-          console.error(
-            "[Tool] Failed to sync character sheet to AutoRAG:",
-            syncError
-          );
+          console.error("[Tool] Failed to sync character sheet:", syncError);
           // Don't fail the whole operation if sync fails
         }
 

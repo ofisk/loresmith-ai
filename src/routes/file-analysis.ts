@@ -8,7 +8,7 @@ import { API_CONFIG } from "@/shared-config";
 const app = new Hono();
 
 /**
- * Analyze a specific file using AutoRAG
+ * Analyze a specific file
  */
 app.post(
   API_CONFIG.ENDPOINTS.FILE_ANALYSIS.ANALYZE(":fileKey"),

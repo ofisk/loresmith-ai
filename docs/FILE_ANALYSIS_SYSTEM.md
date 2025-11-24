@@ -1,12 +1,12 @@
 # File Analysis System
 
-The File Analysis System automatically analyzes files after they've been indexed by Cloudflare AutoRAG to generate rich metadata for intelligent resource recommendations.
+The File Analysis System automatically analyzes files after they've been indexed by the Library RAG Service to generate rich metadata for intelligent resource recommendations.
 
 ## Overview
 
 This system enhances the user experience by:
 
-1. **Automatic Analysis**: Files are automatically analyzed after AutoRAG indexing completes
+1. **Automatic Analysis**: Files are automatically analyzed after RAG indexing completes
 2. **Rich Metadata**: Generates comprehensive metadata including content type, difficulty level, target audience, and campaign themes
 3. **Smart Recommendations**: Enables agents to suggest relevant resources based on user needs and campaign context
 4. **Intelligent Discovery**: Helps users find the right resources for their campaigns
@@ -16,14 +16,14 @@ This system enhances the user experience by:
 ### 1. File Upload Flow
 
 ```
-File Upload → AutoRAG Indexing → File Analysis → Enhanced Metadata Storage
+File Upload → RAG Indexing → File Analysis → Enhanced Metadata Storage
 ```
 
 ### 2. Analysis Process
 
-1. **File Indexing**: File is uploaded and indexed by Cloudflare AutoRAG
+1. **File Indexing**: File is uploaded and indexed by the Library RAG Service
 2. **Analysis Trigger**: After successful indexing, analysis is automatically triggered
-3. **Content Analysis**: System queries AutoRAG to understand file content
+3. **Content Analysis**: System queries the RAG service to understand file content
 4. **Metadata Generation**: Creates structured metadata for recommendations
 5. **Storage**: Enhanced metadata is stored in the database
 
@@ -152,7 +152,7 @@ The system handles various error scenarios:
 
 1. **Indexing Not Complete**: Files are marked as `waiting_for_indexing`
 2. **Analysis Failures**: Files are marked as `failed` with error details
-3. **AutoRAG Errors**: Graceful fallback to basic metadata generation
+3. **RAG Errors**: Graceful fallback to basic metadata generation
 4. **Database Errors**: Proper error logging and status updates
 
 ## Monitoring and Debugging
@@ -163,7 +163,6 @@ The system provides comprehensive logging:
 
 - `[FileAnalysis]` - General analysis operations
 - `[FileAnalysisOrchestrator]` - Orchestration and batch processing
-- `[AutoRAG]` - AutoRAG integration events
 
 ### Status Tracking
 
@@ -195,16 +194,16 @@ Potential improvements to the system:
 ### Common Issues
 
 1. **Files Stuck in "waiting_for_indexing"**
-   - Check if AutoRAG indexing has completed
-   - Verify AutoRAG configuration and API tokens
+   - Check if RAG indexing has completed
+   - Verify RAG service configuration
 
 2. **Analysis Failures**
    - Check logs for specific error messages
-   - Verify file content is accessible to AutoRAG
+   - Verify file content is accessible to the RAG service
 
 3. **Slow Analysis**
    - Adjust batch size and delay configuration
-   - Check AutoRAG API rate limits
+   - Check RAG service rate limits
 
 ### Debug Commands
 

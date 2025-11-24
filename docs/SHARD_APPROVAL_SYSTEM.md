@@ -19,7 +19,7 @@ Shards are generated and stored in a **staging area** awaiting user review:
 
 #### **File-Based Shards:**
 
-When files are added to a campaign, AutoRAG generates candidate shards:
+When files are added to a campaign, shards are generated from file content:
 
 ```
 R2 Path: campaigns/<campaignId>/<resourceId>/staging/<shard-id>.json
@@ -69,11 +69,11 @@ When a shard is approved:
    To:   campaigns/<campaignId>/<resourceId>/approved/<shard-id>.json
    ```
 
-2. The shard becomes **immediately searchable** via AutoRAG queries
+2. The shard becomes **immediately searchable** via RAG queries
 
 3. Future campaign queries will **only return approved shards**
 
-**Implementation**: `src/services/campaign-autorag-service.ts` → `approveShards()`
+**Implementation**: `src/services/campaign/` → shard approval services
 
 ### 4. Rejection Flow
 
@@ -100,49 +100,27 @@ When a shard is rejected:
 
 3. Rejected shards are **permanently excluded** from all searches
 
-**Implementation**: `src/services/campaign-autorag-service.ts` → `rejectShards()`
+**Implementation**: `src/services/campaign/` → shard rejection services
 
 ## Enforced Filtering
 
 ### The Filter Mechanism
 
-The `CampaignAutoRAG` service implements an `enforcedFilter()` method that returns the approved content path:
-
-```typescript
-// In campaign-autorag-service.ts
-protected enforcedFilter(): string | null {
-  return `${this.campaignRagBasePath}/approved/`;
-}
-```
+The campaign context service implements filtering to return only approved content:
 
 ### How Filters Are Applied
 
-All search operations (`search()` and `aiSearch()`) in `AutoRAGClientBase` automatically apply this filter:
+All search operations automatically filter to approved content only:
 
 ```typescript
-// In autorag-client.ts
-async search(query: string, options: AutoRAGSearchOptions = {}) {
-  const enforcedPath = this.enforcedFilter(); // e.g., "campaigns/123/approved/"
-
-  if (enforcedPath) {
-    const pathFilter: ComparisonFilter = {
-      key: "path",
-      type: "eq",
-      value: enforcedPath,
-    };
-
-    // Merge with user filters if any
-    if (options.filters) {
-      mergedOptions.filters = {
-        type: "and",
-        filters: [pathFilter, options.filters],
-      };
-    } else {
-      mergedOptions.filters = pathFilter;
-    }
-  }
-
-  return await this.autoRagClient.search(query, mergedOptions);
+// Search automatically filters to approved content only
+async searchCampaignContext(campaignId: string, query: string, options = {}) {
+  // Only searches within approved shards for the campaign
+  return await planningService.searchCampaignContext(
+    campaignId,
+    query,
+    { ...options, approvedOnly: true }
+  );
 }
 ```
 
@@ -201,9 +179,9 @@ Users receive clear guidance on what specific actions will help them progress to
 
 ## Campaign Context Integration
 
-### Context Types Synced to AutoRAG
+### Context Types Synced to Campaign Storage
 
-Campaign-specific content is automatically synced to AutoRAG as **pre-approved shards**:
+Campaign-specific content is automatically stored as **pre-approved shards**:
 
 1. **Campaign Title & Description** - Synced on creation and update
 2. **Characters** (`campaign_characters` table) - Synced on creation
@@ -218,7 +196,7 @@ The `CampaignContextSyncService` handles syncing campaign context:
 
 ```typescript
 // Sync campaign title and description
-await syncService.syncContextToAutoRAG(
+await syncService.syncContextToCampaign(
   campaignId,
   `${campaignId}-title`,
   "campaign_info",
@@ -228,7 +206,7 @@ await syncService.syncContextToAutoRAG(
 );
 
 // Sync pre-approved shard from character
-await syncService.syncCharacterToAutoRAG(
+await syncService.syncCharacterToCampaign(
   campaignId,
   characterId,
   characterName,
@@ -251,27 +229,13 @@ await syncService.syncCampaignNote(
 
 ### Search Integration
 
-Campaign context searches now use AutoRAG instead of SQL:
-
-**Before** (SQL):
+Campaign context searches use semantic search with filtering:
 
 ```typescript
-// Direct database query
-const characters = await env.DB.prepare(
-  "SELECT * FROM campaign_characters WHERE campaign_id = ? AND character_name LIKE ?"
-)
-  .bind(campaignId, `%${query}%`)
-  .all();
-```
-
-**After** (AutoRAG):
-
-```typescript
-// Semantic search via AutoRAG (includes approved filter)
-const autoRAG = new CampaignAutoRAG(env, baseUrl, basePath);
-const results = await autoRAG.aiSearch(query, {
-  max_results: 20,
-  filters: { key: "entityType", type: "eq", value: "character" },
+// Semantic search with approved content filtering
+const planningService = new PlanningContextService(env);
+const results = await planningService.searchCampaignContext(campaignId, query, {
+  limit: 20,
 });
 ```
 
@@ -314,7 +278,7 @@ campaigns/<campaignId>/
 ### Get Staged Shards
 
 ```
-GET /api/campaigns/:campaignId/autorag/staged
+GET /api/campaigns/:campaignId/shards/staged
 ```
 
 Returns all pending shards awaiting user review.
@@ -322,7 +286,7 @@ Returns all pending shards awaiting user review.
 ### Approve Shards
 
 ```
-POST /api/campaigns/:campaignId/autorag/approve
+POST /api/campaigns/:campaignId/shards/approve
 Body: { shardIds: string[], stagingKeys: string[] }
 ```
 
@@ -331,7 +295,7 @@ Approves selected shards, moving them to the approved folder.
 ### Reject Shards
 
 ```
-POST /api/campaigns/:campaignId/autorag/reject
+POST /api/campaigns/:campaignId/shards/reject
 Body: { shardIds: string[], stagingKeys: string[], reason: string }
 ```
 
@@ -360,7 +324,7 @@ Rejects selected shards with a reason, moving them to the rejected folder.
 ### 1. Test Shard Approval Flow
 
 1. Add a file to a campaign
-2. Wait for AutoRAG to generate shards (they appear in staging)
+2. Wait for shards to be generated (they appear in staging)
 3. Open the Shard Management overlay (right panel)
 4. Review and approve/reject shards
 5. Verify approved shards appear in campaign context searches
@@ -370,8 +334,11 @@ Rejects selected shards with a reason, moving them to the rejected folder.
 
 ```typescript
 // This search will ONLY return approved shards
-const autoRAG = new CampaignAutoRAG(env, baseUrl, `campaigns/${campaignId}`);
-const results = await autoRAG.aiSearch("find characters named John");
+const planningService = new PlanningContextService(env);
+const results = await planningService.searchCampaignContext(
+  campaignId,
+  "find characters named John"
+);
 
 // Check: All results should have paths starting with "campaigns/123/approved/"
 results.results.forEach((r) => {
@@ -388,9 +355,9 @@ await db.insert("campaign_characters", {
   /* ... */
 });
 
-// Sync to AutoRAG
+// Sync to campaign storage
 const syncService = new CampaignContextSyncService(env);
-await syncService.syncCharacterToAutoRAG(
+await syncService.syncCharacterToCampaign(
   campaignId,
   characterId,
   "Gandalf",
@@ -398,33 +365,35 @@ await syncService.syncCharacterToAutoRAG(
 );
 
 // Verify it's searchable
-const autoRAG = new CampaignAutoRAG(env, baseUrl, `campaigns/${campaignId}`);
-const results = await autoRAG.aiSearch("wizard character");
+const planningService = new PlanningContextService(env);
+const results = await planningService.searchCampaignContext(
+  campaignId,
+  "wizard character"
+);
 // Should include Gandalf
 ```
 
 ## Key Files
 
-- **`src/services/autorag-client.ts`**: Base class with enforced filtering
-- **`src/services/campaign-autorag-service.ts`**: Campaign-specific AutoRAG implementation
-- **`src/services/campaign-context-sync-service.ts`**: Syncs campaign context to AutoRAG
-- **`src/routes/campaign-autorag.ts`**: API endpoints for shard management
+- **`src/services/campaign/`**: Campaign-specific services
+- **`src/services/campaign-context-sync-service.ts`**: Syncs campaign context to storage
+- **`src/routes/campaign/`**: API endpoints for shard management
 - **`src/components/chat/UnifiedShardManager.tsx`**: Shard review UI
 - **`src/components/shard/ShardOverlay.tsx`**: Expandable shard panel
-- **`src/tools/campaign-context/search-tools.ts`**: Campaign search tools using AutoRAG
+- **`src/tools/campaign-context/search-tools.ts`**: Campaign search tools using RAG
 
 ## Automatic Sync Behavior
 
-Campaign context is automatically synced to AutoRAG when:
+Campaign context is automatically stored when:
 
-1. **Campaign is created** - Title and description synced to AutoRAG
-2. **Campaign is updated** - Title and description re-synced to AutoRAG
+1. **Campaign is created** - Title and description stored
+2. **Campaign is updated** - Title and description updated
 3. **Characters are created** - via `storeCharacterInfo` tool
 4. **Character sheets are created** - via `createCharacterSheet` tool
 5. **Campaign context is added** - via context creation tools
 6. **Campaign notes are added** - On-the-fly decisions, ideas, and information
 
-The sync happens immediately after database insertion, ensuring all new content is instantly searchable via AutoRAG.
+The storage happens immediately after database insertion, ensuring all new content is instantly searchable.
 
 ### Nebulous Campaign Context
 

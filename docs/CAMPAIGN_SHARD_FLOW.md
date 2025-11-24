@@ -201,27 +201,27 @@ Every shard includes standardized metadata:
 ### 1. Library Setup (Already Working)
 
 - **User uploads files** to their personal library
-- **Library AutoRAG processes** the files for enhanced searchability and content extraction
+- **Library RAG Service processes** the files for enhanced searchability and content extraction
 - **Library component updates** to show newly uploaded files with processing status indicators
 
 ### 2. Campaign Creation (Already Working)
 
 - **User creates a campaign** with a specific theme or purpose
-- **Campaign AutoRAG folders** are automatically created for isolated campaign-specific queries
+- **Campaign context storage** is automatically created for isolated campaign-specific queries
 - **Campaign component updates** to show the newly created campaign
 
 ### 3. Content Curation Process
 
 - **User selects files** from their library to add to a campaign
 - **Campaign selection modal** allows choosing which campaign to add content to
-- **Shard generation** automatically queries the library AutoRAG for relevant content
+- **Shard generation** automatically queries the library RAG service for relevant content
 - **Shards are presented** one at a time with Approve/Reject options
 - **User curates content** by approving relevant shards and rejecting irrelevant ones
 - **Approved shards** are added to the campaign's knowledge base for future AI queries
 
 ## Technical Architecture
 
-### Library AutoRAG Layer
+### Library RAG Layer
 
 - **Purpose**: Processes and indexes all uploaded files for enhanced searchability
 - **Function**:
@@ -232,7 +232,7 @@ Every shard includes standardized metadata:
 - **Scope**: Global across all campaigns and users
 - **Content Types**: 30+ structured content types including core entities, adventure structure, locations, mechanics, and assets
 
-### Campaign AutoRAG Layer
+### Campaign Context Layer
 
 - **Purpose**: Provides campaign-specific knowledge bases with curated content
 - **Function**: Stores approved shards in isolated collections for each campaign
@@ -303,7 +303,7 @@ Every shard includes standardized metadata:
 POST /campaigns/:campaignId/shards/generate
 ```
 
-- Queries library AutoRAG for all structured content entities from the specific file
+- Queries library RAG service for all structured content entities from the specific file
 - Filters results to include only shards extracted from the target file
 - Converts library shards to staging format while preserving entity types and metadata
 - Saves candidates to campaign staging area for user approval/rejection
@@ -339,7 +339,7 @@ POST /campaigns/:campaignId/shards/reject
 
 ### Data Flow
 
-1. **Library Processing**: Files → Library AutoRAG → Structured Content Entities (Monsters, Spells, NPCs, etc.)
+1. **Library Processing**: Files → Library RAG Service → Structured Content Entities (Monsters, Spells, NPCs, etc.)
 2. **Campaign Addition**: File Selection → Campaign Resource Addition
 3. **Shard Generation**: Library Query → Filter by File → Structured Shard Candidates → Staging
 4. **User Curation**: Staged Shards → Approval/Rejection → Campaign Knowledge Base
@@ -348,16 +348,16 @@ POST /campaigns/:campaignId/shards/reject
 ### Storage Structure
 
 ```
-/autorag/
-├── library/                    # Global library AutoRAG
-│   ├── [processed files]
-│   └── [indexed content]
-└── campaigns/
-    └── [campaign-id]/
-        ├── staging/            # Temporary shard candidates
-        └── context/
-            ├── approved/       # Curated campaign knowledge
-            └── rejected/       # Rejected content (for audit)
+/library/
+├── [processed files]
+└── [indexed content]
+
+/campaigns/
+└── [campaign-id]/
+    ├── staging/            # Temporary shard candidates
+    └── context/
+        ├── approved/       # Curated campaign knowledge
+        └── rejected/       # Rejected content (for audit)
 ```
 
 ## Benefits

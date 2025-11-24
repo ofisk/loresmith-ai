@@ -13,14 +13,12 @@ interface UploadSession {
   status: "pending" | "uploading" | "completed" | "failed";
   createdAt: string;
   updatedAt: string;
-  autoRAGChunking?: boolean;
 }
 
 interface UploadPart {
   partNumber: number;
   etag: string;
   size: number;
-  autoRAGChunks?: string[];
 }
 
 export class UploadSessionDO {
@@ -93,7 +91,6 @@ export class UploadSessionDO {
       status: "pending",
       createdAt: now,
       updatedAt: now,
-      autoRAGChunking: data.autoRAGChunking || false,
     };
 
     await this.state.storage.put("session", this.session);
@@ -157,8 +154,7 @@ export class UploadSessionDO {
   }
 
   private async addPart(request: Request): Promise<Response> {
-    const { partNumber, etag, size, autoRAGChunks } =
-      (await request.json()) as UploadPart;
+    const { partNumber, etag, size } = (await request.json()) as UploadPart;
 
     if (!this.session) {
       return new Response(JSON.stringify({ error: "Session not found" }), {
@@ -170,7 +166,7 @@ export class UploadSessionDO {
     // Store the part information
     const parts =
       ((await this.state.storage.get("parts")) as UploadPart[]) || [];
-    parts.push({ partNumber, etag, size, autoRAGChunks });
+    parts.push({ partNumber, etag, size });
     await this.state.storage.put("parts", parts);
 
     // Update session progress

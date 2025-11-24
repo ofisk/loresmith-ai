@@ -72,14 +72,14 @@ export function FileStatusIndicator({
       icon: Spinner,
       color: "text-blue-500",
       text: "Queued",
-      title: "File uploaded, waiting for AutoRAG processing",
+      title: "File uploaded, waiting for processing",
       spinning: true,
     },
     [FileDAO.STATUS.SYNCING]: {
       icon: Spinner,
       color: "text-blue-500",
       text: "Syncing",
-      title: "Starting AutoRAG sync job",
+      title: "Starting indexing job",
       spinning: true,
     },
     [FileDAO.STATUS.PROCESSING]: {
@@ -87,8 +87,8 @@ export function FileStatusIndicator({
       color: "text-blue-500",
       text: timeEstimate ? `Processing (~${timeEstimate})` : "Processing",
       title: timeEstimate
-        ? `AutoRAG is processing the file. Estimated time: ${timeEstimate}`
-        : "AutoRAG is processing the file",
+        ? `File is being processed. Estimated time: ${timeEstimate}`
+        : "File is being processed",
       spinning: true,
     },
     [FileDAO.STATUS.INDEXING]: {
@@ -104,7 +104,7 @@ export function FileStatusIndicator({
       icon: XCircle,
       color: "text-orange-500",
       text: "Not Indexed",
-      title: "File not indexed by AutoRAG - shard generation will fail",
+      title: "File not indexed - shard generation will fail",
       spinning: false,
     },
   };

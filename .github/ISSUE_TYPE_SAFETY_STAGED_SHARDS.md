@@ -16,7 +16,7 @@ const shards = rawShards.map((shard) => ({
 
 ## Expected Behavior
 
-The `STAGED_SHARDS` API endpoint (in `src/routes/campaign-autorag.ts`) should return data that matches the `StagedShardGroup` interface defined in `src/types/shard.ts`:
+The `STAGED_SHARDS` API endpoint (in `src/routes/campaign/`) should return data that matches the `StagedShardGroup` interface defined in `src/types/shard.ts`:
 
 ```typescript
 interface StagedShardGroup {
@@ -30,7 +30,7 @@ interface StagedShardGroup {
 
 ## Current Behavior
 
-The API endpoint `handleGetStagedShards` in `src/routes/campaign-autorag.ts` does construct and return `StagedShardGroup[]` format (line 86). However, there's a type mismatch when consuming this response in `src/app.tsx` during the UI hints flow, forcing unsafe type casts.
+The API endpoint `handleGetStagedShards` in `src/routes/campaign/` does construct and return `StagedShardGroup[]` format. However, there's a type mismatch when consuming this response in `src/app.tsx` during the UI hints flow, forcing unsafe type casts.
 
 ## Root Cause
 
@@ -50,7 +50,7 @@ The issue appears to be:
 
 ## Solution
 
-1. **Verify API response structure** - Ensure `handleGetStagedShards` in `src/routes/campaign-autorag.ts` returns properly typed `StagedShardGroup[]` data
+1. **Verify API response structure** - Ensure `handleGetStagedShards` in `src/routes/campaign/` returns properly typed `StagedShardGroup[]` data
 2. **Update type definitions** - Ensure `StagedShardGroup` interface matches the actual API response structure
 3. **Remove type casting workaround** - Remove the `unknown` type cast in `src/app.tsx` (lines 449-455)
 4. **Add type guards** - If needed, add runtime validation to ensure API responses match expected types
@@ -58,7 +58,7 @@ The issue appears to be:
 
 ## Files Affected
 
-- `src/routes/campaign-autorag.ts` - API endpoint handler (`handleGetStagedShards`)
+- `src/routes/campaign/` - API endpoint handler (`handleGetStagedShards`)
 - `src/app.tsx` - Client-side usage (lines 430-465) - Remove workaround
 - `src/types/shard.ts` - Type definitions (verify/update if needed)
 - `src/hooks/useGlobalShardManager.ts` - May need updates if type structure changes

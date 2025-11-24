@@ -66,7 +66,7 @@ describe("LibraryRAGService", () => {
       updatedAt: "2024-01-01T00:00:00Z",
     };
 
-    it("should process PDF file successfully with AutoRAG", async () => {
+    it("should process PDF file successfully", async () => {
       // Mock file retrieval
       const mockFile = {
         arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
@@ -99,7 +99,7 @@ describe("LibraryRAGService", () => {
       expect(result.vectorId).toBeUndefined();
     });
 
-    it("should handle AutoRAG processing failure gracefully", async () => {
+    it("should handle processing failure gracefully", async () => {
       const mockFile = {
         arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
       };

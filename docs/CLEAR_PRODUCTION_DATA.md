@@ -64,8 +64,6 @@ wrangler d1 execute loresmith-db --file=./scripts/clear_production_data.sql --re
 - `character_sheets` - Character sheet data
 - `file_metadata` - File metadata and search data
 - `file_chunks` - File content chunks for RAG
-- `autorag_chunks` - AutoRAG chunk metadata
-- `autorag_jobs` - AutoRAG job tracking
 - `user_notifications` - User notification data
 - `user_openai_keys` - User API keys
 

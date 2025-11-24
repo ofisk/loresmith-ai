@@ -30,7 +30,7 @@ const RESOURCE_SYSTEM_PROMPT = buildSystemPrompt({
   workflowGuidelines: [
     "File Listing: When users ask to see their files, call the listFiles tool",
     "Processing: The new upload system automatically processes files during upload",
-    "Async Processing: After successful upload, files are processed asynchronously by AutoRAG for indexing and searchability",
+    "Async Processing: After successful upload, files are processed asynchronously for indexing and searchability",
     "Uploaded Files: When users mention they have uploaded a file, use updateFileMetadata if they want to modify metadata",
     "Auto-Generation: When users ask to auto-generate metadata for existing files, use autoGenerateFileMetadata tool",
     "File Deletion: When users ask to delete files, call the deleteFile tool",
@@ -48,7 +48,7 @@ const RESOURCE_SYSTEM_PROMPT = buildSystemPrompt({
     "Update metadata as needed with updateFileMetadata",
     "Auto-generate metadata for existing files with autoGenerateFileMetadata",
     "NEVER try to add files to campaigns - that's handled by the campaign agent",
-    "Inform users that files are processed asynchronously after upload - they will be searchable once AutoRAG indexing is complete",
+    "Inform users that files are processed asynchronously after upload - they will be searchable once indexing is complete",
   ],
   specialization:
     "You are ONLY responsible for file and resource management. If users ask about campaigns, character management, or other non-resource topics, politely redirect them to the appropriate agent.",
@@ -103,7 +103,7 @@ export class ResourceAgent extends BaseAgent {
   static readonly agentMetadata = {
     type: "resources",
     description:
-      "Manages file uploads, file processing, metadata updates, and file ingestion in the user's file library. Handles file upload completion, metadata management, and file processing operations. Specifically handles messages about uploaded files, file keys, metadata updates, and file ingestion. Informs users about asynchronous AutoRAG processing after uploads. Does NOT handle adding files to campaigns - that is handled by the campaign agent.",
+      "Manages file uploads, file processing, metadata updates, and file ingestion in the user's file library. Handles file upload completion, metadata management, and file processing operations. Specifically handles messages about uploaded files, file keys, metadata updates, and file ingestion. Informs users about asynchronous processing after uploads. Does NOT handle adding files to campaigns - that is handled by the campaign agent.",
     systemPrompt: RESOURCE_SYSTEM_PROMPT,
     tools: fileTools,
   };

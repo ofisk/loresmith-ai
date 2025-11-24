@@ -8,12 +8,6 @@ export const EVENT_TYPES = {
     COMPLETED: "file.upload.completed",
     FAILED: "file.upload.failed",
   },
-  AUTORAG_SYNC: {
-    STARTED: "autorag.sync.started",
-    PROGRESS: "autorag.sync.progress",
-    COMPLETED: "autorag.sync.completed",
-    FAILED: "autorag.sync.failed",
-  },
   CAMPAIGN: {
     CREATED: "campaign.created",
     UPDATED: "campaign.updated",
@@ -32,10 +26,6 @@ export type AsyncEventType =
   | "file.upload.progress"
   | "file.upload.completed"
   | "file.upload.failed"
-  | "autorag.sync.started"
-  | "autorag.sync.progress"
-  | "autorag.sync.completed"
-  | "autorag.sync.failed"
   | "campaign.created"
   | "campaign.updated"
   | "campaign.deleted"
@@ -65,19 +55,6 @@ export interface FileUploadEvent extends BaseEvent {
   error?: string;
 }
 
-export interface AutoRAGEvent extends BaseEvent {
-  type:
-    | "autorag.sync.started"
-    | "autorag.sync.progress"
-    | "autorag.sync.completed"
-    | "autorag.sync.failed";
-  ragId: string;
-  jobId: string;
-  fileKey?: string;
-  progress?: number;
-  error?: string;
-}
-
 export interface CampaignEvent extends BaseEvent {
   type: "campaign.created" | "campaign.updated" | "campaign.deleted";
   campaignId: string;
@@ -91,11 +68,7 @@ export interface ShardEvent extends BaseEvent {
   fileKey: string;
 }
 
-export type AsyncEvent =
-  | FileUploadEvent
-  | AutoRAGEvent
-  | CampaignEvent
-  | ShardEvent;
+export type AsyncEvent = FileUploadEvent | CampaignEvent | ShardEvent;
 
 // Event listener type
 export type EventListener<T extends AsyncEvent = AsyncEvent> = (

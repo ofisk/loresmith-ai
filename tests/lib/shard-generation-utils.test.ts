@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   validateShardGenerationResource,
-  getAutoRAGSearchPath,
+  getRAGSearchPath,
   validateSearchPath,
   normalizeResourceForShardGeneration,
   logShardGenerationContext,
@@ -66,7 +66,7 @@ describe("ShardGenerationUtils", () => {
     });
   });
 
-  describe("getAutoRAGSearchPath", () => {
+  describe("getRAGSearchPath", () => {
     it("should return the file_key path", () => {
       const resource: ShardGenerationResource = {
         id: "resource-123",
@@ -75,7 +75,7 @@ describe("ShardGenerationUtils", () => {
         campaign_id: "campaign-456",
       };
 
-      const result = getAutoRAGSearchPath(resource);
+      const result = getRAGSearchPath(resource);
       expect(result).toBe("staging/ofisk/");
     });
 
@@ -87,7 +87,7 @@ describe("ShardGenerationUtils", () => {
         campaign_id: "campaign-456",
       };
 
-      const result = getAutoRAGSearchPath(resource);
+      const result = getRAGSearchPath(resource);
       expect(result).toBe("campaigns/abc-123/staging/user/");
     });
   });

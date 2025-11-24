@@ -13,7 +13,6 @@ export interface UploadSession {
   createdAt: string;
   updatedAt: string;
   metadata?: FileMetadata;
-  autoRAGChunking?: boolean;
 }
 
 export interface FileMetadata {
@@ -35,7 +34,6 @@ export interface UploadPart {
   partNumber: number;
   etag: string;
   size: number;
-  autoRAGChunks?: string[];
 }
 
 export interface UploadProgress {

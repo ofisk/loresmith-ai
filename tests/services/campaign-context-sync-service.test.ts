@@ -23,7 +23,6 @@ describe("CampaignContextSyncService", () => {
     // Mock environment
     mockEnv = {
       DB: {} as any,
-      AUTORAG_BASE_URL: "https://test-autorag.com",
       R2_BUCKET: mockR2 as any,
       R2: mockR2 as any,
       VECTORIZE: {} as any,
@@ -32,9 +31,6 @@ describe("CampaignContextSyncService", () => {
       NOTIFICATION_HUB: {} as any,
       UPLOAD_SESSION: {} as any,
       UploadSession: {} as any,
-      AUTORAG_POLLING: {} as any,
-      AUTORAG_API_KEY: "test-key",
-      AUTORAG_API_TOKEN: "test-token",
       OPENAI_API_KEY: "test-key",
       ASSETS: {} as any,
       FILE_PROCESSING_QUEUE: {} as any,
@@ -44,7 +40,7 @@ describe("CampaignContextSyncService", () => {
     syncService = new CampaignContextSyncService(mockEnv);
   });
 
-  describe("syncCharacterToAutoRAG", () => {
+  describe("syncCharacter", () => {
     it("should sync character to approved folder", async () => {
       const characterId = "char-123";
       const characterName = "Aragorn";
@@ -56,7 +52,7 @@ describe("CampaignContextSyncService", () => {
 
       mockR2.put.mockResolvedValue(undefined);
 
-      await syncService.syncCharacterToAutoRAG(
+      await syncService.syncCharacter(
         campaignId,
         characterId,
         characterName,
@@ -82,7 +78,7 @@ describe("CampaignContextSyncService", () => {
     });
   });
 
-  describe("syncContextToAutoRAG", () => {
+  describe("syncContext", () => {
     it("should sync campaign context to approved folder", async () => {
       const contextId = "ctx-456";
       const contextType = "campaign_info";
@@ -91,7 +87,7 @@ describe("CampaignContextSyncService", () => {
 
       mockR2.put.mockResolvedValue(undefined);
 
-      await syncService.syncContextToAutoRAG(
+      await syncService.syncContext(
         campaignId,
         contextId,
         contextType,
@@ -123,7 +119,7 @@ describe("CampaignContextSyncService", () => {
 
       mockR2.put.mockResolvedValue(undefined);
 
-      await syncService.syncContextToAutoRAG(
+      await syncService.syncContext(
         campaignId,
         contextId,
         "plot_decision",
@@ -140,7 +136,7 @@ describe("CampaignContextSyncService", () => {
     });
   });
 
-  describe("syncCharacterSheetToAutoRAG", () => {
+  describe("syncCharacterSheet", () => {
     it("should sync character sheet to approved folder", async () => {
       const sheetId = "sheet-123";
       const characterName = "Gandalf";
@@ -152,7 +148,7 @@ describe("CampaignContextSyncService", () => {
 
       mockR2.put.mockResolvedValue(undefined);
 
-      await syncService.syncCharacterSheetToAutoRAG(
+      await syncService.syncCharacterSheet(
         campaignId,
         sheetId,
         characterName,
@@ -232,33 +228,33 @@ describe("CampaignContextSyncService", () => {
   });
 
   describe("delete operations", () => {
-    it("should delete character from AutoRAG", async () => {
+    it("should delete character", async () => {
       const characterId = "char-123";
       mockR2.delete.mockResolvedValue(undefined);
 
-      await syncService.deleteCharacterFromAutoRAG(campaignId, characterId);
+      await syncService.deleteCharacter(campaignId, characterId);
 
       expect(mockR2.delete).toHaveBeenCalledWith(
         `campaigns/${campaignId}/context/approved/${characterId}.json`
       );
     });
 
-    it("should delete context from AutoRAG", async () => {
+    it("should delete context", async () => {
       const contextId = "ctx-456";
       mockR2.delete.mockResolvedValue(undefined);
 
-      await syncService.deleteContextFromAutoRAG(campaignId, contextId);
+      await syncService.deleteContext(campaignId, contextId);
 
       expect(mockR2.delete).toHaveBeenCalledWith(
         `campaigns/${campaignId}/context/approved/${contextId}.json`
       );
     });
 
-    it("should delete character sheet from AutoRAG", async () => {
+    it("should delete character sheet", async () => {
       const sheetId = "sheet-789";
       mockR2.delete.mockResolvedValue(undefined);
 
-      await syncService.deleteCharacterSheetFromAutoRAG(campaignId, sheetId);
+      await syncService.deleteCharacterSheet(campaignId, sheetId);
 
       expect(mockR2.delete).toHaveBeenCalledWith(
         `campaigns/${campaignId}/context/approved/${sheetId}.json`
@@ -278,7 +274,7 @@ describe("CampaignContextSyncService", () => {
 
       mockR2.put.mockResolvedValue(undefined);
 
-      await syncService.syncCharacterToAutoRAG(
+      await syncService.syncCharacter(
         campaignId,
         "char-1",
         "Warrior",
@@ -299,7 +295,7 @@ describe("CampaignContextSyncService", () => {
     it("should format context with type and content", async () => {
       mockR2.put.mockResolvedValue(undefined);
 
-      await syncService.syncContextToAutoRAG(
+      await syncService.syncContext(
         campaignId,
         "ctx-1",
         "world_building",

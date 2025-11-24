@@ -5,8 +5,6 @@ import {
   EmbeddingGenerationError,
   DatabaseConnectionError,
   VectorizeIndexRequiredError,
-  AutoRAGSearchConfigError,
-  AutoRAGSearchError,
 } from "@/lib/errors";
 
 /**
@@ -207,53 +205,5 @@ export abstract class BaseRAGService {
    */
   protected logOperation(operation: string, details?: any): void {
     console.log(`[BaseRAGService] ${operation}`, details);
-  }
-
-  /**
-   * Query Cloudflare AutoRAG with a search prompt
-   * This is a generic method that can be used by any service that needs to query AutoRAG
-   */
-  protected async queryAutoRAG(
-    prompt: string,
-    searchUrl: string,
-    apiToken: string,
-    options: {
-      maxResults?: number;
-      includeMetadata?: boolean;
-      includeChunks?: boolean;
-    } = {}
-  ): Promise<any> {
-    if (!searchUrl || !apiToken) {
-      throw new AutoRAGSearchConfigError();
-    }
-
-    const {
-      maxResults = 5,
-      includeMetadata = true,
-      includeChunks = false,
-    } = options;
-
-    const response = await fetch(searchUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: prompt,
-        max_results: maxResults,
-        search_options: {
-          include_metadata: includeMetadata,
-          include_chunks: includeChunks,
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new AutoRAGSearchError(response.status, errorText);
-    }
-
-    return await response.json();
   }
 }

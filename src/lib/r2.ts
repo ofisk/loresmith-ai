@@ -166,7 +166,7 @@ export class R2Helper {
    */
   async getBucketStats(): Promise<{
     staging: { objectCount: number; totalSize: number };
-    autorag: { objectCount: number; totalSize: number };
+    library: { objectCount: number; totalSize: number };
   }> {
     // Get staging stats
     let stagingObjects = 0;
@@ -186,27 +186,27 @@ export class R2Helper {
       cursor = listResult.truncated ? listResult.cursor : undefined;
     } while (cursor);
 
-    // Get AutoRAG stats
-    let autoragObjects = 0;
-    let autoragSize = 0;
+    // Get library stats
+    let libraryObjects = 0;
+    let librarySize = 0;
     cursor = undefined;
 
     do {
       const listResult = await this.env.R2.list({
-        prefix: "autorag/",
+        prefix: "library/",
         cursor,
         limit: 1000,
       });
 
-      autoragObjects += listResult.objects.length;
-      autoragSize += listResult.objects.reduce((sum, obj) => sum + obj.size, 0);
+      libraryObjects += listResult.objects.length;
+      librarySize += listResult.objects.reduce((sum, obj) => sum + obj.size, 0);
 
       cursor = listResult.truncated ? listResult.cursor : undefined;
     } while (cursor);
 
     return {
       staging: { objectCount: stagingObjects, totalSize: stagingSize },
-      autorag: { objectCount: autoragObjects, totalSize: autoragSize },
+      library: { objectCount: libraryObjects, totalSize: librarySize },
     };
   }
 }

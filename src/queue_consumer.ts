@@ -16,7 +16,7 @@ export class FileProcessingQueue {
   constructor(private env: Env) {}
 
   /**
-   * Process a file from staging to AutoRAG
+   * Process a file from staging to library storage
    */
   async processFile(message: ProcessingMessage): Promise<void> {
     const startTime = Date.now();
@@ -42,8 +42,8 @@ export class FileProcessingQueue {
       const maxShardSize = 4 * 1024 * 1024; // 4MB
 
       if (fileContent.byteLength <= maxShardSize) {
-        // Promote directly to AutoRAG
-        const destKey = `autorag/${tenant}/${originalName}`;
+        // Promote directly to library storage
+        const destKey = `library/${tenant}/${originalName}`;
 
         // Check if destination already exists (idempotent)
         if (!(await r2Helper.exists(destKey))) {
@@ -82,7 +82,7 @@ export class FileProcessingQueue {
           `[FileProcessingQueue] Split into ${splitResult.shards.length} shards`
         );
 
-        // Upload shards to AutoRAG bucket
+        // Upload shards to library storage
         for (const shard of splitResult.shards) {
           // Check if shard already exists (idempotent)
           if (!(await r2Helper.exists(shard.key))) {
@@ -95,7 +95,7 @@ export class FileProcessingQueue {
         }
 
         // Upload manifest
-        const manifestKey = `autorag/${tenant}/manifests/${originalName}.manifest.json`;
+        const manifestKey = `library/${tenant}/manifests/${originalName}.manifest.json`;
         const manifestContent = JSON.stringify(splitResult.manifest, null, 2);
         const manifestBuffer = new TextEncoder().encode(manifestContent);
 
@@ -120,7 +120,7 @@ export class FileProcessingQueue {
 
       // Update file status in database to mark as processed
       const fileDAO = getDAOFactory(this.env).fileDAO;
-      const fileKey = `autorag/${tenant}/${originalName}`;
+      const fileKey = `library/${tenant}/${originalName}`;
 
       try {
         await fileDAO.updateFileStatusByKey(fileKey, "processed");
@@ -212,7 +212,7 @@ export class FileProcessingQueue {
    */
   async getStats(): Promise<{
     staging: { objectCount: number; totalSize: number };
-    autorag: { objectCount: number; totalSize: number };
+    library: { objectCount: number; totalSize: number };
     processingTime: number;
   }> {
     const startTime = Date.now();
@@ -229,7 +229,7 @@ export class FileProcessingQueue {
       console.error("[FileProcessingQueue] Error getting stats:", error);
       return {
         staging: { objectCount: 0, totalSize: 0 },
-        autorag: { objectCount: 0, totalSize: 0 },
+        library: { objectCount: 0, totalSize: 0 },
         processingTime: Date.now() - startTime,
       };
     }

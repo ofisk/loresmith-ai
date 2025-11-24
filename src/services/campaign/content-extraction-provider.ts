@@ -20,7 +20,7 @@ export interface ContentExtractionResult {
 
 /**
  * Abstract interface for content extraction providers
- * Implementations can use AutoRAG, direct file reading, or other methods
+ * Implementations can use RAG search, direct file reading, or other methods
  */
 export interface ContentExtractionProvider {
   /**

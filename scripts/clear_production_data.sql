@@ -3,11 +3,6 @@
 
 -- Clear all data from all existing tables (in dependency order to avoid foreign key constraints)
 
--- Clear AutoRAG job tracking data
-delete from autorag_jobs;
-
--- Clear AutoRAG chunks data
-delete from autorag_chunks;
 
 -- Clear campaign context chunks data
 delete from campaign_context_chunks;
@@ -33,8 +28,6 @@ delete from campaigns;
 -- Clear user OpenAI keys data
 delete from user_openai_keys;
 
--- Reset auto-increment counters for tables that use them
-delete from sqlite_sequence where name = 'autorag_jobs';
 
 -- Note: This script preserves all table structures, indexes, and foreign key relationships
 -- while removing all user data. The datastores (tables) themselves remain intact.

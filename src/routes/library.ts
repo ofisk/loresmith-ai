@@ -275,9 +275,9 @@ export const handleRegenerateFileMetadata = async (
       return c.json({ error: "File not found" }, 404);
     }
 
-    // AutoRAG handles metadata generation automatically, no manual processing needed
+    // Metadata generation is handled automatically during file processing
     console.log(
-      `[Library] AutoRAG automatically handles metadata generation for file: ${metadata.filename}`
+      `[Library] Metadata generation handled automatically for file: ${metadata.filename}`
     );
 
     return c.json({

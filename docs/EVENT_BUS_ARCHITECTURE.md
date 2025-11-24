@@ -12,7 +12,6 @@ graph TB
 
     subgraph "Event Emitters"
         FU[File Upload Service]
-        AR[AutoRAG Service]
         CM[Campaign Management]
         SA[Shard Agent]
     end
@@ -27,22 +26,17 @@ graph TB
 
     subgraph "Custom Hooks"
         UFUS[useFileUploadStatus]
-        UARS[useAutoRAGStatus]
         UAS[useAsyncState]
-        UAP[useAutoRAGPolling]
     end
 
     subgraph "Event Flow"
         E1[FILE_UPLOAD.STARTED]
         E2[FILE_UPLOAD.COMPLETED]
-        E3[AUTORAG_SYNC.STARTED]
-        E4[AUTORAG_SYNC.COMPLETED]
         E5[CAMPAIGN.CREATED]
     end
 
     %% Event Emitters to Event Bus
     FU -->|send| EB
-    AR -->|send| EB
     CM -->|send| EB
     SA -->|send| EB
 
@@ -60,24 +54,17 @@ graph TB
     %% Event Flow to Listeners
     E1 --> RL
     E2 --> RL
-    E3 --> RL
-    E4 --> RL
     E2 --> RSP
-    E4 --> RSP
     E5 --> CS
 
     %% Custom Hooks Integration
     UFUS -->|listen| EB
-    UARS -->|listen| EB
     UAS -->|listen| EB
-    UAP -->|send| EB
 
     %% Components using Hooks
     RSP --> UFUS
-    RSP --> UARS
     RU --> UFUS
     RL --> UFUS
-    RL --> UARS
 
     %% Styling
     classDef eventBus fill:#e1f5fe,stroke:#01579b,stroke-width:3px
@@ -87,10 +74,10 @@ graph TB
     classDef event fill:#fce4ec,stroke:#880e4f,stroke-width:2px
 
     class EB,ET,EH eventBus
-    class FU,AR,CM,SA emitter
+    class FU,CM,SA emitter
     class RL,RSP,RU,CS,LS listener
-    class UFUS,UARS,UAS,UAP hook
-    class E1,E2,E3,E4,E5 event
+    class UFUS,UAS hook
+    class E1,E2,E5 event
 ```
 
 ## Component Interaction Flow
@@ -102,8 +89,6 @@ sequenceDiagram
     participant FU as useFileUpload
     participant EB as Event Bus
     participant RL as ResourceList
-    participant AR as AutoRAG Service
-    participant UAP as useAutoRAGPolling
 
     User->>RU: Upload file
     RU->>FU: handleUpload()
@@ -116,14 +101,12 @@ sequenceDiagram
     EB->>RL: notify listeners
     RL->>RL: update UI (completed state)
 
-    FU->>AR: triggerAutoRAGSync()
-    AR->>UAP: startPolling()
-    UAP->>EB: send AUTORAG_SYNC.STARTED
+    FU->>FU: trigger file indexing
+    FU->>EB: send FILE_PROCESSING.STARTED
     EB->>RL: notify listeners
     RL->>RL: update UI (processing state)
 
-    UAP->>UAP: poll job status
-    UAP->>EB: send AUTORAG_SYNC.COMPLETED
+    FU->>EB: send FILE_PROCESSING.COMPLETED
     EB->>RL: notify listeners
     RL->>RL: refresh resource list
 ```
@@ -139,12 +122,6 @@ graph LR
         FUF[FILE_UPLOAD.FAILED<br/>fileKey, error]
     end
 
-    subgraph "AutoRAG Events"
-        ARS[AUTORAG_SYNC.STARTED<br/>ragId, jobId, fileKey]
-        ARP[AUTORAG_SYNC.PROGRESS<br/>ragId, jobId, progress]
-        ARC[AUTORAG_SYNC.COMPLETED<br/>ragId, jobId, fileKey]
-        ARF[AUTORAG_SYNC.FAILED<br/>ragId, jobId, error]
-    end
 
     subgraph "Campaign Events"
         CC[CAMPAIGN.CREATED<br/>campaignId, name]
@@ -162,22 +139,16 @@ graph LR
     FUS --> FUP
     FUP --> FUC
     FUP --> FUF
-    FUC --> ARS
-    ARS --> ARP
-    ARP --> ARC
-    ARP --> ARF
-    ARC --> SG
+    FUC --> SG
     SG --> SA
     SG --> SR
 
     %% Styling
     classDef fileEvent fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-    classDef autoragEvent fill:#f1f8e9,stroke:#388e3c,stroke-width:2px
     classDef campaignEvent fill:#fce4ec,stroke:#c2185b,stroke-width:2px
     classDef shardEvent fill:#fff3e0,stroke:#f57c00,stroke-width:2px
 
     class FUS,FUP,FUC,FUF fileEvent
-    class ARS,ARP,ARC,ARF autoragEvent
     class CC,CU,CD campaignEvent
     class SG,SA,SR shardEvent
 ```
@@ -194,8 +165,6 @@ graph TB
 
     subgraph "Specialized Hooks"
         UFUS[useFileUploadStatus<br/>File upload tracking]
-        UARS[useAutoRAGStatus<br/>AutoRAG job tracking]
-        UAP[useAutoRAGPolling<br/>Polling with events]
         UFU[useFileUpload<br/>Upload logic + events]
         UCM[useCampaignManagement<br/>Campaign operations]
     end
@@ -210,20 +179,14 @@ graph TB
 
     %% Base to Specialized
     UAS --> UFUS
-    UAS --> UARS
-    UEE --> UAP
     UEE --> UFU
     UEE --> UCM
     UEB --> UFUS
-    UEB --> UARS
 
     %% Specialized to Components
     UFUS --> RSP
     UFUS --> RU
     UFUS --> RL
-    UARS --> RSP
-    UARS --> RL
-    UAP --> RSP
     UFU --> RU
     UCM --> RSP
     UCM --> CS
@@ -234,7 +197,7 @@ graph TB
     classDef component fill:#fff8e1,stroke:#ff8f00,stroke-width:2px
 
     class UAS,UEE,UEB baseHook
-    class UFUS,UARS,UAP,UFU,UCM specializedHook
+    class UFUS,UFU,UCM specializedHook
     class RSP,RU,RL,CS,LS component
 ```
 

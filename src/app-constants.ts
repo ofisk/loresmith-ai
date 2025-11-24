@@ -32,13 +32,12 @@ export const UPLOAD_CONFIG = {
 
 // Library path constants - centralized for consistency across upload and search
 export const LIBRARY_CONFIG = {
-  // Always use "library" as the base path for file storage, regardless of AUTORAG_PREFIX
-  getBasePath: (_autoragPrefix: string) => "library",
+  // Always use "library" as the base path for file storage
+  getBasePath: () => "library",
   // Generate library path for a specific user (without bucket name)
-  getUserLibraryPath: (username: string, _autoragPrefix: string) =>
-    `library/${username}`,
+  getUserLibraryPath: (username: string) => `library/${username}`,
   // Generate full file path for a specific file in user's library (without bucket name)
-  getFilePath: (username: string, filename: string, _autoragPrefix: string) =>
+  getFilePath: (username: string, filename: string) =>
     `library/${username}/${filename}`,
 } as const;
 

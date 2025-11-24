@@ -267,7 +267,7 @@ export async function handleProcessFileFromR2ForRag(c: ContextWithAuth) {
 }
 
 // Update file metadata for RAG - trigger indexing with LibraryRAGService
-export async function handleTriggerAutoRAGIndexing(c: ContextWithAuth) {
+export async function handleTriggerIndexing(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth;
     const { fileKey } = await c.req.json();
@@ -379,30 +379,6 @@ export async function handleGetFileChunksForRag(c: ContextWithAuth) {
   }
 }
 
-// Check indexing status and update metadata
-export async function handleCheckAutoRAGStatus(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-
-    const fileDAO = getDAOFactory(c.env).fileDAO;
-    const stats = await fileDAO.getFileStatsForRag(userAuth.username);
-
-    return c.json({
-      success: true,
-      ...stats,
-      message:
-        stats.uploaded > 0
-          ? `${stats.uploaded} files uploaded and waiting for indexing`
-          : stats.processed > 0
-            ? "All files have been indexed and processed"
-            : "No files found",
-    });
-  } catch (error) {
-    console.error("Error checking indexing status:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-}
-
 // Check and update file indexing status
 export async function handleCheckFileIndexingStatus(c: ContextWithAuth) {
   try {
@@ -424,17 +400,9 @@ export async function handleCheckFileIndexingStatus(c: ContextWithAuth) {
 
     // Update file status based on indexing result
     if (!isIndexed) {
-      await fileDAO.updateFileAutoRAGStatus(
-        fileKey,
-        userAuth.username,
-        FileDAO.STATUS.UNINDEXED
-      );
+      await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.UNINDEXED);
     } else {
-      await fileDAO.updateFileAutoRAGStatus(
-        fileKey,
-        userAuth.username,
-        FileDAO.STATUS.COMPLETED
-      );
+      await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.COMPLETED);
     }
 
     return c.json({
@@ -479,9 +447,8 @@ export async function handleBulkCheckFileIndexingStatus(c: ContextWithAuth) {
         );
 
         if (!isIndexed) {
-          await fileDAO.updateFileAutoRAGStatus(
+          await fileDAO.updateFileRecord(
             file.file_key,
-            userAuth.username,
             FileDAO.STATUS.UNINDEXED
           );
           unindexedCount++;

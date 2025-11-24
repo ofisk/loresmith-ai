@@ -10,7 +10,6 @@ The development environment uses separate Cloudflare resources to avoid conflict
 - **D1 Database**: `loresmith-db-dev`
 - **Vectorize Index**: `loresmith-embeddings-dev`
 - **Queues**: `upload-events-dev`, `file-processing-dlq-dev`
-- **AutoRAG**: `loresmith-library-autorag-dev`
 
 ## Prerequisites
 
@@ -48,22 +47,19 @@ Edit `.dev.vars` with your actual values:
 ```bash
 # Required values
 ADMIN_SECRET=your-secure-admin-secret
-OPENAI_API_KEY=sk-your-openai-api-key
 
-# Optional: AutoRAG configuration
-AUTORAG_BASE_URL=https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/autorag/rags/loresmith-library-autorag-dev
+# Optional: OpenAI API key for local development
+# Note: In production, users provide their own OpenAI API key through the application
+# OPENAI_API_KEY=sk-your-openai-api-key
+
+# CORS settings
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
+
+# API URL for local development
+VITE_API_URL=http://localhost:8787
 ```
 
-#### B. Set Cloudflare Secrets
-
-```bash
-# Set AutoRAG API token
-wrangler secret put AUTORAG_API_TOKEN --config wrangler.dev.jsonc
-
-# When prompted, enter your AutoRAG API token
-```
-
-#### C. Update Database ID
+#### B. Update Database ID
 
 After creating the D1 database, update `wrangler.dev.jsonc` with the actual database ID:
 
@@ -76,13 +72,6 @@ After creating the D1 database, update `wrangler.dev.jsonc` with the actual data
   }
 ]
 ```
-
-#### D. Create AutoRAG Instance
-
-1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com)
-2. Navigate to **AI** → **AutoRAG**
-3. Create a new RAG instance named `loresmith-library-autorag-dev`
-4. Configure it with your dev R2 bucket and Vectorize index
 
 ## Development Commands
 
@@ -151,10 +140,11 @@ loresmith-ai/
 - Run the setup script again: `npm run dev:setup`
 - Check if the database was created: `wrangler d1 list --config wrangler.dev.jsonc`
 
-#### 3. "AutoRAG API token not set"
+#### 3. "Authentication errors"
 
-- Set the secret: `wrangler secret put AUTORAG_API_TOKEN --config wrangler.dev.jsonc`
-- Verify it's set: `wrangler secret list --config wrangler.dev.jsonc`
+- Ensure `ADMIN_SECRET` is set in `.dev.vars`
+- Clear browser local storage if JWT verification errors occur
+- Check that database migrations ran successfully
 
 #### 4. "CORS errors"
 
@@ -180,7 +170,6 @@ This will verify:
 - ✅ Wrangler CLI installed and logged in
 - ✅ Configuration files exist
 - ✅ Cloudflare resources created
-- ✅ Secrets configured
 - ✅ Database migrations applied
 
 ## Cost Estimation
@@ -191,14 +180,13 @@ Development environment costs (monthly):
 - **R2 Storage**: Free (10GB, 1M requests/month)
 - **Workers**: Free (100k requests/day)
 - **Vectorize**: Free (30M vectors)
-- **AutoRAG**: Pay-per-use (~$0-5/month for dev usage)
 - **Queues**: Free (1M messages/month)
 
-**Total estimated cost: $0-10/month**
+**Total estimated cost: $0/month** (all services within free tier limits)
 
 ## Next Steps
 
-1. **Test the setup**: Upload a file and verify it processes correctly
+1. **Test the setup**: Upload a file and verify it processes and indexes correctly
 2. **Create test data**: Add some sample campaigns and files
 3. **Run tests**: `npm test` to ensure everything works
 4. **Start developing**: Make changes and see them reflected immediately
@@ -216,4 +204,3 @@ For additional help, refer to:
 
 - [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
 - [Wrangler CLI Documentation](https://developers.cloudflare.com/workers/wrangler/)
-- [AutoRAG Documentation](https://developers.cloudflare.com/ai-search/)

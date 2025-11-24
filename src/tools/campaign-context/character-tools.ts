@@ -157,7 +157,7 @@ export const storeCharacterInfo = tool({
           characterName
         );
 
-        // Sync to AutoRAG for searchability
+        // Sync to RAG for searchability
         try {
           const syncService = new CampaignContextSyncService(env);
           const characterData = {
@@ -170,18 +170,15 @@ export const storeCharacterInfo = tool({
             goals: goals || null,
             relationships: relationships ? JSON.stringify(relationships) : null,
           };
-          await syncService.syncCharacterToAutoRAG(
+          await syncService.syncCharacter(
             campaignId,
             characterId,
             characterName,
             characterData
           );
-          console.log("[Tool] Synced character to AutoRAG:", characterId);
+          console.log("[Tool] Synced character:", characterId);
         } catch (syncError) {
-          console.error(
-            "[Tool] Failed to sync character to AutoRAG:",
-            syncError
-          );
+          console.error("[Tool] Failed to sync character:", syncError);
           // Don't fail the whole operation if sync fails
         }
 
