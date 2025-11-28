@@ -36,9 +36,11 @@ export interface ParsedFileMetadata extends Omit<FileMetadata, "tags"> {
 export interface PDFChunk {
   id: string;
   file_key: string;
+  username: string;
   chunk_index: number;
-  content: string;
-  embedding?: string;
+  chunk_text: string;
+  embedding_id?: string;
+  metadata?: string;
   created_at: string;
 }
 
@@ -51,13 +53,13 @@ export class FileDAO extends BaseDAOClass {
   static readonly STATUS = {
     // Upload flow statuses
     UPLOADING: "uploading", // File is being uploaded to R2
-    UPLOADED: "uploaded", // File uploaded to R2, ready for AutoRAG
-    SYNCING: "syncing", // AutoRAG sync job started
-    PROCESSING: "processing", // AutoRAG job is processing the file
-    INDEXING: "indexing", // AutoRAG job completed, file is being indexed
+    UPLOADED: "uploaded", // File uploaded to R2, ready for indexing
+    SYNCING: "syncing", // Indexing job started
+    PROCESSING: "processing", // File is being processed
+    INDEXING: "indexing", // File is being indexed
     COMPLETED: "completed", // File is fully indexed and searchable
     ERROR: "error", // Error occurred at any step
-    UNINDEXED: "unindexed", // File uploaded but not indexed by AutoRAG (legacy)
+    UNINDEXED: "unindexed", // File uploaded but not indexed (legacy)
   } as const;
   /**
    * Helper function to parse tags from JSON string to array
@@ -308,20 +310,6 @@ export class FileDAO extends BaseDAOClass {
     await this.execute(sql, [status, fileKey, username]);
   }
 
-  async updateFileAutoRAGStatus(
-    fileKey: string,
-    username: string,
-    autoragStatus: string,
-    _autoragMessage?: string
-  ): Promise<void> {
-    const sql = `
-      UPDATE file_metadata
-      SET status = ?
-      WHERE file_key = ? AND username = ?
-    `;
-    await this.execute(sql, [autoragStatus, fileKey, username]);
-  }
-
   /**
    * Check if a file is indexed by attempting a search with LibraryRAGService
    */
@@ -368,7 +356,7 @@ export class FileDAO extends BaseDAOClass {
     }
   }
 
-  async getFilesPendingAutoRAG(
+  async getFilesPendingIndexing(
     username: string
   ): Promise<ParsedFileMetadata[]> {
     const sql = `
@@ -440,9 +428,7 @@ export class FileDAO extends BaseDAOClass {
     // Delete from database first
     await this.transaction([
       () =>
-        this.execute("DELETE FROM autorag_chunks WHERE file_key = ?", [
-          fileKey,
-        ]),
+        this.execute("DELETE FROM file_chunks WHERE file_key = ?", [fileKey]),
       () =>
         this.execute("DELETE FROM file_metadata WHERE file_key = ?", [fileKey]),
     ]);
@@ -476,9 +462,10 @@ export class FileDAO extends BaseDAOClass {
 
   async getFileChunks(fileKey: string): Promise<PDFChunk[]> {
     const sql = `
-      SELECT * FROM autorag_chunks 
+      SELECT id, file_key, username, chunk_index, chunk_text, embedding_id, metadata, created_at
+      FROM file_chunks 
       WHERE file_key = ? 
-      ORDER BY part_number
+      ORDER BY chunk_index
     `;
     return await this.queryAll<PDFChunk>(sql, [fileKey]);
   }
@@ -503,8 +490,8 @@ export class FileDAO extends BaseDAOClass {
     }>
   ): Promise<void> {
     const sql = `
-      INSERT INTO autorag_chunks (id, file_key, username, chunk_key, part_number, chunk_size, original_filename, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      INSERT INTO file_chunks (id, file_key, username, chunk_text, chunk_index, embedding_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `;
 
     await Promise.all(
@@ -512,11 +499,10 @@ export class FileDAO extends BaseDAOClass {
         this.execute(sql, [
           `${chunk.fileKey}-chunk-${chunk.chunkIndex}`,
           chunk.fileKey,
-          chunk.fileKey.split("/")[0], // Extract username from fileKey
-          `${chunk.fileKey}-chunk-${chunk.chunkIndex}`,
+          chunk.fileKey.split("/")[1] || "", // Extract username from fileKey (library/username/...)
+          chunk.content,
           chunk.chunkIndex,
-          chunk.content.length,
-          chunk.fileKey.split("/").pop() || "unknown",
+          chunk.embedding || null,
         ])
       )
     );
@@ -678,10 +664,10 @@ export class FileDAO extends BaseDAOClass {
 
   async getFileChunksForRag(fileKey: string, username: string): Promise<any[]> {
     const sql = `
-      SELECT id, file_key, chunk_key, part_number, created_at 
-      FROM autorag_chunks 
+      SELECT id, file_key, chunk_text, chunk_index, created_at 
+      FROM file_chunks 
       WHERE file_key = ? AND username = ? 
-      ORDER BY part_number
+      ORDER BY chunk_index
     `;
     return await this.queryAll(sql, [fileKey, username]);
   }
@@ -724,7 +710,7 @@ export class FileDAO extends BaseDAOClass {
     await this.transaction([
       () =>
         this.execute(
-          "DELETE FROM autorag_chunks WHERE file_key = ? AND username = ?",
+          "DELETE FROM file_chunks WHERE file_key = ? AND username = ?",
           [fileKey, username]
         ),
       () =>
@@ -743,9 +729,7 @@ export class FileDAO extends BaseDAOClass {
     // Delete all files and related data for a user
     await this.transaction([
       () =>
-        this.execute("DELETE FROM autorag_chunks WHERE username = ?", [
-          username,
-        ]),
+        this.execute("DELETE FROM file_chunks WHERE username = ?", [username]),
       () =>
         this.execute(
           "DELETE FROM campaign_resources WHERE file_key IN (SELECT file_key FROM file_metadata WHERE username = ?)",
@@ -755,96 +739,7 @@ export class FileDAO extends BaseDAOClass {
         this.execute("DELETE FROM file_metadata WHERE username = ?", [
           username,
         ]),
-      () =>
-        this.execute("DELETE FROM autorag_jobs WHERE username = ?", [username]),
     ]);
-  }
-
-  // AutoRAG Job Tracking Methods
-  async createAutoRAGJob(
-    jobId: string,
-    ragId: string,
-    username: string,
-    fileKey: string,
-    file_name: string
-  ): Promise<void> {
-    const sql = `
-      INSERT INTO autorag_jobs (job_id, rag_id, username, file_key, file_name, status)
-      VALUES (?, ?, ?, ?, ?, 'pending')
-    `;
-    await this.execute(sql, [jobId, ragId, username, fileKey, file_name]);
-  }
-
-  async getPendingAutoRAGJobs(username: string): Promise<any[]> {
-    const sql = `
-      SELECT * FROM autorag_jobs 
-      WHERE username = ? AND status IN ('pending', 'processing')
-      ORDER BY created_at ASC
-    `;
-    return await this.queryAll(sql, [username]);
-  }
-
-  async updateAutoRAGJobStatus(
-    jobId: string,
-    status: string,
-    errorMessage?: string
-  ): Promise<void> {
-    let sql: string;
-    let params: any[];
-
-    if (status === "completed") {
-      sql = `
-        UPDATE autorag_jobs 
-        SET status = ?, completed_at = CURRENT_TIMESTAMP, error_message = ?
-        WHERE job_id = ?
-      `;
-      params = [status, errorMessage || null, jobId];
-    } else {
-      sql = `
-        UPDATE autorag_jobs 
-        SET status = ?, error_message = ?
-        WHERE job_id = ?
-      `;
-      params = [status, errorMessage || null, jobId];
-    }
-
-    await this.execute(sql, params);
-  }
-
-  async updateFileStatusByJobId(
-    jobId: string,
-    newStatus: string
-  ): Promise<void> {
-    // Get the file associated with this job
-    const job = await this.queryFirst(
-      "SELECT file_key, username FROM autorag_jobs WHERE job_id = ?",
-      [jobId]
-    );
-
-    if (job) {
-      // Update the file status
-      await this.updateFileRecord(job.file_key, newStatus);
-    }
-  }
-
-  async getAutoRAGJob(jobId: string): Promise<any | null> {
-    const sql = `
-      SELECT * FROM autorag_jobs WHERE job_id = ?
-    `;
-    return await this.queryFirst(sql, [jobId]);
-  }
-
-  async getAutoRAGJobByFileKey(
-    fileKey: string,
-    username: string
-  ): Promise<any | null> {
-    const sql = `
-      SELECT * FROM autorag_jobs 
-      WHERE file_key = ? AND username = ?
-      ORDER BY created_at DESC
-      LIMIT 1
-    `;
-    return await this.queryFirst(sql, [fileKey, username]);
   }
 
   async updateFileMetadataForUser(
@@ -868,7 +763,7 @@ export class FileDAO extends BaseDAOClass {
   }
 
   /**
-   * Update enhanced metadata from AutoRAG analysis
+   * Update enhanced metadata from file analysis
    */
   async updateEnhancedMetadata(
     fileKey: string,
@@ -1106,96 +1001,5 @@ export class FileDAO extends BaseDAOClass {
       WHERE file_key = ?
     `;
     await this.execute(sql, [retryCount, fileKey]);
-  }
-
-  /**
-   * Clear stuck AutoRAG jobs (older than 10 minutes)
-   */
-  async clearStuckAutoRAGJobs(): Promise<{ cleared: number }> {
-    const sql = `
-      UPDATE autorag_jobs 
-      SET status = 'error', 
-          error_message = 'Job timeout - manually cleared',
-          completed_at = datetime('now')
-      WHERE status IN ('pending', 'processing') 
-        AND created_at < datetime('now', '-10 minutes')
-    `;
-
-    const result = await this.execute(sql, []);
-    const cleared = (result as any).changes || 0;
-
-    // Also update corresponding file statuses
-    const updateFilesSql = `
-      UPDATE file_metadata 
-      SET status = 'error', 
-          analysis_error = 'AutoRAG job timeout - manually cleared'
-      WHERE file_key IN (
-        SELECT file_key FROM autorag_jobs 
-        WHERE status = 'error' 
-          AND error_message = 'Job timeout - manually cleared'
-      )
-    `;
-
-    await this.execute(updateFilesSql, []);
-
-    return { cleared };
-  }
-
-  /**
-   * Check if there are any ongoing AutoRAG jobs for a user
-   */
-  async hasOngoingAutoRAGJobs(username: string): Promise<boolean> {
-    const sql = `
-      SELECT COUNT(*) as count FROM autorag_jobs 
-      WHERE username = ? AND status IN ('pending', 'processing')
-    `;
-    const result = await this.queryFirst(sql, [username]);
-    return (result as any)?.count > 0;
-  }
-
-  /**
-   * Get all pending AutoRAG jobs across all users (for scheduled polling)
-   */
-  async getAllPendingAutoRAGJobs(): Promise<any[]> {
-    const sql = `
-      SELECT * FROM autorag_jobs 
-      WHERE status IN ('pending', 'processing')
-      ORDER BY created_at ASC
-    `;
-    return await this.queryAll(sql, []);
-  }
-
-  /**
-   * Get health status of all AutoRAG jobs for monitoring
-   */
-  async getAutoRAGJobHealth(): Promise<{
-    total: number;
-    pending: number;
-    processing: number;
-    completed: number;
-    failed: number;
-    stuck: number;
-  }> {
-    const sql = `
-      SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing,
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-        SUM(CASE WHEN status = 'error' OR status = 'failed' THEN 1 ELSE 0 END) as failed,
-        SUM(CASE WHEN status IN ('pending', 'processing') 
-                 AND created_at < datetime('now', '-5 minutes') THEN 1 ELSE 0 END) as stuck
-      FROM autorag_jobs
-    `;
-
-    const result = await this.queryFirst(sql, []);
-    return {
-      total: result.total || 0,
-      pending: result.pending || 0,
-      processing: result.processing || 0,
-      completed: result.completed || 0,
-      failed: result.failed || 0,
-      stuck: result.stuck || 0,
-    };
   }
 }

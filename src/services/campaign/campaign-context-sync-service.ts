@@ -2,8 +2,8 @@ import type { Env } from "@/middleware/auth";
 import { R2Helper } from "@/lib/r2";
 
 /**
- * Service to sync campaign context (characters, resources, context) to AutoRAG as approved shards
- * This ensures that all campaign content is searchable via AutoRAG
+ * Service to sync campaign context (characters, resources, context) as approved shards
+ * This ensures that all campaign content is searchable via GraphRAG
  */
 export class CampaignContextSyncService {
   private r2Helper: R2Helper;
@@ -13,9 +13,9 @@ export class CampaignContextSyncService {
   }
 
   /**
-   * Sync a campaign character to AutoRAG as an approved shard
+   * Sync a campaign character as an approved shard
    */
-  async syncCharacterToAutoRAG(
+  async syncCharacter(
     campaignId: string,
     characterId: string,
     characterName: string,
@@ -52,15 +52,13 @@ export class CampaignContextSyncService {
       "application/json"
     );
 
-    console.log(
-      `[CampaignContextSync] Synced character to AutoRAG: ${approvedKey}`
-    );
+    console.log(`[CampaignContextSync] Synced character: ${approvedKey}`);
   }
 
   /**
-   * Sync campaign context to AutoRAG as an approved shard
+   * Sync campaign context as an approved shard
    */
-  async syncContextToAutoRAG(
+  async syncContext(
     campaignId: string,
     contextId: string,
     contextType: string,
@@ -102,15 +100,13 @@ export class CampaignContextSyncService {
       "application/json"
     );
 
-    console.log(
-      `[CampaignContextSync] Synced context to AutoRAG: ${approvedKey}`
-    );
+    console.log(`[CampaignContextSync] Synced context: ${approvedKey}`);
   }
 
   /**
-   * Sync a character sheet to AutoRAG as an approved shard
+   * Sync a character sheet as an approved shard
    */
-  async syncCharacterSheetToAutoRAG(
+  async syncCharacterSheet(
     campaignId: string,
     sheetId: string,
     characterName: string,
@@ -147,15 +143,13 @@ export class CampaignContextSyncService {
       "application/json"
     );
 
-    console.log(
-      `[CampaignContextSync] Synced character sheet to AutoRAG: ${approvedKey}`
-    );
+    console.log(`[CampaignContextSync] Synced character sheet: ${approvedKey}`);
   }
 
   /**
-   * Delete a character from AutoRAG
+   * Delete a character
    */
-  async deleteCharacterFromAutoRAG(
+  async deleteCharacter(
     campaignId: string,
     characterId: string
   ): Promise<void> {
@@ -163,31 +157,24 @@ export class CampaignContextSyncService {
     const approvedKey = `${campaignBasePath}/context/approved/${characterId}.json`;
 
     await this.r2Helper.delete(approvedKey);
-    console.log(
-      `[CampaignContextSync] Deleted character from AutoRAG: ${approvedKey}`
-    );
+    console.log(`[CampaignContextSync] Deleted character: ${approvedKey}`);
   }
 
   /**
-   * Delete context from AutoRAG
+   * Delete context
    */
-  async deleteContextFromAutoRAG(
-    campaignId: string,
-    contextId: string
-  ): Promise<void> {
+  async deleteContext(campaignId: string, contextId: string): Promise<void> {
     const campaignBasePath = `campaigns/${campaignId}`;
     const approvedKey = `${campaignBasePath}/context/approved/${contextId}.json`;
 
     await this.r2Helper.delete(approvedKey);
-    console.log(
-      `[CampaignContextSync] Deleted context from AutoRAG: ${approvedKey}`
-    );
+    console.log(`[CampaignContextSync] Deleted context: ${approvedKey}`);
   }
 
   /**
-   * Delete character sheet from AutoRAG
+   * Delete character sheet
    */
-  async deleteCharacterSheetFromAutoRAG(
+  async deleteCharacterSheet(
     campaignId: string,
     sheetId: string
   ): Promise<void> {
@@ -196,7 +183,7 @@ export class CampaignContextSyncService {
 
     await this.r2Helper.delete(approvedKey);
     console.log(
-      `[CampaignContextSync] Deleted character sheet from AutoRAG: ${approvedKey}`
+      `[CampaignContextSync] Deleted character sheet: ${approvedKey}`
     );
   }
 
@@ -356,22 +343,18 @@ export class CampaignContextSyncService {
       "application/json"
     );
 
-    console.log(
-      `[CampaignContextSync] Synced campaign note to AutoRAG: ${approvedKey}`
-    );
+    console.log(`[CampaignContextSync] Synced campaign note: ${approvedKey}`);
   }
 
   /**
-   * Delete a campaign note from AutoRAG
+   * Delete a campaign note
    */
   async deleteCampaignNote(campaignId: string, noteId: string): Promise<void> {
     const campaignBasePath = `campaigns/${campaignId}`;
     const approvedKey = `${campaignBasePath}/context/approved/${noteId}.json`;
 
     await this.r2Helper.delete(approvedKey);
-    console.log(
-      `[CampaignContextSync] Deleted campaign note from AutoRAG: ${approvedKey}`
-    );
+    console.log(`[CampaignContextSync] Deleted campaign note: ${approvedKey}`);
   }
 
   /**

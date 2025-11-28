@@ -4,7 +4,6 @@
 declare namespace Cloudflare {
 	interface Env {
 		MAX_INDEX_FILE_BYTES: "4194304";
-		AUTORAG_PREFIX: "autorag";
 		STAGING_PREFIX: "staging";
 		READINESS_TIMEOUT_SEC: "600";
 		READINESS_BACKOFF_MS: "2000";
@@ -12,7 +11,6 @@ declare namespace Cloudflare {
 		ADMIN_SECRET: string;
 		OPENAI_API_KEY: string;
 		CORS_ALLOWED_ORIGINS: string;
-		AUTORAG_BASE_URL: string;
 		Chat: DurableObjectNamespace<import("./src/server").Chat>;
 		UserFileTracker: DurableObjectNamespace<import("./src/server").UserFileTracker>;
 		UploadSession: DurableObjectNamespace<import("./src/server").UploadSessionDO>;
@@ -29,7 +27,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "MAX_INDEX_FILE_BYTES" | "AUTORAG_PREFIX" | "STAGING_PREFIX" | "READINESS_TIMEOUT_SEC" | "READINESS_BACKOFF_MS" | "PRODUCTION_URL" | "ADMIN_SECRET" | "OPENAI_API_KEY" | "CORS_ALLOWED_ORIGINS" | "AUTORAG_BASE_URL">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "MAX_INDEX_FILE_BYTES" | "STAGING_PREFIX" | "READINESS_TIMEOUT_SEC" | "READINESS_BACKOFF_MS" | "PRODUCTION_URL" | "ADMIN_SECRET" | "OPENAI_API_KEY" | "CORS_ALLOWED_ORIGINS">> {}
 }
 
 // Begin runtime types

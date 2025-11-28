@@ -80,7 +80,7 @@ export class FileSplitter {
     ) {
       return this.splitHTML(content, options);
     } else {
-      // For unknown types, split by bytes (not recommended for AutoRAG)
+      // For unknown types, split by bytes
       console.warn(
         `[FileSplitter] Unknown content type: ${contentType}, splitting by bytes`
       );
@@ -457,7 +457,7 @@ export class FileSplitter {
   }
 
   /**
-   * Split by bytes (not recommended for AutoRAG)
+   * Split by bytes
    */
   private async splitByBytes(
     content: ArrayBuffer,
@@ -535,7 +535,7 @@ export class FileSplitter {
     const extension =
       lastDotIndex !== -1 ? originalFilename.substring(lastDotIndex) : "";
 
-    return `autorag/${tenant}/${nameWithoutExt}.p${shardNumber.toString().padStart(3, "0")}${extension}`;
+    return `library/${tenant}/${nameWithoutExt}.p${shardNumber.toString().padStart(3, "0")}${extension}`;
   }
 
   /**

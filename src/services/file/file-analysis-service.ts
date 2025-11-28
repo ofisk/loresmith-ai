@@ -91,7 +91,7 @@ Focus on making this resource discoverable and useful for campaign planning and 
   }
 
   /**
-   * Parse the AutoRAG search results and generate structured analysis
+   * Parse the search results and generate structured analysis
    */
   private async parseAnalysisResults(
     searchResults: any,

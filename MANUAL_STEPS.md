@@ -19,14 +19,9 @@ This document outlines the steps you need to complete manually after running the
 - [ ] **Copy `.dev.vars.template` to `.dev.vars`**
 - [ ] **Set `ADMIN_SECRET`** - Generate a secure random string
 - [ ] **Set `OPENAI_API_KEY`** - Your OpenAI API key
-- [ ] **Update `AUTORAG_BASE_URL`** with your actual account ID
 
 ### 3. Cloudflare Secrets Setup
 
-- [ ] **Set AutoRAG API token**:
-  ```bash
-  wrangler secret put AUTORAG_API_TOKEN --config wrangler.dev.jsonc
-  ```
 - [ ] **Verify secrets are set**:
   ```bash
   wrangler secret list --config wrangler.dev.jsonc
@@ -39,34 +34,16 @@ This document outlines the steps you need to complete manually after running the
 - [ ] **Check Vectorize index** is created and accessible
 - [ ] **Confirm queues** are created and configured
 
-### 5. AutoRAG Instance Setup
-
-- [ ] **Go to Cloudflare Dashboard** → AI → AutoRAG
-- [ ] **Create new RAG instance** named `loresmith-library-autorag-dev`
-- [ ] **Configure data sources**:
-  - R2 bucket: `loresmith-files-dev`
-  - Vectorize index: `loresmith-embeddings-dev`
-- [ ] **Set up indexing rules** for your file types
-- [ ] **Test the AutoRAG instance** with a sample file
-
 ### 6. Final Validation
 
 - [ ] **Run validation script**: `./scripts/validate-dev.sh`
 - [ ] **Test file upload** functionality
-- [ ] **Verify AutoRAG indexing** works
 - [ ] **Check database migrations** are applied
 - [ ] **Test frontend-backend communication**
 
 ## 🚨 Critical Manual Steps
 
 These steps are **required** and cannot be automated:
-
-### AutoRAG API Token
-
-```bash
-# This must be done manually - the script cannot access your Cloudflare dashboard
-wrangler secret put AUTORAG_API_TOKEN --config wrangler.dev.jsonc
-```
 
 ### Database ID Update
 
@@ -82,15 +59,6 @@ You must manually update `wrangler.dev.jsonc`:
 ```json
 "database_id": "abc123-def456-ghi789"  // Replace with actual ID
 ```
-
-### AutoRAG Instance Creation
-
-This must be done in the Cloudflare dashboard:
-
-1. Navigate to **AI** → **AutoRAG**
-2. Click **Create RAG**
-3. Name: `loresmith-library-autorag-dev`
-4. Configure data sources and indexing rules
 
 ## 🔍 Verification Commands
 
@@ -118,17 +86,6 @@ wrangler secret list --config wrangler.dev.jsonc
 - Copy that ID and update `wrangler.dev.jsonc`
 - Or find it with: `wrangler d1 list --config wrangler.dev.jsonc`
 
-### "AutoRAG API token not set"
-
-- Make sure you ran: `wrangler secret put AUTORAG_API_TOKEN --config wrangler.dev.jsonc`
-- Verify with: `wrangler secret list --config wrangler.dev.jsonc`
-
-### "AutoRAG instance not found"
-
-- Check the Cloudflare dashboard
-- Make sure the instance name matches: `loresmith-library-autorag-dev`
-- Verify the instance is active and configured
-
 ### "CORS errors"
 
 - Make sure both servers are running:
@@ -151,19 +108,15 @@ npm run start          # Terminal 2
 # Validation (run when issues occur)
 ./scripts/validate-dev.sh
 
-# Secrets (run when needed)
-wrangler secret put AUTORAG_API_TOKEN --config wrangler.dev.jsonc
 ```
 
 ### Key Files to Edit
 
 - `.dev.vars` - Environment variables
 - `wrangler.dev.jsonc` - Database ID and account ID
-- Cloudflare Dashboard - AutoRAG instance configuration
 
 ### Important URLs
 
 - **Cloudflare Dashboard**: https://dash.cloudflare.com
-- **AutoRAG Section**: https://dash.cloudflare.com → AI → AutoRAG
 - **Workers Section**: https://dash.cloudflare.com → Workers & Pages
 - **Local Development**: http://localhost:5173 (frontend), http://localhost:8787 (backend)

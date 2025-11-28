@@ -20,7 +20,6 @@ describe("AssessmentService", () => {
     // Create mock environment - cast to unknown first to bypass strict type checking
     mockEnv = {
       DB: {} as any,
-      AUTORAG_BASE_URL: "https://test-autorag.com",
       R2_BUCKET: {} as any,
       R2: {} as any,
       VECTORIZE: {} as any,
@@ -29,8 +28,6 @@ describe("AssessmentService", () => {
       NOTIFICATION_HUB: {} as any,
       UPLOAD_SESSION: {} as any,
       UploadSession: {} as any,
-      AUTORAG_POLLING: {} as any,
-      AUTORAG_API_KEY: "test-key",
       OPENAI_API_KEY: "test-key",
       ASSETS: {} as any,
       FILE_PROCESSING_QUEUE: {} as any,

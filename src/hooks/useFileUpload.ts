@@ -129,7 +129,7 @@ export function useFileUpload({
           );
         }
 
-        // Emit upload completed event (file uploaded to R2, ready for AutoRAG)
+        // Emit upload completed event (file uploaded to R2, ready for indexing)
         console.log("[useFileUpload] Emitting file upload completed event:", {
           type: EVENT_TYPES.FILE_UPLOAD.COMPLETED,
           fileKey,
@@ -148,7 +148,7 @@ export function useFileUpload({
           source: "useFileUpload",
         } as FileUploadEvent);
 
-        // Success state - trigger AutoRAG sync; progress will arrive via SSE
+        // Success state - file processing will be handled by the queue consumer; progress will arrive via SSE
         setUploadedFileInfo({
           filename: filename,
           fileKey: fileKey,

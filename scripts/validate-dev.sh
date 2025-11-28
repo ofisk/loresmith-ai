@@ -109,14 +109,6 @@ else
     VALIDATION_PASSED=false
 fi
 
-# Check if secrets are set
-print_status "Checking secrets..."
-if wrangler secret list --config wrangler.dev.jsonc | grep -q "AUTORAG_API_TOKEN"; then
-    print_success "AUTORAG_API_TOKEN secret is set"
-else
-    print_warning "AUTORAG_API_TOKEN secret is not set. Run: wrangler secret put AUTORAG_API_TOKEN --config wrangler.dev.jsonc"
-fi
-
 # Check if database migrations are applied
 print_status "Checking database migrations..."
 if wrangler d1 migrations list loresmith-db-dev --config wrangler.dev.jsonc | grep -q "v8"; then

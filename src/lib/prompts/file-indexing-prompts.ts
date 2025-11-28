@@ -1,9 +1,9 @@
 /**
- * Prompts for checking file indexing status with AutoRAG
+ * Prompts for checking file indexing status
  */
 
 /**
- * Prompt to check if AutoRAG has information from a specific file
+ * Prompt to check if a file has been indexed
  * @param filename - The name of the file to check
  * @returns Formatted prompt string
  */

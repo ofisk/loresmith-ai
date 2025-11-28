@@ -243,10 +243,8 @@ export class LibraryService {
         throw new FileNotFoundError();
       }
 
-      // AutoRAG automatically processes files from R2, no manual processing needed
-      console.log(
-        `[LibraryService] AutoRAG will automatically process file: ${fileKey}`
-      );
+      // File processing is handled by the queue consumer
+      console.log(`[LibraryService] File will be processed: ${fileKey}`);
 
       // Update status to processed
       if (updateStatus) {
@@ -255,7 +253,7 @@ export class LibraryService {
 
       return {
         success: true,
-        // AutoRAG handles metadata and embeddings automatically
+        // Processing handles metadata and embeddings
       };
     } catch (error) {
       const errorInfo = this.categorizeError(error as Error);

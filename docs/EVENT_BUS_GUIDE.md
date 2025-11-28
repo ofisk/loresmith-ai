@@ -26,10 +26,6 @@ type AsyncEventType =
   | "file.upload.progress"
   | "file.upload.completed"
   | "file.upload.failed"
-  | "autorag.sync.started"
-  | "autorag.sync.progress"
-  | "autorag.sync.completed"
-  | "autorag.sync.failed"
   | "campaign.created"
   | "campaign.updated"
   | "campaign.deleted"
@@ -130,7 +126,7 @@ function FileStatusComponent({ fileKey }: { fileKey: string }) {
 The system provides several pre-built hooks for common use cases:
 
 ```typescript
-import { useFileUploadStatus, useAutoRAGStatus } from '../hooks/useAsyncState';
+import { useFileUploadStatus } from '../hooks/useAsyncState';
 
 function FileUploadComponent({ fileKey }: { fileKey: string }) {
   // Automatically tracks file upload status via events
@@ -146,35 +142,6 @@ function FileUploadComponent({ fileKey }: { fileKey: string }) {
   );
 }
 
-function AutoRAGComponent({ ragId, jobId }: { ragId: string; jobId: string }) {
-  // Automatically tracks AutoRAG job status via events
-  const { jobState, emitAutoRAGEvent } = useAutoRAGStatus(ragId, jobId);
-
-  return (
-    <div>
-      <div>Status: {jobState.status}</div>
-      <div>Progress: {jobState.progress}%</div>
-      <div>Message: {jobState.message}</div>
-    </div>
-  );
-}
-```
-
-### 4. Enhanced AutoRAG Polling
-
-```typescript
-import { useEnhancedAutoRAGPolling } from '../hooks/useEnhancedAutoRAGPolling';
-
-function AutoRAGManager() {
-  const { startPolling, stopPolling, jobStatus, isPolling } = useEnhancedAutoRAGPolling();
-
-  const handleStartSync = async () => {
-    const ragId = 'library-rag';
-    const jobId = await triggerAutoRAGSync(ragId);
-
-    // Start polling with file key for better event tracking
-    startPolling(ragId, jobId, 'user123/file.pdf');
-  };
 
   return (
     <div>

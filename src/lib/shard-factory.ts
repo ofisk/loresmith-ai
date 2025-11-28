@@ -22,7 +22,7 @@ export class ShardFactory {
     entityType: string,
     resource: CampaignResource,
     campaignId: string,
-    source: string = "library_autorag_ai_search",
+    source: string = "library_rag_search",
     confidence: number = 0.9,
     chunkId?: string,
     originalMetadata: Record<string, any> = {}
@@ -102,7 +102,7 @@ export class ShardFactory {
 
   /**
    * Parse AI Search results into shard candidates
-   * Handles structured JSON responses from AutoRAG AI Search
+   * Handles structured JSON responses from RAG search
    */
   static parseAISearchResponse(
     aiSearchResponse: AISearchResponse,
@@ -192,7 +192,7 @@ export class ShardFactory {
           entityType,
           resource,
           campaignId,
-          "library_autorag_ai_search",
+          "library_rag_search",
           0.9,
           `${resource.id}_ai_${shardCandidates.length}`,
           { aiSearchResponse: true, index: i }

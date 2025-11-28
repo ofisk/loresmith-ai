@@ -223,8 +223,8 @@ export class FileAnalysisOrchestrator {
   }
 
   /**
-   * Trigger analysis for files that have been successfully indexed by AutoRAG
-   * This is called after AutoRAG sync completes
+   * Trigger analysis for files that have been successfully indexed
+   * This is called after indexing completes
    */
   async triggerAnalysisForIndexedFiles(
     username: string

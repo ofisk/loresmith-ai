@@ -7,7 +7,7 @@ This directory contains scripts for managing Cloudflare infrastructure for the L
 A comprehensive script that tears down and recreates all Cloudflare infrastructure including:
 
 - Cloudflare Worker
-- Durable Objects (Chat, UserFileTracker, UploadSession, NotificationHub)
+- Durable Objects (Chat, UploadSession, NotificationHub)
 - Queues (upload-events, file-processing-dlq)
 - D1 Database (loresmith-db)
 - R2 Bucket (loresmith-files)
@@ -164,7 +164,7 @@ If the script fails partway through:
 - R2 bucket (all uploaded files)
 - D1 database (all campaigns, users, etc.)
 - Vectorize index (all embeddings)
-- Durable Object storage (all chat sessions, file tracking, etc.)
+- Durable Object storage (all chat sessions, upload sessions, notifications, etc.)
 
 Make sure to backup any important data before running this script.
 
@@ -191,9 +191,10 @@ The project uses a migration system for database schema changes:
 #### Migration Files
 
 - `migrations/0000_clean_slate.sql` - Complete database schema (includes `updated_at` column)
-- `migrations/0001_add_autorag_jobs_table.sql` - AutoRAG job tracking
-- `migrations/0002_add_sync_queue_table.sql` - Sync queue management
-- `migrations/0003_add_updated_at_to_file_metadata.sql` - Adds `updated_at` column for stuck file detection
+- `migrations/0001_community_summaries.sql` - Community summaries table
+- `migrations/0002_world_state_changelog.sql` - World state changelog table
+- `migrations/0003_entity_importance.sql` - Entity importance table
+- `migrations/0004_session_digests.sql` - Session digests table
 
 #### Important Notes
 

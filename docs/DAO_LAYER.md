@@ -183,7 +183,7 @@ This method:
 
 1. **Database Cleanup**: Removes file metadata and file chunks
 2. **R2 Storage**: Deletes the actual file from Cloudflare R2
-3. **Vector Index**: Removes embeddings from the vector database for AutoRAG
+3. **Vector Index**: Removes embeddings from the vector database
 4. **Error Handling**: Gracefully handles failures in any step
 
 ### Usage in Routes

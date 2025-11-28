@@ -21,7 +21,6 @@ const mockEnv = {
   AI: {} as any,
   FILE_PROCESSING_QUEUE: {} as any,
   FILE_PROCESSING_DLQ: {} as any,
-  AUTORAG_PREFIX: "loresmith-files/library",
 };
 
 // Mock context

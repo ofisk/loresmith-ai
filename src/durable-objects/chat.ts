@@ -25,7 +25,6 @@ interface Env extends AuthEnv {
   ASSETS: Fetcher;
   FILE_PROCESSING_QUEUE: Queue;
   FILE_PROCESSING_DLQ: Queue;
-  AUTORAG_API_TOKEN: string;
 }
 
 /**

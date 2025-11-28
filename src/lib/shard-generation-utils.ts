@@ -66,12 +66,10 @@ export function validateShardGenerationResource(
 }
 
 /**
- * Determines the correct search path for AutoRAG based on the resource
+ * Determines the correct search path based on the resource
  * This is the single source of truth for how we construct search paths
  */
-export function getAutoRAGSearchPath(
-  resource: ShardGenerationResource
-): string {
+export function getRAGSearchPath(resource: ShardGenerationResource): string {
   // Extract folder path from file_key
   // e.g., "library/username/file.pdf/file.pdf" -> "library/username/file.pdf/"
   const fileKey = resource.file_key;

@@ -7,7 +7,7 @@ import type { AuthPayload } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
 import { buildLibraryFileKey } from "@/lib/file-keys";
 import { nanoid } from "@/lib/nanoid";
-import { startAutoRAGProcessing } from "@/routes/upload-processing";
+import { startFileProcessing } from "@/routes/upload-processing";
 
 const log = logger.scope("[Upload]");
 
@@ -30,7 +30,6 @@ interface UploadSessionData {
   status: "pending" | "uploading" | "completed" | "failed";
   createdAt: string;
   updatedAt: string;
-  autoRAGChunking?: boolean;
 }
 
 /**
@@ -56,11 +55,7 @@ export async function handleUploadStatus(c: ContextWithAuth) {
       return c.json({ error: "Storage not available" }, 503);
     }
 
-    const key = await buildLibraryFileKey(
-      tenant || "",
-      filename || "",
-      (c.env as any).AUTORAG_PREFIX || "library"
-    );
+    const key = await buildLibraryFileKey(tenant || "", filename || "");
     const object = await c.env.R2.head(key);
     const exists = object
       ? {
@@ -109,18 +104,13 @@ export async function handleDirectUpload(c: ContextWithAuth) {
 
     // Get the file content
     const fileBuffer = await c.req.arrayBuffer();
-    const key = await buildLibraryFileKey(
-      tenant || "",
-      filename || "",
-      (c.env as any).AUTORAG_PREFIX || "library"
-    );
+    const key = await buildLibraryFileKey(tenant || "", filename || "");
 
     // Upload directly to R2
     await c.env.R2.put(key, fileBuffer, {
       httpMetadata: {
         contentType: c.req.header("Content-Type") || "application/octet-stream",
       },
-      // Preserve full staging identity for downstream AutoRAG metadata
       customMetadata: {
         file_key: key,
         user: tenant,
@@ -155,15 +145,15 @@ export async function handleDirectUpload(c: ContextWithAuth) {
     // Extract JWT token from Authorization header
     const authHeader = c.req.header("Authorization");
     const jwt = authHeader?.replace(/^Bearer\s+/i, "");
-    directUploadLog.debug("Starting AutoRAG processing", {
+    directUploadLog.debug("Starting file processing", {
       fileKey: key,
       userId: userAuth.username,
       filename,
       jwtPresent: !!jwt,
     });
 
-    // Start AutoRAG processing (awaited to ensure completion)
-    await startAutoRAGProcessing(
+    // Start file processing (awaited to ensure completion)
+    await startFileProcessing(
       c.env,
       key,
       userAuth.username,
@@ -172,7 +162,7 @@ export async function handleDirectUpload(c: ContextWithAuth) {
       jwt
     );
 
-    directUploadLog.debug("AutoRAG processing scheduled", { filename });
+    directUploadLog.debug("File processing scheduled", { filename });
 
     return c.json({
       success: true,
@@ -355,11 +345,7 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
 
     const tenant = userAuth.username;
     const sessionId = nanoid();
-    const fileKey = await buildLibraryFileKey(
-      tenant,
-      filename,
-      (c.env as any).AUTORAG_PREFIX || "library"
-    );
+    const fileKey = await buildLibraryFileKey(tenant, filename);
 
     // Create multipart upload in R2
     const multipartUpload = await c.env.R2.createMultipartUpload(fileKey, {
@@ -388,7 +374,6 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
       filename: filename,
       fileSize: fileSize,
       totalParts: totalParts,
-      autoRAGChunking: true,
     };
 
     const sessionResponse = await uploadSession.fetch(
@@ -595,7 +580,7 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
 
     try {
       await fileDAO.insertFileForProcessing(
-        session.fileKey, // Use staging key instead of autorag key
+        session.fileKey, // Use staging key
         session.filename,
         "", // description
         "[]", // tags (empty array as JSON string)
@@ -612,8 +597,8 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
     const authHeader = c.req.header("Authorization");
     const jwt = authHeader?.replace(/^Bearer\s+/i, "");
 
-    // Start AutoRAG processing (awaited to ensure completion)
-    await startAutoRAGProcessing(
+    // Start file processing (awaited to ensure completion)
+    await startFileProcessing(
       c.env,
       session.fileKey,
       session.userId,

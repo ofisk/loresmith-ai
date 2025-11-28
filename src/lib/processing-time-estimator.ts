@@ -124,5 +124,5 @@ export function getChatAgentEstimate(
 
   const sizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(1);
 
-  return `The file "${fileName}" (${sizeMB}MB) is currently being processed by AutoRAG. ${estimate.description} Estimated processing time: ${timeStr}. You'll receive a notification when it's ready to use.`;
+  return `The file "${fileName}" (${sizeMB}MB) is currently being processed. ${estimate.description} Estimated processing time: ${timeStr}. You'll receive a notification when it's ready to use.`;
 }

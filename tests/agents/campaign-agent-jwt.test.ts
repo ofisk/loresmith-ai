@@ -13,7 +13,6 @@ const mockEnv = {
   UploadSession: {} as DurableObjectNamespace,
   ASSETS: {} as any,
   NOTIFICATIONS: {} as DurableObjectNamespace,
-  AUTORAG_POLLING: {} as DurableObjectNamespace,
   FILE_PROCESSING_QUEUE: {} as any,
   FILE_PROCESSING_DLQ: {} as any,
 } as any;

@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
   description text,
   status text default 'active',
   metadata text, -- json metadata
-  campaignRagBasePath text, -- base path for campaign-specific AutoRAG folders
+  campaignRagBasePath text, -- base path for campaign-specific RAG storage
   created_at datetime default current_timestamp,
   updated_at datetime default current_timestamp
 );
@@ -61,35 +61,7 @@ CREATE TABLE IF NOT EXISTS file_chunks (
   created_at datetime default current_timestamp
 );
 
--- Create autorag_chunks table for storing chunk metadata
-CREATE TABLE IF NOT EXISTS autorag_chunks (
-  id text primary key,
-  file_key text not null,
-  username text not null,
-  chunk_key text not null,
-  part_number integer not null,
-  chunk_size integer not null,
-  original_filename text not null,
-  created_at datetime default current_timestamp
-);
-
--- Create autorag_jobs table for tracking AutoRAG job IDs and their associated files
-CREATE TABLE IF NOT EXISTS autorag_jobs (
-  id integer primary key autoincrement,
-  job_id text not null unique,
-  rag_id text not null,
-  username text not null,
-  file_key text not null,
-  file_name text not null,
-  status text not null default 'pending', -- 'pending', 'processing', 'completed', 'failed'
-  message text,
-  created_at datetime default current_timestamp,
-  updated_at datetime default current_timestamp,
-  completed_at datetime,
-  error_message text
-);
-
--- Create sync_queue table for managing AutoRAG sync operations
+-- Create sync_queue table for managing file processing operations
 CREATE TABLE IF NOT EXISTS sync_queue (
   id integer primary key autoincrement,
   username text not null,
@@ -112,7 +84,7 @@ CREATE TABLE IF NOT EXISTS shard_registry (
   shard_type text not null,       -- Entity type (spells, monsters, etc.)
   status text not null default 'staging',  -- 'staging', 'approved', 'rejected', 'deleted'
   confidence real,                -- Confidence score from AI extraction
-  source text,                    -- Source system (e.g., 'library_autorag_ai_search')
+  source text,                    -- Source system (e.g., 'library_rag_search')
   rejection_reason text,          -- Reason if rejected
   created_at text not null default (datetime('now')),
   updated_at text not null default (datetime('now')),
@@ -310,14 +282,6 @@ create index if not exists idx_file_metadata_difficulty_level on file_metadata(d
 create index if not exists idx_file_metadata_campaign_themes on file_metadata(campaign_themes);
 create index if not exists idx_file_metadata_content_quality_score on file_metadata(content_quality_score);
 create index if not exists idx_file_metadata_status_updated_at on file_metadata(status, updated_at);
-create index if not exists idx_autorag_chunks_file_key on autorag_chunks(file_key);
-create index if not exists idx_autorag_chunks_username on autorag_chunks(username);
-create index if not exists idx_autorag_chunks_chunk_key on autorag_chunks(chunk_key);
-create unique index if not exists idx_autorag_chunks_unique_chunk on autorag_chunks(file_key, part_number);
-create index if not exists idx_autorag_jobs_username on autorag_jobs(username);
-create index if not exists idx_autorag_jobs_job_id on autorag_jobs(job_id);
-create index if not exists idx_autorag_jobs_file_key on autorag_jobs(file_key);
-create index if not exists idx_autorag_jobs_status on autorag_jobs(status);
 create index if not exists idx_sync_queue_username on sync_queue(username);
 create index if not exists idx_sync_queue_status on sync_queue(status);
 create index if not exists idx_sync_queue_file_key on sync_queue(file_key);
@@ -347,13 +311,6 @@ create index if not exists idx_character_sheets_campaign_id on character_sheets(
 create index if not exists idx_user_notifications_username on user_notifications(username);
 
 -- Create triggers to update updated_at timestamps
-create trigger if not exists update_autorag_jobs_timestamp 
-    after update on autorag_jobs
-    for each row
-begin
-    update autorag_jobs set updated_at = current_timestamp where id = new.id;
-end;
-
 create trigger if not exists update_shard_registry_timestamp 
     after update on shard_registry
     for each row

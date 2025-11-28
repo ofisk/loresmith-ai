@@ -5,7 +5,7 @@ import {
   getStoredJwt,
 } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
-import type { AutoRAGEvent, FileUploadEvent } from "@/lib/event-bus";
+import type { FileUploadEvent } from "@/lib/event-bus";
 import { EVENT_TYPES, useEventBus } from "@/lib/event-bus";
 import { FileDAO } from "@/dao/file-dao";
 import type { ResourceFileWithCampaigns } from "./useResourceFiles";
@@ -25,7 +25,7 @@ interface UseResourceFileEventsReturn {
 }
 
 /**
- * Hook for handling file-related events (upload, AutoRAG, status updates)
+ * Hook for handling file-related events (upload, indexing, status updates)
  */
 export function useResourceFileEvents(
   options: UseResourceFileEventsOptions
@@ -348,54 +348,6 @@ export function useResourceFileEvents(
       }, 1500);
     },
     [setFiles, updateProgress, clearProgress]
-  );
-
-  // Indexing progress listeners
-  useEventBus<AutoRAGEvent>(
-    EVENT_TYPES.AUTORAG_SYNC.STARTED,
-    (event) => {
-      const key = event.fileKey as string | undefined;
-      if (!key) return;
-      updateProgress(key, 0);
-    },
-    [updateProgress]
-  );
-
-  useEventBus<AutoRAGEvent>(
-    EVENT_TYPES.AUTORAG_SYNC.PROGRESS,
-    (event) => {
-      const key = event.fileKey as string | undefined;
-      if (!key) return;
-      const pct = Math.max(0, Math.min(100, event.progress ?? 0));
-      updateProgress(key, pct);
-    },
-    [updateProgress]
-  );
-
-  useEventBus<AutoRAGEvent>(
-    EVENT_TYPES.AUTORAG_SYNC.COMPLETED,
-    (event) => {
-      const key = event.fileKey as string | undefined;
-      if (!key) return;
-      updateProgress(key, 100);
-      setTimeout(() => {
-        clearProgress(key);
-      }, 1500);
-    },
-    [updateProgress, clearProgress]
-  );
-
-  useEventBus<AutoRAGEvent>(
-    EVENT_TYPES.AUTORAG_SYNC.FAILED,
-    (event) => {
-      const key = event.fileKey as string | undefined;
-      if (!key) return;
-      updateProgress(key, 100);
-      setTimeout(() => {
-        clearProgress(key);
-      }, 1500);
-    },
-    [updateProgress, clearProgress]
   );
 
   // Handle file status update events from SSE notifications

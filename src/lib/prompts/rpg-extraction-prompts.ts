@@ -71,7 +71,7 @@ function buildTopLevelReturnShape(): string {
 export const RPG_EXTRACTION_PROMPTS = {
   /**
    * Main prompt for extracting structured RPG content from text for GraphRAG
-   * Used by AutoRAG AI Search to identify game-ready primitives and build a knowledge graph
+   * Used to identify game-ready primitives and build a knowledge graph
    */
   STRUCTURED_CONTENT: `You are extracting Dungeon Master prep data from RPG text to build a knowledge graph for GraphRAG (Graph-based Retrieval Augmented Generation).
 

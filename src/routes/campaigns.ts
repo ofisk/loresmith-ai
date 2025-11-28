@@ -76,12 +76,12 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
       description,
     });
 
-    // Sync campaign title and description to AutoRAG as searchable context
+    // Sync campaign title and description as searchable context
     try {
       const syncService = new CampaignContextSyncService(c.env);
 
       // Sync campaign title
-      await syncService.syncContextToAutoRAG(
+      await syncService.syncContext(
         newCampaign.campaignId,
         `${newCampaign.campaignId}-title`,
         "campaign_info",
@@ -92,7 +92,7 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
 
       // Sync campaign description if provided
       if (description) {
-        await syncService.syncContextToAutoRAG(
+        await syncService.syncContext(
           newCampaign.campaignId,
           `${newCampaign.campaignId}-description`,
           "campaign_info",
@@ -102,10 +102,10 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
         );
       }
 
-      console.log("[handleCreateCampaign] Synced campaign info to AutoRAG");
+      console.log("[handleCreateCampaign] Synced campaign info");
     } catch (syncError) {
       console.error(
-        "[handleCreateCampaign] Failed to sync campaign to AutoRAG:",
+        "[handleCreateCampaign] Failed to sync campaign:",
         syncError
       );
       // Don't fail campaign creation if sync fails
@@ -194,13 +194,13 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 
     console.log(`[Server] Updated campaign ${campaignId}`);
 
-    // Sync updated campaign info to AutoRAG
+    // Sync updated campaign info
     try {
       const syncService = new CampaignContextSyncService(c.env);
 
       // Update campaign title if changed
       if (body.name) {
-        await syncService.syncContextToAutoRAG(
+        await syncService.syncContext(
           campaignId,
           `${campaignId}-title`,
           "campaign_info",
@@ -212,7 +212,7 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 
       // Update campaign description if changed
       if (body.description !== undefined) {
-        await syncService.syncContextToAutoRAG(
+        await syncService.syncContext(
           campaignId,
           `${campaignId}-description`,
           "campaign_info",
@@ -222,12 +222,10 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
         );
       }
 
-      console.log(
-        "[handleUpdateCampaign] Synced updated campaign info to AutoRAG"
-      );
+      console.log("[handleUpdateCampaign] Synced updated campaign info");
     } catch (syncError) {
       console.error(
-        "[handleUpdateCampaign] Failed to sync campaign to AutoRAG:",
+        "[handleUpdateCampaign] Failed to sync campaign:",
         syncError
       );
       // Don't fail campaign update if sync fails
@@ -362,7 +360,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       );
     }
 
-    // 3) Check if file is indexed in AutoRAG before adding to campaign
+    // 3) Check if file is indexed before adding to campaign
     const fileDAO = getDAOFactory(c.env).fileDAO;
     const fileRecord = await fileDAO.getFileForRag(id, userAuth.username);
 
@@ -411,7 +409,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 
       return c.json(
         {
-          error: "File is not yet indexed by AutoRAG",
+          error: "File is not yet indexed",
           status: fileRecord.status,
           message: `File status is '${fileRecord.status}'. Re-indexing has been triggered automatically. Please wait a moment and try again.`,
           reindexTriggered: true,
@@ -446,7 +444,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       );
       if (!campaignRagBasePath) {
         console.warn(
-          `[Server] Campaign AutoRAG not initialized for campaign: ${campaignId}`
+          `[Server] Campaign RAG not initialized for campaign: ${campaignId}`
         );
         // Continue without entity extraction
       } else {

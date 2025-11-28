@@ -109,7 +109,7 @@ import {
   handleProcessFileForRag,
   handleProcessFileFromR2ForRag,
   handleRagSearch,
-  handleTriggerAutoRAGIndexing,
+  handleTriggerIndexing,
   handleCheckFileIndexingStatus,
   handleBulkCheckFileIndexingStatus,
 } from "@/routes/rag";
@@ -189,7 +189,7 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
   app.post(
     API_CONFIG.ENDPOINTS.RAG.TRIGGER_INDEXING,
     requireUserJwt,
-    handleTriggerAutoRAGIndexing
+    handleTriggerIndexing
   );
   app.get(API_CONFIG.ENDPOINTS.RAG.STATUS, requireUserJwt);
   app.post(

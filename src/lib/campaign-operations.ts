@@ -21,7 +21,7 @@ export interface AddResourceOptions {
   fileName: string;
 }
 
-// Create a new campaign with AutoRAG initialization
+// Create a new campaign with RAG initialization
 export async function createCampaign(options: CreateCampaignOptions) {
   const { env, username, name, description = "" } = options;
 
