@@ -14,78 +14,10 @@ import { R2Helper } from "@/lib/r2";
 import type { ExtractedEntity } from "@/services/rag/entity-extraction-service";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { EntityImportanceService } from "@/services/graph/entity-importance-service";
-
-/**
- * Chunk text by pages (for PDFs) or by character count to stay under token limits
- * Pages are identified by [Page N] markers added during PDF extraction
- */
-function chunkTextByPages(text: string, maxChunkSize: number): string[] {
-  // Split by page markers
-  const pagePattern = /\[Page \d+\]/g;
-  const pages = text.split(pagePattern);
-  const pageMarkers = text.match(pagePattern) || [];
-
-  const chunks: string[] = [];
-  let currentChunk = "";
-
-  for (let i = 0; i < pages.length; i++) {
-    const pageMarker = i > 0 ? pageMarkers[i - 1] : "";
-    const pageContent = pages[i];
-
-    // If adding this page would exceed the limit, start a new chunk
-    if (
-      currentChunk.length > 0 &&
-      currentChunk.length + pageMarker.length + pageContent.length >
-        maxChunkSize
-    ) {
-      chunks.push(currentChunk);
-      currentChunk = pageMarker + pageContent;
-    } else {
-      currentChunk += pageMarker + pageContent;
-    }
-  }
-
-  // Add the last chunk
-  if (currentChunk.trim().length > 0) {
-    chunks.push(currentChunk);
-  }
-
-  return chunks.length > 0 ? chunks : [text];
-}
-
-/**
- * Chunk text by character count, trying to break at word boundaries
- */
-function chunkTextByCharacterCount(
-  text: string,
-  maxChunkSize: number
-): string[] {
-  const chunks: string[] = [];
-  let currentPos = 0;
-
-  while (currentPos < text.length) {
-    const remainingText = text.slice(currentPos);
-    let chunkSize = Math.min(maxChunkSize, remainingText.length);
-
-    // Try to break at word boundary (space or newline)
-    if (chunkSize < remainingText.length) {
-      const lastSpace = remainingText.lastIndexOf(" ", chunkSize);
-      const lastNewline = remainingText.lastIndexOf("\n", chunkSize);
-      const breakPoint = Math.max(lastSpace, lastNewline);
-
-      // Only break at word boundary if it's not too far back (within 20% of chunk size)
-      if (breakPoint > chunkSize * 0.8) {
-        chunkSize = breakPoint;
-      }
-    }
-
-    const chunk = remainingText.slice(0, chunkSize);
-    chunks.push(chunk);
-    currentPos += chunkSize;
-  }
-
-  return chunks.length > 0 ? chunks : [text];
-}
+import {
+  chunkTextByPages,
+  chunkTextByCharacterCount,
+} from "@/lib/text-chunking-utils";
 
 export interface EntityStagingResult {
   success: boolean;

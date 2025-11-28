@@ -16,6 +16,7 @@ export const NOTIFICATION_TYPES = {
   INDEXING_FAILED: "indexing_failed",
   CAMPAIGN_FILE_ADDED: "campaign_file_added",
   FILE_STATUS_UPDATED: "file_status_updated",
+  METADATA_AUTO_GENERATED: "metadata_auto_generated",
 
   // Campaign-related notifications
   CAMPAIGN_CREATED: "campaign_created",

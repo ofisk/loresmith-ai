@@ -20,6 +20,7 @@ export interface FileMetadata {
   fileKey: string;
   userId: string;
   filename: string;
+  displayName?: string; // Auto-generated pretty name
   fileSize: number;
   contentType: string;
   description?: string;

@@ -192,4 +192,51 @@ RETURN ONLY JSON.`,
       resourceName
     );
   },
+
+  /**
+   * Generate a prompt for extracting a specific content type from RPG text
+   * Used for targeted extraction of individual content types
+   * @param contentType - The type of content to extract (e.g., "monsters", "spells", "npcs")
+   * @returns Formatted prompt string for extracting the specified content type
+   */
+  getTypeSpecificExtractionPrompt: (contentType: string): string => {
+    return `You are extracting ${contentType} from RPG text.
+
+TASK
+From the provided text, identify and synthesize ALL relevant ${contentType} and output a JSON object. Return ONLY valid JSON (no comments, no markdown).
+
+CONTEXT & HINTS
+- Focus specifically on ${contentType} content
+- Look for typical cues that indicate ${contentType}
+- Normalize names (title case), keep dice notation and DCs
+- Prefer concise, prep-usable summaries over flavor text
+
+OUTPUT RULES
+- Output one JSON object with the structure: { "${contentType}": [...] }
+- Each ${contentType} should have: id, type:"${contentType}", name, summary, tags, source
+- Do not invent rules outside the text; summarize faithfully
+- Keep summary short (≤ 500 chars)
+
+SPEC for ${contentType}:
+- id: stable slug (lowercase kebab)
+- type: "${contentType}"
+- name: string
+- summary: 1–5 sentence DM-usable summary
+- tags: array of short tags
+- source: { doc, pages?, anchor? }
+
+RETURN ONLY JSON in this format:
+{
+  "${contentType}": [
+    {
+      "id": "example_id",
+      "type": "${contentType}",
+      "name": "Example Name",
+      "summary": "Brief description",
+      "tags": ["tag1", "tag2"],
+      "source": { "doc": "document_id" }
+    }
+  ]
+}`;
+  },
 };

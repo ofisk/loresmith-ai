@@ -14,6 +14,7 @@ interface EditFileModalProps {
     id: string;
     file_key: string;
     file_name: string;
+    display_name?: string;
     description?: string;
     tags?: string[];
   };
@@ -26,8 +27,12 @@ export function EditFileModal({
   file,
   onUpdate,
 }: EditFileModalProps) {
+  const displayNameId = useId();
   const descriptionId = useId();
   const tagsId = useId();
+  const [editedDisplayName, setEditedDisplayName] = useState(
+    file.display_name || ""
+  );
   const [editedDescription, setEditedDescription] = useState(
     file.description || ""
   );
@@ -38,6 +43,7 @@ export function EditFileModal({
   // Reset form when file changes
   useEffect(() => {
     if (file) {
+      setEditedDisplayName(file.display_name || "");
       setEditedDescription(file.description || "");
       setEditedTags(file.tags?.join(", ") || "");
     }
@@ -63,6 +69,7 @@ export function EditFileModal({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
+            display_name: editedDisplayName.trim() || undefined,
             description: editedDescription.trim(),
             tags: tagsArray,
           }),
@@ -81,6 +88,7 @@ export function EditFileModal({
       // Update the file object with new metadata
       const updatedFile = {
         ...file,
+        display_name: editedDisplayName.trim() || undefined,
         description: editedDescription.trim(),
         tags: tagsArray,
       };
@@ -95,6 +103,7 @@ export function EditFileModal({
   };
 
   const handleCancel = () => {
+    setEditedDisplayName(file.display_name || "");
     setEditedDescription(file.description || "");
     setEditedTags(file.tags?.join(", ") || "");
     setError(null);
@@ -131,6 +140,15 @@ export function EditFileModal({
               </p>
             </div>
           </div>
+
+          {/* Display Name */}
+          <FormField
+            id={displayNameId}
+            label="Display name"
+            value={editedDisplayName}
+            onValueChange={(value) => setEditedDisplayName(value)}
+            placeholder="Enter a user-friendly display name..."
+          />
 
           {/* Description */}
           <FormField

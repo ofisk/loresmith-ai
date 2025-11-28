@@ -19,11 +19,17 @@ interface ResourceFileItemProps {
   fetchResources: () => Promise<void>;
 }
 
-function getDisplayName(filename: string | undefined | null): string {
-  if (!filename) {
-    return "Unknown file";
+function getDisplayName(file: {
+  file_name?: string;
+  display_name?: string;
+}): string {
+  if (file.display_name) {
+    return file.display_name;
   }
-  return filename;
+  if (file.file_name) {
+    return file.file_name;
+  }
+  return "Unknown file";
 }
 
 /**
@@ -105,10 +111,7 @@ export function ResourceFileItem({
       <div className="flex flex-col h-full">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1 mr-3 min-w-0">
-            <Tooltip
-              content={getDisplayName(file.file_name)}
-              id={file.file_key}
-            >
+            <Tooltip content={getDisplayName(file)} id={file.file_key}>
               <h4
                 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-help max-w-[200px]"
                 onClick={(e) => e.stopPropagation()}
@@ -119,7 +122,7 @@ export function ResourceFileItem({
                   }
                 }}
               >
-                {getDisplayName(file.file_name)}
+                {getDisplayName(file)}
               </h4>
             </Tooltip>
             {AuthService.getUsernameFromStoredJwt() && (

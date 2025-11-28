@@ -219,7 +219,7 @@ export async function handleUpdateFileMetadata(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth as AuthPayload;
     const fileKey = c.req.param("fileKey");
-    const { description, tags } = await c.req.json();
+    const { display_name, description, tags } = await c.req.json();
 
     if (!fileKey) {
       return c.json({ error: "File key is required" }, 400);
@@ -241,7 +241,17 @@ export async function handleUpdateFileMetadata(c: ContextWithAuth) {
 
     // Try to update both tables to ensure consistency
     try {
-      await fileDAO.updateFileMetadata(fileKey, { description, tags });
+      const metadataUpdates: {
+        display_name?: string;
+        description?: string;
+        tags?: string;
+      } = {};
+      if (display_name !== undefined)
+        metadataUpdates.display_name = display_name;
+      if (description !== undefined) metadataUpdates.description = description;
+      if (tags !== undefined) metadataUpdates.tags = JSON.stringify(tags);
+
+      await fileDAO.updateFileMetadata(fileKey, metadataUpdates);
     } catch (error) {
       log.warn("Failed to update file_metadata table", { error });
     }
@@ -251,7 +261,8 @@ export async function handleUpdateFileMetadata(c: ContextWithAuth) {
         fileKey,
         userAuth.username,
         description || "",
-        tags ? JSON.stringify(tags) : "[]"
+        tags ? JSON.stringify(tags) : "[]",
+        display_name
       );
     } catch (error) {
       log.warn("Failed to update files table", { error });
