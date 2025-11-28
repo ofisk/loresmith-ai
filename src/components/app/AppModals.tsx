@@ -417,6 +417,7 @@ export function AppModals({
             id: modalState.editingFile.id,
             file_key: modalState.editingFile.file_key,
             file_name: modalState.editingFile.file_name,
+            display_name: modalState.editingFile.display_name,
             description: modalState.editingFile.description,
             tags: Array.isArray(modalState.editingFile.tags)
               ? modalState.editingFile.tags

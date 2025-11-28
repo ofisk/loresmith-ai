@@ -6,6 +6,7 @@ export interface FileMetadata {
   id: string;
   file_key: string;
   file_name: string;
+  display_name?: string;
   username: string;
   file_size: number;
   content_type: string;
@@ -200,11 +201,18 @@ export class FileDAO extends BaseDAOClass {
   async updateFileMetadata(
     fileKey: string,
     updates: Partial<
-      Pick<FileMetadata, "description" | "tags" | "vector_id" | "chunk_count">
+      Pick<
+        FileMetadata,
+        "display_name" | "description" | "tags" | "vector_id" | "chunk_count"
+      >
     >
   ): Promise<void> {
     const setClause = Object.keys(updates)
-      .map((key) => `${key} = ?`)
+      .map((key) => {
+        // Map display_name to display_name column
+        const columnName = key === "display_name" ? "display_name" : key;
+        return `${columnName} = ?`;
+      })
       .join(", ");
 
     const sql = `
@@ -634,19 +642,35 @@ export class FileDAO extends BaseDAOClass {
     fileKey: string,
     username: string,
     description: string,
-    tags: string
+    tags: string,
+    displayName?: string
   ): Promise<void> {
-    const sql = `
-      UPDATE file_metadata 
-      SET description = ?, tags = ? 
-      WHERE file_key = ? AND username = ?
-    `;
-    await this.execute(sql, [description, tags, fileKey, username]);
+    if (displayName !== undefined) {
+      const sql = `
+        UPDATE file_metadata 
+        SET description = ?, tags = ?, display_name = ? 
+        WHERE file_key = ? AND username = ?
+      `;
+      await this.execute(sql, [
+        description,
+        tags,
+        displayName,
+        fileKey,
+        username,
+      ]);
+    } else {
+      const sql = `
+        UPDATE file_metadata 
+        SET description = ?, tags = ? 
+        WHERE file_key = ? AND username = ?
+      `;
+      await this.execute(sql, [description, tags, fileKey, username]);
+    }
   }
 
   async getFilesForRag(username: string): Promise<any[]> {
     const sql = `
-      SELECT file_key, file_name, description, tags, status, created_at, file_size 
+      SELECT file_key, file_name, display_name, description, tags, status, created_at, file_size 
       FROM file_metadata 
       WHERE username = ? 
       ORDER BY created_at DESC

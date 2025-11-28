@@ -30,10 +30,26 @@ export function ResourceFileDetails({
       className={`overflow-hidden transition-all duration-300 ease-in-out max-h-96 opacity-100`}
     >
       <div className="mt-4 text-xs space-y-1">
+        {file.display_name && (
+          <div className="flex justify-between items-center">
+            <span className="text-gray-600 dark:text-gray-400">
+              Display name:
+            </span>
+            <span className="font-medium text-gray-900 dark:text-gray-100">
+              {file.display_name}
+            </span>
+          </div>
+        )}
+        <div className="flex justify-between items-center">
+          <span className="text-gray-600 dark:text-gray-400">Filename:</span>
+          <span className="font-medium text-gray-900 dark:text-gray-100">
+            {file.file_name}
+          </span>
+        </div>
         <div className="flex justify-between items-center">
           <span className="text-gray-600 dark:text-gray-400">Uploaded:</span>
           <span className="font-medium text-gray-900 dark:text-gray-100">
-            {new Date(file.created_at)
+            {new Date(file.created_at || file.updated_at)
               .toLocaleDateString("en-US", {
                 month: "short",
                 day: "numeric",

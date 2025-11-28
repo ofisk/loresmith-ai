@@ -107,6 +107,10 @@
       "tag": "v8",
       "deleted_classes": ["UserFileTracker"],
     },
+    {
+      "tag": "v9",
+      "deleted_classes": ["AutoRAGPollingDO"],
+    },
   ],
   "observability": {
     "enabled": true,

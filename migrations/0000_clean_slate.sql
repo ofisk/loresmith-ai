@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS file_metadata (
   file_key text primary key,
   username text not null,
   file_name text not null,
+  display_name text, -- Auto-generated pretty name
   description text,
   tags text, -- json array
   file_size integer,

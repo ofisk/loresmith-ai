@@ -11,6 +11,7 @@ export interface ResourceFile {
   id: string;
   file_key: string;
   file_name: string;
+  display_name?: string;
   file_size: number;
   description?: string;
   tags?: string[] | string;

@@ -11,6 +11,12 @@ import {
   VectorizeIndexRequiredError,
   InvalidEmbeddingResponseError,
 } from "@/lib/errors";
+import { getDocument } from "pdfjs-serverless";
+import {
+  chunkTextByPages,
+  chunkTextByCharacterCount,
+} from "@/lib/text-chunking-utils";
+import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
 
 // LLM model configuration
 const LLM_MODEL = "@cf/meta/llama-3.1-8b-instruct";
@@ -24,6 +30,7 @@ export class LibraryRAGService extends BaseRAGService {
   }
 
   async processFile(metadata: FileMetadata): Promise<{
+    displayName?: string;
     description: string;
     tags: string[];
     vectorId?: string;
@@ -37,25 +44,27 @@ export class LibraryRAGService extends BaseRAGService {
       // Extract text based on file type
       const text = await this.extractText(file, metadata.contentType);
 
-      if (!text) {
+      if (!text || text.trim().length === 0) {
         console.log(
           `[LibraryRAGService] No text extracted from file: ${metadata.fileKey}`
         );
         return {
+          displayName: undefined,
           description: "",
           tags: [],
         };
       }
 
       // Use AI for enhanced metadata generation if available
-      let result: { description: string; tags: string[] };
+      let result: { displayName?: string; description: string; tags: string[] };
       try {
         if (this.ai) {
-          // Generate semantic metadata using AI
+          // Generate semantic metadata using AI with file content
           const semanticResult = await this.generateSemanticMetadata(
             metadata.filename,
             metadata.fileKey,
-            metadata.userId
+            metadata.userId,
+            text
           );
 
           if (semanticResult) {
@@ -63,12 +72,14 @@ export class LibraryRAGService extends BaseRAGService {
           } else {
             // No meaningful metadata generated - leave blank
             result = {
+              displayName: undefined,
               description: "",
               tags: [],
             };
           }
         } else {
           result = {
+            displayName: undefined,
             description: "",
             tags: [],
           };
@@ -79,6 +90,7 @@ export class LibraryRAGService extends BaseRAGService {
           aiError
         );
         result = {
+          displayName: undefined,
           description: "",
           tags: [],
         };
@@ -89,6 +101,7 @@ export class LibraryRAGService extends BaseRAGService {
 
       console.log(`[LibraryRAGService] Processed file:`, {
         fileKey: metadata.fileKey,
+        displayName: result.displayName,
         description: result.description,
         tags: result.tags,
         vectorId,
@@ -104,6 +117,7 @@ export class LibraryRAGService extends BaseRAGService {
         error
       );
       return {
+        displayName: undefined,
         description: "",
         tags: [],
       };
@@ -135,62 +149,42 @@ export class LibraryRAGService extends BaseRAGService {
 
   private async extractFileText(buffer: ArrayBuffer): Promise<string> {
     try {
-      // Use Cloudflare AI for text extraction if available
-      if (this.env.AI) {
-        // Use standard PDF extraction
-        return `File content processed (${buffer.byteLength} bytes)`;
-      }
+      // Use pdfjs-serverless for proper PDF extraction (designed for Workers)
+      // Load the PDF document
+      const pdf = await getDocument({
+        data: new Uint8Array(buffer),
+      }).promise;
 
-      // Fallback to basic text extraction
-      const uint8Array = new Uint8Array(buffer);
-      const decoder = new TextDecoder("utf-8", { fatal: false });
-      const fileString = decoder.decode(uint8Array);
+      const numPages = pdf.numPages;
+      console.log(`[LibraryRAGService] PDF has ${numPages} pages`);
 
-      // Simple text extraction patterns
-      const textPatterns = [
-        /\(([^)]+)\)/g, // Text in parentheses
-        /BT\s*([^E]+?)ET/g, // Text between BT and ET
-        /Tj\s*\(([^)]*)\)/g, // Text after Tj
-      ];
+      const pageTexts: string[] = [];
 
-      let extractedText = "";
+      // Extract text from each page
+      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
 
-      for (const pattern of textPatterns) {
-        const matches = fileString.match(pattern) || [];
-        for (const match of matches) {
-          let text = match;
-          if (pattern.source.includes("\\(")) {
-            text = match.replace(/^[^(]*\(([^)]*)\)[^)]*$/, "$1");
-          } else if (pattern.source.includes("BT")) {
-            text = match.replace(/^BT\s*([^E]+?)ET.*$/, "$1");
-          } else if (pattern.source.includes("Tj")) {
-            text = match.replace(/^Tj\s*\(([^)]*)\).*$/, "$1");
-          }
+        // Combine all text items from the page
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(" ");
 
-          // Clean up the text
-          text = text
-            .replace(/\\\(/g, "(")
-            .replace(/\\\)/g, ")")
-            .replace(/\\\\/g, "\\")
-            .replace(/\\n/g, "\n")
-            .replace(/\\r/g, "\r")
-            .replace(/\\t/g, "\t")
-            .replace(/\\s/g, " ")
-            .replace(/\\/g, "");
-
-          if (text.length > 2 && text.trim().length > 0 && text.length < 1000) {
-            extractedText += `${text} `;
-          }
+        if (pageText.trim().length > 0) {
+          pageTexts.push(pageText);
         }
       }
 
-      return (
-        extractedText.replace(/\s+/g, " ").trim() ||
-        `File content extracted (${buffer.byteLength} bytes)`
-      );
+      // Join all pages with page breaks for context
+      const fullText = pageTexts
+        .map((text, index) => `[Page ${index + 1}]\n${text}`)
+        .join("\n\n");
+
+      return fullText || `File content extracted (${buffer.byteLength} bytes)`;
     } catch (error) {
-      console.error("Error extracting file text:", error);
-      return `File content extracted (${buffer.byteLength} bytes)`;
+      console.error("Error extracting PDF text:", error);
+      // Fallback to empty string if extraction fails
+      return "";
     }
   }
 
@@ -248,8 +242,11 @@ export class LibraryRAGService extends BaseRAGService {
         embeddings = this.generateBasicEmbeddings(text);
       }
 
-      // Store in Vectorize
-      const vectorId = `vector_${metadataId}_${Date.now()}`;
+      // Store in Vectorize with a vector ID that's guaranteed to be under 64 bytes
+      const vectorId = await this.generateVectorId(
+        metadataId,
+        Date.now().toString()
+      );
       await this.vectorize.insert([
         {
           id: vectorId,
@@ -266,8 +263,14 @@ export class LibraryRAGService extends BaseRAGService {
       return vectorId;
     } catch (error) {
       console.error(`[LibraryRAGService] Error storing embeddings:`, error);
-      // Return a fallback vector ID
-      return `vector_${metadataId}_fallback`;
+      // Return a fallback vector ID that's also guaranteed to be under 64 bytes
+      try {
+        return await this.generateVectorId(metadataId, "fallback");
+      } catch (_hashError) {
+        // If even the hash generation fails, use a simple numeric hash
+        const numericHash = this.simpleHash(metadataId).toString(36);
+        return `v_${numericHash}`.substring(0, 63); // Ensure max 63 bytes
+      }
     }
   }
 
@@ -299,6 +302,30 @@ export class LibraryRAGService extends BaseRAGService {
       hash = hash & hash; // Convert to 32-bit integer
     }
     return Math.abs(hash);
+  }
+
+  /**
+   * Generate a Vectorize-compatible vector ID that is guaranteed to be under 64 bytes
+   * Uses SHA-256 hash to create a deterministic, short identifier
+   */
+  private async generateVectorId(
+    metadataId: string,
+    suffix?: string
+  ): Promise<string> {
+    // Create a hash of the metadataId to ensure uniqueness while keeping it short
+    const hashBuffer = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(metadataId + (suffix || ""))
+    );
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    // Use first 48 characters of hash (48 bytes) + "v_" prefix (2 bytes) = 50 bytes total
+    // This leaves room for any additional suffix if needed
+    const shortHash = hashHex.substring(0, 48);
+    return `v_${shortHash}`;
   }
 
   async searchFiles(query: SearchQuery): Promise<SearchResult[]> {
@@ -465,8 +492,11 @@ export class LibraryRAGService extends BaseRAGService {
   async generateSemanticMetadata(
     fileName: string,
     fileKey: string,
-    username: string
-  ): Promise<{ description: string; tags: string[] } | undefined> {
+    username: string,
+    fileContent: string
+  ): Promise<
+    { displayName: string; description: string; tags: string[] } | undefined
+  > {
     try {
       console.log(
         `[LibraryRAGService] Starting semantic metadata generation for ${fileName}`
@@ -484,78 +514,164 @@ export class LibraryRAGService extends BaseRAGService {
         `[LibraryRAGService] AI binding available, proceeding with semantic analysis`
       );
 
-      // Generate metadata from filename analysis
-      const semanticPrompt = `
-Analyze the document filename "${fileName}" and generate meaningful metadata.
+      // If no file content provided, analyze filename only
+      if (!fileContent || fileContent.trim().length === 0) {
+        console.warn(
+          `[LibraryRAGService] No file content provided for ${fileName}, analyzing filename only`
+        );
+        fileContent = "";
+      }
 
-Based on the filename, generate:
-1. A descriptive summary of what this document likely contains (not just "PDF document")
-2. Relevant tags that describe the topics, themes, or content type based on the filename
-3. Suggestions for how this document might be useful
+      // Chunk content to respect token limits
+      // Token estimation: ~4 characters per token for English text
+      // We need to account for:
+      // - System prompt: ~3,000 tokens
+      // - Max response: ~16,384 tokens
+      // - Content: 30,000 - 3,000 - 16,384 = ~10,616 tokens = ~42,000 characters
+      const CHARS_PER_TOKEN = 4;
+      const PROMPT_TOKENS_ESTIMATE = 3000;
+      const MAX_RESPONSE_TOKENS = 16384;
+      const TPM_LIMIT = 30000;
+      const MAX_CONTENT_TOKENS =
+        TPM_LIMIT - PROMPT_TOKENS_ESTIMATE - MAX_RESPONSE_TOKENS;
+      const MAX_CHUNK_SIZE = Math.floor(MAX_CONTENT_TOKENS * CHARS_PER_TOKEN); // ~42k characters
 
-Focus on extracting meaning from the filename structure and common naming patterns.
+      const isPDF = fileContent.includes("[Page");
+      const chunks =
+        fileContent.length > MAX_CHUNK_SIZE
+          ? isPDF
+            ? chunkTextByPages(fileContent, MAX_CHUNK_SIZE)
+            : chunkTextByCharacterCount(fileContent, MAX_CHUNK_SIZE)
+          : [fileContent];
+
+      console.log(
+        `[LibraryRAGService] Processing ${chunks.length} chunk(s) for metadata generation (max chunk size: ${MAX_CHUNK_SIZE} chars)`
+      );
+
+      // Process chunks and merge results
+      const allTags: Set<string> = new Set();
+      const allDescriptions: string[] = [];
+      const allDisplayNames: string[] = [];
+
+      const CHUNK_PROCESSING_DELAY_MS = chunks.length > 1 ? 2000 : 0;
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const chunkPreview = chunk.substring(0, Math.min(1000, chunk.length));
+
+        const semanticPrompt = `
+Analyze this document and generate meaningful metadata.
 
 Document filename: ${fileName}
 File key: ${fileKey}
 Username: ${username}
 
-Please provide the response in this exact format:
-DESCRIPTION: [your description here]
-TAGS: [tag1, tag2, tag3]
-SUGGESTIONS: [suggestion1, suggestion2, suggestion3]
+${fileContent.length > 0 ? `Document content preview:\n${chunkPreview}\n\n` : ""}
+${fileContent.length > 0 && chunks.length > 1 ? `Note: This is chunk ${i + 1} of ${chunks.length}.\n` : ""}
+
+Based on ${fileContent.length > 0 ? "the document content" : "the filename"}, generate:
+1. A clean, user-friendly display name (e.g., "Player's Handbook" instead of "players_handbook_v3.2_final.pdf")
+2. A short description (1-2 sentences) of what this document contains
+3. Relevant tags that describe topics, themes, or content type
+
+Please provide the response in this exact JSON format:
+{
+  "displayName": "User-friendly display name",
+  "description": "Short description of the document",
+  "tags": ["tag1", "tag2", "tag3"]
+}
 `;
 
-      try {
-        console.log(
-          `[LibraryRAGService] Sending semantic prompt to AI:`,
-          semanticPrompt
-        );
-        const response = await this.ai.run(semanticPrompt);
-        console.log(
-          `[LibraryRAGService] Semantic analysis response:`,
-          response
-        );
+        try {
+          if (i > 0) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, CHUNK_PROCESSING_DELAY_MS)
+            );
+          }
 
-        // Parse the response to extract metadata
-        const lines = response.split("\n");
-        let description: string | undefined;
-        let tags: string[] | undefined;
+          console.log(
+            `[LibraryRAGService] Processing chunk ${i + 1}/${chunks.length} for metadata generation`
+          );
 
-        for (const line of lines) {
-          if (line.startsWith("DESCRIPTION:")) {
-            const desc = line.replace("DESCRIPTION:", "").trim();
-            if (desc) {
-              description = desc;
-            }
-          } else if (line.startsWith("TAGS:")) {
-            const tagsMatch = line.match(/TAGS:\s*\[(.*?)\]/);
-            if (tagsMatch) {
-              const parsedTags = tagsMatch[1]
-                .split(",")
-                .map((tag: string) => tag.trim().replace(/['"]/g, ""));
-              if (parsedTags.length > 0) {
-                tags = parsedTags;
+          const response = await this.ai.run(LLM_MODEL, {
+            messages: [
+              {
+                role: "user",
+                content: semanticPrompt,
+              },
+            ],
+            max_tokens: MAX_RESPONSE_TOKENS,
+          });
+
+          let responseText: string;
+          if (typeof response === "string") {
+            responseText = response;
+          } else if (
+            response &&
+            typeof response === "object" &&
+            "response" in response
+          ) {
+            responseText = (response as any).response;
+          } else if (
+            response &&
+            typeof response === "object" &&
+            "content" in response
+          ) {
+            responseText = Array.isArray((response as any).content)
+              ? (response as any).content
+                  .map((c: any) => c.text || c)
+                  .join("\n")
+              : JSON.stringify(response);
+          } else {
+            responseText = JSON.stringify(response);
+          }
+
+          // Try to extract JSON from the response
+          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              const parsed = JSON.parse(jsonMatch[0]);
+              if (parsed.displayName) allDisplayNames.push(parsed.displayName);
+              if (parsed.description) allDescriptions.push(parsed.description);
+              if (Array.isArray(parsed.tags)) {
+                for (const tag of parsed.tags) {
+                  allTags.add(tag);
+                }
               }
+            } catch (parseError) {
+              console.warn(
+                `[LibraryRAGService] Failed to parse JSON from chunk ${i + 1}:`,
+                parseError
+              );
             }
           }
+        } catch (error) {
+          console.error(
+            `[LibraryRAGService] Error processing chunk ${i + 1}:`,
+            error
+          );
+          // Continue with other chunks even if one fails
         }
-
-        // Only return metadata if we have meaningful content
-        if (description && tags && tags.length > 0) {
-          return {
-            description,
-            tags,
-          };
-        }
-
-        return undefined;
-      } catch (error) {
-        console.error(
-          `[LibraryRAGService] Semantic analysis failed for ${fileName}:`,
-          error
-        );
-        return undefined;
       }
+
+      // Merge results from all chunks
+      const finalDisplayName =
+        allDisplayNames.length > 0 ? allDisplayNames[0] : undefined;
+      const finalDescription =
+        allDescriptions.length > 0
+          ? allDescriptions.join(" ").substring(0, 500)
+          : undefined;
+      const finalTags = Array.from(allTags);
+
+      if (finalDisplayName || finalDescription || finalTags.length > 0) {
+        return {
+          displayName: finalDisplayName || fileName.replace(/\.[^/.]+$/, ""),
+          description: finalDescription || "",
+          tags: finalTags,
+        };
+      }
+
+      return undefined;
     } catch (error) {
       console.error(
         `[LibraryRAGService] Error in generateSemanticMetadata:`,
@@ -631,44 +747,10 @@ SUGGESTIONS: [suggestion1, suggestion2, suggestion3]
             try {
               console.log(`[LibraryRAGService] Querying for ${contentType}...`);
 
-              const typeSpecificPrompt = `You are extracting ${contentType} from RPG text.
-
-TASK
-From the provided text, identify and synthesize ALL relevant ${contentType} and output a JSON object. Return ONLY valid JSON (no comments, no markdown).
-
-CONTEXT & HINTS
-- Focus specifically on ${contentType} content
-- Look for typical cues that indicate ${contentType}
-- Normalize names (title case), keep dice notation and DCs
-- Prefer concise, prep-usable summaries over flavor text
-
-OUTPUT RULES
-- Output one JSON object with the structure: { "${contentType}": [...] }
-- Each ${contentType} should have: id, type:"${contentType}", name, summary, tags, source
-- Do not invent rules outside the text; summarize faithfully
-- Keep summary short (≤ 500 chars)
-
-SPEC for ${contentType}:
-- id: stable slug (lowercase kebab)
-- type: "${contentType}"
-- name: string
-- summary: 1–5 sentence DM-usable summary
-- tags: array of short tags
-- source: { doc, pages?, anchor? }
-
-RETURN ONLY JSON in this format:
-{
-  "${contentType}": [
-    {
-      "id": "example_id",
-      "type": "${contentType}",
-      "name": "Example Name",
-      "summary": "Brief description",
-      "tags": ["tag1", "tag2"],
-      "source": { "doc": "document_id" }
-    }
-  ]
-}`;
+              const typeSpecificPrompt =
+                RPG_EXTRACTION_PROMPTS.getTypeSpecificExtractionPrompt(
+                  contentType
+                );
 
               const aiResponse = await this.env.AI.run(LLM_MODEL, {
                 messages: [
@@ -793,7 +875,11 @@ RETURN ONLY JSON in this format:
     fileBucket: any,
     metadata: any
   ): Promise<{
-    suggestedMetadata?: { description: string; tags: string[] };
+    suggestedMetadata?: {
+      displayName?: string;
+      description: string;
+      tags: string[];
+    };
     vectorId?: string;
   }> {
     try {
@@ -817,7 +903,8 @@ RETURN ONLY JSON in this format:
       const semanticResult = await this.generateSemanticMetadata(
         metadata.filename || fileKey,
         fileKey,
-        username
+        username,
+        text
       );
 
       // Store embeddings in Vectorize if available
@@ -839,6 +926,7 @@ RETURN ONLY JSON in this format:
       if (semanticResult) {
         return {
           suggestedMetadata: {
+            displayName: semanticResult.displayName,
             description: semanticResult.description,
             tags: semanticResult.tags,
           },
