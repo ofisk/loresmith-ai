@@ -215,7 +215,6 @@ export const API_CONFIG = {
     RAG: {
       SEARCH: "/rag/search",
       PROCESS_FILE: "/rag/process-file",
-      PROCESS_FILE_FROM_R2: "/rag/process-file-from-r2",
       FILES: "/rag/files",
       FILE_CHUNKS: (fileKey: string) => `/rag/files/${fileKey}/chunks`,
       DELETE_FILE: (fileKey: string) => `/rag/files/${fileKey}`,

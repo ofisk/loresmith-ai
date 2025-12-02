@@ -6,6 +6,7 @@ import { getAuthService, LibraryRAGService } from "@/lib/service-factory";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { AuthService } from "@/services/core/auth-service";
+import { extractJwtFromHeader } from "@/lib/auth-utils";
 
 // Helper to set user auth context
 export function setUserAuth(c: Context, payload: AuthPayload) {
@@ -23,12 +24,11 @@ export async function requireUserJwt(
     authHeader ? `${authHeader.substring(0, 20)}...` : "undefined"
   );
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  const token = extractJwtFromHeader(authHeader);
+  if (!token) {
     console.log("[requireUserJwt] Missing or invalid Authorization header");
     return c.json({ error: "Missing or invalid Authorization header" }, 401);
   }
-
-  const token = authHeader.slice(7);
   console.log(
     "[requireUserJwt] Token:",
     token ? `${token.substring(0, 20)}...` : "undefined"

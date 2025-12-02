@@ -107,7 +107,6 @@ import {
   handleGetFileChunksForRag,
   handleGetFilesForRag,
   handleProcessFileForRag,
-  handleProcessFileFromR2ForRag,
   handleRagSearch,
   handleTriggerIndexing,
   handleCheckFileIndexingStatus,
@@ -164,11 +163,6 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.RAG.PROCESS_FILE,
     requireUserJwt,
     handleProcessFileForRag
-  );
-  app.post(
-    API_CONFIG.ENDPOINTS.RAG.PROCESS_FILE_FROM_R2,
-    requireUserJwt,
-    handleProcessFileFromR2ForRag
   );
   app.put(
     API_CONFIG.ENDPOINTS.LIBRARY.UPDATE_METADATA(":fileKey"),

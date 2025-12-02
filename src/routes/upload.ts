@@ -8,6 +8,7 @@ import { API_CONFIG } from "@/shared-config";
 import { buildLibraryFileKey } from "@/lib/file-keys";
 import { nanoid } from "@/lib/nanoid";
 import { startFileProcessing } from "@/routes/upload-processing";
+import { extractJwtFromContext } from "@/lib/auth-utils";
 
 const log = logger.scope("[Upload]");
 
@@ -143,8 +144,7 @@ export async function handleDirectUpload(c: ContextWithAuth) {
     }
 
     // Extract JWT token from Authorization header
-    const authHeader = c.req.header("Authorization");
-    const jwt = authHeader?.replace(/^Bearer\s+/i, "");
+    const jwt = extractJwtFromContext(c);
     directUploadLog.debug("Starting file processing", {
       fileKey: key,
       userId: userAuth.username,
@@ -605,8 +605,7 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
     }
 
     // Extract JWT token from Authorization header
-    const authHeader = c.req.header("Authorization");
-    const jwt = authHeader?.replace(/^Bearer\s+/i, "");
+    const jwt = extractJwtFromContext(c);
 
     // Start file processing (awaited to ensure completion)
     await startFileProcessing(

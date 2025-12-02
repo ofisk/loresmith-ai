@@ -13,6 +13,7 @@ import type { AuthPayload } from "@/services/core/auth-service";
 import { completeProgress } from "@/services/core/progress-service";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
 import { FileNotFoundError } from "@/lib/errors";
+import { extractJwtFromContext } from "@/lib/auth-utils";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -85,6 +86,9 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
       fileSize
     );
 
+    // Extract JWT before setTimeout (context may not be available inside)
+    const jwt = extractJwtFromContext(c);
+
     // Start processing in background
     setTimeout(async () => {
       try {
@@ -99,11 +103,24 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
 
         // Process with RAG service
         console.log(
-          `[RAG] File ${filename} uploaded to R2, LibraryRAGService will process it`
+          `[RAG] File ${filename} uploaded to R2, processing with LibraryRAGService`
         );
 
-        // Update database status and file size - mark as uploaded, not completed
+        // Update database status and file size - mark as uploaded
         await fileDAO.updateFileRecord(fileKey, "uploaded", file.size);
+
+        // Actually process the file with LibraryRAGService
+        const processResult = await SyncQueueService.processFileUpload(
+          c.env,
+          userAuth.username,
+          fileKey,
+          filename,
+          jwt
+        );
+
+        if (!processResult.success) {
+          throw new Error(processResult.error || processResult.message);
+        }
 
         // Send notifications
         try {
@@ -157,115 +174,6 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
   }
 }
 
-// Process file from R2 for RAG
-export async function handleProcessFileFromR2ForRag(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-    const { fileKey, filename, description, tags } = await c.req.json();
-
-    if (!fileKey || !filename) {
-      return c.json({ error: "File key and filename are required" }, 400);
-    }
-
-    // Store file metadata in database
-    const fileId = crypto.randomUUID();
-
-    // Get file size from R2
-    let fileSize = 0;
-    try {
-      const file = await c.env.R2.get(fileKey);
-      if (file) {
-        fileSize = file.size;
-      }
-    } catch (error) {
-      console.warn("Could not get file size from R2:", error);
-    }
-
-    const fileDAO = getDAOFactory(c.env).fileDAO;
-    await fileDAO.createFileRecord(
-      fileId,
-      fileKey,
-      filename,
-      description || "",
-      tags ? JSON.stringify(tags) : "[]",
-      userAuth.username,
-      "processing",
-      fileSize
-    );
-
-    // Start processing in background
-    setTimeout(async () => {
-      try {
-        try {
-          await notifyIndexingStarted(c.env, userAuth.username, filename);
-        } catch (_e) {}
-        // Get file from R2
-        const file = await c.env.R2.get(fileKey);
-        if (!file) {
-          throw new FileNotFoundError(fileKey);
-        }
-
-        // Process with RAG service
-        // LibraryRAGService will process files directly
-        console.log(
-          `[RAG] File ${filename} uploaded to R2, processing with LibraryRAGService`
-        );
-
-        // Update database status and file size - mark as uploaded, not completed
-        await fileDAO.updateFileRecord(fileKey, "uploaded", file.size);
-
-        // Send notifications
-        try {
-          // Get the complete file record for the notification
-          const fileRecord = await fileDAO.getFileForRag(
-            fileKey,
-            userAuth.username
-          );
-          if (fileRecord) {
-            await notifyFileUploadCompleteWithData(
-              c.env,
-              userAuth.username,
-              fileRecord
-            );
-          } else {
-            console.error(
-              `[RAG] File record not found for upload completion notification: ${fileKey}`
-            );
-          }
-          await notifyIndexingCompleted(c.env, userAuth.username, filename);
-        } catch (error) {
-          console.error(
-            "[RAG] Failed to send file upload notification:",
-            error
-          );
-        }
-
-        completeProgress(fileKey, true);
-      } catch (error) {
-        console.error("Error processing file from R2 for RAG:", error);
-        completeProgress(fileKey, false, (error as Error).message);
-
-        // Update database status
-        await fileDAO.updateFileRecord(fileKey, "error");
-
-        try {
-          await notifyIndexingFailed(
-            c.env,
-            userAuth.username,
-            filename,
-            (error as Error)?.message
-          );
-        } catch (_e) {}
-      }
-    }, 100);
-
-    return c.json({ success: true, fileKey, fileId });
-  } catch (error) {
-    console.error("Error processing file from R2 for RAG:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-}
-
 // Update file metadata for RAG - trigger indexing with LibraryRAGService
 export async function handleTriggerIndexing(c: ContextWithAuth) {
   try {
@@ -291,8 +199,7 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
           `[handleTriggerIndexing] Processing file with LibraryRAGService: ${file.file_name}`
         );
         // Extract JWT token from Authorization header
-        const authHeader = c.req.header("Authorization");
-        const jwt = authHeader?.replace(/^Bearer\s+/i, "");
+        const jwt = extractJwtFromContext(c);
 
         const result = await SyncQueueService.processFileUpload(
           c.env,
@@ -313,10 +220,10 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
         }
 
         return c.json({
-          success: true,
+          success: result.success,
           message: result.message,
           queued: result.queued,
-          isIndexed: !result.queued,
+          isIndexed: result.success && !result.queued,
         });
       } catch (syncError) {
         console.error(

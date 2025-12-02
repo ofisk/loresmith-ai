@@ -13,6 +13,7 @@ import {
 import { stageEntitiesFromResource } from "@/services/campaign/entity-staging-service";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
 import { notifyShardGeneration } from "@/lib/notifications";
+import { extractJwtFromContext } from "@/lib/auth-utils";
 import {
   buildShardGenerationResponse,
   buildResourceAdditionResponse,
@@ -386,8 +387,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       );
 
       try {
-        const authHeader = c.req.header("Authorization");
-        const jwt = authHeader?.replace(/^Bearer\s+/i, "");
+        const jwt = extractJwtFromContext(c);
 
         await SyncQueueService.processFileUpload(
           c.env,

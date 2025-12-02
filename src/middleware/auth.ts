@@ -2,6 +2,7 @@ import type { Context } from "hono";
 import { jwtVerify } from "jose";
 import { type EnvWithSecrets, getEnvVar } from "@/lib/env-utils";
 import type { AuthEnv, AuthPayload } from "@/services/core/auth-service";
+import { extractJwtFromHeader } from "@/lib/auth-utils";
 
 export interface Env extends AuthEnv, EnvWithSecrets {
   R2: R2Bucket;
@@ -33,14 +34,11 @@ export async function requireUserJwt(
     `${authHeader?.substring(0, 20)}...`
   );
 
-  const bearerTokenRegex = /^Bearer\s+(.+)$/i;
-  const match = authHeader?.match(bearerTokenRegex);
+  const token = extractJwtFromHeader(authHeader);
 
-  if (!match) {
+  if (!token) {
     return c.json({ error: "Authorization header required" }, 401);
   }
-
-  const token = match[1];
   console.log("[requireUserJwt] Token:", `${token.substring(0, 20)}...`);
 
   try {
