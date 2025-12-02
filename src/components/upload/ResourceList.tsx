@@ -71,9 +71,9 @@ export function ResourceList({
           return;
         }
 
-        // Call the RAG process file endpoint to retry processing
+        // Call the RAG trigger indexing endpoint to retry processing for existing files
         const retryUrl = API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.RAG.PROCESS_FILE
+          API_CONFIG.ENDPOINTS.RAG.TRIGGER_INDEXING
         );
         const response = await authenticatedFetchWithExpiration(retryUrl, {
           method: "POST",
@@ -89,13 +89,19 @@ export function ResourceList({
         }
 
         const result = (await response.response.json()) as {
+          success: boolean;
+          message?: string;
           queued: boolean;
-          jobId?: string;
+          isIndexed?: boolean;
         };
         console.log(
           `[ResourceList] Retry initiated successfully for: ${fileName}`,
           result
         );
+
+        if (!result.success) {
+          throw new Error(result.message || "Retry failed");
+        }
 
         // If queued, show immediate feedback
         if (result.queued) {
