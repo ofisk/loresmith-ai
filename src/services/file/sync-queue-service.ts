@@ -104,8 +104,8 @@ export class SyncQueueService {
         }
       }
 
-      // Update file status to uploaded (indexed)
-      await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.UPLOADED);
+      // Update file status to completed (fully indexed and searchable)
+      await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.COMPLETED);
 
       const endTime = Date.now();
       const duration = endTime - startTime;

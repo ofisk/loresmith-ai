@@ -43,6 +43,8 @@ export class UploadSessionDO {
           return await this.updateSession(request);
         case "addPart":
           return await this.addPart(request);
+        case "getParts":
+          return await this.getParts();
         case "complete":
           return await this.completeUpload(request);
         case "delete":
@@ -188,6 +190,34 @@ export class UploadSessionDO {
       JSON.stringify({
         success: true,
         session: this.session,
+        parts: parts,
+      }),
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
+  private async getParts(): Promise<Response> {
+    if (!this.session) {
+      this.session = (await this.state.storage.get(
+        "session"
+      )) as UploadSession | null;
+    }
+
+    if (!this.session) {
+      return new Response(JSON.stringify({ error: "Session not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const parts =
+      ((await this.state.storage.get("parts")) as UploadPart[]) || [];
+
+    return new Response(
+      JSON.stringify({
+        success: true,
         parts: parts,
       }),
       {

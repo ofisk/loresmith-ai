@@ -124,9 +124,37 @@ export function useResourceFileEvents(
         fileSize,
       });
 
+      // Skip processing if we don't have sufficient data
+      if (completeFileData) {
+        // Validate complete file data has required fields
+        if (!completeFileData.file_key) {
+          console.warn(
+            "[ResourceList] Received file-status-updated event with incomplete file data, skipping"
+          );
+          return;
+        }
+      } else if (!fileKey) {
+        // Without complete file data, we need at least a fileKey to update
+        console.warn(
+          "[ResourceList] Received file-status-updated event without fileKey or completeFileData, skipping"
+        );
+        return;
+      }
+
       setFiles((prevFiles) => {
         // If we have complete file data, use it for in-place replacement
-        if (completeFileData) {
+        if (completeFileData?.file_key) {
+          const fileExists = prevFiles.some(
+            (f) => f.file_key === completeFileData.file_key
+          );
+          if (!fileExists) {
+            console.log(
+              "[ResourceList] File not found in list, skipping update:",
+              completeFileData.file_key
+            );
+            return prevFiles;
+          }
+
           console.log(
             "[ResourceList] Updating file with complete data:",
             completeFileData
@@ -148,17 +176,43 @@ export function useResourceFileEvents(
         }
 
         // Fallback to individual field updates for backward compatibility
+        const fileExists = prevFiles.some((f) => f.file_key === fileKey);
+        if (!fileExists) {
+          console.log(
+            "[ResourceList] File not found in list, skipping update:",
+            fileKey
+          );
+          return prevFiles;
+        }
+
         console.log("[ResourceList] Updating file with individual fields");
-        return prevFiles.map((file) => {
+        let hasChanges = false;
+        const updatedFiles = prevFiles.map((file) => {
           if (file.file_key === fileKey) {
+            // Check if status actually changed
+            if (status && file.status !== status) {
+              hasChanges = true;
+            }
+            // Check if fileSize changed
+            if (fileSize !== undefined && file.file_size !== fileSize) {
+              hasChanges = true;
+            }
+
             return {
               ...file,
-              status,
+              ...(status && { status }),
               ...(fileSize !== undefined && { file_size: fileSize }),
             };
           }
           return file;
         });
+
+        // Only return new array if something actually changed
+        if (hasChanges) {
+          return updatedFiles;
+        }
+
+        return prevFiles;
       });
     },
     [setFiles]
@@ -333,7 +387,7 @@ export function useResourceFileEvents(
             );
             return {
               ...file,
-              status: "failed",
+              status: FileDAO.STATUS.ERROR, // Use standard ERROR status constant
               updated_at: new Date().toISOString(),
             };
           }

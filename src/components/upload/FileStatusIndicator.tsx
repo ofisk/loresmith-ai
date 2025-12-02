@@ -54,6 +54,13 @@ export function FileStatusIndicator({
       title: "Processing failed",
       spinning: false,
     },
+    failed: {
+      icon: XCircle,
+      color: "text-red-500",
+      text: "Failed",
+      title: "Processing failed",
+      spinning: false,
+    },
     [FileDAO.STATUS.COMPLETED]: {
       icon: CheckCircle,
       color: "text-green-500",
@@ -114,8 +121,13 @@ export function FileStatusIndicator({
   // Fall back to initial status
   if (initialStatus === FileDAO.STATUS.COMPLETED) {
     currentStatus = FileDAO.STATUS.COMPLETED;
-  } else if (initialStatus === FileDAO.STATUS.ERROR) {
-    currentStatus = FileDAO.STATUS.ERROR;
+  } else if (
+    initialStatus === FileDAO.STATUS.ERROR ||
+    initialStatus === "failed"
+  ) {
+    // Treat "failed" status the same as "error" for display and retry purposes
+    currentStatus =
+      initialStatus === FileDAO.STATUS.ERROR ? FileDAO.STATUS.ERROR : "failed";
   } else if (initialStatus === FileDAO.STATUS.UNINDEXED) {
     currentStatus = FileDAO.STATUS.UNINDEXED;
   } else {
@@ -144,8 +156,10 @@ export function FileStatusIndicator({
         <span className="text-xs">{config.text}</span>
       </div>
 
-      {/* Show retry button for failed files */}
-      {currentStatus === FileDAO.STATUS.ERROR &&
+      {/* Show retry button for failed or unindexed files */}
+      {(currentStatus === FileDAO.STATUS.ERROR ||
+        currentStatus === "failed" ||
+        currentStatus === FileDAO.STATUS.UNINDEXED) &&
         fileKey &&
         fileName &&
         onRetry && (
