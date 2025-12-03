@@ -210,6 +210,13 @@ export class LibraryRAGService extends BaseRAGService {
         `[LibraryRAGService] Storing embeddings for ${textChunks.length} chunk(s) (total text length: ${text.length} chars)`
       );
 
+      // Warn if we have too many chunks - might hit timeout limits
+      if (textChunks.length > 5000) {
+        console.warn(
+          `[LibraryRAGService] WARNING: Large number of chunks (${textChunks.length}) may cause timeout. Consider processing in background queue.`
+        );
+      }
+
       // Generate and store embeddings for each chunk
       const vectorsToInsert: Array<{
         id: string;
@@ -290,10 +297,25 @@ export class LibraryRAGService extends BaseRAGService {
       }
 
       // Store all embeddings in Vectorize
+      // Batch inserts if there are too many vectors to avoid hitting limits
       if (vectorsToInsert.length > 0) {
-        await this.vectorize.insert(vectorsToInsert);
+        const BATCH_SIZE = 1000; // Process in batches to avoid timeout/memory issues
+        if (vectorsToInsert.length > BATCH_SIZE) {
+          console.log(
+            `[LibraryRAGService] Batch inserting ${vectorsToInsert.length} vectors in batches of ${BATCH_SIZE}`
+          );
+          for (let i = 0; i < vectorsToInsert.length; i += BATCH_SIZE) {
+            const batch = vectorsToInsert.slice(i, i + BATCH_SIZE);
+            await this.vectorize.insert(batch);
+            console.log(
+              `[LibraryRAGService] Stored batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(vectorsToInsert.length / BATCH_SIZE)} (${batch.length} vectors)`
+            );
+          }
+        } else {
+          await this.vectorize.insert(vectorsToInsert);
+        }
         console.log(
-          `[LibraryRAGService] Stored ${vectorsToInsert.length} embedding(s) for ${metadataId}`
+          `[LibraryRAGService] Successfully stored ${vectorsToInsert.length} embedding(s) for ${metadataId}`
         );
       }
 
@@ -303,15 +325,20 @@ export class LibraryRAGService extends BaseRAGService {
       }
       return primaryVectorId;
     } catch (error) {
-      console.error(`[LibraryRAGService] Error storing embeddings:`, error);
-      // Return a fallback vector ID that's also guaranteed to be under 64 bytes
-      try {
-        return await this.generateVectorId(metadataId, "fallback");
-      } catch (_hashError) {
-        // If even the hash generation fails, use a simple numeric hash
-        const numericHash = this.simpleHash(metadataId).toString(36);
-        return `v_${numericHash}`.substring(0, 63); // Ensure max 63 bytes
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      console.error(
+        `[LibraryRAGService] Error storing embeddings for ${metadataId}:`,
+        errorMessage
+      );
+      if (errorStack) {
+        console.error(`[LibraryRAGService] Error stack:`, errorStack);
       }
+      // Rethrow error so processing can fail properly - don't return fallback
+      throw new Error(
+        `Failed to store embeddings: ${errorMessage}. File may be too large or processing timed out.`
+      );
     }
   }
 
