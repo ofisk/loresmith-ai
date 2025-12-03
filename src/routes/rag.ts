@@ -6,6 +6,7 @@ import {
   notifyIndexingCompleted,
   notifyIndexingFailed,
   notifyFileUploadCompleteWithData,
+  notifyFileStatusUpdated,
 } from "@/lib/notifications";
 import { LibraryRAGService } from "@/services/rag/rag-service";
 import type { Env } from "@/middleware/auth";
@@ -221,6 +222,23 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
         `[handleTriggerIndexing] Resetting file status from ${file.status} to UPLOADED for retry: ${file.file_name}`
       );
       await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.UPLOADED);
+
+      // Send status update notification so UI can update immediately
+      try {
+        await notifyFileStatusUpdated(
+          c.env,
+          userAuth.username,
+          fileKey,
+          file.file_name,
+          FileDAO.STATUS.UPLOADED,
+          file.file_size || undefined
+        );
+      } catch (notifyError) {
+        console.error(
+          `[handleTriggerIndexing] Failed to send status update notification:`,
+          notifyError
+        );
+      }
     }
 
     // Use sync queue service to handle indexing
@@ -239,9 +257,26 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
         jwt
       );
 
-      // Send notification that indexing has started/completed
+      // Send notification that indexing has started with fileKey for UI update
       try {
-        await notifyIndexingStarted(c.env, userAuth.username, file.file_name);
+        // Send status update to SYNCING so UI shows processing
+        await notifyFileStatusUpdated(
+          c.env,
+          userAuth.username,
+          fileKey,
+          file.file_name,
+          FileDAO.STATUS.SYNCING,
+          file.file_size || undefined
+        );
+        // Also send the user-facing notification with fileKey for UI update
+        await notifyIndexingStarted(
+          c.env,
+          userAuth.username,
+          file.file_name,
+          fileKey,
+          FileDAO.STATUS.SYNCING,
+          file.file_size || undefined
+        );
       } catch (notifyError) {
         console.error(
           `[handleTriggerIndexing] Failed to send indexing started notification:`,

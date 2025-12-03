@@ -61,7 +61,10 @@ export function ResourceList({
   const handleRetryFile = useCallback(
     async (fileKey: string, fileName: string) => {
       try {
-        console.log(`[ResourceList] Retrying file processing for: ${fileName}`);
+        console.log(`[ResourceList] ===== RETRY BUTTON CLICKED =====`);
+        console.log(`[ResourceList] File: ${fileName}`);
+        console.log(`[ResourceList] FileKey: ${fileKey}`);
+        console.log(`[ResourceList] Timestamp: ${new Date().toISOString()}`);
 
         // Immediately update UI to show retry in progress
         setProgressByFileKey((prev) => ({ ...prev, [fileKey]: 0 }));
@@ -76,6 +79,9 @@ export function ResourceList({
         const retryUrl = API_CONFIG.buildUrl(
           API_CONFIG.ENDPOINTS.RAG.TRIGGER_INDEXING
         );
+        console.log(`[ResourceList] Making retry request to: ${retryUrl}`);
+        console.log(`[ResourceList] Request body:`, { fileKey });
+
         const response = await authenticatedFetchWithExpiration(retryUrl, {
           method: "POST",
           jwt,
@@ -84,6 +90,12 @@ export function ResourceList({
             "Content-Type": "application/json",
           },
         });
+
+        console.log(
+          `[ResourceList] Retry response status:`,
+          response.response.status
+        );
+        console.log(`[ResourceList] Retry response ok:`, response.response.ok);
 
         // Parse response (server always returns JSON, even for errors)
         const result = (await response.response.json()) as {

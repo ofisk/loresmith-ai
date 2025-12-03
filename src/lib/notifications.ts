@@ -211,7 +211,10 @@ export async function notifyFileUploadFailed(
 export async function notifyIndexingStarted(
   env: Env,
   userId: string,
-  fileName: string
+  fileName: string,
+  fileKey?: string,
+  status?: string,
+  fileSize?: number
 ): Promise<void> {
   console.log(
     `[notifyIndexingStarted] Starting notification for user: ${userId}, file: ${fileName}`
@@ -226,7 +229,12 @@ export async function notifyIndexingStarted(
       type: NOTIFICATION_TYPES.INDEXING_STARTED,
       title: "Indexing Begun",
       message: `📜 We're scribing "${fileName}" into your library.`,
-      data: { fileName },
+      data: {
+        fileName,
+        ...(fileKey && { fileKey }),
+        ...(status && { status }),
+        ...(fileSize !== undefined && { fileSize }),
+      },
     });
     console.log(
       `[notifyIndexingStarted] Notification sent successfully for user: ${userId}, file: ${fileName}`
