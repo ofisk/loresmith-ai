@@ -429,6 +429,96 @@ export async function notifyShardParseIssue(
 }
 
 /**
+ * Notification visibility options
+ */
+export type NotificationVisibility = "user-facing" | "status-only" | "both";
+
+/**
+ * Unified function to notify about file indexing status changes
+ * Can send user-facing notifications, status-only updates, or both
+ */
+export async function notifyFileIndexingStatus(
+  env: Env,
+  userId: string,
+  fileKey: string,
+  fileName: string,
+  status: string,
+  options: {
+    visibility?: NotificationVisibility;
+    fileSize?: number;
+    userMessage?: string; // Custom message for user-facing notifications
+    statusMessage?: string; // Custom message for status notifications
+    reason?: string; // Error reason for failed statuses
+  } = {}
+): Promise<void> {
+  const {
+    visibility = "both",
+    fileSize,
+    userMessage,
+    statusMessage,
+    reason,
+  } = options;
+
+  const notifications: Promise<void>[] = [];
+
+  // Send user-facing notification
+  if (visibility === "user-facing" || visibility === "both") {
+    const isError = status === "error" || status === "failed";
+    let message = userMessage;
+    if (!message) {
+      if (status === "syncing" || status === "uploaded") {
+        message = `📜 We're scribing "${fileName}" into your library.`;
+      } else if (isError) {
+        message = `🛑 Our quill slipped while indexing "${fileName}".${
+          reason ? ` Reason: ${reason}` : " Please try again later."
+        }`;
+      } else {
+        message = `📄 "${fileName}" status updated to ${status}`;
+      }
+    }
+    notifications.push(
+      notifyUser(env, userId, {
+        type: isError
+          ? NOTIFICATION_TYPES.INDEXING_FAILED
+          : NOTIFICATION_TYPES.INDEXING_STARTED,
+        title: isError ? "Indexing Failed" : "Indexing Begun",
+        message,
+        data: {
+          fileName,
+          fileKey,
+          status,
+          ...(fileSize !== undefined && { fileSize }),
+          ...(reason && { reason }),
+        },
+      })
+    );
+  }
+
+  // Send status-only notification (FILE_STATUS_UPDATED type, hidden)
+  if (visibility === "status-only" || visibility === "both") {
+    const message =
+      statusMessage || `📄 "${fileName}" status updated to ${status}`;
+    notifications.push(
+      notifyUser(env, userId, {
+        type: NOTIFICATION_TYPES.FILE_STATUS_UPDATED,
+        title: "File Status Updated",
+        message,
+        data: {
+          fileKey,
+          fileName,
+          status,
+          fileSize,
+          // Mark as hidden to prevent showing in notifications hub
+          hidden: true,
+        },
+      })
+    );
+  }
+
+  await Promise.all(notifications);
+}
+
+/**
  * Publish a file status update notification
  */
 export async function notifyFileStatusUpdated(
@@ -439,18 +529,9 @@ export async function notifyFileStatusUpdated(
   status: string,
   fileSize?: number
 ): Promise<void> {
-  await notifyUser(env, userId, {
-    type: NOTIFICATION_TYPES.FILE_STATUS_UPDATED,
-    title: "File Status Updated",
-    message: `📄 "${fileName}" status updated to ${status}`,
-    data: {
-      fileKey,
-      fileName,
-      status,
-      fileSize,
-      // Mark as hidden to prevent showing in notifications hub
-      hidden: true,
-    },
+  await notifyFileIndexingStatus(env, userId, fileKey, fileName, status, {
+    visibility: "status-only",
+    fileSize,
   });
 }
 

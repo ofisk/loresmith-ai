@@ -7,6 +7,7 @@ import {
   notifyIndexingFailed,
   notifyFileUploadCompleteWithData,
   notifyFileStatusUpdated,
+  notifyFileIndexingStatus,
 } from "@/lib/notifications";
 import { LibraryRAGService } from "@/services/rag/rag-service";
 import type { Env } from "@/middleware/auth";
@@ -251,23 +252,16 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 
       // Send notification BEFORE processing starts so UI updates immediately
       try {
-        // Send status update to SYNCING so UI shows processing
-        await notifyFileStatusUpdated(
+        await notifyFileIndexingStatus(
           c.env,
           userAuth.username,
           fileKey,
           file.file_name,
           FileDAO.STATUS.SYNCING,
-          file.file_size || undefined
-        );
-        // Also send the user-facing notification with fileKey for UI update
-        await notifyIndexingStarted(
-          c.env,
-          userAuth.username,
-          file.file_name,
-          fileKey,
-          FileDAO.STATUS.SYNCING,
-          file.file_size || undefined
+          {
+            visibility: "both",
+            fileSize: file.file_size || undefined,
+          }
         );
       } catch (notifyError) {
         console.error(
@@ -287,21 +281,17 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
       // If processing failed, send error status notification
       if (!result.success) {
         try {
-          await notifyFileStatusUpdated(
+          await notifyFileIndexingStatus(
             c.env,
             userAuth.username,
             fileKey,
             file.file_name,
             FileDAO.STATUS.ERROR,
-            file.file_size || undefined
-          );
-          await notifyIndexingFailed(
-            c.env,
-            userAuth.username,
-            file.file_name,
-            result.error || result.message || "Processing failed",
-            fileKey,
-            file.file_size || undefined
+            {
+              visibility: "both",
+              fileSize: file.file_size || undefined,
+              reason: result.error || result.message || "Processing failed",
+            }
           );
         } catch (notifyError) {
           console.error(
