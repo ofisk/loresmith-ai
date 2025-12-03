@@ -123,6 +123,7 @@ import {
   handleUpdateFileMetadata,
   handleUploadPart,
   handleUploadStatus,
+  handleCleanupStuckFiles,
 } from "@/routes/upload";
 import { AuthService } from "@/services/core/auth-service";
 import type { AuthEnv } from "@/services/core/auth-service";
@@ -645,6 +646,11 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.UPLOAD.ABORT_LARGE(":sessionId"),
     requireUserJwt,
     handleAbortLargeUpload
+  );
+  app.post(
+    API_CONFIG.ENDPOINTS.UPLOAD.CLEANUP_STUCK,
+    requireUserJwt,
+    handleCleanupStuckFiles
   );
 
   app.get("/", async (c) => {

@@ -757,3 +757,40 @@ export async function handleAbortLargeUpload(c: ContextWithAuth) {
     return c.json({ error: "Failed to abort upload" }, 500);
   }
 }
+
+/**
+ * POST /upload/cleanup-stuck
+ * Manually trigger cleanup of stuck processing files
+ * Query params: fileKey (optional) - if provided, only clean up this specific file
+ *               timeoutMinutes (optional) - override default 10 minute timeout
+ */
+export async function handleCleanupStuckFiles(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth as AuthPayload;
+    const fileKey = c.req.query("fileKey") || undefined;
+    const timeoutMinutes = parseInt(c.req.query("timeoutMinutes") || "10", 10);
+
+    log.debug("Manual cleanup requested", {
+      fileKey,
+      timeoutMinutes,
+      user: userAuth?.username,
+    });
+
+    const { cleanupStuckProcessingFiles } = await import("../queue_consumer");
+    const result = await cleanupStuckProcessingFiles(
+      c.env,
+      timeoutMinutes,
+      fileKey
+    );
+
+    return c.json({
+      success: true,
+      cleaned: result.cleaned,
+      files: result.files,
+      message: `Cleaned up ${result.cleaned} stuck file(s)`,
+    });
+  } catch (error) {
+    log.error("Error cleaning up stuck files", error);
+    return c.json({ error: "Failed to clean up stuck files" }, 500);
+  }
+}

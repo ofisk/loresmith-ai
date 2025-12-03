@@ -264,14 +264,22 @@ export async function scheduled(
   const processor = new FileProcessingQueue(env);
   await processor.cleanupStaging();
 
-  // Clean up files stuck in processing status (1 minute timeout)
-  await cleanupStuckProcessingFiles(env);
+  // Clean up files stuck in processing status (10 minute timeout)
+  await cleanupStuckProcessingFiles(env, 10);
 }
 
 /**
  * Clean up files that have been stuck in processing status for too long
+ * Can be called manually or via scheduled event
  */
-async function cleanupStuckProcessingFiles(env: Env): Promise<void> {
+export async function cleanupStuckProcessingFiles(
+  env: Env,
+  timeoutMinutes: number = 10,
+  fileKey?: string
+): Promise<{
+  cleaned: number;
+  files: Array<{ fileKey: string; fileName: string; username: string }>;
+}> {
   try {
     const { getDAOFactory } = await import("./dao/dao-factory");
     const { FileDAO } = await import("./dao/file-dao");
@@ -279,8 +287,13 @@ async function cleanupStuckProcessingFiles(env: Env): Promise<void> {
 
     const fileDAO = getDAOFactory(env).fileDAO;
 
-    // Get files stuck in processing or syncing for more than 1 minute
-    const stuckFiles = await fileDAO.getStuckProcessingFiles(1);
+    // Get files stuck in processing or syncing for the specified timeout
+    const allStuckFiles = await fileDAO.getStuckProcessingFiles(timeoutMinutes);
+
+    // Filter to specific file if requested
+    const stuckFiles = fileKey
+      ? allStuckFiles.filter((f) => f.file_key === fileKey)
+      : allStuckFiles;
 
     if (stuckFiles.length > 0) {
       console.log(
@@ -291,7 +304,7 @@ async function cleanupStuckProcessingFiles(env: Env): Promise<void> {
         // Mark file as failed due to timeout
         await fileDAO.markFileAsTimeoutFailed(
           file.file_key,
-          `Processing timeout - stuck in processing/syncing for more than 1 minute`
+          `Processing timeout - stuck in processing/syncing/indexing/uploaded for more than ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`
         );
 
         // Send notification to user
@@ -318,11 +331,23 @@ async function cleanupStuckProcessingFiles(env: Env): Promise<void> {
       console.log(
         `[ScheduledCleanup] Cleaned up ${stuckFiles.length} stuck files`
       );
+
+      return {
+        cleaned: stuckFiles.length,
+        files: stuckFiles.map((f) => ({
+          fileKey: f.file_key,
+          fileName: f.file_name,
+          username: f.username,
+        })),
+      };
     }
+
+    return { cleaned: 0, files: [] };
   } catch (error) {
     console.error(
       "[ScheduledCleanup] Error cleaning up stuck processing files:",
       error
     );
+    return { cleaned: 0, files: [] };
   }
 }

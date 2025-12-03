@@ -296,6 +296,7 @@ export const API_CONFIG = {
       SESSION_GET_PARTS: "/upload/session/get-parts",
       SESSION_COMPLETE: "/upload/session/complete",
       SESSION_DELETE: "/upload/session/delete",
+      CLEANUP_STUCK: "/upload/cleanup-stuck",
     },
     INGESTION: {
       STATUS: "/ingestion/status",
