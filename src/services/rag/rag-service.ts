@@ -27,6 +27,56 @@ export class LibraryRAGService extends BaseRAGService {
     this.ai = env.AI;
   }
 
+  /**
+   * Check if a file should be queued for background processing
+   * Large files (>100MB) should be queued to avoid timeout during processing
+   * For PDFs >100MB with >500 pages, we also queue to avoid extraction timeout
+   */
+  async shouldQueueFile(
+    file: R2ObjectBody,
+    contentType: string
+  ): Promise<{ shouldQueue: boolean; reason?: string }> {
+    const fileSizeMB = (file.size || 0) / (1024 * 1024);
+    const LARGE_FILE_THRESHOLD_MB = 100;
+
+    // Queue any file >100MB - processing could timeout regardless of type
+    if (fileSizeMB > LARGE_FILE_THRESHOLD_MB) {
+      // For PDFs, also check page count as an additional factor
+      if (contentType.includes("pdf")) {
+        try {
+          const buffer = await file.arrayBuffer();
+          const pdf = await getDocument({
+            data: new Uint8Array(buffer),
+          }).promise;
+
+          const numPages = pdf.numPages;
+          const MAX_PAGES_TO_EXTRACT = 500;
+
+          if (numPages > MAX_PAGES_TO_EXTRACT) {
+            return {
+              shouldQueue: true,
+              reason: `File is ${fileSizeMB.toFixed(2)}MB with ${numPages} pages. Large PDFs require background processing to avoid timeout.`,
+            };
+          }
+        } catch (error) {
+          // If we can't check page count, still queue based on file size
+          console.warn(
+            `[LibraryRAGService] Could not check PDF page count, queueing based on file size:`,
+            error
+          );
+        }
+      }
+
+      // Queue any large file (>100MB) regardless of type
+      return {
+        shouldQueue: true,
+        reason: `File is ${fileSizeMB.toFixed(2)}MB. Large files require background processing to avoid timeout.`,
+      };
+    }
+
+    return { shouldQueue: false };
+  }
+
   async processFile(metadata: FileMetadata): Promise<{
     displayName?: string;
     description: string;
@@ -40,15 +90,33 @@ export class LibraryRAGService extends BaseRAGService {
       }
 
       // Extract text based on file type
-      const text = await this.extractText(file, metadata.contentType);
+      const extractionResult = await this.extractText(
+        file,
+        metadata.contentType
+      );
 
-      if (!text || text.trim().length === 0) {
+      if (
+        !extractionResult ||
+        !extractionResult.text ||
+        extractionResult.text.trim().length === 0
+      ) {
         console.error(
           `[LibraryRAGService] No text extracted from file: ${metadata.fileKey}. File may be corrupted, encrypted, or too large.`
         );
         throw new Error(
           `No text could be extracted from file "${metadata.filename}". The file may be corrupted, encrypted, image-based, or too large to process.`
         );
+      }
+
+      const text = extractionResult.text;
+
+      // Log page limitation if applicable
+      if (extractionResult.pagesExtracted && extractionResult.totalPages) {
+        if (extractionResult.pagesExtracted < extractionResult.totalPages) {
+          console.warn(
+            `[LibraryRAGService] File ${metadata.fileKey} processed with partial content: ${extractionResult.pagesExtracted}/${extractionResult.totalPages} pages extracted`
+          );
+        }
       }
 
       // Use AI for enhanced metadata generation if available
@@ -126,27 +194,33 @@ export class LibraryRAGService extends BaseRAGService {
   private async extractText(
     file: R2ObjectBody,
     contentType: string
-  ): Promise<string | null> {
+  ): Promise<{
+    text: string;
+    pagesExtracted?: number;
+    totalPages?: number;
+  } | null> {
     const buffer = await file.arrayBuffer();
 
     if (contentType.includes("pdf")) {
       return await this.extractFileText(buffer);
     } else if (contentType.includes("text")) {
-      return new TextDecoder().decode(buffer);
+      return { text: new TextDecoder().decode(buffer) };
     } else if (contentType.includes("json")) {
       const text = new TextDecoder().decode(buffer);
       try {
         const json = JSON.parse(text);
-        return JSON.stringify(json, null, 2);
+        return { text: JSON.stringify(json, null, 2) };
       } catch {
-        return text;
+        return { text };
       }
     }
 
     return null;
   }
 
-  private async extractFileText(buffer: ArrayBuffer): Promise<string> {
+  private async extractFileText(
+    buffer: ArrayBuffer
+  ): Promise<{ text: string; pagesExtracted?: number; totalPages?: number }> {
     try {
       // Use pdfjs-serverless for proper PDF extraction (designed for Workers)
       // Load the PDF document
@@ -155,12 +229,29 @@ export class LibraryRAGService extends BaseRAGService {
       }).promise;
 
       const numPages = pdf.numPages;
-      console.log(`[LibraryRAGService] PDF has ${numPages} pages`);
+      const fileSizeMB = buffer.byteLength / (1024 * 1024);
+      console.log(
+        `[LibraryRAGService] PDF has ${numPages} pages, file size: ${fileSizeMB.toFixed(2)}MB`
+      );
+
+      // Limit page extraction to prevent timeout during processing
+      // Cloudflare Workers have a 30-second CPU time limit for all processing
+      // Note: Queueing large files makes requests non-blocking but doesn't remove Worker time limits
+      // For large PDFs, we limit to 500 pages to stay within the Worker time limit
+      const MAX_PAGES_TO_EXTRACT = fileSizeMB > 100 ? 500 : numPages;
+      const shouldLimitPages = numPages > MAX_PAGES_TO_EXTRACT;
+
+      if (shouldLimitPages) {
+        console.warn(
+          `[LibraryRAGService] WARNING: PDF has ${numPages} pages but file is ${fileSizeMB.toFixed(2)}MB. Limiting extraction to first ${MAX_PAGES_TO_EXTRACT} pages to prevent timeout.`
+        );
+      }
 
       const pageTexts: string[] = [];
+      const pagesToExtract = Math.min(numPages, MAX_PAGES_TO_EXTRACT);
 
       // Extract text from each page
-      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      for (let pageNum = 1; pageNum <= pagesToExtract; pageNum++) {
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
 
@@ -175,11 +266,22 @@ export class LibraryRAGService extends BaseRAGService {
       }
 
       // Join all pages with page breaks for context
-      const fullText = pageTexts
+      let fullText = pageTexts
         .map((text, index) => `[Page ${index + 1}]\n${text}`)
         .join("\n\n");
 
-      return fullText || `File content extracted (${buffer.byteLength} bytes)`;
+      if (shouldLimitPages) {
+        fullText += `\n\n[NOTE: This PDF has ${numPages} total pages. Only the first ${pagesToExtract} pages were extracted due to file size limits.]`;
+      }
+
+      const extractedText =
+        fullText || `File content extracted (${buffer.byteLength} bytes)`;
+
+      return {
+        text: extractedText,
+        pagesExtracted: pagesToExtract,
+        totalPages: numPages,
+      };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -960,14 +1062,16 @@ export class LibraryRAGService extends BaseRAGService {
       }
 
       // Extract text based on file type
-      const text = await this.extractText(file, "application/pdf");
+      const extractionResult = await this.extractText(file, "application/pdf");
 
-      if (!text) {
+      if (!extractionResult || !extractionResult.text) {
         console.log(
           `[LibraryRAGService] No text extracted from file: ${fileKey}`
         );
         return {};
       }
+
+      const text = extractionResult.text;
 
       // Generate semantic metadata using AI
       const semanticResult = await this.generateSemanticMetadata(

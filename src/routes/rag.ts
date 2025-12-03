@@ -283,6 +283,19 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
         jwt
       );
 
+      // Handle queued files - they're successfully queued, processing happens in background
+      if (result.queued) {
+        console.log(
+          `[handleTriggerIndexing] File ${file.file_name} queued for background processing`
+        );
+        return c.json({
+          success: true,
+          message: result.message,
+          queued: true,
+          isIndexed: false,
+        });
+      }
+
       // Send user-facing notification only after processing completes (success or failure)
       if (!result.success) {
         // Log technical error details for debugging

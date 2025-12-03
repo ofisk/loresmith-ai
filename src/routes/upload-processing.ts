@@ -58,6 +58,14 @@ export async function processFile(
 
     scopedLog.debug("File processing initiated", { result });
 
+    // If file was queued, that's a success - processing will happen in background
+    if (result.queued) {
+      scopedLog.debug("File queued for background processing", { filename });
+      // Status is already set to SYNCING in processFileUpload
+      // Queue processing is triggered automatically in the background
+      return;
+    }
+
     // Only send completion notifications if processing succeeded
     if (!result.success) {
       throw new Error(

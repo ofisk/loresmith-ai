@@ -26,12 +26,7 @@ export class SyncQueueService {
 
     const fileDAO = new FileDAO(env.DB);
 
-    // Process file directly with LibraryRAGService
     try {
-      console.log(
-        `[DEBUG] [SyncQueue] Processing file with LibraryRAGService...`
-      );
-
       // Get file from R2
       const file = await env.R2.get(fileKey);
       if (!file) {
@@ -44,8 +39,55 @@ export class SyncQueueService {
         throw new Error(`File metadata not found in database: ${fileKey}`);
       }
 
-      // Process file with LibraryRAGService
       const ragService = new LibraryRAGService(env);
+      const contentType =
+        dbMetadata.content_type || file.httpMetadata?.contentType || "";
+
+      // Check if file should be queued for background processing
+      // Large files (>100MB) should be queued to avoid timeout during processing
+      const queueCheck = await ragService.shouldQueueFile(file, contentType);
+      if (queueCheck.shouldQueue) {
+        console.log(
+          `[DEBUG] [SyncQueue] File ${fileName} should be queued: ${queueCheck.reason}`
+        );
+
+        // Add file to sync queue for background processing
+        await fileDAO.addToSyncQueue(
+          username,
+          fileKey,
+          fileName,
+          fileKey // Use fileKey as rag_id (required field)
+        );
+
+        // Update file status to SYNCING to indicate it's being processed
+        await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.SYNCING);
+
+        console.log(
+          `[DEBUG] [SyncQueue] File ${fileName} added to sync queue for background processing`
+        );
+
+        // Trigger queue processing in the background (non-blocking)
+        // This ensures the file starts processing immediately
+        SyncQueueService.processSyncQueue(env, username, _jwt).catch(
+          (error: unknown) => {
+            console.error(
+              `[SyncQueue] Failed to trigger queue processing for ${fileName}:`,
+              error
+            );
+          }
+        );
+
+        return {
+          success: true,
+          queued: true,
+          message: `File ${fileName} has been queued for background processing due to its size. It will be processed shortly.`,
+        };
+      }
+
+      // Process file directly with LibraryRAGService
+      console.log(
+        `[DEBUG] [SyncQueue] Processing file with LibraryRAGService...`
+      );
       const fileMetadata: FileMetadata = {
         id: dbMetadata.file_key, // Use file_key as id since processFile expects id
         fileKey: dbMetadata.file_key,
