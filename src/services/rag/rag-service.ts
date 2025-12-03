@@ -12,10 +12,7 @@ import {
   InvalidEmbeddingResponseError,
 } from "@/lib/errors";
 import { getDocument } from "pdfjs-serverless";
-import {
-  chunkTextByPages,
-  chunkTextByCharacterCount,
-} from "@/lib/text-chunking-utils";
+import { chunkTextByCharacterCount } from "@/lib/text-chunking-utils";
 import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
 
 // LLM model configuration
@@ -202,12 +199,11 @@ export class LibraryRAGService extends BaseRAGService {
       const EMBEDDING_CHUNK_SIZE = 3500;
 
       // Chunk text for large files - chunking ensures all content is embedded
-      const isPDF = text.includes("[Page");
+      // Use character-based chunking with sentence boundaries for all file types
+      // This is more robust than page-based chunking which requires specific markers
       const textChunks =
         text.length > EMBEDDING_CHUNK_SIZE
-          ? isPDF
-            ? chunkTextByPages(text, EMBEDDING_CHUNK_SIZE)
-            : chunkTextByCharacterCount(text, EMBEDDING_CHUNK_SIZE)
+          ? chunkTextByCharacterCount(text, EMBEDDING_CHUNK_SIZE)
           : [text];
 
       console.log(
@@ -581,12 +577,11 @@ export class LibraryRAGService extends BaseRAGService {
         TPM_LIMIT - PROMPT_TOKENS_ESTIMATE - MAX_RESPONSE_TOKENS;
       const MAX_CHUNK_SIZE = Math.floor(MAX_CONTENT_TOKENS * CHARS_PER_TOKEN); // ~42k characters
 
-      const isPDF = fileContent.includes("[Page");
+      // Use character-based chunking with sentence boundaries for all file types
+      // This is more robust than page-based chunking which requires specific markers
       const chunks =
         fileContent.length > MAX_CHUNK_SIZE
-          ? isPDF
-            ? chunkTextByPages(fileContent, MAX_CHUNK_SIZE)
-            : chunkTextByCharacterCount(fileContent, MAX_CHUNK_SIZE)
+          ? chunkTextByCharacterCount(fileContent, MAX_CHUNK_SIZE)
           : [fileContent];
 
       console.log(
