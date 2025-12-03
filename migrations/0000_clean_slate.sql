@@ -70,8 +70,10 @@ CREATE TABLE IF NOT EXISTS sync_queue (
   file_name text not null,
   rag_id text not null,
   status text not null default 'pending', -- 'pending', 'processing', 'completed', 'failed'
+  retry_count integer not null default 0, -- Track retry attempts
   created_at datetime default current_timestamp,
-  processed_at datetime
+  processed_at datetime,
+  updated_at datetime
 );
 
 -- Create shard_registry table for efficient shard tracking and lookup
