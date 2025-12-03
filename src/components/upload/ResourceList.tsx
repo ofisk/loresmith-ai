@@ -84,23 +84,28 @@ export function ResourceList({
           },
         });
 
-        if (!response.response.ok) {
-          throw new Error(`Retry failed: ${response.response.status}`);
-        }
-
+        // Parse response (server always returns JSON, even for errors)
         const result = (await response.response.json()) as {
           success: boolean;
           message?: string;
+          error?: string;
           queued: boolean;
           isIndexed?: boolean;
         };
-        console.log(
-          `[ResourceList] Retry initiated successfully for: ${fileName}`,
-          result
-        );
 
-        if (!result.success) {
-          throw new Error(result.message || "Retry failed");
+        console.log(`[ResourceList] Retry response for ${fileName}:`, result);
+
+        // Check for errors: either HTTP error status or success: false in response
+        if (!response.response.ok || !result.success) {
+          const errorMessage =
+            result.message ||
+            result.error ||
+            `Retry failed with status ${response.response.status}`;
+          console.error(
+            `[ResourceList] Retry failed for ${fileName}:`,
+            errorMessage
+          );
+          throw new Error(errorMessage);
         }
 
         // If queued, show immediate feedback

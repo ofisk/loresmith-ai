@@ -184,69 +184,98 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
       `[handleTriggerIndexing] Processing request for fileKey: ${fileKey}`
     );
 
-    if (fileKey) {
-      // Check if file exists
-      const fileDAO = getDAOFactory(c.env).fileDAO;
-      const file = await fileDAO.getFileForRag(fileKey, userAuth.username);
-
-      if (!file) {
-        return c.json({ error: "File not found" }, 404);
-      }
-
-      // Use sync queue service to handle indexing
-      try {
-        console.log(
-          `[handleTriggerIndexing] Processing file with LibraryRAGService: ${file.file_name}`
-        );
-        // Extract JWT token from Authorization header
-        const jwt = extractJwtFromContext(c);
-
-        const result = await SyncQueueService.processFileUpload(
-          c.env,
-          userAuth.username,
-          fileKey,
-          file.file_name,
-          jwt
-        );
-
-        // Send notification that indexing has started/completed
-        try {
-          await notifyIndexingStarted(c.env, userAuth.username, file.file_name);
-        } catch (notifyError) {
-          console.error(
-            `[handleTriggerIndexing] Failed to send indexing started notification:`,
-            notifyError
-          );
-        }
-
-        return c.json({
-          success: result.success,
-          message: result.message,
-          queued: result.queued,
-          isIndexed: result.success && !result.queued,
-        });
-      } catch (syncError) {
-        console.error(
-          `[handleTriggerIndexing] Failed to trigger indexing for ${fileKey}:`,
-          syncError
-        );
-        return c.json({
-          success: false,
-          message: `Failed to trigger indexing: ${syncError instanceof Error ? syncError.message : "Unknown error"}`,
-          isIndexed: false,
-        });
-      }
-    } else {
+    if (!fileKey) {
       console.log("[RAG] No fileKey provided, cannot trigger indexing");
-
       return c.json({
         success: false,
         message: "File key is required to trigger indexing",
       });
     }
+
+    // Check if file exists in database
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const file = await fileDAO.getFileForRag(fileKey, userAuth.username);
+
+    if (!file) {
+      console.error(
+        `[handleTriggerIndexing] File not found in database: ${fileKey}`
+      );
+      return c.json({ error: "File not found" }, 404);
+    }
+
+    // Check if file exists in R2 storage
+    const r2File = await c.env.R2.head(fileKey);
+    if (!r2File) {
+      console.error(
+        `[handleTriggerIndexing] File not found in R2 storage: ${fileKey}`
+      );
+      return c.json({
+        success: false,
+        message: "File not found in storage. The file may have been deleted.",
+      });
+    }
+
+    // Reset status from ERROR to UPLOADED before retrying
+    if (file.status === FileDAO.STATUS.ERROR || file.status === "failed") {
+      console.log(
+        `[handleTriggerIndexing] Resetting file status from ${file.status} to UPLOADED for retry: ${file.file_name}`
+      );
+      await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.UPLOADED);
+    }
+
+    // Use sync queue service to handle indexing
+    try {
+      console.log(
+        `[handleTriggerIndexing] Processing file with LibraryRAGService: ${file.file_name}`
+      );
+      // Extract JWT token from Authorization header
+      const jwt = extractJwtFromContext(c);
+
+      const result = await SyncQueueService.processFileUpload(
+        c.env,
+        userAuth.username,
+        fileKey,
+        file.file_name,
+        jwt
+      );
+
+      // Send notification that indexing has started/completed
+      try {
+        await notifyIndexingStarted(c.env, userAuth.username, file.file_name);
+      } catch (notifyError) {
+        console.error(
+          `[handleTriggerIndexing] Failed to send indexing started notification:`,
+          notifyError
+        );
+      }
+
+      return c.json({
+        success: result.success,
+        message: result.message,
+        queued: result.queued,
+        isIndexed: result.success && !result.queued,
+      });
+    } catch (syncError) {
+      console.error(
+        `[handleTriggerIndexing] Failed to trigger indexing for ${fileKey}:`,
+        syncError
+      );
+      return c.json({
+        success: false,
+        message: `Failed to trigger indexing: ${syncError instanceof Error ? syncError.message : "Unknown error"}`,
+        isIndexed: false,
+      });
+    }
   } catch (error) {
     console.error("Error triggering indexing:", error);
-    return c.json({ error: "Internal server error" }, 500);
+    return c.json(
+      {
+        success: false,
+        error: "Internal server error",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
+      500
+    );
   }
 }
 
