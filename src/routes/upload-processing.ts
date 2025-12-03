@@ -213,12 +213,12 @@ async function handleProcessingError(
     scopedLog.error("Error status notification failed", notifyError);
   });
 
-  notifyIndexingFailed(
-    env,
-    userId,
-    filename,
-    error instanceof Error ? error.message : String(error)
-  ).catch((notifyError) => {
+  // Log technical error for debugging
+  const technicalError = error instanceof Error ? error.message : String(error);
+  scopedLog.error("File processing technical error", { error: technicalError });
+
+  // Send user-friendly notification without technical details
+  notifyIndexingFailed(env, userId, filename).catch((notifyError) => {
     scopedLog.error("Indexing failed notification failed", notifyError);
   });
 }

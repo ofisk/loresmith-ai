@@ -159,12 +159,16 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
         await fileDAO.updateFileRecord(fileKey, "error");
 
         try {
-          await notifyIndexingFailed(
-            c.env,
-            userAuth.username,
-            filename,
-            (error as Error)?.message
-          );
+          // Log technical error for debugging
+          const technicalError = (error as Error)?.message;
+          if (technicalError) {
+            console.error(
+              `[handleProcessFileForRag] File processing failed for ${filename}:`,
+              technicalError
+            );
+          }
+          // Send user-friendly notification without technical details
+          await notifyIndexingFailed(c.env, userAuth.username, filename);
         } catch (_e) {}
       }
     }, 100);
@@ -281,7 +285,15 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 
       // Send user-facing notification only after processing completes (success or failure)
       if (!result.success) {
-        // Processing failed - send user-facing error notification
+        // Log technical error details for debugging
+        const technicalError =
+          result.error || result.message || "Processing failed";
+        console.error(
+          `[handleTriggerIndexing] File processing failed for ${file.file_name}:`,
+          technicalError
+        );
+
+        // Send user-facing error notification (without technical details)
         try {
           await notifyFileIndexingStatus(
             c.env,
@@ -292,7 +304,7 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
             {
               visibility: "both",
               fileSize: file.file_size || undefined,
-              reason: result.error || result.message || "Processing failed",
+              // Don't pass reason to avoid showing technical errors to users
             }
           );
         } catch (notifyError) {

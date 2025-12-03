@@ -197,10 +197,11 @@ export async function notifyFileUploadFailed(
   await notifyUser(env, userId, {
     type: NOTIFICATION_TYPES.FILE_UPLOAD_FAILED,
     title: "Upload Faltered",
-    message: `⚠️ The scroll "${fileName}" could not be stowed. ${reason ? `Reason: ${reason}` : "Please try again."}`,
+    message: `⚠️ The scroll "${fileName}" could not be stowed. Please try again.`,
     data: {
       fileName,
-      reason,
+      // Store reason in data for debugging but don't display it
+      ...(reason && { reason }),
     },
   });
 }
@@ -272,12 +273,13 @@ export async function notifyIndexingFailed(
   await notifyUser(env, userId, {
     type: NOTIFICATION_TYPES.INDEXING_FAILED,
     title: "Indexing Failed",
-    message: `🛑 Our quill slipped while indexing "${fileName}". ${reason ? `Reason: ${reason}` : "Please try again later."}`,
+    message: `🛑 Our quill slipped while indexing "${fileName}". Please try again later.`,
     data: {
       fileName,
-      reason,
       ...(fileKey && { fileKey }),
       ...(fileSize !== undefined && { fileSize }),
+      // Store reason in data for debugging but don't display it
+      ...(reason && { reason }),
     },
   });
 }
@@ -469,9 +471,7 @@ export async function notifyFileIndexingStatus(
       if (status === "syncing" || status === "uploaded") {
         message = `📜 We're scribing "${fileName}" into your library.`;
       } else if (isError) {
-        message = `🛑 Our quill slipped while indexing "${fileName}".${
-          reason ? ` Reason: ${reason}` : " Please try again later."
-        }`;
+        message = `🛑 Our quill slipped while indexing "${fileName}". Please try again later.`;
       } else {
         message = `📄 "${fileName}" status updated to ${status}`;
       }
