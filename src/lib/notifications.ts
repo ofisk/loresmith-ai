@@ -265,13 +265,20 @@ export async function notifyIndexingFailed(
   env: Env,
   userId: string,
   fileName: string,
-  reason?: string
+  reason?: string,
+  fileKey?: string,
+  fileSize?: number
 ): Promise<void> {
   await notifyUser(env, userId, {
     type: NOTIFICATION_TYPES.INDEXING_FAILED,
     title: "Indexing Failed",
     message: `🛑 Our quill slipped while indexing "${fileName}". ${reason ? `Reason: ${reason}` : "Please try again later."}`,
-    data: { fileName, reason },
+    data: {
+      fileName,
+      reason,
+      ...(fileKey && { fileKey }),
+      ...(fileSize !== undefined && { fileSize }),
+    },
   });
 }
 

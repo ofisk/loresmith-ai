@@ -249,15 +249,7 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
       // Extract JWT token from Authorization header
       const jwt = extractJwtFromContext(c);
 
-      const result = await SyncQueueService.processFileUpload(
-        c.env,
-        userAuth.username,
-        fileKey,
-        file.file_name,
-        jwt
-      );
-
-      // Send notification that indexing has started with fileKey for UI update
+      // Send notification BEFORE processing starts so UI updates immediately
       try {
         // Send status update to SYNCING so UI shows processing
         await notifyFileStatusUpdated(
@@ -282,6 +274,41 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
           `[handleTriggerIndexing] Failed to send indexing started notification:`,
           notifyError
         );
+      }
+
+      const result = await SyncQueueService.processFileUpload(
+        c.env,
+        userAuth.username,
+        fileKey,
+        file.file_name,
+        jwt
+      );
+
+      // If processing failed, send error status notification
+      if (!result.success) {
+        try {
+          await notifyFileStatusUpdated(
+            c.env,
+            userAuth.username,
+            fileKey,
+            file.file_name,
+            FileDAO.STATUS.ERROR,
+            file.file_size || undefined
+          );
+          await notifyIndexingFailed(
+            c.env,
+            userAuth.username,
+            file.file_name,
+            result.error || result.message || "Processing failed",
+            fileKey,
+            file.file_size || undefined
+          );
+        } catch (notifyError) {
+          console.error(
+            `[handleTriggerIndexing] Failed to send error notification:`,
+            notifyError
+          );
+        }
       }
 
       return c.json({
