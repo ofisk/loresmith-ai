@@ -14,6 +14,7 @@ import {
 import { getDocument } from "pdfjs-serverless";
 import { chunkTextByCharacterCount } from "@/lib/text-chunking-utils";
 import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
+import { getSemanticMetadataPrompt } from "@/lib/prompts/file-indexing-prompts";
 
 // LLM model configuration
 const LLM_MODEL = "@cf/meta/llama-3.1-8b-instruct";
@@ -626,28 +627,15 @@ export class LibraryRAGService extends BaseRAGService {
         const chunk = chunks[i];
         const chunkPreview = chunk.substring(0, Math.min(1000, chunk.length));
 
-        const semanticPrompt = `
-Analyze this document and generate meaningful metadata.
-
-Document filename: ${fileName}
-File key: ${fileKey}
-Username: ${username}
-
-${fileContent.length > 0 ? `Document content preview:\n${chunkPreview}\n\n` : ""}
-${fileContent.length > 0 && chunks.length > 1 ? `Note: This is chunk ${i + 1} of ${chunks.length}.\n` : ""}
-
-Based on ${fileContent.length > 0 ? "the document content" : "the filename"}, generate:
-1. A clean, user-friendly display name (e.g., "Player's Handbook" instead of "players_handbook_v3.2_final.pdf")
-2. A short description (1-2 sentences) of what this document contains
-3. Relevant tags that describe topics, themes, or content type
-
-Please provide the response in this exact JSON format:
-{
-  "displayName": "User-friendly display name",
-  "description": "Short description of the document",
-  "tags": ["tag1", "tag2", "tag3"]
-}
-`;
+        const semanticPrompt = getSemanticMetadataPrompt(
+          fileName,
+          fileKey,
+          username,
+          fileContent.length > 0,
+          chunkPreview,
+          chunks.length,
+          i
+        );
 
         try {
           if (i > 0) {
