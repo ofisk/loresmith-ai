@@ -62,6 +62,14 @@ export class SyncQueueService {
 
       const processResult = await ragService.processFile(fileMetadata);
 
+      // Check if file was actually indexed (has vectorId)
+      // If processFile failed silently, it will return empty result without vectorId
+      if (!processResult.vectorId) {
+        throw new Error(
+          "File indexing failed: embeddings were not stored. The file may be too large or contain unprocessable content."
+        );
+      }
+
       // Save generated metadata, respecting user-provided values
       const metadataUpdates: {
         display_name?: string;

@@ -58,6 +58,13 @@ export async function processFile(
 
     scopedLog.debug("File processing initiated", { result });
 
+    // Only send completion notifications if processing succeeded
+    if (!result.success) {
+      throw new Error(
+        result.error || result.message || "File processing failed"
+      );
+    }
+
     // Force SYNCING state for UI responsiveness
     await markFileAsSyncing(env, fileKey, userId, filename, fileDAO, scopedLog);
 
