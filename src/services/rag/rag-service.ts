@@ -43,14 +43,12 @@ export class LibraryRAGService extends BaseRAGService {
       const text = await this.extractText(file, metadata.contentType);
 
       if (!text || text.trim().length === 0) {
-        console.log(
-          `[LibraryRAGService] No text extracted from file: ${metadata.fileKey}`
+        console.error(
+          `[LibraryRAGService] No text extracted from file: ${metadata.fileKey}. File may be corrupted, encrypted, or too large.`
         );
-        return {
-          displayName: undefined,
-          description: "",
-          tags: [],
-        };
+        throw new Error(
+          `No text could be extracted from file "${metadata.filename}". The file may be corrupted, encrypted, image-based, or too large to process.`
+        );
       }
 
       // Use AI for enhanced metadata generation if available
@@ -110,15 +108,18 @@ export class LibraryRAGService extends BaseRAGService {
         vectorId,
       };
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
       console.error(
         `[LibraryRAGService] Error processing file ${metadata.fileKey}:`,
-        error
+        errorMessage
       );
-      return {
-        displayName: undefined,
-        description: "",
-        tags: [],
-      };
+      if (errorStack) {
+        console.error(`[LibraryRAGService] Error stack:`, errorStack);
+      }
+      // Rethrow error so it can be properly handled upstream
+      throw error;
     }
   }
 
@@ -180,9 +181,23 @@ export class LibraryRAGService extends BaseRAGService {
 
       return fullText || `File content extracted (${buffer.byteLength} bytes)`;
     } catch (error) {
-      console.error("Error extracting PDF text:", error);
-      // Fallback to empty string if extraction fails
-      return "";
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      console.error(
+        `[LibraryRAGService] PDF text extraction failed:`,
+        errorMessage
+      );
+      if (errorStack) {
+        console.error(
+          `[LibraryRAGService] Extraction error stack:`,
+          errorStack
+        );
+      }
+      // Throw error instead of returning empty string - this allows proper error handling upstream
+      throw new Error(
+        `Failed to extract text from PDF: ${errorMessage}. The file may be corrupted, encrypted, or too large.`
+      );
     }
   }
 
