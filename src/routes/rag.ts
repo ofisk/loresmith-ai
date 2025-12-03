@@ -250,7 +250,8 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
       // Extract JWT token from Authorization header
       const jwt = extractJwtFromContext(c);
 
-      // Send notification BEFORE processing starts so UI updates immediately
+      // Send status-only notification BEFORE processing starts so UI updates immediately
+      // We don't send user-facing notification here to avoid duplicate notifications if processing fails immediately
       try {
         await notifyFileIndexingStatus(
           c.env,
@@ -259,13 +260,13 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
           file.file_name,
           FileDAO.STATUS.SYNCING,
           {
-            visibility: "both",
+            visibility: "status-only",
             fileSize: file.file_size || undefined,
           }
         );
       } catch (notifyError) {
         console.error(
-          `[handleTriggerIndexing] Failed to send indexing started notification:`,
+          `[handleTriggerIndexing] Failed to send status update:`,
           notifyError
         );
       }
@@ -278,8 +279,9 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
         jwt
       );
 
-      // If processing failed, send error status notification
+      // Send user-facing notification only after processing completes (success or failure)
       if (!result.success) {
+        // Processing failed - send user-facing error notification
         try {
           await notifyFileIndexingStatus(
             c.env,
@@ -296,6 +298,27 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
         } catch (notifyError) {
           console.error(
             `[handleTriggerIndexing] Failed to send error notification:`,
+            notifyError
+          );
+        }
+      } else {
+        // Processing succeeded - success notification will be sent by the processing pipeline
+        // Just send a status update to ensure UI is current
+        try {
+          await notifyFileIndexingStatus(
+            c.env,
+            userAuth.username,
+            fileKey,
+            file.file_name,
+            FileDAO.STATUS.COMPLETED,
+            {
+              visibility: "status-only",
+              fileSize: file.file_size || undefined,
+            }
+          );
+        } catch (notifyError) {
+          console.error(
+            `[handleTriggerIndexing] Failed to send success status update:`,
             notifyError
           );
         }
