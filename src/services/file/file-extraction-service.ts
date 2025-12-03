@@ -1,5 +1,6 @@
 import { getDocument } from "pdfjs-serverless";
 import * as mammoth from "mammoth";
+import { MemoryLimitError, PDFExtractionError } from "@/lib/errors";
 
 export interface ExtractionResult {
   text: string;
@@ -44,7 +45,8 @@ export class FileExtractionService {
   }
 
   /**
-   * Extract text from PDF with page limit support for large files
+   * Extract text from PDF - extracts ALL pages to avoid content loss
+   * Uses incremental batch processing with delays to avoid Worker timeouts
    */
   async extractPdfText(buffer: ArrayBuffer): Promise<ExtractionResult> {
     try {
@@ -58,55 +60,79 @@ export class FileExtractionService {
         `[FileExtractionService] PDF has ${numPages} pages, file size: ${fileSizeMB.toFixed(2)}MB`
       );
 
-      // Limit page extraction to prevent timeout during processing
-      // Cloudflare Workers have a 30-second CPU time limit for all processing
-      // Note: Queueing large files makes requests non-blocking but doesn't remove Worker time limits
-      // For large PDFs, we limit to 500 pages to stay within the Worker time limit
-      const MAX_PAGES_TO_EXTRACT = fileSizeMB > 100 ? 500 : numPages;
-      const shouldLimitPages = numPages > MAX_PAGES_TO_EXTRACT;
-
-      if (shouldLimitPages) {
-        console.warn(
-          `[FileExtractionService] WARNING: PDF has ${numPages} pages but file is ${fileSizeMB.toFixed(2)}MB. Limiting extraction to first ${MAX_PAGES_TO_EXTRACT} pages to prevent timeout.`
-        );
-      }
-
+      // Process all pages incrementally to avoid timeouts
+      // Extract pages in batches with small delays to yield CPU time
       const pageTexts: string[] = [];
-      const pagesToExtract = Math.min(numPages, MAX_PAGES_TO_EXTRACT);
+      const BATCH_SIZE = 50; // Process 50 pages at a time
+      const BATCH_DELAY_MS = 10; // 10ms delay between batches to yield CPU time
 
-      // Extract text from each page
-      for (let pageNum = 1; pageNum <= pagesToExtract; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
+      // Extract text from all pages in batches
+      for (
+        let batchStart = 1;
+        batchStart <= numPages;
+        batchStart += BATCH_SIZE
+      ) {
+        const batchEnd = Math.min(batchStart + BATCH_SIZE - 1, numPages);
 
-        // Combine all text items from the page
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(" ");
+        // Process pages in this batch
+        for (let pageNum = batchStart; pageNum <= batchEnd; pageNum++) {
+          const page = await pdf.getPage(pageNum);
+          const textContent = await page.getTextContent();
 
-        if (pageText.trim().length > 0) {
-          pageTexts.push(pageText);
+          // Combine all text items from the page
+          const pageText = textContent.items
+            .map((item: any) => item.str)
+            .join(" ");
+
+          if (pageText.trim().length > 0) {
+            pageTexts.push(pageText);
+          }
+        }
+
+        // Add delay between batches to yield CPU time and avoid timeout
+        // Only delay if there are more pages to process
+        if (batchEnd < numPages) {
+          await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
+        }
+
+        // Log progress for large files
+        if (numPages > 100 && batchEnd % 100 === 0) {
+          console.log(
+            `[FileExtractionService] Extracted ${batchEnd}/${numPages} pages (${((batchEnd / numPages) * 100).toFixed(1)}%)`
+          );
         }
       }
 
+      console.log(
+        `[FileExtractionService] Successfully extracted all ${numPages} pages from PDF`
+      );
+
       // Join all pages with page breaks for context
-      let fullText = pageTexts
+      const fullText = pageTexts
         .map((text, index) => `[Page ${index + 1}]\n${text}`)
         .join("\n\n");
-
-      if (shouldLimitPages) {
-        fullText += `\n\n[NOTE: This PDF has ${numPages} total pages. Only the first ${pagesToExtract} pages were extracted due to file size limits.]`;
-      }
 
       const extractedText =
         fullText || `File content extracted (${buffer.byteLength} bytes)`;
 
       return {
         text: extractedText,
-        pagesExtracted: pagesToExtract,
+        pagesExtracted: numPages, // All pages extracted
         totalPages: numPages,
       };
     } catch (error) {
+      // Boundary conversion: Convert runtime errors to structured MemoryLimitError
+      // This handles errors from Cloudflare Workers runtime or pdfjs that we can't control
+      const fileSizeMB = buffer.byteLength / (1024 * 1024);
+      const memoryLimitError = MemoryLimitError.fromRuntimeError(
+        error,
+        fileSizeMB,
+        128
+      );
+      if (memoryLimitError) {
+        throw memoryLimitError;
+      }
+
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
@@ -120,7 +146,7 @@ export class FileExtractionService {
           errorStack
         );
       }
-      throw new Error(
+      throw new PDFExtractionError(
         `Failed to extract text from PDF: ${errorMessage}. The file may be corrupted, encrypted, or too large.`
       );
     }

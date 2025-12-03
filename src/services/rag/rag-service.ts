@@ -5,7 +5,7 @@
 import type { Env } from "@/middleware/auth";
 import type { FileMetadata, SearchQuery, SearchResult } from "@/types/upload";
 import { BaseRAGService } from "./base-rag-service";
-import { FileNotFoundError } from "@/lib/errors";
+import { FileNotFoundError, MemoryLimitError } from "@/lib/errors";
 import { FileExtractionService } from "@/services/file/file-extraction-service";
 import { FileEmbeddingService } from "@/services/embedding/file-embedding-service";
 import { LibraryMetadataService } from "@/services/file/library-metadata-service";
@@ -13,6 +13,10 @@ import { FileQueueUtils } from "@/services/file/file-queue-utils";
 import { LibrarySearchService } from "@/services/file/library-search-service";
 import { LibraryContentSearchService } from "@/services/file/library-content-search-service";
 import { LibraryFileMetadataService } from "@/services/file/library-file-metadata-service";
+
+// Memory limit constants for Cloudflare Workers
+const WORKER_MEMORY_LIMIT_MB = 128; // Cloudflare Workers hard limit
+const SAFE_MEMORY_THRESHOLD_MB = 120; // Conservative threshold to account for Worker overhead, extracted text, embeddings, etc.
 
 export class LibraryRAGService extends BaseRAGService {
   private extractionService: FileExtractionService;
@@ -58,12 +62,48 @@ export class LibraryRAGService extends BaseRAGService {
         throw new FileNotFoundError(metadata.fileKey);
       }
 
+      // Proactive memory limit check before loading file into memory
+      // Cloudflare Workers have a 128MB memory limit, but we use a conservative
+      // threshold to account for Worker overhead, extracted text processing, embeddings, etc.
+      const fileSizeMB = (file.size || 0) / (1024 * 1024);
+
+      if (fileSizeMB > SAFE_MEMORY_THRESHOLD_MB) {
+        console.error(
+          `[LibraryRAGService] File ${metadata.fileKey} is ${fileSizeMB.toFixed(2)}MB, which exceeds safe memory threshold of ${SAFE_MEMORY_THRESHOLD_MB}MB. Aborting before loading into memory to prevent Worker memory limit error.`
+        );
+        throw new MemoryLimitError(
+          fileSizeMB,
+          WORKER_MEMORY_LIMIT_MB,
+          metadata.fileKey,
+          metadata.filename
+        );
+      }
+
       // Extract text based on file type
-      const buffer = await file.arrayBuffer();
-      const extractionResult = await this.extractionService.extractText(
-        buffer,
-        metadata.contentType
-      );
+      let buffer: ArrayBuffer;
+      let extractionResult: any = null;
+
+      try {
+        buffer = await file.arrayBuffer();
+        extractionResult = await this.extractionService.extractText(
+          buffer,
+          metadata.contentType
+        );
+      } catch (memoryError) {
+        // Check for structured MemoryLimitError from extraction service
+        if (memoryError instanceof MemoryLimitError) {
+          // Re-throw with file metadata included
+          throw new MemoryLimitError(
+            memoryError.fileSizeMB,
+            memoryError.memoryLimitMB,
+            metadata.fileKey,
+            metadata.filename,
+            memoryError.message
+          );
+        }
+        // For other errors during extraction, rethrow
+        throw memoryError;
+      }
 
       if (
         !extractionResult ||

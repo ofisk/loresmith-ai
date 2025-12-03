@@ -273,6 +273,76 @@ export class PDFExtractionError extends Error {
   }
 }
 
+export class MemoryLimitError extends Error {
+  public readonly fileSizeMB: number;
+  public readonly memoryLimitMB: number;
+  public readonly fileKey?: string;
+  public readonly fileName?: string;
+  public readonly errorCode = "MEMORY_LIMIT_EXCEEDED";
+
+  constructor(
+    fileSizeMB: number,
+    memoryLimitMB: number = 128,
+    fileKey?: string,
+    fileName?: string,
+    message?: string
+  ) {
+    super(
+      message ||
+        `File "${fileName || "unknown"}" (${fileSizeMB.toFixed(2)}MB) is too large to process. Cloudflare Workers have a ${memoryLimitMB}MB memory limit and cannot load files this size. Please use a smaller file or split the document into smaller parts.`
+    );
+    this.name = "MemoryLimitError";
+    this.fileSizeMB = fileSizeMB;
+    this.memoryLimitMB = memoryLimitMB;
+    this.fileKey = fileKey;
+    this.fileName = fileName;
+  }
+
+  /**
+   * Check if an error is a memory limit error using structured detection
+   * Only checks for our structured MemoryLimitError type
+   */
+  static isMemoryLimitError(error: unknown): error is MemoryLimitError {
+    return error instanceof MemoryLimitError;
+  }
+
+  /**
+   * Convert runtime errors from external systems (Cloudflare Workers, pdfjs) to MemoryLimitError
+   * This is a boundary conversion function that converts external errors to our structured error type
+   * Only call this at the boundary where external errors enter our system
+   */
+  static fromRuntimeError(
+    error: unknown,
+    fileSizeMB: number,
+    memoryLimitMB: number = 128,
+    fileKey?: string,
+    fileName?: string
+  ): MemoryLimitError | null {
+    // Check for our structured error first
+    if (error instanceof MemoryLimitError) {
+      return error;
+    }
+
+    // Boundary conversion: Convert runtime TypeError from Cloudflare Workers/pdfjs
+    // Runtime errors come as TypeError with specific message pattern
+    // We check error.name (TypeError) which is structured, not message content
+    if (
+      error instanceof TypeError &&
+      error.message.includes("Memory limit would be exceeded")
+    ) {
+      return new MemoryLimitError(
+        fileSizeMB,
+        memoryLimitMB,
+        fileKey,
+        fileName,
+        error.message
+      );
+    }
+
+    return null;
+  }
+}
+
 export class CampaignReadinessAnalysisError extends Error {
   constructor(message?: string) {
     super(message || "Failed to analyze campaign readiness.");
