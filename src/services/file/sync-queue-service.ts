@@ -307,37 +307,68 @@ export class SyncQueueService {
         processed++;
         console.log(`[SyncQueue] Processed queued file ${item.file_name}`);
       } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        const errorStack = error instanceof Error ? error.stack : undefined;
+
         console.error(
           `[SyncQueue] Failed to process queued file ${item.file_name}:`,
-          error
+          errorMessage
         );
-
-        // Mark file as ERROR when queue processing fails
-        await fileDAO.updateFileRecord(item.file_key, FileDAO.STATUS.ERROR);
-
-        // Send error notification
-        try {
-          await notifyFileIndexingStatus(
-            env,
-            username,
-            item.file_key,
-            item.file_name,
-            FileDAO.STATUS.ERROR,
-            {
-              visibility: "both",
-              userMessage: `🛑 Our quill slipped while indexing "${item.file_name}". Please try again later.`,
-              reason: error instanceof Error ? error.message : "Unknown error",
-            }
-          );
-        } catch (notifyError) {
-          console.error(
-            `[SyncQueue] Failed to send error notification for ${item.file_name}:`,
-            notifyError
-          );
+        if (errorStack) {
+          console.error(`[SyncQueue] Error stack:`, errorStack);
         }
 
-        // Remove from queue to avoid infinite retries
-        await fileDAO.removeFromSyncQueue(item.file_key);
+        // Get current retry count
+        const currentRetryCount = (item.retry_count || 0) + 1;
+        const MAX_RETRIES = 3;
+
+        // Update retry count
+        await fileDAO.updateSyncQueueRetryCount(
+          item.file_key,
+          currentRetryCount
+        );
+
+        // If we've exceeded max retries, mark as ERROR and remove from queue
+        if (currentRetryCount >= MAX_RETRIES) {
+          console.error(
+            `[SyncQueue] Max retries (${MAX_RETRIES}) exceeded for ${item.file_name}, marking as ERROR`
+          );
+
+          // Mark file as ERROR when max retries exceeded
+          await fileDAO.updateFileRecord(item.file_key, FileDAO.STATUS.ERROR);
+
+          // Send error notification
+          try {
+            await notifyFileIndexingStatus(
+              env,
+              username,
+              item.file_key,
+              item.file_name,
+              FileDAO.STATUS.ERROR,
+              {
+                visibility: "both",
+                userMessage: `🛑 Our quill slipped while indexing "${item.file_name}". Please try again later.`,
+                reason: errorMessage,
+              }
+            );
+          } catch (notifyError) {
+            console.error(
+              `[SyncQueue] Failed to send error notification for ${item.file_name}:`,
+              notifyError
+            );
+          }
+
+          // Remove from queue after max retries
+          await fileDAO.removeFromSyncQueue(item.file_key);
+        } else {
+          // Keep in queue for automatic retry
+          console.log(
+            `[SyncQueue] File ${item.file_name} will be retried automatically (attempt ${currentRetryCount}/${MAX_RETRIES}). Error: ${errorMessage}`
+          );
+          // Don't mark as ERROR yet - keep in queue for retry
+          // Status will remain as SYNCING until successful or max retries
+        }
       }
     }
 
