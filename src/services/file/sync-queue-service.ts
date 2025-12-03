@@ -71,12 +71,15 @@ export class SyncQueueService {
 
         // Trigger queue processing in the background (non-blocking)
         // This ensures the file starts processing immediately
+        // Note: Periodic queue processing (via scheduled cron) will also retry if this fails
         SyncQueueService.processSyncQueue(env, username, _jwt).catch(
           (error: unknown) => {
             console.error(
               `[SyncQueue] Failed to trigger queue processing for ${fileName}:`,
               error
             );
+            // Don't mark file as ERROR here - periodic processing will retry
+            // If periodic processing also fails, cleanup will handle it
           }
         );
 

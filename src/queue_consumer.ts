@@ -2,6 +2,7 @@ import { getDAOFactory } from "./dao/dao-factory";
 import { R2Helper } from "./lib/r2";
 import { FileSplitter } from "./lib/split";
 import type { Env } from "./middleware/auth";
+import { SyncQueueService } from "./services/file/sync-queue-service";
 
 export interface ProcessingMessage {
   bucket: string;
@@ -264,8 +265,63 @@ export async function scheduled(
   const processor = new FileProcessingQueue(env);
   await processor.cleanupStaging();
 
+  // Process pending sync queue items for all users
+  await processPendingSyncQueueItems(env);
+
   // Clean up files stuck in processing status (10 minute timeout)
   await cleanupStuckProcessingFiles(env, 10);
+}
+
+/**
+ * Process pending sync queue items for all users
+ * This runs periodically to retry processing queued files
+ */
+async function processPendingSyncQueueItems(env: Env): Promise<void> {
+  try {
+    const fileDAO = getDAOFactory(env).fileDAO;
+
+    // Get all usernames with pending queue items
+    const usernames = await fileDAO.getUsernamesWithPendingQueueItems();
+
+    if (usernames.length === 0) {
+      console.log("[SyncQueue] No pending queue items to process");
+      return;
+    }
+
+    console.log(
+      `[SyncQueue] Processing queue for ${usernames.length} user(s) with pending items`
+    );
+
+    let totalProcessed = 0;
+    for (const username of usernames) {
+      try {
+        const result = await SyncQueueService.processSyncQueue(env, username);
+        totalProcessed += result.processed;
+        if (result.processed > 0) {
+          console.log(
+            `[SyncQueue] Processed ${result.processed} item(s) for user ${username}`
+          );
+        }
+      } catch (error) {
+        console.error(
+          `[SyncQueue] Failed to process queue for user ${username}:`,
+          error
+        );
+        // Continue processing other users even if one fails
+      }
+    }
+
+    if (totalProcessed > 0) {
+      console.log(
+        `[SyncQueue] Completed processing: ${totalProcessed} total item(s) processed`
+      );
+    }
+  } catch (error) {
+    console.error(
+      "[SyncQueue] Error processing pending sync queue items:",
+      error
+    );
+  }
 }
 
 /**

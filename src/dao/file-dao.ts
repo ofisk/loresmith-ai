@@ -1028,4 +1028,17 @@ export class FileDAO extends BaseDAOClass {
     `;
     await this.execute(sql, [retryCount, fileKey]);
   }
+
+  /**
+   * Get all unique usernames that have pending queue items
+   */
+  async getUsernamesWithPendingQueueItems(): Promise<string[]> {
+    const sql = `
+      SELECT DISTINCT username 
+      FROM sync_queue 
+      WHERE status = 'pending'
+    `;
+    const results = await this.queryAll(sql, []);
+    return results.map((row: any) => row.username);
+  }
 }
