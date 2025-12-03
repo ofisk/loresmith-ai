@@ -197,70 +197,115 @@ export class LibraryRAGService extends BaseRAGService {
         throw new VectorizeIndexRequiredError();
       }
 
-      // Generate embeddings using Cloudflare AI if available
-      let embeddings: number[];
-      if (this.env.AI) {
-        try {
-          // Use Cloudflare AI to generate embeddings
-          const embeddingResponse = await this.env.AI.run(
-            "@cf/baai/bge-base-en-v1.5",
-            {
-              text: text.substring(0, 4000),
-            }
-          );
+      // Cloudflare AI embedding model limit is ~4000 characters
+      // Use 3500 to stay safely under the limit
+      const EMBEDDING_CHUNK_SIZE = 3500;
 
-          // Parse the response - handle different response types
-          let responseText: string;
-          if (typeof embeddingResponse === "string") {
-            responseText = embeddingResponse;
-          } else if (
-            embeddingResponse &&
-            typeof embeddingResponse === "object" &&
-            "response" in embeddingResponse
-          ) {
-            responseText = (embeddingResponse as any).response;
-          } else {
-            responseText = JSON.stringify(embeddingResponse);
-          }
+      // Chunk text for large files - chunking ensures all content is embedded
+      const isPDF = text.includes("[Page");
+      const textChunks =
+        text.length > EMBEDDING_CHUNK_SIZE
+          ? isPDF
+            ? chunkTextByPages(text, EMBEDDING_CHUNK_SIZE)
+            : chunkTextByCharacterCount(text, EMBEDDING_CHUNK_SIZE)
+          : [text];
 
-          const parsedResponse = JSON.parse(responseText);
-          if (Array.isArray(parsedResponse)) {
-            embeddings = parsedResponse;
-          } else {
-            throw new InvalidEmbeddingResponseError();
-          }
-        } catch (error) {
-          console.warn(
-            `[LibraryRAGService] AI embedding failed, using fallback:`,
-            error
-          );
-          // Fallback to basic embedding generation
-          embeddings = this.generateBasicEmbeddings(text);
-        }
-      } else {
-        // Fallback to basic embedding generation
-        embeddings = this.generateBasicEmbeddings(text);
-      }
-
-      // Store in Vectorize with a vector ID that's guaranteed to be under 64 bytes
-      const vectorId = await this.generateVectorId(
-        metadataId,
-        Date.now().toString()
+      console.log(
+        `[LibraryRAGService] Storing embeddings for ${textChunks.length} chunk(s) (total text length: ${text.length} chars)`
       );
-      await this.vectorize.insert([
-        {
-          id: vectorId,
+
+      // Generate and store embeddings for each chunk
+      const vectorsToInsert: Array<{
+        id: string;
+        values: number[];
+        metadata: Record<string, any>;
+      }> = [];
+      let primaryVectorId: string | undefined;
+
+      for (let i = 0; i < textChunks.length; i++) {
+        const chunk = textChunks[i];
+        const chunkText = chunk.substring(0, EMBEDDING_CHUNK_SIZE); // Ensure under limit
+
+        // Generate embedding for this chunk
+        let embeddings: number[];
+        if (this.env.AI) {
+          try {
+            const embeddingResponse = await this.env.AI.run(
+              "@cf/baai/bge-base-en-v1.5",
+              {
+                text: chunkText,
+              }
+            );
+
+            // Parse the response - handle different response types
+            let responseText: string;
+            if (typeof embeddingResponse === "string") {
+              responseText = embeddingResponse;
+            } else if (
+              embeddingResponse &&
+              typeof embeddingResponse === "object" &&
+              "response" in embeddingResponse
+            ) {
+              responseText = (embeddingResponse as any).response;
+            } else {
+              responseText = JSON.stringify(embeddingResponse);
+            }
+
+            const parsedResponse = JSON.parse(responseText);
+            if (Array.isArray(parsedResponse)) {
+              embeddings = parsedResponse;
+            } else {
+              throw new InvalidEmbeddingResponseError();
+            }
+          } catch (error) {
+            console.warn(
+              `[LibraryRAGService] AI embedding failed for chunk ${i + 1}/${textChunks.length}, using fallback:`,
+              error
+            );
+            embeddings = this.generateBasicEmbeddings(chunkText);
+          }
+        } else {
+          embeddings = this.generateBasicEmbeddings(chunkText);
+        }
+
+        // Generate vector ID for this chunk
+        const chunkVectorId = await this.generateVectorId(
+          metadataId,
+          `${i}-${Date.now()}`
+        );
+
+        // First chunk is the primary vector ID
+        if (i === 0) {
+          primaryVectorId = chunkVectorId;
+        }
+
+        vectorsToInsert.push({
+          id: chunkVectorId,
           values: embeddings,
           metadata: {
-            text: text.substring(0, 1000), // Store first 1000 chars as metadata
+            text: chunkText.substring(0, 1000), // Store first 1000 chars as metadata
             metadataId,
             type: "pdf_content",
+            chunkIndex: i,
+            totalChunks: textChunks.length,
             timestamp: new Date().toISOString(),
           },
-        },
-      ]);
+        });
+      }
 
-      return vectorId;
+      // Store all embeddings in Vectorize
+      if (vectorsToInsert.length > 0) {
+        await this.vectorize.insert(vectorsToInsert);
+        console.log(
+          `[LibraryRAGService] Stored ${vectorsToInsert.length} embedding(s) for ${metadataId}`
+        );
+      }
+
+      // Return primary vector ID (first chunk)
+      if (!primaryVectorId) {
+        throw new Error("Failed to generate primary vector ID");
+      }
+      return primaryVectorId;
     } catch (error) {
       console.error(`[LibraryRAGService] Error storing embeddings:`, error);
       // Return a fallback vector ID that's also guaranteed to be under 64 bytes
