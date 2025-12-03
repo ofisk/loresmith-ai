@@ -13,6 +13,7 @@ import { useResourceFileEvents } from "@/hooks/useResourceFileEvents";
 import { ResourceFileItem } from "./ResourceFileItem";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { logger } from "@/lib/logger";
+import { FileDAO } from "@/dao/file-dao";
 
 interface ResourceListProps {
   onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
@@ -108,9 +109,27 @@ export function ResourceList({
           throw new Error(errorMessage);
         }
 
+        // Immediately update file status in UI to show processing started
+        setFiles((prevFiles) => {
+          return prevFiles.map((file) => {
+            if (file.file_key === fileKey) {
+              console.log(
+                `[ResourceList] Updating file status to SYNCING after retry: ${file.file_name}`
+              );
+              return {
+                ...file,
+                status: FileDAO.STATUS.SYNCING,
+                updated_at: new Date().toISOString(),
+              };
+            }
+            return file;
+          });
+        });
+
         // If queued, show immediate feedback
         if (result.queued) {
           console.log(`[ResourceList] File ${fileName} queued for retry`);
+          setProgressByFileKey((prev) => ({ ...prev, [fileKey]: 10 }));
         } else {
           console.log(
             `[ResourceList] File ${fileName} retry started immediately`
@@ -119,7 +138,7 @@ export function ResourceList({
           setProgressByFileKey((prev) => ({ ...prev, [fileKey]: 25 }));
         }
 
-        // Refresh the file list to show updated status
+        // Refresh the file list to get updated status from server
         fetchResources();
       } catch (error) {
         console.error(
@@ -134,7 +153,7 @@ export function ResourceList({
         });
       }
     },
-    [fetchResources]
+    [fetchResources, setFiles]
   );
 
   const handleRetryIndexing = useCallback(
