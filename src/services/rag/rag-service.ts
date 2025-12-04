@@ -13,10 +13,7 @@ import { FileQueueUtils } from "@/services/file/file-queue-utils";
 import { LibrarySearchService } from "@/services/file/library-search-service";
 import { LibraryContentSearchService } from "@/services/file/library-content-search-service";
 import { LibraryFileMetadataService } from "@/services/file/library-file-metadata-service";
-
-// Memory limit constants for Cloudflare Workers
-const WORKER_MEMORY_LIMIT_MB = 128; // Cloudflare Workers hard limit
-const SAFE_MEMORY_THRESHOLD_MB = 120; // Conservative threshold to account for Worker overhead, extracted text, embeddings, etc.
+import { ChunkedProcessingService } from "@/services/file/chunked-processing-service";
 
 export class LibraryRAGService extends BaseRAGService {
   private extractionService: FileExtractionService;
@@ -26,6 +23,7 @@ export class LibraryRAGService extends BaseRAGService {
   private searchService: LibrarySearchService;
   private contentSearchService: LibraryContentSearchService;
   private fileMetadataService: LibraryFileMetadataService;
+  private chunkedProcessingService: ChunkedProcessingService;
 
   constructor(env: Env) {
     super(env.DB, env.VECTORIZE, env.OPENAI_API_KEY || "", env);
@@ -36,6 +34,7 @@ export class LibraryRAGService extends BaseRAGService {
     this.searchService = new LibrarySearchService(env);
     this.contentSearchService = new LibraryContentSearchService(env);
     this.fileMetadataService = new LibraryFileMetadataService(env);
+    this.chunkedProcessingService = new ChunkedProcessingService(env);
   }
 
   /**
@@ -55,6 +54,7 @@ export class LibraryRAGService extends BaseRAGService {
     description: string;
     tags: string[];
     vectorId?: string;
+    chunked?: boolean; // Explicit flag indicating file was split into chunks for processing
   }> {
     try {
       const file = await this.env.R2.get(metadata.fileKey);
@@ -62,34 +62,129 @@ export class LibraryRAGService extends BaseRAGService {
         throw new FileNotFoundError(metadata.fileKey);
       }
 
-      // Proactive memory limit check before loading file into memory
-      // Cloudflare Workers have a 128MB memory limit, but we use a conservative
-      // threshold to account for Worker overhead, extracted text processing, embeddings, etc.
       const fileSizeMB = (file.size || 0) / (1024 * 1024);
+      const MEMORY_LIMIT_MB = 128;
 
-      if (fileSizeMB > SAFE_MEMORY_THRESHOLD_MB) {
-        console.error(
-          `[LibraryRAGService] File ${metadata.fileKey} is ${fileSizeMB.toFixed(2)}MB, which exceeds safe memory threshold of ${SAFE_MEMORY_THRESHOLD_MB}MB. Aborting before loading into memory to prevent Worker memory limit error.`
+      // Check if file already has processing chunks (retry scenario)
+      if (
+        await this.chunkedProcessingService.hasExistingChunks(metadata.fileKey)
+      ) {
+        console.log(
+          `[LibraryRAGService] File ${metadata.fileKey} already has processing chunks. Chunks will be processed separately.`
         );
-        throw new MemoryLimitError(
-          fileSizeMB,
-          WORKER_MEMORY_LIMIT_MB,
-          metadata.fileKey,
-          metadata.filename
+        // Return explicit result - chunks will be processed by queue
+        return {
+          displayName: undefined,
+          description: "",
+          tags: [],
+          chunked: true,
+          // No vectorId - chunks will be processed separately
+        };
+      }
+
+      // Proactively check if file exceeds memory limit before attempting to load
+      let buffer: ArrayBuffer | undefined;
+      if (fileSizeMB > MEMORY_LIMIT_MB) {
+        console.log(
+          `[LibraryRAGService] File ${metadata.fileKey} (${fileSizeMB.toFixed(2)}MB) exceeds memory limit. Attempting chunked processing.`
         );
+
+        // Try to load file buffer to create chunks (may fail for very large files)
+        try {
+          buffer = await file.arrayBuffer();
+          await this.chunkedProcessingService.createProcessingChunks(
+            metadata.fileKey,
+            metadata.userId,
+            metadata.filename,
+            metadata.contentType,
+            file.size || 0,
+            buffer
+          );
+
+          // Return explicit result indicating chunking started
+          return {
+            displayName: undefined,
+            description: "",
+            tags: [],
+            chunked: true,
+            // No vectorId - chunks will be processed separately
+          };
+        } catch (chunkError) {
+          console.error(
+            `[LibraryRAGService] Failed to create chunks for ${metadata.fileKey} (${fileSizeMB.toFixed(2)}MB). File may be too large to load even for chunking.`,
+            chunkError
+          );
+          // If we can't even load the file to create chunks, throw memory limit error
+          throw new MemoryLimitError(
+            fileSizeMB,
+            MEMORY_LIMIT_MB,
+            metadata.fileKey,
+            metadata.filename,
+            `File (${fileSizeMB.toFixed(2)}MB) exceeds Worker memory limit and cannot be loaded for chunking. Consider using a smaller file or splitting the document.`
+          );
+        }
       }
 
       // Extract text based on file type
-      let buffer: ArrayBuffer;
       let extractionResult: any = null;
 
       try {
-        buffer = await file.arrayBuffer();
+        // Load buffer if not already loaded (for files under memory limit)
+        if (!buffer) {
+          buffer = await file.arrayBuffer();
+        }
         extractionResult = await this.extractionService.extractText(
-          buffer,
+          buffer!,
           metadata.contentType
         );
       } catch (memoryError) {
+        // Check if this is a memory limit error from Worker runtime
+        const memoryLimitError = MemoryLimitError.fromRuntimeError(
+          memoryError,
+          fileSizeMB,
+          MEMORY_LIMIT_MB,
+          metadata.fileKey,
+          metadata.filename
+        );
+
+        if (memoryLimitError) {
+          // File exceeds memory limit during processing - try chunked processing
+          console.log(
+            `[LibraryRAGService] Memory limit error during processing for file ${metadata.fileKey} (${fileSizeMB.toFixed(2)}MB). Attempting chunked processing.`
+          );
+
+          // Try to create chunks if we have buffer
+          try {
+            if (buffer) {
+              await this.chunkedProcessingService.createProcessingChunks(
+                metadata.fileKey,
+                metadata.userId,
+                metadata.filename,
+                metadata.contentType,
+                file.size || 0,
+                buffer
+              );
+
+              // Return explicit result indicating chunking started
+              return {
+                displayName: undefined,
+                description: "",
+                tags: [],
+                chunked: true,
+                // No vectorId - chunks will be processed separately
+              };
+            }
+          } catch (chunkError) {
+            console.error(
+              `[LibraryRAGService] Failed to create chunks for ${metadata.fileKey}:`,
+              chunkError
+            );
+          }
+
+          // If chunking failed, re-throw the memory limit error
+          throw memoryLimitError;
+        }
+
         // Check for structured MemoryLimitError from extraction service
         if (memoryError instanceof MemoryLimitError) {
           // Re-throw with file metadata included

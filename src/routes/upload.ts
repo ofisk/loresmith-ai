@@ -6,6 +6,7 @@ import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { buildLibraryFileKey } from "@/lib/file-keys";
 import { nanoid } from "@/lib/nanoid";
+import { cleanupStuckProcessingFiles } from "@/queue-consumer";
 import { startFileProcessing } from "@/routes/upload-processing";
 import { extractJwtFromContext } from "@/lib/auth-utils";
 import { UploadSessionActions } from "@/lib/durable-object-helpers";
@@ -776,7 +777,6 @@ export async function handleCleanupStuckFiles(c: ContextWithAuth) {
       user: userAuth?.username,
     });
 
-    const { cleanupStuckProcessingFiles } = await import("../queue_consumer");
     const result = await cleanupStuckProcessingFiles(
       c.env,
       timeoutMinutes,

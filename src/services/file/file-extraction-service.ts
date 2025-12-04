@@ -1,6 +1,7 @@
 import { getDocument } from "pdfjs-serverless";
 import * as mammoth from "mammoth";
 import { MemoryLimitError, PDFExtractionError } from "@/lib/errors";
+import { getPdfPageCount as getPdfPageCountUtil } from "@/lib/pdf-utils";
 
 export interface ExtractionResult {
   text: string;
@@ -190,6 +191,54 @@ export class FileExtractionService {
   }
 
   /**
+   * Extract text from byte range (for non-PDF files)
+   * This is a simple slice of the buffer, decoded as text
+   */
+  async extractTextRange(
+    buffer: ArrayBuffer,
+    startByte: number,
+    endByte: number,
+    contentType: string
+  ): Promise<ExtractionResult> {
+    const actualStart = Math.max(0, Math.min(startByte, buffer.byteLength));
+    const actualEnd = Math.max(
+      actualStart,
+      Math.min(endByte, buffer.byteLength)
+    );
+
+    if (actualStart >= actualEnd) {
+      throw new Error(
+        `Invalid byte range: start (${startByte}) must be < end (${endByte})`
+      );
+    }
+
+    const rangeBuffer = buffer.slice(actualStart, actualEnd);
+
+    if (
+      contentType.includes("wordprocessingml") ||
+      contentType.includes("msword") ||
+      contentType.includes("docx") ||
+      contentType.includes("doc")
+    ) {
+      return await this.extractDocxText(rangeBuffer);
+    } else if (contentType.includes("text")) {
+      return { text: new TextDecoder().decode(rangeBuffer) };
+    } else if (contentType.includes("json")) {
+      const text = new TextDecoder().decode(rangeBuffer);
+      try {
+        const json = JSON.parse(text);
+        return { text: JSON.stringify(json, null, 2) };
+      } catch {
+        return { text };
+      }
+    }
+
+    throw new Error(
+      `Byte range extraction not supported for content type: ${contentType}`
+    );
+  }
+
+  /**
    * Check if a PDF should be queued based on size and page count
    */
   async shouldQueuePdf(
@@ -204,11 +253,7 @@ export class FileExtractionService {
     }
 
     try {
-      const pdf = await getDocument({
-        data: new Uint8Array(buffer),
-      }).promise;
-
-      const numPages = pdf.numPages;
+      const numPages = await getPdfPageCountUtil(buffer);
 
       if (numPages > MAX_PAGES_TO_EXTRACT) {
         return {

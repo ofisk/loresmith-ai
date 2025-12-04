@@ -8,6 +8,7 @@ import {
   notifyFileIndexingStatus,
 } from "@/lib/notifications";
 import type { FileProcessingResult } from "@/types/file-processing";
+import { ChunkedProcessingService } from "./chunked-processing-service";
 
 export class SyncQueueService {
   /**
@@ -110,8 +111,20 @@ export class SyncQueueService {
 
       const processResult = await ragService.processFile(fileMetadata);
 
+      // Check if file was chunked (explicit flag)
+      if (processResult.chunked) {
+        console.log(
+          `[SyncQueue] File ${fileName} was chunked. Chunks will be processed separately.`
+        );
+        // Return success - chunks will be processed in background
+        return {
+          success: true,
+          queued: true,
+          message: `File ${fileName} has been split into chunks for processing. Chunks will be processed in the background.`,
+        };
+      }
+
       // Check if file was actually indexed (has vectorId)
-      // If processFile failed silently, it will return empty result without vectorId
       if (!processResult.vectorId) {
         throw new Error(
           "File indexing failed: embeddings were not stored. The file may be too large or contain unprocessable content."
@@ -248,7 +261,56 @@ export class SyncQueueService {
           continue;
         }
 
-        // Process file with LibraryRAGService
+        // Check if file has processing chunks (chunked processing)
+        const chunkedService = new ChunkedProcessingService(env);
+        const hasChunks = await chunkedService.hasExistingChunks(item.file_key);
+
+        if (hasChunks) {
+          // Process file chunks
+          await SyncQueueService.processFileChunks(
+            env,
+            item.file_key,
+            username,
+            item.file_name,
+            file,
+            dbMetadata
+          );
+
+          // Check if all chunks are complete
+          const mergeResult = await chunkedService.mergeChunkResults(
+            item.file_key
+          );
+
+          if (mergeResult.allComplete && mergeResult.allSuccessful) {
+            // All chunks processed successfully - mark file as completed
+            await fileDAO.updateFileRecord(
+              item.file_key,
+              FileDAO.STATUS.COMPLETED
+            );
+            await fileDAO.removeFromSyncQueue(item.file_key);
+            processed++;
+            console.log(
+              `[SyncQueue] All chunks processed successfully for ${item.file_name}`
+            );
+          } else if (mergeResult.allComplete && !mergeResult.allSuccessful) {
+            // All chunks processed but some failed - mark file as error
+            console.error(
+              `[SyncQueue] Some chunks failed for ${item.file_name}. Stats:`,
+              mergeResult.stats
+            );
+            await fileDAO.updateFileRecord(item.file_key, FileDAO.STATUS.ERROR);
+            await fileDAO.removeFromSyncQueue(item.file_key);
+          } else {
+            // Chunks still processing - keep in queue
+            console.log(
+              `[SyncQueue] File ${item.file_name} has chunks still processing. Stats:`,
+              mergeResult.stats
+            );
+          }
+          continue;
+        }
+
+        // Process file with LibraryRAGService (normal processing)
         const fileMetadata: FileMetadata = {
           id: dbMetadata.file_key,
           fileKey: dbMetadata.file_key,
@@ -264,6 +326,15 @@ export class SyncQueueService {
         };
 
         const processResult = await ragService.processFile(fileMetadata);
+
+        // Check if file was chunked (explicit flag)
+        if (processResult.chunked) {
+          console.log(
+            `[SyncQueue] File ${item.file_name} was chunked. Chunks will be processed separately.`
+          );
+          // Keep in queue for chunk processing
+          continue;
+        }
 
         // Check if file was actually indexed (has vectorId)
         if (!processResult.vectorId) {
@@ -373,6 +444,120 @@ export class SyncQueueService {
     }
 
     return { processed };
+  }
+
+  /**
+   * Process file chunks for a file that has been split into chunks
+   */
+  private static async processFileChunks(
+    env: any,
+    fileKey: string,
+    _username: string,
+    fileName: string,
+    file: any,
+    dbMetadata: any
+  ): Promise<void> {
+    const fileDAO = new FileDAO(env.DB);
+    const chunkedService = new ChunkedProcessingService(env);
+
+    // Get pending chunks for this file
+    const chunks = await fileDAO.getFileProcessingChunks(fileKey);
+    const pendingChunks = chunks.filter((chunk) => chunk.status === "pending");
+
+    if (pendingChunks.length === 0) {
+      console.log(`[SyncQueue] No pending chunks for file ${fileKey}`);
+      return;
+    }
+
+    console.log(
+      `[SyncQueue] Processing ${pendingChunks.length} pending chunk(s) for file ${fileName}`
+    );
+
+    // Try to load file buffer once for all chunks
+    // Note: This may fail for very large files - in that case, chunks will need to be processed differently
+    let fileBuffer: ArrayBuffer | null = null;
+    try {
+      fileBuffer = await file.arrayBuffer();
+    } catch (bufferError) {
+      console.error(
+        `[SyncQueue] Failed to load file buffer for chunks ${fileKey}:`,
+        bufferError
+      );
+      // Mark all pending chunks as failed
+      for (const chunk of pendingChunks) {
+        await fileDAO.updateFileProcessingChunk(chunk.id, {
+          status: "failed",
+          errorMessage:
+            bufferError instanceof Error
+              ? bufferError.message
+              : "Failed to load file buffer",
+        });
+      }
+      return;
+    }
+
+    const contentType =
+      dbMetadata.content_type || file.httpMetadata?.contentType || "";
+    const metadataId = dbMetadata.file_key;
+
+    // Process each pending chunk
+    for (const chunk of pendingChunks) {
+      try {
+        const chunkDefinition = {
+          chunkIndex: chunk.chunkIndex,
+          totalChunks: chunk.totalChunks,
+          pageRangeStart: chunk.pageRangeStart,
+          pageRangeEnd: chunk.pageRangeEnd,
+          byteRangeStart: chunk.byteRangeStart,
+          byteRangeEnd: chunk.byteRangeEnd,
+        };
+
+        await chunkedService.processChunk(
+          chunk.id,
+          fileKey,
+          chunkDefinition,
+          fileBuffer!,
+          contentType,
+          metadataId
+        );
+
+        console.log(
+          `[SyncQueue] Successfully processed chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} for file ${fileName}`
+        );
+      } catch (chunkError) {
+        const errorMessage =
+          chunkError instanceof Error ? chunkError.message : String(chunkError);
+        console.error(
+          `[SyncQueue] Failed to process chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} for file ${fileName}:`,
+          errorMessage
+        );
+
+        // Update chunk retry count
+        const currentRetryCount = chunk.retryCount;
+        const MAX_RETRIES = 3;
+
+        if (currentRetryCount < MAX_RETRIES) {
+          // Increment retry count and keep chunk as pending for next retry
+          await fileDAO.updateFileProcessingChunk(chunk.id, {
+            retryCount: currentRetryCount + 1,
+            status: "pending", // Reset to pending for retry
+          });
+          console.log(
+            `[SyncQueue] Chunk ${chunk.chunkIndex + 1} will be retried (attempt ${currentRetryCount + 1}/${MAX_RETRIES})`
+          );
+        } else {
+          // Max retries exceeded - mark chunk as failed
+          await fileDAO.updateFileProcessingChunk(chunk.id, {
+            status: "failed",
+            errorMessage: errorMessage,
+            retryCount: currentRetryCount + 1,
+          });
+          console.error(
+            `[SyncQueue] Chunk ${chunk.chunkIndex + 1} failed after ${MAX_RETRIES} retries`
+          );
+        }
+      }
+    }
   }
 
   /**

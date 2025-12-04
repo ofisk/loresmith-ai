@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { UploadSessionDO } from "@/durable-objects/upload-session";
-import { queue as queueFn, scheduled as scheduledFn } from "@/queue_consumer";
+import { queue as queueFn, scheduled as scheduledFn } from "@/queue-consumer";
 import { registerRoutes, type Env } from "@/routes/register-routes";
 
 export { Chat } from "@/durable-objects/chat";

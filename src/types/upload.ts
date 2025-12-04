@@ -65,3 +65,44 @@ export interface SearchQuery {
   includeTags?: boolean;
   includeSemantic?: boolean;
 }
+
+export interface ChunkDefinition {
+  chunkIndex: number;
+  totalChunks: number;
+  pageRangeStart?: number; // For PDFs: start page (1-based)
+  pageRangeEnd?: number; // For PDFs: end page (1-based)
+  byteRangeStart?: number; // For non-PDFs: start byte
+  byteRangeEnd?: number; // For non-PDFs: end byte
+}
+
+export interface FileProcessingChunk {
+  id: string;
+  fileKey: string;
+  username: string;
+  chunkIndex: number;
+  totalChunks: number;
+  pageRangeStart?: number;
+  pageRangeEnd?: number;
+  byteRangeStart?: number;
+  byteRangeEnd?: number;
+  status: "pending" | "processing" | "completed" | "failed";
+  vectorId?: string;
+  errorMessage?: string;
+  retryCount: number;
+  createdAt: string;
+  processedAt?: string;
+  updatedAt?: string;
+}
+
+export interface ChunkProcessingResult {
+  chunkId: string;
+  success: boolean;
+  vectorId?: string;
+  error?: string;
+  text?: string;
+  metadata?: {
+    displayName?: string;
+    description: string;
+    tags: string[];
+  };
+}
