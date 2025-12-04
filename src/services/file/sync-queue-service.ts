@@ -473,36 +473,65 @@ export class SyncQueueService {
       `[SyncQueue] Processing ${pendingChunks.length} pending chunk(s) for file ${fileName}`
     );
 
-    // Try to load file buffer once for all chunks
-    // Note: This may fail for very large files - in that case, chunks will need to be processed differently
-    let fileBuffer: ArrayBuffer | null = null;
-    try {
-      fileBuffer = await file.arrayBuffer();
-    } catch (bufferError) {
-      console.error(
-        `[SyncQueue] Failed to load file buffer for chunks ${fileKey}:`,
-        bufferError
-      );
-      // Mark all pending chunks as failed
-      for (const chunk of pendingChunks) {
-        await fileDAO.updateFileProcessingChunk(chunk.id, {
-          status: "failed",
-          errorMessage:
-            bufferError instanceof Error
-              ? bufferError.message
-              : "Failed to load file buffer",
-        });
-      }
-      return;
-    }
-
     const contentType =
       dbMetadata.content_type || file.httpMetadata?.contentType || "";
     const metadataId = dbMetadata.file_key;
 
+    // Determine if we should load the full buffer based on file size
+    // If file is chunked, it's too large to load in memory - skip trying
+    const fileSizeMB = (dbMetadata.file_size || 0) / (1024 * 1024);
+    const MEMORY_LIMIT_MB = 128;
+    const SAFE_THRESHOLD_MB = 100; // For PDFs, be conservative
+
+    // Check if file size indicates we should skip loading full buffer
+    const shouldSkipFullBuffer =
+      fileSizeMB > MEMORY_LIMIT_MB ||
+      (contentType.includes("pdf") && fileSizeMB > SAFE_THRESHOLD_MB);
+
+    let fileBuffer: ArrayBuffer | null = null;
+    let usePerChunkFetch = shouldSkipFullBuffer;
+
+    if (!shouldSkipFullBuffer) {
+      // Only try to load full buffer if file size is safe
+      try {
+        fileBuffer = await file.arrayBuffer();
+      } catch (bufferError) {
+        console.warn(
+          `[SyncQueue] Failed to load full file buffer for chunks ${fileKey}, will fetch per chunk:`,
+          bufferError instanceof Error
+            ? bufferError.message
+            : String(bufferError)
+        );
+        usePerChunkFetch = true;
+      }
+    } else {
+      console.log(
+        `[SyncQueue] Skipping full buffer load for ${fileKey} (${fileSizeMB.toFixed(2)}MB) - file is too large, will fetch per chunk`
+      );
+    }
+
     // Process each pending chunk
     for (const chunk of pendingChunks) {
       try {
+        // If we couldn't load the full buffer, fetch the file fresh for this chunk
+        let chunkBuffer: ArrayBuffer;
+        if (usePerChunkFetch) {
+          const chunkFile = await env.R2.get(fileKey);
+          if (!chunkFile) {
+            throw new Error("File not found in R2");
+          }
+          try {
+            chunkBuffer = await chunkFile.arrayBuffer();
+          } catch (chunkBufferError) {
+            // Even per-chunk fetch failed - file is too large for Worker memory
+            throw new Error(
+              `File too large to process: ${chunkBufferError instanceof Error ? chunkBufferError.message : "Memory limit exceeded"}`
+            );
+          }
+        } else {
+          chunkBuffer = fileBuffer!;
+        }
+
         const chunkDefinition = {
           chunkIndex: chunk.chunkIndex,
           totalChunks: chunk.totalChunks,
@@ -516,7 +545,7 @@ export class SyncQueueService {
           chunk.id,
           fileKey,
           chunkDefinition,
-          fileBuffer!,
+          chunkBuffer,
           contentType,
           metadataId
         );
