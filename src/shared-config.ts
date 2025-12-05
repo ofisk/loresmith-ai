@@ -215,7 +215,6 @@ export const API_CONFIG = {
     RAG: {
       SEARCH: "/rag/search",
       PROCESS_FILE: "/rag/process-file",
-      PROCESS_FILE_FROM_R2: "/rag/process-file-from-r2",
       FILES: "/rag/files",
       FILE_CHUNKS: (fileKey: string) => `/rag/files/${fileKey}/chunks`,
       DELETE_FILE: (fileKey: string) => `/rag/files/${fileKey}`,
@@ -297,6 +296,7 @@ export const API_CONFIG = {
       SESSION_GET_PARTS: "/upload/session/get-parts",
       SESSION_COMPLETE: "/upload/session/complete",
       SESSION_DELETE: "/upload/session/delete",
+      CLEANUP_STUCK: "/upload/cleanup-stuck",
     },
     INGESTION: {
       STATUS: "/ingestion/status",

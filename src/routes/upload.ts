@@ -4,10 +4,12 @@ import { notifyFileUploadFailed } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
-import { API_CONFIG } from "@/shared-config";
 import { buildLibraryFileKey } from "@/lib/file-keys";
 import { nanoid } from "@/lib/nanoid";
+import { cleanupStuckProcessingFiles } from "@/queue-consumer";
 import { startFileProcessing } from "@/routes/upload-processing";
+import { extractJwtFromContext } from "@/lib/auth-utils";
+import { UploadSessionActions } from "@/lib/durable-object-helpers";
 
 const log = logger.scope("[Upload]");
 
@@ -143,8 +145,7 @@ export async function handleDirectUpload(c: ContextWithAuth) {
     }
 
     // Extract JWT token from Authorization header
-    const authHeader = c.req.header("Authorization");
-    const jwt = authHeader?.replace(/^Bearer\s+/i, "");
+    const jwt = extractJwtFromContext(c);
     directUploadLog.debug("Starting file processing", {
       fileKey: key,
       userId: userAuth.username,
@@ -388,12 +389,7 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
     };
 
     const sessionResponse = await uploadSession.fetch(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_CREATE),
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sessionData),
-      }
+      UploadSessionActions.createRequest(sessionData)
     );
 
     if (!sessionResponse.ok) {
@@ -453,10 +449,7 @@ export async function handleUploadPart(c: ContextWithAuth) {
     const uploadSession = c.env.UPLOAD_SESSION.get(uploadSessionId);
 
     const sessionResponse = await uploadSession.fetch(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_GET),
-      {
-        method: "GET",
-      }
+      UploadSessionActions.getRequest()
     );
 
     if (!sessionResponse.ok) {
@@ -482,16 +475,11 @@ export async function handleUploadPart(c: ContextWithAuth) {
 
     // Update session with uploaded part
     const updateResponse = await uploadSession.fetch(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_ADD_PART),
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          partNumber: partNumber,
-          etag: uploadedPart.etag,
-          size: partData.byteLength,
-        }),
-      }
+      UploadSessionActions.addPartRequest({
+        partNumber: partNumber,
+        etag: uploadedPart.etag,
+        size: partData.byteLength,
+      })
     );
 
     if (!updateResponse.ok) {
@@ -538,10 +526,7 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
     const uploadSession = c.env.UPLOAD_SESSION.get(uploadSessionId);
 
     const sessionResponse = await uploadSession.fetch(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_GET),
-      {
-        method: "GET",
-      }
+      UploadSessionActions.getRequest()
     );
 
     if (!sessionResponse.ok) {
@@ -567,10 +552,7 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
 
     // Get uploaded parts from session
     const partsResponse = await uploadSession.fetch(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_GET_PARTS),
-      {
-        method: "GET",
-      }
+      UploadSessionActions.getPartsRequest()
     );
 
     if (!partsResponse.ok) {
@@ -605,8 +587,7 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
     }
 
     // Extract JWT token from Authorization header
-    const authHeader = c.req.header("Authorization");
-    const jwt = authHeader?.replace(/^Bearer\s+/i, "");
+    const jwt = extractJwtFromContext(c);
 
     // Start file processing (awaited to ensure completion)
     await startFileProcessing(
@@ -619,12 +600,7 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
     );
 
     // Mark session as completed
-    await uploadSession.fetch(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_COMPLETE),
-      {
-        method: "POST",
-      }
-    );
+    await uploadSession.fetch(UploadSessionActions.completeRequest());
 
     log.debug("Completed upload", {
       sessionId,
@@ -646,8 +622,7 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
         const uploadSessionId = c.env.UPLOAD_SESSION.idFromName(sessionId);
         const uploadSession = c.env.UPLOAD_SESSION.get(uploadSessionId);
         const sessionResponse = await uploadSession.fetch(
-          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_GET),
-          { method: "GET" }
+          UploadSessionActions.getRequest()
         );
         if (sessionResponse.ok) {
           const s = (await sessionResponse.json()) as UploadSessionData;
@@ -686,10 +661,7 @@ export async function handleGetUploadProgress(c: ContextWithAuth) {
     const uploadSession = c.env.UPLOAD_SESSION.get(uploadSessionId);
 
     const sessionResponse = await uploadSession.fetch(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_GET),
-      {
-        method: "GET",
-      }
+      UploadSessionActions.getRequest()
     );
 
     if (!sessionResponse.ok) {
@@ -751,10 +723,7 @@ export async function handleAbortLargeUpload(c: ContextWithAuth) {
     const uploadSession = c.env.UPLOAD_SESSION.get(uploadSessionId);
 
     const sessionResponse = await uploadSession.fetch(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_GET),
-      {
-        method: "GET",
-      }
+      UploadSessionActions.getRequest()
     );
 
     if (!sessionResponse.ok) {
@@ -776,12 +745,7 @@ export async function handleAbortLargeUpload(c: ContextWithAuth) {
     await multipartUpload.abort();
 
     // Delete session
-    await uploadSession.fetch(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_DELETE),
-      {
-        method: "DELETE",
-      }
-    );
+    await uploadSession.fetch(UploadSessionActions.deleteRequest());
 
     log.debug("Aborted upload", { sessionId });
 
@@ -792,5 +756,41 @@ export async function handleAbortLargeUpload(c: ContextWithAuth) {
   } catch (error) {
     log.error("Error aborting upload", error);
     return c.json({ error: "Failed to abort upload" }, 500);
+  }
+}
+
+/**
+ * POST /upload/cleanup-stuck
+ * Manually trigger cleanup of stuck processing files
+ * Query params: fileKey (optional) - if provided, only clean up this specific file
+ *               timeoutMinutes (optional) - override default 10 minute timeout
+ */
+export async function handleCleanupStuckFiles(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth as AuthPayload;
+    const fileKey = c.req.query("fileKey") || undefined;
+    const timeoutMinutes = parseInt(c.req.query("timeoutMinutes") || "10", 10);
+
+    log.debug("Manual cleanup requested", {
+      fileKey,
+      timeoutMinutes,
+      user: userAuth?.username,
+    });
+
+    const result = await cleanupStuckProcessingFiles(
+      c.env,
+      timeoutMinutes,
+      fileKey
+    );
+
+    return c.json({
+      success: true,
+      cleaned: result.cleaned,
+      files: result.files,
+      message: `Cleaned up ${result.cleaned} stuck file(s)`,
+    });
+  } catch (error) {
+    log.error("Error cleaning up stuck files", error);
+    return c.json({ error: "Failed to clean up stuck files" }, 500);
   }
 }

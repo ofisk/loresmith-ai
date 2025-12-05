@@ -43,7 +43,8 @@ export function chunkTextByPages(text: string, maxChunkSize: number): string[] {
 }
 
 /**
- * Chunk text by character count, trying to break at word boundaries
+ * Chunk text by character count, trying to break at sentence boundaries first,
+ * then word boundaries, then character boundaries as fallback
  *
  * @param text - The text to chunk
  * @param maxChunkSize - Maximum size of each chunk in characters
@@ -61,17 +62,31 @@ export function chunkTextByCharacterCount(
     let chunkSize = Math.min(maxChunkSize, remainingText.length);
 
     if (chunkSize < remainingText.length) {
-      const lastSpace = remainingText.lastIndexOf(" ", chunkSize);
-      const lastNewline = remainingText.lastIndexOf("\n", chunkSize);
-      const breakPoint = Math.max(lastSpace, lastNewline);
+      // Try to break at sentence boundaries first (., !, ?)
+      const lastPeriod = remainingText.lastIndexOf(".", chunkSize);
+      const lastExclamation = remainingText.lastIndexOf("!", chunkSize);
+      const lastQuestion = remainingText.lastIndexOf("?", chunkSize);
+      const lastSentence = Math.max(lastPeriod, lastExclamation, lastQuestion);
 
-      if (breakPoint > chunkSize * 0.8) {
-        chunkSize = breakPoint;
+      if (lastSentence > chunkSize * 0.5) {
+        // Prefer sentence boundary if it's not too far back
+        chunkSize = lastSentence + 1;
+      } else {
+        // Fall back to word boundaries (spaces/newlines)
+        const lastSpace = remainingText.lastIndexOf(" ", chunkSize);
+        const lastNewline = remainingText.lastIndexOf("\n", chunkSize);
+        const breakPoint = Math.max(lastSpace, lastNewline);
+
+        if (breakPoint > chunkSize * 0.8) {
+          chunkSize = breakPoint;
+        }
       }
     }
 
-    const chunk = remainingText.slice(0, chunkSize);
-    chunks.push(chunk);
+    const chunk = remainingText.slice(0, chunkSize).trim();
+    if (chunk.length > 0) {
+      chunks.push(chunk);
+    }
     currentPos += chunkSize;
   }
 

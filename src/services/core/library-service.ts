@@ -1,7 +1,13 @@
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { Env } from "@/middleware/auth";
 import type { FileMetadata } from "@/types/upload";
-import { StorageUsageError, FileNotFoundError } from "@/lib/errors";
+import {
+  StorageUsageError,
+  FileNotFoundError,
+  PDFExtractionError,
+  OpenAIAPIKeyError,
+  MemoryLimitError,
+} from "@/lib/errors";
 
 export interface StorageUsage {
   username: string;
@@ -326,28 +332,44 @@ export class LibraryService {
   }
 
   /**
-   * Categorize and format errors for consistent handling
+   * Categorize and format errors for consistent handling using structured error types
    */
   private categorizeError(error: Error): { message: string; details: string } {
-    const errorMessage = error.message;
-    let message = "File processing failed";
-    let details = errorMessage;
-
-    if (errorMessage.includes("Unavailable content in PDF document")) {
-      message = "Unavailable content in PDF document";
-      details =
-        "The PDF file could not be parsed. It may be encrypted, corrupted, or contain no readable text.";
-    } else if (errorMessage.includes("timeout")) {
-      message = "File processing timeout";
-      details = "The file processing took too long and was cancelled.";
-    } else if (errorMessage.includes("not found in R2")) {
-      message = "File not found in storage";
-      details = "The uploaded file could not be found in storage.";
-    } else if (errorMessage.includes("No OpenAI API key")) {
-      message = "OpenAI API key required";
-      details = "File processing requires an OpenAI API key for text analysis.";
+    // Check for structured error types first
+    if (error instanceof FileNotFoundError) {
+      return {
+        message: "File not found in storage",
+        details: "The uploaded file could not be found in storage.",
+      };
     }
 
-    return { message, details };
+    if (error instanceof PDFExtractionError) {
+      return {
+        message: "PDF extraction failed",
+        details:
+          "The PDF file could not be parsed. It may be encrypted, corrupted, or contain no readable text.",
+      };
+    }
+
+    if (error instanceof MemoryLimitError) {
+      return {
+        message: "File too large to process",
+        details: error.message,
+      };
+    }
+
+    if (error instanceof OpenAIAPIKeyError) {
+      return {
+        message: "OpenAI API key required",
+        details:
+          "File processing requires an OpenAI API key for text analysis.",
+      };
+    }
+
+    // Fallback for unknown errors
+    return {
+      message: "File processing failed",
+      details: error.message,
+    };
   }
 }

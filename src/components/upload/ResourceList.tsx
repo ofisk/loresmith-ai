@@ -13,6 +13,7 @@ import { useResourceFileEvents } from "@/hooks/useResourceFileEvents";
 import { ResourceFileItem } from "./ResourceFileItem";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { logger } from "@/lib/logger";
+import { FileDAO } from "@/dao/file-dao";
 
 interface ResourceListProps {
   onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
@@ -60,7 +61,10 @@ export function ResourceList({
   const handleRetryFile = useCallback(
     async (fileKey: string, fileName: string) => {
       try {
-        console.log(`[ResourceList] Retrying file processing for: ${fileName}`);
+        console.log(`[ResourceList] ===== RETRY BUTTON CLICKED =====`);
+        console.log(`[ResourceList] File: ${fileName}`);
+        console.log(`[ResourceList] FileKey: ${fileKey}`);
+        console.log(`[ResourceList] Timestamp: ${new Date().toISOString()}`);
 
         // Immediately update UI to show retry in progress
         setProgressByFileKey((prev) => ({ ...prev, [fileKey]: 0 }));
@@ -71,10 +75,13 @@ export function ResourceList({
           return;
         }
 
-        // Call the RAG process file endpoint to retry processing
+        // Call the RAG trigger indexing endpoint to retry processing for existing files
         const retryUrl = API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.RAG.PROCESS_FILE
+          API_CONFIG.ENDPOINTS.RAG.TRIGGER_INDEXING
         );
+        console.log(`[ResourceList] Making retry request to: ${retryUrl}`);
+        console.log(`[ResourceList] Request body:`, { fileKey });
+
         const response = await authenticatedFetchWithExpiration(retryUrl, {
           method: "POST",
           jwt,
@@ -84,22 +91,70 @@ export function ResourceList({
           },
         });
 
-        if (!response.response.ok) {
-          throw new Error(`Retry failed: ${response.response.status}`);
+        console.log(
+          `[ResourceList] Retry response status:`,
+          response.response.status
+        );
+        console.log(`[ResourceList] Retry response ok:`, response.response.ok);
+
+        // Parse response (server always returns JSON, even for errors)
+        const result = (await response.response.json()) as {
+          success: boolean;
+          message?: string;
+          error?: string;
+          queued: boolean;
+          isIndexed?: boolean;
+        };
+
+        console.log(`[ResourceList] Retry response for ${fileName}:`, result);
+
+        // Check for errors: either HTTP error status or success: false in response
+        if (!response.response.ok || !result.success) {
+          const errorMessage =
+            result.message ||
+            result.error ||
+            `Retry failed with status ${response.response.status}`;
+          console.error(
+            `[ResourceList] Retry failed for ${fileName}:`,
+            errorMessage
+          );
+
+          // Check if this is a memory limit error (non-retryable)
+          if (
+            result.error === "MEMORY_LIMIT_EXCEEDED" ||
+            errorMessage.includes("too large")
+          ) {
+            // Show a user-friendly error message for memory limit errors
+            alert(
+              `⚠️ Cannot retry "${fileName}": ${errorMessage}\n\nFiles over 128MB cannot be processed due to Cloudflare Worker memory limits. Please split the file into smaller parts.`
+            );
+            return; // Don't throw, just return early
+          }
+
+          throw new Error(errorMessage);
         }
 
-        const result = (await response.response.json()) as {
-          queued: boolean;
-          jobId?: string;
-        };
-        console.log(
-          `[ResourceList] Retry initiated successfully for: ${fileName}`,
-          result
-        );
+        // Immediately update file status in UI to show processing started
+        setFiles((prevFiles) => {
+          return prevFiles.map((file) => {
+            if (file.file_key === fileKey) {
+              console.log(
+                `[ResourceList] Updating file status to SYNCING after retry: ${file.file_name}`
+              );
+              return {
+                ...file,
+                status: FileDAO.STATUS.SYNCING,
+                updated_at: new Date().toISOString(),
+              };
+            }
+            return file;
+          });
+        });
 
         // If queued, show immediate feedback
         if (result.queued) {
           console.log(`[ResourceList] File ${fileName} queued for retry`);
+          setProgressByFileKey((prev) => ({ ...prev, [fileKey]: 10 }));
         } else {
           console.log(
             `[ResourceList] File ${fileName} retry started immediately`
@@ -108,7 +163,7 @@ export function ResourceList({
           setProgressByFileKey((prev) => ({ ...prev, [fileKey]: 25 }));
         }
 
-        // Refresh the file list to show updated status
+        // Refresh the file list to get updated status from server
         fetchResources();
       } catch (error) {
         console.error(
@@ -123,7 +178,7 @@ export function ResourceList({
         });
       }
     },
-    [fetchResources]
+    [fetchResources, setFiles]
   );
 
   const handleRetryIndexing = useCallback(

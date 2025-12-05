@@ -2,31 +2,51 @@
 // This service handles text extraction, embedding generation, and semantic vector search
 // Uses Vectorize for embeddings and Cloudflare AI for content generation
 
-import { getDAOFactory } from "@/dao/dao-factory";
 import type { Env } from "@/middleware/auth";
 import type { FileMetadata, SearchQuery, SearchResult } from "@/types/upload";
 import { BaseRAGService } from "./base-rag-service";
-import {
-  FileNotFoundError,
-  VectorizeIndexRequiredError,
-  InvalidEmbeddingResponseError,
-} from "@/lib/errors";
-import { getDocument } from "pdfjs-serverless";
-import {
-  chunkTextByPages,
-  chunkTextByCharacterCount,
-} from "@/lib/text-chunking-utils";
-import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
-
-// LLM model configuration
-const LLM_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+import { FileNotFoundError, MemoryLimitError } from "@/lib/errors";
+import { FileExtractionService } from "@/services/file/file-extraction-service";
+import { FileEmbeddingService } from "@/services/embedding/file-embedding-service";
+import { LibraryMetadataService } from "@/services/file/library-metadata-service";
+import { FileQueueUtils } from "@/services/file/file-queue-utils";
+import { LibrarySearchService } from "@/services/file/library-search-service";
+import { LibraryContentSearchService } from "@/services/file/library-content-search-service";
+import { LibraryFileMetadataService } from "@/services/file/library-file-metadata-service";
+import { ChunkedProcessingService } from "@/services/file/chunked-processing-service";
 
 export class LibraryRAGService extends BaseRAGService {
-  private ai: any;
+  private extractionService: FileExtractionService;
+  private embeddingService: FileEmbeddingService;
+  private metadataService: LibraryMetadataService;
+  private queueUtils: FileQueueUtils;
+  private searchService: LibrarySearchService;
+  private contentSearchService: LibraryContentSearchService;
+  private fileMetadataService: LibraryFileMetadataService;
+  private chunkedProcessingService: ChunkedProcessingService;
 
   constructor(env: Env) {
     super(env.DB, env.VECTORIZE, env.OPENAI_API_KEY || "", env);
-    this.ai = env.AI;
+    this.extractionService = new FileExtractionService();
+    this.embeddingService = new FileEmbeddingService(env.VECTORIZE, env.AI);
+    this.metadataService = new LibraryMetadataService(env);
+    this.queueUtils = new FileQueueUtils();
+    this.searchService = new LibrarySearchService(env);
+    this.contentSearchService = new LibraryContentSearchService(env);
+    this.fileMetadataService = new LibraryFileMetadataService(env);
+    this.chunkedProcessingService = new ChunkedProcessingService(env);
+  }
+
+  /**
+   * Check if a file should be queued for background processing
+   * Large files (>100MB) should be queued to avoid timeout during processing
+   * For PDFs >100MB with >500 pages, we also queue to avoid extraction timeout
+   */
+  async shouldQueueFile(
+    file: { size?: number; arrayBuffer(): Promise<ArrayBuffer> },
+    contentType: string
+  ): Promise<{ shouldQueue: boolean; reason?: string }> {
+    return this.queueUtils.shouldQueueFile(file as any, contentType);
   }
 
   async processFile(metadata: FileMetadata): Promise<{
@@ -34,6 +54,7 @@ export class LibraryRAGService extends BaseRAGService {
     description: string;
     tags: string[];
     vectorId?: string;
+    chunked?: boolean; // Explicit flag indicating file was split into chunks for processing
   }> {
     try {
       const file = await this.env.R2.get(metadata.fileKey);
@@ -41,31 +62,176 @@ export class LibraryRAGService extends BaseRAGService {
         throw new FileNotFoundError(metadata.fileKey);
       }
 
-      // Extract text based on file type
-      const text = await this.extractText(file, metadata.contentType);
+      const fileSizeMB = (file.size || 0) / (1024 * 1024);
+      const MEMORY_LIMIT_MB = 128;
 
-      if (!text || text.trim().length === 0) {
+      // Check if file already has processing chunks (retry scenario)
+      if (
+        await this.chunkedProcessingService.hasExistingChunks(metadata.fileKey)
+      ) {
         console.log(
-          `[LibraryRAGService] No text extracted from file: ${metadata.fileKey}`
+          `[LibraryRAGService] File ${metadata.fileKey} already has processing chunks. Chunks will be processed separately.`
         );
+        // Return explicit result - chunks will be processed by queue
         return {
           displayName: undefined,
           description: "",
           tags: [],
+          chunked: true,
+          // No vectorId - chunks will be processed separately
         };
+      }
+
+      // Proactively check if file exceeds memory limit before attempting to load
+      let buffer: ArrayBuffer | undefined;
+      if (fileSizeMB > MEMORY_LIMIT_MB) {
+        console.log(
+          `[LibraryRAGService] File ${metadata.fileKey} (${fileSizeMB.toFixed(2)}MB) exceeds memory limit. Attempting chunked processing.`
+        );
+
+        // Try to create chunks - may need buffer for page count, but can estimate from file size if buffer unavailable
+        let bufferForChunking: ArrayBuffer | undefined;
+        try {
+          // Try to load buffer for more accurate chunking (page count for PDFs)
+          bufferForChunking = await file.arrayBuffer();
+        } catch (bufferError) {
+          console.warn(
+            `[LibraryRAGService] Could not load buffer for chunking ${metadata.fileKey} (${fileSizeMB.toFixed(2)}MB), will estimate chunks from file size:`,
+            bufferError instanceof Error
+              ? bufferError.message
+              : String(bufferError)
+          );
+          // Continue without buffer - chunks will be estimated from file size
+        }
+
+        // Create chunks (will estimate from file size if buffer unavailable)
+        await this.chunkedProcessingService.createProcessingChunks(
+          metadata.fileKey,
+          metadata.userId,
+          metadata.filename,
+          metadata.contentType,
+          file.size || 0,
+          bufferForChunking
+        );
+
+        // Return explicit result indicating chunking started
+        return {
+          displayName: undefined,
+          description: "",
+          tags: [],
+          chunked: true,
+          // No vectorId - chunks will be processed separately
+        };
+      }
+
+      // Extract text based on file type
+      let extractionResult: any = null;
+
+      try {
+        // Load buffer if not already loaded (for files under memory limit)
+        if (!buffer) {
+          buffer = await file.arrayBuffer();
+        }
+        extractionResult = await this.extractionService.extractText(
+          buffer!,
+          metadata.contentType
+        );
+      } catch (memoryError) {
+        // Check if this is a memory limit error from Worker runtime
+        const memoryLimitError = MemoryLimitError.fromRuntimeError(
+          memoryError,
+          fileSizeMB,
+          MEMORY_LIMIT_MB,
+          metadata.fileKey,
+          metadata.filename
+        );
+
+        if (memoryLimitError) {
+          // File exceeds memory limit during processing - try chunked processing
+          console.log(
+            `[LibraryRAGService] Memory limit error during processing for file ${metadata.fileKey} (${fileSizeMB.toFixed(2)}MB). Attempting chunked processing.`
+          );
+
+          // Try to create chunks (will use buffer if available, otherwise estimate from file size)
+          try {
+            await this.chunkedProcessingService.createProcessingChunks(
+              metadata.fileKey,
+              metadata.userId,
+              metadata.filename,
+              metadata.contentType,
+              file.size || 0,
+              buffer // May be undefined if loading failed
+            );
+
+            // Return explicit result indicating chunking started
+            return {
+              displayName: undefined,
+              description: "",
+              tags: [],
+              chunked: true,
+              // No vectorId - chunks will be processed separately
+            };
+          } catch (chunkError) {
+            console.error(
+              `[LibraryRAGService] Failed to create chunks for ${metadata.fileKey}:`,
+              chunkError
+            );
+            // If chunking failed, re-throw the memory limit error
+            throw memoryLimitError;
+          }
+        }
+
+        // Check for structured MemoryLimitError from extraction service
+        if (memoryError instanceof MemoryLimitError) {
+          // Re-throw with file metadata included
+          throw new MemoryLimitError(
+            memoryError.fileSizeMB,
+            memoryError.memoryLimitMB,
+            metadata.fileKey,
+            metadata.filename,
+            memoryError.message
+          );
+        }
+        // For other errors during extraction, rethrow
+        throw memoryError;
+      }
+
+      if (
+        !extractionResult ||
+        !extractionResult.text ||
+        extractionResult.text.trim().length === 0
+      ) {
+        console.error(
+          `[LibraryRAGService] No text extracted from file: ${metadata.fileKey}. File may be corrupted, encrypted, or too large.`
+        );
+        throw new Error(
+          `No text could be extracted from file "${metadata.filename}". The file may be corrupted, encrypted, image-based, or too large to process.`
+        );
+      }
+
+      const text = extractionResult.text;
+
+      // Log page limitation if applicable
+      if (extractionResult.pagesExtracted && extractionResult.totalPages) {
+        if (extractionResult.pagesExtracted < extractionResult.totalPages) {
+          console.warn(
+            `[LibraryRAGService] File ${metadata.fileKey} processed with partial content: ${extractionResult.pagesExtracted}/${extractionResult.totalPages} pages extracted`
+          );
+        }
       }
 
       // Use AI for enhanced metadata generation if available
       let result: { displayName?: string; description: string; tags: string[] };
       try {
-        if (this.ai) {
+        if (this.env.AI) {
           // Generate semantic metadata using AI with file content
-          const semanticResult = await this.generateSemanticMetadata(
-            metadata.filename,
-            metadata.fileKey,
-            metadata.userId,
-            text
-          );
+          const semanticResult =
+            await this.metadataService.generateSemanticMetadata(
+              metadata.filename,
+              metadata.fileKey,
+              metadata.userId,
+              text
+            );
 
           if (semanticResult) {
             result = semanticResult;
@@ -97,7 +263,10 @@ export class LibraryRAGService extends BaseRAGService {
       }
 
       // Store embeddings for search
-      const vectorId = await this.storeEmbeddings(text, metadata.id);
+      const vectorId = await this.embeddingService.storeEmbeddings(
+        text,
+        metadata.id
+      );
 
       console.log(`[LibraryRAGService] Processed file:`, {
         fileKey: metadata.fileKey,
@@ -112,337 +281,30 @@ export class LibraryRAGService extends BaseRAGService {
         vectorId,
       };
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
       console.error(
         `[LibraryRAGService] Error processing file ${metadata.fileKey}:`,
-        error
+        errorMessage
       );
-      return {
-        displayName: undefined,
-        description: "",
-        tags: [],
-      };
-    }
-  }
-
-  private async extractText(
-    file: R2ObjectBody,
-    contentType: string
-  ): Promise<string | null> {
-    const buffer = await file.arrayBuffer();
-
-    if (contentType.includes("pdf")) {
-      return await this.extractFileText(buffer);
-    } else if (contentType.includes("text")) {
-      return new TextDecoder().decode(buffer);
-    } else if (contentType.includes("json")) {
-      const text = new TextDecoder().decode(buffer);
-      try {
-        const json = JSON.parse(text);
-        return JSON.stringify(json, null, 2);
-      } catch {
-        return text;
+      if (errorStack) {
+        console.error(`[LibraryRAGService] Error stack:`, errorStack);
       }
+      // Rethrow error so it can be properly handled upstream
+      throw error;
     }
-
-    return null;
-  }
-
-  private async extractFileText(buffer: ArrayBuffer): Promise<string> {
-    try {
-      // Use pdfjs-serverless for proper PDF extraction (designed for Workers)
-      // Load the PDF document
-      const pdf = await getDocument({
-        data: new Uint8Array(buffer),
-      }).promise;
-
-      const numPages = pdf.numPages;
-      console.log(`[LibraryRAGService] PDF has ${numPages} pages`);
-
-      const pageTexts: string[] = [];
-
-      // Extract text from each page
-      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-
-        // Combine all text items from the page
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(" ");
-
-        if (pageText.trim().length > 0) {
-          pageTexts.push(pageText);
-        }
-      }
-
-      // Join all pages with page breaks for context
-      const fullText = pageTexts
-        .map((text, index) => `[Page ${index + 1}]\n${text}`)
-        .join("\n\n");
-
-      return fullText || `File content extracted (${buffer.byteLength} bytes)`;
-    } catch (error) {
-      console.error("Error extracting PDF text:", error);
-      // Fallback to empty string if extraction fails
-      return "";
-    }
-  }
-
-  private async storeEmbeddings(
-    text: string,
-    metadataId: string
-  ): Promise<string> {
-    try {
-      if (!this.vectorize) {
-        throw new VectorizeIndexRequiredError();
-      }
-
-      // Generate embeddings using Cloudflare AI if available
-      let embeddings: number[];
-      if (this.env.AI) {
-        try {
-          // Use Cloudflare AI to generate embeddings
-          const embeddingResponse = await this.env.AI.run(
-            "@cf/baai/bge-base-en-v1.5",
-            {
-              text: text.substring(0, 4000),
-            }
-          );
-
-          // Parse the response - handle different response types
-          let responseText: string;
-          if (typeof embeddingResponse === "string") {
-            responseText = embeddingResponse;
-          } else if (
-            embeddingResponse &&
-            typeof embeddingResponse === "object" &&
-            "response" in embeddingResponse
-          ) {
-            responseText = (embeddingResponse as any).response;
-          } else {
-            responseText = JSON.stringify(embeddingResponse);
-          }
-
-          const parsedResponse = JSON.parse(responseText);
-          if (Array.isArray(parsedResponse)) {
-            embeddings = parsedResponse;
-          } else {
-            throw new InvalidEmbeddingResponseError();
-          }
-        } catch (error) {
-          console.warn(
-            `[LibraryRAGService] AI embedding failed, using fallback:`,
-            error
-          );
-          // Fallback to basic embedding generation
-          embeddings = this.generateBasicEmbeddings(text);
-        }
-      } else {
-        // Fallback to basic embedding generation
-        embeddings = this.generateBasicEmbeddings(text);
-      }
-
-      // Store in Vectorize with a vector ID that's guaranteed to be under 64 bytes
-      const vectorId = await this.generateVectorId(
-        metadataId,
-        Date.now().toString()
-      );
-      await this.vectorize.insert([
-        {
-          id: vectorId,
-          values: embeddings,
-          metadata: {
-            text: text.substring(0, 1000), // Store first 1000 chars as metadata
-            metadataId,
-            type: "pdf_content",
-            timestamp: new Date().toISOString(),
-          },
-        },
-      ]);
-
-      return vectorId;
-    } catch (error) {
-      console.error(`[LibraryRAGService] Error storing embeddings:`, error);
-      // Return a fallback vector ID that's also guaranteed to be under 64 bytes
-      try {
-        return await this.generateVectorId(metadataId, "fallback");
-      } catch (_hashError) {
-        // If even the hash generation fails, use a simple numeric hash
-        const numericHash = this.simpleHash(metadataId).toString(36);
-        return `v_${numericHash}`.substring(0, 63); // Ensure max 63 bytes
-      }
-    }
-  }
-
-  /**
-   * Generate basic embeddings as fallback
-   */
-  private generateBasicEmbeddings(text: string): number[] {
-    // Simple hash-based embedding generation for fallback
-    const hash = this.simpleHash(text);
-    const embeddings: number[] = [];
-
-    // Generate 1536-dimensional vector (matching OpenAI embeddings)
-    for (let i = 0; i < 1536; i++) {
-      const seed = hash + i;
-      embeddings.push((Math.sin(seed) + 1) / 2); // Normalize to [0, 1]
-    }
-
-    return embeddings;
-  }
-
-  /**
-   * Simple hash function for fallback embeddings
-   */
-  private simpleHash(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash);
-  }
-
-  /**
-   * Generate a Vectorize-compatible vector ID that is guaranteed to be under 64 bytes
-   * Uses SHA-256 hash to create a deterministic, short identifier
-   */
-  private async generateVectorId(
-    metadataId: string,
-    suffix?: string
-  ): Promise<string> {
-    // Create a hash of the metadataId to ensure uniqueness while keeping it short
-    const hashBuffer = await crypto.subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(metadataId + (suffix || ""))
-    );
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-
-    // Use first 48 characters of hash (48 bytes) + "v_" prefix (2 bytes) = 50 bytes total
-    // This leaves room for any additional suffix if needed
-    const shortHash = hashHex.substring(0, 48);
-    return `v_${shortHash}`;
   }
 
   async searchFiles(query: SearchQuery): Promise<SearchResult[]> {
-    const {
-      query: searchQuery,
-      userId,
-      limit = 20,
-      offset = 0,
-      includeSemantic = true,
-    } = query;
-
-    try {
-      const fileDAO = getDAOFactory(this.env).fileDAO;
-
-      // Get all files for the user
-      const files = await fileDAO.getFilesForRag(userId);
-
-      // Debug: Log the raw file data
-      console.log(`[LibraryRAGService] Raw files from database:`, files);
-
-      // Filter files based on search query
-      let filteredFiles = files;
-      if (searchQuery.trim()) {
-        const searchLower = searchQuery.toLowerCase();
-        filteredFiles = files.filter((file: any) => {
-          const filename = (file.file_name || "").toLowerCase();
-          const description = (file.description || "").toLowerCase();
-          const tags = (file.tags || "[]").toLowerCase();
-
-          return (
-            filename.includes(searchLower) ||
-            description.includes(searchLower) ||
-            tags.includes(searchLower)
-          );
-        });
-      }
-
-      // Apply pagination
-      const paginatedFiles = filteredFiles.slice(offset, offset + limit);
-
-      const searchResults: SearchResult[] = paginatedFiles.map((file: any) => {
-        // Debug: Log each file being mapped
-        console.log(`[LibraryRAGService] Mapping file:`, {
-          id: file.id,
-          file_key: file.file_key,
-          file_name: file.file_name,
-          description: file.description,
-          tags: file.tags,
-          file_size: file.file_size,
-          created_at: file.created_at,
-        });
-
-        return {
-          id: file.id,
-          file_key: file.file_key,
-          file_name: file.file_name,
-          description: file.description,
-          tags: JSON.parse(file.tags || "[]"),
-          file_size: file.file_size,
-          created_at: file.created_at,
-          status: file.status,
-        };
-      });
-
-      // NOTE: Currently uses keyword-based search. Future enhancement:
-      // Implement semantic search using vector embeddings for better
-      // relevance matching, especially for similar content.
-      if (includeSemantic && searchQuery.trim()) {
-        // This would use the vector database for semantic search
-        console.log(
-          `[LibraryRAGService] Semantic search not yet implemented for query: ${searchQuery}`
-        );
-      }
-
-      console.log(`[LibraryRAGService] Search results:`, {
-        query: searchQuery,
-        userId,
-        resultsCount: searchResults.length,
-      });
-
-      return searchResults;
-    } catch (error) {
-      console.error(`[LibraryRAGService] Search error:`, error);
-      return [];
-    }
+    return this.searchService.searchFiles(query);
   }
 
   async getFileMetadata(
     fileKey: string,
     username: string
   ): Promise<FileMetadata | null> {
-    try {
-      const fileDAO = getDAOFactory(this.env).fileDAO;
-      const result = await fileDAO.getFileForRag(fileKey, username);
-
-      if (!result) {
-        return null;
-      }
-
-      return {
-        id: result.id as string,
-        fileKey: result.file_key as string,
-        userId: result.username as string,
-        filename: result.file_name as string,
-        fileSize: result.file_size as number,
-        contentType: "application/pdf", // Default since column doesn't exist
-        description: result.description as string | undefined,
-        tags: JSON.parse((result.tags as string) || "[]"),
-        status: result.status as string,
-        createdAt: result.created_at as string,
-        updatedAt: result.updated_at as string,
-        vectorId: undefined, // Column doesn't exist
-      };
-    } catch (error) {
-      console.error(`[LibraryRAGService] Error getting file metadata:`, error);
-      return null;
-    }
+    return this.fileMetadataService.getFileMetadata(fileKey, username);
   }
 
   async updateFileMetadata(
@@ -450,245 +312,11 @@ export class LibraryRAGService extends BaseRAGService {
     userId: string,
     updates: Partial<FileMetadata>
   ): Promise<boolean> {
-    try {
-      const fileDAO = getDAOFactory(this.env).fileDAO;
-
-      // Get the file to find the file_key
-      const file = await fileDAO.getFileForRag(fileId, userId);
-      if (!file) {
-        console.error(`[LibraryRAGService] File not found for update:`, {
-          fileId,
-          userId,
-        });
-        return false;
-      }
-
-      // Update description and tags if provided
-      if (updates.description !== undefined || updates.tags !== undefined) {
-        await fileDAO.updateFileMetadataForRag(
-          file.file_key,
-          userId,
-          updates.description || file.description || "",
-          updates.tags ? JSON.stringify(updates.tags) : file.tags || "[]"
-        );
-      }
-
-      // Update status if provided
-      if (updates.status !== undefined) {
-        await fileDAO.updateFileRecord(file.file_key, updates.status);
-      }
-
-      console.log(`[LibraryRAGService] Updated file metadata:`, {
-        fileId,
-        updates,
-      });
-      return true;
-    } catch (error) {
-      console.error(`[LibraryRAGService] Error updating file metadata:`, error);
-      return false;
-    }
-  }
-
-  async generateSemanticMetadata(
-    fileName: string,
-    fileKey: string,
-    username: string,
-    fileContent: string
-  ): Promise<
-    { displayName: string; description: string; tags: string[] } | undefined
-  > {
-    try {
-      console.log(
-        `[LibraryRAGService] Starting semantic metadata generation for ${fileName}`
-      );
-
-      // Check if AI binding is available
-      if (!this.ai) {
-        console.warn(
-          "[LibraryRAGService] AI binding not available for semantic metadata generation"
-        );
-        return undefined;
-      }
-
-      console.log(
-        `[LibraryRAGService] AI binding available, proceeding with semantic analysis`
-      );
-
-      // If no file content provided, analyze filename only
-      if (!fileContent || fileContent.trim().length === 0) {
-        console.warn(
-          `[LibraryRAGService] No file content provided for ${fileName}, analyzing filename only`
-        );
-        fileContent = "";
-      }
-
-      // Chunk content to respect token limits
-      // Token estimation: ~4 characters per token for English text
-      // We need to account for:
-      // - System prompt: ~3,000 tokens
-      // - Max response: ~16,384 tokens
-      // - Content: 30,000 - 3,000 - 16,384 = ~10,616 tokens = ~42,000 characters
-      const CHARS_PER_TOKEN = 4;
-      const PROMPT_TOKENS_ESTIMATE = 3000;
-      const MAX_RESPONSE_TOKENS = 16384;
-      const TPM_LIMIT = 30000;
-      const MAX_CONTENT_TOKENS =
-        TPM_LIMIT - PROMPT_TOKENS_ESTIMATE - MAX_RESPONSE_TOKENS;
-      const MAX_CHUNK_SIZE = Math.floor(MAX_CONTENT_TOKENS * CHARS_PER_TOKEN); // ~42k characters
-
-      const isPDF = fileContent.includes("[Page");
-      const chunks =
-        fileContent.length > MAX_CHUNK_SIZE
-          ? isPDF
-            ? chunkTextByPages(fileContent, MAX_CHUNK_SIZE)
-            : chunkTextByCharacterCount(fileContent, MAX_CHUNK_SIZE)
-          : [fileContent];
-
-      console.log(
-        `[LibraryRAGService] Processing ${chunks.length} chunk(s) for metadata generation (max chunk size: ${MAX_CHUNK_SIZE} chars)`
-      );
-
-      // Process chunks and merge results
-      const allTags: Set<string> = new Set();
-      const allDescriptions: string[] = [];
-      const allDisplayNames: string[] = [];
-
-      const CHUNK_PROCESSING_DELAY_MS = chunks.length > 1 ? 2000 : 0;
-
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        const chunkPreview = chunk.substring(0, Math.min(1000, chunk.length));
-
-        const semanticPrompt = `
-Analyze this document and generate meaningful metadata.
-
-Document filename: ${fileName}
-File key: ${fileKey}
-Username: ${username}
-
-${fileContent.length > 0 ? `Document content preview:\n${chunkPreview}\n\n` : ""}
-${fileContent.length > 0 && chunks.length > 1 ? `Note: This is chunk ${i + 1} of ${chunks.length}.\n` : ""}
-
-Based on ${fileContent.length > 0 ? "the document content" : "the filename"}, generate:
-1. A clean, user-friendly display name (e.g., "Player's Handbook" instead of "players_handbook_v3.2_final.pdf")
-2. A short description (1-2 sentences) of what this document contains
-3. Relevant tags that describe topics, themes, or content type
-
-Please provide the response in this exact JSON format:
-{
-  "displayName": "User-friendly display name",
-  "description": "Short description of the document",
-  "tags": ["tag1", "tag2", "tag3"]
-}
-`;
-
-        try {
-          if (i > 0) {
-            await new Promise((resolve) =>
-              setTimeout(resolve, CHUNK_PROCESSING_DELAY_MS)
-            );
-          }
-
-          console.log(
-            `[LibraryRAGService] Processing chunk ${i + 1}/${chunks.length} for metadata generation`
-          );
-
-          const response = await this.ai.run(LLM_MODEL, {
-            messages: [
-              {
-                role: "user",
-                content: semanticPrompt,
-              },
-            ],
-            max_tokens: MAX_RESPONSE_TOKENS,
-          });
-
-          let responseText: string;
-          if (typeof response === "string") {
-            responseText = response;
-          } else if (
-            response &&
-            typeof response === "object" &&
-            "response" in response
-          ) {
-            responseText = (response as any).response;
-          } else if (
-            response &&
-            typeof response === "object" &&
-            "content" in response
-          ) {
-            responseText = Array.isArray((response as any).content)
-              ? (response as any).content
-                  .map((c: any) => c.text || c)
-                  .join("\n")
-              : JSON.stringify(response);
-          } else {
-            responseText = JSON.stringify(response);
-          }
-
-          // Try to extract JSON from the response
-          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            try {
-              const parsed = JSON.parse(jsonMatch[0]);
-              if (parsed.displayName) allDisplayNames.push(parsed.displayName);
-              if (parsed.description) allDescriptions.push(parsed.description);
-              if (Array.isArray(parsed.tags)) {
-                for (const tag of parsed.tags) {
-                  allTags.add(tag);
-                }
-              }
-            } catch (parseError) {
-              console.warn(
-                `[LibraryRAGService] Failed to parse JSON from chunk ${i + 1}:`,
-                parseError
-              );
-            }
-          }
-        } catch (error) {
-          console.error(
-            `[LibraryRAGService] Error processing chunk ${i + 1}:`,
-            error
-          );
-          // Continue with other chunks even if one fails
-        }
-      }
-
-      // Merge results from all chunks
-      const finalDisplayName =
-        allDisplayNames.length > 0 ? allDisplayNames[0] : undefined;
-      const finalDescription =
-        allDescriptions.length > 0
-          ? allDescriptions.join(" ").substring(0, 500)
-          : undefined;
-      const finalTags = Array.from(allTags);
-
-      if (finalDisplayName || finalDescription || finalTags.length > 0) {
-        return {
-          displayName: finalDisplayName || fileName.replace(/\.[^/.]+$/, ""),
-          description: finalDescription || "",
-          tags: finalTags,
-        };
-      }
-
-      return undefined;
-    } catch (error) {
-      console.error(
-        `[LibraryRAGService] Error in generateSemanticMetadata:`,
-        error
-      );
-      return undefined;
-    }
+    return this.fileMetadataService.updateFileMetadata(fileId, userId, updates);
   }
 
   async getUserFiles(username: string): Promise<any[]> {
-    try {
-      const fileDAO = getDAOFactory(this.env).fileDAO;
-      return await fileDAO.getFilesForRag(username);
-    } catch (error) {
-      console.error(`[LibraryRAGService] Error getting user files:`, error);
-      return [];
-    }
+    return this.fileMetadataService.getUserFiles(username);
   }
 
   async searchContent(
@@ -696,167 +324,7 @@ Please provide the response in this exact JSON format:
     query: string,
     _limit: number = 10
   ): Promise<any[]> {
-    try {
-      console.log(`[LibraryRAGService] Searching content with query: ${query}`);
-
-      // Use Cloudflare AI binding for content generation
-      if (this.env.AI) {
-        try {
-          console.log(
-            `[LibraryRAGService] Using Cloudflare AI for content generation`
-          );
-
-          // Generate structured content using AI - break into multiple focused queries
-          const contentTypes = [
-            "monsters",
-            "npcs",
-            "spells",
-            "items",
-            "traps",
-            "hazards",
-            "conditions",
-            "vehicles",
-            "env_effects",
-            "hooks",
-            "plot_lines",
-            "quests",
-            "scenes",
-            "locations",
-            "lairs",
-            "factions",
-            "deities",
-            "backgrounds",
-            "feats",
-            "subclasses",
-            "rules",
-            "downtime",
-            "tables",
-            "encounter_tables",
-            "treasure_tables",
-            "maps",
-            "handouts",
-            "puzzles",
-            "timelines",
-            "travel",
-          ];
-
-          const allResults: any[] = [];
-
-          // Query each content type individually to avoid truncation
-          for (const contentType of contentTypes) {
-            try {
-              console.log(`[LibraryRAGService] Querying for ${contentType}...`);
-
-              const typeSpecificPrompt =
-                RPG_EXTRACTION_PROMPTS.getTypeSpecificExtractionPrompt(
-                  contentType
-                );
-
-              const aiResponse = await this.env.AI.run(LLM_MODEL, {
-                messages: [
-                  {
-                    role: "system",
-                    content: typeSpecificPrompt,
-                  },
-                  {
-                    role: "user",
-                    content: query,
-                  },
-                ],
-                max_tokens: 2000,
-                temperature: 0.1,
-              });
-
-              // Parse the AI response for this content type
-              const responseText = aiResponse.response as string;
-              console.log(
-                `[LibraryRAGService] ${contentType} response: ${responseText.substring(0, 200)}...`
-              );
-
-              // Clean up the response - remove markdown formatting if present
-              let cleanResponse = responseText;
-              if (responseText.includes("```json")) {
-                cleanResponse = responseText
-                  .replace(/```json\n?/g, "")
-                  .replace(/```\n?/g, "")
-                  .trim();
-              } else if (responseText.includes("```")) {
-                cleanResponse = responseText.replace(/```\n?/g, "").trim();
-              }
-
-              // Extract only the JSON part
-              const jsonMatch = cleanResponse.match(/\{[\s\S]*\}/);
-              if (jsonMatch) {
-                cleanResponse = jsonMatch[0];
-              }
-
-              try {
-                const parsedContent = JSON.parse(cleanResponse);
-                if (
-                  parsedContent[contentType] &&
-                  Array.isArray(parsedContent[contentType])
-                ) {
-                  // Convert to search result format
-                  parsedContent[contentType].forEach(
-                    (item: any, index: number) => {
-                      if (item && typeof item === "object") {
-                        allResults.push({
-                          id:
-                            item.id || `${contentType}_${index}_${Date.now()}`,
-                          score: 0.9 - index * 0.01,
-                          metadata: {
-                            entityType: contentType,
-                            ...item,
-                          },
-                          text:
-                            item.summary ||
-                            item.description ||
-                            item.name ||
-                            JSON.stringify(item),
-                        });
-                      }
-                    }
-                  );
-                  console.log(
-                    `[LibraryRAGService] Extracted ${parsedContent[contentType].length} ${contentType}`
-                  );
-                }
-              } catch (parseError) {
-                console.warn(
-                  `[LibraryRAGService] Failed to parse ${contentType} response:`,
-                  parseError
-                );
-                // Continue with other content types
-              }
-            } catch (typeError) {
-              console.warn(
-                `[LibraryRAGService] Error querying ${contentType}:`,
-                typeError
-              );
-              // Continue with other content types
-            }
-          }
-
-          console.log(
-            `[LibraryRAGService] Generated ${allResults.length} total structured content items`
-          );
-          return allResults;
-        } catch (aiError) {
-          console.warn(`[LibraryRAGService] AI generation failed:`, aiError);
-          // Return empty results if AI fails
-          return [];
-        }
-      } else {
-        // No AI binding available, return empty results
-        console.warn(
-          `[LibraryRAGService] No AI binding available for content generation`
-        );
-        return [];
-      }
-    } catch (error) {
-      console.error(`[LibraryRAGService] Search error:`, error);
-      return [];
-    }
+    return this.contentSearchService.searchContent(query);
   }
 
   /**
@@ -890,28 +358,38 @@ Please provide the response in this exact JSON format:
       }
 
       // Extract text based on file type
-      const text = await this.extractText(file, "application/pdf");
+      const buffer = await file.arrayBuffer();
+      const extractionResult = await this.extractionService.extractText(
+        buffer,
+        "application/pdf"
+      );
 
-      if (!text) {
+      if (!extractionResult || !extractionResult.text) {
         console.log(
           `[LibraryRAGService] No text extracted from file: ${fileKey}`
         );
         return {};
       }
 
+      const text = extractionResult.text;
+
       // Generate semantic metadata using AI
-      const semanticResult = await this.generateSemanticMetadata(
-        metadata.filename || fileKey,
-        fileKey,
-        username,
-        text
-      );
+      const semanticResult =
+        await this.metadataService.generateSemanticMetadata(
+          metadata.filename || fileKey,
+          fileKey,
+          username,
+          text
+        );
 
       // Store embeddings in Vectorize if available
       let vectorId: string | undefined;
       if (this.vectorize && text) {
         try {
-          vectorId = await this.storeEmbeddings(text, metadata.id || fileKey);
+          vectorId = await this.embeddingService.storeEmbeddings(
+            text,
+            metadata.id || fileKey
+          );
           console.log(
             `[LibraryRAGService] Stored embeddings for ${fileKey} with vector ID: ${vectorId}`
           );

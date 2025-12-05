@@ -188,12 +188,14 @@ export class FileDAO extends BaseDAOClass {
     const timeoutDate = new Date(Date.now() - timeoutMinutes * 60 * 1000);
     const sql = `
       SELECT * FROM file_metadata 
-      WHERE status IN (?, ?) AND updated_at < ?
+      WHERE status IN (?, ?, ?, ?) AND updated_at < ?
       ORDER BY updated_at ASC
     `;
     return this.queryAndParseMultipleFileMetadata(sql, [
       FileDAO.STATUS.PROCESSING,
       FileDAO.STATUS.SYNCING,
+      FileDAO.STATUS.INDEXING,
+      FileDAO.STATUS.UPLOADED,
       timeoutDate.toISOString(),
     ]);
   }
@@ -638,6 +640,62 @@ export class FileDAO extends BaseDAOClass {
     await this.execute(sql, params);
   }
 
+  /**
+   * Update file record with error status and error code
+   * Used to mark files with specific error types (e.g., MEMORY_LIMIT_EXCEEDED)
+   * to prevent infinite retries
+   */
+  async updateFileRecordWithError(
+    fileKey: string,
+    status: string,
+    errorCode: string,
+    errorMessage?: string
+  ): Promise<void> {
+    // Store error code and message in processing_error field as JSON
+    const errorData = {
+      code: errorCode,
+      message: errorMessage || null,
+      timestamp: new Date().toISOString(),
+    };
+
+    const sql = `
+      UPDATE file_metadata 
+      SET status = ?, processing_error = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE file_key = ?
+    `;
+    await this.execute(sql, [status, JSON.stringify(errorData), fileKey]);
+  }
+
+  /**
+   * Get processing error code for a file (if any)
+   */
+  async getProcessingError(fileKey: string): Promise<{
+    code?: string;
+    message?: string;
+    timestamp?: string;
+  } | null> {
+    const sql = `
+      SELECT processing_error
+      FROM file_metadata
+      WHERE file_key = ?
+    `;
+    const result = await this.queryAll<{ processing_error: string | null }>(
+      sql,
+      [fileKey]
+    );
+
+    if (!result || !result[0] || !result[0].processing_error) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(result[0].processing_error);
+    } catch {
+      // If parsing fails, return null
+      return null;
+    }
+  }
+
   async updateFileMetadataForRag(
     fileKey: string,
     username: string,
@@ -670,7 +728,7 @@ export class FileDAO extends BaseDAOClass {
 
   async getFilesForRag(username: string): Promise<any[]> {
     const sql = `
-      SELECT file_key, file_name, display_name, description, tags, status, created_at, file_size 
+      SELECT file_key, file_name, display_name, description, tags, status, created_at, file_size, updated_at, processing_error
       FROM file_metadata 
       WHERE username = ? 
       ORDER BY created_at DESC
@@ -1025,5 +1083,242 @@ export class FileDAO extends BaseDAOClass {
       WHERE file_key = ?
     `;
     await this.execute(sql, [retryCount, fileKey]);
+  }
+
+  /**
+   * Get all unique usernames that have pending queue items
+   */
+  async getUsernamesWithPendingQueueItems(): Promise<string[]> {
+    const sql = `
+      SELECT DISTINCT username 
+      FROM sync_queue 
+      WHERE status = 'pending'
+    `;
+    const results = await this.queryAll(sql, []);
+    return results.map((row: any) => row.username);
+  }
+
+  /**
+   * Create a file processing chunk
+   */
+  async createFileProcessingChunk(chunk: {
+    id: string;
+    fileKey: string;
+    username: string;
+    chunkIndex: number;
+    totalChunks: number;
+    pageRangeStart?: number;
+    pageRangeEnd?: number;
+    byteRangeStart?: number;
+    byteRangeEnd?: number;
+  }): Promise<void> {
+    const sql = `
+      INSERT INTO file_processing_chunks (
+        id, file_key, username, chunk_index, total_chunks,
+        page_range_start, page_range_end, byte_range_start, byte_range_end,
+        status, retry_count, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, datetime('now'), datetime('now'))
+    `;
+    await this.execute(sql, [
+      chunk.id,
+      chunk.fileKey,
+      chunk.username,
+      chunk.chunkIndex,
+      chunk.totalChunks,
+      chunk.pageRangeStart || null,
+      chunk.pageRangeEnd || null,
+      chunk.byteRangeStart || null,
+      chunk.byteRangeEnd || null,
+    ]);
+  }
+
+  /**
+   * Get all processing chunks for a file
+   */
+  async getFileProcessingChunks(fileKey: string): Promise<
+    Array<{
+      id: string;
+      fileKey: string;
+      username: string;
+      chunkIndex: number;
+      totalChunks: number;
+      pageRangeStart?: number;
+      pageRangeEnd?: number;
+      byteRangeStart?: number;
+      byteRangeEnd?: number;
+      status: string;
+      vectorId?: string;
+      errorMessage?: string;
+      retryCount: number;
+      createdAt: string;
+      processedAt?: string;
+      updatedAt?: string;
+    }>
+  > {
+    const sql = `
+      SELECT * FROM file_processing_chunks
+      WHERE file_key = ?
+      ORDER BY chunk_index ASC
+    `;
+    const rows = await this.queryAll(sql, [fileKey]);
+    return rows.map((row: any) => ({
+      id: row.id,
+      fileKey: row.file_key,
+      username: row.username,
+      chunkIndex: row.chunk_index,
+      totalChunks: row.total_chunks,
+      pageRangeStart: row.page_range_start ?? undefined,
+      pageRangeEnd: row.page_range_end ?? undefined,
+      byteRangeStart: row.byte_range_start ?? undefined,
+      byteRangeEnd: row.byte_range_end ?? undefined,
+      status: row.status,
+      vectorId: row.vector_id ?? undefined,
+      errorMessage: row.error_message ?? undefined,
+      retryCount: row.retry_count,
+      createdAt: row.created_at,
+      processedAt: row.processed_at ?? undefined,
+      updatedAt: row.updated_at ?? undefined,
+    }));
+  }
+
+  /**
+   * Update a file processing chunk
+   */
+  async updateFileProcessingChunk(
+    chunkId: string,
+    updates: {
+      status?: string;
+      vectorId?: string;
+      errorMessage?: string;
+      retryCount?: number;
+    }
+  ): Promise<void> {
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.status !== undefined) {
+      fields.push("status = ?");
+      values.push(updates.status);
+    }
+    if (updates.vectorId !== undefined) {
+      fields.push("vector_id = ?");
+      values.push(updates.vectorId);
+    }
+    if (updates.errorMessage !== undefined) {
+      fields.push("error_message = ?");
+      values.push(updates.errorMessage);
+    }
+    if (updates.retryCount !== undefined) {
+      fields.push("retry_count = ?");
+      values.push(updates.retryCount);
+    }
+
+    if (fields.length === 0) {
+      return;
+    }
+
+    fields.push("updated_at = datetime('now')");
+    values.push(chunkId);
+
+    const sql = `UPDATE file_processing_chunks SET ${fields.join(", ")} WHERE id = ?`;
+    await this.execute(sql, values);
+  }
+
+  /**
+   * Mark a file processing chunk as completed
+   */
+  async markFileChunkComplete(
+    chunkId: string,
+    vectorId: string
+  ): Promise<void> {
+    const sql = `
+      UPDATE file_processing_chunks
+      SET status = 'completed', vector_id = ?, processed_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ?
+    `;
+    await this.execute(sql, [vectorId, chunkId]);
+  }
+
+  /**
+   * Get pending file chunks for processing
+   */
+  async getPendingFileChunks(username?: string): Promise<
+    Array<{
+      id: string;
+      fileKey: string;
+      username: string;
+      chunkIndex: number;
+      totalChunks: number;
+      pageRangeStart?: number;
+      pageRangeEnd?: number;
+      byteRangeStart?: number;
+      byteRangeEnd?: number;
+      retryCount: number;
+    }>
+  > {
+    let sql = `
+      SELECT * FROM file_processing_chunks
+      WHERE status = 'pending'
+    `;
+    const params: any[] = [];
+
+    if (username) {
+      sql += " AND username = ?";
+      params.push(username);
+    }
+
+    sql += " ORDER BY created_at ASC";
+
+    const rows = await this.queryAll(sql, params);
+    return rows.map((row: any) => ({
+      id: row.id,
+      fileKey: row.file_key,
+      username: row.username,
+      chunkIndex: row.chunk_index,
+      totalChunks: row.total_chunks,
+      pageRangeStart: row.page_range_start ?? undefined,
+      pageRangeEnd: row.page_range_end ?? undefined,
+      byteRangeStart: row.byte_range_start ?? undefined,
+      byteRangeEnd: row.byte_range_end ?? undefined,
+      retryCount: row.retry_count,
+    }));
+  }
+
+  /**
+   * Get chunk completion statistics for a file
+   */
+  async getFileChunkStats(fileKey: string): Promise<{
+    total: number;
+    completed: number;
+    failed: number;
+    pending: number;
+    processing: number;
+  }> {
+    const sql = `
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing
+      FROM file_processing_chunks
+      WHERE file_key = ?
+    `;
+    const result = await this.queryFirst(sql, [fileKey]);
+    return {
+      total: result?.total || 0,
+      completed: result?.completed || 0,
+      failed: result?.failed || 0,
+      pending: result?.pending || 0,
+      processing: result?.processing || 0,
+    };
+  }
+
+  /**
+   * Delete all chunks for a file (cleanup)
+   */
+  async deleteFileProcessingChunks(fileKey: string): Promise<void> {
+    const sql = `DELETE FROM file_processing_chunks WHERE file_key = ?`;
+    await this.execute(sql, [fileKey]);
   }
 }

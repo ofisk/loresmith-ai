@@ -115,17 +115,53 @@ export function ResourceFileDetails({
       )}
 
       <div className="mt-4 space-y-2">
-        {(file.status === FileDAO.STATUS.UNINDEXED ||
-          file.status === FileDAO.STATUS.ERROR) && (
-          <Button
-            onClick={handleRetryIndexing}
-            variant="secondary"
-            size="sm"
-            className="w-full !text-orange-600 dark:!text-orange-400 hover:!text-orange-700 dark:hover:!text-orange-300 border-orange-200 dark:border-orange-700 hover:border-orange-300 dark:hover:border-orange-600"
-          >
-            Retry Indexing
-          </Button>
-        )}
+        {/* Check if file has memory limit error */}
+        {(() => {
+          let isMemoryLimitError = false;
+          if (file.processing_error) {
+            try {
+              const errorData = JSON.parse(file.processing_error);
+              isMemoryLimitError = errorData.code === "MEMORY_LIMIT_EXCEEDED";
+            } catch {
+              // If parsing fails, ignore
+            }
+          }
+
+          return (
+            (file.status === FileDAO.STATUS.UNINDEXED ||
+              file.status === FileDAO.STATUS.ERROR) &&
+            !isMemoryLimitError && (
+              <Button
+                onClick={handleRetryIndexing}
+                variant="secondary"
+                size="sm"
+                className="w-full !text-orange-600 dark:!text-orange-400 hover:!text-orange-700 dark:hover:!text-orange-300 border-orange-200 dark:border-orange-700 hover:border-orange-300 dark:hover:border-orange-600"
+              >
+                Retry Indexing
+              </Button>
+            )
+          );
+        })()}
+        {file.processing_error &&
+          (() => {
+            try {
+              const errorData = JSON.parse(file.processing_error);
+              if (errorData.code === "MEMORY_LIMIT_EXCEEDED") {
+                return (
+                  <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-sm text-yellow-800 dark:text-yellow-200">
+                    <p className="font-medium mb-1">⚠️ File Too Large</p>
+                    <p className="text-xs">
+                      {errorData.message ||
+                        "This file exceeds the 128MB memory limit. Please split the file into smaller parts or use a file under 128MB."}
+                    </p>
+                  </div>
+                );
+              }
+            } catch {
+              // If parsing fails, ignore
+            }
+            return null;
+          })()}
         <Button
           onClick={() => {
             onAddToCampaign?.(file);

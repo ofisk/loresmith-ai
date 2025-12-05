@@ -58,6 +58,21 @@ export async function processFile(
 
     scopedLog.debug("File processing initiated", { result });
 
+    // If file was queued, that's a success - processing will happen in background
+    if (result.queued) {
+      scopedLog.debug("File queued for background processing", { filename });
+      // Status is already set to SYNCING in processFileUpload
+      // Queue processing is triggered automatically in the background
+      return;
+    }
+
+    // Only send completion notifications if processing succeeded
+    if (!result.success) {
+      throw new Error(
+        result.error || result.message || "File processing failed"
+      );
+    }
+
     // Force SYNCING state for UI responsiveness
     await markFileAsSyncing(env, fileKey, userId, filename, fileDAO, scopedLog);
 
@@ -186,8 +201,40 @@ async function handleProcessingError(
   scopedLog: ScopedLogger
 ): Promise<void> {
   const fileDAO = getDAOFactory(env).fileDAO;
+  const { MemoryLimitError } = await import("@/lib/errors");
+  const { notifyFileIndexingStatus } = await import("@/lib/notifications");
 
-  // Update file status to ERROR
+  // Check if this is a memory limit error
+  if (MemoryLimitError.isMemoryLimitError(error)) {
+    // Store error code to prevent retries
+    await fileDAO.updateFileRecordWithError(
+      fileKey,
+      FileDAO.STATUS.ERROR,
+      error.errorCode,
+      error.message
+    );
+    scopedLog.debug("File marked as ERROR with memory limit error code");
+
+    // Send user-friendly notification about memory limit
+    await notifyFileIndexingStatus(
+      env,
+      userId,
+      fileKey,
+      filename,
+      FileDAO.STATUS.ERROR,
+      {
+        visibility: "both",
+        userMessage: `⚠️ "${filename}" (${error.fileSizeMB.toFixed(2)}MB) is too large to process. Cloudflare Workers have a ${error.memoryLimitMB}MB memory limit. Please split the file into smaller parts or use a file under ${error.memoryLimitMB}MB.`,
+        reason: error.errorCode,
+      }
+    ).catch((notifyError) => {
+      scopedLog.error("Memory limit notification failed", notifyError);
+    });
+
+    return;
+  }
+
+  // For other errors, mark as error without error code (retryable)
   await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.ERROR);
   scopedLog.debug("File status updated to ERROR");
 
@@ -206,12 +253,12 @@ async function handleProcessingError(
     scopedLog.error("Error status notification failed", notifyError);
   });
 
-  notifyIndexingFailed(
-    env,
-    userId,
-    filename,
-    error instanceof Error ? error.message : String(error)
-  ).catch((notifyError) => {
+  // Log technical error for debugging
+  const technicalError = error instanceof Error ? error.message : String(error);
+  scopedLog.error("File processing technical error", { error: technicalError });
+
+  // Send user-friendly notification without technical details
+  notifyIndexingFailed(env, userId, filename).catch((notifyError) => {
     scopedLog.error("Indexing failed notification failed", notifyError);
   });
 }

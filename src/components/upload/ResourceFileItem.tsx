@@ -132,6 +132,7 @@ export function ResourceFileItem({
                 fileKey={file.file_key}
                 fileName={file.file_name}
                 fileSize={file.file_size}
+                processingError={file.processing_error}
                 onRetry={onRetryFile}
                 className="flex-shrink-0"
               />

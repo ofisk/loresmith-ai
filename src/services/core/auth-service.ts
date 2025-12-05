@@ -6,6 +6,7 @@ import { getEnvVar } from "@/lib/env-utils";
 import { getAuthService } from "@/lib/service-factory";
 import type { Env } from "@/middleware/auth";
 import { logger } from "@/lib/logger";
+import { extractJwtFromHeader } from "@/lib/auth-utils";
 
 export interface AuthPayload extends JWTPayload {
   type: "user-auth";
@@ -161,12 +162,12 @@ export class AuthService {
   async extractAuthFromHeader(
     authHeader: string | null | undefined
   ): Promise<AuthPayload | null> {
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    const token = extractJwtFromHeader(authHeader);
+    if (!token) {
       return null;
     }
 
     try {
-      const token = authHeader.substring(7);
       const secret = await this.getJwtSecret();
       const { payload } = await jwtVerify(token, secret);
 

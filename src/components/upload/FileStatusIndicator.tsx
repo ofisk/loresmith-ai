@@ -20,6 +20,7 @@ interface FileStatusIndicatorProps {
   fileKey?: string;
   fileName?: string;
   fileSize?: number;
+  processingError?: string; // JSON string containing error code and metadata
   onRetry?: (fileKey: string, fileName: string) => void;
 }
 
@@ -32,6 +33,7 @@ export function FileStatusIndicator({
   fileKey,
   fileName,
   fileSize,
+  processingError,
   onRetry,
 }: FileStatusIndicatorProps) {
   // No local error timeout; rely on SSE-driven updates and server state
@@ -48,6 +50,13 @@ export function FileStatusIndicator({
   // Determine what to show based on status
   const statusConfig = {
     [FileDAO.STATUS.ERROR]: {
+      icon: XCircle,
+      color: "text-red-500",
+      text: "Failed",
+      title: "Processing failed",
+      spinning: false,
+    },
+    failed: {
       icon: XCircle,
       color: "text-red-500",
       text: "Failed",
@@ -109,13 +118,33 @@ export function FileStatusIndicator({
     },
   };
 
+  // Parse processing error if present
+  let errorCode: string | null = null;
+  let errorMessage: string | null = null;
+  if (processingError) {
+    try {
+      const errorData = JSON.parse(processingError);
+      errorCode = errorData.code || null;
+      errorMessage = errorData.message || null;
+    } catch {
+      // If parsing fails, ignore
+    }
+  }
+
+  const isMemoryLimitError = errorCode === "MEMORY_LIMIT_EXCEEDED";
+
   // Get current status
   let currentStatus: keyof typeof statusConfig;
   // Fall back to initial status
   if (initialStatus === FileDAO.STATUS.COMPLETED) {
     currentStatus = FileDAO.STATUS.COMPLETED;
-  } else if (initialStatus === FileDAO.STATUS.ERROR) {
-    currentStatus = FileDAO.STATUS.ERROR;
+  } else if (
+    initialStatus === FileDAO.STATUS.ERROR ||
+    initialStatus === "failed"
+  ) {
+    // Treat "failed" status the same as "error" for display and retry purposes
+    currentStatus =
+      initialStatus === FileDAO.STATUS.ERROR ? FileDAO.STATUS.ERROR : "failed";
   } else if (initialStatus === FileDAO.STATUS.UNINDEXED) {
     currentStatus = FileDAO.STATUS.UNINDEXED;
   } else {
@@ -125,9 +154,27 @@ export function FileStatusIndicator({
   const config = statusConfig[currentStatus];
   const IconComponent = config.icon;
 
+  // Override title for memory limit errors
+  const statusTitle = isMemoryLimitError
+    ? errorMessage ||
+      "File is too large to process. Please split the file into smaller parts or use a file under 128MB."
+    : config.title;
+
   const handleRetry = useCallback(() => {
+    console.log(
+      `[FileStatusIndicator] Retry button clicked for: ${fileName} (${fileKey})`
+    );
     if (fileKey && fileName && onRetry) {
+      console.log(
+        `[FileStatusIndicator] Calling onRetry handler for: ${fileName}`
+      );
       onRetry(fileKey, fileName);
+    } else {
+      console.warn(`[FileStatusIndicator] Cannot retry - missing data:`, {
+        fileKey,
+        fileName,
+        hasOnRetry: !!onRetry,
+      });
     }
   }, [fileKey, fileName, onRetry]);
 
@@ -135,7 +182,7 @@ export function FileStatusIndicator({
     <div className={`flex items-center gap-1 ${className}`}>
       <div
         className={`flex items-center gap-1 ${config.color}`}
-        title={config.title}
+        title={statusTitle}
       >
         <IconComponent
           size={14}
@@ -144,11 +191,14 @@ export function FileStatusIndicator({
         <span className="text-xs">{config.text}</span>
       </div>
 
-      {/* Show retry button for failed files */}
-      {currentStatus === FileDAO.STATUS.ERROR &&
+      {/* Show retry button for failed or unindexed files, but not for memory limit errors */}
+      {(currentStatus === FileDAO.STATUS.ERROR ||
+        currentStatus === "failed" ||
+        currentStatus === FileDAO.STATUS.UNINDEXED) &&
         fileKey &&
         fileName &&
-        onRetry && (
+        onRetry &&
+        !isMemoryLimitError && (
           <button
             type="button"
             onClick={handleRetry}

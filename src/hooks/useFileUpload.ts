@@ -8,6 +8,10 @@ import {
 } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
 import { buildStagingFileKey } from "@/lib/file-keys";
+import {
+  shouldUseLargeFileUpload,
+  uploadLargeFile,
+} from "@/lib/large-file-upload-helper";
 
 interface UseFileUploadProps {
   onUploadSuccess?: (filename: string, fileKey: string) => void;
@@ -73,60 +77,82 @@ export function useFileUpload({
         console.log("[useFileUpload] Starting upload process...");
         console.log("[useFileUpload] JWT token: present");
         console.log("[useFileUpload] Tenant:", tenant);
+        console.log("[useFileUpload] File size:", file.size, "bytes");
 
-        // Step 1: Upload file directly to storage
-        send({
-          type: EVENT_TYPES.FILE_UPLOAD.PROGRESS,
-          fileKey,
-          filename,
-          fileSize: file.size,
-          progress: 20,
-          status: "uploading",
-          source: "useFileUpload",
-        } as FileUploadEvent);
-
-        const uploadUrl = API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.UPLOAD.DIRECT(tenant, filename)
+        // Check if we should use large file upload (multipart)
+        const useLargeFileUpload = shouldUseLargeFileUpload(file.size);
+        console.log(
+          `[useFileUpload] Using ${useLargeFileUpload ? "multipart" : "direct"} upload`
         );
 
-        console.log("[useFileUpload] Upload request body:", {
-          tenant,
-          originalName: filename,
-          contentType: file.type || "application/pdf",
-          fileSize: file.size,
-          uploadUrl,
-          jwt: "present",
-        });
-
-        // Direct upload to R2 storage
-        console.log("[useFileUpload] Starting upload request to:", uploadUrl);
-        const uploadResponse = await authenticatedFetchWithExpiration(
-          uploadUrl,
-          {
-            method: "PUT",
-            jwt,
-            body: file,
-            headers: {
-              "Content-Type": file.type || "application/pdf",
-            },
-          }
-        );
-
-        console.log("[useFileUpload] Upload response:", {
-          status: uploadResponse.response.status,
-          ok: uploadResponse.response.ok,
-          jwtExpired: uploadResponse.jwtExpired,
-        });
-
-        if (uploadResponse.jwtExpired) {
-          throw new Error("Authentication expired. Please log in again.");
-        }
-
-        if (!uploadResponse.response.ok) {
-          const errorText = await uploadResponse.response.text();
-          throw new Error(
-            `Upload failed: ${uploadResponse.response.status} ${errorText}`
+        if (useLargeFileUpload) {
+          // Use multipart upload for large files
+          const result = await uploadLargeFile(
+            file,
+            filename,
+            tenant,
+            fileKey,
+            send
           );
+
+          if (!result.success) {
+            throw new Error(result.error || "Large file upload failed");
+          }
+        } else {
+          // Step 1: Upload file directly to storage
+          send({
+            type: EVENT_TYPES.FILE_UPLOAD.PROGRESS,
+            fileKey,
+            filename,
+            fileSize: file.size,
+            progress: 20,
+            status: "uploading",
+            source: "useFileUpload",
+          } as FileUploadEvent);
+
+          const uploadUrl = API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.UPLOAD.DIRECT(tenant, filename)
+          );
+
+          console.log("[useFileUpload] Upload request body:", {
+            tenant,
+            originalName: filename,
+            contentType: file.type || "application/pdf",
+            fileSize: file.size,
+            uploadUrl,
+            jwt: "present",
+          });
+
+          // Direct upload to R2 storage
+          console.log("[useFileUpload] Starting upload request to:", uploadUrl);
+          const uploadResponse = await authenticatedFetchWithExpiration(
+            uploadUrl,
+            {
+              method: "PUT",
+              jwt,
+              body: file,
+              headers: {
+                "Content-Type": file.type || "application/pdf",
+              },
+            }
+          );
+
+          console.log("[useFileUpload] Upload response:", {
+            status: uploadResponse.response.status,
+            ok: uploadResponse.response.ok,
+            jwtExpired: uploadResponse.jwtExpired,
+          });
+
+          if (uploadResponse.jwtExpired) {
+            throw new Error("Authentication expired. Please log in again.");
+          }
+
+          if (!uploadResponse.response.ok) {
+            const errorText = await uploadResponse.response.text();
+            throw new Error(
+              `Upload failed: ${uploadResponse.response.status} ${errorText}`
+            );
+          }
         }
 
         // Emit upload completed event (file uploaded to R2, ready for indexing)

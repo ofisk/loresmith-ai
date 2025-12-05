@@ -6,6 +6,8 @@ import {
   notifyIndexingCompleted,
   notifyIndexingFailed,
   notifyFileUploadCompleteWithData,
+  notifyFileStatusUpdated,
+  notifyFileIndexingStatus,
 } from "@/lib/notifications";
 import { LibraryRAGService } from "@/services/rag/rag-service";
 import type { Env } from "@/middleware/auth";
@@ -13,6 +15,7 @@ import type { AuthPayload } from "@/services/core/auth-service";
 import { completeProgress } from "@/services/core/progress-service";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
 import { FileNotFoundError } from "@/lib/errors";
+import { extractJwtFromContext } from "@/lib/auth-utils";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -85,6 +88,9 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
       fileSize
     );
 
+    // Extract JWT before setTimeout (context may not be available inside)
+    const jwt = extractJwtFromContext(c);
+
     // Start processing in background
     setTimeout(async () => {
       try {
@@ -99,11 +105,24 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
 
         // Process with RAG service
         console.log(
-          `[RAG] File ${filename} uploaded to R2, LibraryRAGService will process it`
+          `[RAG] File ${filename} uploaded to R2, processing with LibraryRAGService`
         );
 
-        // Update database status and file size - mark as uploaded, not completed
+        // Update database status and file size - mark as uploaded
         await fileDAO.updateFileRecord(fileKey, "uploaded", file.size);
+
+        // Actually process the file with LibraryRAGService
+        const processResult = await SyncQueueService.processFileUpload(
+          c.env,
+          userAuth.username,
+          fileKey,
+          filename,
+          jwt
+        );
+
+        if (!processResult.success) {
+          throw new Error(processResult.error || processResult.message);
+        }
 
         // Send notifications
         try {
@@ -140,12 +159,16 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
         await fileDAO.updateFileRecord(fileKey, "error");
 
         try {
-          await notifyIndexingFailed(
-            c.env,
-            userAuth.username,
-            filename,
-            (error as Error)?.message
-          );
+          // Log technical error for debugging
+          const technicalError = (error as Error)?.message;
+          if (technicalError) {
+            console.error(
+              `[handleProcessFileForRag] File processing failed for ${filename}:`,
+              technicalError
+            );
+          }
+          // Send user-friendly notification without technical details
+          await notifyIndexingFailed(c.env, userAuth.username, filename);
         } catch (_e) {}
       }
     }, 100);
@@ -153,115 +176,6 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
     return c.json({ success: true, fileKey, fileId });
   } catch (error) {
     console.error("Error processing file for RAG:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
-}
-
-// Process file from R2 for RAG
-export async function handleProcessFileFromR2ForRag(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-    const { fileKey, filename, description, tags } = await c.req.json();
-
-    if (!fileKey || !filename) {
-      return c.json({ error: "File key and filename are required" }, 400);
-    }
-
-    // Store file metadata in database
-    const fileId = crypto.randomUUID();
-
-    // Get file size from R2
-    let fileSize = 0;
-    try {
-      const file = await c.env.R2.get(fileKey);
-      if (file) {
-        fileSize = file.size;
-      }
-    } catch (error) {
-      console.warn("Could not get file size from R2:", error);
-    }
-
-    const fileDAO = getDAOFactory(c.env).fileDAO;
-    await fileDAO.createFileRecord(
-      fileId,
-      fileKey,
-      filename,
-      description || "",
-      tags ? JSON.stringify(tags) : "[]",
-      userAuth.username,
-      "processing",
-      fileSize
-    );
-
-    // Start processing in background
-    setTimeout(async () => {
-      try {
-        try {
-          await notifyIndexingStarted(c.env, userAuth.username, filename);
-        } catch (_e) {}
-        // Get file from R2
-        const file = await c.env.R2.get(fileKey);
-        if (!file) {
-          throw new FileNotFoundError(fileKey);
-        }
-
-        // Process with RAG service
-        // LibraryRAGService will process files directly
-        console.log(
-          `[RAG] File ${filename} uploaded to R2, processing with LibraryRAGService`
-        );
-
-        // Update database status and file size - mark as uploaded, not completed
-        await fileDAO.updateFileRecord(fileKey, "uploaded", file.size);
-
-        // Send notifications
-        try {
-          // Get the complete file record for the notification
-          const fileRecord = await fileDAO.getFileForRag(
-            fileKey,
-            userAuth.username
-          );
-          if (fileRecord) {
-            await notifyFileUploadCompleteWithData(
-              c.env,
-              userAuth.username,
-              fileRecord
-            );
-          } else {
-            console.error(
-              `[RAG] File record not found for upload completion notification: ${fileKey}`
-            );
-          }
-          await notifyIndexingCompleted(c.env, userAuth.username, filename);
-        } catch (error) {
-          console.error(
-            "[RAG] Failed to send file upload notification:",
-            error
-          );
-        }
-
-        completeProgress(fileKey, true);
-      } catch (error) {
-        console.error("Error processing file from R2 for RAG:", error);
-        completeProgress(fileKey, false, (error as Error).message);
-
-        // Update database status
-        await fileDAO.updateFileRecord(fileKey, "error");
-
-        try {
-          await notifyIndexingFailed(
-            c.env,
-            userAuth.username,
-            filename,
-            (error as Error)?.message
-          );
-        } catch (_e) {}
-      }
-    }, 100);
-
-    return c.json({ success: true, fileKey, fileId });
-  } catch (error) {
-    console.error("Error processing file from R2 for RAG:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
@@ -276,70 +190,212 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
       `[handleTriggerIndexing] Processing request for fileKey: ${fileKey}`
     );
 
-    if (fileKey) {
-      // Check if file exists
-      const fileDAO = getDAOFactory(c.env).fileDAO;
-      const file = await fileDAO.getFileForRag(fileKey, userAuth.username);
-
-      if (!file) {
-        return c.json({ error: "File not found" }, 404);
-      }
-
-      // Use sync queue service to handle indexing
-      try {
-        console.log(
-          `[handleTriggerIndexing] Processing file with LibraryRAGService: ${file.file_name}`
-        );
-        // Extract JWT token from Authorization header
-        const authHeader = c.req.header("Authorization");
-        const jwt = authHeader?.replace(/^Bearer\s+/i, "");
-
-        const result = await SyncQueueService.processFileUpload(
-          c.env,
-          userAuth.username,
-          fileKey,
-          file.file_name,
-          jwt
-        );
-
-        // Send notification that indexing has started/completed
-        try {
-          await notifyIndexingStarted(c.env, userAuth.username, file.file_name);
-        } catch (notifyError) {
-          console.error(
-            `[handleTriggerIndexing] Failed to send indexing started notification:`,
-            notifyError
-          );
-        }
-
-        return c.json({
-          success: true,
-          message: result.message,
-          queued: result.queued,
-          isIndexed: !result.queued,
-        });
-      } catch (syncError) {
-        console.error(
-          `[handleTriggerIndexing] Failed to trigger indexing for ${fileKey}:`,
-          syncError
-        );
-        return c.json({
-          success: false,
-          message: `Failed to trigger indexing: ${syncError instanceof Error ? syncError.message : "Unknown error"}`,
-          isIndexed: false,
-        });
-      }
-    } else {
+    if (!fileKey) {
       console.log("[RAG] No fileKey provided, cannot trigger indexing");
-
       return c.json({
         success: false,
         message: "File key is required to trigger indexing",
       });
     }
+
+    // Check if file exists in database
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const file = await fileDAO.getFileForRag(fileKey, userAuth.username);
+
+    if (!file) {
+      console.error(
+        `[handleTriggerIndexing] File not found in database: ${fileKey}`
+      );
+      return c.json({ error: "File not found" }, 404);
+    }
+
+    // Check if file exists in R2 storage
+    const r2File = await c.env.R2.head(fileKey);
+    if (!r2File) {
+      console.error(
+        `[handleTriggerIndexing] File not found in R2 storage: ${fileKey}`
+      );
+      return c.json({
+        success: false,
+        message: "File not found in storage. The file may have been deleted.",
+      });
+    }
+
+    // Check if file has a non-retryable error (e.g., memory limit)
+    const processingError = await fileDAO.getProcessingError(fileKey);
+    if (processingError?.code === "MEMORY_LIMIT_EXCEEDED") {
+      return c.json(
+        {
+          success: false,
+          error: "MEMORY_LIMIT_EXCEEDED",
+          message: `"${file.file_name}" is too large to process. Files over 128MB cannot be processed due to Cloudflare Worker memory limits. Please split the file into smaller parts.`,
+          retryable: false,
+        },
+        400
+      );
+    }
+
+    // Reset status from ERROR to UPLOADED before retrying
+    if (file.status === FileDAO.STATUS.ERROR || file.status === "failed") {
+      console.log(
+        `[handleTriggerIndexing] Resetting file status from ${file.status} to UPLOADED for retry: ${file.file_name}`
+      );
+      // Clear processing error when retrying (if it was a retryable error)
+      if (
+        !processingError ||
+        processingError.code !== "MEMORY_LIMIT_EXCEEDED"
+      ) {
+        await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.UPLOADED);
+      }
+
+      // Send status update notification so UI can update immediately
+      try {
+        await notifyFileStatusUpdated(
+          c.env,
+          userAuth.username,
+          fileKey,
+          file.file_name,
+          FileDAO.STATUS.UPLOADED,
+          file.file_size || undefined
+        );
+      } catch (notifyError) {
+        console.error(
+          `[handleTriggerIndexing] Failed to send status update notification:`,
+          notifyError
+        );
+      }
+    }
+
+    // Use sync queue service to handle indexing
+    try {
+      console.log(
+        `[handleTriggerIndexing] Processing file with LibraryRAGService: ${file.file_name}`
+      );
+      // Extract JWT token from Authorization header
+      const jwt = extractJwtFromContext(c);
+
+      // Send status-only notification BEFORE processing starts so UI updates immediately
+      // We don't send user-facing notification here to avoid duplicate notifications if processing fails immediately
+      try {
+        await notifyFileIndexingStatus(
+          c.env,
+          userAuth.username,
+          fileKey,
+          file.file_name,
+          FileDAO.STATUS.SYNCING,
+          {
+            visibility: "status-only",
+            fileSize: file.file_size || undefined,
+          }
+        );
+      } catch (notifyError) {
+        console.error(
+          `[handleTriggerIndexing] Failed to send status update:`,
+          notifyError
+        );
+      }
+
+      const result = await SyncQueueService.processFileUpload(
+        c.env,
+        userAuth.username,
+        fileKey,
+        file.file_name,
+        jwt
+      );
+
+      // Handle queued files - they're successfully queued, processing happens in background
+      if (result.queued) {
+        console.log(
+          `[handleTriggerIndexing] File ${file.file_name} queued for background processing`
+        );
+        return c.json({
+          success: true,
+          message: result.message,
+          queued: true,
+          isIndexed: false,
+        });
+      }
+
+      // Send user-facing notification only after processing completes (success or failure)
+      if (!result.success) {
+        // Log technical error details for debugging
+        const technicalError =
+          result.error || result.message || "Processing failed";
+        console.error(
+          `[handleTriggerIndexing] File processing failed for ${file.file_name}:`,
+          technicalError
+        );
+
+        // Send user-facing error notification (without technical details)
+        try {
+          await notifyFileIndexingStatus(
+            c.env,
+            userAuth.username,
+            fileKey,
+            file.file_name,
+            FileDAO.STATUS.ERROR,
+            {
+              visibility: "both",
+              fileSize: file.file_size || undefined,
+              // Don't pass reason to avoid showing technical errors to users
+            }
+          );
+        } catch (notifyError) {
+          console.error(
+            `[handleTriggerIndexing] Failed to send error notification:`,
+            notifyError
+          );
+        }
+      } else {
+        // Processing succeeded - success notification will be sent by the processing pipeline
+        // Just send a status update to ensure UI is current
+        try {
+          await notifyFileIndexingStatus(
+            c.env,
+            userAuth.username,
+            fileKey,
+            file.file_name,
+            FileDAO.STATUS.COMPLETED,
+            {
+              visibility: "status-only",
+              fileSize: file.file_size || undefined,
+            }
+          );
+        } catch (notifyError) {
+          console.error(
+            `[handleTriggerIndexing] Failed to send success status update:`,
+            notifyError
+          );
+        }
+      }
+
+      return c.json({
+        success: result.success,
+        message: result.message,
+        queued: result.queued,
+        isIndexed: result.success && !result.queued,
+      });
+    } catch (syncError) {
+      console.error(
+        `[handleTriggerIndexing] Failed to trigger indexing for ${fileKey}:`,
+        syncError
+      );
+      return c.json({
+        success: false,
+        message: `Failed to trigger indexing: ${syncError instanceof Error ? syncError.message : "Unknown error"}`,
+        isIndexed: false,
+      });
+    }
   } catch (error) {
     console.error("Error triggering indexing:", error);
-    return c.json({ error: "Internal server error" }, 500);
+    return c.json(
+      {
+        success: false,
+        error: "Internal server error",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
+      500
+    );
   }
 }
 

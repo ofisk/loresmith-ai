@@ -10,6 +10,7 @@ import type { AuthEnv } from "@/services/core/auth-service";
 import { AuthService } from "@/services/core/auth-service";
 import { AuthenticationRequiredError, OpenAIAPIKeyError } from "@/lib/errors";
 import { notifyAuthenticationRequired } from "@/lib/notifications";
+import { extractJwtFromHeader } from "@/lib/auth-utils";
 import type { Env as MiddlewareEnv } from "@/middleware/auth";
 
 interface Env extends AuthEnv {
@@ -233,8 +234,8 @@ export class Chat extends AIChatAgent<Env> {
     }
 
     const authHeader = request.headers.get("Authorization");
-    if (authHeader?.startsWith("Bearer ")) {
-      const jwtToken = authHeader.slice(7);
+    const jwtToken = extractJwtFromHeader(authHeader);
+    if (jwtToken) {
       await this.ctx.storage.put(JWT_STORAGE_KEY, jwtToken);
       console.log("[Chat] Stored JWT token from Authorization header");
     }

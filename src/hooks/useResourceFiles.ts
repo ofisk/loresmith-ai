@@ -18,6 +18,7 @@ export interface ResourceFile {
   status: string;
   created_at: string;
   updated_at: string;
+  processing_error?: string; // JSON string containing error code and metadata
 }
 
 export interface ResourceFileWithCampaigns extends ResourceFile {

@@ -1,3 +1,10 @@
+import {
+  FileNotFoundError,
+  PDFExtractionError,
+  MemoryLimitError,
+  OpenAIAPIKeyError,
+} from "@/lib/errors";
+
 export interface ErrorCategory {
   type:
     | "validation"
@@ -21,11 +28,72 @@ export interface ProcessingError {
 export class ErrorHandlingService {
   /**
    * Categorize and format errors for consistent handling
+   * Checks for structured error types first, then falls back to message pattern matching
    */
   categorizeError(
     error: Error,
     context?: Record<string, any>
   ): ProcessingError {
+    // Check for structured error types first (preferred approach)
+    if (error instanceof FileNotFoundError) {
+      return {
+        originalError: error,
+        category: {
+          type: "storage",
+          message: "File not found in storage",
+          details: "The uploaded file could not be found in storage.",
+          retryable: false,
+          userFriendly: true,
+        },
+        context,
+      };
+    }
+
+    if (error instanceof PDFExtractionError) {
+      return {
+        originalError: error,
+        category: {
+          type: "processing",
+          message: "PDF extraction failed",
+          details:
+            "The PDF file could not be parsed. It may be encrypted, corrupted, or contain no readable text.",
+          retryable: false,
+          userFriendly: true,
+        },
+        context,
+      };
+    }
+
+    if (error instanceof MemoryLimitError) {
+      return {
+        originalError: error,
+        category: {
+          type: "processing",
+          message: "File too large to process",
+          details: error.message,
+          retryable: false,
+          userFriendly: true,
+        },
+        context,
+      };
+    }
+
+    if (error instanceof OpenAIAPIKeyError) {
+      return {
+        originalError: error,
+        category: {
+          type: "authentication",
+          message: "OpenAI API key required",
+          details:
+            "PDF processing requires an OpenAI API key for text analysis.",
+          retryable: false,
+          userFriendly: true,
+        },
+        context,
+      };
+    }
+
+    // Fallback to message pattern matching for unknown errors
     const errorMessage = error.message.toLowerCase();
 
     // PDF Processing Errors

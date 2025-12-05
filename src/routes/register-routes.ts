@@ -107,7 +107,6 @@ import {
   handleGetFileChunksForRag,
   handleGetFilesForRag,
   handleProcessFileForRag,
-  handleProcessFileFromR2ForRag,
   handleRagSearch,
   handleTriggerIndexing,
   handleCheckFileIndexingStatus,
@@ -124,6 +123,7 @@ import {
   handleUpdateFileMetadata,
   handleUploadPart,
   handleUploadStatus,
+  handleCleanupStuckFiles,
 } from "@/routes/upload";
 import { AuthService } from "@/services/core/auth-service";
 import type { AuthEnv } from "@/services/core/auth-service";
@@ -164,11 +164,6 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.RAG.PROCESS_FILE,
     requireUserJwt,
     handleProcessFileForRag
-  );
-  app.post(
-    API_CONFIG.ENDPOINTS.RAG.PROCESS_FILE_FROM_R2,
-    requireUserJwt,
-    handleProcessFileFromR2ForRag
   );
   app.put(
     API_CONFIG.ENDPOINTS.LIBRARY.UPDATE_METADATA(":fileKey"),
@@ -651,6 +646,11 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.UPLOAD.ABORT_LARGE(":sessionId"),
     requireUserJwt,
     handleAbortLargeUpload
+  );
+  app.post(
+    API_CONFIG.ENDPOINTS.UPLOAD.CLEANUP_STUCK,
+    requireUserJwt,
+    handleCleanupStuckFiles
   );
 
   app.get("/", async (c) => {
