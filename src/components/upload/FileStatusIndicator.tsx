@@ -20,6 +20,7 @@ interface FileStatusIndicatorProps {
   fileKey?: string;
   fileName?: string;
   fileSize?: number;
+  processingError?: string; // JSON string containing error code and metadata
   onRetry?: (fileKey: string, fileName: string) => void;
 }
 
@@ -32,6 +33,7 @@ export function FileStatusIndicator({
   fileKey,
   fileName,
   fileSize,
+  processingError,
   onRetry,
 }: FileStatusIndicatorProps) {
   // No local error timeout; rely on SSE-driven updates and server state
@@ -116,6 +118,21 @@ export function FileStatusIndicator({
     },
   };
 
+  // Parse processing error if present
+  let errorCode: string | null = null;
+  let errorMessage: string | null = null;
+  if (processingError) {
+    try {
+      const errorData = JSON.parse(processingError);
+      errorCode = errorData.code || null;
+      errorMessage = errorData.message || null;
+    } catch {
+      // If parsing fails, ignore
+    }
+  }
+
+  const isMemoryLimitError = errorCode === "MEMORY_LIMIT_EXCEEDED";
+
   // Get current status
   let currentStatus: keyof typeof statusConfig;
   // Fall back to initial status
@@ -136,6 +153,12 @@ export function FileStatusIndicator({
 
   const config = statusConfig[currentStatus];
   const IconComponent = config.icon;
+
+  // Override title for memory limit errors
+  const statusTitle = isMemoryLimitError
+    ? errorMessage ||
+      "File is too large to process. Please split the file into smaller parts or use a file under 128MB."
+    : config.title;
 
   const handleRetry = useCallback(() => {
     console.log(
@@ -159,7 +182,7 @@ export function FileStatusIndicator({
     <div className={`flex items-center gap-1 ${className}`}>
       <div
         className={`flex items-center gap-1 ${config.color}`}
-        title={config.title}
+        title={statusTitle}
       >
         <IconComponent
           size={14}
@@ -168,13 +191,14 @@ export function FileStatusIndicator({
         <span className="text-xs">{config.text}</span>
       </div>
 
-      {/* Show retry button for failed or unindexed files */}
+      {/* Show retry button for failed or unindexed files, but not for memory limit errors */}
       {(currentStatus === FileDAO.STATUS.ERROR ||
         currentStatus === "failed" ||
         currentStatus === FileDAO.STATUS.UNINDEXED) &&
         fileKey &&
         fileName &&
-        onRetry && (
+        onRetry &&
+        !isMemoryLimitError && (
           <button
             type="button"
             onClick={handleRetry}

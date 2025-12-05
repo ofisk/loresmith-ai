@@ -118,6 +118,19 @@ export function ResourceList({
             `[ResourceList] Retry failed for ${fileName}:`,
             errorMessage
           );
+
+          // Check if this is a memory limit error (non-retryable)
+          if (
+            result.error === "MEMORY_LIMIT_EXCEEDED" ||
+            errorMessage.includes("too large")
+          ) {
+            // Show a user-friendly error message for memory limit errors
+            alert(
+              `⚠️ Cannot retry "${fileName}": ${errorMessage}\n\nFiles over 128MB cannot be processed due to Cloudflare Worker memory limits. Please split the file into smaller parts.`
+            );
+            return; // Don't throw, just return early
+          }
+
           throw new Error(errorMessage);
         }
 
