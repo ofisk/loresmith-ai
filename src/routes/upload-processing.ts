@@ -201,8 +201,40 @@ async function handleProcessingError(
   scopedLog: ScopedLogger
 ): Promise<void> {
   const fileDAO = getDAOFactory(env).fileDAO;
+  const { MemoryLimitError } = await import("@/lib/errors");
+  const { notifyFileIndexingStatus } = await import("@/lib/notifications");
 
-  // Update file status to ERROR
+  // Check if this is a memory limit error
+  if (MemoryLimitError.isMemoryLimitError(error)) {
+    // Store error code to prevent retries
+    await fileDAO.updateFileRecordWithError(
+      fileKey,
+      FileDAO.STATUS.ERROR,
+      error.errorCode,
+      error.message
+    );
+    scopedLog.debug("File marked as ERROR with memory limit error code");
+
+    // Send user-friendly notification about memory limit
+    await notifyFileIndexingStatus(
+      env,
+      userId,
+      fileKey,
+      filename,
+      FileDAO.STATUS.ERROR,
+      {
+        visibility: "both",
+        userMessage: `⚠️ "${filename}" (${error.fileSizeMB.toFixed(2)}MB) is too large to process. Cloudflare Workers have a ${error.memoryLimitMB}MB memory limit. Please split the file into smaller parts or use a file under ${error.memoryLimitMB}MB.`,
+        reason: error.errorCode,
+      }
+    ).catch((notifyError) => {
+      scopedLog.error("Memory limit notification failed", notifyError);
+    });
+
+    return;
+  }
+
+  // For other errors, mark as error without error code (retryable)
   await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.ERROR);
   scopedLog.debug("File status updated to ERROR");
 

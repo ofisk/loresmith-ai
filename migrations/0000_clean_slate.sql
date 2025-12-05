@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS file_metadata (
   last_analyzed_at datetime,
   analysis_status text default 'pending', -- pending, analyzing, completed, failed
   analysis_error text, -- Store any analysis errors
+  processing_error text, -- Store processing error codes (e.g., MEMORY_LIMIT_EXCEEDED) to prevent infinite retries
   created_at datetime default current_timestamp,
   updated_at datetime
 );

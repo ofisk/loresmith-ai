@@ -221,12 +221,32 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
       });
     }
 
+    // Check if file has a non-retryable error (e.g., memory limit)
+    const processingError = await fileDAO.getProcessingError(fileKey);
+    if (processingError?.code === "MEMORY_LIMIT_EXCEEDED") {
+      return c.json(
+        {
+          success: false,
+          error: "MEMORY_LIMIT_EXCEEDED",
+          message: `"${file.file_name}" is too large to process. Files over 128MB cannot be processed due to Cloudflare Worker memory limits. Please split the file into smaller parts.`,
+          retryable: false,
+        },
+        400
+      );
+    }
+
     // Reset status from ERROR to UPLOADED before retrying
     if (file.status === FileDAO.STATUS.ERROR || file.status === "failed") {
       console.log(
         `[handleTriggerIndexing] Resetting file status from ${file.status} to UPLOADED for retry: ${file.file_name}`
       );
-      await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.UPLOADED);
+      // Clear processing error when retrying (if it was a retryable error)
+      if (
+        !processingError ||
+        processingError.code !== "MEMORY_LIMIT_EXCEEDED"
+      ) {
+        await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.UPLOADED);
+      }
 
       // Send status update notification so UI can update immediately
       try {

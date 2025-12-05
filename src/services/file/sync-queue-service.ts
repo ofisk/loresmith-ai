@@ -9,6 +9,7 @@ import {
 } from "@/lib/notifications";
 import type { FileProcessingResult } from "@/types/file-processing";
 import { ChunkedProcessingService } from "./chunked-processing-service";
+import { MemoryLimitError } from "@/lib/errors";
 
 export class SyncQueueService {
   /**
@@ -201,7 +202,49 @@ export class SyncQueueService {
         error
       );
 
-      // Mark file as error if processing fails
+      // Check if this is a memory limit error
+      const isMemoryLimitError = MemoryLimitError.isMemoryLimitError(error);
+
+      if (isMemoryLimitError) {
+        // Store error code to prevent retries
+        await fileDAO.updateFileRecordWithError(
+          fileKey,
+          FileDAO.STATUS.ERROR,
+          error.errorCode,
+          error.message
+        );
+
+        // Send user-friendly notification about memory limit
+        try {
+          await notifyFileIndexingStatus(
+            env,
+            username,
+            fileKey,
+            fileName,
+            FileDAO.STATUS.ERROR,
+            {
+              visibility: "both",
+              userMessage: `⚠️ "${fileName}" (${error.fileSizeMB.toFixed(2)}MB) is too large to process. Cloudflare Workers have a ${error.memoryLimitMB}MB memory limit. Please split the file into smaller parts or use a file under ${error.memoryLimitMB}MB.`,
+              reason: error.errorCode,
+              fileSize: error.fileSizeMB * 1024 * 1024,
+            }
+          );
+        } catch (notifyError) {
+          console.error(
+            `[SyncQueue] Failed to send memory limit notification for ${fileName}:`,
+            notifyError
+          );
+        }
+
+        return {
+          success: false,
+          queued: false,
+          message: `File ${fileName} is too large (${error.fileSizeMB.toFixed(2)}MB). Maximum size is ${error.memoryLimitMB}MB.`,
+          error: error.errorCode,
+        };
+      }
+
+      // For other errors, mark as error without error code (retryable)
       await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.ERROR);
 
       const errorMessage =
@@ -406,28 +449,74 @@ export class SyncQueueService {
             `[SyncQueue] Max retries (${MAX_RETRIES}) exceeded for ${item.file_name}, marking as ERROR`
           );
 
-          // Mark file as ERROR when max retries exceeded
-          await fileDAO.updateFileRecord(item.file_key, FileDAO.STATUS.ERROR);
+          // Check if this is a memory limit error
+          const memoryLimitError = MemoryLimitError.fromRuntimeError(
+            error,
+            (item.file_size || 0) / (1024 * 1024),
+            128,
+            item.file_key,
+            item.file_name
+          );
 
-          // Send error notification
-          try {
-            await notifyFileIndexingStatus(
-              env,
-              username,
+          if (
+            memoryLimitError ||
+            errorMessage.includes("Memory limit") ||
+            errorMessage.includes("too large")
+          ) {
+            // Store error code to prevent retries
+            await fileDAO.updateFileRecordWithError(
               item.file_key,
-              item.file_name,
               FileDAO.STATUS.ERROR,
-              {
-                visibility: "both",
-                userMessage: `🛑 Our quill slipped while indexing "${item.file_name}". Please try again later.`,
-                reason: errorMessage,
-              }
+              "MEMORY_LIMIT_EXCEEDED",
+              errorMessage
             );
-          } catch (notifyError) {
-            console.error(
-              `[SyncQueue] Failed to send error notification for ${item.file_name}:`,
-              notifyError
-            );
+
+            // Send user-friendly notification about memory limit
+            const fileSizeMB = (item.file_size || 0) / (1024 * 1024);
+            try {
+              await notifyFileIndexingStatus(
+                env,
+                username,
+                item.file_key,
+                item.file_name,
+                FileDAO.STATUS.ERROR,
+                {
+                  visibility: "both",
+                  userMessage: `⚠️ "${item.file_name}" (${fileSizeMB.toFixed(2)}MB) is too large to process. Cloudflare Workers have a 128MB memory limit. Please split the file into smaller parts or use a file under 128MB.`,
+                  reason: "MEMORY_LIMIT_EXCEEDED",
+                  fileSize: item.file_size || 0,
+                }
+              );
+            } catch (notifyError) {
+              console.error(
+                `[SyncQueue] Failed to send memory limit notification for ${item.file_name}:`,
+                notifyError
+              );
+            }
+          } else {
+            // For other errors, mark as error without error code (retryable)
+            await fileDAO.updateFileRecord(item.file_key, FileDAO.STATUS.ERROR);
+
+            // Send error notification
+            try {
+              await notifyFileIndexingStatus(
+                env,
+                username,
+                item.file_key,
+                item.file_name,
+                FileDAO.STATUS.ERROR,
+                {
+                  visibility: "both",
+                  userMessage: `🛑 Our quill slipped while indexing "${item.file_name}". Please try again later.`,
+                  reason: errorMessage,
+                }
+              );
+            } catch (notifyError) {
+              console.error(
+                `[SyncQueue] Failed to send error notification for ${item.file_name}:`,
+                notifyError
+              );
+            }
           }
 
           // Remove from queue after max retries

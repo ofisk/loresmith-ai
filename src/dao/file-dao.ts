@@ -640,6 +640,62 @@ export class FileDAO extends BaseDAOClass {
     await this.execute(sql, params);
   }
 
+  /**
+   * Update file record with error status and error code
+   * Used to mark files with specific error types (e.g., MEMORY_LIMIT_EXCEEDED)
+   * to prevent infinite retries
+   */
+  async updateFileRecordWithError(
+    fileKey: string,
+    status: string,
+    errorCode: string,
+    errorMessage?: string
+  ): Promise<void> {
+    // Store error code and message in processing_error field as JSON
+    const errorData = {
+      code: errorCode,
+      message: errorMessage || null,
+      timestamp: new Date().toISOString(),
+    };
+
+    const sql = `
+      UPDATE file_metadata 
+      SET status = ?, processing_error = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE file_key = ?
+    `;
+    await this.execute(sql, [status, JSON.stringify(errorData), fileKey]);
+  }
+
+  /**
+   * Get processing error code for a file (if any)
+   */
+  async getProcessingError(fileKey: string): Promise<{
+    code?: string;
+    message?: string;
+    timestamp?: string;
+  } | null> {
+    const sql = `
+      SELECT processing_error
+      FROM file_metadata
+      WHERE file_key = ?
+    `;
+    const result = await this.queryAll<{ processing_error: string | null }>(
+      sql,
+      [fileKey]
+    );
+
+    if (!result || !result[0] || !result[0].processing_error) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(result[0].processing_error);
+    } catch {
+      // If parsing fails, return null
+      return null;
+    }
+  }
+
   async updateFileMetadataForRag(
     fileKey: string,
     username: string,
@@ -672,7 +728,7 @@ export class FileDAO extends BaseDAOClass {
 
   async getFilesForRag(username: string): Promise<any[]> {
     const sql = `
-      SELECT file_key, file_name, display_name, description, tags, status, created_at, file_size 
+      SELECT file_key, file_name, display_name, description, tags, status, created_at, file_size, updated_at, processing_error
       FROM file_metadata 
       WHERE username = ? 
       ORDER BY created_at DESC

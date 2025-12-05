@@ -6,7 +6,7 @@ import {
   type ExtractionResult,
 } from "./file-extraction-service";
 import { PDFChunkingService } from "./pdf-chunking-service";
-import { getPdfPageCount, extractPdfPagesRange } from "@/lib/pdf-utils";
+import { extractPdfPagesRange } from "@/lib/pdf-utils";
 
 /**
  * Service for handling chunked processing of large files that exceed memory limits
@@ -87,7 +87,7 @@ export class ChunkedProcessingService {
 
   /**
    * Create processing chunks for a file
-   * For PDFs, requires the file buffer to determine page count
+   * For PDFs, estimates page count from file size (since PDF.js requires full buffer anyway)
    * For other files, creates byte-range chunks
    */
   async createProcessingChunks(
@@ -96,33 +96,31 @@ export class ChunkedProcessingService {
     _fileName: string,
     contentType: string,
     fileSize: number,
-    fileBuffer?: ArrayBuffer
+    _fileBuffer?: ArrayBuffer
   ): Promise<ChunkDefinition[]> {
     const fileSizeMB = fileSize / (1024 * 1024);
 
     let chunks: ChunkDefinition[] = [];
 
     if (contentType.includes("pdf")) {
-      // For PDFs, need buffer to get page count
-      if (!fileBuffer) {
-        throw new Error(
-          "File buffer required to create PDF chunks (need page count)"
-        );
-      }
+      // For PDFs, always estimate page count from file size
+      // PDF.js requires the full buffer to get page count, which fails for large files
+      // Since we can't load the buffer anyway for files over 128MB, just estimate
+      // Average PDF page is ~100-200KB, use conservative estimate
+      const ESTIMATED_PAGE_SIZE_KB = 150; // Conservative estimate
+      const totalPages = Math.max(
+        1,
+        Math.ceil((fileSizeMB * 1024) / ESTIMATED_PAGE_SIZE_KB)
+      );
 
-      try {
-        const totalPages = await getPdfPageCount(fileBuffer);
-        chunks = this.pdfChunkingService.calculatePageRanges(
-          totalPages,
-          fileSizeMB
-        );
-      } catch (error) {
-        console.error(
-          `[ChunkedProcessingService] Failed to get PDF page count for ${fileKey}:`,
-          error
-        );
-        throw error;
-      }
+      console.log(
+        `[ChunkedProcessingService] Estimated ${totalPages} pages for ${fileKey} based on file size (${fileSizeMB.toFixed(2)}MB)`
+      );
+
+      chunks = this.pdfChunkingService.calculatePageRanges(
+        totalPages,
+        fileSizeMB
+      );
     } else {
       // For non-PDFs, create byte-range chunks
       const BYTES_PER_CHUNK = 10 * 1024 * 1024; // 10MB per chunk

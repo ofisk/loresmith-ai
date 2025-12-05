@@ -89,40 +89,39 @@ export class LibraryRAGService extends BaseRAGService {
           `[LibraryRAGService] File ${metadata.fileKey} (${fileSizeMB.toFixed(2)}MB) exceeds memory limit. Attempting chunked processing.`
         );
 
-        // Try to load file buffer to create chunks (may fail for very large files)
+        // Try to create chunks - may need buffer for page count, but can estimate from file size if buffer unavailable
+        let bufferForChunking: ArrayBuffer | undefined;
         try {
-          buffer = await file.arrayBuffer();
-          await this.chunkedProcessingService.createProcessingChunks(
-            metadata.fileKey,
-            metadata.userId,
-            metadata.filename,
-            metadata.contentType,
-            file.size || 0,
-            buffer
+          // Try to load buffer for more accurate chunking (page count for PDFs)
+          bufferForChunking = await file.arrayBuffer();
+        } catch (bufferError) {
+          console.warn(
+            `[LibraryRAGService] Could not load buffer for chunking ${metadata.fileKey} (${fileSizeMB.toFixed(2)}MB), will estimate chunks from file size:`,
+            bufferError instanceof Error
+              ? bufferError.message
+              : String(bufferError)
           );
-
-          // Return explicit result indicating chunking started
-          return {
-            displayName: undefined,
-            description: "",
-            tags: [],
-            chunked: true,
-            // No vectorId - chunks will be processed separately
-          };
-        } catch (chunkError) {
-          console.error(
-            `[LibraryRAGService] Failed to create chunks for ${metadata.fileKey} (${fileSizeMB.toFixed(2)}MB). File may be too large to load even for chunking.`,
-            chunkError
-          );
-          // If we can't even load the file to create chunks, throw memory limit error
-          throw new MemoryLimitError(
-            fileSizeMB,
-            MEMORY_LIMIT_MB,
-            metadata.fileKey,
-            metadata.filename,
-            `File (${fileSizeMB.toFixed(2)}MB) exceeds Worker memory limit and cannot be loaded for chunking. Consider using a smaller file or splitting the document.`
-          );
+          // Continue without buffer - chunks will be estimated from file size
         }
+
+        // Create chunks (will estimate from file size if buffer unavailable)
+        await this.chunkedProcessingService.createProcessingChunks(
+          metadata.fileKey,
+          metadata.userId,
+          metadata.filename,
+          metadata.contentType,
+          file.size || 0,
+          bufferForChunking
+        );
+
+        // Return explicit result indicating chunking started
+        return {
+          displayName: undefined,
+          description: "",
+          tags: [],
+          chunked: true,
+          // No vectorId - chunks will be processed separately
+        };
       }
 
       // Extract text based on file type
@@ -153,36 +152,33 @@ export class LibraryRAGService extends BaseRAGService {
             `[LibraryRAGService] Memory limit error during processing for file ${metadata.fileKey} (${fileSizeMB.toFixed(2)}MB). Attempting chunked processing.`
           );
 
-          // Try to create chunks if we have buffer
+          // Try to create chunks (will use buffer if available, otherwise estimate from file size)
           try {
-            if (buffer) {
-              await this.chunkedProcessingService.createProcessingChunks(
-                metadata.fileKey,
-                metadata.userId,
-                metadata.filename,
-                metadata.contentType,
-                file.size || 0,
-                buffer
-              );
+            await this.chunkedProcessingService.createProcessingChunks(
+              metadata.fileKey,
+              metadata.userId,
+              metadata.filename,
+              metadata.contentType,
+              file.size || 0,
+              buffer // May be undefined if loading failed
+            );
 
-              // Return explicit result indicating chunking started
-              return {
-                displayName: undefined,
-                description: "",
-                tags: [],
-                chunked: true,
-                // No vectorId - chunks will be processed separately
-              };
-            }
+            // Return explicit result indicating chunking started
+            return {
+              displayName: undefined,
+              description: "",
+              tags: [],
+              chunked: true,
+              // No vectorId - chunks will be processed separately
+            };
           } catch (chunkError) {
             console.error(
               `[LibraryRAGService] Failed to create chunks for ${metadata.fileKey}:`,
               chunkError
             );
+            // If chunking failed, re-throw the memory limit error
+            throw memoryLimitError;
           }
-
-          // If chunking failed, re-throw the memory limit error
-          throw memoryLimitError;
         }
 
         // Check for structured MemoryLimitError from extraction service
