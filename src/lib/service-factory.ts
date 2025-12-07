@@ -11,7 +11,6 @@ import { LibraryService } from "@/services/core/library-service";
 import { MetadataService } from "@/services/core/metadata-service";
 import { AgentRegistryService } from "./agent-registry";
 import { AgentRouter } from "./agent-router";
-import { CampaignRAGService } from "./campaign-rag";
 import { ModelManager } from "./model-manager";
 import { LibraryRAGService } from "@/services/rag/rag-service";
 
@@ -143,18 +142,6 @@ export class ServiceFactory {
     await AgentRegistryService.initialize();
   }
 
-  // Get or create CampaignRAGService
-  static getCampaignRAGService(env: Env): CampaignRAGService {
-    const key = `campaign-rag-${env.DB ? "has-db" : "no-db"}-${env.VECTORIZE ? "has-vectorize" : "no-vectorize"}-${env.OPENAI_API_KEY ? "has-openai" : "no-openai"}`;
-    if (!ServiceFactory.services.has(key)) {
-      ServiceFactory.services.set(
-        key,
-        new CampaignRAGService(env.DB, env.VECTORIZE, env.OPENAI_API_KEY || "")
-      );
-    }
-    return ServiceFactory.services.get(key);
-  }
-
   // Get or create AgentRouter (static class, no instance needed)
   static getAgentRouter(env: Env): typeof AgentRouter {
     const key = `agent-router-${env.DB ? "has-db" : "no-db"}`;
@@ -191,9 +178,6 @@ export const getAgentRegistryService = (env: Env) =>
 
 export const initializeAgentRegistry = (env: Env) =>
   ServiceFactory.initializeAgentRegistry(env);
-
-export const getCampaignRAGService = (env: Env) =>
-  ServiceFactory.getCampaignRAGService(env);
 
 export const getAgentRouter = (env: Env) => ServiceFactory.getAgentRouter(env);
 
