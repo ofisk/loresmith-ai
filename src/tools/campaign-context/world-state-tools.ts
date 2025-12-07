@@ -165,7 +165,7 @@ export const recordWorldEventTool = tool({
       .nullable()
       .optional()
       .describe(
-        "Optional D&D game session number this change belongs to (e.g., Session 5)."
+        "Optional game session number this change belongs to (e.g., Session 5)."
       ),
     timestamp: z
       .string()
@@ -244,7 +244,7 @@ export const updateEntityWorldStateTool = tool({
       .nullable()
       .optional()
       .describe(
-        "Optional D&D game session number for the change (e.g., Session 5)."
+        "Optional game session number for the change (e.g., Session 5)."
       ),
     timestamp: z
       .string()
@@ -318,7 +318,7 @@ export const updateRelationshipWorldStateTool = tool({
       .int()
       .nullable()
       .optional()
-      .describe("Optional D&D game session number (e.g., Session 5)."),
+      .describe("Optional game session number (e.g., Session 5)."),
     timestamp: z
       .string()
       .optional()

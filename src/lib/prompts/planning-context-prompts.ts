@@ -7,7 +7,7 @@
  * Generate prompt for extracting entity names from a query
  */
 export function formatEntityExtractionPrompt(query: string): string {
-  return `Extract entity names from this query about a role-playing game campaign. Entity names include:
+  return `Extract entity names from this query about a tabletop game campaign. Entity names include:
 - Character names (NPCs, player characters)
 - Location names (cities, landmarks, places)
 - Item names (equipment, artifacts, objects)

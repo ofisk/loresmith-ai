@@ -69,7 +69,7 @@ export class FileAnalysisService extends BaseRAGService {
 
     const descriptionText = request.description || "No description provided";
 
-    return `Please analyze this file and provide structured metadata for a tabletop RPG resource library:
+    return `Please analyze this file and provide structured metadata for a tabletop game resource library:
 
 File: ${request.filename}
 Description: ${descriptionText}

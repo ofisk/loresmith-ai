@@ -48,7 +48,7 @@ const SUMMARY_CONFIG = {
   // Prompt Template
   PROMPT_TEMPLATE: {
     INTRODUCTION:
-      "You are analyzing a {levelContext} community in a tabletop RPG campaign.",
+      "You are analyzing a {levelContext} community in a tabletop game campaign.",
     CONTEXT:
       "This community contains {entityCount} entities and {relationshipCount} relationships.",
     ENTITIES_HEADER: "ENTITIES:",

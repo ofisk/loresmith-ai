@@ -1,35 +1,11 @@
-import type { Context } from "hono";
 import { getDAOFactory } from "@/dao/dao-factory";
-import type { Env } from "@/middleware/auth";
-import type { AuthPayload } from "@/services/core/auth-service";
-import { UserAuthenticationMissingError } from "@/lib/errors";
 import { RebuildQueueService } from "@/services/graph/rebuild-queue-service";
 import type { RebuildType } from "@/dao/rebuild-status-dao";
-
-type ContextWithAuth = Context<{ Bindings: Env }> & {
-  userAuth?: AuthPayload;
-};
-
-function getUserAuth(c: ContextWithAuth): AuthPayload {
-  const userAuth = (c as any).userAuth;
-  if (!userAuth) {
-    throw new UserAuthenticationMissingError();
-  }
-  return userAuth;
-}
-
-async function ensureCampaignAccess(
-  c: ContextWithAuth,
-  campaignId: string,
-  username: string
-): Promise<boolean> {
-  const daoFactory = getDAOFactory(c.env);
-  const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-    campaignId,
-    username
-  );
-  return Boolean(campaign);
-}
+import {
+  type ContextWithAuth,
+  getUserAuth,
+  ensureCampaignAccess,
+} from "@/lib/route-utils";
 
 function getRebuildQueueService(c: ContextWithAuth): RebuildQueueService {
   if (!c.env.GRAPH_REBUILD_QUEUE) {

@@ -1,6 +1,6 @@
 /**
- * RPG Content Extraction Prompts
- * Centralized prompts for extracting structured RPG/D&D content from documents
+ * Game Content Extraction Prompts
+ * Centralized prompts for extracting structured tabletop game content from documents
  */
 
 import {
@@ -70,10 +70,10 @@ function buildTopLevelReturnShape(): string {
 
 export const RPG_EXTRACTION_PROMPTS = {
   /**
-   * Main prompt for extracting structured RPG content from text for GraphRAG
+   * Main prompt for extracting structured game content from text for GraphRAG
    * Used to identify game-ready primitives and build a knowledge graph
    */
-  STRUCTURED_CONTENT: `You are extracting Dungeon Master prep data from RPG text to build a knowledge graph for GraphRAG (Graph-based Retrieval Augmented Generation).
+  STRUCTURED_CONTENT: `You are extracting Game Master prep data from tabletop game text to build a knowledge graph for GraphRAG (Graph-based Retrieval Augmented Generation).
 
 PURPOSE
 Your output will be used to construct a knowledge graph where entities are nodes and relationships are edges. This graph enables:
@@ -89,7 +89,7 @@ ENTITY EXTRACTION
 Extract entities from these categories (use the exact type names):
 ${buildEntityTypeList()}
 
-Look for these common RPG elements:
+Look for these common tabletop game elements:
 ${buildExtractionHints()}
 - Normalize names (title case), preserve dice notation and DCs.
 
@@ -124,7 +124,7 @@ COMMON FIELDS (for every primitive):
 - type: one of the defined types.
 - name (or title for scenes): string.
 - one_line: ultra-brief pitch.
-- summary: 1–3 sentence DM-usable summary.
+- summary: 1–3 sentence GM-usable summary.
 - tags: array of short tags.
 - source: { doc, pages?, anchor? }
 - relations: array of { rel, target_id } where \`rel\` is one of the valid relationship types listed above (e.g., "parent_of", "married_to", "allied_with", "enemy_of", "located_in", "owns", "member_of", etc.) and \`target_id\` is the exact \`id\` of another entity extracted in the same response. This creates edges in the knowledge graph.
@@ -194,13 +194,13 @@ RETURN ONLY JSON.`,
   },
 
   /**
-   * Generate a prompt for extracting a specific content type from RPG text
+   * Generate a prompt for extracting a specific content type from game text
    * Used for targeted extraction of individual content types
    * @param contentType - The type of content to extract (e.g., "monsters", "spells", "npcs")
    * @returns Formatted prompt string for extracting the specified content type
    */
   getTypeSpecificExtractionPrompt: (contentType: string): string => {
-    return `You are extracting ${contentType} from RPG text.
+    return `You are extracting ${contentType} from tabletop game text.
 
 TASK
 From the provided text, identify and synthesize ALL relevant ${contentType} and output a JSON object. Return ONLY valid JSON (no comments, no markdown).

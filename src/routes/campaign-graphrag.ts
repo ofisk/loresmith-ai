@@ -1,53 +1,16 @@
-import type { Context } from "hono";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { notifyShardApproval, notifyShardRejection } from "@/lib/notifications";
 import { RebuildTriggerService } from "@/services/graph/rebuild-trigger-service";
 import { EntityImportanceService } from "@/services/graph/entity-importance-service";
-import type { Env } from "@/middleware/auth";
-import type { AuthPayload } from "@/services/core/auth-service";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { RebuildQueueService } from "@/services/graph/rebuild-queue-service";
-
-// Extend the context to include userAuth
-type ContextWithAuth = Context<{ Bindings: Env }> & {
-  userAuth?: AuthPayload;
-};
+import { type ContextWithAuth, verifyCampaignAccess } from "@/lib/route-utils";
 
 interface PendingRelation {
   relationshipType: string;
   targetId: string;
   strength?: number | null;
   metadata?: Record<string, unknown>;
-}
-
-/**
- * Verify campaign belongs to user and return campaign info
- */
-async function verifyCampaignAccess(
-  env: Env,
-  campaignId: string,
-  username: string
-): Promise<{
-  campaignId: string;
-  name: string;
-  campaignRagBasePath: string;
-} | null> {
-  const campaignDAO = getDAOFactory(env).campaignDAO;
-  const campaign = await campaignDAO.getCampaignByIdWithMapping(
-    campaignId,
-    username
-  );
-
-  if (!campaign) {
-    return null;
-  }
-
-  return {
-    campaignId: campaign.campaignId,
-    name: campaign.name,
-    campaignRagBasePath:
-      campaign.campaignRagBasePath || `campaigns/${campaignId}`,
-  };
 }
 
 /**
@@ -65,7 +28,7 @@ function extractPendingRelations(
 async function checkAndRunCommunityDetection(
   daoFactory: ReturnType<typeof getDAOFactory>,
   campaignId: string,
-  env: Env,
+  env: any,
   affectedEntityIds?: string[],
   username?: string
 ): Promise<void> {
@@ -92,7 +55,7 @@ async function checkAndRunCommunityDetection(
       );
 
       // Check if queue binding is available
-      if (!env.GRAPH_REBUILD_QUEUE) {
+      if (!(env as any).GRAPH_REBUILD_QUEUE) {
         console.warn(
           `[Server] GRAPH_REBUILD_QUEUE binding not configured, skipping async rebuild for campaign ${campaignId}`
         );
@@ -125,7 +88,9 @@ async function checkAndRunCommunityDetection(
         });
 
         // Enqueue rebuild job
-        const queueService = new RebuildQueueService(env.GRAPH_REBUILD_QUEUE);
+        const queueService = new RebuildQueueService(
+          (env as any).GRAPH_REBUILD_QUEUE
+        );
         await queueService.enqueueRebuild({
           rebuildId,
           campaignId,
@@ -204,7 +169,7 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
 
     // Verify campaign belongs to user
     const campaign = await verifyCampaignAccess(
-      c.env,
+      c,
       campaignId,
       userAuth.username
     );
@@ -332,7 +297,7 @@ export async function handleApproveShards(c: ContextWithAuth) {
 
     // Verify campaign belongs to user
     const campaign = await verifyCampaignAccess(
-      c.env,
+      c,
       campaignId,
       userAuth.username
     );
@@ -441,7 +406,7 @@ export async function handleApproveShards(c: ContextWithAuth) {
     await checkAndRunCommunityDetection(
       daoFactory,
       campaignId,
-      c.env,
+      c.env as any,
       approvedEntityIds,
       userAuth.username
     );
@@ -493,7 +458,7 @@ export async function handleRejectShards(c: ContextWithAuth) {
 
     // Verify campaign belongs to user
     const campaign = await verifyCampaignAccess(
-      c.env,
+      c,
       campaignId,
       userAuth.username
     );
@@ -599,7 +564,7 @@ export async function handleRejectShards(c: ContextWithAuth) {
     await checkAndRunCommunityDetection(
       daoFactory,
       campaignId,
-      c.env,
+      c.env as any,
       rejectedEntityIds,
       userAuth.username
     );
@@ -649,7 +614,7 @@ export async function handleUpdateShard(c: ContextWithAuth) {
 
     // Verify campaign belongs to user
     const campaign = await verifyCampaignAccess(
-      c.env,
+      c,
       campaignId,
       userAuth.username
     );

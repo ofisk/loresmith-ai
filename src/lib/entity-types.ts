@@ -1,5 +1,5 @@
 /**
- * Structured entity types for RPG/D&D content extraction.
+ * Structured entity types for tabletop game content extraction.
  * These define the categories of "primitives" that can be extracted from documents
  * and used in campaign management and AI agent interactions.
  */

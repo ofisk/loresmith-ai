@@ -36,7 +36,12 @@ const commonSchemas = {
           .object({
             factions: z.array(z.string()).default([]),
             locations: z.array(z.string()).default([]),
-            npcs: z.array(z.string()).default([]),
+            npcs: z
+              .array(z.string())
+              .default([])
+              .describe(
+                "Array of NPC state changes as strings. Format: 'NPC Name - status: description'. Example: ['Guard Captain - deceased: fell in battle'] or ['Merchant - relocated: moved to neighboring town']. Do NOT use objects."
+              ),
           })
           .default({ factions: [], locations: [], npcs: [] }),
         open_threads: z.array(z.string()).default([]),
@@ -55,13 +60,18 @@ const commonSchemas = {
       todo_checklist: z.array(z.string()).default([]),
     })
     .describe(
-      "The session digest data structure. The last_session_recap and next_session_plan objects are required, but all arrays within them are optional and will default to empty arrays if not provided."
+      `The session digest data structure. The last_session_recap and next_session_plan objects are required, but all arrays within them are optional and will default to empty arrays if not provided.
+
+IMPORTANT: All arrays contain STRINGS only, not objects. For state_changes.npcs, use string format like "NPC Name - status: description". Examples:
+- ["Guard Captain - deceased: fell in battle"]
+- ["Merchant - relocated: moved to neighboring town"]
+- ["Noble - active: encountered the party in the dungeons"]`
     ),
 };
 
 export const createSessionDigestTool = tool({
   description:
-    "Create a new session digest for a campaign. Session digests capture high-level recaps and planning information for D&D sessions.",
+    "Create a new session digest for a campaign. Session digests capture high-level recaps and planning information for game sessions.",
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
     sessionNumber: commonSchemas.sessionNumber,

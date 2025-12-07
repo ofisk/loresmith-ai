@@ -52,6 +52,7 @@ const SESSION_DIGEST_SYSTEM_PROMPT = buildSystemPrompt({
     "Date Parsing: When users provide relative dates like 'yesterday', 'last week', 'today', convert them to ISO date strings (YYYY-MM-DD format). For 'yesterday', calculate the date as one day before today. Always use the actual date, not the relative description.",
     "Key Events: Ask about the most important events that happened in the session",
     "State Changes: Specifically ask about changes to factions, locations, and NPCs - these are critical for world state tracking",
+    "CRITICAL - NPC Format: When recording NPC state changes in state_changes.npcs, use STRINGS only (e.g., 'Guard Captain - deceased: fell in battle'). NEVER use objects. The format is: 'NPC Name - status: description'. Examples: ['Guard Captain - deceased: fell in battle'], ['Merchant - relocated: moved to neighboring town']",
     "Open Threads: Ask about unresolved plot threads or questions that came up",
     "Next Session Planning: Ask about DM objectives, probable player goals, planned beats, and if-then branches",
     "NPCs to Run: Ask which NPCs are likely to appear in the next session",
