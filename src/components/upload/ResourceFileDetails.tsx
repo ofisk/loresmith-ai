@@ -38,7 +38,7 @@ export function ResourceFileDetails({
 
   return (
     <div
-      className={`overflow-hidden transition-all duration-300 ease-in-out max-h-96 opacity-100`}
+      className={`overflow-y-auto transition-all duration-300 ease-in-out max-h-96 opacity-100`}
     >
       <div className="mt-4 text-xs space-y-1">
         {file.display_name && (
