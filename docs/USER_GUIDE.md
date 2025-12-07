@@ -320,9 +320,15 @@ When planning future sessions:
 
 **Files Not Processing:**
 
+If you see a file with a "Failed" status in your resource library:
+
+![File Processing Failure](images/file-processing-failure.png)
+
+- Click the retry button (🔄) next to the failed file to attempt processing again
+- Check that the file format is supported (PDF, images, text documents)
+- Verify the file isn't corrupted - try opening it locally first
 - Check file size (max 500MB)
-- Verify file format is supported
-- Wait a few minutes and refresh
+- Wait a few minutes and refresh, then retry if needed
 
 **Missing Context:**
 
