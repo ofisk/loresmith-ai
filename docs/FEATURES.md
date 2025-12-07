@@ -253,6 +253,8 @@ LoreSmith automatically generates rich metadata for uploaded files:
 - Status change alerts
 - Completion notifications
 
+![Notifications System](images/notifications-system.png)
+
 ## Integration Features
 
 ### 🔌 API Access

@@ -193,6 +193,33 @@ You can add the same file to multiple campaigns if it's relevant to several of y
 - **Search**: Use the search bar to find files quickly
 - **Filtering**: Filter by campaign, tags, or file type
 
+## Notifications
+
+LoreSmith provides real-time notifications to keep you informed about important events and system updates.
+
+### Notification Types
+
+You'll receive notifications for:
+
+- **File Status Updates**: When files are uploaded, processing, or completed
+- **Campaign Events**: When files are added to campaigns, shards are generated, etc.
+- **System Updates**: Important system status changes
+
+### Viewing Notifications
+
+Notifications appear in the notifications panel (bell icon) in the top right corner of the application:
+
+![Notifications System](images/notifications-system.png)
+
+The notification panel shows:
+
+- **Notification Title**: What the notification is about
+- **Notification Message**: Detailed information about the event
+- **Timestamp**: When the notification occurred
+- **Dismiss Option**: Click the "X" to dismiss individual notifications
+
+You can also use the **"Clear all"** button to dismiss all notifications at once.
+
 ## Using the AI Assistant
 
 ### Getting Help
