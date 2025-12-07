@@ -119,6 +119,20 @@ export class WorldStateChangelogDAO extends BaseDAOClass {
     await this.execute(sql, ids);
   }
 
+  /**
+   * Get distinct campaign IDs that have unapplied changelog entries
+   */
+  async getCampaignIdsWithUnappliedEntries(): Promise<string[]> {
+    const sql = `
+      SELECT DISTINCT campaign_id
+      FROM world_state_changelog
+      WHERE applied_to_graph = FALSE
+      ORDER BY campaign_id
+    `;
+    const records = await this.queryAll<{ campaign_id: string }>(sql, []);
+    return records.map((record) => record.campaign_id);
+  }
+
   private mapRecord(
     record: WorldStateChangelogRecord
   ): WorldStateChangelogEntry {

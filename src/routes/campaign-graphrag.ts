@@ -1,12 +1,12 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { notifyShardApproval, notifyShardRejection } from "@/lib/notifications";
-import { CommunityDetectionService } from "@/services/graph/community-detection-service";
 import { RebuildTriggerService } from "@/services/graph/rebuild-trigger-service";
 import { EntityImportanceService } from "@/services/graph/entity-importance-service";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
+import { RebuildQueueService } from "@/services/graph/rebuild-queue-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -60,13 +60,14 @@ function extractPendingRelations(
 }
 
 /**
- * Check if there are remaining staging entities and run Leiden algorithm if none remain
+ * Check if there are remaining staging entities and trigger async rebuild if none remain
  */
 async function checkAndRunCommunityDetection(
   daoFactory: ReturnType<typeof getDAOFactory>,
   campaignId: string,
   env: Env,
-  affectedEntityIds?: string[]
+  affectedEntityIds?: string[],
+  username?: string
 ): Promise<void> {
   const allEntities =
     await daoFactory.entityDAO.listEntitiesByCampaign(campaignId);
@@ -89,38 +90,62 @@ async function checkAndRunCommunityDetection(
       console.log(
         `[Server] All pending shards processed for campaign ${campaignId}, rebuild triggered (${decision.rebuildType})`
       );
-      try {
-        const communityDetectionService = new CommunityDetectionService(
-          daoFactory.entityDAO,
-          daoFactory.communityDAO,
-          daoFactory.communitySummaryDAO,
-          env.OPENAI_API_KEY
-        );
 
-        let communities: Array<import("@/dao/community-dao").Community>;
-        if (decision.rebuildType === "partial" && affectedEntityIds) {
-          communities = await communityDetectionService.incrementalUpdate(
-            campaignId,
-            affectedEntityIds
-          );
-        } else {
-          communities =
-            await communityDetectionService.detectCommunities(campaignId);
+      // Check if queue binding is available
+      if (!env.GRAPH_REBUILD_QUEUE) {
+        console.warn(
+          `[Server] GRAPH_REBUILD_QUEUE binding not configured, skipping async rebuild for campaign ${campaignId}`
+        );
+        return;
+      }
+
+      try {
+        // Get username from campaign if not provided
+        let triggeredBy = username || "system";
+        if (!username) {
+          const campaign =
+            await daoFactory.campaignDAO.getCampaignById(campaignId);
+          if (campaign) {
+            triggeredBy = campaign.username;
+          }
         }
 
-        await rebuildTriggerService.resetImpact(campaignId);
-        await rebuildTriggerService.logRebuildDecision(campaignId, decision, {
-          success: true,
-          communitiesCount: communities.length,
+        // Create rebuild status entry
+        // decision.rebuildType is guaranteed to be "full" or "partial" when shouldRebuild is true
+        const rebuildType =
+          decision.rebuildType === "partial" ? "partial" : "full";
+        const rebuildId = crypto.randomUUID();
+        await daoFactory.rebuildStatusDAO.createRebuild({
+          id: rebuildId,
+          campaignId,
+          rebuildType,
+          status: "pending",
+          affectedEntityIds:
+            rebuildType === "partial" ? affectedEntityIds : undefined,
+        });
+
+        // Enqueue rebuild job
+        const queueService = new RebuildQueueService(env.GRAPH_REBUILD_QUEUE);
+        await queueService.enqueueRebuild({
+          rebuildId,
+          campaignId,
+          rebuildType,
+          affectedEntityIds:
+            rebuildType === "partial" ? affectedEntityIds : undefined,
+          triggeredBy,
+          options: {
+            regenerateSummaries: true,
+            recalculateImportance: true,
+          },
         });
 
         console.log(
-          `[Server] Community detection completed: found ${communities.length} communities for campaign ${campaignId}`
+          `[Server] Rebuild ${rebuildId} enqueued for campaign ${campaignId} (type: ${decision.rebuildType})`
         );
-      } catch (communityError) {
+      } catch (queueError) {
         console.error(
-          `[Server] Error running community detection for campaign ${campaignId}:`,
-          communityError
+          `[Server] Error enqueueing rebuild for campaign ${campaignId}:`,
+          queueError
         );
         await rebuildTriggerService.logRebuildDecision(campaignId, decision, {
           success: false,
@@ -133,7 +158,7 @@ async function checkAndRunCommunityDetection(
     }
   } else {
     console.log(
-      `[Server] ${remainingStagingEntities.length} staging entities remaining for campaign ${campaignId}, skipping community detection`
+      `[Server] ${remainingStagingEntities.length} staging entities remaining for campaign ${campaignId}, skipping rebuild trigger`
     );
   }
 }
@@ -417,7 +442,8 @@ export async function handleApproveShards(c: ContextWithAuth) {
       daoFactory,
       campaignId,
       c.env,
-      approvedEntityIds
+      approvedEntityIds,
+      userAuth.username
     );
 
     // Send notification about entity approval (UI uses "shard" terminology)
@@ -574,7 +600,8 @@ export async function handleRejectShards(c: ContextWithAuth) {
       daoFactory,
       campaignId,
       c.env,
-      rejectedEntityIds
+      rejectedEntityIds,
+      userAuth.username
     );
 
     // Send notification about entity rejection (UI uses "shard" terminology)
