@@ -210,11 +210,39 @@ After adding a file to a campaign, LoreSmith automatically extracts entities (NP
 
 5. You can select multiple shards and approve or reject them in bulk using the checkboxes
 
+### Editing Shard Details
+
+When viewing shard details, you have full control over the entity's metadata and importance:
+
+![Shard Details Edit](images/shard-details-edit.png)
+
+**Adjusting Importance:**
+
+- Each shard has an **importance** value that affects how much weight it carries in campaign consequences
+- As the Game Master, you can modify this importance to reflect the entity's role in your world
+- Higher importance means the entity will have more influence on AI-generated suggestions and story consequences
+- The system auto-calculates importance, but you can override it to match your campaign's narrative priorities
+
+**Editing Metadata:**
+
+- All detected properties are **fully editable**: name, role, summary, tags, and more
+- You can add, remove, or modify any field to better match your campaign's needs
+- Tags can be added or removed to improve organization and searchability
+- Changes are saved when you approve the shard
+
+**Entity Relationships:**
+
+- The AI automatically detects **relationships** between entities (e.g., "allied_with", "enemy_of", "located_in")
+- These relationships help the AI understand how entities interact in your campaign world
+- You can add, remove, or modify relationships to reflect your campaign's unique connections
+- Relationship metadata shows how entities relate to others (e.g., "Arrigal is allied with Strahd")
+
 **Why review shards?**
 
 - Only approved shards are used in AI queries for your campaign
 - Rejected shards are permanently excluded from search results
 - This ensures your campaign AI has accurate, relevant information
+- Editing importance and metadata allows you to customize how the AI prioritizes and uses entities in your world
 
 ### Organizing Resources
 
