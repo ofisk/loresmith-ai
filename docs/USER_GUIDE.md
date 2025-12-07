@@ -256,14 +256,6 @@ When viewing shard details, you have full control over the entity's metadata and
 - This ensures your campaign AI has accurate, relevant information
 - Editing importance and metadata allows you to customize how the AI prioritizes and uses entities in your world
 
-**Notification Workflow:**
-
-- You'll receive a notification when shards are generated ("New Shards Ready!")
-- After reviewing and approving shards, you'll receive a confirmation notification ("Shards Approved!")
-- These notifications help you track the complete workflow from file upload to shard approval
-
-![Shard Approval Notifications](images/shard-approval-notifications.png)
-
 ### Organizing Resources
 
 - **Tags**: Add tags to files for better organization
