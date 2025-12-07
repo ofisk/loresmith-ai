@@ -22,6 +22,13 @@ export const NOTIFICATION_TYPES = {
   CAMPAIGN_CREATED: "campaign_created",
   CAMPAIGN_DELETED: "campaign_deleted",
 
+  // Graph rebuild notifications
+  REBUILD_STARTED: "rebuild_started",
+  REBUILD_COMPLETED: "rebuild_completed",
+  REBUILD_FAILED: "rebuild_failed",
+  REBUILD_CANCELLED: "rebuild_cancelled",
+  REBUILD_PROGRESS: "rebuild_progress",
+
   // System notifications
   SUCCESS: "success",
   ERROR: "error",
