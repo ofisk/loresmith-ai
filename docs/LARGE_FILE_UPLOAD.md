@@ -1,6 +1,6 @@
 # Large File Upload System
 
-This document describes the large file upload system that supports files up to 500MB using multipart uploads with Cloudflare R2 and Durable Objects.
+This document describes the large file upload system. While multipart uploads can technically handle larger files, the practical processing limit is 100MB due to Cloudflare Workers' 128MB memory limit (with buffer for overhead).
 
 ## Overview
 
@@ -262,7 +262,7 @@ try {
 - **Small files**: < 100MB (direct upload)
 - **Large files**: ≥ 100MB (multipart upload)
 - **Part size**: 50MB per part
-- **Maximum file size**: 500MB (10 parts)
+- **Maximum file size**: 100MB (practical limit due to Cloudflare Workers' 128MB memory limit with buffer)
 
 ### Environment Variables
 

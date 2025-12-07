@@ -120,7 +120,7 @@ The upload modal allows you to:
 
 **Supported formats:**
 
-- PDF files (up to 500MB)
+- PDF files (up to 100MB - Cloudflare Workers memory limit with buffer)
 - Images (PNG, JPG, etc.)
 - Text documents
 
@@ -330,7 +330,7 @@ If you see a file with a "Failed" status in your resource library:
 - Click the retry button (🔄) next to the failed file to attempt processing again
 - Check that the file format is supported (PDF, images, text documents)
 - Verify the file isn't corrupted - try opening it locally first
-- Check file size (max 500MB)
+- Check file size (max 100MB - Cloudflare Workers memory limit with buffer)
 - Wait a few minutes and refresh, then retry if needed
 
 **Missing Context:**

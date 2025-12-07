@@ -34,7 +34,7 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 ![Add Resource Modal](images/add-resource-modal.png)
 
 - Upload PDFs, documents, and images
-- Support for files up to 500MB
+- Support for files up to 100MB (Cloudflare Workers memory limit with buffer)
 - Secure cloud storage
 - Direct upload with progress tracking
 - Intuitive upload modal with drag-and-drop support
