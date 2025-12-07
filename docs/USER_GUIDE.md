@@ -393,15 +393,30 @@ Session digests allow you to record what happened in each session and update you
 
 **To create a session digest:**
 
-1. Click **"+ Create Digest"** button in the Campaign Details modal, or
-2. Use the **"Create Session Digest"** option in the chat interface
-3. Describe what happened in the session:
-   - Key events and plot developments
-   - NPC interactions and relationship changes
-   - Location discoveries or changes
-   - Player decisions and their consequences
-   - World state updates
-4. The AI will help format and organize the digest
+You can create session digests in two ways:
+
+**Option 1: Using the Campaign Details Modal**
+
+1. Click **"+ Create Digest"** button in the Campaign Details modal
+2. Fill in the session information
+
+**Option 2: Using the AI Assistant (Recommended)**
+
+1. Simply ask the AI: **"I want to record a session recap"** or **"Help me create a session digest"**
+2. The AI will guide you through the process step-by-step
+
+![AI Session Recap Guidance](images/ai-session-recap-guidance.png)
+
+The AI will ask you for:
+
+- Session number and date
+- Key events and plot developments
+- NPC interactions and relationship changes
+- Location discoveries or changes
+- Player decisions and their consequences
+- World state updates
+
+The AI helps format and organize the digest, ensuring all important information is captured and properly structured for future reference.
 
 **Bulk Import:**
 
