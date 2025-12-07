@@ -280,13 +280,13 @@ export class EntityExtractionPipeline {
   }
 
   private generateFallbackEmbedding(text: string): number[] {
-    // Fallback approximation: produce a deterministic 1536-dim vector (matching OpenAI text-embedding-3 family size)
+    // Fallback approximation: produce a deterministic 768-dim vector (matching BGE model @cf/baai/bge-base-en-v1.5)
     // by hashing character codes into buckets. Ensures dedupe flow still has a vector even if model request fails.
     const normalized = text.toLowerCase();
-    const vector = new Array(1536).fill(0);
+    const vector = new Array(768).fill(0);
     for (let i = 0; i < normalized.length; i++) {
       const charCode = normalized.charCodeAt(i);
-      vector[i % 1536] += charCode / 255;
+      vector[i % 768] += charCode / 255;
     }
     return vector;
   }

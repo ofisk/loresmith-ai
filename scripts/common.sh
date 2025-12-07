@@ -47,7 +47,7 @@ confirm_action() {
 
 # Clear Vectorize index and recreate
 reset_vectorize_index() {
-    local dimensions="${1:-1536}"
+    local dimensions="${1:-768}"
     local metric="${2:-cosine}"
     
     echo "🧠 Clearing Vectorize embeddings..."

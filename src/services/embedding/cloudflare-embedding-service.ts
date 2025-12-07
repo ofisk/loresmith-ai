@@ -43,6 +43,12 @@ export class CloudflareEmbeddingService {
             "Embedding array contains non-numeric values"
           );
         }
+        // Validate dimensions (BGE model returns 768)
+        if (embeddingResponse.length !== 768) {
+          throw new InvalidEmbeddingResponseError(
+            `Invalid embedding dimensions: expected 768, got ${embeddingResponse.length}`
+          );
+        }
         console.log(
           `[CloudflareEmbeddingService] Got array embedding with ${embeddingResponse.length} dimensions`
         );
@@ -76,6 +82,12 @@ export class CloudflareEmbeddingService {
               if (!isValid) {
                 throw new InvalidEmbeddingResponseError(
                   "Embedding array contains invalid numeric values"
+                );
+              }
+              // Validate dimensions (BGE model returns 768)
+              if (firstEmbedding.length !== 768) {
+                throw new InvalidEmbeddingResponseError(
+                  `Invalid embedding dimensions: expected 768, got ${firstEmbedding.length}`
                 );
               }
               return firstEmbedding;
@@ -166,8 +178,8 @@ export class CloudflareEmbeddingService {
     const hash = this.simpleHash(text);
     const embeddings: number[] = [];
 
-    // Generate 1536-dimensional vector (matching OpenAI embeddings)
-    for (let i = 0; i < 1536; i++) {
+    // Generate 768-dimensional vector (matching BGE model @cf/baai/bge-base-en-v1.5)
+    for (let i = 0; i < 768; i++) {
       const seed = hash + i;
       embeddings.push((Math.sin(seed) + 1) / 2); // Normalize to [0, 1]
     }

@@ -42,7 +42,7 @@ fi
 
 # Step 3: Clear and recreate Vectorize embeddings
 echo ""
-reset_vectorize_index 1536 cosine
+reset_vectorize_index 768 cosine
 
 echo ""
 echo "🎉 Production data clearing completed successfully!"

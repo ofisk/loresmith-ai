@@ -86,6 +86,13 @@ export class FileEmbeddingService {
           `[FileEmbeddingService] Generated embedding for chunk ${i + 1}/${textChunks.length} with ${embeddings.length} dimensions`
         );
 
+        // Validate embedding has correct dimensions (BGE model returns 768)
+        if (embeddings.length !== 768) {
+          throw new Error(
+            `Invalid embedding dimensions: expected 768, got ${embeddings.length}`
+          );
+        }
+
         // Validate all values are numbers
         const hasInvalidValues = embeddings.some(
           (v) => typeof v !== "number" || !Number.isFinite(v)
