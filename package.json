@@ -32,7 +32,11 @@
     "format": "prettier --write .",
     "check": "prettier . --check && npx @biomejs/biome lint src tests && tsc",
     "validate": "npm run check && npm test",
-    "prepare": "husky"
+    "prepare": "husky",
+    "wiki:sync": "node scripts/sync-docs-to-wiki.js",
+    "wiki:sync:dry-run": "node scripts/sync-docs-to-wiki.js --dry-run",
+    "r2:clear": "node scripts/clear-r2.js",
+    "r2:clear:dry-run": "node scripts/clear-r2.js --dry-run"
   },
   "keywords": [
     "cloudflare",

@@ -1,93 +1,35 @@
 #!/bin/bash
 
-# Database migration script for LoreSmith AI (PRODUCTION)
-# This script automatically runs all SQL migration files in the migrations directory
-# Continues execution even if individual migrations fail
+# Unified database migration script for LoreSmith AI
+# Works for both local and production environments
+# Usage: ./scripts/migrate.sh [local|production]
 
-set -e  # Exit on any error
+set -e
 
-echo "🚀 Running LoreSmith AI PRODUCTION database migrations..."
+# Source common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
 
-# Check if wrangler is installed
-if ! command -v wrangler &> /dev/null; then
-    echo "❌ Error: wrangler is not installed. Please install it first:"
-    echo "npm install -g wrangler"
+ENVIRONMENT="${1:-local}"
+
+if [ "$ENVIRONMENT" != "local" ] && [ "$ENVIRONMENT" != "production" ]; then
+    echo "❌ Error: Environment must be 'local' or 'production'"
+    echo "Usage: $0 [local|production]"
     exit 1
 fi
 
-# Check if migrations directory exists
-if [ ! -d "migrations" ]; then
-    echo "❌ Error: migrations directory not found"
-    exit 1
-fi
+REMOTE_FLAG=$(get_db_remote_flag "$ENVIRONMENT")
+ENV_LABEL=$(echo "$ENVIRONMENT" | tr '[:lower:]' '[:upper:]')
 
-# Get database name from wrangler config
-DB_NAME="loresmith-db"
+echo "🚀 Running LoreSmith AI $ENV_LABEL database migrations..."
 
-# Find all SQL files in migrations directory and sort them
-MIGRATION_FILES=$(find migrations -name "*.sql" | sort)
+check_wrangler
 
-if [ -z "$MIGRATION_FILES" ]; then
-    echo "⚠️  No SQL migration files found in migrations directory"
-    exit 0
-fi
-
-echo "📋 Found $(echo "$MIGRATION_FILES" | wc -l) migration files to execute"
-echo ""
-
-# Track success and failure counts
-SUCCESS_COUNT=0
-FAILURE_COUNT=0
-FAILED_MIGRATIONS=""
-
-# Execute each migration file
-for migration_file in $MIGRATION_FILES; do
-    migration_name=$(basename "$migration_file")
-    echo "🔄 Running migration: $migration_name"
-    
-    # Special handling for clean slate migration
-    if [[ "$migration_name" == "0000_clean_slate.sql" ]]; then
-        # Check if campaigns table exists (indicates database has data)
-        HAS_DATA=$(wrangler d1 execute "$DB_NAME" --command="SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='campaigns';" --remote 2>/dev/null | grep -o '"count":[0-9]*' | grep -o '[0-9]*' || echo "0")
-        
-        if [ "$HAS_DATA" != "0" ]; then
-            echo "⚠️  Skipping clean slate migration - database already has tables (safe to skip)"
-            echo "✅ Success: $migration_name (skipped - tables already exist)"
-            ((SUCCESS_COUNT++))
-            echo ""
-            continue
-        else
-            echo "ℹ️  Running clean slate migration on fresh database"
-        fi
-    fi
-    
-    if wrangler d1 execute "$DB_NAME" --file="$migration_file" --remote; then
-        echo "✅ Success: $migration_name"
-        ((SUCCESS_COUNT++))
-    else
-        echo "❌ Failed: $migration_name"
-        ((FAILURE_COUNT++))
-        FAILED_MIGRATIONS="$FAILED_MIGRATIONS\n  - $migration_name"
-    fi
-    
-    echo ""
-done
-
-# Summary
-echo "📊 Migration Summary:"
-echo "  ✅ Successful: $SUCCESS_COUNT"
-echo "  ❌ Failed: $FAILURE_COUNT"
-
-if [ $FAILURE_COUNT -gt 0 ]; then
-    echo "  📝 Failed migrations:$FAILED_MIGRATIONS"
-    echo ""
-    echo "⚠️  Some migrations failed, but execution continued."
-    echo "   You may want to check the failed migrations and run them manually."
-fi
+run_migrations "$DB_NAME" "$REMOTE_FLAG"
 
 echo ""
 echo "📋 Current database tables:"
-wrangler d1 execute "$DB_NAME" --command="SELECT name FROM sqlite_master WHERE type='table';" --remote
+list_db_tables "$DB_NAME" "$REMOTE_FLAG"
 
 echo ""
-echo "🎉 Production migration process completed!" 
+echo "🎉 $ENV_LABEL migration process completed!"

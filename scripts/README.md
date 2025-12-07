@@ -185,7 +185,10 @@ The project uses a migration system for database schema changes:
 ./scripts/migrate.sh
 
 # Run all migrations (local development)
-./scripts/migrate-local.sh
+./scripts/migrate-local.sh  # Wrapper that calls migrate.sh local
+# Or use directly:
+./scripts/migrate.sh local
+./scripts/migrate.sh production
 ```
 
 #### Migration Files
@@ -201,6 +204,44 @@ The project uses a migration system for database schema changes:
 - **Clean Slate Migration**: `0000_clean_slate.sql` drops and recreates all tables
 - **Schema Updates**: Always update the clean slate migration when adding new columns
 - **Stuck File Detection**: Requires `updated_at` column in `file_metadata` table for proper timeout handling
+
+### Wiki Sync Script
+
+**`sync-docs-to-wiki.sh` / `sync-docs-to-wiki.js`**
+
+Sync documentation files from the `docs/` directory to the GitHub Wiki.
+
+**Prerequisites:**
+
+- Wiki must be enabled on the GitHub repository
+- Git must be configured with write access to the repository
+- You must have push permissions to the wiki
+
+**Usage:**
+
+```bash
+# Using npm script (Node.js version - recommended)
+npm run wiki:sync
+
+# Dry run to preview changes without committing
+npm run wiki:sync:dry-run
+
+# Using bash script directly
+./scripts/sync-docs-to-wiki.sh
+
+# Using Node.js script directly
+node scripts/sync-docs-to-wiki.js [--dry-run]
+```
+
+**What it does:**
+
+1. Clones the wiki repository (`https://github.com/USERNAME/REPO.wiki.git`)
+2. Copies documentation files from `docs/` to appropriate wiki pages
+3. Creates/updates `_Sidebar.md` for navigation
+4. Processes markdown links to work in wiki format
+5. Commits and pushes changes
+
+**Note:** GitHub wikis are Git repositories, so this script uses standard git operations to update wiki content programmatically. See [GitHub's documentation on editing wikis locally](https://docs.github.com/articles/adding-and-editing-wiki-pages-locally) for more details.
 
 ### Related Files
 
