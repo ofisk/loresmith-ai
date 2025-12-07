@@ -1,6 +1,7 @@
 import { Button } from "@/components/button/Button";
 import { FileDAO } from "@/dao/file-dao";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
+import type { Campaign } from "@/types/campaign";
 
 interface ResourceFileDetailsProps {
   file: ResourceFileWithCampaigns;
@@ -8,6 +9,7 @@ interface ResourceFileDetailsProps {
   onEditFile?: (file: ResourceFileWithCampaigns) => void;
   onRetryIndexing: (fileKey: string) => Promise<void>;
   fetchResources: () => Promise<void>;
+  campaigns?: Campaign[];
 }
 
 /**
@@ -19,15 +21,24 @@ export function ResourceFileDetails({
   onEditFile,
   onRetryIndexing,
   fetchResources,
+  campaigns = [],
 }: ResourceFileDetailsProps) {
   const handleRetryIndexing = async () => {
     await onRetryIndexing(file.file_key);
     await fetchResources();
   };
 
+  // Calculate available campaigns (campaigns the file isn't already in)
+  const availableCampaigns = campaigns.filter((campaign) => {
+    if (!file.campaigns) return true;
+    return !file.campaigns.some(
+      (existingCampaign) => existingCampaign.campaignId === campaign.campaignId
+    );
+  });
+
   return (
     <div
-      className={`overflow-hidden transition-all duration-300 ease-in-out max-h-96 opacity-100`}
+      className={`overflow-y-auto transition-all duration-300 ease-in-out max-h-96 opacity-100`}
     >
       <div className="mt-4 text-xs space-y-1">
         {file.display_name && (
@@ -127,9 +138,15 @@ export function ResourceFileDetails({
             }
           }
 
+          // Show retry button for error/unindexed/failed statuses, but not for memory limit errors
+          const isFailedStatus =
+            file.status === FileDAO.STATUS.UNINDEXED ||
+            file.status === FileDAO.STATUS.ERROR ||
+            file.status === "failed" ||
+            file.status === "error";
+
           return (
-            (file.status === FileDAO.STATUS.UNINDEXED ||
-              file.status === FileDAO.STATUS.ERROR) &&
+            isFailedStatus &&
             !isMemoryLimitError && (
               <Button
                 onClick={handleRetryIndexing}
@@ -162,19 +179,21 @@ export function ResourceFileDetails({
             }
             return null;
           })()}
-        <Button
-          onClick={() => {
-            onAddToCampaign?.(file);
-          }}
-          variant="secondary"
-          size="sm"
-          className="w-full !text-purple-600 dark:!text-purple-400 hover:!text-purple-700 dark:hover:!text-purple-300 border-purple-200 dark:border-purple-700 hover:border-purple-300 dark:hover:border-purple-600"
-          disabled={file.status !== FileDAO.STATUS.COMPLETED}
-        >
-          {file.status === FileDAO.STATUS.COMPLETED
-            ? "Add to campaign"
-            : "File Not Ready"}
-        </Button>
+        {availableCampaigns.length > 0 && onAddToCampaign && (
+          <Button
+            onClick={() => {
+              onAddToCampaign(file);
+            }}
+            variant="secondary"
+            size="sm"
+            className="w-full !text-purple-600 dark:!text-purple-400 hover:!text-purple-700 dark:hover:!text-purple-300 border-purple-200 dark:border-purple-700 hover:border-purple-300 dark:hover:border-purple-600"
+            disabled={file.status !== FileDAO.STATUS.COMPLETED}
+          >
+            {file.status === FileDAO.STATUS.COMPLETED
+              ? "Add to campaign"
+              : "File Not Ready"}
+          </Button>
+        )}
         <Button
           onClick={() => {
             onEditFile?.(file);

@@ -23,6 +23,15 @@ This directory contains screenshots and images used in the documentation.
 - `campaign-assessment-next-steps.png` - Screenshot showing the "What should I do next?" feature for campaign assessment and AI suggestions
 - `admin-dashboard-telemetry.png` - Screenshot showing the admin dashboard with GraphRAG stats and telemetry metrics for admin authenticated users
 - `file-processing-failure.png` - Screenshot showing file processing failure status with retry capability in the resource library
+- `notifications-system.png` - Screenshot showing the notifications panel displaying real-time system notifications
+- `shard-generation-notification.png` - Screenshot showing a notification when shards are generated after adding a file to a campaign
+- `shards-overlay.png` - Screenshot showing the Pending Shards overlay panel with shard review interface
+- `shard-details-edit.png` - Screenshot showing detailed shard properties with editable importance, metadata, and entity relationships
+- `shard-approval-notifications.png` - Screenshot showing notifications for shard approval workflow including "New Shards Ready" and "Shards Approved" notifications
+- `campaign-details-session-digests.png` - Screenshot showing the Campaign Details modal with Session Digests tab for adding session recaps to update campaign world state
+- `ai-session-recap-guidance.png` - Screenshot showing the AI assistant guiding users through creating session recap notes
+- `campaign-assessment-next-steps.png` - Screenshot showing the "What should I do next?" feature for campaign assessment and AI suggestions
+- `admin-dashboard-telemetry.png` - Screenshot showing the admin dashboard with GraphRAG stats and telemetry metrics for admin authenticated users
 
 ## Adding New Images
 

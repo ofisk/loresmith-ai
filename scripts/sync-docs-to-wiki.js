@@ -21,6 +21,8 @@ import {
   readFileSync,
   writeFileSync,
   rmSync,
+  readdirSync,
+  statSync,
 } from "fs";
 import { join } from "path";
 
@@ -38,30 +40,38 @@ const DRY_RUN = process.argv.includes("--dry-run");
 // File mappings: source -> wiki destination
 const FILE_MAPPINGS = [
   { src: "README.md", dest: "Home.md", process: true },
-  { src: "docs/USER_GUIDE.md", dest: "User-Guide.md" },
-  { src: "docs/FEATURES.md", dest: "Features.md" },
-  { src: "docs/ARCHITECTURE.md", dest: "Architecture.md" },
-  { src: "docs/API.md", dest: "API-Reference.md" },
-  { src: "docs/DEV_SETUP.md", dest: "Developer-Setup.md" },
-  { src: "docs/TESTING_GUIDE.md", dest: "Testing-Guide.md" },
-  { src: "docs/CONTRIBUTING.md", dest: "Contributing.md" },
+  { src: "docs/USER_GUIDE.md", dest: "User-Guide.md", process: true },
+  { src: "docs/FEATURES.md", dest: "Features.md", process: true },
+  { src: "docs/ARCHITECTURE.md", dest: "Architecture.md", process: true },
+  { src: "docs/API.md", dest: "API-Reference.md", process: true },
+  { src: "docs/DEV_SETUP.md", dest: "Developer-Setup.md", process: true },
+  { src: "docs/TESTING_GUIDE.md", dest: "Testing-Guide.md", process: true },
+  { src: "docs/CONTRIBUTING.md", dest: "Contributing.md", process: true },
   // Technical docs
   {
     src: "docs/GRAPHRAG_INTEGRATION.md",
     dest: "Technical/GraphRAG-Integration.md",
+    process: true,
   },
   {
     src: "docs/AUTHENTICATION_FLOW.md",
     dest: "Technical/Authentication-Flow.md",
+    process: true,
   },
-  { src: "docs/STORAGE_STRATEGY.md", dest: "Technical/Storage-Strategy.md" },
+  {
+    src: "docs/STORAGE_STRATEGY.md",
+    dest: "Technical/Storage-Strategy.md",
+    process: true,
+  },
   {
     src: "docs/FILE_ANALYSIS_SYSTEM.md",
     dest: "Technical/File-Analysis-System.md",
+    process: true,
   },
   {
     src: "docs/MODEL_CONFIGURATION.md",
     dest: "Technical/Model-Configuration.md",
+    process: true,
   },
 ];
 
@@ -97,6 +107,13 @@ function processMarkdown(content, isHomePage = false) {
 
   // Fix relative image paths if needed
   processed = processed.replace(/\]\(\.\.\/\.\.\/([^)]+)\)/g, "]($1)");
+
+  // Convert docs/images/ paths to images/ for wiki (from README.md and other root files)
+  processed = processed.replace(/\]\(docs\/images\/([^)]+)\)/g, "](images/$1)");
+
+  // Ensure images/ paths work correctly - they should already be correct
+  // GitHub wiki uses relative paths from the page, so images/filename.png should work
+  // if images are in the wiki/images/ directory
 
   // Remove the title from Home.md (first line with #)
   if (isHomePage) {
@@ -198,6 +215,34 @@ try {
 
     writeFileSync(mapping.dest, processed);
     console.log(`✅ Copied ${mapping.src} → ${mapping.dest}`);
+  }
+
+  // Copy images directory if it exists
+  const imagesSourceDir = join("..", DOCS_DIR, "images");
+  const imagesDestDir = "images";
+  if (existsSync(imagesSourceDir)) {
+    console.log("🖼️  Copying images...");
+    if (!existsSync(imagesDestDir)) {
+      mkdirSync(imagesDestDir, { recursive: true });
+    }
+    // Copy all files from docs/images/ to wiki/images/
+    // Exclude README.md from images directory
+    const imageFiles = readdirSync(imagesSourceDir).filter(
+      (file) =>
+        file !== "README.md" &&
+        !statSync(join(imagesSourceDir, file)).isDirectory()
+    );
+    for (const file of imageFiles) {
+      const srcFile = join(imagesSourceDir, file);
+      const destFile = join(imagesDestDir, file);
+      cpSync(srcFile, destFile, { recursive: false });
+      console.log(`✅ Copied image: ${file}`);
+    }
+    if (imageFiles.length === 0) {
+      console.log("⚠️  No image files found in docs/images/");
+    }
+  } else {
+    console.log("⚠️  Images directory not found (docs/images/)");
   }
 
   // Create or update sidebar
