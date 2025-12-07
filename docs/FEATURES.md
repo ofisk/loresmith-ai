@@ -55,10 +55,13 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 
 **Conversational Interface**
 
+![AI Help Conversation](images/ai-help-conversation.png)
+
 - Natural language chat interface
 - Context-aware responses
 - Campaign-specific knowledge
 - Multi-turn conversations
+- Personalized guidance via "Get help" feature
 
 **Intelligent Responses**
 
@@ -66,6 +69,7 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 - References uploaded resources
 - Maintains conversation history
 - Provides actionable suggestions
+- Analyzes your current state to offer relevant next steps
 
 ### 🔍 GraphRAG Technology
 

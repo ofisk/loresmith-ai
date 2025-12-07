@@ -7,6 +7,7 @@ This directory contains screenshots and images used in the documentation.
 - `welcome-screen.png` - Screenshot of the welcome screen shown when first accessing LoreSmith AI
 - `add-resource-modal.png` - Screenshot of the "Add resource" modal for uploading files to the library
 - `create-campaign-modal.png` - Screenshot of the "Create new campaign" modal for creating campaigns
+- `ai-help-conversation.png` - Screenshot showing the AI assistant providing personalized help and guidance
 
 ## Adding New Images
 

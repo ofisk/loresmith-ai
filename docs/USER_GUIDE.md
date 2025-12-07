@@ -149,6 +149,19 @@ After upload, LoreSmith automatically:
 
 ## Using the AI Assistant
 
+### Getting Help
+
+If you're not sure where to start, click the **"Get help"** button in the top right corner. This will start a conversation with the AI assistant that provides personalized guidance based on your current state:
+
+![AI Help Conversation](images/ai-help-conversation.png)
+
+The AI will analyze what you have set up and provide actionable next steps, such as:
+
+- Uploading your first resource
+- Creating your first campaign
+- Planning sessions
+- Organizing your campaign context
+
 ### Starting a Conversation
 
 The AI assistant is available in the main chat area. You can ask it to:
@@ -157,6 +170,7 @@ The AI assistant is available in the main chat area. You can ask it to:
 - **Find Information**: "What do we know about the Black Dragon?"
 - **Create Content**: "Generate NPCs for the tavern scene"
 - **Answer Questions**: "How should I handle player conflict?"
+- **Get Guidance**: Click "Get help" for personalized assistance
 
 ### Understanding Campaign Context
 
