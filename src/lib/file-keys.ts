@@ -4,6 +4,69 @@
 import { LIBRARY_CONFIG } from "../app-constants";
 
 /**
+ * Helper function to append a number to a filename before the extension
+ * @param filename - Original filename
+ * @param number - Number to append
+ * @returns Filename with number appended (e.g., "file.pdf" -> "file (1).pdf")
+ */
+export function appendNumberToFilename(
+  filename: string,
+  number: number
+): string {
+  const lastDotIndex = filename.lastIndexOf(".");
+  if (lastDotIndex === -1) {
+    // No extension
+    return `${filename} (${number})`;
+  }
+  const name = filename.substring(0, lastDotIndex);
+  const extension = filename.substring(lastDotIndex);
+  return `${name} (${number})${extension}`;
+}
+
+/**
+ * Get a unique filename by appending an incrementing number if a collision exists
+ * @param checkExists - Async function that checks if a filename exists for a user
+ * @param originalFilename - The original filename
+ * @param username - The username
+ * @returns A unique filename
+ */
+export async function getUniqueFilename(
+  checkExists: (username: string, filename: string) => Promise<boolean>,
+  originalFilename: string,
+  username: string
+): Promise<string> {
+  // Check if the original filename is already taken
+  const exists = await checkExists(username, originalFilename);
+  if (!exists) {
+    return originalFilename;
+  }
+
+  // Try appending numbers until we find a unique name
+  let counter = 1;
+  let candidateFilename = appendNumberToFilename(originalFilename, counter);
+
+  while (await checkExists(username, candidateFilename)) {
+    counter++;
+    candidateFilename = appendNumberToFilename(originalFilename, counter);
+
+    // Safety limit to prevent infinite loops
+    if (counter > 1000) {
+      // Fallback to timestamp-based name
+      const timestamp = Date.now();
+      const lastDotIndex = originalFilename.lastIndexOf(".");
+      if (lastDotIndex === -1) {
+        return `${originalFilename}_${timestamp}`;
+      }
+      const name = originalFilename.substring(0, lastDotIndex);
+      const extension = originalFilename.substring(lastDotIndex);
+      return `${name}_${timestamp}${extension}`;
+    }
+  }
+
+  return candidateFilename;
+}
+
+/**
  * Constructs a staging file key for temporary uploads
  * @param tenant - The tenant/username
  * @param filename - The filename

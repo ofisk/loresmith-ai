@@ -138,9 +138,15 @@ export function ResourceFileDetails({
             }
           }
 
+          // Show retry button for error/unindexed/failed statuses, but not for memory limit errors
+          const isFailedStatus =
+            file.status === FileDAO.STATUS.UNINDEXED ||
+            file.status === FileDAO.STATUS.ERROR ||
+            file.status === "failed" ||
+            file.status === "error";
+
           return (
-            (file.status === FileDAO.STATUS.UNINDEXED ||
-              file.status === FileDAO.STATUS.ERROR) &&
+            isFailedStatus &&
             !isMemoryLimitError && (
               <Button
                 onClick={handleRetryIndexing}

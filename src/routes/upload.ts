@@ -4,7 +4,7 @@ import { notifyFileUploadFailed } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
-import { buildLibraryFileKey } from "@/lib/file-keys";
+import { buildLibraryFileKey, getUniqueFilename } from "@/lib/file-keys";
 import { nanoid } from "@/lib/nanoid";
 import { cleanupStuckProcessingFiles } from "@/queue-consumer";
 import { startFileProcessing } from "@/routes/upload-processing";
@@ -106,7 +106,17 @@ export async function handleDirectUpload(c: ContextWithAuth) {
 
     // Get the file content
     const fileBuffer = await c.req.arrayBuffer();
-    const key = await buildLibraryFileKey(tenant || "", filename || "");
+
+    // Check for filename collisions and get a unique filename
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const uniqueFilename = await getUniqueFilename(
+      (username, fileName) => fileDAO.fileExistsForUser(username, fileName),
+      filename || "",
+      tenant || ""
+    );
+
+    // Use the unique filename for the file key
+    const key = await buildLibraryFileKey(tenant || "", uniqueFilename);
 
     // Upload directly to R2
     await c.env.R2.put(key, fileBuffer, {
@@ -126,13 +136,11 @@ export async function handleDirectUpload(c: ContextWithAuth) {
       size: fileBuffer.byteLength,
     });
 
-    // Insert file metadata into database
-    const fileDAO = getDAOFactory(c.env).fileDAO;
-
+    // Insert file metadata into database (use unique filename)
     try {
       await fileDAO.insertFileForProcessing(
         key,
-        filename,
+        uniqueFilename,
         "",
         "[]",
         tenant,
@@ -158,7 +166,7 @@ export async function handleDirectUpload(c: ContextWithAuth) {
       c.env,
       key,
       userAuth.username,
-      filename,
+      uniqueFilename,
       "[DirectUpload]",
       jwt
     );
@@ -357,7 +365,16 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
 
     const tenant = userAuth.username;
     const sessionId = nanoid();
-    const fileKey = await buildLibraryFileKey(tenant, filename);
+
+    // Check for filename collisions and get a unique filename
+    const fileDAO = getDAOFactory(c.env).fileDAO;
+    const uniqueFilename = await getUniqueFilename(
+      (username, fileName) => fileDAO.fileExistsForUser(username, fileName),
+      filename,
+      tenant
+    );
+
+    const fileKey = await buildLibraryFileKey(tenant, uniqueFilename);
 
     // Create multipart upload in R2
     const multipartUpload = await c.env.R2.createMultipartUpload(fileKey, {
@@ -368,7 +385,7 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
       customMetadata: {
         file_key: fileKey,
         user: tenant,
-        original_name: filename,
+        original_name: uniqueFilename, // Use unique filename
       },
     });
 
@@ -383,7 +400,7 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
       userId: tenant,
       fileKey: fileKey,
       uploadId: multipartUpload.uploadId,
-      filename: filename,
+      filename: uniqueFilename, // Use unique filename to avoid collisions
       fileSize: fileSize,
       totalParts: totalParts,
     };

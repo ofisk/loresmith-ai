@@ -157,6 +157,25 @@ export class FileDAO extends BaseDAOClass {
     return this.queryAndParseFileMetadata(sql, [id]);
   }
 
+  /**
+   * Check if a file with the given name exists for the user
+   * @param username - The username
+   * @param fileName - The file name to check
+   * @returns True if a file with this name exists
+   */
+  async fileExistsForUser(
+    username: string,
+    fileName: string
+  ): Promise<boolean> {
+    const sql = `
+      SELECT COUNT(*) as count
+      FROM file_metadata
+      WHERE username = ? AND file_name = ?
+    `;
+    const result = await this.queryFirst(sql, [username, fileName]);
+    return (result?.count as number) > 0;
+  }
+
   async getFilesByUser(username: string): Promise<ParsedFileMetadata[]> {
     const sql = `
       SELECT * FROM file_metadata 
