@@ -76,6 +76,7 @@ import {
   handleSearchPlanningContext,
   handleGetRecentPlanningContext,
 } from "@/routes/planning-context";
+import { handleAssembleContext } from "@/routes/context-assembly";
 import {
   handleGetExternalResourceRecommendations,
   handleGetExternalResourceSearch,
@@ -309,6 +310,12 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_CONTEXT.RECENT(":campaignId"),
     requireUserJwt,
     handleGetRecentPlanningContext
+  );
+
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.CONTEXT_ASSEMBLY(":campaignId"),
+    requireUserJwt,
+    handleAssembleContext
   );
 
   app.get(
