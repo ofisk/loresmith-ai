@@ -4,7 +4,7 @@ import { BaseAgent } from "./base-agent";
 import {
   buildSystemPrompt,
   createToolMappingFromObjects,
-} from "./systemPrompts";
+} from "./system-prompts";
 import {
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,

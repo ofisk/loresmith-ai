@@ -11,8 +11,8 @@ import {
   convertStagedShardGroupsToShards,
   convertShardCandidatesToShards,
   convertShardToUpdate,
-} from "@/components/shard/shardAdapters";
-import type { Shard } from "@/components/shard/ShardTypeDetector";
+} from "@/components/shard/shard-adapters";
+import type { Shard } from "@/components/shard/shard-type-detector";
 
 interface ShardManagementUIProps {
   campaignId: string;

@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../app-constants";
-import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
+import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
 import { AUTH_CODES } from "../../shared-config";
 import { createToolError, createToolSuccess } from "../utils";
 

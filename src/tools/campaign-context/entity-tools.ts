@@ -5,7 +5,7 @@ import { createToolError, createToolSuccess } from "../utils";
 import type { ToolResult } from "@/app-constants";
 import { API_CONFIG } from "@/shared-config";
 import { extractUsernameFromJwt } from "../utils";
-import { authenticatedFetch, handleAuthError } from "@/lib/toolAuth";
+import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
 import { RELATIONSHIP_TYPES } from "@/lib/relationship-types";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { EntityExtractionService } from "@/services/rag/entity-extraction-service";

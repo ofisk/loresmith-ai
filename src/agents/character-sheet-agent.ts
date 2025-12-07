@@ -3,7 +3,7 @@ import { BaseAgent } from "./base-agent";
 import {
   buildSystemPrompt,
   createToolMappingFromObjects,
-} from "./systemPrompts";
+} from "./system-prompts";
 
 /**
  * System prompt configuration for the Character Sheet Agent.

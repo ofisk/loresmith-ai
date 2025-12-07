@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect } from "react";
 import { Edit2, ChevronDown, ChevronRight, Star } from "lucide-react";
-import type { StructuredShard } from "./ShardTypeDetector";
+import type { StructuredShard } from "./shard-type-detector";
 import {
   getConfidenceColorClass,
   getShardTypeDisplayName,
   getEditableProperties,
-} from "./ShardTypeDetector";
+} from "./shard-type-detector";
 import { PropertyField } from "./PropertyField";
 import {
   authenticatedFetchWithExpiration,

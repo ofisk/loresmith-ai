@@ -11,7 +11,7 @@ import { LibraryService } from "@/services/core/library-service";
 import { MetadataService } from "@/services/core/metadata-service";
 import { AgentRegistryService } from "./agent-registry";
 import { AgentRouter } from "./agent-router";
-import { CampaignRAGService } from "./campaignRag";
+import { CampaignRAGService } from "./campaign-rag";
 import { ModelManager } from "./model-manager";
 import { LibraryRAGService } from "@/services/rag/rag-service";
 

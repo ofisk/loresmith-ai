@@ -8,12 +8,12 @@ import {
   X,
   Star,
 } from "lucide-react";
-import type { FlexibleShard } from "./ShardTypeDetector";
+import type { FlexibleShard } from "./shard-type-detector";
 import {
   getShardTypeDisplayName,
   getConfidenceColorClass,
   getEditableProperties,
-} from "./ShardTypeDetector";
+} from "./shard-type-detector";
 import { PropertyGrid } from "./PropertyField";
 import {
   authenticatedFetchWithExpiration,

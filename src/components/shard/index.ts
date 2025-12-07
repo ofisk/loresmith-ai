@@ -20,7 +20,7 @@ export {
   type StructuredShard,
   type FlexibleShard,
   type ShardMetadata,
-} from "./ShardTypeDetector";
+} from "./shard-type-detector";
 
 // UI Components
 export { PropertyField, PropertyGrid } from "./PropertyField";
