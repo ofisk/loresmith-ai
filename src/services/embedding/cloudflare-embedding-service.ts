@@ -144,7 +144,6 @@ export class CloudflareEmbeddingService {
           );
         }
       }
-
       console.error(
         `[CloudflareEmbeddingService] Unable to extract embedding from response:`,
         JSON.stringify(embeddingResponse).substring(0, 500)
