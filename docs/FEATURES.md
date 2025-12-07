@@ -24,10 +24,15 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 
 **File Upload & Storage**
 
+![Add Resource Modal](images/add-resource-modal.png)
+
 - Upload PDFs, documents, and images
 - Support for files up to 500MB
 - Secure cloud storage
 - Direct upload with progress tracking
+- Intuitive upload modal with drag-and-drop support
+- Optional metadata: filename, description, and tags
+- Campaign association during upload
 
 **Content Processing**
 

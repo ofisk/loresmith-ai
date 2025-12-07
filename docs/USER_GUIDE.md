@@ -95,13 +95,27 @@ You can create as many campaigns as you need:
 
 ### Uploading Files
 
-1. Click **"Add to Library"** in the sidebar
-2. Drag and drop files or click to select
-3. Supported formats:
-   - PDF files (up to 500MB)
-   - Images (PNG, JPG, etc.)
-   - Text documents
-4. Wait for processing to complete
+To add resources to your library, click **"Add to Library"** in the sidebar. This opens the upload modal:
+
+![Add Resource Modal](images/add-resource-modal.png)
+
+The upload modal allows you to:
+
+1. **Select Files**: Click to select or drag and drop files into the upload area
+2. **Add Metadata** (optional):
+   - **Filename**: Give your resource a custom name
+   - **Description**: Add notes about the resource's content
+   - **Tags**: Add keywords for better organization (e.g., "undead, forest, cursed treasure")
+3. **Add to Campaigns** (optional): Select which campaigns this resource should be associated with
+4. **Upload**: Click "Upload" to start processing
+
+**Supported formats:**
+
+- PDF files (up to 500MB)
+- Images (PNG, JPG, etc.)
+- Text documents
+
+After clicking "Upload", wait for processing to complete. You'll see the file appear in your resource library once it's ready.
 
 ### File Processing
 

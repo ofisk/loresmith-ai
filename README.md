@@ -32,6 +32,9 @@ LoreSmith is an AI-powered campaign planning tool that combines:
 ## ✨ Key Features
 
 - **📚 Resource Library**: Upload PDFs, documents, and images (up to 500MB per file) with AI-powered extraction and indexing
+
+  ![Add Resource](docs/images/add-resource-modal.png)
+
 - **🎲 Campaign Management**: Create and organize multiple campaigns with dedicated contexts
 - **🤖 AI-Powered Chat**: Conversational AI assistant that understands your campaign context
 - **🔍 Intelligent Search**: Semantic search across your resources and campaign content using GraphRAG

@@ -5,6 +5,7 @@ This directory contains screenshots and images used in the documentation.
 ## Images
 
 - `welcome-screen.png` - Screenshot of the welcome screen shown when first accessing LoreSmith AI
+- `add-resource-modal.png` - Screenshot of the "Add resource" modal for uploading files to the library
 
 ## Adding New Images
 
