@@ -119,29 +119,49 @@ export function useTelemetryDashboard() {
       try {
         const jwt = localStorage.getItem("authToken");
         if (!jwt) {
+          console.error("[useTelemetryDashboard] No JWT token found");
           throw new Error("Authentication required");
         }
 
-        const response = await fetch(
-          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.DASHBOARD),
-          {
-            headers: {
-              Authorization: `Bearer ${jwt}`,
-              "Content-Type": "application/json",
-            },
-          }
+        const url = API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.DASHBOARD
+        );
+        console.log("[useTelemetryDashboard] Fetching dashboard from:", url);
+
+        const response = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        console.log(
+          "[useTelemetryDashboard] Response status:",
+          response.status,
+          response.statusText
         );
 
         if (!response.ok) {
-          if (response.status === 403) {
-            throw new Error("Admin access required");
+          const errorText = await response.text();
+          console.error("[useTelemetryDashboard] Error response:", errorText);
+          try {
+            const errorData = JSON.parse(errorText);
+            throw new Error(
+              errorData.error ||
+                `Failed to fetch dashboard: ${response.statusText}`
+            );
+          } catch {
+            throw new Error(
+              `Failed to fetch dashboard: ${response.statusText}`
+            );
           }
-          throw new Error(`Failed to fetch dashboard: ${response.statusText}`);
         }
 
         const data = (await response.json()) as DashboardSummary;
+        console.log("[useTelemetryDashboard] Dashboard data received:", data);
         setDashboard(data);
       } catch (err) {
+        console.error("[useTelemetryDashboard] Error:", err);
         setError(err instanceof Error ? err : new Error("Unknown error"));
       } finally {
         setLoading(false);

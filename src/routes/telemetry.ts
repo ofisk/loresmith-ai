@@ -15,18 +15,35 @@ type ContextWithAuth = Context<{ Bindings: Env }> & {
 };
 
 function getUserAuth(c: ContextWithAuth): AuthPayload {
+  console.log("[getUserAuth] Checking context for userAuth");
+  console.log("[getUserAuth] (c as any).userAuth:", (c as any).userAuth);
+  console.log(
+    "[getUserAuth] c.get?.('userAuth'):",
+    (c as any).get?.("userAuth")
+  );
+
   const userAuth = (c as any).userAuth ?? (c as any).get?.("userAuth");
+  console.log("[getUserAuth] Final userAuth:", userAuth);
+
   if (!userAuth) {
+    console.error("[getUserAuth] No userAuth found in context");
     throw new UserAuthenticationMissingError();
   }
   return userAuth;
 }
 
 function requireAdmin(c: ContextWithAuth): void {
+  console.log("[requireAdmin] Checking admin access");
   const userAuth = getUserAuth(c);
+  console.log("[requireAdmin] User auth:", {
+    username: userAuth.username,
+    isAdmin: userAuth.isAdmin,
+  });
   if (!userAuth.isAdmin) {
+    console.error("[requireAdmin] User is not admin");
     throw new Error("Admin access required");
   }
+  console.log("[requireAdmin] Admin check passed");
 }
 
 function getTelemetryService(c: ContextWithAuth): TelemetryService {
@@ -205,9 +222,12 @@ export async function handleGetMetrics(c: ContextWithAuth) {
  * Get dashboard summary (admin only)
  */
 export async function handleGetDashboard(c: ContextWithAuth) {
+  console.log("[handleGetDashboard] Request received");
   try {
     requireAdmin(c);
+    console.log("[handleGetDashboard] Admin check passed");
   } catch (error) {
+    console.error("[handleGetDashboard] Admin check failed:", error);
     if (error instanceof UserAuthenticationMissingError) {
       return c.json({ error: "Authentication required" }, 401);
     }
@@ -218,6 +238,7 @@ export async function handleGetDashboard(c: ContextWithAuth) {
   }
 
   try {
+    console.log("[handleGetDashboard] Getting telemetry service");
     const telemetryService = getTelemetryService(c);
 
     // Get recent metrics for dashboard overview
