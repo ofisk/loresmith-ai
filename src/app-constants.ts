@@ -144,6 +144,11 @@ export const USER_MESSAGES = {
   HOOK_FAILED_TO_ADD_RESOURCE: "Failed to add resource",
   HOOK_FAILED_TO_REMOVE_RESOURCE: "Failed to remove resource",
   HOOK_FAILED_TO_FETCH_FILES: "Failed to fetch files",
+  HOOK_FAILED_TO_FETCH_SESSION_DIGESTS: "Failed to fetch session digests",
+  HOOK_FAILED_TO_FETCH_SESSION_DIGEST: "Failed to fetch session digest",
+  HOOK_FAILED_TO_CREATE_SESSION_DIGEST: "Failed to create session digest",
+  HOOK_FAILED_TO_UPDATE_SESSION_DIGEST: "Failed to update session digest",
+  HOOK_FAILED_TO_DELETE_SESSION_DIGEST: "Failed to delete session digest",
 } as const;
 
 // Success messages
