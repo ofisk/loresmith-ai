@@ -1,21 +1,11 @@
 import { getDAOFactory } from "@/dao/dao-factory";
-import { PlanningContextService } from "@/services/rag/planning-context-service";
 import type { PlanningContextSearchOptions } from "@/services/rag/planning-context-service";
 import {
   type ContextWithAuth,
   getUserAuth,
   ensureCampaignAccess,
+  getPlanningContextService,
 } from "@/lib/route-utils";
-
-function getPlanningContextService(c: ContextWithAuth): PlanningContextService {
-  // Validation happens automatically in PlanningContextService constructor
-  return new PlanningContextService(
-    c.env.DB!,
-    c.env.VECTORIZE!,
-    c.env.OPENAI_API_KEY as string,
-    c.env
-  );
-}
 
 export async function handleSearchPlanningContext(c: ContextWithAuth) {
   try {

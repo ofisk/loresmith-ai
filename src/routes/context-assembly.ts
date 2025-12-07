@@ -1,19 +1,10 @@
-import { ContextAssemblyService } from "@/services/context/context-assembly-service";
 import type { ContextAssemblyOptions } from "@/types/context-assembly";
 import {
   type ContextWithAuth,
   getUserAuth,
   ensureCampaignAccess,
+  getContextAssemblyService,
 } from "@/lib/route-utils";
-
-function getContextAssemblyService(c: ContextWithAuth): ContextAssemblyService {
-  return new ContextAssemblyService(
-    c.env.DB!,
-    c.env.VECTORIZE!,
-    c.env.OPENAI_API_KEY as string,
-    c.env
-  );
-}
 
 export async function handleAssembleContext(c: ContextWithAuth) {
   try {

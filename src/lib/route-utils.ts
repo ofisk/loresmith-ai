@@ -3,6 +3,10 @@ import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { UserAuthenticationMissingError } from "@/lib/errors";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { PlanningContextService } from "@/services/rag/planning-context-service";
+import { ContextAssemblyService } from "@/services/context/context-assembly-service";
+import { RebuildQueueService } from "@/services/graph/rebuild-queue-service";
+import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
 
 /**
  * Context type extended with authentication information
@@ -74,4 +78,59 @@ export async function verifyCampaignAccess(
     campaignRagBasePath:
       campaign.campaignRagBasePath || `campaigns/${campaignId}`,
   };
+}
+
+/**
+ * Get PlanningContextService instance
+ * Validation happens automatically in PlanningContextService constructor
+ */
+export function getPlanningContextService(
+  c: ContextWithAuth
+): PlanningContextService {
+  return new PlanningContextService(
+    c.env.DB!,
+    c.env.VECTORIZE!,
+    c.env.OPENAI_API_KEY as string,
+    c.env
+  );
+}
+
+/**
+ * Get ContextAssemblyService instance
+ */
+export function getContextAssemblyService(
+  c: ContextWithAuth
+): ContextAssemblyService {
+  return new ContextAssemblyService(
+    c.env.DB!,
+    c.env.VECTORIZE!,
+    c.env.OPENAI_API_KEY as string,
+    c.env
+  );
+}
+
+/**
+ * Get RebuildQueueService instance
+ * Throws error if GRAPH_REBUILD_QUEUE binding is not configured
+ */
+export function getRebuildQueueService(
+  c: ContextWithAuth
+): RebuildQueueService {
+  if (!c.env.GRAPH_REBUILD_QUEUE) {
+    throw new Error("GRAPH_REBUILD_QUEUE binding not configured");
+  }
+  return new RebuildQueueService(c.env.GRAPH_REBUILD_QUEUE);
+}
+
+/**
+ * Get WorldStateChangelogService instance
+ * Throws error if database binding is not configured
+ */
+export function getWorldStateChangelogService(
+  c: ContextWithAuth
+): WorldStateChangelogService {
+  if (!c.env.DB) {
+    throw new Error("Database not configured");
+  }
+  return new WorldStateChangelogService({ db: c.env.DB });
 }

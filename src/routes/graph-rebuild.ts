@@ -1,18 +1,11 @@
 import { getDAOFactory } from "@/dao/dao-factory";
-import { RebuildQueueService } from "@/services/graph/rebuild-queue-service";
 import type { RebuildType } from "@/dao/rebuild-status-dao";
 import {
   type ContextWithAuth,
   getUserAuth,
   ensureCampaignAccess,
+  getRebuildQueueService,
 } from "@/lib/route-utils";
-
-function getRebuildQueueService(c: ContextWithAuth): RebuildQueueService {
-  if (!c.env.GRAPH_REBUILD_QUEUE) {
-    throw new Error("GRAPH_REBUILD_QUEUE binding not configured");
-  }
-  return new RebuildQueueService(c.env.GRAPH_REBUILD_QUEUE);
-}
 
 /**
  * POST /api/campaigns/:campaignId/graph-rebuild/trigger

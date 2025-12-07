@@ -10,18 +10,16 @@ import {
   calculateCommunityStats,
 } from "@/lib/graph/community-utils";
 import { CommunitySummaryService } from "@/services/graph/community-summary-service";
-import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
   userAuth?: AuthPayload;
 };
 
+import { getWorldStateChangelogService } from "@/lib/route-utils";
+
 function getWorldStateService(c: ContextWithAuth) {
-  if (!c.env.DB) {
-    throw new Error("Database binding missing");
-  }
-  return new WorldStateChangelogService({ db: c.env.DB });
+  return getWorldStateChangelogService(c);
 }
 
 /**
