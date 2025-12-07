@@ -134,6 +134,20 @@ After upload, LoreSmith automatically:
 - Identifies entities (NPCs, locations, items)
 - Creates searchable indexes
 - Builds relationships between entities
+- **Generates AI-powered metadata** including descriptions and tags based on the file's content
+
+### AI-Generated Metadata
+
+When a file is processed, LoreSmith uses AI to automatically generate:
+
+- **Descriptions**: Intelligent summaries of the file's content and purpose
+- **Tags**: Relevant keywords and categories extracted from the content
+
+You can view the AI-generated metadata by clicking on a file in your resource library:
+
+![AI-Generated Metadata](images/file-metadata-ai-generated.png)
+
+The metadata can be edited at any time using the "Edit" button if you want to customize or refine the AI-generated content.
 
 ### Processing Status
 

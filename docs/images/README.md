@@ -11,6 +11,7 @@ This directory contains screenshots and images used in the documentation.
 - `ai-campaign-creation-help.png` - Screenshot showing the AI helping create a campaign and demonstrating campaign selection dropdown for AI context
 - `file-processing-in-progress.png` - Screenshot showing file processing in progress status in the resource library
 - `file-processing-success.png` - Screenshot showing successfully uploaded files with "Ready" status in the resource library
+- `file-metadata-ai-generated.png` - Screenshot showing AI-generated metadata (description and tags) for an uploaded file in the file details view
 - `file-processing-failure.png` - Screenshot showing file processing failure status with retry capability in the resource library
 
 ## Adding New Images

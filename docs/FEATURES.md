@@ -47,9 +47,20 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 - Image processing and OCR
 - Entity extraction from content
 - Semantic indexing for search
+- **AI-powered metadata generation**: Automatic descriptions and tags based on file content
 - Processing status tracking (Ready, Processing, Failed)
 - Real-time status updates during processing
 - Retry capability for failed processing
+
+**AI-Generated Metadata**
+
+LoreSmith automatically generates rich metadata for uploaded files:
+
+![AI-Generated Metadata](images/file-metadata-ai-generated.png)
+
+- Intelligent descriptions summarizing file content
+- Relevant tags extracted from the content
+- Editable metadata for customization
 
 ![File Processing Success](images/file-processing-success.png)
 
