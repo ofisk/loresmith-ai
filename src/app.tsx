@@ -602,6 +602,7 @@ export default function Chat() {
             campaigns={campaigns}
             selectedCampaignId={selectedCampaignId}
             onSelectedCampaignChange={setSelectedCampaignId}
+            onAdminDashboardOpen={modalState.handleAdminDashboardOpen}
           />
 
           {/* Main Content Area */}

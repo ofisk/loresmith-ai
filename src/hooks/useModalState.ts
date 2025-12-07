@@ -21,6 +21,8 @@ export function useModalState() {
   const [isAddToCampaignModalOpen, setIsAddToCampaignModalOpen] =
     useState(false);
   const [isEditFileModalOpen, setIsEditFileModalOpen] = useState(false);
+  const [isAdminDashboardModalOpen, setIsAdminDashboardModalOpen] =
+    useState(false);
 
   // Modal data state
   const [campaignName, setCampaignName] = useState("");
@@ -84,6 +86,14 @@ export function useModalState() {
     setEditingFile(null);
   }, []);
 
+  const handleAdminDashboardOpen = useCallback(() => {
+    setIsAdminDashboardModalOpen(true);
+  }, []);
+
+  const handleAdminDashboardClose = useCallback(() => {
+    setIsAdminDashboardModalOpen(false);
+  }, []);
+
   return {
     // Modal state
     showAuthModal,
@@ -95,6 +105,8 @@ export function useModalState() {
     setIsAddResourceModalOpen,
     isAddToCampaignModalOpen,
     isEditFileModalOpen,
+    isAdminDashboardModalOpen,
+    setIsAdminDashboardModalOpen,
 
     // Modal data state
     campaignName,
@@ -121,5 +133,7 @@ export function useModalState() {
     handleAddToCampaignClose,
     handleEditFile,
     handleEditFileClose,
+    handleAdminDashboardOpen,
+    handleAdminDashboardClose,
   };
 }

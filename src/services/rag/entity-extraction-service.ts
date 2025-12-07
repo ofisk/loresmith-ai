@@ -11,6 +11,7 @@ import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
 import { z } from "zod";
 import { OpenAIAPIKeyError, EntityExtractionError } from "@/lib/errors";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
+import type { TelemetryService } from "@/services/telemetry/telemetry-service";
 
 /**
  * Maximum tokens for entity extraction responses.
@@ -99,7 +100,10 @@ export interface ExtractedEntity {
 }
 
 export class EntityExtractionService {
-  constructor(private readonly openaiApiKey: string | null = null) {}
+  constructor(
+    private readonly openaiApiKey: string | null = null,
+    private readonly telemetryService: TelemetryService | null = null
+  ) {}
 
   async extractEntities(
     options: ExtractEntitiesOptions
@@ -191,6 +195,10 @@ CONTENT END`;
     }
 
     const totalEntities = results.length;
+    const totalRelationships = results.reduce(
+      (sum, e) => sum + e.relations.length,
+      0
+    );
     const entitiesWithRelations = results.filter(
       (e) => e.relations.length > 0
     ).length;
@@ -201,6 +209,63 @@ CONTENT END`;
         .map(([type, count]) => `${type}: ${count}`)
         .join(", ")
     );
+
+    // Record extraction metrics (fire and forget)
+    if (this.telemetryService) {
+      const telemetryPromises = [
+        // Record extraction count (1 per call)
+        this.telemetryService
+          .recordEntityExtractionCount(1, {
+            campaignId: options.campaignId,
+            metadata: {
+              sourceName: options.sourceName,
+              sourceType: options.sourceType,
+              sourceId: options.sourceId,
+            },
+          })
+          .catch((error) => {
+            console.error(
+              "[EntityExtraction] Failed to record extraction count:",
+              error
+            );
+          }),
+
+        // Record entities extracted
+        this.telemetryService
+          .recordEntitiesExtracted(totalEntities, {
+            campaignId: options.campaignId,
+            metadata: {
+              sourceName: options.sourceName,
+              entityCountsByType,
+              entitiesWithRelations,
+            },
+          })
+          .catch((error) => {
+            console.error(
+              "[EntityExtraction] Failed to record entities extracted:",
+              error
+            );
+          }),
+
+        // Record relationship extraction count
+        this.telemetryService
+          .recordRelationshipExtractionCount(totalRelationships, {
+            campaignId: options.campaignId,
+            metadata: {
+              sourceName: options.sourceName,
+              entitiesWithRelations,
+            },
+          })
+          .catch((error) => {
+            console.error(
+              "[EntityExtraction] Failed to record relationships:",
+              error
+            );
+          }),
+      ];
+
+      await Promise.allSettled(telemetryPromises);
+    }
 
     return results;
   }

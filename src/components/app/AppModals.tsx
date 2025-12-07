@@ -7,6 +7,7 @@ import { CampaignDetailsModal } from "@/components/resource-side-panel/CampaignD
 import { EditFileModal } from "@/components/upload/EditFileModal";
 import { ResourceUpload } from "@/components/upload/ResourceUpload";
 import { MultiSelect } from "@/components/select/MultiSelect";
+import { TelemetryDashboard } from "@/components/admin/TelemetryDashboard";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { API_CONFIG } from "@/shared-config";
 import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
@@ -430,6 +431,21 @@ export function AppModals({
           }
         />
       )}
+
+      {/* Admin Dashboard Modal */}
+      <Modal
+        isOpen={modalState.isAdminDashboardModalOpen}
+        onClose={modalState.handleAdminDashboardClose}
+        cardStyle={{
+          width: "90vw",
+          maxWidth: 1200,
+          minHeight: 600,
+          maxHeight: "90vh",
+        }}
+        showCloseButton={true}
+      >
+        <TelemetryDashboard />
+      </Modal>
     </>
   );
 }

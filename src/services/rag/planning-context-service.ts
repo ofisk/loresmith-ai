@@ -8,6 +8,8 @@ import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import { PLANNING_CONTEXT_PROMPTS } from "@/lib/prompts/planning-context-prompts";
 import type { EntityNeighbor, Entity } from "@/dao/entity-dao";
 import { z } from "zod";
+import { TelemetryDAO } from "@/dao/telemetry-dao";
+import { TelemetryService } from "@/services/telemetry/telemetry-service";
 
 export interface PlanningContextSearchOptions {
   campaignId: string;
@@ -564,6 +566,7 @@ export class PlanningContextService extends BaseRAGService {
   async search(
     options: PlanningContextSearchOptions
   ): Promise<PlanningContextSearchResult[]> {
+    const searchStartTime = Date.now();
     try {
       console.log("[PlanningContext] Starting search operation", {
         campaignId: options.campaignId,
@@ -733,12 +736,15 @@ export class PlanningContextService extends BaseRAGService {
         );
       }
 
+      const searchDuration = Date.now() - searchStartTime;
+
       console.log("[PlanningContext] Planning context search completed", {
         campaignId,
         query: query.substring(0, 100),
         resultsCount: finalResults.length,
         totalMatches: matches.length,
         graphEntities: entityGraphContext.length,
+        duration: searchDuration,
       });
 
       this.logOperation("Planning context search completed", {
@@ -747,6 +753,22 @@ export class PlanningContextService extends BaseRAGService {
         resultsCount: finalResults.length,
         graphEntities: entityGraphContext.length,
       });
+
+      // Record query latency metrics (fire and forget)
+      const telemetryService = new TelemetryService(new TelemetryDAO(this.db));
+      telemetryService
+        .recordQueryLatency(searchDuration, {
+          campaignId,
+          queryType: "planning_context",
+          metadata: {
+            resultsCount: finalResults.length,
+            totalMatches: matches.length,
+            graphEntities: entityGraphContext.length,
+          },
+        })
+        .catch((error) => {
+          console.error("[PlanningContext] Failed to record telemetry:", error);
+        });
 
       return finalResults;
     } catch (error) {
