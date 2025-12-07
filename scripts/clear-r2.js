@@ -18,7 +18,6 @@
 
 import { execSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
-import { join } from "path";
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const BUCKET_NAME = process.argv.includes("--bucket-name")
@@ -213,8 +212,9 @@ async function clearR2WithAPI() {
   return true;
 }
 
-// Method 3: Use R2 S3-compatible API directly (no AWS CLI required)
+// Method 3: Use AWS CLI (fallback, requires credentials)
 async function clearR2WithAWSCLI() {
+  const AWS_CLI_PATH = process.env.AWS_CLI_PATH || "aws";
   const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
   const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
 
@@ -222,20 +222,10 @@ async function clearR2WithAWSCLI() {
     return false;
   }
 
-  console.log("🔑 Using R2 S3-compatible API with credentials...");
+  console.log("🔑 Using AWS CLI with R2 credentials...");
 
   const ENDPOINT = `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`;
 
-  // Use native fetch to call S3-compatible API
-  return await clearR2WithS3API(
-    R2_ACCESS_KEY_ID,
-    R2_SECRET_ACCESS_KEY,
-    ENDPOINT
-  );
-}
-
-// Helper: Use S3-compatible API via fetch
-async function clearR2WithS3API(accessKey, secretKey, endpoint) {
   try {
     let deleted = 0;
     let continuationToken = "";
