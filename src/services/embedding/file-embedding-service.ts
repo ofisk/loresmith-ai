@@ -85,13 +85,29 @@ export class FileEmbeddingService {
           primaryVectorId = chunkVectorId;
         }
 
+        // Sanitize text for metadata: remove newlines, control characters, and limit length
+        let sanitizedText = chunkText
+          .substring(0, MAX_METADATA_TEXT_LENGTH)
+          .replace(/[\r\n\t]/g, " "); // Replace newlines and tabs with spaces
+
+        // Remove control characters (U+0000-U+001F and U+007F) using character filtering
+        sanitizedText = sanitizedText
+          .split("")
+          .filter((char) => {
+            const code = char.charCodeAt(0);
+            // Keep printable characters (space U+0020 and above, excluding DEL U+007F)
+            return code >= 0x20 && code !== 0x7f;
+          })
+          .join("")
+          .trim();
+
         vectorsToInsert.push({
           id: chunkVectorId,
           values: embeddings,
           metadata: {
-            ...metadata,
-            text: chunkText.substring(0, MAX_METADATA_TEXT_LENGTH), // Store first 200 chars as metadata (Vectorize metadata limit ~2KB)
-            type: metadata.type || "file_content",
+            metadataId: metadata.metadataId || metadataId,
+            ...(metadata.type && { type: metadata.type }),
+            text: sanitizedText,
             chunkIndex: i,
             totalChunks: textChunks.length,
             timestamp: new Date().toISOString(),
@@ -133,17 +149,52 @@ export class FileEmbeddingService {
       throw new VectorizeIndexRequiredError();
     }
 
+    // Validate and sanitize vectors before insertion
+    const sanitizedVectors = vectors.map((vector) => {
+      // Ensure metadata values are valid Vectorize types (string, number, boolean, string[])
+      const sanitizedMetadata: Record<
+        string,
+        string | number | boolean | string[]
+      > = {};
+      for (const [key, value] of Object.entries(vector.metadata)) {
+        if (
+          typeof value === "string" ||
+          typeof value === "number" ||
+          typeof value === "boolean"
+        ) {
+          sanitizedMetadata[key] = value;
+        } else if (Array.isArray(value)) {
+          // Vectorize only supports string arrays, convert all array values to strings
+          const stringArray = value
+            .map((v) => String(v))
+            .filter((v) => v.length > 0);
+          if (stringArray.length > 0) {
+            sanitizedMetadata[key] = stringArray;
+          }
+        } else if (value !== null && value !== undefined) {
+          // Convert other types to string
+          sanitizedMetadata[key] = String(value);
+        }
+      }
+
+      return {
+        id: vector.id,
+        values: vector.values,
+        metadata: sanitizedMetadata,
+      };
+    });
+
     try {
-      if (vectors.length > BATCH_SIZE) {
+      if (sanitizedVectors.length > BATCH_SIZE) {
         console.log(
-          `[FileEmbeddingService] Batch inserting ${vectors.length} vectors in batches of ${BATCH_SIZE}`
+          `[FileEmbeddingService] Batch inserting ${sanitizedVectors.length} vectors in batches of ${BATCH_SIZE}`
         );
-        for (let i = 0; i < vectors.length; i += BATCH_SIZE) {
-          const batch = vectors.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < sanitizedVectors.length; i += BATCH_SIZE) {
+          const batch = sanitizedVectors.slice(i, i + BATCH_SIZE);
           try {
             await this.vectorize.insert(batch);
             console.log(
-              `[FileEmbeddingService] Stored batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(vectors.length / BATCH_SIZE)} (${batch.length} vectors)`
+              `[FileEmbeddingService] Stored batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(sanitizedVectors.length / BATCH_SIZE)} (${batch.length} vectors)`
             );
           } catch (batchError) {
             const errorDetails =
@@ -155,15 +206,37 @@ export class FileEmbeddingService {
               errorDetails
             );
             // Log batch details for debugging
-            const batchSizeBytes = JSON.stringify(batch).length;
-            console.error(
-              `[FileEmbeddingService] Batch details: ${batch.length} vectors, ~${(batchSizeBytes / 1024).toFixed(2)}KB JSON size`
-            );
+            try {
+              const batchSizeBytes = JSON.stringify(batch).length;
+              console.error(
+                `[FileEmbeddingService] Batch details: ${batch.length} vectors, ~${(batchSizeBytes / 1024).toFixed(2)}KB JSON size`
+              );
+              // Log first vector structure for debugging
+              if (batch.length > 0) {
+                console.error(
+                  `[FileEmbeddingService] First vector sample:`,
+                  JSON.stringify(
+                    {
+                      id: batch[0].id,
+                      valuesLength: batch[0].values.length,
+                      metadata: batch[0].metadata,
+                    },
+                    null,
+                    2
+                  )
+                );
+              }
+            } catch (jsonError) {
+              console.error(
+                `[FileEmbeddingService] Failed to serialize batch for logging:`,
+                jsonError
+              );
+            }
             throw batchError;
           }
         }
       } else {
-        await this.vectorize.insert(vectors);
+        await this.vectorize.insert(sanitizedVectors);
       }
     } catch (error) {
       // Log detailed error information
@@ -181,12 +254,36 @@ export class FileEmbeddingService {
       );
 
       // Log vector details for debugging
-      const totalSizeBytes = JSON.stringify(vectors).length;
-      const avgMetadataSize =
-        vectors.length > 0 ? JSON.stringify(vectors[0].metadata).length : 0;
-      console.error(
-        `[FileEmbeddingService] Vector details: ${vectors.length} vectors, ~${(totalSizeBytes / 1024).toFixed(2)}KB total JSON size, ~${(avgMetadataSize / 1024).toFixed(2)}KB avg metadata per vector`
-      );
+      try {
+        const totalSizeBytes = JSON.stringify(sanitizedVectors).length;
+        const avgMetadataSize =
+          sanitizedVectors.length > 0
+            ? JSON.stringify(sanitizedVectors[0].metadata).length
+            : 0;
+        console.error(
+          `[FileEmbeddingService] Vector details: ${sanitizedVectors.length} vectors, ~${(totalSizeBytes / 1024).toFixed(2)}KB total JSON size, ~${(avgMetadataSize / 1024).toFixed(2)}KB avg metadata per vector`
+        );
+        // Log first vector structure for debugging
+        if (sanitizedVectors.length > 0) {
+          console.error(
+            `[FileEmbeddingService] First vector sample:`,
+            JSON.stringify(
+              {
+                id: sanitizedVectors[0].id,
+                valuesLength: sanitizedVectors[0].values.length,
+                metadata: sanitizedVectors[0].metadata,
+              },
+              null,
+              2
+            )
+          );
+        }
+      } catch (jsonError) {
+        console.error(
+          `[FileEmbeddingService] Failed to serialize vectors for logging:`,
+          jsonError
+        );
+      }
 
       throw error;
     }
