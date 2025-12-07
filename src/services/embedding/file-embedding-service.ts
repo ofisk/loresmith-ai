@@ -88,7 +88,7 @@ export class FileEmbeddingService {
 
         // Validate all values are numbers
         const hasInvalidValues = embeddings.some(
-          (v) => typeof v !== "number" || !isFinite(v)
+          (v) => typeof v !== "number" || !Number.isFinite(v)
         );
         if (hasInvalidValues) {
           throw new Error(`Embedding contains invalid numeric values`);
