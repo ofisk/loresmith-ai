@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { API_CONFIG } from "@/app-constants";
+import { AuthService } from "@/services/core/auth-service";
 import type {
   AggregatedMetrics,
   TimeSeriesDataPoint,
@@ -48,7 +49,7 @@ export function useTelemetryMetrics(options: TelemetryMetricsOptions = {}) {
         if (options.aggregation)
           params.append("aggregation", options.aggregation);
 
-        const jwt = localStorage.getItem("authToken");
+        const jwt = AuthService.getStoredJwt();
         if (!jwt) {
           throw new Error("Authentication required");
         }
@@ -117,7 +118,7 @@ export function useTelemetryDashboard() {
       setError(null);
 
       try {
-        const jwt = localStorage.getItem("authToken");
+        const jwt = AuthService.getStoredJwt();
         if (!jwt) {
           console.error("[useTelemetryDashboard] No JWT token found");
           throw new Error("Authentication required");

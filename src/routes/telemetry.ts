@@ -16,14 +16,8 @@ type ContextWithAuth = Context<{ Bindings: Env }> & {
 
 function getUserAuth(c: ContextWithAuth): AuthPayload {
   console.log("[getUserAuth] Checking context for userAuth");
-  console.log("[getUserAuth] (c as any).userAuth:", (c as any).userAuth);
-  console.log(
-    "[getUserAuth] c.get?.('userAuth'):",
-    (c as any).get?.("userAuth")
-  );
-
-  const userAuth = (c as any).userAuth ?? (c as any).get?.("userAuth");
-  console.log("[getUserAuth] Final userAuth:", userAuth);
+  const userAuth = (c as any).userAuth;
+  console.log("[getUserAuth] userAuth from context:", userAuth);
 
   if (!userAuth) {
     console.error("[getUserAuth] No userAuth found in context");
@@ -222,19 +216,27 @@ export async function handleGetMetrics(c: ContextWithAuth) {
  * Get dashboard summary (admin only)
  */
 export async function handleGetDashboard(c: ContextWithAuth) {
-  console.log("[handleGetDashboard] Request received");
+  console.log("[handleGetDashboard] Request received for:", c.req.path);
+  console.log("[handleGetDashboard] Context keys:", Object.keys(c));
+
   try {
-    requireAdmin(c);
-    console.log("[handleGetDashboard] Admin check passed");
-  } catch (error) {
-    console.error("[handleGetDashboard] Admin check failed:", error);
-    if (error instanceof UserAuthenticationMissingError) {
+    const userAuth = (c as any).userAuth;
+    console.log("[handleGetDashboard] User auth from context:", userAuth);
+
+    if (!userAuth) {
+      console.error("[handleGetDashboard] No user auth found");
       return c.json({ error: "Authentication required" }, 401);
     }
-    if (error instanceof Error && error.message === "Admin access required") {
+
+    if (!userAuth.isAdmin) {
+      console.error("[handleGetDashboard] User is not admin");
       return c.json({ error: "Admin access required" }, 403);
     }
-    throw error;
+
+    console.log("[handleGetDashboard] Admin check passed");
+  } catch (error) {
+    console.error("[handleGetDashboard] Error in auth check:", error);
+    return c.json({ error: "Authentication required" }, 401);
   }
 
   try {
