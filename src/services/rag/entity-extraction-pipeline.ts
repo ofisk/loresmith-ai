@@ -235,8 +235,17 @@ export class EntityExtractionPipeline {
         "data" in embeddingResponse
       ) {
         const data = (embeddingResponse as any).data;
-        if (Array.isArray(data)) {
-          return data;
+        // BGE model returns data as number[][] - array of embedding arrays
+        // For single text input, extract the first embedding array
+        if (Array.isArray(data) && data.length > 0) {
+          const firstEmbedding = data[0];
+          if (Array.isArray(firstEmbedding)) {
+            return firstEmbedding;
+          }
+          // Fallback: if data is already a 1D array, use it directly
+          if (typeof firstEmbedding === "number") {
+            return data;
+          }
         }
       }
 

@@ -51,16 +51,36 @@ export class CloudflareEmbeddingService {
 
       // Handle object responses with nested data
       if (embeddingResponse && typeof embeddingResponse === "object") {
-        // Check for direct data array
+        // Check for direct data array (BGE model returns data as number[][])
         if (
           "data" in embeddingResponse &&
           Array.isArray((embeddingResponse as any).data)
         ) {
           const data = (embeddingResponse as any).data;
           console.log(
-            `[CloudflareEmbeddingService] Got embedding from data field with ${data.length} dimensions`
+            `[CloudflareEmbeddingService] Got data field: array with ${data.length} elements`
           );
-          return data;
+
+          // BGE model returns data as number[][] - array of embedding arrays
+          // For single text input, we get one embedding array
+          if (data.length > 0) {
+            const firstEmbedding = data[0];
+            if (Array.isArray(firstEmbedding)) {
+              console.log(
+                `[CloudflareEmbeddingService] Extracted embedding array with ${firstEmbedding.length} dimensions from data[0]`
+              );
+              // Validate all elements are numbers
+              const isValid = firstEmbedding.every(
+                (v) => typeof v === "number" && Number.isFinite(v)
+              );
+              if (!isValid) {
+                throw new InvalidEmbeddingResponseError(
+                  "Embedding array contains invalid numeric values"
+                );
+              }
+              return firstEmbedding;
+            }
+          }
         }
 
         // Check for response string that might contain JSON
