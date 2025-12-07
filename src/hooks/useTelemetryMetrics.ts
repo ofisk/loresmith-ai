@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { API_CONFIG } from "@/app-constants";
 import { AuthService } from "@/services/core/auth-service";
 import type {
@@ -33,9 +33,14 @@ export function useTelemetryMetrics(options: TelemetryMetricsOptions = {}) {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const fetchingRef = useRef(false);
 
   useEffect(() => {
     const fetchMetrics = async () => {
+      if (fetchingRef.current) {
+        return;
+      }
+      fetchingRef.current = true;
       setLoading(true);
       setError(null);
 
@@ -91,6 +96,7 @@ export function useTelemetryMetrics(options: TelemetryMetricsOptions = {}) {
         setError(err instanceof Error ? err : new Error("Unknown error"));
       } finally {
         setLoading(false);
+        fetchingRef.current = false;
       }
     };
 
@@ -111,9 +117,14 @@ export function useTelemetryDashboard() {
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const fetchingRef = useRef(false);
 
   useEffect(() => {
     const fetchDashboard = async () => {
+      if (fetchingRef.current) {
+        return;
+      }
+      fetchingRef.current = true;
       setLoading(true);
       setError(null);
 
@@ -166,6 +177,7 @@ export function useTelemetryDashboard() {
         setError(err instanceof Error ? err : new Error("Unknown error"));
       } finally {
         setLoading(false);
+        fetchingRef.current = false;
       }
     };
 

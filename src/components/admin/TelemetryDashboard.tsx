@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   useTelemetryDashboard,
   useTelemetryMetrics,
@@ -9,15 +10,21 @@ export function TelemetryDashboard() {
     loading: dashboardLoading,
     error: dashboardError,
   } = useTelemetryDashboard();
+
+  const queryLatencyOptions = useMemo(
+    () => ({
+      metricType: "query_latency" as const,
+      aggregation: "aggregated" as const,
+      fromDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    }),
+    []
+  );
+
   const {
     metrics: queryLatencyMetrics,
     loading: latencyLoading,
     error: latencyError,
-  } = useTelemetryMetrics({
-    metricType: "query_latency",
-    aggregation: "aggregated",
-    fromDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-  });
+  } = useTelemetryMetrics(queryLatencyOptions);
 
   if (dashboardLoading || latencyLoading) {
     return (
