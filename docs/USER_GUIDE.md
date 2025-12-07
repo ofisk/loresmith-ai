@@ -135,6 +135,23 @@ After upload, LoreSmith automatically:
 - Creates searchable indexes
 - Builds relationships between entities
 
+### Processing Status
+
+Files in your resource library show their processing status:
+
+- **Ready** (green) - File has been successfully processed and is searchable
+- **Processing** - File is currently being analyzed and indexed
+- **Failed** (red) - Processing encountered an error
+
+![File Processing Failure](images/file-processing-failure.png)
+
+If a file shows a "Failed" status, you can:
+
+1. Click the retry button to attempt processing again
+2. Check the file format - ensure it's a supported type
+3. Verify the file isn't corrupted
+4. Try uploading the file again if retry doesn't work
+
 ### Adding Files to Campaigns
 
 1. Find the file in your library

@@ -47,6 +47,10 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 - Image processing and OCR
 - Entity extraction from content
 - Semantic indexing for search
+- Processing status tracking (Ready, Processing, Failed)
+- Retry capability for failed processing
+
+![File Processing Failure](images/file-processing-failure.png)
 
 **Organization**
 
