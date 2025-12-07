@@ -18,10 +18,14 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 
 **Campaign Context**
 
+![AI Campaign Creation Help](images/ai-campaign-creation-help.png)
+
 - Automatic context assembly from resources
 - Entity relationship tracking
 - World state management
 - Session history integration
+- Campaign selection dropdown drives AI responses
+- AI can assist with campaign creation and setup
 
 ### 📚 Resource Library
 

@@ -8,6 +8,7 @@ This directory contains screenshots and images used in the documentation.
 - `add-resource-modal.png` - Screenshot of the "Add resource" modal for uploading files to the library
 - `create-campaign-modal.png` - Screenshot of the "Create new campaign" modal for creating campaigns
 - `ai-help-conversation.png` - Screenshot showing the AI assistant providing personalized help and guidance
+- `ai-campaign-creation-help.png` - Screenshot showing the AI helping create a campaign and demonstrating campaign selection dropdown for AI context
 
 ## Adding New Images
 

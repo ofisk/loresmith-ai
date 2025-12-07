@@ -81,6 +81,8 @@ The modal allows you to:
 
 Once created, your campaign will appear in the sidebar and you can start adding resources and planning sessions.
 
+**Tip**: You can also ask the AI assistant to help you create a campaign. The assistant can guide you through the process and provide suggestions based on your preferences. Make sure to select your campaign from the dropdown in the top left after creation to ensure the AI uses the correct context for future conversations.
+
 ### Campaign Features
 
 Once you have a campaign:
@@ -172,14 +174,21 @@ The AI assistant is available in the main chat area. You can ask it to:
 - **Answer Questions**: "How should I handle player conflict?"
 - **Get Guidance**: Click "Get help" for personalized assistance
 
-### Understanding Campaign Context
+### Campaign Selection and AI Context
 
-The AI assistant automatically:
+The campaign dropdown in the top left corner is crucial for AI responses. When you select a campaign, the AI assistant automatically:
+
+![AI Campaign Creation Help](images/ai-campaign-creation-help.png)
 
 - Accesses your campaign's resource library
 - Understands entity relationships
 - References past sessions
 - Maintains world state continuity
+- Provides campaign-specific guidance
+
+**Important**: Always select your campaign from the dropdown before asking campaign-specific questions. The AI uses the selected campaign to provide contextually relevant responses.
+
+You can also ask the AI to help you create campaigns. The assistant can guide you through the process and suggest campaign ideas based on your needs.
 
 ### Best Practices for AI Queries
 
