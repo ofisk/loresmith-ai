@@ -20,6 +20,7 @@ This directory contains screenshots and images used in the documentation.
 - `shard-approval-notifications.png` - Screenshot showing notifications for shard approval workflow including "New Shards Ready" and "Shards Approved" notifications
 - `campaign-details-session-digests.png` - Screenshot showing the Campaign Details modal with Session Digests tab for adding session recaps to update campaign world state
 - `ai-session-recap-guidance.png` - Screenshot showing the AI assistant guiding users through creating session recap notes
+- `campaign-assessment-next-steps.png` - Screenshot showing the "What should I do next?" feature for campaign assessment and AI suggestions
 - `file-processing-failure.png` - Screenshot showing file processing failure status with retry capability in the resource library
 
 ## Adding New Images

@@ -317,6 +317,26 @@ The AI will analyze what you have set up and provide actionable next steps, such
 - Planning sessions
 - Organizing your campaign context
 
+### Campaign Assessment and Next Steps
+
+Use the **"What should I do next?"** button to get personalized campaign assessment and suggestions from the AI. This feature analyzes your campaign's current state and provides actionable recommendations:
+
+![Campaign Assessment Next Steps](images/campaign-assessment-next-steps.png)
+
+The AI will assess:
+
+- **Campaign Development**: How well-developed your campaign is across different dimensions
+- **Content Gaps**: Areas that need more detail or context
+- **Priority Actions**: What you should focus on next to strengthen your campaign
+- **Specific Suggestions**: Detailed recommendations for NPCs, locations, plot hooks, and more
+
+This helps you:
+
+- Identify what needs more development in your campaign
+- Get specific, actionable suggestions tailored to your campaign's current state
+- Understand which areas are strong and which need attention
+- Track your campaign's progression and growth over time
+
 ### Starting a Conversation
 
 The AI assistant is available in the main chat area. You can ask it to:
