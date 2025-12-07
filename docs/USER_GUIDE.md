@@ -264,6 +264,16 @@ You'll receive notifications for:
 
 ![Shard Generation Notification](images/shard-generation-notification.png)
 
+- **Shard Approval**: When you approve or reject shards, you'll receive notifications confirming the action
+
+![Shard Approval Notifications](images/shard-approval-notifications.png)
+
+The notification panel tracks the complete shard workflow:
+
+- **"File Added to Campaign"**: Confirms a file was successfully added
+- **"New Shards Ready!"**: Notifies when shards are generated and ready for review
+- **"Shards Approved!"**: Confirms when shards have been approved and added to your campaign's knowledge base
+
 - **Campaign Events**: When files are added to campaigns, shards are generated, etc.
 - **System Updates**: Important system status changes
 
