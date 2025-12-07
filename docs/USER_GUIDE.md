@@ -141,6 +141,9 @@ Files in your resource library show their processing status:
 
 - **Ready** (green) - File has been successfully processed and is searchable
 - **Processing** - File is currently being analyzed and indexed
+
+![File Processing In Progress](images/file-processing-in-progress.png)
+
 - **Failed** (red) - Processing encountered an error
 
 ![File Processing Failure](images/file-processing-failure.png)

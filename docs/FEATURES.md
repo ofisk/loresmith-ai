@@ -48,7 +48,10 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 - Entity extraction from content
 - Semantic indexing for search
 - Processing status tracking (Ready, Processing, Failed)
+- Real-time status updates during processing
 - Retry capability for failed processing
+
+![File Processing In Progress](images/file-processing-in-progress.png)
 
 ![File Processing Failure](images/file-processing-failure.png)
 
