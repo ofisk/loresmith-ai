@@ -74,6 +74,26 @@ export class FileEmbeddingService {
         const embeddings =
           await this.embeddingService.generateEmbedding(chunkText);
 
+        // Validate embedding dimensions
+        if (!Array.isArray(embeddings) || embeddings.length === 0) {
+          throw new Error(
+            `Invalid embedding: expected array, got ${typeof embeddings}`
+          );
+        }
+
+        // Log embedding dimensions for debugging
+        console.log(
+          `[FileEmbeddingService] Generated embedding for chunk ${i + 1}/${textChunks.length} with ${embeddings.length} dimensions`
+        );
+
+        // Validate all values are numbers
+        const hasInvalidValues = embeddings.some(
+          (v) => typeof v !== "number" || !isFinite(v)
+        );
+        if (hasInvalidValues) {
+          throw new Error(`Embedding contains invalid numeric values`);
+        }
+
         // Generate vector ID for this chunk
         const chunkVectorId = await this.generateVectorId(
           metadataId,
