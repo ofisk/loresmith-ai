@@ -8,26 +8,38 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 
 **Campaign Creation & Organization**
 
+![Create Campaign Modal](images/create-campaign-modal.png)
+
 - Create unlimited campaigns
 - Organize campaigns with names and descriptions
 - Switch between campaigns seamlessly
 - Campaign-specific context and resources
+- Intuitive creation modal with optional descriptions
 
 **Campaign Context**
+
+![AI Campaign Creation Help](images/ai-campaign-creation-help.png)
 
 - Automatic context assembly from resources
 - Entity relationship tracking
 - World state management
 - Session history integration
+- Campaign selection dropdown drives AI responses
+- AI can assist with campaign creation and setup
 
 ### 📚 Resource Library
 
 **File Upload & Storage**
 
+![Add Resource Modal](images/add-resource-modal.png)
+
 - Upload PDFs, documents, and images
-- Support for files up to 500MB
+- Support for files up to 100MB (Cloudflare Workers memory limit with buffer)
 - Secure cloud storage
 - Direct upload with progress tracking
+- Intuitive upload modal with drag-and-drop support
+- Optional metadata: filename, description, and tags
+- Campaign association during upload
 
 **Content Processing**
 
@@ -35,10 +47,33 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 - Image processing and OCR
 - Entity extraction from content
 - Semantic indexing for search
+- **AI-powered metadata generation**: Automatic descriptions and tags based on file content
+- Processing status tracking (Ready, Processing, Failed)
+- Real-time status updates during processing
+- Retry capability for failed processing
+
+**AI-Generated Metadata**
+
+LoreSmith automatically generates rich metadata for uploaded files:
+
+![AI-Generated Metadata](images/file-metadata-ai-generated.png)
+
+- Intelligent descriptions summarizing file content
+- Relevant tags extracted from the content
+- Editable metadata for customization
+
+![File Processing Success](images/file-processing-success.png)
+
+![File Processing In Progress](images/file-processing-in-progress.png)
+
+![File Processing Failure](images/file-processing-failure.png)
 
 **Organization**
 
-- Add files to multiple campaigns
+- Add files to multiple campaigns using an intuitive modal interface
+
+![Add File to Campaign](images/add-file-to-campaign-modal.png)
+
 - Tag and categorize resources
 - Search across all resources
 - Filter by campaign, type, or tags
@@ -47,10 +82,13 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 
 **Conversational Interface**
 
+![AI Help Conversation](images/ai-help-conversation.png)
+
 - Natural language chat interface
 - Context-aware responses
 - Campaign-specific knowledge
 - Multi-turn conversations
+- Personalized guidance via "Get help" feature
 
 **Intelligent Responses**
 
@@ -58,6 +96,7 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 - References uploaded resources
 - Maintains conversation history
 - Provides actionable suggestions
+- Analyzes your current state to offer relevant next steps
 
 ### 🔍 GraphRAG Technology
 
@@ -180,6 +219,18 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 - Usage statistics
 - System health monitoring
 
+![Admin Dashboard Telemetry](images/admin-dashboard-telemetry.png)
+
+The admin dashboard is accessible to users who authenticate with the admin key. It provides comprehensive GraphRAG statistics and system telemetry, including:
+
+- **Query Performance**: Query latency metrics with percentile breakdowns
+- **Rebuild Metrics**: Graph rebuild duration and frequency tracking
+- **Changelog Growth**: World state changelog entry counts over time
+- **User Satisfaction**: DM satisfaction ratings and feedback
+- **Context Accuracy**: Context accuracy measurements and trends
+
+To access the admin dashboard, click the 📊 icon in the top header bar (visible only to admin users).
+
 ## User Experience Features
 
 ### 🎨 Interface
@@ -213,6 +264,8 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 - WebSocket notifications
 - Status change alerts
 - Completion notifications
+
+![Notifications System](images/notifications-system.png)
 
 ## Integration Features
 

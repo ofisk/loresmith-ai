@@ -81,7 +81,7 @@ export function ChatArea({
       {/* Input Area */}
       <form
         onSubmit={onFormSubmit}
-        className="p-6 bg-neutral-50/50 border-t border-neutral-200 dark:border-neutral-700 dark:bg-neutral-900/50 backdrop-blur-sm"
+        className="px-4 py-3 bg-neutral-50/50 border-t border-neutral-200 dark:border-neutral-700 dark:bg-neutral-900/50 backdrop-blur-sm"
       >
         <div className="flex items-center gap-2">
           <div className="flex-1 relative">
@@ -92,17 +92,17 @@ export function ChatArea({
                   ? "Please respond to the tool confirmation above..."
                   : "What knowledge do you seek today?"
               }
-              className="flex w-full border border-neutral-200/50 dark:border-neutral-700/50 px-4 py-3 text-base placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-12 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm"
+              className="flex w-full border border-neutral-200/50 dark:border-neutral-700/50 px-3 py-2 text-base placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[40px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm"
               value={input}
               onChange={
                 onInputChange as unknown as React.ChangeEventHandler<HTMLInputElement>
               }
               onKeyDown={onKeyDown}
               multiline
-              rows={2}
+              rows={1}
               style={{ height: textareaHeight }}
             />
-            <div className="absolute bottom-1 right-1 p-2 w-fit flex flex-row justify-end">
+            <div className="absolute bottom-1 right-1 p-1.5 w-fit flex flex-row justify-end">
               {isLoading ? (
                 <button
                   type="button"

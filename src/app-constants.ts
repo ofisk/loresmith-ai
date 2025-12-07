@@ -21,7 +21,7 @@ export const APP_CONFIG = {
 
 // File upload constants
 export const UPLOAD_CONFIG = {
-  MAX_FILE_SIZE: 500 * 1024 * 1024, // 500MB for files
+  MAX_FILE_SIZE: 100 * 1024 * 1024, // 100MB max (Cloudflare Workers have 128MB memory limit, leaving buffer for overhead)
   // Currently only PDFs are supported. To add other file types:
   // 1. Update this array with MIME types (e.g., "application/msword", "text/plain")
   // 2. Add extraction logic in file-analysis-service.ts
@@ -70,7 +70,7 @@ export const ERROR_MESSAGES = {
   AUTHENTICATION_REQUIRED: "Authentication required. Please log in.",
   ACCESS_DENIED:
     "Access denied. You don't have permission to perform this action.",
-  FILE_TOO_LARGE: "File is too large. Maximum size is 500MB.",
+  FILE_TOO_LARGE: "File is too large. Maximum size is 100MB.",
   INVALID_FILE_TYPE: "Invalid file type.",
   CAMPAIGN_NOT_FOUND: "Campaign not found",
   RESOURCE_NOT_FOUND: "Resource not found.",

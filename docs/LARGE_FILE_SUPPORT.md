@@ -2,13 +2,13 @@
 
 ## Overview
 
-Loresmith AI now supports large document files (up to 500MB) specifically designed to handle D&D rulebooks, campaign guides, and other large gaming documents that typically range from 100-300MB.
+Loresmith AI supports document files up to 100MB (the practical limit due to Cloudflare Workers' 128MB memory limit with buffer for overhead). While multipart uploads can technically handle larger files, processing requires files to stay within this limit.
 
 ## Implementation Details
 
 ### File Size Limits
 
-- **Maximum Document Size**: 500MB (configurable in `src/constants.ts`)
+- **Maximum Document Size**: 100MB (configurable in `src/app-constants.ts`, set to stay under Cloudflare Workers' 128MB memory limit with buffer)
 - **Chunk Processing**: 10MB chunks to prevent memory issues
 - **Text Extraction Limit**: 5MB of extracted text for processing
 - **Timeout**: 2 minutes for large files (≥100MB), 1 minute for smaller files
@@ -47,8 +47,8 @@ const totalChunks = Math.ceil(fileString.length / chunkSize);
 All limits are configurable in `src/constants.ts`:
 
 ```typescript
-export const FILE_PROCESSING_CONFIG = {
-  MAX_FILE_SIZE: 500 * 1024 * 1024, // 500MB limit
+export const UPLOAD_CONFIG = {
+  MAX_FILE_SIZE: 100 * 1024 * 1024, // 100MB limit (Cloudflare Workers have 128MB memory limit, leaving buffer for overhead)
   INGEST_CHUNK_SIZE: 10 * 1024 * 1024, // 10MB chunks for processing
   MAX_TEXT_LENGTH: 5 * 1024 * 1024, // 5MB text limit
   TIMEOUT_SMALL_FILES: 60000, // 1 minute for files < 100MB
@@ -94,7 +94,7 @@ export const FILE_PROCESSING_CONFIG = {
 ### Common Issues:
 
 1. **"Document too large" error**
-   - File exceeds 500MB limit
+   - File exceeds 100MB limit
    - Solution: Compress document or split into smaller files
 
 2. **Processing timeout**

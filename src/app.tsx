@@ -635,8 +635,9 @@ export default function Chat() {
                 handleAgentInputChange(e);
                 // Auto-resize the textarea
                 e.target.style.height = "auto";
-                e.target.style.height = `${e.target.scrollHeight}px`;
-                setTextareaHeight(`${e.target.scrollHeight}px`);
+                const newHeight = Math.max(40, e.target.scrollHeight); // Minimum 40px height
+                e.target.style.height = `${newHeight}px`;
+                setTextareaHeight(`${newHeight}px`);
               }}
               onFormSubmit={handleFormSubmit}
               onKeyDown={handleKeyDown}

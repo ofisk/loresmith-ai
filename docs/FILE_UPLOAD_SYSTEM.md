@@ -1,6 +1,6 @@
 # File Upload and Library System
 
-A comprehensive file upload and library system built with Cloudflare Workers, R2, and Durable Objects. Supports both direct uploads for smaller files and multipart uploads for large files (up to 500MB), with automatic processing and metadata generation.
+A comprehensive file upload and library system built with Cloudflare Workers, R2, and Durable Objects. Supports both direct uploads for smaller files and multipart uploads. The practical file processing limit is 100MB due to Cloudflare Workers' 128MB memory limit (with buffer for overhead).
 
 ## Architecture Overview
 

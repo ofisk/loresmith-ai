@@ -235,8 +235,17 @@ export class EntityExtractionPipeline {
         "data" in embeddingResponse
       ) {
         const data = (embeddingResponse as any).data;
-        if (Array.isArray(data)) {
-          return data;
+        // BGE model returns data as number[][] - array of embedding arrays
+        // For single text input, extract the first embedding array
+        if (Array.isArray(data) && data.length > 0) {
+          const firstEmbedding = data[0];
+          if (Array.isArray(firstEmbedding)) {
+            return firstEmbedding;
+          }
+          // Fallback: if data is already a 1D array, use it directly
+          if (typeof firstEmbedding === "number") {
+            return data;
+          }
         }
       }
 
@@ -271,13 +280,13 @@ export class EntityExtractionPipeline {
   }
 
   private generateFallbackEmbedding(text: string): number[] {
-    // Fallback approximation: produce a deterministic 1536-dim vector (matching OpenAI text-embedding-3 family size)
+    // Fallback approximation: produce a deterministic 768-dim vector (matching BGE model @cf/baai/bge-base-en-v1.5)
     // by hashing character codes into buckets. Ensures dedupe flow still has a vector even if model request fails.
     const normalized = text.toLowerCase();
-    const vector = new Array(1536).fill(0);
+    const vector = new Array(768).fill(0);
     for (let i = 0; i < normalized.length; i++) {
       const charCode = normalized.charCodeAt(i);
-      vector[i % 1536] += charCode / 255;
+      vector[i % 768] += charCode / 255;
     }
     return vector;
   }
