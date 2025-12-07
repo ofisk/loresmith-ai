@@ -14,6 +14,18 @@ Welcome to LoreSmith AI! This guide will help you get started with campaign plan
 
 ## Getting Started
 
+### First Steps
+
+When you first access LoreSmith AI, you'll see the welcome screen with three main paths to begin your campaign journey:
+
+![Welcome Screen](images/welcome-screen.png)
+
+The welcome screen presents you with clear options:
+
+1. **Build Your Campaign Library** - Upload resources to create your knowledge base
+2. **Organize Your Story** - Create campaigns to structure your narrative
+3. **Start Brainstorming** - Begin chatting with the AI assistant
+
 ### What You Need
 
 - An OpenAI API key ([Get one here](https://platform.openai.com/api-keys))

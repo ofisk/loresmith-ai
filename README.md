@@ -43,6 +43,10 @@ LoreSmith is an AI-powered campaign planning tool that combines:
 
 ### For Users
 
+When you first access LoreSmith, you'll see a welcome screen that guides you through three main paths:
+
+![Welcome Screen](docs/images/welcome-screen.png)
+
 1. **Access the Application**: Navigate to your deployed LoreSmith instance
 2. **Authenticate**:
    - Enter your username
