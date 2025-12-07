@@ -4,6 +4,8 @@ import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
 import { PlanningContextService } from "@/services/rag/planning-context-service";
+import { TelemetryDAO } from "@/dao/telemetry-dao";
+import { TelemetryService } from "@/services/telemetry/telemetry-service";
 import type {
   ContextAssembly,
   ContextAssemblyOptions,
@@ -23,6 +25,7 @@ export class ContextAssemblyService {
   private entityEmbeddingService: EntityEmbeddingService;
   private worldStateChangelogService: WorldStateChangelogService;
   private planningContextService: PlanningContextService;
+  private telemetryService: TelemetryService;
 
   // In-memory cache with TTL (5 minutes default)
   private static cache = new Map<string, CacheEntry>();
@@ -46,6 +49,7 @@ export class ContextAssemblyService {
       openaiApiKey,
       env
     );
+    this.telemetryService = new TelemetryService(new TelemetryDAO(db));
   }
 
   /**
@@ -196,6 +200,21 @@ export class ContextAssemblyService {
         cached: false,
       },
     };
+
+    // Record query latency metrics (fire and forget)
+    this.telemetryService
+      .recordQueryLatency(totalAssemblyTime, {
+        campaignId,
+        queryType: "context_assembly",
+        metadata: {
+          graphRAGQueryTime,
+          changelogOverlayTime,
+          planningContextTime,
+        },
+      })
+      .catch((error) => {
+        console.error("[ContextAssembly] Failed to record telemetry:", error);
+      });
 
     // Store in cache
     ContextAssemblyService.cache.set(cacheKey, {

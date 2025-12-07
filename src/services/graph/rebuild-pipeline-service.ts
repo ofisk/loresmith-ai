@@ -8,6 +8,8 @@ import type { CommunitySummaryDAO } from "@/dao/community-summary-dao";
 import type { EntityImportanceDAO } from "@/dao/entity-importance-dao";
 import type { CampaignDAO } from "@/dao/campaign-dao";
 import type { WorldStateChangelogDAO } from "@/dao/world-state-changelog-dao";
+import { TelemetryDAO } from "@/dao/telemetry-dao";
+import { TelemetryService } from "@/services/telemetry/telemetry-service";
 
 export interface RebuildPipelineOptions {
   regenerateSummaries?: boolean;
@@ -29,9 +31,10 @@ export class RebuildPipelineService {
   private entityImportanceService: EntityImportanceService;
   private rebuildTriggerService: RebuildTriggerService;
   private readonly worldStateChangelogDAO: WorldStateChangelogDAO;
+  private telemetryService: TelemetryService | null = null;
 
   constructor(
-    _db: any,
+    db: any,
     private readonly rebuildStatusDAO: RebuildStatusDAO,
     entityDAO: EntityDAO,
     communityDAO: CommunityDAO,
@@ -49,11 +52,19 @@ export class RebuildPipelineService {
     );
     this.entityImportanceService = new EntityImportanceService(
       entityDAO,
-      communityDAO,
+      undefined, // communityDAO is optional
       entityImportanceDAO
     );
     this.rebuildTriggerService = new RebuildTriggerService(campaignDAO);
     this.worldStateChangelogDAO = worldStateChangelogDAO;
+    try {
+      this.telemetryService = new TelemetryService(new TelemetryDAO(db));
+    } catch (error) {
+      console.warn(
+        "[RebuildPipeline] Failed to initialize telemetry service:",
+        error
+      );
+    }
   }
 
   /**
@@ -79,6 +90,21 @@ export class RebuildPipelineService {
         status: "in_progress",
         startedAt: new Date().toISOString(),
       });
+
+      // Record rebuild status transition (fire and forget)
+      this.telemetryService
+        ?.recordRebuildStatus("in_progress", {
+          campaignId,
+          rebuildId,
+          rebuildType,
+          metadata: { affectedEntityCount: affectedEntityIds?.length || 0 },
+        })
+        .catch((error) => {
+          console.error(
+            "[RebuildPipeline] Failed to record rebuild status:",
+            error
+          );
+        });
 
       console.log(
         `[RebuildPipeline] Starting ${rebuildType} rebuild for campaign ${campaignId} (rebuildId: ${rebuildId})`
@@ -121,6 +147,17 @@ export class RebuildPipelineService {
 
       const duration = Date.now() - startTime;
 
+      // Calculate time since last rebuild (rebuild frequency)
+      const lastRebuild = await this.rebuildStatusDAO.getRebuildHistory(
+        campaignId,
+        { status: "completed", rebuildType, limit: 1, offset: 1 }
+      );
+      const hoursSinceLastRebuild =
+        lastRebuild.length > 0 && lastRebuild[0].completedAt
+          ? (Date.now() - new Date(lastRebuild[0].completedAt).getTime()) /
+            (1000 * 60 * 60)
+          : null;
+
       // Update status to completed
       await this.rebuildStatusDAO.updateRebuildStatus(rebuildId, {
         status: "completed",
@@ -132,6 +169,66 @@ export class RebuildPipelineService {
           recalculatedImportance: recalculateImportance,
         },
       });
+
+      // Record rebuild metrics (fire and forget)
+      const telemetryPromises = [];
+
+      // Record rebuild duration
+      telemetryPromises.push(
+        this.telemetryService
+          ?.recordRebuildDuration(duration, {
+            campaignId,
+            rebuildType,
+            affectedEntityCount: affectedEntityIds?.length || 0,
+            metadata: { communitiesCount: communities.length },
+          })
+          .catch((error) => {
+            console.error(
+              "[RebuildPipeline] Failed to record rebuild duration:",
+              error
+            );
+          })
+      );
+
+      // Record rebuild frequency
+      if (hoursSinceLastRebuild !== null) {
+        telemetryPromises.push(
+          this.telemetryService
+            ?.recordRebuildFrequency(hoursSinceLastRebuild, {
+              campaignId,
+              rebuildType,
+            })
+            .catch((error) => {
+              console.error(
+                "[RebuildPipeline] Failed to record rebuild frequency:",
+                error
+              );
+            })
+        );
+      }
+
+      // Record rebuild status transition
+      telemetryPromises.push(
+        this.telemetryService
+          ?.recordRebuildStatus("completed", {
+            campaignId,
+            rebuildId,
+            rebuildType,
+            metadata: {
+              duration,
+              communitiesCount: communities.length,
+              affectedEntityCount: affectedEntityIds?.length || 0,
+            },
+          })
+          .catch((error) => {
+            console.error(
+              "[RebuildPipeline] Failed to record rebuild status:",
+              error
+            );
+          })
+      );
+
+      await Promise.allSettled(telemetryPromises);
 
       // Reset impact score after successful rebuild
       await this.rebuildTriggerService.resetImpact(campaignId);
@@ -163,6 +260,25 @@ export class RebuildPipelineService {
         completedAt: new Date().toISOString(),
         errorMessage,
       });
+
+      // Record rebuild status as failed (fire and forget)
+      this.telemetryService
+        ?.recordRebuildStatus("failed", {
+          campaignId,
+          rebuildId,
+          rebuildType,
+          metadata: {
+            duration,
+            errorMessage,
+            affectedEntityCount: affectedEntityIds?.length || 0,
+          },
+        })
+        .catch((error) => {
+          console.error(
+            "[RebuildPipeline] Failed to record rebuild status:",
+            error
+          );
+        });
 
       return {
         rebuildId,

@@ -89,6 +89,13 @@ import {
   handleGetExternalResourceSearch,
   handleGetGmResources,
 } from "@/routes/external-resources";
+import {
+  handleRecordSatisfactionRating,
+  handleRecordContextAccuracy,
+  handleGetMetrics,
+  handleGetDashboard,
+  handleGetAlerts,
+} from "@/routes/telemetry";
 import fileAnalysisRoutes from "@/routes/file-analysis";
 import {
   handleDeleteFile,
@@ -604,6 +611,35 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.EXTERNAL_RESOURCES.GM_RESOURCES,
     requireUserJwt,
     handleGetGmResources
+  );
+
+  // Telemetry endpoints
+  app.post(
+    API_CONFIG.ENDPOINTS.TELEMETRY.RATINGS,
+    requireUserJwt,
+    handleRecordSatisfactionRating
+  );
+  app.post(
+    API_CONFIG.ENDPOINTS.TELEMETRY.CONTEXT_ACCURACY,
+    requireUserJwt,
+    handleRecordContextAccuracy
+  );
+
+  // Admin telemetry endpoints
+  app.get(
+    API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.METRICS,
+    requireUserJwt,
+    handleGetMetrics
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.DASHBOARD,
+    requireUserJwt,
+    handleGetDashboard
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.ALERTS,
+    requireUserJwt,
+    handleGetAlerts
   );
 
   app.get(API_CONFIG.ENDPOINTS.LIBRARY.FILES, requireUserJwt, handleGetFiles);

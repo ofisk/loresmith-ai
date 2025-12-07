@@ -331,6 +331,17 @@ export const API_CONFIG = {
       PUBLISH: "/api/notifications/publish",
       STREAM_SUBSCRIBE: "/api/notifications/stream/subscribe",
     },
+    TELEMETRY: {
+      RATINGS: "/api/telemetry/ratings",
+      CONTEXT_ACCURACY: "/api/telemetry/context-accuracy",
+    },
+    ADMIN: {
+      TELEMETRY: {
+        METRICS: "/api/admin/telemetry/metrics",
+        DASHBOARD: "/api/admin/telemetry/dashboard",
+        ALERTS: "/api/admin/telemetry/alerts",
+      },
+    },
   },
 } as const;
 

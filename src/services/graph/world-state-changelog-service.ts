@@ -10,6 +10,8 @@ import type {
   WorldStateNewEntity,
 } from "@/types/world-state";
 import type { EntityImportanceService } from "./entity-importance-service";
+import { TelemetryDAO } from "@/dao/telemetry-dao";
+import { TelemetryService } from "@/services/telemetry/telemetry-service";
 
 export interface WorldStateChangelogServiceOptions {
   db: D1Database;
@@ -45,10 +47,21 @@ export interface WorldStateOverlaySnapshot {
 export class WorldStateChangelogService {
   private readonly dao: WorldStateChangelogDAO;
   private readonly importanceService?: EntityImportanceService;
+  private telemetryService: TelemetryService | null = null;
 
   constructor(options: WorldStateChangelogServiceOptions) {
     this.dao = options.dao ?? new WorldStateChangelogDAO(options.db);
     this.importanceService = options.importanceService;
+    try {
+      this.telemetryService = new TelemetryService(
+        new TelemetryDAO(options.db)
+      );
+    } catch (error) {
+      console.warn(
+        "[WorldStateChangelog] Failed to initialize telemetry service:",
+        error
+      );
+    }
   }
 
   /**
@@ -131,6 +144,46 @@ export class WorldStateChangelogService {
     };
 
     await this.dao.createEntry(entry);
+
+    // Calculate changelog size in bytes (JSON string length)
+    const payloadSizeBytes = new TextEncoder().encode(
+      JSON.stringify(normalizedPayload)
+    ).length;
+
+    // Record changelog metrics (fire and forget)
+    const telemetryPromises = [
+      // Record entry count (always 1 for a new entry)
+      this.telemetryService
+        ?.recordChangelogEntryCount(1, {
+          campaignId,
+          metadata: {
+            entryId: entry.id,
+            impactScore,
+            sessionId: normalizedPayload.campaign_session_id,
+          },
+        })
+        .catch((error) => {
+          console.error(
+            "[WorldStateChangelog] Failed to record entry count:",
+            error
+          );
+        }),
+
+      // Record changelog size
+      this.telemetryService
+        ?.recordChangelogSize(payloadSizeBytes, {
+          campaignId,
+          metadata: {
+            entryId: entry.id,
+            impactScore,
+          },
+        })
+        .catch((error) => {
+          console.error("[WorldStateChangelog] Failed to record size:", error);
+        }),
+    ];
+
+    await Promise.allSettled(telemetryPromises);
 
     // Return the normalized entry as stored
     const [created] = await this.dao.listEntriesForCampaign(campaignId, {

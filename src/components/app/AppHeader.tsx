@@ -4,6 +4,7 @@ import {
   Trash,
   NotePencil,
   Lightbulb,
+  ChartBar,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/button/Button";
 import { HelpButton } from "@/components/help/HelpButton";
@@ -12,6 +13,7 @@ import { Toggle } from "@/components/toggle/Toggle";
 import loresmith from "@/assets/loresmith.png";
 import type { NotificationPayload } from "@/durable-objects/notification-hub";
 import type { Campaign } from "@/types/campaign";
+import { AuthService } from "@/services/core/auth-service";
 
 interface AppHeaderProps {
   showDebug: boolean;
@@ -36,6 +38,7 @@ interface AppHeaderProps {
   campaigns: Campaign[];
   selectedCampaignId: string | null;
   onSelectedCampaignChange: (campaignId: string | null) => void;
+  onAdminDashboardOpen?: () => void;
 }
 
 /**
@@ -55,6 +58,7 @@ export function AppHeader({
   campaigns,
   selectedCampaignId,
   onSelectedCampaignChange,
+  onAdminDashboardOpen,
 }: AppHeaderProps) {
   const handleCampaignChange = (
     event: React.ChangeEvent<HTMLSelectElement>
@@ -66,6 +70,10 @@ export function AppHeader({
       onSelectedCampaignChange(value);
     }
   };
+
+  // Check if user is admin
+  const payload = AuthService.getJwtPayload();
+  const isAdmin = payload?.isAdmin === true;
 
   return (
     <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 flex items-center gap-4 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-sm">
@@ -154,6 +162,19 @@ export function AppHeader({
         onActionClick={onHelpAction}
         onGuidanceRequest={onGuidanceRequest}
       />
+
+      {isAdmin && onAdminDashboardOpen && (
+        <Button
+          variant="ghost"
+          size="md"
+          shape="square"
+          className="rounded-full h-9 w-9"
+          onClick={onAdminDashboardOpen}
+          tooltip="Admin Dashboard - View telemetry and metrics"
+        >
+          <ChartBar size={20} />
+        </Button>
+      )}
 
       <Button
         variant="ghost"
