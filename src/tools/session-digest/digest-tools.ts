@@ -221,7 +221,9 @@ export const createSessionDigestTool = tool({
       return createToolSuccess(
         `Session digest created successfully for session ${sessionNumber}`,
         { digest: created },
-        toolCallId
+        toolCallId,
+        campaignId,
+        campaign.name
       );
     } catch (error) {
       const errorDetails: Record<string, unknown> = {

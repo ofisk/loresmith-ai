@@ -148,14 +148,21 @@ export class SessionDigestAgent extends BaseAgent {
     // If we have a campaignId, fetch the campaign name and add it as context
     if (campaignId) {
       try {
-        const lastUserMsg = this.messages
-          .slice()
-          .reverse()
-          .find((msg) => msg.role === "user");
+        // Get JWT from last user message before filtering
         const jwt =
-          lastUserMsg && "data" in lastUserMsg && lastUserMsg.data
-            ? (lastUserMsg.data as { jwt?: string }).jwt
+          lastUserMessage && "data" in lastUserMessage && lastUserMessage.data
+            ? (lastUserMessage.data as { jwt?: string }).jwt
             : null;
+
+        // Remove any existing campaign context messages to avoid stale data
+        this.messages = this.messages.filter(
+          (msg) =>
+            !(
+              msg.role === "system" &&
+              typeof msg.content === "string" &&
+              msg.content.includes("Campaign Context:")
+            )
+        );
 
         if (jwt) {
           const daoFactory = getDAOFactory(this.env as any);

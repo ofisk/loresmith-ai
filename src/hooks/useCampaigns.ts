@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { USER_MESSAGES } from "@/app-constants";
 import { API_CONFIG } from "@/shared-config";
 import type { Campaign, CampaignResource } from "@/types/campaign";
@@ -48,6 +48,7 @@ export function useCampaigns() {
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(
     null
   );
+  const hasInitializedFromStorageRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   const { makeRequestWithData } = useAuthenticatedRequest();
@@ -69,20 +70,40 @@ export function useCampaigns() {
         onSuccess: (campaigns: Campaign[]) => {
           setCampaigns(campaigns);
 
-          // Initialize selected campaign from storage if present
-          const storedId = window.localStorage.getItem(
-            ACTIVE_CAMPAIGN_STORAGE_KEY
-          );
-          if (storedId) {
-            const matchingCampaign = campaigns.find(
-              (campaign) => campaign.campaignId === storedId
+          // Only initialize from localStorage on first load
+          // On subsequent refetches, preserve the current selectedCampaignId
+          if (!hasInitializedFromStorageRef.current) {
+            const storedId = window.localStorage.getItem(
+              ACTIVE_CAMPAIGN_STORAGE_KEY
             );
-            if (matchingCampaign) {
-              setSelectedCampaignId(matchingCampaign.campaignId);
-            } else {
-              setSelectedCampaignId(null);
-              window.localStorage.removeItem(ACTIVE_CAMPAIGN_STORAGE_KEY);
+            if (storedId) {
+              const matchingCampaign = campaigns.find(
+                (campaign) => campaign.campaignId === storedId
+              );
+              if (matchingCampaign) {
+                setSelectedCampaignId(matchingCampaign.campaignId);
+              } else {
+                setSelectedCampaignId(null);
+                window.localStorage.removeItem(ACTIVE_CAMPAIGN_STORAGE_KEY);
+              }
             }
+            hasInitializedFromStorageRef.current = true;
+          } else {
+            // On subsequent refetches, validate that the current selection still exists
+            // Use a functional update to get the latest selectedCampaignId
+            setSelectedCampaignId((currentId) => {
+              if (currentId) {
+                const matchingCampaign = campaigns.find(
+                  (campaign) => campaign.campaignId === currentId
+                );
+                if (!matchingCampaign) {
+                  // Current selection no longer exists, clear it
+                  window.localStorage.removeItem(ACTIVE_CAMPAIGN_STORAGE_KEY);
+                  return null;
+                }
+              }
+              return currentId;
+            });
           }
         },
         onError: (error: string) => setError(error),

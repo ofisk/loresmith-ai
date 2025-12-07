@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ToolResult } from "../app-constants";
+import { getDAOFactory } from "../dao/dao-factory";
 
 /**
  * Common tool parameter schemas
@@ -44,20 +45,73 @@ export function createAuthHeaders(jwt?: string | null): Record<string, string> {
 }
 
 /**
+ * Get campaign name from campaignId (async helper for tools)
+ */
+export async function getCampaignName(
+  campaignId: string | null | undefined,
+  env: any,
+  jwt: string | null | undefined
+): Promise<string | null> {
+  if (!campaignId || !env || !jwt) {
+    return null;
+  }
+
+  try {
+    const userId = extractUsernameFromJwt(jwt);
+    if (!userId) {
+      return null;
+    }
+
+    const daoFactory = getDAOFactory(env);
+    const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+      campaignId,
+      userId
+    );
+
+    return campaign?.name || null;
+  } catch (error) {
+    console.error("[getCampaignName] Error fetching campaign name:", error);
+    return null;
+  }
+}
+
+/**
+ * Format message with campaign context
+ */
+function formatMessageWithCampaign(
+  message: string,
+  campaignName: string | null | undefined
+): string {
+  if (!campaignName) {
+    return message;
+  }
+  return `${message} for campaign "${campaignName}"`;
+}
+
+/**
  * Standard error response for tool execution
  */
 export function createToolError(
   message: string,
   error: any,
   _code: number,
-  toolCallId: string
+  toolCallId: string,
+  _campaignId?: string | null,
+  campaignName?: string | null
 ): ToolResult {
+  const formattedMessage = campaignName
+    ? formatMessageWithCampaign(message, campaignName)
+    : message;
+
   return {
     toolCallId,
     result: {
       success: false,
-      message,
-      data: { error: error instanceof Error ? error.message : String(error) },
+      message: formattedMessage,
+      data: {
+        error: error instanceof Error ? error.message : String(error),
+        ...(campaignName ? { campaignName } : {}),
+      },
     },
   };
 }
@@ -68,14 +122,23 @@ export function createToolError(
 export function createToolSuccess(
   message: string,
   data: any,
-  toolCallId: string
+  toolCallId: string,
+  _campaignId?: string | null,
+  campaignName?: string | null
 ): ToolResult {
+  const formattedMessage = campaignName
+    ? formatMessageWithCampaign(message, campaignName)
+    : message;
+
   return {
     toolCallId,
     result: {
       success: true,
-      message,
-      data,
+      message: formattedMessage,
+      data: {
+        ...data,
+        ...(campaignName ? { campaignName } : {}),
+      },
     },
   };
 }
