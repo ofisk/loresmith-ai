@@ -31,7 +31,7 @@ export class RebuildPipelineService {
   private readonly worldStateChangelogDAO: WorldStateChangelogDAO;
 
   constructor(
-    db: any,
+    _db: any,
     private readonly rebuildStatusDAO: RebuildStatusDAO,
     entityDAO: EntityDAO,
     communityDAO: CommunityDAO,

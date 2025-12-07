@@ -8,6 +8,9 @@ import { ChunkedProcessingService } from "./services/file/chunked-processing-ser
 import { SyncQueueService } from "./services/file/sync-queue-service";
 import { RebuildQueueProcessor } from "./services/graph/rebuild-queue-processor";
 import type { RebuildQueueMessage } from "./types/rebuild-queue";
+import { RebuildQueueService } from "./services/graph/rebuild-queue-service";
+import { RebuildTriggerService } from "./services/graph/rebuild-trigger-service";
+import { WorldStateChangelogDAO } from "./dao/world-state-changelog-dao";
 
 export interface ProcessingMessage {
   bucket: string;
@@ -295,6 +298,146 @@ export async function scheduled(
 
   // Clean up files stuck in processing status (10 minute timeout)
   await cleanupStuckProcessingFiles(env, 10);
+
+  // Check campaigns and trigger rebuilds if needed
+  await checkAndTriggerRebuilds(env);
+}
+
+/**
+ * Check campaigns with unapplied changelog entries and trigger rebuilds if needed
+ */
+async function checkAndTriggerRebuilds(env: Env): Promise<void> {
+  try {
+    const daoFactory = getDAOFactory(env);
+    const worldStateChangelogDAO = new WorldStateChangelogDAO(env.DB!);
+    const rebuildTriggerService = new RebuildTriggerService(
+      daoFactory.campaignDAO
+    );
+
+    // Get campaigns with unapplied changelog entries
+    const campaignIds =
+      await worldStateChangelogDAO.getCampaignIdsWithUnappliedEntries();
+
+    if (campaignIds.length === 0) {
+      console.log(
+        "[RebuildCron] No campaigns with unapplied changelog entries"
+      );
+      return;
+    }
+
+    console.log(
+      `[RebuildCron] Checking ${campaignIds.length} campaign(s) for rebuild needs`
+    );
+
+    if (!env.GRAPH_REBUILD_QUEUE) {
+      console.warn(
+        "[RebuildCron] GRAPH_REBUILD_QUEUE binding not configured, skipping rebuild checks"
+      );
+      return;
+    }
+
+    const queueService = new RebuildQueueService(env.GRAPH_REBUILD_QUEUE);
+
+    for (const campaignId of campaignIds) {
+      try {
+        // Check if there's already an active rebuild
+        const activeRebuilds =
+          await daoFactory.rebuildStatusDAO.getActiveRebuilds(campaignId);
+        if (activeRebuilds.length > 0) {
+          console.log(
+            `[RebuildCron] Campaign ${campaignId} already has active rebuild, skipping`
+          );
+          continue;
+        }
+
+        // Get unapplied entries to determine affected entities
+        const unappliedEntries =
+          await worldStateChangelogDAO.listEntriesForCampaign(campaignId, {
+            appliedToGraph: false,
+          });
+
+        // Extract affected entity IDs from changelog entries
+        const affectedEntityIds = new Set<string>();
+        for (const entry of unappliedEntries) {
+          for (const update of entry.payload.entity_updates || []) {
+            if (update.entity_id) {
+              affectedEntityIds.add(update.entity_id);
+            }
+          }
+          for (const update of entry.payload.relationship_updates || []) {
+            if (update.from) affectedEntityIds.add(update.from);
+            if (update.to) affectedEntityIds.add(update.to);
+          }
+          for (const entity of entry.payload.new_entities || []) {
+            if (entity.entity_id) {
+              affectedEntityIds.add(entity.entity_id);
+            }
+          }
+        }
+
+        // Make rebuild decision based on impact
+        const decision = await rebuildTriggerService.makeRebuildDecision(
+          campaignId,
+          Array.from(affectedEntityIds)
+        );
+
+        if (decision.shouldRebuild) {
+          console.log(
+            `[RebuildCron] Triggering ${decision.rebuildType} rebuild for campaign ${campaignId} (impact: ${decision.cumulativeImpact})`
+          );
+
+          // decision.rebuildType is guaranteed to be "full" or "partial" when shouldRebuild is true
+          const rebuildType =
+            decision.rebuildType === "partial" ? "partial" : "full";
+
+          // Create rebuild status entry
+          const rebuildId = crypto.randomUUID();
+          await daoFactory.rebuildStatusDAO.createRebuild({
+            id: rebuildId,
+            campaignId,
+            rebuildType,
+            status: "pending",
+            affectedEntityIds:
+              rebuildType === "partial"
+                ? Array.from(affectedEntityIds)
+                : undefined,
+          });
+
+          // Enqueue rebuild job
+          await queueService.enqueueRebuild({
+            rebuildId,
+            campaignId,
+            rebuildType,
+            affectedEntityIds:
+              rebuildType === "partial"
+                ? Array.from(affectedEntityIds)
+                : undefined,
+            triggeredBy: "scheduled",
+            options: {
+              regenerateSummaries: true,
+              recalculateImportance: true,
+            },
+          });
+
+          console.log(
+            `[RebuildCron] Rebuild ${rebuildId} enqueued for campaign ${campaignId}`
+          );
+        } else {
+          console.log(
+            `[RebuildCron] Campaign ${campaignId} does not need rebuild (impact: ${decision.cumulativeImpact})`
+          );
+        }
+      } catch (error) {
+        console.error(
+          `[RebuildCron] Error checking campaign ${campaignId}:`,
+          error
+        );
+        // Continue with next campaign
+      }
+    }
+  } catch (error) {
+    console.error("[RebuildCron] Error in rebuild check:", error);
+  }
 }
 
 /**
