@@ -2,60 +2,82 @@ export function getHelpContent(action: string): string {
   switch (action) {
     case "upload_resource":
       return (
-        "## Uploading Resources\n\n" +
-        "To upload resources to your inspiration library:\n\n" +
-        "1. Look for the 'Add to library' button in the interface\n" +
-        "2. Click the button to open the upload modal\n" +
-        "3. Drag and drop files directly onto the upload area for quick upload\n" +
-        "4. Select files from your computer if you prefer\n\n" +
-        "Supported file types: PDF files, images, and other documents\n\n" +
-        "Once uploaded, your resources will be available in your inspiration library for campaign planning!"
+        "## 📚 Uploading Resources\n\n" +
+        "Build your resource library by uploading files:\n\n" +
+        "**Steps:**\n" +
+        "1. Click **'Add to library'** in the sidebar\n" +
+        "2. Drag and drop files onto the upload area (or click to select)\n" +
+        "3. Wait for processing to complete\n" +
+        "4. Add files to campaigns to make them searchable\n\n" +
+        "**Supported Formats:**\n" +
+        "- PDF files (up to 500MB)\n" +
+        "- Images (PNG, JPG, etc.)\n" +
+        "- Text documents\n\n" +
+        "**What Happens Next:**\n" +
+        "• Content is extracted and indexed\n" +
+        "• Entities (NPCs, locations, items) are automatically identified\n" +
+        "• Files become searchable via semantic search\n" +
+        "• Content becomes part of your campaign's knowledge base when added to campaigns"
       );
     case "create_campaign":
       return (
-        "## Creating a Campaign\n\n" +
-        "To create a new campaign:\n\n" +
-        "1. Look for the 'Create Campaign' button in the interface\n" +
-        "2. Click the button to open the campaign creation form\n" +
-        "3. Enter campaign details including:\n" +
-        "- Campaign name\n" +
-        "- Description\n" +
-        "- Setting details\n" +
-        "4. Save your campaign to start organizing your resources\n\n" +
-        "Benefits: Campaigns help you organize your resources, plan sessions, and track your story development!"
+        "## 🎲 Creating a Campaign\n\n" +
+        "Organize your resources and planning with campaigns:\n\n" +
+        "**Steps:**\n" +
+        "1. Click **'Create Campaign'** in the sidebar\n" +
+        "2. Enter a campaign name\n" +
+        "3. Optionally add a description\n" +
+        "4. Click **'Create'** to finish\n\n" +
+        "**Campaign Benefits:**\n" +
+        "• Organize resources by story\n" +
+        "• Maintain separate contexts for different campaigns\n" +
+        "• Track session history and world state\n" +
+        "• Get AI assistance tailored to your campaign\n\n" +
+        "**Pro Tip:** Create separate campaigns for different stories to keep contexts clean and focused."
       );
     case "start_chat":
       return (
-        "## Starting a Chat\n\n" +
-        "You can start chatting with me right here! Just type your questions about:\n\n" +
-        "Campaign Ideas:\n" +
-        "- World building concepts\n" +
-        "- Plot development\n" +
-        "- Character creation\n\n" +
-        "GM Topics:\n" +
-        "- Session planning\n" +
-        "- Encounter design\n" +
-        "- Story pacing\n\n" +
-        "Tips:\n" +
-        "- Be specific with your questions\n" +
-        "- Share your campaign context\n" +
-        "- Ask for examples or suggestions\n\n" +
-        "I'm here to help you develop your campaign ideas and provide guidance!"
+        "## 💬 Using the AI Assistant\n\n" +
+        "Get help with campaign planning and world building:\n\n" +
+        "**What I Can Help With:**\n\n" +
+        "**Campaign Planning:**\n" +
+        '• "What should I prepare for next session?"\n' +
+        '• "Generate NPCs for the tavern scene"\n' +
+        '• "Plan an encounter with the dragon"\n\n' +
+        "**World Building:**\n" +
+        '• "Create a merchant NPC who knows about the ruins"\n' +
+        '• "Design a puzzle for the ancient temple"\n' +
+        '• "Help me develop the political landscape"\n\n' +
+        "**Information Retrieval:**\n" +
+        '• "What do we know about the Black Dragon?"\n' +
+        '• "What happened in session 3?"\n' +
+        '• "Find all mentions of the artifact"\n\n' +
+        "**Best Practices:**\n" +
+        "• Be specific - detailed questions get better answers\n" +
+        "• Reference your campaign - I understand your campaign context\n" +
+        "• Ask follow-ups - build on previous answers\n" +
+        "• Use natural language - talk to me like a co-GM\n\n" +
+        "**Note:** Make sure you have a campaign selected for campaign-specific queries!"
       );
     default:
       return (
-        "## Getting Started\n\n" +
-        "I can help you with various tasks:\n\n" +
-        "Upload Resources:\n" +
-        "- Look for the 'Add to library' button\n" +
-        "- Upload PDFs, images, and documents\n\n" +
-        "Create Campaigns:\n" +
-        "- Use the 'Create Campaign' button\n" +
-        "- Organize your story elements\n\n" +
-        "Start Chatting:\n" +
-        "- Just type your questions here\n" +
-        "- Ask about campaign ideas, world building, or GM topics\n\n" +
-        "Pro Tip: Be specific with your questions to get the most helpful responses!"
+        "## 🎯 Getting Started with LoreSmith AI\n\n" +
+        "Welcome! Here's how to get started:\n\n" +
+        "**1. Upload Resources** 📚\n" +
+        "Click **'Add to library'** to upload PDFs, images, and documents. Once uploaded, add them to campaigns to make content searchable.\n\n" +
+        "**2. Create Campaigns** 🎲\n" +
+        "Click **'Create Campaign'** to organize your resources. Each campaign maintains its own context and knowledge base.\n\n" +
+        "**3. Start Planning** 💬\n" +
+        "Use the chat to ask questions, plan sessions, or get AI assistance. The AI understands your campaign context automatically.\n\n" +
+        "**4. Track Sessions** 📝\n" +
+        "Create session digests after each session to track world state and maintain continuity.\n\n" +
+        "**Quick Tips:**\n" +
+        "• Upload resources before creating campaigns for best results\n" +
+        "• Add resources to campaigns to make them searchable\n" +
+        "• Be specific with AI queries for better responses\n" +
+        "• Keep session digests updated for better continuity\n\n" +
+        "**Need More Help?**\n" +
+        "Check the User Guide in the documentation for detailed instructions and examples!"
       );
   }
 }

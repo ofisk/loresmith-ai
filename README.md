@@ -1,350 +1,245 @@
-# LoreSmith
+# LoreSmith AI
 
-Dungeouns & Dragons(DND) RAG
+**AI-Powered Campaign Planning and Management Platform**
 
-Tech stack: React frontend, Node.js backend, OpenAI GPT-4 via API, deployment via Cloudflare Workers
+LoreSmith AI helps you organize your game campaign resources, plan sessions, and manage your world with intelligent AI assistance. Upload documents, create campaigns, and let AI help you prepare engaging adventures.
 
-Features:
+## 🧪 About This Project
 
-- Conversational AI chat with campaign management
-- Campaign creation and management with resource mapping
-- File upload and processing (current limit: 500MB)
-- Supports character management via [DND Beyond](https://www.dndbeyond.com/)
-- Maintains character state and helps plan character journeys
-- RAG (Retrieval-Augmented Generation) for campaign content
-- **Bring Your Own OpenAI API Key**: Users can provide their own OpenAI API key when no default key is configured
+LoreSmith was developed as an experimental project exploring two key areas:
 
-## Architecture
+1. **AI-Driven Vibecoding**: This project served as an exploration of AI-assisted development workflows, where AI tools were used extensively throughout the development process to rapidly prototype, iterate, and build features. The codebase demonstrates what's possible when AI pair programming is embraced as a core development methodology.
 
-### Core Components
+2. **Cloudflare Stack Exploration**: LoreSmith is a comprehensive exploration of Cloudflare's edge computing platform, utilizing the full suite of Cloudflare services:
+   - **Workers** for serverless edge functions
+   - **D1** for edge SQLite databases
+   - **R2** for S3-compatible object storage
+   - **Durable Objects** for stateful edge computing
+   - **Vectorize** for vector similarity search
+   - **Queues** for asynchronous processing
 
-- **Cloudflare Workers**: Serverless backend with global edge deployment
-- **Durable Objects**: Persistent state management for chat sessions
-- **R2 Storage**: Scalable object storage for uploaded files
-- **React Frontend**: Modern, responsive user interface
-- **AI SDK**: Integration with OpenAI and other AI providers
+The project serves as both a functional application and a reference implementation for building complex, full-stack applications entirely on Cloudflare's edge platform. It demonstrates patterns for state management, data persistence, real-time features, and AI integration in an edge-first architecture.
 
-## Quick Start
+## 🎯 What is LoreSmith?
 
-### Prerequisites
+LoreSmith is an AI-powered campaign planning tool that combines:
 
-- Cloudflare account
-- OpenAI API key (optional - users can provide their own)
-- Node.js 22+ and npm
+- **Intelligent Resource Library**: Upload and search through campaign materials using AI-powered semantic search
+- **GraphRAG Technology**: Advanced knowledge graph that connects entities, relationships, and campaign context
+- **Session Planning**: Get AI-assisted session outlines and campaign guidance
+- **World State Tracking**: Automatically track changes to your campaign world as sessions progress
 
-### Infrastructure Management
+## ✨ Key Features
 
-For managing Cloudflare infrastructure, see the [scripts documentation](scripts/README.md):
+- **📚 Resource Library**: Upload PDFs, documents, and images (up to 500MB per file) with AI-powered extraction and indexing
+- **🎲 Campaign Management**: Create and organize multiple campaigns with dedicated contexts
+- **🤖 AI-Powered Chat**: Conversational AI assistant that understands your campaign context
+- **🔍 Intelligent Search**: Semantic search across your resources and campaign content using GraphRAG
+- **📝 Session Digests**: Automatically capture and track session summaries with world state changes
+- **🌐 World Knowledge Graph**: Entity extraction and relationship mapping for comprehensive campaign understanding
+- **🔐 Bring Your Own API Key**: Users provide their own OpenAI API key for full control over AI costs
 
-- **Full Infrastructure Reset**: `./scripts/recreate-infrastructure.sh`
-- **Specific Resource Reset**: `./scripts/reset-specific-resource.sh [worker|queues|d1|r2|vectorize|all]`
+## 🚀 Quick Start
 
-These scripts handle the complexities of Cloudflare resource dependencies and binding issues.
+### For Users
 
-### Installation
+1. **Access the Application**: Navigate to your deployed LoreSmith instance
+2. **Authenticate**:
+   - Enter your username
+   - Provide an admin key (if required)
+   - Enter your OpenAI API key for AI features
+3. **Get Started**:
+   - Upload your first resource to build your library
+   - Create a campaign to organize your content
+   - Start chatting with the AI assistant for planning help
 
-1. **Clone the repository**:
+See our [User Guide](docs/USER_GUIDE.md) for detailed instructions and walkthroughs.
 
-2. **Install dependencies**:
+### For Developers
+
+See our [Developer Setup Guide](docs/DEV_SETUP.md) for complete setup instructions.
+
+#### Quick Setup
 
 ```bash
+# Clone the repository
+git clone https://github.com/ofisk/loresmith-ai.git
+cd loresmith-ai
+
+# Install dependencies
 npm install
-```
 
-3. **Set up environment variables**:
-   Create a `.dev.vars` file (you can copy the example file and fill it out):
-
-```bash
+# Set up environment variables
 cp .dev.vars.example .dev.vars
-```
+# Edit .dev.vars with your credentials
 
-Then edit `.dev.vars` and provide your credentials:
-
-```env
-OPENAI_API_KEY=your_openai_api_key  # Optional - users can provide their own
-ADMIN_SECRET=your_admin_secret_for_file_uploads
-
-```
-
-**Security Note**: For production, use Cloudflare Dashboard Environment Variables instead of storing tokens in `.vars` files.
-
-### OpenAI API Key Configuration
-
-The application supports two modes for OpenAI API key configuration:
-
-1. **Local Development**: Set `OPENAI_API_KEY` in your `.dev.vars` file for local development and testing. This key will be used for all chat interactions during development.
-
-2. **Production (User-Provided)**: In production, users must provide their own OpenAI API key during authentication. This key will be:
-   - Validated against the OpenAI API
-   - Stored securely in the Chat durable object
-   - Used for all chat interactions in that session
-   - Automatically cleared when the session expires
-   - Never stored in the application's environment variables
-
-### Running the Application Locally
-
-This project consists of a React client and a Cloudflare Worker server. You need to start both for full functionality during development.
-
-**⚠️ Important:** For normal development, use `npm run dev:cloudflare` (not `npm run dev`) to connect to remote Cloudflare resources. This ensures all features work properly, including database access and internal API calls.
-
-#### Prerequisites for Local Development
-
-1. **Install Wrangler CLI** (if not already installed):
-
-```bash
-npm install -g wrangler
-```
-
-2. **Authenticate with Cloudflare**:
-
-```bash
-wrangler login
-```
-
-#### 1. Set up Local Environment
-
-Create a `.dev.vars` file with your configuration:
-
-```bash
-# Copy the example file
-cp .dev.vars.example .dev.vars
-
-# Edit the file with your credentials
-```
-
-Example `.dev.vars` content:
-
-```env
-# OpenAI API Key (optional - users can provide their own)
-OPENAI_API_KEY=sk-your-openai-api-key-here
-
-# Admin Secret for authentication (required)
-ADMIN_SECRET=your-admin-secret-here
-
-# API URL for local development
-VITE_API_URL=http://localhost:8787
-
-# CORS settings for local development
-CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
-```
-
-#### 2. Set up Local Database
-
-Run the database migrations to set up the local D1 database:
-
-```bash
-# Make the migration script executable
-chmod +x scripts/migrate-local.sh
-
-# Run local migrations
+# Set up local database
 ./scripts/migrate-local.sh
-```
 
-This will create all necessary tables including `user_openai_keys`, `campaigns`, `file_metadata`, etc.
-
-#### 3. Build the Frontend (First Time Only)
-
-Before starting the dev server for the first time, build the frontend to create the required `dist` directory:
-
-```bash
+# Build frontend (first time only)
 npm run build
+
+# Start development servers
+npm run dev:cloudflare  # Terminal 1: Backend
+npm start                # Terminal 2: Frontend
 ```
 
-**Note**: You only need to do this once. During development, `npm start` will run Vite with hot module replacement, so you won't need to rebuild after each UI change.
+Access the application at `http://localhost:5173`
 
-#### 4. Start the Cloudflare Worker server
+## 🏗️ Architecture
 
-The backend server runs as a Cloudflare Worker. You have two options:
+LoreSmith is built on modern serverless architecture for scalability and global performance:
 
-**Option A: Remote Resources (Recommended for full functionality)**
+### Core Technology Stack
 
-```bash
-npm run dev:cloudflare
+- **Frontend**: React 19 with TypeScript, Vite, and Tailwind CSS
+- **Backend**: Cloudflare Workers (serverless edge functions)
+- **Database**: Cloudflare D1 (SQLite-based edge database)
+- **Storage**: Cloudflare R2 (S3-compatible object storage)
+- **State Management**: Cloudflare Durable Objects (distributed state)
+- **AI**: OpenAI GPT-4 via AI SDK with user-provided API keys
+- **Vector Search**: Cloudflare Vectorize for semantic similarity search
+
+### System Architecture
+
+```mermaid
+graph TB
+    User[User Browser] -->|HTTPS| Frontend[React Frontend]
+    Frontend -->|API Calls| Worker[Cloudflare Worker]
+    Worker -->|Queries| D1[(D1 Database)]
+    Worker -->|Storage| R2[R2 Object Storage]
+    Worker -->|State| DO[Durable Objects]
+    Worker -->|Vectors| Vectorize[Vectorize Index]
+    Worker -->|AI| OpenAI[OpenAI API]
+
+    subgraph "Data Flow"
+        R2 -->|File Content| Worker
+        Worker -->|Extract Entities| D1
+        Worker -->|Create Embeddings| Vectorize
+        D1 -->|Query Context| Worker
+        Vectorize -->|Semantic Search| Worker
+    end
 ```
 
-This runs your Worker locally but connects to **remote** Cloudflare resources:
+## 📖 Documentation
 
-- ✅ Remote D1 database (production/dev database)
-- ✅ Remote R2 storage
-- ✅ Remote Vectorize and other Cloudflare services
-- ✅ Internal API calls work properly
-- ✅ Full feature parity with production
+### For Users
 
-**Option B: Fully Local (Limited functionality)**
+- **[User Guide](docs/USER_GUIDE.md)** - Complete guide for using LoreSmith
+- **[Features Overview](docs/FEATURES.md)** - Detailed feature documentation
 
-```bash
-npm run dev
-```
+### For Developers
 
-This runs everything locally using mock/local resources:
+- **[Developer Setup](docs/DEV_SETUP.md)** - Complete development environment setup
+- **[Architecture Overview](docs/ARCHITECTURE.md)** - System architecture deep dive
+- **[GraphRAG Integration](docs/GRAPHRAG_INTEGRATION.md)** - How GraphRAG powers campaign queries
+- **[API Documentation](docs/API.md)** - API endpoint reference
+- **[Testing Guide](docs/TESTING_GUIDE.md)** - Testing documentation
 
-- ❌ Local SQLite database (requires running migrations first)
-- ❌ Limited Cloudflare service functionality
-- ❌ Some internal API calls may fail
-- ⚠️ Use only for testing database migrations or offline development
+### Technical Documentation
 
-**For normal development, use `npm run dev:cloudflare`** to connect to remote resources while running locally at `http://localhost:8787`.
+- **[Storage Strategy](docs/STORAGE_STRATEGY.md)** - Data storage architecture
+- **[Authentication Flow](docs/AUTHENTICATION_FLOW.md)** - Authentication system details
+- **[Model Configuration](docs/MODEL_CONFIGURATION.md)** - AI model configuration
+- **[File Processing](docs/FILE_ANALYSIS_SYSTEM.md)** - File upload and processing pipeline
 
-#### 5. Start the React client
+## 🔑 Authentication
 
-In a separate terminal, start the client development server:
+LoreSmith uses JWT-based authentication with the following flow:
 
-```bash
-npm start
-```
+1. **User Authentication**: Username and admin key (if configured)
+2. **API Key Provision**: Users provide their own OpenAI API key
+3. **Session Management**: JWT tokens with 24-hour expiration
+4. **Secure Storage**: API keys stored in Durable Objects, never in environment variables
 
-This will launch the React frontend at `http://localhost:5173` with hot module replacement for instant UI updates.
+See [Authentication Flow](docs/AUTHENTICATION_FLOW.md) for detailed documentation.
 
-#### 6. Access the Application
+## 🎮 How It Works
 
-Open your browser and navigate to:
+### 1. Resource Upload & Processing
 
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:8787
+When you upload a file:
 
-#### 7. Authenticate
+1. File is securely stored in R2 object storage
+2. Content is extracted (PDFs, images, documents)
+3. Entities are automatically extracted (NPCs, locations, items, etc.)
+4. Content is indexed for semantic search
+5. Entities are added to your campaign's knowledge graph
 
-When you first access the application, you'll need to authenticate:
+### 2. Campaign Context Assembly
 
-1. **Username**: Enter any username you prefer
-2. **Admin Key**: Use the `ADMIN_SECRET` value from your `.dev.vars` file
-3. **OpenAI API Key**: Provide your own OpenAI API key (or use the one from `.dev.vars` if set)
+When you query your campaign:
 
-#### Troubleshooting
+1. **GraphRAG Query**: Semantic search finds relevant entities in your knowledge graph
+2. **Relationship Traversal**: Follows connections between entities
+3. **Changelog Overlay**: Applies recent world state changes
+4. **Planning Context**: Searches session digests for relevant history
+5. **Unified Response**: Combines all context for comprehensive answers
 
-**Authentication Issues:**
+See [GraphRAG Integration](docs/GRAPHRAG_INTEGRATION.md) for technical details.
 
-- Ensure your `ADMIN_SECRET` in `.dev.vars` matches what you enter in the admin key field
-- Clear browser local storage if you encounter JWT verification errors
-- Check that the database migrations ran successfully
+### 3. Session Planning
 
-**Database Issues:**
+The AI assistant helps you:
 
-- If you get "no such table" errors, re-run the migration script
-- Ensure Wrangler is authenticated with `wrangler login`
+- Generate session outlines based on campaign context
+- Track world state changes after sessions
+- Maintain continuity across sessions
+- Plan future encounters and story beats
 
-**Port Conflicts:**
-
-- The backend runs on port 8787 by default
-- The frontend runs on port 5173 by default
-- If these ports are in use, you can change them in the respective configuration files
-
-### Available NPM Scripts
-
-The project includes several useful npm scripts for development:
-
-```bash
-# Development
-npm start               # Start React development server (frontend)
-npm run dev:cloudflare  # Start Worker with REMOTE Cloudflare resources (recommended)
-npm run dev             # Start Worker with LOCAL resources only (limited functionality)
-npm run build           # Build the React application
-
-# Testing
-npm test           # Run all tests
-npm run validate   # Run linting, type checking, and tests
-
-# Deployment
-npm run deploy     # Build and deploy to Cloudflare (production)
-npm run migrate    # Run database migrations
-
-# Code Quality
-npm run format     # Format code with Prettier
-npm run check      # Run linting and type checking
-```
-
-#### 3. Deploy to Cloudflare
-
-To deploy both the client and server to Cloudflare:
-
-```bash
-npm run deploy
-```
-
-## Configuration
+## 🔧 Configuration
 
 ### Environment Variables
 
 #### Local Development (`.dev.vars`)
 
-For local development, create a `.dev.vars` file with the following variables:
+```env
+# OpenAI API Key (optional for development)
+OPENAI_API_KEY=sk-your-key-here
 
-- `OPENAI_API_KEY`: Your OpenAI API key for AI chat functionality (local development only - not used in production)
-- `ADMIN_SECRET`: Secret key for file upload authentication
-- `VITE_API_URL`: API URL for local development (default: `http://localhost:8787`)
-- `CORS_ALLOWED_ORIGINS`: CORS origins for local development (default: `http://localhost:5173,http://localhost:5174`)
+# Admin Secret (required)
+ADMIN_SECRET=your-admin-secret
 
-#### Production (`.vars`)
+# API URL
+VITE_API_URL=http://localhost:8787
 
-For production deployment, the `.vars` file contains the following variables:
+# CORS Origins
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
+```
 
-- `VITE_API_URL`: Production API URL (e.g., `https://ofisk.tech`)
-- `CORS_ALLOWED_ORIGINS`: Production CORS origins (e.g., `https://ofisk.tech`)
-- `OPENAI_API_KEY`: Optional default OpenAI API key (commented out by default - users provide their own)
+#### Production
 
-**Security Note**: The `.vars` file is automatically ignored by git for security. The `ADMIN_SECRET` is managed via Cloudflare Secrets Store or Dashboard Environment Variables in production and should not be included in the `.vars` file.
+Production uses Cloudflare Dashboard Environment Variables. The `ADMIN_SECRET` should be stored in Cloudflare Secrets Store.
 
-### Cloudflare Resources
+### Available Scripts
 
-- **R2 Bucket**: `loresmith-files` for file storage
-- **Durable Objects**: `Chat` and `SessionFileTracker` for state management
-- **Workers**: Main application deployment
-- **AI Binding**: Cloudflare AI Gateway for AI model calls
+```bash
+# Development
+npm start               # Start React dev server (frontend)
+npm run dev:cloudflare  # Start Worker with remote resources (recommended)
+npm run dev             # Start Worker with local resources only
+npm run build           # Build production bundle
 
-## Development
+# Testing
+npm test                # Run test suite
+npm run validate        # Lint, type-check, and test
 
-### Campaign Management
+# Deployment
+npm run deploy          # Deploy to production
+npm run migrate         # Run database migrations
+```
 
-The application includes comprehensive campaign management functionality:
-
-- **Campaign Creation**: Create new campaigns with custom names
-- **Resource Management**: Add resources to campaigns
-- **Character Integration**: Link D&D Beyond characters to campaigns
-- **AI-Powered Planning**: Get AI suggestions for campaign development
-
-### Authentication Flow
-
-The application uses a JWT-based authentication system that works seamlessly in both local development and production:
-
-1. **Admin Authentication**: Users authenticate with an admin key and username
-2. **OpenAI Key Validation**: Users provide their own OpenAI API key (required for AI functionality)
-3. **Session Management**: JWT tokens are used for session management with 24-hour expiration
-4. **Secure Storage**: User-provided API keys are stored securely in the database
-5. **Environment Flexibility**: Supports both local development (environment variables) and production (Cloudflare Secrets Store)
-
-#### Local Development Authentication
-
-For local development, the authentication system uses environment variables from `.dev.vars`:
-
-- `ADMIN_SECRET`: Used for admin authentication and JWT signing
-- `OPENAI_API_KEY`: Optional default key for development (users can still provide their own)
-
-#### Production Authentication
-
-In production, the system uses Cloudflare Secrets Store for secure secret management:
-
-- Admin secrets are stored in Cloudflare Secrets Store
-- JWT tokens are signed and verified using the same secret source
-- All authentication is handled securely at the edge
-
-### File Processing
-
-Uploaded files are processed through a secure pipeline:
-
-1. **Upload**: Files are uploaded directly to R2 storage via authenticated endpoints
-2. **Processing**: Files are parsed and indexed for RAG functionality
-3. **Metadata**: Users can add descriptions and tags to uploaded files
-4. **Campaign Integration**: Files can be associated with specific campaigns
-
-## Security
+## 🔒 Security
 
 - **JWT Authentication**: Secure token-based authentication
-- **Admin Key Protection**: Admin secrets are required for sensitive operations
-- **API Key Validation**: User-provided OpenAI keys are validated before use
-- **Secure Storage**: Sensitive data is stored in Durable Objects with encryption
-- **Session Expiration**: Automatic cleanup of expired sessions and keys
+- **API Key Validation**: All OpenAI API keys are validated before use
+- **Secure Storage**: Sensitive data stored in Durable Objects
+- **Session Expiration**: Automatic cleanup of expired sessions
+- **Edge Security**: All requests validated at the Cloudflare edge
 
-## Contributing
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](docs/CONTRIBUTING.md) for details.
 
 1. Fork the repository
 2. Create a feature branch
@@ -352,15 +247,16 @@ Uploaded files are processed through a secure pipeline:
 4. Add tests for new functionality
 5. Submit a pull request
 
-## Documentation
+## 📄 License
 
-For detailed information about specific aspects of the project, see:
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-- **[Storage Strategy](docs/STORAGE_STRATEGY.md)** - Comprehensive guide to data storage architecture using Cloudflare D1, R2, and Durable Objects
-- **[Large File Support](docs/LARGE_FILE_SUPPORT.md)** - Details on handling large document files (up to 500MB) for D&D rulebooks and campaign guides
-- **[Model Configuration](docs/MODEL_CONFIGURATION.md)** - Guide to configuring and changing AI models used throughout the application
-- **[Testing Guide](docs/TESTING_GUIDE.md)** - Comprehensive testing documentation and campaign workflow test suite
+## 🙋 Support
 
-## License
+- **Documentation**: Check our [docs](docs/) directory
+- **Issues**: Report bugs or request features on [GitHub Issues](https://github.com/ofisk/loresmith-ai/issues)
+- **Discussions**: Join conversations on [GitHub Discussions](https://github.com/ofisk/loresmith-ai/discussions)
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+---
+
+**Built with ❤️ for game masters and storytellers everywhere**
