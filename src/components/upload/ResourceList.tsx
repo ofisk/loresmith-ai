@@ -396,6 +396,7 @@ export function ResourceList({
             onEditFile={onEditFile}
             onRetryIndexing={handleRetryIndexing}
             fetchResources={fetchResources}
+            campaigns={campaigns}
           />
         ))}
       </div>

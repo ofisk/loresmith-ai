@@ -5,6 +5,7 @@ import { Tooltip } from "@/components/tooltip/Tooltip";
 import { ResourceFileDetails } from "./ResourceFileDetails";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { FileDAO } from "@/dao/file-dao";
+import type { Campaign } from "@/types/campaign";
 
 interface ResourceFileItemProps {
   file: ResourceFileWithCampaigns;
@@ -17,6 +18,7 @@ interface ResourceFileItemProps {
   onEditFile?: (file: ResourceFileWithCampaigns) => void;
   onRetryIndexing: (fileKey: string) => Promise<void>;
   fetchResources: () => Promise<void>;
+  campaigns?: Campaign[];
 }
 
 function getDisplayName(file: {
@@ -46,6 +48,7 @@ export function ResourceFileItem({
   onEditFile,
   onRetryIndexing,
   fetchResources,
+  campaigns = [],
 }: ResourceFileItemProps) {
   const progressPercentage = (() => {
     // Check for campaign addition progress first
@@ -161,6 +164,7 @@ export function ResourceFileItem({
             onEditFile={onEditFile}
             onRetryIndexing={onRetryIndexing}
             fetchResources={fetchResources}
+            campaigns={campaigns}
           />
         )}
       </div>
