@@ -195,8 +195,97 @@ CREATE TABLE IF NOT EXISTS entity_importance (
   foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
-CREATE INDEX idx_importance_campaign ON entity_importance(campaign_id);
-CREATE INDEX idx_importance_score ON entity_importance(importance_score DESC);
+CREATE INDEX IF NOT EXISTS idx_importance_campaign ON entity_importance(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_importance_score ON entity_importance(importance_score DESC);
+
+-- Create community_summaries table for storing hierarchical community summaries
+CREATE TABLE IF NOT EXISTS community_summaries (
+  id text primary key,
+  community_id text not null,
+  level integer not null,
+  summary_text text not null,
+  key_entities text, -- JSON array of key entity IDs
+  metadata text, -- JSON for additional context
+  generated_at datetime default current_timestamp,
+  updated_at datetime default current_timestamp,
+  foreign key (community_id) references communities(id) on delete cascade
+);
+
+-- Create indexes for fast retrieval
+CREATE INDEX IF NOT EXISTS idx_summaries_community ON community_summaries(community_id);
+CREATE INDEX IF NOT EXISTS idx_summaries_level ON community_summaries(level);
+
+-- World state changelog table for tracking structural changes to entities,
+-- relationships, and locations over time.
+CREATE TABLE IF NOT EXISTS world_state_changelog (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT NOT NULL,
+  campaign_session_id INTEGER,
+  timestamp DATETIME NOT NULL,
+  changelog_data TEXT NOT NULL, -- JSON payload describing world changes
+  impact_score REAL, -- Calculated impact for rebuild heuristics
+  applied_to_graph BOOLEAN DEFAULT FALSE, -- Whether applied in last rebuild
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_changelog_campaign ON world_state_changelog(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_changelog_campaign_session ON world_state_changelog(campaign_session_id);
+CREATE INDEX IF NOT EXISTS idx_changelog_timestamp ON world_state_changelog(timestamp);
+CREATE INDEX IF NOT EXISTS idx_changelog_applied ON world_state_changelog(applied_to_graph);
+
+-- Session digests table for storing high-level session recaps and planning information.
+-- This table stores session digests that capture key events, state changes, and planning context.
+CREATE TABLE IF NOT EXISTS session_digests (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT NOT NULL,
+  session_number INTEGER NOT NULL,
+  session_date DATE,
+  digest_data TEXT NOT NULL, -- JSON
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  UNIQUE(campaign_id, session_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_digests_campaign ON session_digests(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_digests_session ON session_digests(campaign_id, session_number);
+CREATE INDEX IF NOT EXISTS idx_digests_date ON session_digests(session_date);
+
+-- Rebuild status table for tracking graph rebuild operations.
+-- This table stores rebuild status, progress, and metadata for full and partial rebuilds.
+CREATE TABLE IF NOT EXISTS rebuild_status (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT NOT NULL,
+  rebuild_type TEXT NOT NULL CHECK (rebuild_type IN ('full', 'partial')),
+  status TEXT NOT NULL CHECK (status IN ('pending', 'in_progress', 'completed', 'failed', 'cancelled')),
+  affected_entity_ids TEXT, -- JSON array of affected entity IDs (for partial rebuilds)
+  started_at DATETIME,
+  completed_at DATETIME,
+  error_message TEXT,
+  metadata TEXT, -- JSON metadata for additional context (progress, performance metrics, etc.)
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_rebuild_status_campaign ON rebuild_status(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_rebuild_status_status ON rebuild_status(status);
+CREATE INDEX IF NOT EXISTS idx_rebuild_status_created ON rebuild_status(created_at);
+
+-- GraphRAG Telemetry table for tracking query latency, changelog growth, rebuild metrics, and quality metrics.
+CREATE TABLE IF NOT EXISTS graphrag_telemetry (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT,
+  metric_type TEXT NOT NULL,
+  metric_value REAL NOT NULL,
+  metadata TEXT, -- JSON metadata for additional context
+  recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_telemetry_campaign ON graphrag_telemetry(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_telemetry_type ON graphrag_telemetry(metric_type);
+CREATE INDEX IF NOT EXISTS idx_telemetry_date ON graphrag_telemetry(recorded_at);
 
 -- Create campaign context table
 CREATE TABLE IF NOT EXISTS campaign_context (
