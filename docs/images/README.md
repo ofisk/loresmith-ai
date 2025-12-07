@@ -21,6 +21,7 @@ This directory contains screenshots and images used in the documentation.
 - `campaign-details-session-digests.png` - Screenshot showing the Campaign Details modal with Session Digests tab for adding session recaps to update campaign world state
 - `ai-session-recap-guidance.png` - Screenshot showing the AI assistant guiding users through creating session recap notes
 - `campaign-assessment-next-steps.png` - Screenshot showing the "What should I do next?" feature for campaign assessment and AI suggestions
+- `admin-dashboard-telemetry.png` - Screenshot showing the admin dashboard with GraphRAG stats and telemetry metrics for admin authenticated users
 - `file-processing-failure.png` - Screenshot showing file processing failure status with retry capability in the resource library
 - `notifications-system.png` - Screenshot showing the notifications panel displaying real-time system notifications
 - `shard-generation-notification.png` - Screenshot showing a notification when shards are generated after adding a file to a campaign
