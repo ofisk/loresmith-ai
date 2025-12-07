@@ -141,7 +141,19 @@ export class SyncQueueService {
 
       // Only update fields that are empty/null in database (user-provided values take precedence)
       if (processResult.displayName && !dbMetadata.display_name) {
-        metadataUpdates.display_name = processResult.displayName;
+        // Check for display name collisions and get a unique display name
+        const { getUniqueDisplayName } = await import("@/lib/file-keys");
+        metadataUpdates.display_name = await getUniqueDisplayName(
+          (username, displayName, excludeFileKey) =>
+            fileDAO.displayNameExistsForUser(
+              username,
+              displayName,
+              excludeFileKey
+            ),
+          processResult.displayName,
+          username,
+          fileKey
+        );
       }
       if (processResult.description && !dbMetadata.description) {
         metadataUpdates.description = processResult.description;

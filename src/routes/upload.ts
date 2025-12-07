@@ -4,7 +4,11 @@ import { notifyFileUploadFailed } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
-import { buildLibraryFileKey, getUniqueFilename } from "@/lib/file-keys";
+import {
+  buildLibraryFileKey,
+  getUniqueFilename,
+  getUniqueDisplayName,
+} from "@/lib/file-keys";
 import { nanoid } from "@/lib/nanoid";
 import { cleanupStuckProcessingFiles } from "@/queue-consumer";
 import { startFileProcessing } from "@/routes/upload-processing";
@@ -255,8 +259,22 @@ export async function handleUpdateFileMetadata(c: ContextWithAuth) {
         description?: string;
         tags?: string;
       } = {};
-      if (display_name !== undefined)
-        metadataUpdates.display_name = display_name;
+      if (display_name !== undefined) {
+        // Check for display name collisions and get a unique display name
+        // Exclude the current file from collision check
+        const uniqueDisplayName = await getUniqueDisplayName(
+          (username, displayName, excludeFileKey) =>
+            fileDAO.displayNameExistsForUser(
+              username,
+              displayName,
+              excludeFileKey
+            ),
+          display_name,
+          userAuth.username,
+          fileKey
+        );
+        metadataUpdates.display_name = uniqueDisplayName;
+      }
       if (description !== undefined) metadataUpdates.description = description;
       if (tags !== undefined) metadataUpdates.tags = JSON.stringify(tags);
 

@@ -24,6 +24,19 @@ export function appendNumberToFilename(
 }
 
 /**
+ * Helper function to append a number to a display name
+ * @param displayName - Original display name
+ * @param number - Number to append
+ * @returns Display name with number appended (e.g., "My File" -> "My File (1)")
+ */
+export function appendNumberToDisplayName(
+  displayName: string,
+  number: number
+): string {
+  return `${displayName} (${number})`;
+}
+
+/**
  * Get a unique filename by appending an incrementing number if a collision exists
  * @param checkExists - Async function that checks if a filename exists for a user
  * @param originalFilename - The original filename
@@ -64,6 +77,63 @@ export async function getUniqueFilename(
   }
 
   return candidateFilename;
+}
+
+/**
+ * Get a unique display name by appending an incrementing number if a collision exists
+ * @param checkExists - Async function that checks if a display name exists for a user
+ * @param originalDisplayName - The original display name
+ * @param username - The username
+ * @param excludeFileKey - Optional file key to exclude from collision check (for updates)
+ * @returns A unique display name
+ */
+export async function getUniqueDisplayName(
+  checkExists: (
+    username: string,
+    displayName: string,
+    excludeFileKey?: string
+  ) => Promise<boolean>,
+  originalDisplayName: string,
+  username: string,
+  excludeFileKey?: string
+): Promise<string> {
+  if (!originalDisplayName) {
+    return originalDisplayName; // Empty display names don't need uniqueness
+  }
+
+  // Check if the original display name is already taken
+  const exists = await checkExists(
+    username,
+    originalDisplayName,
+    excludeFileKey
+  );
+  if (!exists) {
+    return originalDisplayName;
+  }
+
+  // Try appending numbers until we find a unique name
+  let counter = 1;
+  let candidateDisplayName = appendNumberToDisplayName(
+    originalDisplayName,
+    counter
+  );
+
+  while (await checkExists(username, candidateDisplayName, excludeFileKey)) {
+    counter++;
+    candidateDisplayName = appendNumberToDisplayName(
+      originalDisplayName,
+      counter
+    );
+
+    // Safety limit to prevent infinite loops
+    if (counter > 1000) {
+      // Fallback to timestamp-based name
+      const timestamp = Date.now();
+      return `${originalDisplayName}_${timestamp}`;
+    }
+  }
+
+  return candidateDisplayName;
 }
 
 /**

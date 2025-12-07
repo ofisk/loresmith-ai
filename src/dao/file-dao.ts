@@ -176,6 +176,38 @@ export class FileDAO extends BaseDAOClass {
     return (result?.count as number) > 0;
   }
 
+  /**
+   * Check if a display name exists for the user (optionally excluding a specific file)
+   * @param username - The username
+   * @param displayName - The display name to check
+   * @param excludeFileKey - Optional file key to exclude from the check (for updates)
+   * @returns True if a file with this display name exists
+   */
+  async displayNameExistsForUser(
+    username: string,
+    displayName: string,
+    excludeFileKey?: string
+  ): Promise<boolean> {
+    if (!displayName) {
+      return false; // Empty display names don't count as collisions
+    }
+
+    let sql = `
+      SELECT COUNT(*) as count
+      FROM file_metadata
+      WHERE username = ? AND display_name = ?
+    `;
+    const params: unknown[] = [username, displayName];
+
+    if (excludeFileKey) {
+      sql += ` AND file_key != ?`;
+      params.push(excludeFileKey);
+    }
+
+    const result = await this.queryFirst(sql, params);
+    return (result?.count as number) > 0;
+  }
+
   async getFilesByUser(username: string): Promise<ParsedFileMetadata[]> {
     const sql = `
       SELECT * FROM file_metadata 
