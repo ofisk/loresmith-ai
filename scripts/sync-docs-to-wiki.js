@@ -26,7 +26,11 @@ import { join } from "path";
 
 const REPO_OWNER = "ofisk";
 const REPO_NAME = "loresmith-ai";
-const WIKI_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}.wiki.git`;
+// Use SSH URL if available, fallback to HTTPS
+const USE_SSH = process.argv.includes("--ssh") || true; // Default to SSH
+const WIKI_URL = USE_SSH
+  ? `git@github.com:${REPO_OWNER}/${REPO_NAME}.wiki.git`
+  : `https://github.com/${REPO_OWNER}/${REPO_NAME}.wiki.git`;
 const WIKI_DIR = ".wiki-temp";
 const DOCS_DIR = "docs";
 const DRY_RUN = process.argv.includes("--dry-run");
@@ -248,7 +252,20 @@ try {
     console.log("📤 Pushing changes to GitHub...");
 
     try {
-      exec("git push origin main || git push origin master");
+      // Detect the current branch
+      let branch = "master";
+      try {
+        branch = execSync("git rev-parse --abbrev-ref HEAD", {
+          encoding: "utf-8",
+          stdio: "pipe",
+        }).trim();
+      } catch {
+        // Fallback to master if detection fails
+        branch = "master";
+      }
+
+      // Try to push
+      exec(`git push origin ${branch}`);
       console.log("");
       console.log("✅ Successfully synced documentation to GitHub Wiki!");
       console.log(
@@ -258,10 +275,23 @@ try {
       console.error("");
       console.error("❌ Failed to push to wiki repository");
       console.error("");
-      console.error("You may need to:");
-      console.error("1. Configure git credentials");
-      console.error("2. Enable wiki write access");
-      console.error("3. Check your GitHub authentication");
+      console.error("This usually means git authentication is needed.");
+      console.error("");
+      console.error("Solutions:");
+      console.error("1. Use SSH instead of HTTPS:");
+      console.error(
+        `   git remote set-url origin git@github.com:${REPO_OWNER}/${REPO_NAME}.wiki.git`
+      );
+      console.error("");
+      console.error("2. Or configure HTTPS credentials:");
+      console.error("   git config --global credential.helper store");
+      console.error(
+        "   (then enter your GitHub username and Personal Access Token)"
+      );
+      console.error("");
+      console.error("3. Or manually push from the wiki directory:");
+      console.error(`   cd .wiki-temp && git push origin ${branch}`);
+      console.error("");
       throw error;
     }
   }
