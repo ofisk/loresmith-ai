@@ -202,8 +202,14 @@ LoreSmith provides real-time notifications to keep you informed about important 
 You'll receive notifications for:
 
 - **File Status Updates**: When files are uploaded, processing, or completed
+- **Shard Generation**: When shards are created from files added to campaigns
+
+![Shard Generation Notification](images/shard-generation-notification.png)
+
 - **Campaign Events**: When files are added to campaigns, shards are generated, etc.
 - **System Updates**: Important system status changes
+
+When shards are generated, you'll receive a notification with details about how many shards were created and which campaign they're for. These shards are available for review in the Shard Management panel.
 
 ### Viewing Notifications
 
