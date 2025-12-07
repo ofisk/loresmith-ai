@@ -15,6 +15,7 @@ export interface Env extends AuthEnv, EnvWithSecrets {
   ASSETS: Fetcher;
   FILE_PROCESSING_QUEUE: Queue;
   FILE_PROCESSING_DLQ: Queue;
+  GRAPH_REBUILD_QUEUE: Queue;
 }
 
 // Set user authentication data in context

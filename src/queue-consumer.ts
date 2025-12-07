@@ -6,6 +6,8 @@ import { FileSplitter } from "./lib/split";
 import type { Env } from "./middleware/auth";
 import { ChunkedProcessingService } from "./services/file/chunked-processing-service";
 import { SyncQueueService } from "./services/file/sync-queue-service";
+import { RebuildQueueProcessor } from "./services/graph/rebuild-queue-processor";
+import type { RebuildQueueMessage } from "./types/rebuild-queue";
 
 export interface ProcessingMessage {
   bucket: string;
@@ -240,18 +242,35 @@ export class FileProcessingQueue {
   }
 }
 
+// Type guard to check if message is a rebuild queue message
+function isRebuildQueueMessage(message: any): message is RebuildQueueMessage {
+  return (
+    message &&
+    typeof message === "object" &&
+    "rebuildId" in message &&
+    "campaignId" in message &&
+    "rebuildType" in message
+  );
+}
+
 // Export the queue handler function for Wrangler
 export async function queue(
-  batch: MessageBatch<ProcessingMessage>,
+  batch: MessageBatch<ProcessingMessage | RebuildQueueMessage>,
   env: Env
 ): Promise<void> {
-  const processor = new FileProcessingQueue(env);
-
   console.log(`[Queue] Processing ${batch.messages.length} messages`);
+
+  const fileProcessor = new FileProcessingQueue(env);
+  const rebuildProcessor = new RebuildQueueProcessor(env);
 
   for (const message of batch.messages) {
     try {
-      await processor.handleMessage(message.body);
+      // Route to appropriate processor based on message type
+      if (isRebuildQueueMessage(message.body)) {
+        await rebuildProcessor.handleMessage(message.body);
+      } else {
+        await fileProcessor.handleMessage(message.body as ProcessingMessage);
+      }
       message.ack();
     } catch (error) {
       console.error(`[Queue] Failed to process message:`, error);

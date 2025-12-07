@@ -78,6 +78,13 @@ import {
 } from "@/routes/planning-context";
 import { handleAssembleContext } from "@/routes/context-assembly";
 import {
+  handleTriggerRebuild,
+  handleGetRebuildStatus,
+  handleGetRebuildHistory,
+  handleGetActiveRebuilds,
+  handleCancelRebuild,
+} from "@/routes/graph-rebuild";
+import {
   handleGetExternalResourceRecommendations,
   handleGetExternalResourceSearch,
   handleGetGmResources,
@@ -316,6 +323,38 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.CAMPAIGNS.CONTEXT_ASSEMBLY(":campaignId"),
     requireUserJwt,
     handleAssembleContext
+  );
+
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.TRIGGER(":campaignId"),
+    requireUserJwt,
+    handleTriggerRebuild
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.STATUS(
+      ":campaignId",
+      ":rebuildId"
+    ),
+    requireUserJwt,
+    handleGetRebuildStatus
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.HISTORY(":campaignId"),
+    requireUserJwt,
+    handleGetRebuildHistory
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.ACTIVE(":campaignId"),
+    requireUserJwt,
+    handleGetActiveRebuilds
+  );
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.CANCEL(
+      ":campaignId",
+      ":rebuildId"
+    ),
+    requireUserJwt,
+    handleCancelRebuild
   );
 
   app.get(

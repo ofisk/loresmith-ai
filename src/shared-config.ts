@@ -186,6 +186,18 @@ export const API_CONFIG = {
       },
       CONTEXT_ASSEMBLY: (campaignId: string) =>
         `/campaigns/${campaignId}/context-assembly`,
+      GRAPH_REBUILD: {
+        TRIGGER: (campaignId: string) =>
+          `/campaigns/${campaignId}/graph-rebuild/trigger`,
+        STATUS: (campaignId: string, rebuildId: string) =>
+          `/campaigns/${campaignId}/graph-rebuild/status/${rebuildId}`,
+        HISTORY: (campaignId: string) =>
+          `/campaigns/${campaignId}/graph-rebuild/history`,
+        ACTIVE: (campaignId: string) =>
+          `/campaigns/${campaignId}/graph-rebuild/active`,
+        CANCEL: (campaignId: string, rebuildId: string) =>
+          `/campaigns/${campaignId}/graph-rebuild/cancel/${rebuildId}`,
+      },
     },
     CHARACTER_SHEETS: {
       // NOTE: Character sheets are currently handled as a separate entity type.
