@@ -21,6 +21,8 @@ import {
   readFileSync,
   writeFileSync,
   rmSync,
+  readdirSync,
+  statSync,
 } from "fs";
 import { join } from "path";
 
@@ -198,6 +200,34 @@ try {
 
     writeFileSync(mapping.dest, processed);
     console.log(`✅ Copied ${mapping.src} → ${mapping.dest}`);
+  }
+
+  // Copy images directory if it exists
+  const imagesSourceDir = join("..", DOCS_DIR, "images");
+  const imagesDestDir = "images";
+  if (existsSync(imagesSourceDir)) {
+    console.log("🖼️  Copying images...");
+    if (!existsSync(imagesDestDir)) {
+      mkdirSync(imagesDestDir, { recursive: true });
+    }
+    // Copy all files from docs/images/ to wiki/images/
+    // Exclude README.md from images directory
+    const imageFiles = readdirSync(imagesSourceDir).filter(
+      (file) =>
+        file !== "README.md" &&
+        !statSync(join(imagesSourceDir, file)).isDirectory()
+    );
+    for (const file of imageFiles) {
+      const srcFile = join(imagesSourceDir, file);
+      const destFile = join(imagesDestDir, file);
+      cpSync(srcFile, destFile, { recursive: false });
+      console.log(`✅ Copied image: ${file}`);
+    }
+    if (imageFiles.length === 0) {
+      console.log("⚠️  No image files found in docs/images/");
+    }
+  } else {
+    console.log("⚠️  Images directory not found (docs/images/)");
   }
 
   // Create or update sidebar
