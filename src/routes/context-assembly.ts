@@ -1,44 +1,10 @@
-import type { Context } from "hono";
-import { getDAOFactory } from "@/dao/dao-factory";
-import type { Env } from "@/middleware/auth";
-import type { AuthPayload } from "@/services/core/auth-service";
-import { UserAuthenticationMissingError } from "@/lib/errors";
-import { ContextAssemblyService } from "@/services/context/context-assembly-service";
 import type { ContextAssemblyOptions } from "@/types/context-assembly";
-
-type ContextWithAuth = Context<{ Bindings: Env }> & {
-  userAuth?: AuthPayload;
-};
-
-function getUserAuth(c: ContextWithAuth): AuthPayload {
-  const userAuth = (c as any).userAuth;
-  if (!userAuth) {
-    throw new UserAuthenticationMissingError();
-  }
-  return userAuth;
-}
-
-async function ensureCampaignAccess(
-  c: ContextWithAuth,
-  campaignId: string,
-  username: string
-): Promise<boolean> {
-  const daoFactory = getDAOFactory(c.env);
-  const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-    campaignId,
-    username
-  );
-  return Boolean(campaign);
-}
-
-function getContextAssemblyService(c: ContextWithAuth): ContextAssemblyService {
-  return new ContextAssemblyService(
-    c.env.DB!,
-    c.env.VECTORIZE!,
-    c.env.OPENAI_API_KEY as string,
-    c.env
-  );
-}
+import {
+  type ContextWithAuth,
+  getUserAuth,
+  ensureCampaignAccess,
+  getContextAssemblyService,
+} from "@/lib/route-utils";
 
 export async function handleAssembleContext(c: ContextWithAuth) {
   try {

@@ -1,7 +1,5 @@
-import type { Context } from "hono";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { EntityDAO } from "@/dao/entity-dao";
-import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
@@ -10,20 +8,15 @@ import { EntityExtractionService } from "@/services/rag/entity-extraction-servic
 import { EntityExtractionPipeline } from "@/services/rag/entity-extraction-pipeline";
 import { EntityDeduplicationService } from "@/services/rag/entity-deduplication-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
-import { UserAuthenticationMissingError } from "@/lib/errors";
 import {
   mapOverrideToScore,
   type ImportanceLevel,
 } from "@/lib/importance-config";
-
-type ContextWithAuth = Context<{
-  Bindings: Env;
-  Variables: {
-    userAuth?: AuthPayload;
-  };
-}> & {
-  userAuth?: AuthPayload;
-};
+import {
+  type ContextWithAuth,
+  getUserAuth,
+  ensureCampaignAccess,
+} from "@/lib/route-utils";
 
 interface EntityServiceBundle {
   embeddingService: EntityEmbeddingService;
@@ -39,27 +32,6 @@ interface CampaignHandlerContext {
   userAuth: AuthPayload;
   entityDAO: EntityDAO;
   getServices: () => EntityServiceBundle;
-}
-
-function getUserAuth(c: ContextWithAuth): AuthPayload {
-  const userAuth = (c as any).userAuth ?? c.get("userAuth");
-  if (!userAuth) {
-    throw new UserAuthenticationMissingError();
-  }
-  return userAuth;
-}
-
-async function ensureCampaignAccess(
-  c: ContextWithAuth,
-  campaignId: string,
-  username: string
-): Promise<boolean> {
-  const campaignDAO = getDAOFactory(c.env).campaignDAO;
-  const ownership = await campaignDAO.getCampaignOwnership(
-    campaignId,
-    username
-  );
-  return ownership !== null;
 }
 
 function buildEntityServiceAccessor(

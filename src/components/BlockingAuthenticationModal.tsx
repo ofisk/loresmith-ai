@@ -190,10 +190,7 @@ export function BlockingAuthenticationModal({
               LoreSmith
             </li>
             <li>Converse with wise AI agents about your grand campaigns</li>
-            <li>
-              Upload and manage ancient scrolls (documents) for your D&D
-              adventures
-            </li>
+            <li>Upload and manage documents for your adventures</li>
             <li>
               <strong>Storage Limits:</strong> 20MB for regular users, unlimited
               for admin users

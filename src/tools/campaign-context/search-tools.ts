@@ -389,7 +389,7 @@ export const searchExternalResources = tool({
         // In a real implementation, this would search external APIs or databases
         const mockResults = [
           {
-            title: `D&D ${resourceType || "adventure"} for "${query}"`,
+            title: `${resourceType || "Adventure"} for "${query}"`,
             url: `https://dmsguild.com/search?q=${encodeURIComponent(query)}`,
             description: `Find ${resourceType || "adventure"} content related to "${query}"`,
             type: resourceType || "adventure",

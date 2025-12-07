@@ -1,16 +1,11 @@
-import type { Context } from "hono";
-import { getDAOFactory } from "@/dao/dao-factory";
-import type { Env } from "@/routes/register-routes";
-import type { AuthPayload } from "@/services/core/auth-service";
 import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
 import type { WorldStateChangelogPayload } from "@/types/world-state";
 
-type ContextWithAuth = Context<{
-  Bindings: Env;
-  Variables: {
-    userAuth?: AuthPayload;
-  };
-}> & { userAuth?: AuthPayload };
+import {
+  type ContextWithAuth,
+  getUserAuth,
+  ensureCampaignAccess,
+} from "@/lib/route-utils";
 
 interface IncomingChangelogPayload
   extends Partial<
@@ -26,27 +21,6 @@ interface IncomingChangelogPayload
   entity_updates?: WorldStateChangelogPayload["entity_updates"];
   relationship_updates?: WorldStateChangelogPayload["relationship_updates"];
   new_entities?: WorldStateChangelogPayload["new_entities"];
-}
-
-function getUserAuth(c: ContextWithAuth): AuthPayload {
-  const auth = c.userAuth ?? c.get("userAuth");
-  if (!auth) {
-    throw new Error("User authentication required");
-  }
-  return auth;
-}
-
-async function ensureCampaignAccess(
-  c: ContextWithAuth,
-  campaignId: string,
-  username: string
-): Promise<boolean> {
-  const daoFactory = getDAOFactory(c.env);
-  const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-    campaignId,
-    username
-  );
-  return Boolean(campaign);
 }
 
 function getService(c: ContextWithAuth): WorldStateChangelogService {

@@ -183,7 +183,7 @@ export const getFileLibraryStats = tool({
 
       if (!result.files || result.files.length === 0) {
         return createToolSuccess(
-          "Your file library is empty. Consider uploading some D&D resources to get started with campaign planning!",
+          "Your file library is empty. Consider uploading some game resources to get started with campaign planning!",
           { files: [], empty: true },
           toolCallId
         );

@@ -23,7 +23,7 @@ function getEnvFromContext(context: any): any {
 // Tool to plan a session
 export const planSession = tool({
   description:
-    "Plan a complete D&D session with encounters, story beats, and session flow",
+    "Plan a complete game session with encounters, story beats, and session flow",
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
     sessionTitle: z.string().describe("The title of the session"),

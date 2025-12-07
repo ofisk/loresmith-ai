@@ -1,45 +1,11 @@
-import type { Context } from "hono";
 import { getDAOFactory } from "@/dao/dao-factory";
-import type { Env } from "@/middleware/auth";
-import type { AuthPayload } from "@/services/core/auth-service";
-import { UserAuthenticationMissingError } from "@/lib/errors";
-import { PlanningContextService } from "@/services/rag/planning-context-service";
 import type { PlanningContextSearchOptions } from "@/services/rag/planning-context-service";
-
-type ContextWithAuth = Context<{ Bindings: Env }> & {
-  userAuth?: AuthPayload;
-};
-
-function getUserAuth(c: ContextWithAuth): AuthPayload {
-  const userAuth = (c as any).userAuth;
-  if (!userAuth) {
-    throw new UserAuthenticationMissingError();
-  }
-  return userAuth;
-}
-
-async function ensureCampaignAccess(
-  c: ContextWithAuth,
-  campaignId: string,
-  username: string
-): Promise<boolean> {
-  const daoFactory = getDAOFactory(c.env);
-  const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-    campaignId,
-    username
-  );
-  return Boolean(campaign);
-}
-
-function getPlanningContextService(c: ContextWithAuth): PlanningContextService {
-  // Validation happens automatically in PlanningContextService constructor
-  return new PlanningContextService(
-    c.env.DB!,
-    c.env.VECTORIZE!,
-    c.env.OPENAI_API_KEY as string,
-    c.env
-  );
-}
+import {
+  type ContextWithAuth,
+  getUserAuth,
+  ensureCampaignAccess,
+  getPlanningContextService,
+} from "@/lib/route-utils";
 
 export async function handleSearchPlanningContext(c: ContextWithAuth) {
   try {

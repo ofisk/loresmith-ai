@@ -94,14 +94,14 @@ const getCampaignSystemPrompt = () =>
 /**
  * Campaign Management Agent for LoreSmith AI.
  *
- * This agent specializes in D&D campaign management, providing comprehensive support for:
+ * This agent specializes in campaign management, providing comprehensive support for:
  * - Campaign creation and configuration
  * - Resource organization and management
  * - Campaign planning and preparation
  * - Intelligent suggestions and recommendations
  *
  * The agent uses campaign-specific tools to help users create, organize, and manage
- * their D&D campaigns effectively. It can handle various resource types including
+ * their campaigns effectively. It can handle various resource types including
  * PDFs, documents, and images, and provides intelligent suggestions for campaign
  * improvement and session preparation.
  *

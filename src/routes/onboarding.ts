@@ -56,7 +56,7 @@ export async function handleGetWelcomeGuidance(c: ContextWithAuth) {
     }
 
     guidanceMessage += `Recommended Resources\n`;
-    guidanceMessage += `Check out DMsGuild, DriveThruRPG, and Pinterest for campaign inspiration and tools.\n\n`;
+    guidanceMessage += `Check out online marketplaces and resources for campaign inspiration and tools.\n\n`;
 
     guidanceMessage += `Need More Help?\n`;
     guidanceMessage += `Chat with me anytime to brainstorm ideas, plan sessions, or get specific guidance!`;
@@ -97,13 +97,13 @@ export async function handleGetWelcomeGuidance(c: ContextWithAuth) {
     const fallbackGuidance = {
       message:
         "Welcome to LoreSmith campaign planner!\n\n" +
-        "Choose your path to begin your RPG campaign journey:\n\n" +
+        "Choose your path to begin your campaign journey:\n\n" +
         "Build Your Campaign Library\n" +
         "Upload adventure modules, homebrew content, maps, and reference materials. LoreSmith transforms your PDFs and documents into an intelligent, searchable knowledge base that helps you find exactly what you need when planning sessions.\n\n" +
         "Organize Your Story\n" +
         "Create campaigns to organize your narrative, track NPCs, manage plot hooks, and build your world. Keep all your campaign context in one place and accessible at a moment's notice.\n\n" +
         "Start Brainstorming\n" +
-        "Not sure where to begin? Chat with me! I can help you develop campaign ideas, create compelling NPCs, design encounters, plan sessions, and answer questions about D&D mechanics. Think of me as your always-available co-DM.\n\n" +
+        "Not sure where to begin? Chat with me! I can help you develop campaign ideas, create compelling NPCs, design encounters, plan sessions, and answer questions about game mechanics. Think of me as your always-available co-GM.\n\n" +
         "Ready to dive in? Pick an option below to get started:",
       actions: [
         {

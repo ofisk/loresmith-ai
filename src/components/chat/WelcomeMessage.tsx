@@ -19,7 +19,7 @@ export function WelcomeMessage({
             Welcome to LoreSmith campaign planner!
           </h3>
           <div className="text-muted-foreground text-base space-y-4">
-            <p>Choose your path to begin your RPG campaign journey:</p>
+            <p>Choose your path to begin your campaign journey:</p>
 
             <div className="space-y-3">
               <div>
@@ -59,8 +59,8 @@ export function WelcomeMessage({
                 <p className="text-sm mt-1">
                   Not sure where to begin? Chat with me! I can help you develop
                   campaign ideas, create compelling NPCs, design encounters,
-                  plan sessions, and answer questions about D&D mechanics. Think
-                  of me as your always-available co-DM.
+                  plan sessions, and answer questions about game mechanics.
+                  Think of me as your always-available co-GM.
                 </p>
               </div>
             </div>
