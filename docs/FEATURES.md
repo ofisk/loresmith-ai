@@ -51,6 +51,8 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 - Real-time status updates during processing
 - Retry capability for failed processing
 
+![File Processing Success](images/file-processing-success.png)
+
 ![File Processing In Progress](images/file-processing-in-progress.png)
 
 ![File Processing Failure](images/file-processing-failure.png)

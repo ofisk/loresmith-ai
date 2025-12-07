@@ -140,6 +140,9 @@ After upload, LoreSmith automatically:
 Files in your resource library show their processing status:
 
 - **Ready** (green) - File has been successfully processed and is searchable
+
+![File Processing Success](images/file-processing-success.png)
+
 - **Processing** - File is currently being analyzed and indexed
 
 ![File Processing In Progress](images/file-processing-in-progress.png)
