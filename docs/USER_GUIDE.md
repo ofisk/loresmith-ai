@@ -381,21 +381,51 @@ AI: [Summarizes session digests and world state changes]
 
 ### Creating Session Digests
 
-After running a session:
+Session digests allow you to record what happened in each session and update your campaign's world state. The AI uses these digests to maintain continuity and provide context-aware planning assistance.
 
-1. Click **"Create Session Digest"** in the chat
-2. Describe what happened in the session
-3. Mention key events, NPC interactions, and world changes
+**To access session digests:**
+
+1. Select your campaign from the dropdown in the top left
+2. Click on the campaign name in the sidebar to open the **Campaign Details** modal
+3. Navigate to the **"Session Digests"** tab
+
+![Campaign Details Session Digests](images/campaign-details-session-digests.png)
+
+**To create a session digest:**
+
+1. Click **"+ Create Digest"** button in the Campaign Details modal, or
+2. Use the **"Create Session Digest"** option in the chat interface
+3. Describe what happened in the session:
+   - Key events and plot developments
+   - NPC interactions and relationship changes
+   - Location discoveries or changes
+   - Player decisions and their consequences
+   - World state updates
 4. The AI will help format and organize the digest
+
+**Bulk Import:**
+
+You can also use the **"Bulk Import"** option to import multiple session recaps at once, useful if you're migrating from another system or catching up on past sessions.
 
 ### Tracking World State
 
-Session digests automatically track:
+Session digests automatically track and update your campaign's world state:
 
 - **NPC Changes**: Status updates, relationships, motivations
 - **Location Updates**: New discoveries, changes to places
 - **Plot Development**: Story beats, revelations, conflicts
 - **Player Actions**: Significant decisions and consequences
+
+**How it works:**
+
+When you add a session digest, LoreSmith automatically:
+
+- Extracts entities (NPCs, locations, items) mentioned in the digest
+- Updates world state based on the events you describe
+- Links session events to existing campaign entities
+- Makes this information available to the AI for future session planning
+
+This creates a living record of your campaign that grows with each session, ensuring the AI always has the most current understanding of your world.
 
 ### Using Session History
 

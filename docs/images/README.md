@@ -18,6 +18,7 @@ This directory contains screenshots and images used in the documentation.
 - `shards-overlay.png` - Screenshot showing the Pending Shards overlay panel with shard review interface
 - `shard-details-edit.png` - Screenshot showing detailed shard properties with editable importance, metadata, and entity relationships
 - `shard-approval-notifications.png` - Screenshot showing notifications for shard approval workflow including "New Shards Ready" and "Shards Approved" notifications
+- `campaign-details-session-digests.png` - Screenshot showing the Campaign Details modal with Session Digests tab for adding session recaps to update campaign world state
 - `file-processing-failure.png` - Screenshot showing file processing failure status with retry capability in the resource library
 
 ## Adding New Images
