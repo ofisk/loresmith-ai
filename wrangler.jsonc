@@ -70,12 +70,21 @@
         "queue": "file-processing-dlq",
         "binding": "FILE_PROCESSING_DLQ",
       },
+      {
+        "queue": "graph-rebuild-queue",
+        "binding": "GRAPH_REBUILD_QUEUE",
+      },
     ],
     "consumers": [
       {
         "queue": "upload-events",
         "max_batch_size": 1,
         "max_retries": 5,
+      },
+      {
+        "queue": "graph-rebuild-queue",
+        "max_batch_size": 1,
+        "max_retries": 3,
       },
     ],
   },
