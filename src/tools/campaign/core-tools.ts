@@ -6,7 +6,7 @@ import {
   USER_MESSAGES,
 } from "../../app-constants";
 import { getDAOFactory } from "../../dao/dao-factory";
-import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
+import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
 import type { Env } from "../../middleware/auth";
 import { AUTH_CODES } from "../../shared-config";
 import { commonSchemas } from "../utils";

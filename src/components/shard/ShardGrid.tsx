@@ -9,8 +9,11 @@ import {
   ChevronRight,
   RefreshCw,
 } from "lucide-react";
-import type { Shard } from "./ShardTypeDetector";
-import { isKnownStructure, getShardTypeDisplayName } from "./ShardTypeDetector";
+import type { Shard } from "./shard-type-detector";
+import {
+  isKnownStructure,
+  getShardTypeDisplayName,
+} from "./shard-type-detector";
 import { StructuredShardCard } from "./StructuredShardCard";
 import { FlexibleShardCard } from "./FlexibleShardCard";
 

@@ -5,7 +5,7 @@ import {
   type ToolResult,
   USER_MESSAGES,
 } from "../../app-constants";
-import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
+import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
 import { createToolError, createToolSuccess } from "../utils";
 
 // Helper function to get environment from context

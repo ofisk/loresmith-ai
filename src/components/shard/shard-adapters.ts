@@ -3,7 +3,7 @@ import type {
   Shard,
   StructuredShard,
   FlexibleShard,
-} from "./ShardTypeDetector";
+} from "./shard-type-detector";
 
 /**
  * Converts ShardCandidate from the existing system to our new Shard type

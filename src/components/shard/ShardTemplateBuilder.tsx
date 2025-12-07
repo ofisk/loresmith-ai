@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Save, Eye, Code, X, Plus, Trash2 } from "lucide-react";
-import type { FlexibleShard } from "./ShardTypeDetector";
-import { getEditableProperties } from "./ShardTypeDetector";
+import type { FlexibleShard } from "./shard-type-detector";
+import { getEditableProperties } from "./shard-type-detector";
 
 interface ShardTemplate {
   id: string;

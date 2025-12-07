@@ -1,5 +1,5 @@
 import type { D1Database, VectorizeIndex } from "@cloudflare/workers-types";
-import { DatabaseUtils } from "@/lib/dbUtils";
+import { DatabaseUtils } from "@/lib/db-utils";
 import {
   OpenAIAPIKeyError,
   EmbeddingGenerationError,

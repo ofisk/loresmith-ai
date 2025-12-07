@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG } from "@/shared-config";
-import { authenticatedFetch, handleAuthError } from "@/lib/toolAuth";
+import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
 import { commonSchemas, createToolError, createToolSuccess } from "../utils";
 import type { ToolResult } from "@/app-constants";
 import type { WorldStateChangelogPayload } from "@/types/world-state";

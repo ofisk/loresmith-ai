@@ -5,7 +5,7 @@ import {
   type ToolResult,
   USER_MESSAGES,
 } from "../../app-constants";
-import { authenticatedFetch, handleAuthError } from "../../lib/toolAuth";
+import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
 import { AUTH_CODES } from "../../shared-config";
 import { commonSchemas } from "../utils";
 import { createToolError, createToolSuccess } from "../utils";
