@@ -15,7 +15,7 @@ type ContextWithAuth = Context<{ Bindings: Env }> & {
 };
 
 function getUserAuth(c: ContextWithAuth): AuthPayload {
-  const userAuth = (c as any).userAuth;
+  const userAuth = (c as any).userAuth ?? (c as any).get?.("userAuth");
   if (!userAuth) {
     throw new UserAuthenticationMissingError();
   }
@@ -116,7 +116,17 @@ export async function handleRecordContextAccuracy(c: ContextWithAuth) {
 export async function handleGetMetrics(c: ContextWithAuth) {
   try {
     requireAdmin(c);
+  } catch (error) {
+    if (error instanceof UserAuthenticationMissingError) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+    if (error instanceof Error && error.message === "Admin access required") {
+      return c.json({ error: "Admin access required" }, 403);
+    }
+    throw error;
+  }
 
+  try {
     const metricType = c.req.query("metricType") as MetricType | undefined;
     const campaignId = c.req.query("campaignId") || undefined;
     const fromDate = c.req.query("fromDate") || undefined;
@@ -197,7 +207,17 @@ export async function handleGetMetrics(c: ContextWithAuth) {
 export async function handleGetDashboard(c: ContextWithAuth) {
   try {
     requireAdmin(c);
+  } catch (error) {
+    if (error instanceof UserAuthenticationMissingError) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+    if (error instanceof Error && error.message === "Admin access required") {
+      return c.json({ error: "Admin access required" }, 403);
+    }
+    throw error;
+  }
 
+  try {
     const telemetryService = getTelemetryService(c);
 
     // Get recent metrics for dashboard overview
@@ -254,15 +274,22 @@ export async function handleGetDashboard(c: ContextWithAuth) {
 export async function handleGetAlerts(c: ContextWithAuth) {
   try {
     requireAdmin(c);
+  } catch (error) {
+    if (error instanceof UserAuthenticationMissingError) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+    if (error instanceof Error && error.message === "Admin access required") {
+      return c.json({ error: "Admin access required" }, 403);
+    }
+    throw error;
+  }
 
+  try {
     // TODO: Implement alert service to get active alerts
     // For now, return empty array
     return c.json({ alerts: [] });
   } catch (error) {
     console.error("Error getting alerts:", error);
-    if (error instanceof Error && error.message === "Admin access required") {
-      return c.json({ error: "Admin access required" }, 403);
-    }
     return c.json(
       {
         error: error instanceof Error ? error.message : "Internal server error",
