@@ -59,7 +59,7 @@ export function useAppState(
 
   // Local UI state
   const [showDebug, setShowDebug] = useState(false);
-  const [textareaHeight, setTextareaHeight] = useState("auto");
+  const [textareaHeight, setTextareaHeight] = useState("40px"); // Compact initial height
   const [triggerFileUpload, setTriggerFileUpload] = useState(false);
 
   const { modalState } = options;
