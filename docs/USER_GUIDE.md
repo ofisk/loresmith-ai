@@ -176,8 +176,15 @@ If a file shows a "Failed" status, you can:
 
 1. Find the file in your library
 2. Click the file to view details
-3. Use **"Add to Campaign"** to associate it with campaigns
-4. The file's content will become part of the campaign's knowledge base
+3. Click the **"Add to Campaign"** button
+4. Select which campaign(s) to add the file to from the dropdown menu
+
+![Add File to Campaign](images/add-file-to-campaign-modal.png)
+
+5. Click **"Add to Campaigns"** to confirm
+6. The file's content will become part of the campaign's knowledge base and be available for AI queries
+
+You can add the same file to multiple campaigns if it's relevant to several of your adventures.
 
 ### Organizing Resources
 

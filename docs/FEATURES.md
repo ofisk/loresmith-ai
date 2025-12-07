@@ -70,7 +70,10 @@ LoreSmith automatically generates rich metadata for uploaded files:
 
 **Organization**
 
-- Add files to multiple campaigns
+- Add files to multiple campaigns using an intuitive modal interface
+
+![Add File to Campaign](images/add-file-to-campaign-modal.png)
+
 - Tag and categorize resources
 - Search across all resources
 - Filter by campaign, type, or tags

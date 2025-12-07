@@ -12,6 +12,7 @@ This directory contains screenshots and images used in the documentation.
 - `file-processing-in-progress.png` - Screenshot showing file processing in progress status in the resource library
 - `file-processing-success.png` - Screenshot showing successfully uploaded files with "Ready" status in the resource library
 - `file-metadata-ai-generated.png` - Screenshot showing AI-generated metadata (description and tags) for an uploaded file in the file details view
+- `add-file-to-campaign-modal.png` - Screenshot showing the "Add to Campaign" modal for associating files with campaigns
 - `file-processing-failure.png` - Screenshot showing file processing failure status with retry capability in the resource library
 
 ## Adding New Images
