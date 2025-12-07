@@ -59,6 +59,18 @@ LoreSmith uses a secure authentication system where:
 - Automatically cleared when your session expires
 - Used only for your AI interactions
 
+### Admin Access
+
+If you authenticate with an admin key, you'll have access to additional administrative features:
+
+- **Admin Dashboard**: View GraphRAG statistics and system telemetry
+- **System Metrics**: Monitor query performance, rebuild metrics, and system health
+- **Usage Analytics**: Track changelog growth, user satisfaction, and context accuracy
+
+The admin dashboard is accessible via the 📊 icon in the top header bar (visible only to admin users).
+
+![Admin Dashboard Telemetry](images/admin-dashboard-telemetry.png)
+
 ### Session Management
 
 - Sessions last 24 hours

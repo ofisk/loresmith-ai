@@ -219,6 +219,18 @@ LoreSmith automatically generates rich metadata for uploaded files:
 - Usage statistics
 - System health monitoring
 
+![Admin Dashboard Telemetry](images/admin-dashboard-telemetry.png)
+
+The admin dashboard is accessible to users who authenticate with the admin key. It provides comprehensive GraphRAG statistics and system telemetry, including:
+
+- **Query Performance**: Query latency metrics with percentile breakdowns
+- **Rebuild Metrics**: Graph rebuild duration and frequency tracking
+- **Changelog Growth**: World state changelog entry counts over time
+- **User Satisfaction**: DM satisfaction ratings and feedback
+- **Context Accuracy**: Context accuracy measurements and trends
+
+To access the admin dashboard, click the 📊 icon in the top header bar (visible only to admin users).
+
 ## User Experience Features
 
 ### 🎨 Interface
