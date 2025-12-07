@@ -297,6 +297,7 @@ The notification panel tracks the complete shard workflow:
 - **System Updates**: Important system status changes
 
 When shards are generated, you'll receive a notification with details about how many shards were created and which campaign they're for. These shards are available for review in the Shard Management panel.
+
 ### Viewing Notifications
 
 Notifications appear in the notifications panel (bell icon) in the top right corner of the application:
