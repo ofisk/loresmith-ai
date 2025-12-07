@@ -185,7 +185,10 @@ The project uses a migration system for database schema changes:
 ./scripts/migrate.sh
 
 # Run all migrations (local development)
-./scripts/migrate-local.sh
+./scripts/migrate-local.sh  # Wrapper that calls migrate.sh local
+# Or use directly:
+./scripts/migrate.sh local
+./scripts/migrate.sh production
 ```
 
 #### Migration Files

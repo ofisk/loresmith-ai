@@ -5,49 +5,44 @@
 
 set -e
 
-echo "🚨 WARNING: This will clear ALL production data!"
-echo "This includes:"
-echo "  - All database records (campaigns, files, users, etc.)"
-echo "  - All uploaded files in R2 storage"
-echo ""
-echo "The datastores themselves (tables, buckets) will be preserved."
-echo ""
+# Source common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
 
-read -p "Are you sure you want to continue? Type 'YES' to confirm: " confirmation
+check_wrangler
 
-if [ "$confirmation" != "YES" ]; then
-    echo "Operation cancelled."
-    exit 1
-fi
+confirm_action "🚨 WARNING: This will clear ALL production data!
+This includes:
+  - All database records (campaigns, files, users, etc.)
+  - All uploaded files in R2 storage
+
+The datastores themselves (tables, buckets) will be preserved."
 
 echo ""
 echo "🔄 Starting production data clearing process..."
 
 # Step 1: Run the database migration to clear all data
 echo "📊 Clearing database data..."
-wrangler d1 execute loresmith-db --file=./scripts/clear_production_data.sql --remote
-
-if [ $? -eq 0 ]; then
-    echo "✅ Database data cleared successfully"
-else
+if ! wrangler d1 execute "$DB_NAME" --file=./scripts/clear_production_data.sql --remote; then
     echo "❌ Failed to clear database data"
     exit 1
 fi
+echo "✅ Database data cleared successfully"
 
-# Step 2: Clear R2 storage files (preserve top-level objects only)
-echo "🗂️  Clearing R2 storage files (preserving top-level objects only)..."
+# Step 2: Clear R2 storage files
+echo ""
+echo "🗂️  Clearing R2 storage files..."
+if [ -f "./scripts/clear-r2.js" ]; then
+    node ./scripts/clear-r2.js || echo "⚠️  R2 cleanup script failed or requires credentials"
+elif [ -f "./scripts/clear-r2-simple.sh" ]; then
+    ./scripts/clear-r2-simple.sh || echo "⚠️  R2 cleanup script failed or requires credentials"
+else
+    echo "⚠️  R2 cleanup script not found, skipping R2 cleanup"
+fi
 
-# Use the R2 cleanup script
-./scripts/clear-r2-simple.sh
-
-# Step 3: Clear Vectorize embeddings (if any)
-echo "🧠 Clearing Vectorize embeddings..."
-wrangler vectorize delete loresmith-embeddings --force 2>/dev/null || echo "ℹ️  No embeddings to clear or index doesn't exist"
-
-# Step 4: Recreate Vectorize index
-echo "🔄 Recreating Vectorize index..."
-wrangler vectorize create loresmith-embeddings --dimensions=1536 --metric=cosine
-echo "✅ Vectorize index recreated successfully"
+# Step 3: Clear and recreate Vectorize embeddings
+echo ""
+reset_vectorize_index 1536 cosine
 
 echo ""
 echo "🎉 Production data clearing completed successfully!"
