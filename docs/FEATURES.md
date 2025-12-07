@@ -8,10 +8,13 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 
 **Campaign Creation & Organization**
 
+![Create Campaign Modal](images/create-campaign-modal.png)
+
 - Create unlimited campaigns
 - Organize campaigns with names and descriptions
 - Switch between campaigns seamlessly
 - Campaign-specific context and resources
+- Intuitive creation modal with optional descriptions
 
 **Campaign Context**
 

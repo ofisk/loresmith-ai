@@ -36,6 +36,9 @@ LoreSmith is an AI-powered campaign planning tool that combines:
   ![Add Resource](docs/images/add-resource-modal.png)
 
 - **🎲 Campaign Management**: Create and organize multiple campaigns with dedicated contexts
+
+  ![Create Campaign](docs/images/create-campaign-modal.png)
+
 - **🤖 AI-Powered Chat**: Conversational AI assistant that understands your campaign context
 - **🔍 Intelligent Search**: Semantic search across your resources and campaign content using GraphRAG
 - **📝 Session Digests**: Automatically capture and track session summaries with world state changes

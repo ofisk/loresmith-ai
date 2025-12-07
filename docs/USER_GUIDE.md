@@ -69,10 +69,17 @@ LoreSmith uses a secure authentication system where:
 
 ### Creating a Campaign
 
-1. Click the **"Create Campaign"** button in the sidebar
-2. Enter a campaign name (e.g., "The Dragon's Hoard")
-3. Optionally add a description
-4. Click **"Create"**
+To create your first campaign, click the **"Create Campaign"** button in the sidebar. This opens the campaign creation modal:
+
+![Create Campaign Modal](images/create-campaign-modal.png)
+
+The modal allows you to:
+
+1. **Enter Campaign Name**: Give your campaign a memorable name (e.g., "The Dragon's Hoard")
+2. **Add Description** (optional): Provide context about your campaign's world, setting, or premise
+3. **Create**: Click "Create" to finalize your campaign, or "Cancel" to discard
+
+Once created, your campaign will appear in the sidebar and you can start adding resources and planning sessions.
 
 ### Campaign Features
 
