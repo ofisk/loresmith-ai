@@ -11,6 +11,7 @@ This directory contains screenshots and images used in the documentation.
 - `ai-campaign-creation-help.png` - Screenshot showing the AI helping create a campaign and demonstrating campaign selection dropdown for AI context
 - `file-processing-in-progress.png` - Screenshot showing file processing in progress status in the resource library
 - `file-processing-success.png` - Screenshot showing successfully uploaded files with "Ready" status in the resource library
+- `file-processing-failure.png` - Screenshot showing file processing failure status with retry capability in the resource library
 - `file-metadata-ai-generated.png` - Screenshot showing AI-generated metadata (description and tags) for an uploaded file in the file details view
 - `add-file-to-campaign-modal.png` - Screenshot showing the "Add to Campaign" modal for associating files with campaigns
 - `notifications-system.png` - Screenshot showing the notifications panel displaying real-time system notifications
@@ -22,7 +23,6 @@ This directory contains screenshots and images used in the documentation.
 - `ai-session-recap-guidance.png` - Screenshot showing the AI assistant guiding users through creating session recap notes
 - `campaign-assessment-next-steps.png` - Screenshot showing the "What should I do next?" feature for campaign assessment and AI suggestions
 - `admin-dashboard-telemetry.png` - Screenshot showing the admin dashboard with GraphRAG stats and telemetry metrics for admin authenticated users
-- `file-processing-failure.png` - Screenshot showing file processing failure status with retry capability in the resource library
 
 ## Adding New Images
 
