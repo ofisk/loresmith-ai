@@ -186,6 +186,36 @@ If a file shows a "Failed" status, you can:
 
 You can add the same file to multiple campaigns if it's relevant to several of your adventures.
 
+### Reviewing and Approving Shards
+
+After adding a file to a campaign, LoreSmith automatically extracts entities (NPCs, locations, items, etc.) as "shards" that you can review before they're added to your campaign's knowledge base.
+
+**To review shards:**
+
+1. When shards are generated, you'll receive a notification
+2. The **Pending Shards** panel will appear on the right side of the interface (or click the shard badge if it's minimized)
+3. Review each shard, which shows:
+   - **Entity Type**: NPC, Location, Item, etc.
+   - **Name and Details**: The extracted information
+   - **Confidence Score**: How confident the AI is in the extraction
+   - **Properties**: Number of properties extracted
+   - **Tags**: Relevant tags for the entity
+
+![Shards Overlay](images/shards-overlay.png)
+
+4. For each shard, you can:
+   - **Approve** (✓): Accept the shard and add it to your campaign
+   - **Reject** (✗): Mark it as incorrect or not relevant
+   - **View Details**: Click the arrow to see full information
+
+5. You can select multiple shards and approve or reject them in bulk using the checkboxes
+
+**Why review shards?**
+
+- Only approved shards are used in AI queries for your campaign
+- Rejected shards are permanently excluded from search results
+- This ensures your campaign AI has accurate, relevant information
+
 ### Organizing Resources
 
 - **Tags**: Add tags to files for better organization

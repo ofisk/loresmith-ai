@@ -15,6 +15,7 @@ This directory contains screenshots and images used in the documentation.
 - `add-file-to-campaign-modal.png` - Screenshot showing the "Add to Campaign" modal for associating files with campaigns
 - `notifications-system.png` - Screenshot showing the notifications panel displaying real-time system notifications
 - `shard-generation-notification.png` - Screenshot showing a notification when shards are generated after adding a file to a campaign
+- `shards-overlay.png` - Screenshot showing the Pending Shards overlay panel with shard review interface
 - `file-processing-failure.png` - Screenshot showing file processing failure status with retry capability in the resource library
 
 ## Adding New Images
