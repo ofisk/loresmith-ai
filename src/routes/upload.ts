@@ -231,22 +231,81 @@ export async function handleGetFiles(c: ContextWithAuth) {
 export async function handleUpdateFileMetadata(c: ContextWithAuth) {
   try {
     const userAuth = (c as any).userAuth as AuthPayload;
-    const fileKey = c.req.param("fileKey");
-    const { display_name, description, tags } = await c.req.json();
+    // Use wildcard param to get file key with slashes
+    let fileKey = c.req.param("fileKey") || "";
+
+    // Decode the file key if it was URL-encoded
+    if (fileKey) {
+      try {
+        fileKey = decodeURIComponent(fileKey);
+      } catch {
+        // If decoding fails, use as-is
+      }
+    }
+
+    log.info("[handleUpdateFileMetadata] Request received", {
+      fileKey,
+      username: userAuth?.username,
+      rawFileKey: c.req.param("fileKey"),
+      path: c.req.path,
+    });
+
+    let requestBody: any;
+    try {
+      const bodyText = await c.req.text();
+      log.info("[handleUpdateFileMetadata] Request body (raw)", { bodyText });
+      requestBody = JSON.parse(bodyText);
+      log.info("[handleUpdateFileMetadata] Request body (parsed)", {
+        requestBody,
+      });
+    } catch (parseError) {
+      log.error("[handleUpdateFileMetadata] Failed to parse request body", {
+        error: parseError,
+      });
+      return c.json({ error: "Invalid JSON in request body" }, 400);
+    }
+
+    const { display_name, description, tags } = requestBody;
+
+    log.info("[handleUpdateFileMetadata] Extracted fields:", {
+      display_name,
+      description,
+      tags,
+      tagsType: typeof tags,
+      tagsIsArray: Array.isArray(tags),
+    });
 
     if (!fileKey) {
+      log.error("[handleUpdateFileMetadata] File key is missing");
       return c.json({ error: "File key is required" }, 400);
     }
 
     if (!userAuth || !userAuth.username) {
+      log.error("[handleUpdateFileMetadata] User authentication missing");
       return c.json({ error: "User authentication required" }, 401);
     }
 
     // Verify the fileKey belongs to the authenticated user
-    if (
-      !fileKey.startsWith(`${userAuth.username}/`) &&
-      !fileKey.startsWith(`uploads/${userAuth.username}/`)
-    ) {
+    // File keys can be in formats:
+    // - username/filename (legacy)
+    // - uploads/username/filename (staging)
+    // - library/username/hash/filename (permanent storage)
+    const validPrefixes = [
+      `${userAuth.username}/`,
+      `uploads/${userAuth.username}/`,
+      `library/${userAuth.username}/`,
+    ];
+
+    const hasValidPrefix = validPrefixes.some((prefix) =>
+      fileKey.startsWith(prefix)
+    );
+
+    if (!hasValidPrefix) {
+      log.error("[handleUpdateFileMetadata] Access denied", {
+        fileKey,
+        username: userAuth.username,
+        validPrefixes,
+      });
       return c.json({ error: "Access denied to this file" }, 403);
     }
 
@@ -276,28 +335,66 @@ export async function handleUpdateFileMetadata(c: ContextWithAuth) {
         metadataUpdates.display_name = uniqueDisplayName;
       }
       if (description !== undefined) metadataUpdates.description = description;
-      if (tags !== undefined) metadataUpdates.tags = JSON.stringify(tags);
+      if (tags !== undefined) {
+        log.info("[handleUpdateFileMetadata] Stringifying tags", {
+          tags,
+          tagsType: typeof tags,
+        });
+        try {
+          metadataUpdates.tags = JSON.stringify(tags);
+          log.info("[handleUpdateFileMetadata] Tags stringified successfully", {
+            tagsString: metadataUpdates.tags,
+          });
+        } catch (stringifyError) {
+          log.error("[handleUpdateFileMetadata] Failed to stringify tags", {
+            error: stringifyError,
+          });
+          throw stringifyError;
+        }
+      }
 
+      log.info(
+        "[handleUpdateFileMetadata] Updating file_metadata table with:",
+        metadataUpdates
+      );
       await fileDAO.updateFileMetadata(fileKey, metadataUpdates);
+      log.info(
+        "[handleUpdateFileMetadata] Successfully updated file_metadata table"
+      );
     } catch (error) {
-      log.warn("Failed to update file_metadata table", { error });
+      log.warn(
+        "[handleUpdateFileMetadata] Failed to update file_metadata table",
+        { error }
+      );
     }
 
     try {
+      const tagsString = tags ? JSON.stringify(tags) : "[]";
+      log.info("[handleUpdateFileMetadata] Updating files table with:", {
+        fileKey,
+        username: userAuth.username,
+        description: description || "",
+        tags: tagsString,
+        display_name,
+      });
       await fileDAO.updateFileMetadataForRag(
         fileKey,
         userAuth.username,
         description || "",
-        tags ? JSON.stringify(tags) : "[]",
+        tagsString,
         display_name
       );
+      log.info("[handleUpdateFileMetadata] Successfully updated files table");
     } catch (error) {
-      log.warn("Failed to update files table", { error });
+      log.warn("[handleUpdateFileMetadata] Failed to update files table", {
+        error,
+      });
     }
 
+    log.info("[handleUpdateFileMetadata] Update completed successfully");
     return c.json({ success: true });
   } catch (error) {
-    log.error("Error updating file metadata", error);
+    log.error("[handleUpdateFileMetadata] Error updating file metadata", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 }
