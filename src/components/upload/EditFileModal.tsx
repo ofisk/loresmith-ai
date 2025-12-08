@@ -20,6 +20,7 @@ interface EditFileModalProps {
     display_name?: string;
     description?: string;
     tags?: string[] | string;
+    status?: string; // Preserve status to avoid UI showing incorrect processing state
   };
   onUpdate: (updatedFile: any) => void;
 }
@@ -254,11 +255,14 @@ export function EditFileModal({
 
       // Update the file object with new metadata
       // Convert tags array to JSON string to match FileMetadata type (tags is string in DB)
+      // Preserve all original file fields (especially status) to avoid UI state issues
       const updatedFile = {
         ...file,
         display_name: editedDisplayName.trim() || undefined,
         description: editedDescription.trim(),
         tags: JSON.stringify(tagsArray), // Store as JSON string to match FileMetadata type
+        // Explicitly preserve status and other important fields that shouldn't change
+        status: file.status || "completed", // Preserve original status, default to completed if missing
       };
 
       console.log("[EditFileModal] handleSave: Calling onUpdate with:", {

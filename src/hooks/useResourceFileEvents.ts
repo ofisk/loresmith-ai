@@ -184,10 +184,12 @@ export function useResourceFileEvents(
           );
           return prevFiles.map((file) => {
             if (file.file_key === completeFileData.file_key) {
-              // Preserve campaigns data when replacing and parse tags from JSON string
+              // Preserve campaigns data and status when replacing and parse tags from JSON string
+              // If status is not in completeFileData, preserve the original file's status
               return {
                 ...completeFileData,
                 campaigns: file.campaigns || [],
+                status: completeFileData.status || file.status || "completed", // Preserve original status
                 tags: parseTags(completeFileData.tags),
               };
             }
