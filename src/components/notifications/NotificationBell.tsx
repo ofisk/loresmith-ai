@@ -68,7 +68,7 @@ export function NotificationBell({
       case NOTIFICATION_TYPES.FILE_UPLOADED:
         return "bg-blue-900/20 border-blue-700/30 text-blue-300";
       case NOTIFICATION_TYPES.CAMPAIGN_CREATED:
-        return "bg-purple-900/20 border-purple-700/30 text-purple-300";
+        return "bg-purple-900/20 border-purple-700/30 text-purple-400";
       case NOTIFICATION_TYPES.SHARD_APPROVED:
         return "bg-green-900/20 border-green-700/30 text-green-300";
       case NOTIFICATION_TYPES.SHARD_REJECTED:

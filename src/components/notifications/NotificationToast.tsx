@@ -60,7 +60,7 @@ export function NotificationBell({
       case "file_uploaded":
         return "bg-blue-900/20 border-blue-700/30 text-blue-300";
       case "campaign_created":
-        return "bg-purple-900/20 border-purple-700/30 text-purple-300";
+        return "bg-purple-900/20 border-purple-700/30 text-purple-400";
       case "shard_approved":
         return "bg-green-900/20 border-green-700/30 text-green-300";
       case "shard_rejected":

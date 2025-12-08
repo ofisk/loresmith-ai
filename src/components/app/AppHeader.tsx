@@ -76,7 +76,7 @@ export function AppHeader({
   const isAdmin = payload?.isAdmin === true;
 
   return (
-    <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 flex items-center gap-4 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-sm">
+    <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 flex items-center gap-4 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-sm rounded-t-2xl">
       <div
         className="flex items-center justify-center rounded-lg"
         style={{ width: 48, height: 48 }}

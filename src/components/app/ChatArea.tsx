@@ -94,7 +94,7 @@ export function ChatArea({
       {/* Input Area */}
       <form
         onSubmit={onFormSubmit}
-        className="px-4 py-3 bg-neutral-50/50 border-t border-neutral-200 dark:border-neutral-700 dark:bg-neutral-900/50 backdrop-blur-sm"
+        className="px-4 py-3 bg-neutral-50/50 border-t border-neutral-200 dark:border-neutral-700 dark:bg-neutral-900/50 backdrop-blur-sm rounded-br-2xl"
       >
         <div className="flex items-center gap-2">
           <div className="flex-1 relative">

@@ -24,7 +24,7 @@ export function WelcomeMessage({
             <div className="space-y-3">
               <div>
                 <div className="font-semibold text-base mb-2 flex items-center gap-2">
-                  <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-2 py-1 rounded-md text-sm">
+                  <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-md text-sm">
                     Build Your Campaign Library
                   </span>
                 </div>
@@ -38,7 +38,7 @@ export function WelcomeMessage({
 
               <div>
                 <div className="font-semibold text-base mb-2 flex items-center gap-2">
-                  <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-2 py-1 rounded-md text-sm">
+                  <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-md text-sm">
                     Organize Your Story
                   </span>
                 </div>
@@ -52,7 +52,7 @@ export function WelcomeMessage({
 
               <div>
                 <div className="font-semibold text-base mb-2 flex items-center gap-2">
-                  <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-2 py-1 rounded-md text-sm">
+                  <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-md text-sm">
                     Start Brainstorming
                   </span>
                 </div>
@@ -65,7 +65,7 @@ export function WelcomeMessage({
               </div>
             </div>
 
-            <p className="font-medium bg-purple-50 dark:bg-purple-900/20 text-purple-900 dark:text-purple-100 px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-700">
+            <p className="font-medium bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-700">
               Ready to dive in? Pick an option below to get started:
             </p>
           </div>

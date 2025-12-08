@@ -623,7 +623,7 @@ export default function Chat() {
           />
 
           {/* Main Content Area */}
-          <div className="flex-1 flex min-h-0 overflow-hidden">
+          <div className="flex-1 flex min-h-0 overflow-hidden rounded-bl-2xl rounded-br-2xl">
             {/* Resource Side Panel */}
             <ResourceSidePanel
               isAuthenticated={authState.isAuthenticated}

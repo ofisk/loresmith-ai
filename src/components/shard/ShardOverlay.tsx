@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { CaretLeft, CaretRight } from "@phosphor-icons/react";
+import { MinusCircle } from "@phosphor-icons/react";
 import { UnifiedShardManager } from "@/components/chat/UnifiedShardManager";
 import type { StagedShardGroup } from "@/types/shard";
 
@@ -63,43 +63,42 @@ export const ShardOverlay = ({
     setIsExpanded((prev) => !prev);
   }, []);
 
+  // Close on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isExpanded) {
+        setIsExpanded(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isExpanded]);
+
   return (
     <div className="fixed top-0 right-0 h-screen z-50 flex items-start pt-20">
       {/* Collapsed Button */}
-      <div className="relative">
-        <button
-          type="button"
-          onClick={toggleExpanded}
-          className={`
-            flex items-center justify-center w-12 h-12 rounded-l-lg shadow-lg border border-r-0 transition-all duration-300 ease-in-out
-            ${
-              isExpanded
-                ? "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700"
-                : "bg-purple-600 text-white border-purple-600 hover:bg-purple-700"
-            }
-            ${hasNewShards ? "animate-pulse" : ""}
-          `}
-          title={
-            isExpanded
-              ? "Collapse shard panel"
-              : `Show ${displayCount} pending shard${displayCount !== "..." && displayCount !== 1 ? "s" : ""}`
-          }
-        >
-          {isExpanded ? (
-            <CaretRight
-              size={20}
-              className="text-neutral-600 dark:text-neutral-400"
-            />
-          ) : (
+      {!isExpanded && (
+        <div className="relative">
+          <button
+            type="button"
+            onClick={toggleExpanded}
+            className={`
+              flex items-center justify-center w-12 h-12 rounded-l-lg shadow-lg border border-r-0 transition-all duration-300 ease-in-out
+              bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-purple-200 dark:hover:bg-purple-900/40
+              ${hasNewShards ? "animate-pulse" : ""}
+            `}
+            title={`Show ${displayCount} pending shard${displayCount !== "..." && displayCount !== 1 ? "s" : ""}`}
+          >
             <div className="flex flex-col items-center">
               <span className="text-xs font-bold">{displayCount}</span>
               <span className="text-xs">
                 shard{displayCount !== "..." && displayCount !== 1 ? "s" : ""}
               </span>
             </div>
-          )}
-        </button>
-      </div>
+          </button>
+        </div>
+      )}
 
       {/* Expanded Panel */}
       <div
@@ -114,7 +113,7 @@ export const ShardOverlay = ({
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 flex-shrink-0">
             <h3 className="font-semibold text-neutral-800 dark:text-neutral-200">
-              Pending Shards
+              Pending shards
             </h3>
             <div className="flex items-center gap-2">
               {hasNewShards && (
@@ -131,7 +130,7 @@ export const ShardOverlay = ({
                   title="Refresh shards"
                 >
                   <svg
-                    className="w-4 h-4 text-neutral-600 dark:text-neutral-400"
+                    className="w-5 h-5 text-neutral-600 dark:text-neutral-400"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -153,9 +152,9 @@ export const ShardOverlay = ({
                 className="p-1 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded transition-colors"
                 title="Collapse panel"
               >
-                <CaretLeft
-                  size={16}
-                  className="text-neutral-600 dark:text-neutral-400"
+                <MinusCircle
+                  size={20}
+                  className="text-neutral-500 dark:text-neutral-500"
                 />
               </button>
             </div>

@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from "react";
+import { Plus } from "@phosphor-icons/react";
 import { FormButton } from "@/components/button/FormButton";
 import { FormField } from "@/components/input/FormField";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
@@ -216,7 +217,7 @@ export const ResourceUpload = ({
     !currentFile || loading || (uploadSuccess && !hasChanges);
 
   return (
-    <div className={cn("p-6", className)}>
+    <div className={cn("p-6 h-full flex flex-col", className)}>
       {/* Header */}
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -227,257 +228,271 @@ export const ResourceUpload = ({
         </p>
       </div>
 
-      {/* File Upload Area */}
-      <div className="flex justify-center mb-4">
-        <button
-          type="button"
-          className={cn(
-            "w-full max-w-md border-2 border-dashed border-gray-300/80 dark:border-gray-600/80 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-violet-300/60 dark:hover:border-violet-500/60 focus:border-violet-300/60 dark:focus:border-violet-500/60 outline-none bg-gray-50/20 dark:bg-gray-800/10",
-            loading && "opacity-50 pointer-events-none"
-          )}
-          aria-label="Upload resource file"
-          onClick={() => fileInputRef.current?.click()}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              fileInputRef.current?.click();
-            }
-          }}
-          onKeyUp={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              fileInputRef.current?.click();
-            }
-          }}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragEnter={(e) => e.preventDefault()}
-          onDragLeave={(e) => e.preventDefault()}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.txt,.doc,.docx"
-            onChange={handleFileSelect}
-            className="hidden"
-            multiple
-          />
-          {currentFile ? (
-            <div className="text-center relative w-full">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedFiles([]);
-                  setCurrentFileIndex(0);
-                  setFilename("");
-                  setDescription("");
-                  setTags([]);
-                  setTagInput("");
-                  setUploadSuccess(false);
-                  setIsValid(false);
-                  // Reset the file input so the same file can be selected again
-                  if (fileInputRef.current) {
-                    fileInputRef.current.value = "";
-                  }
-                }}
-                className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition"
-                aria-label="Clear file"
-              >
-                <svg
-                  className="w-3 h-3"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <title>Clear file</title>
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-              <div className="text-ob-base-300 text-sm font-medium mb-2">
-                {currentFile.name}
-              </div>
-              <div className="text-ob-base-200 text-sm">
-                {(currentFile.size / 1024 / 1024).toFixed(2)} MB
-              </div>
-            </div>
-          ) : (
-            <div className="text-center">
-              <div className="text-ob-base-300 text-sm font-medium mb-2">
-                Click to select or drag and drop files here
-              </div>
-            </div>
-          )}
-        </button>
-      </div>
-
-      {/* Form Fields */}
-      <div className="space-y-3">
-        <FormField
-          id={resourceFilenameId}
-          label="Filename"
-          placeholder="Name this mighty tome…"
-          value={filename}
-          onValueChange={(value, _isValid) => setFilename(value)}
-          disabled={loading}
-        />
-        <FormField
-          id={resourceDescriptionId}
-          label="Description (optional)"
-          placeholder="Describe the perils and promises within..."
-          value={description}
-          onValueChange={(value, _isValid) => setDescription(value)}
-          disabled={loading}
-        />
-        <FormField
-          id={resourceTagsId}
-          label="Tags (optional)"
-          placeholder="Mark this tome with its arcane keywords…"
-          value={tagInput}
-          onValueChange={(value, _isValid) => setTagInput(value)}
-          onKeyPress={handleTagKeyPress}
-          disabled={loading}
-        >
-          {tags.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 mt-2">
-              {tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="flex items-center bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-medium px-2.5 py-0.5 rounded-full"
-                >
-                  {tag}
-                  <FormButton
-                    onClick={() => handleRemoveTag(tag)}
-                    className="ml-1.5 p-0.5 focus:outline-none rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/30"
-                    icon={
-                      <svg
-                        className="h-3 w-3"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <title>Remove tag</title>
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    }
-                  />
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="text-ob-base-200 text-xs">
-            Example: undead, forest, cursed treasure
-          </div>
-        </FormField>
-
-        {/* Campaign Selection Section */}
-        {showCampaignSelection && (
-          <div className="space-y-3">
-            <div className="border-t border-ob-base-600 pt-3">
-              <h3 className="text-sm font-medium text-ob-base-200 mb-3">
-                Add to campaign
-              </h3>
-
-              <div className="space-y-2 mb-4">
-                <div>
-                  <div className="block text-sm font-medium text-ob-base-200 mb-3">
-                    Select campaigns
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {campaigns.map((campaign) => {
-                      const isSelected = selectedCampaigns.includes(
-                        campaign.campaignId
-                      );
-                      return (
-                        <button
-                          key={campaign.campaignId}
-                          type="button"
-                          onClick={() => {
-                            if (isSelected) {
-                              // Remove from selection
-                              onCampaignSelectionChange?.(
-                                selectedCampaigns.filter(
-                                  (id) => id !== campaign.campaignId
-                                )
-                              );
-                            } else {
-                              // Add to selection
-                              onCampaignSelectionChange?.([
-                                ...selectedCampaigns,
-                                campaign.campaignId,
-                              ]);
-                            }
-                          }}
-                          className={cn(
-                            "px-3 py-1.5 text-sm transition-colors rounded border-2",
-                            "focus:outline-none",
-                            isSelected
-                              ? "font-medium bg-purple-200 dark:bg-purple-800/40 text-purple-800 dark:text-purple-200 border-purple-400 dark:border-purple-500 hover:bg-purple-300 dark:hover:bg-purple-800/50"
-                              : "font-normal bg-purple-50/30 dark:bg-purple-900/10 text-purple-400 dark:text-purple-500 border-purple-200 dark:border-purple-800 hover:bg-purple-50/50 dark:hover:bg-purple-900/15"
-                          )}
-                        >
-                          {campaign.name}
-                        </button>
-                      );
-                    })}
-                    <button
-                      type="button"
-                      onClick={onCreateCampaign}
-                      className="flex items-center justify-center px-3 py-1.5 text-sm transition-colors rounded border-2 border-dashed bg-blue-50 dark:bg-blue-900/20 text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-700 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-purple-400 dark:hover:border-purple-600 focus:outline-none"
-                      title="Create new campaign"
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto flex flex-col justify-between py-8">
+        {/* Details Section */}
+        <div className="space-y-12">
+          {/* File Upload Area */}
+          <div className="flex justify-center">
+            <button
+              type="button"
+              className={cn(
+                "w-full max-w-md border-2 border-dashed border-gray-300/80 dark:border-gray-600/80 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-gray-400 dark:hover:border-gray-500 focus:border-gray-400 dark:focus:border-gray-500 outline-none bg-gray-50/20 dark:bg-gray-800/10",
+                loading && "opacity-50 pointer-events-none"
+              )}
+              aria-label="Upload resource file"
+              onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  fileInputRef.current?.click();
+                }
+              }}
+              onKeyUp={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  fileInputRef.current?.click();
+                }
+              }}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragEnter={(e) => e.preventDefault()}
+              onDragLeave={(e) => e.preventDefault()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.txt,.doc,.docx"
+                onChange={handleFileSelect}
+                className="hidden"
+                multiple
+              />
+              {currentFile ? (
+                <div className="text-center relative w-full">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedFiles([]);
+                      setCurrentFileIndex(0);
+                      setFilename("");
+                      setDescription("");
+                      setTags([]);
+                      setTagInput("");
+                      setUploadSuccess(false);
+                      setIsValid(false);
+                      // Reset the file input so the same file can be selected again
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = "";
+                      }
+                    }}
+                    className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition"
+                    aria-label="Clear file"
+                  >
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
                     >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2.5}
-                      >
-                        <title>Create new campaign</title>
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M12 4v16m8-8H4"
-                        />
-                      </svg>
-                    </button>
+                      <title>Clear file</title>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                  <div className="text-ob-base-300 text-sm font-medium mb-2">
+                    {currentFile.name}
+                  </div>
+                  <div className="text-ob-base-200 text-sm">
+                    {(currentFile.size / 1024 / 1024).toFixed(2)} MB
                   </div>
                 </div>
+              ) : (
+                <div className="text-center">
+                  <div className="text-ob-base-300 text-sm font-medium mb-2">
+                    Click to select or drag and drop files here
+                  </div>
+                </div>
+              )}
+            </button>
+          </div>
+
+          {/* Form Fields */}
+          <div className="space-y-3">
+            <FormField
+              id={resourceFilenameId}
+              label="Filename"
+              placeholder="Name this mighty tome…"
+              value={filename}
+              onValueChange={(value, _isValid) => setFilename(value)}
+              disabled={loading}
+            />
+            <FormField
+              id={resourceDescriptionId}
+              label="Description (optional)"
+              placeholder="Describe the perils and promises within..."
+              value={description}
+              onValueChange={(value, _isValid) => setDescription(value)}
+              disabled={loading}
+            />
+            <FormField
+              id={resourceTagsId}
+              label="Tags (optional)"
+              placeholder="Mark this tome with its arcane keywords…"
+              value={tagInput}
+              onValueChange={(value, _isValid) => setTagInput(value)}
+              onKeyPress={handleTagKeyPress}
+              disabled={loading}
+            >
+              {tags.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="flex items-center bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-medium px-2.5 py-0.5 rounded-full"
+                    >
+                      {tag}
+                      <FormButton
+                        onClick={() => handleRemoveTag(tag)}
+                        className="ml-1.5 p-0.5 focus:outline-none rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/30"
+                        icon={
+                          <svg
+                            className="h-3 w-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <title>Remove tag</title>
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        }
+                      />
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="text-ob-base-200 text-xs">
+                Example: undead, forest, cursed treasure
               </div>
-            </div>
+            </FormField>
+          </div>
+        </div>
+
+        {/* Campaign Selection Section */}
+        <div className="mt-8">
+          <div className="border-t border-ob-base-600 pt-12">
+            {showCampaignSelection && (
+              <>
+                <h3 className="text-sm font-medium text-ob-base-200 mb-3">
+                  Add to campaign (optional)
+                </h3>
+
+                <div className="space-y-2 mb-4">
+                  <div>
+                    {campaigns.length > 0 ? (
+                      <>
+                        <div className="block text-sm font-medium text-ob-base-200 mb-3">
+                          Select campaigns
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {campaigns.map((campaign) => {
+                            const isSelected = selectedCampaigns.includes(
+                              campaign.campaignId
+                            );
+                            return (
+                              <button
+                                key={campaign.campaignId}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    // Remove from selection
+                                    onCampaignSelectionChange?.(
+                                      selectedCampaigns.filter(
+                                        (id) => id !== campaign.campaignId
+                                      )
+                                    );
+                                  } else {
+                                    // Add to selection
+                                    onCampaignSelectionChange?.([
+                                      ...selectedCampaigns,
+                                      campaign.campaignId,
+                                    ]);
+                                  }
+                                }}
+                                className={cn(
+                                  "px-3 py-1.5 text-sm transition-colors rounded border-2",
+                                  "focus:outline-none",
+                                  isSelected
+                                    ? "font-medium bg-purple-200 dark:bg-purple-800/40 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-purple-300 dark:hover:bg-purple-800/50"
+                                    : "font-normal bg-purple-50/30 dark:bg-purple-900/10 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-purple-50/50 dark:hover:bg-purple-900/15"
+                                )}
+                              >
+                                {campaign.name}
+                              </button>
+                            );
+                          })}
+                          <button
+                            type="button"
+                            onClick={onCreateCampaign}
+                            className="px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+                            title="Create new campaign"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-3">
+                        <p className="text-sm text-ob-base-300">
+                          No campaigns yet. Create one to get started!
+                        </p>
+                        <button
+                          type="button"
+                          onClick={onCreateCampaign}
+                          className="px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center gap-2 text-sm"
+                        >
+                          <Plus size={14} />
+                          Create campaign
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Multi-file Navigation Buttons */}
+        {selectedFiles.length > 1 && (
+          <div className="flex justify-center gap-2">
+            {currentFileIndex > 0 && (
+              <FormButton onClick={handlePreviousFile} variant="secondary">
+                Previous File
+              </FormButton>
+            )}
+            {currentFileIndex < selectedFiles.length - 1 && (
+              <FormButton onClick={handleNextFile} variant="secondary">
+                Next File
+              </FormButton>
+            )}
           </div>
         )}
       </div>
-
-      {/* Multi-file Navigation Buttons */}
-      {selectedFiles.length > 1 && (
-        <div className="flex justify-center gap-2">
-          {currentFileIndex > 0 && (
-            <FormButton onClick={handlePreviousFile} variant="secondary">
-              Previous File
-            </FormButton>
-          )}
-          {currentFileIndex < selectedFiles.length - 1 && (
-            <FormButton onClick={handleNextFile} variant="secondary">
-              Next File
-            </FormButton>
-          )}
-        </div>
-      )}
 
       {/* Actions */}
       <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
         <div className="flex gap-2">
           {currentFile ? (
             <FormButton
+              variant="primary"
               onClick={handleUpload}
               disabled={isUploadDisabled}
               icon={
@@ -502,7 +517,9 @@ export const ResourceUpload = ({
               {uploadSuccess && !hasChanges ? "Complete" : "Upload"}
             </FormButton>
           ) : (
-            <FormButton disabled={true}>Upload</FormButton>
+            <FormButton variant="primary" disabled={true}>
+              Upload
+            </FormButton>
           )}
           <FormButton
             onClick={() => {

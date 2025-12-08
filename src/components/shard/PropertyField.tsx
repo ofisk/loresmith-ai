@@ -134,13 +134,13 @@ export function PropertyField({
                       className="border border-purple-600 rounded p-2 bg-purple-900/20"
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-purple-300">
+                        <span className="text-xs text-purple-400">
                           Item {index + 1}
                         </span>
                         <button
                           type="button"
                           onClick={() => removeArrayItem(index)}
-                          className="text-purple-300 hover:text-red-400 transition-colors"
+                          className="text-purple-400 hover:text-red-400 transition-colors"
                         >
                           <X size={12} />
                         </button>
@@ -152,10 +152,10 @@ export function PropertyField({
                               key={key}
                               className="flex items-center gap-2 text-xs"
                             >
-                              <span className="text-purple-200 font-medium min-w-0 flex-shrink-0">
+                              <span className="text-purple-400 font-medium min-w-0 flex-shrink-0">
                                 {key}:
                               </span>
-                              <span className="text-purple-100 truncate">
+                              <span className="text-purple-400 truncate">
                                 {typeof value === "object" && value !== null
                                   ? JSON.stringify(value)
                                   : String(value)}
@@ -164,7 +164,7 @@ export function PropertyField({
                           ))}
                         </div>
                       ) : (
-                        <span className="text-purple-100 text-xs">
+                        <span className="text-purple-400 text-xs">
                           {String(item)}
                         </span>
                       )}
