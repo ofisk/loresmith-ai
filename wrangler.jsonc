@@ -121,6 +121,11 @@
       "tag": "v8",
       "deleted_classes": ["UserFileTracker"],
     },
+    {
+      "tag": "v9",
+      "new_classes": [],
+      "deleted_classes": [],
+    },
   ],
   "observability": {
     "enabled": true,
