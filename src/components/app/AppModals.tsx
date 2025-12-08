@@ -250,7 +250,7 @@ export function AppModals({
       <Modal
         isOpen={modalState.isCreateCampaignModalOpen}
         onClose={modalState.handleCreateCampaignClose}
-        cardStyle={{ width: 520, minHeight: 320 }}
+        cardStyle={{ width: 600, height: 600 }}
         showCloseButton={true}
       >
         <CreateCampaignModal
@@ -285,7 +285,7 @@ export function AppModals({
       <Modal
         isOpen={modalState.isAddResourceModalOpen}
         onClose={modalState.handleAddResourceClose}
-        cardStyle={{ width: 600, minHeight: 400 }}
+        cardStyle={{ width: 600, height: 600 }}
         showCloseButton={true}
       >
         <ResourceUpload
