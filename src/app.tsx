@@ -103,7 +103,24 @@ export default function Chat() {
     async (updatedFile: FileMetadata) => {
       // File metadata update is handled by EditFileModal component
       // This callback is triggered after successful update to provide feedback
-      console.log("File updated:", updatedFile);
+      console.log("[app] File updated:", updatedFile);
+
+      // Dispatch event to update the file list in real-time
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("file-status-updated", {
+            detail: {
+              completeFileData: updatedFile,
+              fileKey: updatedFile.file_key,
+            },
+          })
+        );
+        console.log(
+          "[app] Dispatched file-status-updated event for:",
+          updatedFile.file_key
+        );
+      }
+
       addLocalNotification(
         NOTIFICATION_TYPES.SUCCESS,
         "File Updated",

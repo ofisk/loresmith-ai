@@ -1,6 +1,9 @@
-import { useState, useEffect, useId } from "react";
+import { useState, useEffect, useId, useCallback } from "react";
 import { FloppyDisk } from "@phosphor-icons/react";
-import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
+import {
+  authenticatedFetchWithExpiration,
+  AuthService,
+} from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
 import { ERROR_MESSAGES } from "@/app-constants";
 import { Modal } from "@/components/modal/Modal";
@@ -16,7 +19,7 @@ interface EditFileModalProps {
     file_name: string;
     display_name?: string;
     description?: string;
-    tags?: string[];
+    tags?: string[] | string;
   };
   onUpdate: (updatedFile: any) => void;
 }
@@ -30,26 +33,132 @@ export function EditFileModal({
   const displayNameId = useId();
   const descriptionId = useId();
   const tagsId = useId();
-  const [editedDisplayName, setEditedDisplayName] = useState(
-    file.display_name || ""
+
+  // Helper to safely convert tags to comma-separated string
+  const tagsToString = useCallback(
+    (tags: string[] | string | undefined): string => {
+      console.log("[EditFileModal] tagsToString called with:", {
+        tags,
+        type: typeof tags,
+        isArray: Array.isArray(tags),
+        tagsValue: tags,
+      });
+
+      if (!tags) {
+        console.log(
+          "[EditFileModal] tagsToString: tags is empty/null/undefined"
+        );
+        return "";
+      }
+      if (Array.isArray(tags)) {
+        const result = tags.join(", ");
+        console.log(
+          "[EditFileModal] tagsToString: tags is array, result:",
+          result
+        );
+        return result;
+      }
+      if (typeof tags === "string") {
+        // Try to parse as JSON first
+        try {
+          console.log(
+            "[EditFileModal] tagsToString: attempting JSON.parse on:",
+            tags
+          );
+          const parsed = JSON.parse(tags);
+          console.log(
+            "[EditFileModal] tagsToString: JSON.parse succeeded, parsed:",
+            parsed
+          );
+          if (Array.isArray(parsed)) {
+            const result = parsed.join(", ");
+            console.log(
+              "[EditFileModal] tagsToString: parsed is array, result:",
+              result
+            );
+            return result;
+          }
+          console.log(
+            "[EditFileModal] tagsToString: parsed is not array, returning original string"
+          );
+        } catch (err) {
+          console.log(
+            "[EditFileModal] tagsToString: JSON.parse failed, treating as comma-separated string. Error:",
+            err
+          );
+          // Not JSON, treat as comma-separated string
+        }
+        // Already a comma-separated string or couldn't parse as JSON
+        console.log(
+          "[EditFileModal] tagsToString: returning string as-is:",
+          tags
+        );
+        return tags;
+      }
+      console.log(
+        "[EditFileModal] tagsToString: unknown type, returning empty string"
+      );
+      return "";
+    },
+    []
   );
-  const [editedDescription, setEditedDescription] = useState(
-    file.description || ""
-  );
-  const [editedTags, setEditedTags] = useState(file.tags?.join(", ") || "");
+
+  // Initialize state with safe defaults
+  const [editedDisplayName, setEditedDisplayName] = useState("");
+  const [editedDescription, setEditedDescription] = useState("");
+  const [editedTags, setEditedTags] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset form when file changes
+  // Clear errors and initialize form when modal opens or file changes
   useEffect(() => {
-    if (file) {
-      setEditedDisplayName(file.display_name || "");
-      setEditedDescription(file.description || "");
-      setEditedTags(file.tags?.join(", ") || "");
+    if (isOpen && file) {
+      console.log("[EditFileModal] useEffect: Initializing modal with file:", {
+        file_key: file.file_key,
+        file_name: file.file_name,
+        display_name: file.display_name,
+        description: file.description,
+        tags: file.tags,
+        tagsType: typeof file.tags,
+        tagsIsArray: Array.isArray(file.tags),
+      });
+      try {
+        const displayName = file.display_name || "";
+        const description = file.description || "";
+        const tagsString = tagsToString(file.tags);
+        console.log("[EditFileModal] useEffect: Setting form values:", {
+          displayName,
+          description,
+          tagsString,
+        });
+        setEditedDisplayName(displayName);
+        setEditedDescription(description);
+        setEditedTags(tagsString);
+        setError(null); // Always clear errors when modal opens
+        console.log("[EditFileModal] useEffect: Form initialized successfully");
+      } catch (err) {
+        console.error(
+          "[EditFileModal] useEffect: Error initializing EditFileModal:",
+          err
+        );
+        // Set safe defaults on error
+        setEditedDisplayName(file.display_name || "");
+        setEditedDescription(file.description || "");
+        setEditedTags("");
+        setError(null); // Don't show initialization errors to user
+      }
     }
-  }, [file]);
+  }, [isOpen, file, tagsToString]);
 
   const handleSave = async () => {
+    console.log("[EditFileModal] handleSave: Starting save operation");
+    console.log("[EditFileModal] handleSave: Current form state:", {
+      editedDisplayName,
+      editedDescription,
+      editedTags,
+      file_key: file.file_key,
+    });
+
     setIsUpdating(true);
     setError(null);
 
@@ -59,53 +168,125 @@ export function EditFileModal({
         .map((tag) => tag.trim())
         .filter((tag) => tag.length > 0);
 
-      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
-        API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.LIBRARY.UPDATE_METADATA(file.file_key)
-        ),
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            display_name: editedDisplayName.trim() || undefined,
-            description: editedDescription.trim(),
-            tags: tagsArray,
-          }),
-        }
+      console.log(
+        "[EditFileModal] handleSave: Processed tags array:",
+        tagsArray
       );
 
-      if (jwtExpired) {
-        throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
-      }
-
-      if (!response.ok) {
-        const errorData = (await response.json()) as { error?: string };
-        throw new Error(errorData.error || "Failed to update file metadata");
-      }
-
-      // Update the file object with new metadata
-      const updatedFile = {
-        ...file,
+      const requestBody = {
         display_name: editedDisplayName.trim() || undefined,
         description: editedDescription.trim(),
         tags: tagsArray,
       };
 
+      console.log("[EditFileModal] handleSave: Request body:", requestBody);
+      console.log(
+        "[EditFileModal] handleSave: Request body JSON stringified:",
+        JSON.stringify(requestBody)
+      );
+
+      const url = API_CONFIG.buildUrl(
+        API_CONFIG.ENDPOINTS.LIBRARY.UPDATE_METADATA(file.file_key)
+      );
+      console.log("[EditFileModal] handleSave: Request URL:", url);
+
+      // Get JWT from storage to ensure it's included in the request
+      const jwt = AuthService.getStoredJwt();
+      console.log(
+        "[EditFileModal] handleSave: JWT from storage:",
+        jwt ? "present" : "missing"
+      );
+
+      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
+        url,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+          jwt, // Explicitly pass JWT to ensure it's included
+        }
+      );
+
+      console.log("[EditFileModal] handleSave: Response received:", {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        jwtExpired,
+      });
+
+      if (jwtExpired) {
+        console.error("[EditFileModal] handleSave: JWT expired");
+        throw new Error(ERROR_MESSAGES.AUTHENTICATION_REQUIRED);
+      }
+
+      if (!response.ok) {
+        const responseText = await response.text();
+        console.error(
+          "[EditFileModal] handleSave: Response not OK. Response text:",
+          responseText
+        );
+        let errorData: { error?: string } = {};
+        try {
+          errorData = JSON.parse(responseText) as { error?: string };
+          console.error(
+            "[EditFileModal] handleSave: Parsed error data:",
+            errorData
+          );
+        } catch (parseErr) {
+          console.error(
+            "[EditFileModal] handleSave: Failed to parse error response as JSON:",
+            parseErr
+          );
+          errorData = {
+            error: responseText || "Failed to update file metadata",
+          };
+        }
+        throw new Error(errorData.error || "Failed to update file metadata");
+      }
+
+      const responseData = await response.json();
+      console.log(
+        "[EditFileModal] handleSave: Success response:",
+        responseData
+      );
+
+      // Update the file object with new metadata
+      // Convert tags array to JSON string to match FileMetadata type (tags is string in DB)
+      const updatedFile = {
+        ...file,
+        display_name: editedDisplayName.trim() || undefined,
+        description: editedDescription.trim(),
+        tags: JSON.stringify(tagsArray), // Store as JSON string to match FileMetadata type
+      };
+
+      console.log("[EditFileModal] handleSave: Calling onUpdate with:", {
+        ...updatedFile,
+        tags: tagsArray, // Log as array for readability
+      });
       onUpdate(updatedFile);
+      console.log(
+        "[EditFileModal] handleSave: Save completed successfully, closing modal"
+      );
       onClose();
     } catch (err) {
+      console.error("[EditFileModal] handleSave: Error occurred:", err);
+      console.error("[EditFileModal] handleSave: Error details:", {
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
       setError(err instanceof Error ? err.message : "Failed to update file");
     } finally {
       setIsUpdating(false);
+      console.log("[EditFileModal] handleSave: Save operation finished");
     }
   };
 
   const handleCancel = () => {
     setEditedDisplayName(file.display_name || "");
     setEditedDescription(file.description || "");
-    setEditedTags(file.tags?.join(", ") || "");
+    setEditedTags(tagsToString(file.tags));
     setError(null);
     onClose();
   };

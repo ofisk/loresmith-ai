@@ -412,6 +412,7 @@ export function AppModals({
       {/* Edit File Modal */}
       {modalState.editingFile && (
         <EditFileModal
+          key={modalState.editingFile.file_key} // Reset component state when file changes
           isOpen={modalState.isEditFileModalOpen}
           onClose={modalState.handleEditFileClose}
           file={{
@@ -420,15 +421,72 @@ export function AppModals({
             file_name: modalState.editingFile.file_name,
             display_name: modalState.editingFile.display_name,
             description: modalState.editingFile.description,
-            tags: Array.isArray(modalState.editingFile.tags)
-              ? modalState.editingFile.tags
-              : modalState.editingFile.tags
-                ? modalState.editingFile.tags.split(",").map((t) => t.trim())
-                : [],
+            tags: (() => {
+              const tags = modalState.editingFile.tags;
+              console.log("[AppModals] Processing tags for EditFileModal:", {
+                tags,
+                type: typeof tags,
+                isArray: Array.isArray(tags),
+                file_key: modalState.editingFile.file_key,
+              });
+
+              if (Array.isArray(tags)) {
+                console.log(
+                  "[AppModals] Tags is already array, returning as-is:",
+                  tags
+                );
+                return tags;
+              }
+              if (typeof tags === "string") {
+                // Try to parse as JSON first (common case)
+                try {
+                  console.log(
+                    "[AppModals] Attempting to parse tags as JSON:",
+                    tags
+                  );
+                  const parsed = JSON.parse(tags);
+                  console.log(
+                    "[AppModals] JSON.parse succeeded, parsed:",
+                    parsed
+                  );
+                  if (Array.isArray(parsed)) {
+                    console.log(
+                      "[AppModals] Parsed result is array, returning:",
+                      parsed
+                    );
+                    return parsed;
+                  }
+                  console.log(
+                    "[AppModals] Parsed result is not array, falling back to comma-split"
+                  );
+                } catch (err) {
+                  console.log(
+                    "[AppModals] JSON.parse failed, treating as comma-separated string. Error:",
+                    err
+                  );
+                  // Not JSON, treat as comma-separated string
+                }
+                // Fallback: treat as comma-separated string
+                const split = tags
+                  .split(",")
+                  .map((t) => t.trim())
+                  .filter((t) => t.length > 0);
+                console.log("[AppModals] Split tags by comma:", split);
+                return split;
+              }
+              console.log(
+                "[AppModals] Tags is not array or string, returning empty array"
+              );
+              return [];
+            })(),
           }}
-          onUpdate={(updatedFile) =>
-            handleFileUpdate(updatedFile as FileMetadata)
-          }
+          onUpdate={(updatedFile) => {
+            console.log(
+              "[AppModals] EditFileModal onUpdate called with:",
+              updatedFile
+            );
+            handleFileUpdate(updatedFile as FileMetadata);
+          }}
         />
       )}
 

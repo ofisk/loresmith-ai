@@ -25,6 +25,29 @@ interface UseResourceFileEventsReturn {
 }
 
 /**
+ * Helper to safely parse tags from JSON string or return as-is
+ */
+function parseTags(tags: string | string[] | undefined): string[] {
+  if (!tags) return [];
+  if (Array.isArray(tags)) return tags;
+  if (typeof tags === "string") {
+    try {
+      const parsed = JSON.parse(tags);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // Not valid JSON, treat as comma-separated string
+      return tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+    }
+  }
+  return [];
+}
+
+/**
  * Hook for handling file-related events (upload, indexing, status updates)
  */
 export function useResourceFileEvents(
@@ -165,10 +188,7 @@ export function useResourceFileEvents(
               return {
                 ...completeFileData,
                 campaigns: file.campaigns || [],
-                tags:
-                  typeof completeFileData.tags === "string"
-                    ? JSON.parse(completeFileData.tags)
-                    : completeFileData.tags || [],
+                tags: parseTags(completeFileData.tags),
               };
             }
             return file;
@@ -247,10 +267,7 @@ export function useResourceFileEvents(
           // Add new file to the beginning of the list with parsed tags
           const parsedFileData = {
             ...completeFileData,
-            tags:
-              typeof completeFileData.tags === "string"
-                ? JSON.parse(completeFileData.tags)
-                : completeFileData.tags || [],
+            tags: parseTags(completeFileData.tags),
           };
           return [parsedFileData, ...prevFiles];
         });

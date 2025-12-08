@@ -266,7 +266,8 @@ export const API_CONFIG = {
 
       // Consolidated file management endpoints
       UPDATE_METADATA: (fileKey: string) =>
-        `/library/files/${fileKey}/metadata`,
+        `/library/files/${encodeURIComponent(fileKey)}/metadata`,
+      UPDATE_METADATA_PATTERN: "/library/files/:fileKey{.+}/metadata",
     },
     PROGRESS: {
       WEBSOCKET: "/progress",

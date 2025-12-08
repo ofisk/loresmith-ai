@@ -180,8 +180,9 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     requireUserJwt,
     handleProcessFileForRag
   );
+  // Use wildcard pattern to match file keys with slashes
   app.put(
-    API_CONFIG.ENDPOINTS.LIBRARY.UPDATE_METADATA(":fileKey"),
+    API_CONFIG.ENDPOINTS.LIBRARY.UPDATE_METADATA_PATTERN,
     requireUserJwt,
     handleUpdateFileMetadata
   );
