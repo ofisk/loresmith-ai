@@ -263,6 +263,7 @@ export function AppModals({
           onCreateCampaign={async (name, description) => {
             try {
               await createCampaign(name, description);
+              await refetchCampaigns();
               modalState.handleCreateCampaignClose();
             } catch (error) {
               // Keep modal open on error so user can retry
@@ -283,7 +284,10 @@ export function AppModals({
 
       {/* Add Resource Modal */}
       <Modal
-        isOpen={modalState.isAddResourceModalOpen}
+        isOpen={
+          modalState.isAddResourceModalOpen &&
+          !modalState.isCreateCampaignModalOpen
+        }
         onClose={modalState.handleAddResourceClose}
         cardStyle={{ width: 600, height: 600 }}
         showCloseButton={true}
@@ -318,7 +322,6 @@ export function AppModals({
           onCampaignNameChange={modalState.setCampaignName}
           onCreateCampaign={() => {
             modalState.setSelectedCampaigns([]);
-            modalState.setIsAddResourceModalOpen(false);
             modalState.setIsCreateCampaignModalOpen(true);
           }}
           showCampaignSelection={true}
