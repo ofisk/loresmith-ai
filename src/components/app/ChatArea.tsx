@@ -1,11 +1,22 @@
 import type { Message } from "@ai-sdk/react";
 import { PaperPlaneRight, Stop } from "@phosphor-icons/react";
 import type React from "react";
+import { useState } from "react";
 import { Card } from "@/components/card/Card";
 import { ChatInput } from "@/components/input/ChatInput";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { ThinkingSpinner } from "@/components/thinking-spinner";
 import { WelcomeMessage } from "@/components/chat/WelcomeMessage";
+
+const CHAT_PROMPTS = [
+  "Need some lore?",
+  "Consult the archives?",
+  "What's on your mind?",
+  "What can I help with?",
+];
+
+const getRandomPrompt = () =>
+  CHAT_PROMPTS[Math.floor(Math.random() * CHAT_PROMPTS.length)];
 
 interface ChatAreaProps {
   chatContainerId: string;
@@ -45,6 +56,8 @@ export function ChatArea({
   textareaHeight,
   pendingToolCallConfirmation,
 }: ChatAreaProps) {
+  const [placeholder] = useState(() => getRandomPrompt());
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Main Content Area */}
@@ -90,7 +103,7 @@ export function ChatArea({
               placeholder={
                 pendingToolCallConfirmation
                   ? "Please respond to the tool confirmation above..."
-                  : "What knowledge do you seek today?"
+                  : placeholder
               }
               className="flex w-full border border-neutral-200/50 dark:border-neutral-700/50 px-3 py-2 text-base placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[40px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm"
               value={input}
