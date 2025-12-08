@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from "react";
+import { Plus } from "@phosphor-icons/react";
 import { FormButton } from "@/components/button/FormButton";
 import { FormField } from "@/components/input/FormField";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
@@ -232,7 +233,7 @@ export const ResourceUpload = ({
         <button
           type="button"
           className={cn(
-            "w-full max-w-md border-2 border-dashed border-gray-300/80 dark:border-gray-600/80 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-violet-300/60 dark:hover:border-violet-500/60 focus:border-violet-300/60 dark:focus:border-violet-500/60 outline-none bg-gray-50/20 dark:bg-gray-800/10",
+            "w-full max-w-md border-2 border-dashed border-gray-300/80 dark:border-gray-600/80 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-gray-400 dark:hover:border-gray-500 focus:border-gray-400 dark:focus:border-gray-500 outline-none bg-gray-50/20 dark:bg-gray-800/10",
             loading && "opacity-50 pointer-events-none"
           )}
           aria-label="Upload resource file"
@@ -383,73 +384,78 @@ export const ResourceUpload = ({
           <div className="space-y-3">
             <div className="border-t border-ob-base-600 pt-3">
               <h3 className="text-sm font-medium text-ob-base-200 mb-3">
-                Add to campaign
+                Add to campaign (optional)
               </h3>
 
               <div className="space-y-2 mb-4">
                 <div>
-                  <div className="block text-sm font-medium text-ob-base-200 mb-3">
-                    Select campaigns
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {campaigns.map((campaign) => {
-                      const isSelected = selectedCampaigns.includes(
-                        campaign.campaignId
-                      );
-                      return (
+                  {campaigns.length > 0 ? (
+                    <>
+                      <div className="block text-sm font-medium text-ob-base-200 mb-3">
+                        Select campaigns
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {campaigns.map((campaign) => {
+                          const isSelected = selectedCampaigns.includes(
+                            campaign.campaignId
+                          );
+                          return (
+                            <button
+                              key={campaign.campaignId}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  // Remove from selection
+                                  onCampaignSelectionChange?.(
+                                    selectedCampaigns.filter(
+                                      (id) => id !== campaign.campaignId
+                                    )
+                                  );
+                                } else {
+                                  // Add to selection
+                                  onCampaignSelectionChange?.([
+                                    ...selectedCampaigns,
+                                    campaign.campaignId,
+                                  ]);
+                                }
+                              }}
+                              className={cn(
+                                "px-3 py-1.5 text-sm transition-colors rounded border-2",
+                                "focus:outline-none",
+                                isSelected
+                                  ? "font-medium bg-purple-200 dark:bg-purple-800/40 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-purple-300 dark:hover:bg-purple-800/50"
+                                  : "font-normal bg-purple-50/30 dark:bg-purple-900/10 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-purple-50/50 dark:hover:bg-purple-900/15"
+                              )}
+                            >
+                              {campaign.name}
+                            </button>
+                          );
+                        })}
                         <button
-                          key={campaign.campaignId}
                           type="button"
-                          onClick={() => {
-                            if (isSelected) {
-                              // Remove from selection
-                              onCampaignSelectionChange?.(
-                                selectedCampaigns.filter(
-                                  (id) => id !== campaign.campaignId
-                                )
-                              );
-                            } else {
-                              // Add to selection
-                              onCampaignSelectionChange?.([
-                                ...selectedCampaigns,
-                                campaign.campaignId,
-                              ]);
-                            }
-                          }}
-                          className={cn(
-                            "px-3 py-1.5 text-sm transition-colors rounded border-2",
-                            "focus:outline-none",
-                            isSelected
-                              ? "font-medium bg-purple-200 dark:bg-purple-800/40 text-purple-800 dark:text-purple-200 border-purple-400 dark:border-purple-500 hover:bg-purple-300 dark:hover:bg-purple-800/50"
-                              : "font-normal bg-purple-50/30 dark:bg-purple-900/10 text-purple-400 dark:text-purple-500 border-purple-200 dark:border-purple-800 hover:bg-purple-50/50 dark:hover:bg-purple-900/15"
-                          )}
+                          onClick={onCreateCampaign}
+                          className="px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+                          title="Create new campaign"
                         >
-                          {campaign.name}
+                          <Plus size={14} />
                         </button>
-                      );
-                    })}
-                    <button
-                      type="button"
-                      onClick={onCreateCampaign}
-                      className="flex items-center justify-center px-3 py-1.5 text-sm transition-colors rounded border-2 border-dashed bg-blue-50 dark:bg-blue-900/20 text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-700 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-purple-400 dark:hover:border-purple-600 focus:outline-none"
-                      title="Create new campaign"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2.5}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-sm text-ob-base-300">
+                        No campaigns yet. Create one to get started!
+                      </p>
+                      <button
+                        type="button"
+                        onClick={onCreateCampaign}
+                        className="px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center gap-2 text-sm"
                       >
-                        <title>Create new campaign</title>
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M12 4v16m8-8H4"
-                        />
-                      </svg>
-                    </button>
-                  </div>
+                        <Plus size={14} />
+                        Create campaign
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

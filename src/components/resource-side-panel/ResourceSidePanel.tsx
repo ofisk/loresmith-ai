@@ -104,7 +104,7 @@ export function ResourceSidePanel({
 
       {/* Username Display and Menu - At the very bottom */}
       {isAuthenticated && (
-        <div className="flex-shrink-0 p-4 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50/80 dark:bg-neutral-900/80 backdrop-blur-sm">
+        <div className="flex-shrink-0 p-4 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50/80 dark:bg-neutral-900/80 backdrop-blur-sm rounded-bl-2xl">
           <div className="relative user-menu-container">
             <button
               type="button"
