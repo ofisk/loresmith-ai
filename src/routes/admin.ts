@@ -82,15 +82,6 @@ export async function handleRegenerateEmbeddings(c: ContextWithAuth) {
           });
           continue;
         }
-        if (!username) {
-          console.warn(`⚠️  No username found for file: ${fileKey}`);
-          failureCount++;
-          errors.push({
-            fileKey,
-            error: "No username found in file metadata",
-          });
-          continue;
-        }
 
         // Get file from R2
         const file = await c.env.R2.get(fileKey);
@@ -124,7 +115,21 @@ export async function handleRegenerateEmbeddings(c: ContextWithAuth) {
         );
 
         if (result.vectorId) {
-          console.log(`✅ Successfully regenerated embeddings for: ${fileKey}`);
+          // Update vector_id in database to point to the new embedding
+          try {
+            await fileDAO.updateFileMetadata(fileKey, {
+              vector_id: result.vectorId,
+            });
+            console.log(
+              `✅ Successfully regenerated embeddings for: ${fileKey} (new vector_id: ${result.vectorId})`
+            );
+          } catch (updateError) {
+            console.warn(
+              `⚠️  Regenerated embeddings but failed to update vector_id in database for ${fileKey}:`,
+              updateError
+            );
+            // Still count as success since embeddings were generated
+          }
           successCount++;
         } else {
           console.warn(
