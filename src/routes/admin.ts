@@ -37,14 +37,13 @@ export async function handleRegenerateEmbeddings(c: ContextWithAuth) {
     const db = (fileDAO as any).db;
     const allFilesResult = await db
       .prepare(
-        "SELECT file_key, username, file_name, content_type FROM file_metadata WHERE status = 'completed'"
+        "SELECT file_key, username, file_name FROM file_metadata WHERE status = 'completed'"
       )
       .all();
     const allFiles = (allFilesResult.results || []) as Array<{
       file_key: string;
       username: string;
       file_name: string;
-      content_type: string;
     }>;
 
     console.log(
@@ -106,9 +105,11 @@ export async function handleRegenerateEmbeddings(c: ContextWithAuth) {
         }
 
         // Process file using RAG service
+        // Get content type from R2 metadata or use file metadata from DB
+        const fileMetadata = await fileDAO.getFileMetadata(fileKey);
         const contentType =
-          fileRecord.content_type ||
           file.httpMetadata?.contentType ||
+          (fileMetadata as any)?.content_type ||
           "application/pdf";
 
         const result = await ragService.processFileFromR2(
