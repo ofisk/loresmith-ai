@@ -342,7 +342,6 @@ export const API_CONFIG = {
         DASHBOARD: "/api/admin/telemetry/dashboard",
         ALERTS: "/api/admin/telemetry/alerts",
       },
-      REGENERATE_EMBEDDINGS: "/api/admin/regenerate-embeddings",
     },
   },
 } as const;
