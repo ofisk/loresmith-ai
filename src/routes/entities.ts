@@ -8,6 +8,12 @@ import { EntityExtractionService } from "@/services/rag/entity-extraction-servic
 import { EntityExtractionPipeline } from "@/services/rag/entity-extraction-pipeline";
 import { EntityDeduplicationService } from "@/services/rag/entity-deduplication-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
+import { DirectFileContentExtractionProvider } from "@/services/campaign/impl/direct-file-content-extraction-provider";
+import { R2Helper } from "@/lib/r2";
+import {
+  chunkTextByCharacterCount,
+  chunkTextByPages,
+} from "@/lib/text-chunking-utils";
 import {
   mapOverrideToScore,
   type ImportanceLevel,
@@ -589,4 +595,211 @@ export async function handleResolveDeduplicationEntry(c: ContextWithAuth) {
       return ctx.json({ status: "ok" });
     }
   );
+}
+
+/**
+ * Test endpoint to extract entities from an R2 file (admin only)
+ * Returns the same format as stageEntitiesFromResource would return
+ * This allows testing entity extraction without actually adding files to campaigns
+ */
+export async function handleTestEntityExtractionFromR2(
+  c: ContextWithAuth
+): Promise<Response> {
+  try {
+    const userAuth = getUserAuth(c);
+
+    // Require admin access
+    if (!userAuth.isAdmin) {
+      return c.json({ error: "Admin access required" }, 403);
+    }
+
+    const requestBody = (await c.req.json()) as {
+      fileKey: string;
+      campaignId?: string;
+      sourceName?: string;
+    };
+
+    if (!requestBody.fileKey) {
+      return c.json({ error: "fileKey is required" }, 400);
+    }
+
+    const openaiApiKey = c.env.OPENAI_API_KEY as string | undefined;
+    if (!openaiApiKey) {
+      return c.json(
+        {
+          error: "OpenAI API key is required for entity extraction",
+        },
+        400
+      );
+    }
+
+    const campaignId = requestBody.campaignId || `test-${crypto.randomUUID()}`;
+    const fileKey = requestBody.fileKey;
+    const sourceName = requestBody.sourceName || fileKey;
+
+    console.log(
+      `[TestEntityExtraction] Testing entity extraction for file: ${fileKey}`
+    );
+
+    // Extract content from R2 file
+    const r2Helper = new R2Helper(c.env);
+    const provider = new DirectFileContentExtractionProvider(c.env, r2Helper);
+
+    const resource = {
+      id: fileKey,
+      file_key: fileKey,
+      file_name: sourceName,
+    };
+
+    const extractionResult = await provider.extractContent({ resource });
+
+    if (!extractionResult.success || !extractionResult.content) {
+      return c.json(
+        {
+          success: false,
+          error:
+            extractionResult.error || "Failed to extract content from file",
+          entityCount: 0,
+          stagedEntities: [],
+        },
+        400
+      );
+    }
+
+    const fileContent = extractionResult.content;
+    const isPDF = extractionResult.metadata?.isPDF || false;
+
+    // Chunk content same way as staging service does
+    const CHARS_PER_TOKEN = 4;
+    const PROMPT_TOKENS_ESTIMATE = 3000;
+    const MAX_RESPONSE_TOKENS = 16384;
+    const TPM_LIMIT = 30000;
+    const MAX_CONTENT_TOKENS =
+      TPM_LIMIT - PROMPT_TOKENS_ESTIMATE - MAX_RESPONSE_TOKENS;
+    const MAX_CHUNK_SIZE = Math.floor(MAX_CONTENT_TOKENS * CHARS_PER_TOKEN);
+
+    const chunks =
+      fileContent.length > MAX_CHUNK_SIZE
+        ? isPDF
+          ? chunkTextByPages(fileContent, MAX_CHUNK_SIZE)
+          : chunkTextByCharacterCount(fileContent, MAX_CHUNK_SIZE)
+        : [fileContent];
+
+    console.log(
+      `[TestEntityExtraction] Processing ${chunks.length} chunk(s) for file: ${fileKey}`
+    );
+
+    // Extract entities from each chunk
+    const extractionService = new EntityExtractionService(openaiApiKey);
+    const allExtractedEntities: Map<
+      string,
+      Awaited<ReturnType<typeof extractionService.extractEntities>>[0]
+    > = new Map();
+
+    const CHUNK_PROCESSING_DELAY_MS = chunks.length > 1 ? 2000 : 0;
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+
+      if (i > 0 && CHUNK_PROCESSING_DELAY_MS > 0) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, CHUNK_PROCESSING_DELAY_MS)
+        );
+      }
+
+      const chunkEntities = await extractionService.extractEntities({
+        content: chunk,
+        sourceName,
+        campaignId,
+        sourceId: fileKey,
+        sourceType: "file_upload",
+        openaiApiKey,
+        metadata: {
+          fileKey,
+          resourceId: fileKey,
+          resourceName: sourceName,
+          staged: true,
+          shardStatus: "staging",
+          chunkIndex: i,
+          totalChunks: chunks.length,
+        },
+      });
+
+      // Merge entities by ID (same logic as staging service)
+      for (const entity of chunkEntities) {
+        const existing = allExtractedEntities.get(entity.id);
+        if (existing) {
+          existing.content = {
+            ...(typeof existing.content === "object" &&
+            existing.content !== null
+              ? existing.content
+              : {}),
+            ...(typeof entity.content === "object" && entity.content !== null
+              ? entity.content
+              : {}),
+          };
+          const existingTargetIds = new Set(
+            existing.relations.map((r) => r.targetId)
+          );
+          for (const rel of entity.relations) {
+            if (!existingTargetIds.has(rel.targetId)) {
+              existing.relations.push(rel);
+              existingTargetIds.add(rel.targetId);
+            }
+          }
+          existing.metadata = {
+            ...existing.metadata,
+            ...entity.metadata,
+          };
+        } else {
+          allExtractedEntities.set(entity.id, entity);
+        }
+      }
+    }
+
+    const extractedEntities = Array.from(allExtractedEntities.values());
+
+    console.log(
+      `[TestEntityExtraction] Extracted ${extractedEntities.length} entities from file: ${fileKey}`
+    );
+
+    // Format response same as EntityStagingResult
+    const stagedEntities = extractedEntities.map((entity) => ({
+      id: entity.id,
+      entityType: entity.entityType,
+      name: entity.name,
+      content: entity.content,
+      metadata: entity.metadata,
+      relations: entity.relations.map((rel) => ({
+        relationshipType: rel.relationshipType,
+        targetId: rel.targetId,
+        strength: rel.strength,
+        metadata: rel.metadata,
+      })),
+    }));
+
+    return c.json({
+      success: true,
+      entityCount: stagedEntities.length,
+      stagedEntities,
+      metadata: {
+        fileKey,
+        sourceName,
+        chunkCount: chunks.length,
+        isPDF,
+      },
+    });
+  } catch (error) {
+    console.error("[TestEntityExtraction] Error:", error);
+    return c.json(
+      {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
+        entityCount: 0,
+        stagedEntities: [],
+      },
+      500
+    );
+  }
 }

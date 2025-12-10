@@ -146,6 +146,7 @@ export const API_CONFIG = {
           `/campaigns/${campaignId}/entities/deduplication-pending`,
         DEDUP_RESOLVE: (campaignId: string, entryId: string) =>
           `/campaigns/${campaignId}/entities/deduplication-pending/${entryId}`,
+        TEST_EXTRACT_FROM_R2: "/api/test/entities/extract-from-r2",
       },
       COMMUNITIES: {
         DETECT: (campaignId: string) =>

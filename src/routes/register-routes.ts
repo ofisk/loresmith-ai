@@ -43,6 +43,7 @@ import {
   handleTriggerEntityExtraction,
   handleListPendingDeduplication,
   handleResolveDeduplicationEntry,
+  handleTestEntityExtractionFromR2,
   handleCreateEntityRelationship,
   handleDeleteEntityRelationship,
   handleUpdateEntityImportance,
@@ -456,6 +457,11 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     ),
     requireUserJwt,
     handleResolveDeduplicationEntry
+  );
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.TEST_EXTRACT_FROM_R2,
+    requireUserJwt,
+    handleTestEntityExtractionFromR2
   );
 
   app.post(
