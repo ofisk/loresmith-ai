@@ -55,7 +55,8 @@ function buildEntityServiceAccessor(
           extractionService,
           embeddingService,
           graphService,
-          c.env
+          c.env,
+          c.env.OPENAI_API_KEY as string | undefined
         ),
         dedupeService: new EntityDeduplicationService(
           entityDAO,

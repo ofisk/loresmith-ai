@@ -222,7 +222,7 @@ export class ChunkedProcessingService {
       );
       const embeddingService = new FileEmbeddingService(
         this.env.VECTORIZE,
-        this.env.AI
+        this.env.OPENAI_API_KEY || ""
       );
 
       const vectorId = await embeddingService.storeEmbeddings(

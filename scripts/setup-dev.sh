@@ -5,6 +5,9 @@
 
 set -e
 
+# Source common utilities
+source "$(dirname "$0")/common.sh"
+
 echo "🚀 Setting up LoreSmith AI Development Environment"
 echo "=================================================="
 
@@ -86,7 +89,7 @@ fi
 
 # Create Vectorize index
 print_status "Creating Vectorize index for development..."
-if wrangler vectorize create loresmith-embeddings-dev --config wrangler.dev.jsonc --dimensions=768 --metric=cosine; then
+if wrangler vectorize create loresmith-embeddings-dev --config wrangler.dev.jsonc --dimensions="$EMBEDDING_DIMENSIONS" --metric=cosine; then
     print_success "Vectorize index 'loresmith-embeddings-dev' created"
 else
     print_warning "Vectorize index might already exist or creation failed"

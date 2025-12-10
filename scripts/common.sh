@@ -12,6 +12,19 @@ export R2_BUCKET="${R2_BUCKET:-loresmith-files}"
 export VECTORIZE_INDEX="${VECTORIZE_INDEX:-loresmith-embeddings}"
 export ACCOUNT_ID="${ACCOUNT_ID:-f67932e71175b3ee7c945c6bb84c5259}"
 
+# Get embedding dimensions from OpenAIEmbeddingService
+# Falls back to 1536 if script cannot extract the value
+_get_embedding_dimensions() {
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local dimensions
+    if [ -f "$script_dir/get-embedding-dimensions.js" ]; then
+        dimensions=$(node "$script_dir/get-embedding-dimensions.js" 2>/dev/null)
+    fi
+    echo "${dimensions:-1536}"
+}
+
+export EMBEDDING_DIMENSIONS="${EMBEDDING_DIMENSIONS:-$(_get_embedding_dimensions)}"
+
 # =============================================================================
 # Utility Functions
 # =============================================================================
@@ -47,7 +60,7 @@ confirm_action() {
 
 # Clear Vectorize index and recreate
 reset_vectorize_index() {
-    local dimensions="${1:-768}"
+    local dimensions="${1:-$EMBEDDING_DIMENSIONS}"
     local metric="${2:-cosine}"
     
     echo "🧠 Clearing Vectorize embeddings..."

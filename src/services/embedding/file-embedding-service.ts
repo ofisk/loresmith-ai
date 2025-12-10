@@ -1,7 +1,11 @@
 import type { VectorizeIndex } from "@cloudflare/workers-types";
-import { VectorizeIndexRequiredError } from "@/lib/errors";
+import {
+  VectorizeIndexRequiredError,
+  OpenAIAPIKeyError,
+  EmbeddingGenerationError,
+} from "@/lib/errors";
 import { chunkTextByCharacterCount } from "@/lib/text-chunking-utils";
-import { CloudflareEmbeddingService } from "./cloudflare-embedding-service";
+import { OpenAIEmbeddingService } from "./openai-embedding-service";
 
 const EMBEDDING_CHUNK_SIZE = 3500; // Stay safely under 4000 char limit
 const BATCH_SIZE = 1000; // Process in batches to avoid timeout/memory issues
@@ -18,14 +22,10 @@ export interface EmbeddingMetadata {
  * Handles chunking, embedding generation, and batch insertion
  */
 export class FileEmbeddingService {
-  private embeddingService: CloudflareEmbeddingService;
-
   constructor(
     private vectorize: VectorizeIndex | undefined,
-    ai: any
-  ) {
-    this.embeddingService = new CloudflareEmbeddingService(ai);
-  }
+    private openaiApiKey: string
+  ) {}
 
   /**
    * Store embeddings for a text string in Vectorize
@@ -70,9 +70,8 @@ export class FileEmbeddingService {
         const chunk = textChunks[i];
         const chunkText = chunk.substring(0, EMBEDDING_CHUNK_SIZE);
 
-        // Generate embedding for this chunk
-        const embeddings =
-          await this.embeddingService.generateEmbedding(chunkText);
+        // Generate embedding for this chunk using OpenAI
+        const embeddings = await this.generateEmbedding(chunkText);
 
         // Validate embedding dimensions
         if (!Array.isArray(embeddings) || embeddings.length === 0) {
@@ -86,10 +85,10 @@ export class FileEmbeddingService {
           `[FileEmbeddingService] Generated embedding for chunk ${i + 1}/${textChunks.length} with ${embeddings.length} dimensions`
         );
 
-        // Validate embedding has correct dimensions (BGE model returns 768)
-        if (embeddings.length !== 768) {
+        // Validate embedding has correct dimensions
+        if (embeddings.length !== OpenAIEmbeddingService.EXPECTED_DIMENSIONS) {
           throw new Error(
-            `Invalid embedding dimensions: expected 768, got ${embeddings.length}`
+            `Invalid embedding dimensions: expected ${OpenAIEmbeddingService.EXPECTED_DIMENSIONS}, got ${embeddings.length}`
           );
         }
 
@@ -313,6 +312,63 @@ export class FileEmbeddingService {
       }
 
       throw error;
+    }
+  }
+
+  /**
+   * Generate embedding using OpenAI API
+   */
+  private async generateEmbedding(text: string): Promise<number[]> {
+    if (!this.openaiApiKey) {
+      throw new OpenAIAPIKeyError();
+    }
+
+    try {
+      const response = await fetch(OpenAIEmbeddingService.EMBEDDINGS_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.openaiApiKey}`,
+        },
+        body: JSON.stringify({
+          input: text,
+          model: OpenAIEmbeddingService.EMBEDDING_MODEL,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new EmbeddingGenerationError(
+          `OpenAI API error: ${response.statusText}`
+        );
+      }
+
+      const result = (await response.json()) as any;
+      const embedding = result.data[0]?.embedding;
+
+      if (!Array.isArray(embedding) || embedding.length === 0) {
+        throw new EmbeddingGenerationError("Invalid embedding response");
+      }
+
+      // Validate dimensions
+      if (embedding.length !== OpenAIEmbeddingService.EXPECTED_DIMENSIONS) {
+        throw new EmbeddingGenerationError(
+          `Invalid embedding dimensions: expected ${OpenAIEmbeddingService.EXPECTED_DIMENSIONS}, got ${embedding.length}`
+        );
+      }
+
+      return embedding;
+    } catch (error) {
+      console.error(
+        "[FileEmbeddingService] Error generating embedding:",
+        error
+      );
+      if (
+        error instanceof EmbeddingGenerationError ||
+        error instanceof OpenAIAPIKeyError
+      ) {
+        throw error;
+      }
+      throw new EmbeddingGenerationError();
     }
   }
 
