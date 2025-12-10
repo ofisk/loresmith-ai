@@ -1,13 +1,23 @@
 #!/bin/bash
 
 # Helper script to call the regenerate embeddings endpoint
-# Usage: ./scripts/regenerate-embeddings-call.sh [username] [admin_secret] [endpoint]
+# Usage: ./scripts/regenerate-embeddings-call.sh [username] [admin_secret] [production|development|endpoint_url]
 
 set -e
 
-ENDPOINT="${3:-https://loresmith-ai.oren-t-fisk.workers.dev}"
+ENVIRONMENT="${3:-production}"
 USERNAME="${1}"
 ADMIN_SECRET="${2}"
+
+# Set endpoint based on environment
+if [ "$ENVIRONMENT" == "production" ]; then
+    ENDPOINT="https://loresmith-ai.oren-t-fisk.workers.dev"
+elif [ "$ENVIRONMENT" == "development" ]; then
+    ENDPOINT="http://localhost:8787"
+else
+    # Treat as custom endpoint URL
+    ENDPOINT="$ENVIRONMENT"
+fi
 
 if [ -z "$USERNAME" ]; then
     read -p "Enter your username: " USERNAME
@@ -20,7 +30,7 @@ fi
 
 if [ -z "$USERNAME" ] || [ -z "$ADMIN_SECRET" ]; then
     echo "❌ Error: Username and admin secret are required"
-    echo "Usage: $0 [username] [admin_secret] [endpoint]"
+    echo "Usage: $0 [username] [admin_secret] [production|development|endpoint_url]"
     exit 1
 fi
 
@@ -31,23 +41,32 @@ echo "📝 Step 1: Authenticating..."
 echo ""
 
 # Authenticate
-AUTH_RESPONSE=$(curl -s -X POST "$ENDPOINT/authenticate" \
+AUTH_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$ENDPOINT/authenticate" \
   -H 'Content-Type: application/json' \
   -d "{\"username\":\"$USERNAME\",\"adminSecret\":\"$ADMIN_SECRET\"}")
 
+HTTP_CODE=$(echo "$AUTH_RESPONSE" | tail -n1)
+AUTH_BODY=$(echo "$AUTH_RESPONSE" | sed '$d')
+
+if [ "$HTTP_CODE" != "200" ]; then
+    echo "❌ Error: Authentication failed with HTTP code $HTTP_CODE"
+    echo "Response: $AUTH_BODY"
+    exit 1
+fi
+
 # Check if authentication was successful
-if echo "$AUTH_RESPONSE" | grep -q "token"; then
+if echo "$AUTH_BODY" | grep -q "token"; then
     # Extract token from response (assuming JSON format with "token" field)
-    TOKEN=$(echo "$AUTH_RESPONSE" | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+    TOKEN=$(echo "$AUTH_BODY" | grep -o '"token":"[^"]*' | cut -d'"' -f4)
     
     if [ -z "$TOKEN" ]; then
         # Try alternative JSON parsing
-        TOKEN=$(echo "$AUTH_RESPONSE" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+        TOKEN=$(echo "$AUTH_BODY" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
     fi
     
     if [ -z "$TOKEN" ]; then
         echo "❌ Error: Could not extract token from response"
-        echo "Response: $AUTH_RESPONSE"
+        echo "Response: $AUTH_BODY"
         exit 1
     fi
     
@@ -78,7 +97,7 @@ if echo "$AUTH_RESPONSE" | grep -q "token"; then
         exit 1
     fi
 else
-    echo "❌ Error: Authentication failed"
-    echo "Response: $AUTH_RESPONSE"
+    echo "❌ Error: No token found in authentication response"
+    echo "Response: $AUTH_BODY"
     exit 1
 fi
