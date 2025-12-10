@@ -96,6 +96,7 @@ import {
   handleGetDashboard,
   handleGetAlerts,
 } from "@/routes/telemetry";
+import { handleRegenerateEmbeddings } from "@/routes/admin";
 import fileAnalysisRoutes from "@/routes/file-analysis";
 import {
   handleDeleteFile,
@@ -641,6 +642,20 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.ALERTS,
     requireUserJwt,
     handleGetAlerts
+  );
+
+  // Admin utility endpoints
+  app.post(
+    API_CONFIG.ENDPOINTS.ADMIN.REGENERATE_EMBEDDINGS,
+    requireUserJwt,
+    handleRegenerateEmbeddings
+  );
+
+  // Admin utility endpoints
+  app.post(
+    API_CONFIG.ENDPOINTS.ADMIN.REGENERATE_EMBEDDINGS,
+    requireUserJwt,
+    handleRegenerateEmbeddings
   );
 
   app.get(API_CONFIG.ENDPOINTS.LIBRARY.FILES, requireUserJwt, handleGetFiles);
