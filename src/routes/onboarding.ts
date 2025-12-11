@@ -36,29 +36,29 @@ export async function handleGetWelcomeGuidance(c: ContextWithAuth) {
       "Here are some personalized recommendations for your campaign development:\n\n";
 
     if (campaigns.length === 0) {
-      guidanceMessage += "Start Your First Campaign\n";
+      guidanceMessage += "Start your first campaign\n";
       guidanceMessage +=
         "You don't have any campaigns yet. Create one to begin organizing your story ideas!\n\n";
-      guidanceMessage += "Build Your Resource Library\n";
+      guidanceMessage += "Build your resource library\n";
       guidanceMessage +=
         "Upload PDFs, images, or documents to expand your inspiration library.\n\n";
     } else {
-      guidanceMessage += `Campaign Status\n`;
+      guidanceMessage += `Campaign status\n`;
       guidanceMessage += `You have ${campaigns.length} campaign${campaigns.length !== 1 ? "s" : ""} and ${files.length} resources.\n\n`;
 
       if (recentCampaigns.length > 0) {
-        guidanceMessage += `Recent Activity\n`;
+        guidanceMessage += `Recent activity\n`;
         guidanceMessage += `You've created ${recentCampaigns.length} campaign${recentCampaigns.length !== 1 ? "s" : ""} in the last week - great momentum!\n\n`;
       }
 
-      guidanceMessage += `Session Planning\n`;
+      guidanceMessage += `Session planning\n`;
       guidanceMessage += `Ready to plan your next session? I can help you create engaging encounters and story hooks.\n\n`;
     }
 
-    guidanceMessage += `Recommended Resources\n`;
+    guidanceMessage += `Recommended resources\n`;
     guidanceMessage += `Check out online marketplaces and resources for campaign inspiration and tools.\n\n`;
 
-    guidanceMessage += `Need More Help?\n`;
+    guidanceMessage += `Need more help?\n`;
     guidanceMessage += `Chat with me anytime to brainstorm ideas, plan sessions, or get specific guidance!`;
 
     const guidance = {
@@ -66,21 +66,21 @@ export async function handleGetWelcomeGuidance(c: ContextWithAuth) {
       actions: [
         {
           action: "upload_resource",
-          title: "Upload Campaign Resources",
+          title: "Upload campaign resources",
           description:
             "Add PDFs, images, or documents to expand your campaign library",
           relevance: "high" as const,
         },
         {
           action: "create_campaign",
-          title: "Create New Campaign",
+          title: "Create new campaign",
           description: "Start organizing your ideas into a structured campaign",
           relevance:
             campaigns.length === 0 ? ("high" as const) : ("medium" as const),
         },
         {
           action: "start_chat",
-          title: "Plan Your Next Session",
+          title: "Plan your next session",
           description: "Chat with me to brainstorm ideas and plan adventures",
           relevance:
             campaigns.length > 0 ? ("high" as const) : ("medium" as const),
@@ -98,30 +98,30 @@ export async function handleGetWelcomeGuidance(c: ContextWithAuth) {
       message:
         "Welcome to LoreSmith campaign planner!\n\n" +
         "Choose your path to begin your campaign journey:\n\n" +
-        "Build Your Campaign Library\n" +
+        "Build your campaign library\n" +
         "Upload adventure modules, homebrew content, maps, and reference materials. LoreSmith transforms your PDFs and documents into an intelligent, searchable knowledge base that helps you find exactly what you need when planning sessions.\n\n" +
-        "Organize Your Story\n" +
+        "Organize your story\n" +
         "Create campaigns to organize your narrative, track NPCs, manage plot hooks, and build your world. Keep all your campaign context in one place and accessible at a moment's notice.\n\n" +
-        "Start Brainstorming\n" +
+        "Start brainstorming\n" +
         "Not sure where to begin? Chat with me! I can help you develop campaign ideas, create compelling NPCs, design encounters, plan sessions, and answer questions about game mechanics. Think of me as your always-available co-GM.\n\n" +
         "Ready to dive in? Pick an option below to get started:",
       actions: [
         {
           action: "upload_resource",
-          title: "Upload Campaign Resources",
+          title: "Upload campaign resources",
           description:
             "Add PDFs, images, or documents to expand your campaign library",
           relevance: "high" as const,
         },
         {
           action: "create_campaign",
-          title: "Create Your First Campaign",
+          title: "Create your first campaign",
           description: "Start organizing your ideas into a structured campaign",
           relevance: "high" as const,
         },
         {
           action: "start_chat",
-          title: "Start Planning",
+          title: "Start planning",
           description: "Chat with me to brainstorm ideas and plan adventures",
           relevance: "medium" as const,
         },
@@ -139,13 +139,13 @@ export async function handleGetNextActions(c: ContextWithAuth) {
     const nextActions = [
       {
         action: "create_campaign",
-        title: "Create Your First Campaign",
+        title: "Create your first campaign",
         description: "Start by creating a campaign to organize your materials",
         priority: "high",
       },
       {
         action: "upload_materials",
-        title: "Upload Campaign Materials",
+        title: "Upload campaign materials",
         description: "Add PDFs, images, or other resources to your campaign",
         priority: "medium",
       },

@@ -25,7 +25,7 @@ export const ShardHeader: React.FC<ShardHeaderProps> = ({
     <div className="flex justify-between items-center">
       <div>
         <h3 className="text-lg font-semibold text-white dark:text-white">
-          Shard Management -{" "}
+          Shard management -{" "}
           {action.replace("show_", "").replace("_", " ").toUpperCase()}
         </h3>
         <p className="text-sm text-neutral-300 dark:text-neutral-300">
@@ -43,7 +43,7 @@ export const ShardHeader: React.FC<ShardHeaderProps> = ({
             onChange={(e) => onSelectAll(e.target.checked)}
             className="rounded border-neutral-600 dark:border-neutral-500 bg-neutral-700 dark:bg-neutral-700 text-white"
           />
-          <span>Select All</span>
+          <span>Select all</span>
         </label>
       </div>
     </div>
