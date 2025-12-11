@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -184,6 +184,7 @@ export function FlexibleShardCard({
   };
 
   const handleTitleSave = () => {
+    isEditingTitleRef.current = false;
     if (onEdit) {
       // Try to update the most likely title field
       const titleField = ["name", "title", "label"].find(
@@ -196,10 +197,26 @@ export function FlexibleShardCard({
   };
 
   const handleTitleCancel = () => {
+    isEditingTitleRef.current = false;
     setTitleValue(getShardTitle());
   };
 
+  const handleTitleFocus = () => {
+    isEditingTitleRef.current = true;
+  };
+
+  const handleTitleBlur = (e: React.FocusEvent) => {
+    // Don't save if clicking on save/cancel buttons
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (titleButtonsRef.current?.contains(relatedTarget)) {
+      return;
+    }
+    // On blur, cancel any unsaved changes to prevent state corruption
+    handleTitleCancel();
+  };
+
   const handleDescriptionSave = () => {
+    isEditingDescriptionRef.current = false;
     if (onEdit) {
       // Try to update the most likely description field
       const descField = ["description", "text", "summary"].find(
@@ -212,7 +229,22 @@ export function FlexibleShardCard({
   };
 
   const handleDescriptionCancel = () => {
+    isEditingDescriptionRef.current = false;
     setDescriptionValue(getShardDescription() || "");
+  };
+
+  const handleDescriptionFocus = () => {
+    isEditingDescriptionRef.current = true;
+  };
+
+  const handleDescriptionBlur = (e: React.FocusEvent) => {
+    // Don't save if clicking on save/cancel buttons
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (descriptionButtonsRef.current?.contains(relatedTarget)) {
+      return;
+    }
+    // On blur, cancel any unsaved changes to prevent state corruption
+    handleDescriptionCancel();
   };
 
   const getShardTitle = () => {
@@ -244,6 +276,22 @@ export function FlexibleShardCard({
   const [descriptionValue, setDescriptionValue] = useState(
     getShardDescription() || ""
   );
+  const descriptionButtonsRef = useRef<HTMLDivElement>(null);
+  const isEditingDescriptionRef = useRef(false);
+  const titleButtonsRef = useRef<HTMLDivElement>(null);
+  const isEditingTitleRef = useRef(false);
+
+  // Sync title and description values when shard changes externally (but not while editing)
+  useEffect(() => {
+    if (!isEditingTitleRef.current) {
+      setTitleValue(getShardTitle());
+    }
+    if (!isEditingDescriptionRef.current) {
+      const newDescription = getShardDescription();
+      setDescriptionValue(newDescription || "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shard]);
 
   const getQuickProperties = () => {
     // Get 2-3 key properties to show in the collapsed view
@@ -283,7 +331,8 @@ export function FlexibleShardCard({
                 <input
                   value={titleValue}
                   onChange={(e) => setTitleValue(e.target.value)}
-                  onBlur={handleTitleSave}
+                  onFocus={handleTitleFocus}
+                  onBlur={handleTitleBlur}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       handleTitleSave();
@@ -293,22 +342,30 @@ export function FlexibleShardCard({
                   }}
                   className="font-semibold text-lg text-white bg-transparent border-b border-gray-600 focus:border-purple-500 focus:outline-none flex-1"
                 />
-                <button
-                  type="button"
-                  onClick={handleTitleSave}
-                  className="text-green-400 hover:text-green-300 transition-colors"
-                  title="Save changes"
-                >
-                  <Check size={14} />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleTitleCancel}
-                  className="text-red-400 hover:text-red-300 transition-colors"
-                  title="Cancel changes"
-                >
-                  <X size={14} />
-                </button>
+                <div ref={titleButtonsRef}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault(); // Prevent blur from firing
+                      handleTitleSave();
+                    }}
+                    className="text-green-400 hover:text-green-300 transition-colors"
+                    title="Save changes"
+                  >
+                    <Check size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault(); // Prevent blur from firing
+                      handleTitleCancel();
+                    }}
+                    className="text-red-400 hover:text-red-300 transition-colors"
+                    title="Cancel changes"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-300">
                 <span className="capitalize">{displayName}</span>
@@ -387,7 +444,8 @@ export function FlexibleShardCard({
                   id={`shard-description-${shard.id}`}
                   value={descriptionValue}
                   onChange={(e) => setDescriptionValue(e.target.value)}
-                  onBlur={handleDescriptionSave}
+                  onFocus={handleDescriptionFocus}
+                  onBlur={handleDescriptionBlur}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && e.ctrlKey) {
                       handleDescriptionSave();
@@ -398,10 +456,16 @@ export function FlexibleShardCard({
                   className="w-full px-3 py-2 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
                   rows={4}
                 />
-                <div className="flex items-center gap-2 mt-2">
+                <div
+                  ref={descriptionButtonsRef}
+                  className="flex items-center gap-2 mt-2"
+                >
                   <button
                     type="button"
-                    onClick={handleDescriptionSave}
+                    onMouseDown={(e) => {
+                      e.preventDefault(); // Prevent blur from firing
+                      handleDescriptionSave();
+                    }}
                     className="text-green-400 hover:text-green-300 transition-colors"
                     title="Save changes"
                   >
@@ -409,7 +473,10 @@ export function FlexibleShardCard({
                   </button>
                   <button
                     type="button"
-                    onClick={handleDescriptionCancel}
+                    onMouseDown={(e) => {
+                      e.preventDefault(); // Prevent blur from firing
+                      handleDescriptionCancel();
+                    }}
                     className="text-red-400 hover:text-red-300 transition-colors"
                     title="Cancel changes"
                   >
