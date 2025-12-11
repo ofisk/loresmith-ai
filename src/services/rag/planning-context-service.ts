@@ -378,6 +378,26 @@ export class PlanningContextService extends BaseRAGService {
 
   /**
    * Find entities matching query using semantic similarity (primary) and keyword matching (fallback)
+   * Returns entity IDs that match the query
+   */
+  async findMatchingEntityIds(
+    campaignId: string,
+    query: string,
+    queryEmbedding: number[],
+    maxEntities: number = 20
+  ): Promise<string[]> {
+    const contexts = await this.findEntityGraphContext(
+      campaignId,
+      query,
+      queryEmbedding,
+      maxEntities,
+      0 // Don't need neighbors for just getting entity IDs
+    );
+    return contexts.map((ctx) => ctx.entityId);
+  }
+
+  /**
+   * Find entities matching query using semantic similarity (primary) and keyword matching (fallback)
    */
   private async findEntityGraphContext(
     campaignId: string,

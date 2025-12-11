@@ -5,6 +5,8 @@ import { EntityImportanceService } from "@/services/graph/entity-importance-serv
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { RebuildQueueService } from "@/services/graph/rebuild-queue-service";
 import { type ContextWithAuth, verifyCampaignAccess } from "@/lib/route-utils";
+import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
+import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
 
 interface PendingRelation {
   relationshipType: string;
@@ -308,6 +310,10 @@ export async function handleApproveShards(c: ContextWithAuth) {
 
     const daoFactory = getDAOFactory(c.env);
     const graphService = new EntityGraphService(daoFactory.entityDAO);
+    const embeddingService = new EntityEmbeddingService(c.env.VECTORIZE);
+    const openaiEmbeddingService = new OpenAIEmbeddingService(
+      c.env.OPENAI_API_KEY as string | undefined
+    );
 
     // Diagnostic: List all entities in campaign to help debug relationship target ID mismatches
     const allCampaignEntities =
@@ -347,6 +353,69 @@ export async function handleApproveShards(c: ContextWithAuth) {
       await daoFactory.entityDAO.updateEntity(entityId, {
         metadata: updatedMetadata,
       });
+
+      // Ensure entity embedding is indexed in Vectorize for searchability
+      try {
+        // Check if embedding already exists in Vectorize by trying to find similar entities
+        // This will return empty if the embedding doesn't exist
+        let hasEmbedding = false;
+        if (c.env.VECTORIZE) {
+          const existingVectors = await c.env.VECTORIZE.getByIds([entityId]);
+          hasEmbedding = existingVectors && existingVectors.length > 0;
+        }
+
+        if (!hasEmbedding) {
+          // Generate and index embedding for this entity
+          // Use the same text generation logic as EntityExtractionPipeline
+          const contentText =
+            typeof entity.content === "string"
+              ? entity.content
+              : JSON.stringify(entity.content || {});
+          const entityText = contentText;
+
+          console.log(
+            `[Server] Creating embedding for approved entity: ${entityId} (${entity.name})`
+          );
+
+          const embedding =
+            await openaiEmbeddingService.generateEmbedding(entityText);
+          await embeddingService.upsertEmbedding({
+            entityId: entity.id,
+            campaignId: entity.campaignId,
+            entityType: entity.entityType,
+            embedding,
+            metadata: updatedMetadata,
+          });
+
+          console.log(
+            `[Server] Successfully indexed embedding for entity: ${entityId}`
+          );
+        } else {
+          // Update existing embedding metadata to reflect approval status
+          if (c.env.VECTORIZE) {
+            const existingVectors = await c.env.VECTORIZE.getByIds([entityId]);
+            const existingEmbedding = existingVectors?.[0];
+            if (existingEmbedding?.values) {
+              await embeddingService.upsertEmbedding({
+                entityId: entity.id,
+                campaignId: entity.campaignId,
+                entityType: entity.entityType,
+                embedding: Array.from(existingEmbedding.values),
+                metadata: updatedMetadata,
+              });
+              console.log(
+                `[Server] Updated embedding metadata for entity: ${entityId}`
+              );
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(
+          `[Server] Failed to index embedding for entity ${entityId}:`,
+          error
+        );
+        // Continue with approval even if embedding fails
+      }
 
       approvedCount++;
 

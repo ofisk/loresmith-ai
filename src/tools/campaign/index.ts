@@ -18,6 +18,7 @@ import {
   captureConversationalContext,
   saveContextExplicitly,
 } from "../campaign-context/context-capture-tools";
+import { searchCampaignContext } from "../campaign-context/search-tools";
 import {
   recordWorldEventTool,
   updateEntityWorldStateTool,
@@ -51,6 +52,7 @@ export {
   // Campaign context capture tools
   captureConversationalContext,
   saveContextExplicitly,
+  searchCampaignContext,
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
@@ -76,6 +78,7 @@ export const campaignTools = {
   resolveCampaignIdentifier,
   captureConversationalContext,
   saveContextExplicitly,
+  searchCampaignContext,
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,

@@ -169,7 +169,7 @@ export const searchCampaignContext = tool({
           try {
             let entities: Awaited<
               ReturnType<typeof daoFactory.entityDAO.listEntitiesByCampaign>
-            >;
+            > = [];
 
             if (searchType === "characters") {
               entities = await daoFactory.entityDAO.listEntitiesByCampaign(
@@ -189,6 +189,7 @@ export const searchCampaignContext = tool({
               );
             } else {
               // For "all", try semantic entity search if available
+              // If that fails, use the same entity finding logic as PlanningContextService
               try {
                 if (planningService && env.VECTORIZE) {
                   // Use PlanningContextService to generate embeddings
@@ -212,14 +213,21 @@ export const searchCampaignContext = tool({
 
                     // Get full entity details for semantic matches
                     const entityIds = similarEntities.map((e) => e.entityId);
-                    const allEntities =
-                      await daoFactory.entityDAO.listEntitiesByCampaign(
-                        campaignId,
-                        { limit: 100 }
+                    if (entityIds.length > 0) {
+                      const allEntities =
+                        await daoFactory.entityDAO.listEntitiesByCampaign(
+                          campaignId,
+                          { limit: 100 }
+                        );
+                      entities = allEntities.filter((e) =>
+                        entityIds.includes(e.id)
                       );
-                    entities = allEntities.filter((e) =>
-                      entityIds.includes(e.id)
-                    );
+                      console.log(
+                        `[Tool] searchCampaignContext - Semantic search found ${entities.length} entities via embeddings`
+                      );
+                    } else {
+                      throw new Error("No semantic matches found");
+                    }
                   } else {
                     throw new Error("Failed to generate embedding");
                   }
@@ -227,17 +235,77 @@ export const searchCampaignContext = tool({
                   // Fallback to keyword-based entity search
                   throw new Error("PlanningService or VECTORIZE not available");
                 }
-              } catch {
-                // Fallback to keyword-based entity search
-                const keywordNames = query
-                  .split(/\s+/)
-                  .filter((w) => w.length > 2)
-                  .slice(0, 5);
-                entities = await daoFactory.entityDAO.searchEntitiesByName(
-                  campaignId,
-                  keywordNames,
-                  { limit: 20 }
+              } catch (searchError) {
+                console.log(
+                  `[Tool] searchCampaignContext - Semantic entity search failed, falling back to keyword search:`,
+                  searchError instanceof Error
+                    ? searchError.message
+                    : String(searchError)
                 );
+
+                // Use PlanningContextService's entity finding logic which includes LLM extraction
+                try {
+                  if (planningService) {
+                    const queryEmbeddings =
+                      await planningService.generateEmbeddings([query]);
+                    const queryEmbedding = queryEmbeddings[0];
+
+                    if (queryEmbedding) {
+                      // Use PlanningContextService's findMatchingEntityIds which uses the same
+                      const entityIds =
+                        await planningService.findMatchingEntityIds(
+                          campaignId,
+                          query,
+                          queryEmbedding,
+                          20
+                        );
+
+                      if (entityIds.length > 0) {
+                        // Get full entity details for matching entity IDs
+                        const allEntities =
+                          await daoFactory.entityDAO.listEntitiesByCampaign(
+                            campaignId,
+                            { limit: 100 }
+                          );
+                        entities = allEntities.filter((e) =>
+                          entityIds.includes(e.id)
+                        );
+                        console.log(
+                          `[Tool] searchCampaignContext - Found ${entities.length} entities via PlanningContextService entity finding (entity IDs: ${entityIds.join(", ")})`
+                        );
+                      }
+                    }
+                  }
+                } catch (planningError) {
+                  console.warn(
+                    "[Tool] searchCampaignContext - PlanningContextService entity finding failed:",
+                    planningError
+                  );
+                }
+
+                // If still no entities, fall back to simple keyword search
+                if (!entities || entities.length === 0) {
+                  // Extract meaningful keywords - include the full query as a keyword too
+                  const words = query.split(/\s+/).filter((w) => w.length > 2);
+                  const keywordNames = [
+                    query.toLowerCase(), // Try full query as one keyword
+                    ...words.map((w) => w.toLowerCase()),
+                  ].slice(0, 10);
+
+                  console.log(
+                    `[Tool] searchCampaignContext - Searching entities with keywords: ${keywordNames.join(", ")}`
+                  );
+
+                  entities = await daoFactory.entityDAO.searchEntitiesByName(
+                    campaignId,
+                    keywordNames,
+                    { limit: 20 }
+                  );
+
+                  console.log(
+                    `[Tool] searchCampaignContext - Keyword search returned ${entities.length} entities before filtering`
+                  );
+                }
               }
             }
 
