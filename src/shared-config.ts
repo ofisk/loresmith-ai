@@ -172,6 +172,10 @@ export const API_CONFIG = {
           `/campaigns/${campaignId}/world-state/changelog`,
         OVERLAY: (campaignId: string) =>
           `/campaigns/${campaignId}/world-state/overlay`,
+        HISTORICAL_QUERY: (campaignId: string) =>
+          `/campaigns/${campaignId}/world-state/historical/query`,
+        HISTORICAL_OVERLAY: (campaignId: string) =>
+          `/campaigns/${campaignId}/world-state/historical/overlay`,
       },
       SESSION_DIGESTS: {
         BASE: (campaignId: string) =>

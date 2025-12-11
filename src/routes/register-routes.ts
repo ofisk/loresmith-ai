@@ -65,6 +65,8 @@ import {
   handleCreateWorldStateChangelog,
   handleGetWorldStateOverlay,
   handleListWorldStateChangelog,
+  handleQueryHistoricalState,
+  handleGetHistoricalOverlay,
 } from "@/routes/world-state";
 import {
   handleCreateSessionDigest,
@@ -280,6 +282,18 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.OVERLAY(":campaignId"),
     requireUserJwt,
     handleGetWorldStateOverlay
+  );
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.HISTORICAL_QUERY(":campaignId"),
+    requireUserJwt,
+    handleQueryHistoricalState
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.HISTORICAL_OVERLAY(
+      ":campaignId"
+    ),
+    requireUserJwt,
+    handleGetHistoricalOverlay
   );
 
   app.post(

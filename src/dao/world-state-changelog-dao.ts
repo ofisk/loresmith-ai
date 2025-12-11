@@ -133,6 +133,21 @@ export class WorldStateChangelogDAO extends BaseDAOClass {
     return records.map((record) => record.campaign_id);
   }
 
+  /**
+   * Delete changelog entries by IDs (used after archival)
+   */
+  async deleteEntries(ids: string[]): Promise<void> {
+    if (!ids.length) return;
+
+    const placeholders = ids.map(() => "?").join(", ");
+    const sql = `
+      DELETE FROM world_state_changelog
+      WHERE id IN (${placeholders})
+    `;
+
+    await this.execute(sql, ids);
+  }
+
   private mapRecord(
     record: WorldStateChangelogRecord
   ): WorldStateChangelogEntry {
