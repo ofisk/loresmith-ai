@@ -28,9 +28,19 @@ export function PropertyField({
   const [newArrayItem, setNewArrayItem] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isEditingRef = useRef(false);
+  const buttonRef = useRef<HTMLDivElement>(null);
+
+  // Sync editValue with value prop when it changes externally, but only if not currently editing
+  useEffect(() => {
+    if (!isEditingRef.current) {
+      setEditValue(value);
+    }
+  }, [value]);
 
   useEffect(() => {
     if (isFieldEditable) {
+      isEditingRef.current = true; // Mark as editing when field becomes editable
       if (inputRef.current) {
         inputRef.current.focus();
         inputRef.current.select();
@@ -38,17 +48,35 @@ export function PropertyField({
         textareaRef.current.focus();
         textareaRef.current.select();
       }
+    } else {
+      isEditingRef.current = false; // Not editing when field is not editable
     }
   }, [isFieldEditable]);
 
   const handleSave = () => {
+    isEditingRef.current = false;
     if (onChange) {
       onChange(name, editValue);
     }
   };
 
   const handleCancel = () => {
+    isEditingRef.current = false;
     setEditValue(value as unknown);
+  };
+
+  const handleFocus = () => {
+    isEditingRef.current = true;
+  };
+
+  const handleBlur = (e: React.FocusEvent) => {
+    // Don't cancel if clicking on save/cancel buttons
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (buttonRef.current?.contains(relatedTarget)) {
+      return;
+    }
+    // On blur, cancel any unsaved changes to prevent state corruption
+    handleCancel();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -117,6 +145,8 @@ export function PropertyField({
                   : Number(editValue) || 0
               }
               onChange={(e) => setEditValue(Number(e.target.value))}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               onKeyDown={handleKeyDown}
               id={fieldId}
               className="w-full px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
@@ -203,6 +233,8 @@ export function PropertyField({
                   // Invalid JSON, keep the text for user to fix
                 }
               }}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               onKeyDown={handleKeyDown}
               id={fieldId}
               className="w-full px-2 py-1 border border-gray-600 rounded text-sm font-mono bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
@@ -221,6 +253,8 @@ export function PropertyField({
                   : String(editValue || "")
               }
               onChange={(e) => setEditValue(e.target.value)}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               onKeyDown={handleKeyDown}
               id={fieldId}
               className="w-full px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
@@ -259,10 +293,13 @@ export function PropertyField({
       </div>
 
       {isFieldEditable && (
-        <div className="flex gap-1 mt-1">
+        <div ref={buttonRef} className="flex gap-1 mt-1">
           <button
             type="button"
-            onClick={handleSave}
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent blur from firing
+              handleSave();
+            }}
             className="text-green-400 hover:text-green-300 transition-colors"
             title="Save changes"
           >
@@ -270,7 +307,10 @@ export function PropertyField({
           </button>
           <button
             type="button"
-            onClick={handleCancel}
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent blur from firing
+              handleCancel();
+            }}
             className="text-red-400 hover:text-red-300 transition-colors"
             title="Cancel changes"
           >

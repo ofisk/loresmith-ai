@@ -162,12 +162,14 @@ export const extractEntitiesFromContentTool = tool({
       const extractionService = new EntityExtractionService(env);
       const embeddingService = new EntityEmbeddingService(env.VECTORIZE);
       const graphService = new EntityGraphService(daoFactory.entityDAO);
+      const openaiApiKey = env?.OPENAI_API_KEY as string | undefined;
       const pipeline = new EntityExtractionPipeline(
         daoFactory.entityDAO,
         extractionService,
         embeddingService,
         graphService,
-        env
+        env,
+        openaiApiKey
       );
 
       // Extract and persist entities using the pipeline

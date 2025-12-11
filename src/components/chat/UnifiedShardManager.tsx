@@ -107,6 +107,7 @@ export const UnifiedShardManager: React.FC<UnifiedShardManagerProps> = ({
 
           <ShardManagementUI
             campaignId={campaignId}
+            campaignName={campaignData.campaignName}
             shards={campaignData.shards}
             action="show_staged"
             onShardsUpdated={onRefresh ? async () => onRefresh() : undefined}

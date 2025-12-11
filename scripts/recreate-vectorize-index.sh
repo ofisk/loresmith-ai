@@ -1,5 +1,5 @@
 #!/bin/bash
-# Recreate Vectorize index with correct dimensions (768 for BGE model)
+# Recreate Vectorize index with correct dimensions (from OpenAIEmbeddingService.EXPECTED_DIMENSIONS)
 
 source "$(dirname "$0")/common.sh"
 
@@ -18,7 +18,7 @@ else
 fi
 
 echo ""
-echo "⚠️  This will DELETE and recreate the Vectorize index with 768 dimensions."
+echo "⚠️  This will DELETE and recreate the Vectorize index with $EMBEDDING_DIMENSIONS dimensions."
 echo "    All existing embeddings will be lost!"
 echo ""
 read -p "Are you sure? Type 'yes' to continue: " confirm
@@ -28,10 +28,10 @@ if [ "$confirm" != "yes" ]; then
 fi
 
 echo ""
-reset_vectorize_index 768 cosine
+reset_vectorize_index
 
 echo ""
 echo "✅ Vectorize index recreated successfully!"
-echo "   Dimensions: 768"
+echo "   Dimensions: $EMBEDDING_DIMENSIONS"
 echo "   Metric: cosine"
 echo ""

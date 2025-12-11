@@ -28,7 +28,10 @@ export class LibraryRAGService extends BaseRAGService {
   constructor(env: Env) {
     super(env.DB, env.VECTORIZE, env.OPENAI_API_KEY || "", env);
     this.extractionService = new FileExtractionService();
-    this.embeddingService = new FileEmbeddingService(env.VECTORIZE, env.AI);
+    this.embeddingService = new FileEmbeddingService(
+      env.VECTORIZE,
+      env.OPENAI_API_KEY || ""
+    );
     this.metadataService = new LibraryMetadataService(env);
     this.queueUtils = new FileQueueUtils();
     this.searchService = new LibrarySearchService(env);

@@ -20,6 +20,7 @@ import { FlexibleShardCard } from "./FlexibleShardCard";
 interface ShardGridProps {
   shards: Shard[];
   campaignId: string;
+  campaignName?: string;
   resourceName?: string;
   onShardEdit?: (shardId: string, updates: Partial<Shard>) => void;
   onShardDelete?: (shardId: string) => void;
@@ -38,6 +39,7 @@ interface FilterState {
 export function ShardGrid({
   shards,
   campaignId,
+  campaignName,
   resourceName,
   onShardEdit,
   onShardDelete,
@@ -170,7 +172,8 @@ export function ShardGrid({
               Shard Management - STAGED
             </h2>
             <p className="text-sm text-gray-300 mt-1">
-              Found {filteredShards.length} shards for campaign {campaignId}
+              Found {filteredShards.length} shards for campaign{" "}
+              {campaignName || campaignId}
               {resourceName && ` • Resource: ${resourceName}`}
             </p>
           </div>

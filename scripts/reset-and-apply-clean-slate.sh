@@ -63,7 +63,7 @@ if [ "$ENVIRONMENT" == "production" ]; then
     fi
     
     echo ""
-    reset_vectorize_index 768 cosine
+    reset_vectorize_index
 fi
 
 # Step 4: Verify tables were created

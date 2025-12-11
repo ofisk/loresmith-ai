@@ -2,7 +2,8 @@ import type { EntityDAO, Entity, EntityRelationship } from "@/dao/entity-dao";
 import type { EntityGraphService } from "@/services/graph/entity-graph-service";
 import type { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import type { EntityExtractionService } from "./entity-extraction-service";
-import { AIBindingError } from "@/lib/errors";
+import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
+import { OpenAIAPIKeyError, EmbeddingGenerationError } from "@/lib/errors";
 
 export interface EntityExtractionPipelineOptions {
   campaignId: string;
@@ -20,16 +21,19 @@ export interface EntityExtractionPipelineResult {
 }
 
 export class EntityExtractionPipeline {
-  private static readonly EMBEDDING_MODEL = "@cf/baai/bge-base-en-v1.5";
-  private static readonly EMBEDDING_TEXT_LIMIT = 4000;
+  private readonly openaiEmbeddingService: OpenAIEmbeddingService;
 
   constructor(
     private readonly entityDAO: EntityDAO,
     private readonly extractionService: EntityExtractionService,
     private readonly embeddingService: EntityEmbeddingService,
     private readonly graphService: EntityGraphService,
-    private readonly env: any
-  ) {}
+    private readonly env: any,
+    private readonly openaiApiKey?: string
+  ) {
+    const apiKey = this.openaiApiKey || this.env?.OPENAI_API_KEY;
+    this.openaiEmbeddingService = new OpenAIEmbeddingService(apiKey);
+  }
 
   async run(
     options: EntityExtractionPipelineOptions
@@ -209,84 +213,33 @@ export class EntityExtractionPipeline {
   }
 
   private async generateEmbedding(text: string): Promise<number[]> {
-    if (!this.env?.AI) {
-      throw new AIBindingError();
-    }
-
     try {
-      const embeddingResponse = await this.env.AI.run(
-        EntityExtractionPipeline.EMBEDDING_MODEL,
-        {
-          // CF Worker AI models accept limited prompt length; truncate to stay inside bounds
-          text: text.substring(
-            0,
-            EntityExtractionPipeline.EMBEDDING_TEXT_LIMIT
-          ),
-        }
-      );
-
-      if (Array.isArray(embeddingResponse)) {
-        return embeddingResponse;
-      }
-
-      if (
-        embeddingResponse &&
-        typeof embeddingResponse === "object" &&
-        "data" in embeddingResponse
-      ) {
-        const data = (embeddingResponse as any).data;
-        // BGE model returns data as number[][] - array of embedding arrays
-        // For single text input, extract the first embedding array
-        if (Array.isArray(data) && data.length > 0) {
-          const firstEmbedding = data[0];
-          if (Array.isArray(firstEmbedding)) {
-            return firstEmbedding;
-          }
-          // Fallback: if data is already a 1D array, use it directly
-          if (typeof firstEmbedding === "number") {
-            return data;
-          }
-        }
-      }
-
-      if (
-        embeddingResponse &&
-        typeof embeddingResponse === "object" &&
-        "response" in embeddingResponse
-      ) {
-        const response = (embeddingResponse as any).response;
-        if (typeof response === "string") {
-          const parsed = JSON.parse(response);
-          if (Array.isArray(parsed)) {
-            return parsed;
-          }
-        }
-      }
-
-      if (typeof embeddingResponse === "string") {
-        const parsed = JSON.parse(embeddingResponse);
-        if (Array.isArray(parsed)) {
-          return parsed;
-        }
-      }
+      return await this.openaiEmbeddingService.generateEmbedding(text);
     } catch (error) {
       console.warn(
         "[EntityExtractionPipeline] Failed to generate embedding, using fallback",
         error
       );
+      if (
+        error instanceof EmbeddingGenerationError ||
+        error instanceof OpenAIAPIKeyError
+      ) {
+        throw error;
+      }
+      // If error is not an expected error type, fall back to deterministic embedding
+      return this.generateFallbackEmbedding(text);
     }
-
-    return this.generateFallbackEmbedding(text);
   }
 
   private generateFallbackEmbedding(text: string): number[] {
-    // Fallback approximation: produce a deterministic 768-dim vector (matching BGE model @cf/baai/bge-base-en-v1.5)
+    // Fallback approximation: produce a deterministic vector (matching OpenAI text-embedding-3-small)
     // by hashing character codes into buckets. Ensures dedupe flow still has a vector even if model request fails.
     const normalized = text.toLowerCase();
-    const vector = new Array(768).fill(0);
+    const dimensions = OpenAIEmbeddingService.EXPECTED_DIMENSIONS;
+    const vector = new Array(dimensions).fill(0);
     for (let i = 0; i < normalized.length; i++) {
       const charCode = normalized.charCodeAt(i);
-      vector[i % 768] += charCode / 255;
+      vector[i % dimensions] += charCode / 255;
     }
     return vector;
   }
