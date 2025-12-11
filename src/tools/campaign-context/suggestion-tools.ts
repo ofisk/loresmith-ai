@@ -8,6 +8,9 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
 } from "../utils";
+import { getAssessmentService } from "../../lib/service-factory";
+import { CharacterEntitySyncService } from "../../services/campaign/character-entity-sync-service";
+import type { Env } from "../../middleware/auth";
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {
@@ -241,31 +244,46 @@ export const assessCampaignReadiness = tool({
           );
         }
 
-        // Get campaign data for assessment
-        const characters = await env.DB.prepare(
-          "SELECT * FROM campaign_characters WHERE campaign_id = ?"
-        )
-          .bind(campaignId)
-          .all();
+        // Sync character_backstory entries to entities before assessment
+        try {
+          const syncService = new CharacterEntitySyncService(env as Env);
+          await syncService.syncAllCharacterBackstories(campaignId);
+          console.log("[Tool] Synced character_backstory entries to entities");
+        } catch (syncError) {
+          console.error(
+            "[Tool] Failed to sync character_backstory entries:",
+            syncError
+          );
+          // Don't fail assessment if sync fails
+        }
 
-        const resources = await env.DB.prepare(
-          "SELECT * FROM campaign_resources WHERE campaign_id = ?"
-        )
-          .bind(campaignId)
-          .all();
+        // Use AssessmentService to get all characters (includes campaign_characters, entities, and character_backstory)
+        const assessmentService = getAssessmentService(env as Env);
+        const allCharacters =
+          await assessmentService.getCampaignCharacters(campaignId);
+        const allContext =
+          await assessmentService.getCampaignContext(campaignId);
+        const allResources =
+          await assessmentService.getCampaignResources(campaignId);
 
-        const context = await env.DB.prepare(
-          "SELECT * FROM campaign_context WHERE campaign_id = ?"
-        )
-          .bind(campaignId)
-          .all();
+        console.log("[Tool] Character counts:", {
+          totalCharacters: allCharacters.length,
+          campaignCharacters: allCharacters.filter(
+            (c: any) => c.id && !c.entity_type && !c.context_type
+          ).length,
+          entityCharacters: allCharacters.filter((c: any) => c.entity_type)
+            .length,
+          contextCharacters: allCharacters.filter(
+            (c: any) => c.context_type === "character_backstory"
+          ).length,
+        });
 
         // Perform assessment
         const assessment = performReadinessAssessment(
           assessmentType,
-          characters.results || [],
-          resources.results || [],
-          context.results || []
+          allCharacters,
+          allResources,
+          allContext
         );
 
         console.log("[Tool] Assessment completed:", assessment.score);

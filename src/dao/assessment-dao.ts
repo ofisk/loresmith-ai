@@ -145,6 +145,17 @@ export class AssessmentDAO {
     const entityChars = (entitiesResult.results || []) as any[];
     const contextChars = (contextCharsResult.results || []) as any[];
 
+    console.log("[AssessmentDAO] getCampaignCharacters breakdown:", {
+      campaignId,
+      campaignCharactersCount: campaignChars.length,
+      entityCharactersCount: entityChars.length,
+      contextCharactersCount: contextChars.length,
+      totalCount:
+        campaignChars.length + entityChars.length + contextChars.length,
+      entityTypes: entityChars.map((e: any) => e.entity_type),
+      contextTitles: contextChars.map((c: any) => c.title),
+    });
+
     return [...campaignChars, ...entityChars, ...contextChars];
   }
 
