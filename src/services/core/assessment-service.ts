@@ -25,8 +25,10 @@ export type {
 
 export class AssessmentService {
   private assessmentDAO: AssessmentDAO;
+  private env: Env;
 
   constructor(env: Env) {
+    this.env = env;
     this.assessmentDAO = new AssessmentDAO(env.DB);
   }
 
@@ -84,6 +86,22 @@ export class AssessmentService {
     resources: CampaignResource[]
   ): Promise<CampaignReadinessSummary> {
     try {
+      // Sync character_backstory entries to entities before assessment
+      // This ensures player characters are available in the entity graph
+      try {
+        const { CharacterEntitySyncService } = await import(
+          "@/services/campaign/character-entity-sync-service"
+        );
+        const syncService = new CharacterEntitySyncService(this.env);
+        await syncService.syncAllCharacterBackstories(campaignId);
+      } catch (syncError) {
+        console.error(
+          "[AssessmentService] Failed to sync character_backstory entries:",
+          syncError
+        );
+        // Don't fail assessment if sync fails
+      }
+
       // Get campaign data
       const contextData =
         await this.assessmentDAO.getCampaignContext(campaignId);

@@ -8,6 +8,9 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
 } from "../utils";
+import { CharacterEntitySyncService } from "@/services/campaign/character-entity-sync-service";
+import { getAssessmentService } from "../../lib/service-factory";
+import type { Env } from "../../middleware/auth";
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {
@@ -133,6 +136,26 @@ export const storeCampaignContext = tool({
         await env.DB.prepare("UPDATE campaigns SET updated_at = ? WHERE id = ?")
           .bind(now, campaignId)
           .run();
+
+        // If this is a character_backstory, sync it to entities table
+        if (contextType === "character_backstory") {
+          try {
+            const syncService = new CharacterEntitySyncService(env);
+            await syncService.syncCharacterBackstoryToEntity(
+              campaignId,
+              contextId,
+              title, // character name is stored as title
+              content,
+              metadata
+            );
+          } catch (syncError) {
+            console.error(
+              "[Tool] Failed to sync character_backstory to entities:",
+              syncError
+            );
+            // Don't fail the context storage if sync fails
+          }
+        }
 
         console.log(
           "[Tool] Stored campaign context directly:",
@@ -299,6 +322,20 @@ export const getCampaignContext = tool({
           .bind(...params)
           .all();
 
+        // If retrieving character_backstory entries, ensure they're synced to entities
+        if (contextType === "all" || contextType === "character_backstory") {
+          try {
+            const syncService = new CharacterEntitySyncService(env);
+            await syncService.syncAllCharacterBackstories(campaignId);
+          } catch (syncError) {
+            console.error(
+              "[getCampaignContext] Failed to sync character_backstory entries:",
+              syncError
+            );
+            // Don't fail the retrieval if sync fails
+          }
+        }
+
         console.log(
           "[getCampaignContext] Retrieved context entries:",
           contextResult.results?.length || 0
@@ -362,6 +399,153 @@ export const getCampaignContext = tool({
       console.error("Error retrieving campaign context:", error);
       return createToolError(
         `Failed to retrieve campaign context: ${error instanceof Error ? error.message : String(error)}`,
+        error,
+        AUTH_CODES.ERROR,
+        toolCallId
+      );
+    }
+  },
+});
+
+// Tool to list all campaign characters
+export const listCampaignCharacters = tool({
+  description:
+    "List all characters for a campaign, including player characters, NPCs, and characters from character_backstory entries. Returns characters from campaign_characters table, entities table, and campaign_context table.",
+  parameters: z.object({
+    campaignId: commonSchemas.campaignId,
+    jwt: commonSchemas.jwt,
+  }),
+  execute: async ({ campaignId, jwt }, context?: any): Promise<ToolResult> => {
+    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[listCampaignCharacters] Using toolCallId:", toolCallId);
+
+    try {
+      const env = getEnvFromContext(context);
+      console.log("[listCampaignCharacters] Environment found:", !!env);
+
+      if (env?.DB) {
+        const userId = extractUsernameFromJwt(jwt);
+        if (!userId) {
+          return createToolError(
+            "Invalid authentication token",
+            "Authentication failed",
+            AUTH_CODES.INVALID_KEY,
+            toolCallId
+          );
+        }
+
+        // Verify campaign exists and belongs to user
+        const campaignResult = await env.DB.prepare(
+          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
+        )
+          .bind(campaignId, userId)
+          .first();
+
+        if (!campaignResult) {
+          return createToolError(
+            "Campaign not found",
+            "Campaign not found",
+            AUTH_CODES.ERROR,
+            toolCallId
+          );
+        }
+
+        // Sync character_backstory entries to entities before listing
+        try {
+          const syncService = new CharacterEntitySyncService(env as Env);
+          await syncService.syncAllCharacterBackstories(campaignId);
+        } catch (syncError) {
+          console.error(
+            "[listCampaignCharacters] Failed to sync character_backstory entries:",
+            syncError
+          );
+          // Don't fail listing if sync fails
+        }
+
+        // Use AssessmentService to get all characters
+        const assessmentService = getAssessmentService(env as Env);
+        const allCharacters =
+          await assessmentService.getCampaignCharacters(campaignId);
+
+        // Format characters for response
+        const formattedCharacters = allCharacters.map((char: any) => {
+          if (char.context_type === "character_backstory") {
+            return {
+              id: char.id,
+              name: char.title,
+              type: "player_character",
+              source: "character_backstory",
+              backstory: char.content,
+            };
+          } else if (char.entity_type) {
+            return {
+              id: char.id,
+              name: char.name,
+              type: char.entity_type === "npcs" ? "npc" : char.entity_type,
+              source: "entity",
+              content: char.content ? JSON.parse(char.content) : null,
+            };
+          } else {
+            return {
+              id: char.id,
+              name: char.character_name,
+              type: "character",
+              source: "campaign_characters",
+              backstory: char.backstory,
+            };
+          }
+        });
+
+        return createToolSuccess(
+          `Found ${allCharacters.length} character(s) for campaign`,
+          {
+            characters: formattedCharacters,
+            count: allCharacters.length,
+            campaignId,
+          },
+          toolCallId
+        );
+      }
+
+      // Fall back to HTTP API if no env
+      const response = await authenticatedFetch(
+        API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.CHARACTERS(campaignId)
+        ),
+        {
+          method: "GET",
+          jwt,
+        }
+      );
+
+      if (!response.ok) {
+        const authError = handleAuthError(response);
+        if (authError) {
+          return createToolError(
+            authError,
+            null,
+            AUTH_CODES.INVALID_KEY,
+            toolCallId
+          );
+        }
+        return createToolError(
+          `Failed to list characters: ${response.status}`,
+          `HTTP ${response.status}`,
+          AUTH_CODES.ERROR,
+          toolCallId
+        );
+      }
+
+      const result = (await response.json()) as any;
+      return createToolSuccess(
+        `Found ${result.characters?.length || 0} character(s) for campaign`,
+        result,
+        toolCallId
+      );
+    } catch (error) {
+      console.error("Error listing campaign characters:", error);
+      return createToolError(
+        `Failed to list campaign characters: ${error instanceof Error ? error.message : String(error)}`,
         error,
         AUTH_CODES.ERROR,
         toolCallId

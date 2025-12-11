@@ -33,6 +33,7 @@ export const STRUCTURED_ENTITY_TYPES = [
   "feats", // Character feats and abilities
   "subclasses", // Class options and subclasses
   "characters", // Player or NPC character sheets
+  "player_characters", // Player characters (PCs) with backstories and character data
   "character_sheets", // Structured character sheet representations
   "rules", // Variant and optional rules
   "downtime", // Downtime activities and crafting
@@ -79,6 +80,7 @@ export const ENTITY_TYPE_CATEGORIES = {
     "feats",
     "subclasses",
     "characters",
+    "player_characters",
     "character_sheets",
     "rules",
     "downtime",
@@ -122,6 +124,7 @@ export function getEntityTypeDisplayName(type: StructuredEntityType): string {
     feats: "Feats",
     subclasses: "Subclasses",
     characters: "Characters",
+    player_characters: "Player Characters",
     character_sheets: "Character Sheets",
     rules: "Rules",
     downtime: "Downtime Activities",
