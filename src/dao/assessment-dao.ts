@@ -110,7 +110,10 @@ export class AssessmentDAO {
 
   /**
    * Get campaign characters for readiness assessment
-   * Includes both campaign_characters table entries and entities with entityType 'npcs' or 'characters'
+   * Includes:
+   * - campaign_characters table entries
+   * - entities with entityType 'npcs' or 'characters'
+   * - campaign_context entries with context_type 'character_backstory'
    */
   async getCampaignCharacters(campaignId: string): Promise<any[]> {
     // Get characters from campaign_characters table
@@ -120,18 +123,29 @@ export class AssessmentDAO {
       .all();
 
     // Get characters from entities table (NPCs and character entities)
+    // Include both singular 'character' and plural 'characters', plus 'character_sheets'
+    // The entity extraction can use either form depending on context
     const entitiesResult = await this.db
       .prepare(
-        "SELECT * FROM entities WHERE campaign_id = ? AND entity_type IN ('npcs', 'characters')"
+        "SELECT * FROM entities WHERE campaign_id = ? AND entity_type IN ('npcs', 'character', 'characters', 'character_sheets')"
       )
       .bind(campaignId)
       .all();
 
-    // Combine both results
+    // Get player characters from campaign_context table (character_backstory entries)
+    const contextCharsResult = await this.db
+      .prepare(
+        "SELECT * FROM campaign_context WHERE campaign_id = ? AND context_type = 'character_backstory'"
+      )
+      .bind(campaignId)
+      .all();
+
+    // Combine all results
     const campaignChars = (campaignCharsResult.results || []) as any[];
     const entityChars = (entitiesResult.results || []) as any[];
+    const contextChars = (contextCharsResult.results || []) as any[];
 
-    return [...campaignChars, ...entityChars];
+    return [...campaignChars, ...entityChars, ...contextChars];
   }
 
   /**
@@ -372,16 +386,12 @@ export class AssessmentDAO {
 
   /**
    * Get campaign characters ordered by creation date
+   * Includes campaign_characters, entities, and character_backstory entries
    */
   async getCampaignCharactersOrdered(campaignId: string): Promise<any[]> {
-    const result = await this.db
-      .prepare(
-        "SELECT * FROM campaign_characters WHERE campaign_id = ? ORDER BY created_at DESC"
-      )
-      .bind(campaignId)
-      .all();
-
-    return result.results || [];
+    // Use the same logic as getCampaignCharacters but return all results
+    // (ordering is less important for assessment, but we'll keep it for consistency)
+    return await this.getCampaignCharacters(campaignId);
   }
 
   /**

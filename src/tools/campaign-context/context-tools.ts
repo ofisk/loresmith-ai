@@ -8,6 +8,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
 } from "../utils";
+import { CharacterEntitySyncService } from "@/services/campaign/character-entity-sync-service";
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {
@@ -133,6 +134,26 @@ export const storeCampaignContext = tool({
         await env.DB.prepare("UPDATE campaigns SET updated_at = ? WHERE id = ?")
           .bind(now, campaignId)
           .run();
+
+        // If this is a character_backstory, sync it to entities table
+        if (contextType === "character_backstory") {
+          try {
+            const syncService = new CharacterEntitySyncService(env);
+            await syncService.syncCharacterBackstoryToEntity(
+              campaignId,
+              contextId,
+              title, // character name is stored as title
+              content,
+              metadata
+            );
+          } catch (syncError) {
+            console.error(
+              "[Tool] Failed to sync character_backstory to entities:",
+              syncError
+            );
+            // Don't fail the context storage if sync fails
+          }
+        }
 
         console.log(
           "[Tool] Stored campaign context directly:",
@@ -298,6 +319,20 @@ export const getCampaignContext = tool({
         const contextResult = await env.DB.prepare(query)
           .bind(...params)
           .all();
+
+        // If retrieving character_backstory entries, ensure they're synced to entities
+        if (contextType === "all" || contextType === "character_backstory") {
+          try {
+            const syncService = new CharacterEntitySyncService(env);
+            await syncService.syncAllCharacterBackstories(campaignId);
+          } catch (syncError) {
+            console.error(
+              "[getCampaignContext] Failed to sync character_backstory entries:",
+              syncError
+            );
+            // Don't fail the retrieval if sync fails
+          }
+        }
 
         console.log(
           "[getCampaignContext] Retrieved context entries:",
