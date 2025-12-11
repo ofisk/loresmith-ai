@@ -3,7 +3,11 @@ import {
   generateCharacterWithAITool,
   storeCharacterInfo,
 } from "./character-tools";
-import { getCampaignContext, storeCampaignContext } from "./context-tools";
+import {
+  getCampaignContext,
+  listCampaignCharacters,
+  storeCampaignContext,
+} from "./context-tools";
 import { searchCampaignContext, searchExternalResources } from "./search-tools";
 import {
   assessCampaignReadiness,
@@ -30,6 +34,7 @@ export {
   generateCharacterWithAITool,
   // Context tools
   getCampaignContext,
+  listCampaignCharacters,
   storeCampaignContext,
   // Search tools
   searchCampaignContext,
@@ -54,6 +59,7 @@ export {
 export const campaignContextTools = {
   storeCampaignContext,
   getCampaignContext,
+  listCampaignCharacters,
   storeCharacterInfo,
   generateCharacterWithAITool,
   getCampaignSuggestions,

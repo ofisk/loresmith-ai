@@ -122,12 +122,12 @@ export class AssessmentDAO {
       .bind(campaignId)
       .all();
 
-    // Get characters from entities table (NPCs and character entities)
-    // Include both singular 'character' and plural 'characters', plus 'character_sheets'
+    // Get characters from entities table (NPCs, player characters, and character entities)
+    // Include both singular 'character' and plural 'characters', plus 'player_characters' and 'character_sheets'
     // The entity extraction can use either form depending on context
     const entitiesResult = await this.db
       .prepare(
-        "SELECT * FROM entities WHERE campaign_id = ? AND entity_type IN ('npcs', 'character', 'characters', 'character_sheets')"
+        "SELECT * FROM entities WHERE campaign_id = ? AND entity_type IN ('npcs', 'character', 'characters', 'player_characters', 'character_sheets')"
       )
       .bind(campaignId)
       .all();

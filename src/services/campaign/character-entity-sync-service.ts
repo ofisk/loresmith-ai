@@ -60,7 +60,7 @@ export class CharacterEntitySyncService {
       await entityDAO.createEntity({
         id: entityId,
         campaignId,
-        entityType: "characters",
+        entityType: "player_characters",
         name: characterName,
         content: entityContent,
         metadata: {
