@@ -10,6 +10,7 @@ import { CommunityDAO } from "./community-dao";
 import { CommunitySummaryDAO } from "./community-summary-dao";
 import { EntityImportanceDAO } from "./entity-importance-dao";
 import { SessionDigestDAO } from "./session-digest-dao";
+import { SessionDigestTemplateDAO } from "./session-digest-template-dao";
 import { RebuildStatusDAO } from "./rebuild-status-dao";
 
 // Cache for DAO factory instances
@@ -30,6 +31,7 @@ export interface DAOFactory {
   communitySummaryDAO: CommunitySummaryDAO;
   entityImportanceDAO: EntityImportanceDAO;
   sessionDigestDAO: SessionDigestDAO;
+  sessionDigestTemplateDAO: SessionDigestTemplateDAO;
   rebuildStatusDAO: RebuildStatusDAO;
 
   // Convenience methods for common operations
@@ -50,6 +52,7 @@ export class DAOFactoryImpl implements DAOFactory {
   public readonly communitySummaryDAO: CommunitySummaryDAO;
   public readonly entityImportanceDAO: EntityImportanceDAO;
   public readonly sessionDigestDAO: SessionDigestDAO;
+  public readonly sessionDigestTemplateDAO: SessionDigestTemplateDAO;
   public readonly rebuildStatusDAO: RebuildStatusDAO;
 
   constructor(db: D1Database) {
@@ -62,6 +65,7 @@ export class DAOFactoryImpl implements DAOFactory {
     this.communitySummaryDAO = new CommunitySummaryDAO(db);
     this.entityImportanceDAO = new EntityImportanceDAO(db);
     this.sessionDigestDAO = new SessionDigestDAO(db);
+    this.sessionDigestTemplateDAO = new SessionDigestTemplateDAO(db);
     this.rebuildStatusDAO = new RebuildStatusDAO(db);
   }
 

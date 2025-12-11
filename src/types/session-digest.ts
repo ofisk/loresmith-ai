@@ -1,4 +1,14 @@
 /**
+ * Session digest status enumeration
+ */
+export type SessionDigestStatus = "draft" | "pending" | "approved" | "rejected";
+
+/**
+ * Session digest source type enumeration
+ */
+export type SessionDigestSourceType = "manual" | "ai_generated";
+
+/**
  * Session digest data structure matching the JSON schema from issue #216
  */
 export interface SessionDigestData {
@@ -39,6 +49,12 @@ export interface SessionDigest {
   session_number: number;
   session_date: string | null;
   digest_data: string; // JSON string
+  status: SessionDigestStatus;
+  quality_score: number | null;
+  review_notes: string | null;
+  generated_by_ai: boolean;
+  template_id: string | null;
+  source_type: SessionDigestSourceType;
   created_at: string;
   updated_at: string;
 }
@@ -52,6 +68,12 @@ export interface SessionDigestWithData {
   sessionNumber: number;
   sessionDate: string | null;
   digestData: SessionDigestData;
+  status: SessionDigestStatus;
+  qualityScore: number | null;
+  reviewNotes: string | null;
+  generatedByAi: boolean;
+  templateId: string | null;
+  sourceType: SessionDigestSourceType;
   createdAt: string;
   updatedAt: string;
 }
@@ -64,6 +86,12 @@ export interface CreateSessionDigestInput {
   sessionNumber: number;
   sessionDate?: string | null;
   digestData: SessionDigestData;
+  status?: SessionDigestStatus;
+  qualityScore?: number | null;
+  reviewNotes?: string | null;
+  generatedByAi?: boolean;
+  templateId?: string | null;
+  sourceType?: SessionDigestSourceType;
 }
 
 /**
@@ -72,6 +100,10 @@ export interface CreateSessionDigestInput {
 export interface UpdateSessionDigestInput {
   sessionDate?: string | null;
   digestData?: SessionDigestData;
+  status?: SessionDigestStatus;
+  qualityScore?: number | null;
+  reviewNotes?: string | null;
+  templateId?: string | null;
 }
 
 /**
@@ -138,4 +170,60 @@ export function validateSessionDigestData(
   }
 
   return true;
+}
+
+/**
+ * Session digest template structure
+ */
+export interface SessionDigestTemplate {
+  id: string;
+  campaignId: string;
+  name: string;
+  description: string | null;
+  templateData: SessionDigestData;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Database record structure for session_digest_templates table
+ */
+export interface SessionDigestTemplateRecord {
+  id: string;
+  campaign_id: string;
+  name: string;
+  description: string | null;
+  template_data: string; // JSON string
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Input for creating a session digest template
+ */
+export interface CreateSessionDigestTemplateInput {
+  campaignId: string;
+  name: string;
+  description?: string | null;
+  templateData: SessionDigestData;
+}
+
+/**
+ * Input for updating a session digest template
+ */
+export interface UpdateSessionDigestTemplateInput {
+  name?: string;
+  description?: string | null;
+  templateData?: SessionDigestData;
+}
+
+/**
+ * Input for generating a digest from unstructured notes
+ */
+export interface GenerateDigestFromNotesInput {
+  campaignId: string;
+  sessionNumber: number;
+  sessionDate?: string | null;
+  notes: string; // Unstructured text notes
+  templateId?: string | null; // Optional template to use as a guide
 }

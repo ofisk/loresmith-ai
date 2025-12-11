@@ -74,7 +74,17 @@ import {
   handleGetSessionDigests,
   handleUpdateSessionDigest,
   handleDeleteSessionDigest,
+  handleSubmitDigestForReview,
+  handleApproveDigest,
+  handleRejectDigest,
 } from "@/routes/session-digests";
+import {
+  handleCreateSessionDigestTemplate,
+  handleGetSessionDigestTemplate,
+  handleGetSessionDigestTemplates,
+  handleUpdateSessionDigestTemplate,
+  handleDeleteSessionDigestTemplate,
+} from "@/routes/session-digest-templates";
 import {
   handleSearchPlanningContext,
   handleGetRecentPlanningContext,
@@ -329,6 +339,68 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     ),
     requireUserJwt,
     handleDeleteSessionDigest
+  );
+
+  // Session digest review workflow routes
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.SUBMIT(
+      ":campaignId",
+      ":digestId"
+    ),
+    requireUserJwt,
+    handleSubmitDigestForReview
+  );
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.APPROVE(
+      ":campaignId",
+      ":digestId"
+    ),
+    requireUserJwt,
+    handleApproveDigest
+  );
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.REJECT(
+      ":campaignId",
+      ":digestId"
+    ),
+    requireUserJwt,
+    handleRejectDigest
+  );
+
+  // Session digest templates routes
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.BASE(":campaignId"),
+    requireUserJwt,
+    handleCreateSessionDigestTemplate
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.BASE(":campaignId"),
+    requireUserJwt,
+    handleGetSessionDigestTemplates
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.DETAILS(
+      ":campaignId",
+      ":templateId"
+    ),
+    requireUserJwt,
+    handleGetSessionDigestTemplate
+  );
+  app.put(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.DETAILS(
+      ":campaignId",
+      ":templateId"
+    ),
+    requireUserJwt,
+    handleUpdateSessionDigestTemplate
+  );
+  app.delete(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.DETAILS(
+      ":campaignId",
+      ":templateId"
+    ),
+    requireUserJwt,
+    handleDeleteSessionDigestTemplate
   );
 
   app.post(

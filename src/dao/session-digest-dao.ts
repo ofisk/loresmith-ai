@@ -5,6 +5,7 @@ import type {
   SessionDigestData,
   SessionDigestWithData,
   UpdateSessionDigestInput,
+  SessionDigestStatus,
 } from "@/types/session-digest";
 import { validateSessionDigestData } from "@/types/session-digest";
 
@@ -33,9 +34,15 @@ export class SessionDigestDAO extends BaseDAOClass {
         session_number,
         session_date,
         digest_data,
+        status,
+        quality_score,
+        review_notes,
+        generated_by_ai,
+        template_id,
+        source_type,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `;
 
     try {
@@ -45,6 +52,12 @@ export class SessionDigestDAO extends BaseDAOClass {
         input.sessionNumber,
         input.sessionDate || null,
         digestDataJson,
+        input.status || "draft",
+        input.qualityScore ?? null,
+        input.reviewNotes ?? null,
+        input.generatedByAi ? 1 : 0,
+        input.templateId ?? null,
+        input.sourceType || "manual",
       ]);
     } catch (error) {
       console.error("[SessionDigestDAO] Insert error:", {
@@ -72,6 +85,12 @@ export class SessionDigestDAO extends BaseDAOClass {
         session_number,
         session_date,
         digest_data,
+        status,
+        quality_score,
+        review_notes,
+        generated_by_ai,
+        template_id,
+        source_type,
         created_at,
         updated_at
       FROM session_digests
@@ -100,6 +119,12 @@ export class SessionDigestDAO extends BaseDAOClass {
         session_number,
         session_date,
         digest_data,
+        status,
+        quality_score,
+        review_notes,
+        generated_by_ai,
+        template_id,
+        source_type,
         created_at,
         updated_at
       FROM session_digests
@@ -121,8 +146,17 @@ export class SessionDigestDAO extends BaseDAOClass {
    * Get all session digests for a campaign
    */
   async getSessionDigestsByCampaign(
-    campaignId: string
+    campaignId: string,
+    status?: SessionDigestStatus
   ): Promise<SessionDigestWithData[]> {
+    const conditions: string[] = ["campaign_id = ?"];
+    const params: any[] = [campaignId];
+
+    if (status) {
+      conditions.push("status = ?");
+      params.push(status);
+    }
+
     const sql = `
       SELECT 
         id,
@@ -130,15 +164,40 @@ export class SessionDigestDAO extends BaseDAOClass {
         session_number,
         session_date,
         digest_data,
+        status,
+        quality_score,
+        review_notes,
+        generated_by_ai,
+        template_id,
+        source_type,
         created_at,
         updated_at
       FROM session_digests
-      WHERE campaign_id = ?
+      WHERE ${conditions.join(" AND ")}
       ORDER BY session_number DESC, created_at DESC
     `;
 
-    const records = await this.queryAll<SessionDigest>(sql, [campaignId]);
+    const records = await this.queryAll<SessionDigest>(sql, params);
     return records.map((record) => this.mapRecord(record));
+  }
+
+  /**
+   * Get session digests by status for a campaign
+   */
+  async getDigestsByStatus(
+    campaignId: string,
+    status: SessionDigestStatus
+  ): Promise<SessionDigestWithData[]> {
+    return this.getSessionDigestsByCampaign(campaignId, status);
+  }
+
+  /**
+   * Get pending digests for a campaign
+   */
+  async getPendingDigests(
+    campaignId: string
+  ): Promise<SessionDigestWithData[]> {
+    return this.getDigestsByStatus(campaignId, "pending");
   }
 
   /**
@@ -169,6 +228,12 @@ export class SessionDigestDAO extends BaseDAOClass {
         session_number,
         session_date,
         digest_data,
+        status,
+        quality_score,
+        review_notes,
+        generated_by_ai,
+        template_id,
+        source_type,
         created_at,
         updated_at
       FROM session_digests
@@ -194,6 +259,12 @@ export class SessionDigestDAO extends BaseDAOClass {
         session_number,
         session_date,
         digest_data,
+        status,
+        quality_score,
+        review_notes,
+        generated_by_ai,
+        template_id,
+        source_type,
         created_at,
         updated_at
       FROM session_digests
@@ -247,6 +318,26 @@ export class SessionDigestDAO extends BaseDAOClass {
       params.push(JSON.stringify(input.digestData));
     }
 
+    if (input.status !== undefined) {
+      updates.push("status = ?");
+      params.push(input.status);
+    }
+
+    if (input.qualityScore !== undefined) {
+      updates.push("quality_score = ?");
+      params.push(input.qualityScore ?? null);
+    }
+
+    if (input.reviewNotes !== undefined) {
+      updates.push("review_notes = ?");
+      params.push(input.reviewNotes ?? null);
+    }
+
+    if (input.templateId !== undefined) {
+      updates.push("template_id = ?");
+      params.push(input.templateId ?? null);
+    }
+
     if (updates.length === 0) {
       return;
     }
@@ -261,6 +352,50 @@ export class SessionDigestDAO extends BaseDAOClass {
     `;
 
     await this.execute(sql, params);
+  }
+
+  /**
+   * Update digest status
+   */
+  async updateDigestStatus(
+    digestId: string,
+    status: SessionDigestStatus,
+    reviewNotes?: string | null
+  ): Promise<void> {
+    const updates: string[] = ["status = ?"];
+    const params: any[] = [status];
+
+    if (reviewNotes !== undefined) {
+      updates.push("review_notes = ?");
+      params.push(reviewNotes ?? null);
+    }
+
+    updates.push("updated_at = CURRENT_TIMESTAMP");
+    params.push(digestId);
+
+    const sql = `
+      UPDATE session_digests
+      SET ${updates.join(", ")}
+      WHERE id = ?
+    `;
+
+    await this.execute(sql, params);
+  }
+
+  /**
+   * Update quality score
+   */
+  async updateQualityScore(
+    digestId: string,
+    qualityScore: number | null
+  ): Promise<void> {
+    const sql = `
+      UPDATE session_digests
+      SET quality_score = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `;
+
+    await this.execute(sql, [qualityScore ?? null, digestId]);
   }
 
   /**
@@ -320,6 +455,12 @@ export class SessionDigestDAO extends BaseDAOClass {
       sessionNumber: record.session_number,
       sessionDate: record.session_date,
       digestData,
+      status: record.status || "draft",
+      qualityScore: record.quality_score ?? null,
+      reviewNotes: record.review_notes ?? null,
+      generatedByAi: Boolean(record.generated_by_ai),
+      templateId: record.template_id ?? null,
+      sourceType: record.source_type || "manual",
       createdAt: record.created_at,
       updatedAt: record.updated_at,
     };
