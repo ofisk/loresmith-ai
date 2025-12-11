@@ -37,7 +37,8 @@ export class RebuildQueueProcessor {
         daoFactory.entityImportanceDAO,
         daoFactory.campaignDAO,
         worldStateChangelogDAO,
-        openaiApiKey
+        openaiApiKey,
+        this.env
       );
 
       // Send started notification

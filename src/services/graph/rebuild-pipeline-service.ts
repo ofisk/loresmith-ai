@@ -32,6 +32,7 @@ export class RebuildPipelineService {
   private rebuildTriggerService: RebuildTriggerService;
   private readonly worldStateChangelogDAO: WorldStateChangelogDAO;
   private telemetryService: TelemetryService | null = null;
+  private readonly env?: any;
 
   constructor(
     db: any,
@@ -42,8 +43,10 @@ export class RebuildPipelineService {
     entityImportanceDAO: EntityImportanceDAO,
     campaignDAO: CampaignDAO,
     worldStateChangelogDAO: WorldStateChangelogDAO,
-    private readonly openaiApiKey?: string
+    private readonly openaiApiKey?: string,
+    env?: any
   ) {
+    this.env = env;
     this.communityDetectionService = new CommunityDetectionService(
       entityDAO,
       communityDAO,
@@ -141,8 +144,33 @@ export class RebuildPipelineService {
       }
 
       // Archive changelog entries that were applied
-      if (unappliedEntryIds.length > 0) {
-        await this.archiveChangelogEntries(unappliedEntryIds);
+      if (unappliedEntryIds.length > 0 && this.env?.R2) {
+        try {
+          const { ChangelogArchiveService } = await import(
+            "@/services/graph/changelog-archive-service"
+          );
+          const archiveService = new ChangelogArchiveService({
+            db: this.env.DB!,
+            r2: this.env.R2,
+            vectorize: this.env.VECTORIZE,
+            openaiApiKey: openaiApiKey,
+            env: this.env,
+          });
+          await archiveService.archiveChangelogEntries(
+            unappliedEntryIds,
+            rebuildId,
+            campaignId
+          );
+        } catch (error) {
+          console.error(
+            "[RebuildPipeline] Failed to archive changelog entries:",
+            error
+          );
+          // Continue even if archival fails - entries are still marked as applied
+        }
+      } else if (unappliedEntryIds.length > 0) {
+        // Fallback: just mark as applied if R2 is not available
+        await this.worldStateChangelogDAO.markEntriesApplied(unappliedEntryIds);
       }
 
       const duration = Date.now() - startTime;
@@ -348,20 +376,5 @@ export class RebuildPipelineService {
     await this.entityImportanceService.recalculateImportanceForCampaign(
       campaignId
     );
-  }
-
-  /**
-   * Archive changelog entries that were applied during rebuild
-   */
-  private async archiveChangelogEntries(entryIds: string[]): Promise<void> {
-    if (entryIds.length === 0) {
-      return;
-    }
-
-    console.log(
-      `[RebuildPipeline] Archiving ${entryIds.length} changelog entries`
-    );
-
-    await this.worldStateChangelogDAO.markEntriesApplied(entryIds);
   }
 }

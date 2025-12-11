@@ -232,7 +232,14 @@ export class PlanningContextService extends BaseRAGService {
   /**
    * Index a world state changelog entry
    */
-  async indexChangelogEntry(entry: WorldStateChangelogEntry): Promise<void> {
+  async indexChangelogEntry(
+    entry: WorldStateChangelogEntry,
+    additionalMetadata?: {
+      archived?: boolean;
+      archiveKey?: string;
+      r2Key?: string;
+    }
+  ): Promise<void> {
     try {
       this.validateDependencies();
 
@@ -280,12 +287,20 @@ export class PlanningContextService extends BaseRAGService {
             campaignSessionId: entry.campaignSessionId?.toString() || "",
             timestamp: entry.timestamp,
             contentType: "changelog",
+            ...(additionalMetadata?.archived && { archived: "true" }),
+            ...(additionalMetadata?.archiveKey && {
+              archiveKey: additionalMetadata.archiveKey,
+            }),
+            ...(additionalMetadata?.r2Key && {
+              r2Key: additionalMetadata.r2Key,
+            }),
           },
         },
       ]);
 
       this.logOperation("Indexed changelog entry", {
         changelogId: entry.id,
+        archived: additionalMetadata?.archived,
       });
     } catch (error) {
       this.logOperation("Failed to index changelog entry", {
