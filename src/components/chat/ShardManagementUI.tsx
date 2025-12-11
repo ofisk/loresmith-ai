@@ -16,6 +16,7 @@ import type { Shard } from "@/components/shard/shard-type-detector";
 
 interface ShardManagementUIProps {
   campaignId: string;
+  campaignName?: string;
   shards?: StagedShardGroup[] | ShardCandidate[];
   total?: number;
   status?: string;
@@ -30,6 +31,7 @@ interface ShardManagementUIProps {
 
 export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
   campaignId,
+  campaignName,
   shards,
   total: _total,
   action = "show_staged",
@@ -452,6 +454,7 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
       <ShardGrid
         shards={displayShards}
         campaignId={campaignId}
+        campaignName={campaignName}
         resourceName={displayResourceName}
         onShardEdit={handleShardEdit}
         onShardDelete={handleShardDelete}

@@ -29,6 +29,11 @@ export function PropertyField({
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Sync editValue with value prop when it changes externally
+  useEffect(() => {
+    setEditValue(value);
+  }, [value]);
+
   useEffect(() => {
     if (isFieldEditable) {
       if (inputRef.current) {
@@ -49,6 +54,11 @@ export function PropertyField({
 
   const handleCancel = () => {
     setEditValue(value as unknown);
+  };
+
+  const handleBlur = () => {
+    // On blur, cancel any unsaved changes to prevent state corruption
+    handleCancel();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -117,6 +127,7 @@ export function PropertyField({
                   : Number(editValue) || 0
               }
               onChange={(e) => setEditValue(Number(e.target.value))}
+              onBlur={handleBlur}
               onKeyDown={handleKeyDown}
               id={fieldId}
               className="w-full px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
@@ -203,6 +214,7 @@ export function PropertyField({
                   // Invalid JSON, keep the text for user to fix
                 }
               }}
+              onBlur={handleBlur}
               onKeyDown={handleKeyDown}
               id={fieldId}
               className="w-full px-2 py-1 border border-gray-600 rounded text-sm font-mono bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
@@ -221,6 +233,7 @@ export function PropertyField({
                   : String(editValue || "")
               }
               onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleBlur}
               onKeyDown={handleKeyDown}
               id={fieldId}
               className="w-full px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
