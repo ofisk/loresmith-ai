@@ -92,28 +92,49 @@ export const getCampaignSuggestions = tool({
           );
         }
 
-        // Get campaign data for context
-        const characters = await env.DB.prepare(
-          "SELECT * FROM campaign_characters WHERE campaign_id = ?"
-        )
-          .bind(campaignId)
-          .all();
+        // Sync character_backstory entries to entities before getting characters
+        try {
+          const syncService = new CharacterEntitySyncService(env as Env);
+          await syncService.syncAllCharacterBackstories(campaignId);
+        } catch (syncError) {
+          console.error(
+            "[Tool] getCampaignSuggestions - Failed to sync character_backstory entries:",
+            syncError
+          );
+          // Don't fail suggestions if sync fails
+        }
 
-        const resources = await env.DB.prepare(
-          "SELECT * FROM campaign_resources WHERE campaign_id = ?"
-        )
-          .bind(campaignId)
-          .all();
+        // Use AssessmentService to get all characters (includes campaign_characters, entities, and character_backstory)
+        const assessmentService = getAssessmentService(env as Env);
+        const allCharacters =
+          await assessmentService.getCampaignCharacters(campaignId);
+        const allResources =
+          await assessmentService.getCampaignResources(campaignId);
+
+        console.log("[Tool] getCampaignSuggestions - Retrieved characters:", {
+          total: allCharacters.length,
+          fromCampaignCharacters: allCharacters.filter(
+            (c: any) => c.id && !c.entity_type && !c.context_type
+          ).length,
+          fromEntities: allCharacters.filter((c: any) => c.entity_type).length,
+          fromContext: allCharacters.filter(
+            (c: any) => c.context_type === "character_backstory"
+          ).length,
+        });
 
         // Generate suggestions based on type and available data
         const suggestions = generateSuggestions(
           suggestionType,
-          characters.results || [],
-          resources.results || [],
-          context
+          allCharacters,
+          allResources,
+          _contextParam
         );
 
         console.log("[Tool] Generated suggestions:", suggestions.length);
+        console.log(
+          "[Tool] getCampaignSuggestions - Returning character count:",
+          allCharacters.length
+        );
 
         return createToolSuccess(
           `Generated ${suggestions.length} ${suggestionType} suggestions`,
@@ -122,8 +143,12 @@ export const getCampaignSuggestions = tool({
             suggestions,
             totalCount: suggestions.length,
             context: {
-              characters: characters.results?.length || 0,
-              resources: resources.results?.length || 0,
+              characters: allCharacters.length,
+              resources: allResources.length,
+            },
+            details: {
+              characterCount: allCharacters.length,
+              resourceCount: allResources.length,
             },
           },
           toolCallId
