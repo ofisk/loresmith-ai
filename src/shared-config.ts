@@ -182,6 +182,18 @@ export const API_CONFIG = {
           `/campaigns/${campaignId}/session-digests`,
         DETAILS: (campaignId: string, digestId: string) =>
           `/campaigns/${campaignId}/session-digests/${digestId}`,
+        SUBMIT: (campaignId: string, digestId: string) =>
+          `/campaigns/${campaignId}/session-digests/${digestId}/submit`,
+        APPROVE: (campaignId: string, digestId: string) =>
+          `/campaigns/${campaignId}/session-digests/${digestId}/approve`,
+        REJECT: (campaignId: string, digestId: string) =>
+          `/campaigns/${campaignId}/session-digests/${digestId}/reject`,
+      },
+      SESSION_DIGEST_TEMPLATES: {
+        BASE: (campaignId: string) =>
+          `/campaigns/${campaignId}/session-digest-templates`,
+        DETAILS: (campaignId: string, templateId: string) =>
+          `/campaigns/${campaignId}/session-digest-templates/${templateId}`,
       },
       PLANNING_CONTEXT: {
         SEARCH: (campaignId: string) =>
