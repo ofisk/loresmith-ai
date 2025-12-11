@@ -487,22 +487,30 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 );
               }
 
-              // Check if the tool requires a campaignId parameter and inject it if not provided
+              // Check if the tool requires a campaignId parameter and inject/override it with the current campaign
               const hasCampaignIdParam =
                 tool.parameters &&
                 typeof tool.parameters === "object" &&
                 (tool.parameters as any).shape &&
                 "campaignId" in (tool.parameters as any).shape;
 
-              if (
-                hasCampaignIdParam &&
-                !enhancedArgs.campaignId &&
-                campaignIdHint
-              ) {
+              if (hasCampaignIdParam && campaignIdHint) {
+                // Always use the campaignIdHint from the current message, overriding any LLM-provided value
+                // This ensures we use the campaign the user has selected, not one from conversation history
+                const previousCampaignId = enhancedArgs.campaignId;
                 enhancedArgs.campaignId = campaignIdHint;
-                console.log(
-                  `[${this.constructor.name}] Injected campaignId into tool ${toolName} parameters: ${campaignIdHint}`
-                );
+                if (
+                  previousCampaignId &&
+                  previousCampaignId !== campaignIdHint
+                ) {
+                  console.log(
+                    `[${this.constructor.name}] Overrode campaignId in tool ${toolName} from ${previousCampaignId} to ${campaignIdHint}`
+                  );
+                } else {
+                  console.log(
+                    `[${this.constructor.name}] Injected campaignId into tool ${toolName} parameters: ${campaignIdHint}`
+                  );
+                }
               }
 
               // Block mutating tools if the last user command is stale
