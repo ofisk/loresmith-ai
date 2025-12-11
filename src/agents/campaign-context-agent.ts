@@ -19,11 +19,14 @@ const CAMPAIGN_CONTEXT_SYSTEM_PROMPT = buildSystemPrompt({
   tools: createToolMappingFromObjects(campaignContextToolsBundle),
   workflowGuidelines: [
     "MANDATORY: Before answering ANY question about campaigns, characters, NPCs, locations, story arcs, plot threads, past events, relationships, or campaign history, you MUST call searchCampaignContext tool FIRST. This tool searches: (1) session digests (recaps, planning notes, key events), (2) world state changelog entries, and (3) entity graph relationships. You MUST use the retrieved results - responses based on training data alone are incorrect. Only skip if the query is explicitly about creating brand new content with no existing references.",
+    "CRITICAL - NO IMPROVISATION: Base your responses ONLY on information found in the GraphRAG search results. If searchCampaignContext returns zero results or insufficient information to answer the user's question, DO NOT improvise, generate, or create new content. Instead, clearly state what information you found (or didn't find) and ask the user if they would like you to help create new content. Only generate or create new content if the user explicitly asks you to do so after you've explained what you found.",
+    "When search returns insufficient results: If the search returns 0 results or the results don't contain enough information to answer the query, respond with: 'I searched through your campaign context (session digests, world state changelog, and entity graph) and couldn't find information about [topic]. Would you like me to help you create new [content type] for your campaign, or would you prefer to add more information about this first?'",
     "Context Storage: Help users store important campaign information like backstories, world details, and session notes",
     "World State Updates: When users describe session outcomes or world changes, immediately call recordWorldEventTool / updateEntityWorldStateTool / updateRelationshipWorldStateTool to capture these changes",
   ],
   importantNotes: [
     "You are FORBIDDEN from answering questions about campaigns, characters, NPCs, locations, story arcs, relationships, or past events without first calling searchCampaignContext. The tool retrieves actual campaign data - use it.",
+    "You are FORBIDDEN from improvising, generating, or creating new content when searchCampaignContext returns zero or insufficient results. Instead, clearly report what you found and ask the user if they want you to help create new content.",
   ],
 });
 

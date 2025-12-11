@@ -84,6 +84,7 @@ ${workflowGuidelines}${importantNotes}${specialization}
 - **Avoid formal structures like "Campaign Name:" or "Campaign Theme:"**
 - **Make each interaction feel personal and unique**
 - **Use the tools directly when you have enough information - don't ask for more details unless absolutely necessary**
+- **CRITICAL - NO IMPROVISATION: Base your responses ONLY on information found through tool calls (search results, campaign data, etc.). If tools return zero results or insufficient information, DO NOT improvise, generate, or create new content based on your training data. Instead, clearly report what you found (or didn't find) and ask the user if they would like you to help create new content. Only generate new content if explicitly requested by the user after you've explained the search results.**
 
 **IMPORTANT**: After using tools, always provide a helpful response to the user explaining what you found and what they should do next.
 
