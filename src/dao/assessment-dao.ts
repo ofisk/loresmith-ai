@@ -110,14 +110,28 @@ export class AssessmentDAO {
 
   /**
    * Get campaign characters for readiness assessment
+   * Includes both campaign_characters table entries and entities with entityType 'npcs' or 'characters'
    */
   async getCampaignCharacters(campaignId: string): Promise<any[]> {
-    const result = await this.db
+    // Get characters from campaign_characters table
+    const campaignCharsResult = await this.db
       .prepare("SELECT * FROM campaign_characters WHERE campaign_id = ?")
       .bind(campaignId)
       .all();
 
-    return result.results || [];
+    // Get characters from entities table (NPCs and character entities)
+    const entitiesResult = await this.db
+      .prepare(
+        "SELECT * FROM entities WHERE campaign_id = ? AND entity_type IN ('npcs', 'characters')"
+      )
+      .bind(campaignId)
+      .all();
+
+    // Combine both results
+    const campaignChars = (campaignCharsResult.results || []) as any[];
+    const entityChars = (entitiesResult.results || []) as any[];
+
+    return [...campaignChars, ...entityChars];
   }
 
   /**

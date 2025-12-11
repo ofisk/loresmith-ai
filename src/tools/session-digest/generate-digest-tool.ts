@@ -16,8 +16,8 @@ const generateDigestSchema = z.object({
   sessionNumber: z
     .number()
     .int()
-    .positive()
-    .describe("The session number (e.g., 1, 2, 3)"),
+    .nonnegative()
+    .describe("The session number (e.g., 0, 1, 2, 3)"),
   sessionDate: z
     .string()
     .optional()
