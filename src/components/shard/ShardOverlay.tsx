@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { MinusCircle } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { UnifiedShardManager } from "@/components/chat/UnifiedShardManager";
 import type { StagedShardGroup } from "@/types/shard";
 
@@ -17,10 +17,11 @@ export const ShardOverlay = ({
   isLoading,
   onShardsProcessed,
   getJwt,
-  onAutoExpand,
+  onAutoExpand: _onAutoExpand,
   onRefresh,
 }: ShardOverlayProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [hasNewShards, setHasNewShards] = useState(false);
   const [previousShardCount, setPreviousShardCount] = useState(0);
 
@@ -42,15 +43,13 @@ export const ShardOverlay = ({
   // Show loading state in button when fetching shards
   const displayCount = isLoading ? "..." : totalShards;
 
-  // Auto-expand when new shards are found
+  // Track new shards but don't auto-expand
   useEffect(() => {
     if (totalShards > previousShardCount && previousShardCount > 0) {
       setHasNewShards(true);
-      setIsExpanded(true);
-      onAutoExpand?.();
     }
     setPreviousShardCount(totalShards);
-  }, [totalShards, previousShardCount, onAutoExpand]);
+  }, [totalShards, previousShardCount]);
 
   // Clear new shards flag when expanded
   useEffect(() => {
@@ -61,6 +60,12 @@ export const ShardOverlay = ({
 
   const toggleExpanded = useCallback(() => {
     setIsExpanded((prev) => !prev);
+    setIsMinimized(false);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setIsExpanded(false);
+    setIsMinimized(true);
   }, []);
 
   // Close on Escape key
@@ -77,20 +82,38 @@ export const ShardOverlay = ({
 
   return (
     <div className="fixed top-0 right-0 h-screen z-50 flex items-start pt-20">
-      {/* Collapsed Button */}
-      {!isExpanded && (
+      {/* Minimized Chevron Button */}
+      {!isExpanded && isMinimized && (
         <div className="relative">
           <button
             type="button"
             onClick={toggleExpanded}
             className={`
-              flex items-center justify-center w-12 h-12 rounded-l-lg shadow-lg border border-r-0 transition-all duration-300 ease-in-out
-              bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-purple-200 dark:hover:bg-purple-900/40
+              flex items-center justify-center px-1 py-2 rounded-l-lg shadow-lg border border-r-0 transition-all duration-300 ease-in-out
+              bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-750
               ${hasNewShards ? "animate-pulse" : ""}
             `}
             title={`Show ${displayCount} pending shard${displayCount !== "..." && displayCount !== 1 ? "s" : ""}`}
           >
-            <div className="flex flex-col items-center">
+            <CaretLeft size={16} weight="bold" />
+          </button>
+        </div>
+      )}
+
+      {/* Collapsed Button with Count */}
+      {!isExpanded && !isMinimized && (
+        <div className="relative">
+          <button
+            type="button"
+            onClick={toggleExpanded}
+            className={`
+              flex items-center justify-center px-8 py-1.5 rounded-l-lg shadow-lg border border-r-0 transition-all duration-300 ease-in-out
+              bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-750
+              ${hasNewShards ? "animate-pulse" : ""}
+            `}
+            title={`Show ${displayCount} pending shard${displayCount !== "..." && displayCount !== 1 ? "s" : ""}`}
+          >
+            <div className="flex items-center gap-1">
               <span className="text-xs font-bold">{displayCount}</span>
               <span className="text-xs">
                 shard{displayCount !== "..." && displayCount !== 1 ? "s" : ""}
@@ -112,9 +135,23 @@ export const ShardOverlay = ({
         <div className="h-full flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 flex-shrink-0">
-            <h3 className="font-semibold text-neutral-800 dark:text-neutral-200">
-              Pending shards
-            </h3>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="p-1 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded transition-colors"
+                title="Close panel"
+              >
+                <CaretRight
+                  size={20}
+                  weight="bold"
+                  className="text-neutral-600 dark:text-neutral-400"
+                />
+              </button>
+              <h3 className="font-semibold text-neutral-800 dark:text-neutral-200">
+                Pending shards
+              </h3>
+            </div>
             <div className="flex items-center gap-2">
               {hasNewShards && (
                 <div
@@ -146,17 +183,6 @@ export const ShardOverlay = ({
                   </svg>
                 </button>
               )}
-              <button
-                type="button"
-                onClick={toggleExpanded}
-                className="p-1 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded transition-colors"
-                title="Collapse panel"
-              >
-                <MinusCircle
-                  size={20}
-                  className="text-neutral-500 dark:text-neutral-500"
-                />
-              </button>
             </div>
           </div>
 

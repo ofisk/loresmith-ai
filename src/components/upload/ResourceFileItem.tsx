@@ -147,12 +147,18 @@ export function ResourceFileItem({
               onToggleExpand();
             }}
             type="button"
-            className="flex-shrink-0 p-1 rounded-md hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors duration-200"
+            className="flex-shrink-0 p-1 rounded-md bg-neutral-200 dark:bg-neutral-800 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors duration-200"
           >
             {isExpanded ? (
-              <CaretDownIcon size={16} className="text-purple-600" />
+              <CaretDownIcon
+                size={16}
+                className="text-purple-600 dark:text-purple-400"
+              />
             ) : (
-              <CaretRightIcon size={16} className="text-purple-600" />
+              <CaretRightIcon
+                size={16}
+                className="text-purple-600 dark:text-purple-400"
+              />
             )}
           </button>
         </div>

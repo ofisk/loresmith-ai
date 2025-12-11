@@ -8,6 +8,7 @@ import { EditFileModal } from "@/components/upload/EditFileModal";
 import { ResourceUpload } from "@/components/upload/ResourceUpload";
 import { MultiSelect } from "@/components/select/MultiSelect";
 import { TelemetryDashboard } from "@/components/admin/TelemetryDashboard";
+import { FormButton } from "@/components/button/FormButton";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { API_CONFIG } from "@/shared-config";
 import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
@@ -372,41 +373,43 @@ export function AppModals({
               </div>
             )}
 
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                type="button"
-                onClick={modalState.handleAddToCampaignClose}
-                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-              >
-                {availableCampaigns.length === 0 ? "Close" : "Cancel"}
-              </button>
-              {availableCampaigns.length > 0 && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    // Close modal and clear selections immediately
-                    modalState.setSelectedCampaigns([]);
-                    modalState.handleAddToCampaignClose();
+            <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex gap-2">
+                {availableCampaigns.length > 0 && (
+                  <FormButton
+                    variant="primary"
+                    onClick={async () => {
+                      // Close modal and clear selections immediately
+                      modalState.setSelectedCampaigns([]);
+                      modalState.handleAddToCampaignClose();
 
-                    // Use the extracted campaign addition logic
-                    if (!modalState.selectedFile) {
-                      return;
-                    }
-                    await addFileToCampaigns(
-                      modalState.selectedFile,
-                      modalState.selectedCampaigns,
-                      authState.getStoredJwt,
-                      addLocalNotification,
-                      () => {
-                        // Success callback - modal is already closed
+                      // Use the extracted campaign addition logic
+                      if (!modalState.selectedFile) {
+                        return;
                       }
-                    );
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md"
+                      await addFileToCampaigns(
+                        modalState.selectedFile,
+                        modalState.selectedCampaigns,
+                        authState.getStoredJwt,
+                        addLocalNotification,
+                        () => {
+                          // Success callback - modal is already closed
+                        }
+                      );
+                    }}
+                  >
+                    {availableCampaigns.length === 0
+                      ? "Close"
+                      : "Add to campaign"}
+                  </FormButton>
+                )}
+                <FormButton
+                  onClick={modalState.handleAddToCampaignClose}
+                  variant="secondary"
                 >
-                  Add to Campaigns
-                </button>
-              )}
+                  Cancel
+                </FormButton>
+              </div>
             </div>
           </div>
         </div>

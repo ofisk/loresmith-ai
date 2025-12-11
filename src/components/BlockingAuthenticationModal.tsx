@@ -79,7 +79,7 @@ export function BlockingAuthenticationModal({
       animatedBackground={true} // Enable the cool purple animation!
     >
       <div className="p-6 max-w-md mx-auto">
-        <h2 className="text-xl font-semibold mb-4">Authentication Required</h2>
+        <h2 className="text-xl font-semibold mb-4">Authentication required</h2>
 
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
           Present your credentials to enter the halls of LoreSmith. You'll need
@@ -103,7 +103,7 @@ export function BlockingAuthenticationModal({
 
           <FormField
             id={adminKeyId}
-            label="Admin Key (Optional)"
+            label="Admin key (optional)"
             placeholder="Enter the sacred key for the infinite vault..."
             value={adminKey}
             onValueChange={(value, _isValid) => setAdminKey(value)}
@@ -117,7 +117,7 @@ export function BlockingAuthenticationModal({
 
           <FormField
             id={openaiKeyId}
-            label="OpenAI API Key"
+            label="OpenAI API key"
             placeholder="Enter OpenAI's spell..."
             value={isOpenAIKeyDisabled ? openaiKeyDisplay : openaiApiKey}
             onValueChange={(value, _isValid) => setOpenaiApiKey(value)}
