@@ -177,7 +177,7 @@ export class AssessmentDAO {
           'resource_uploaded' as type,
           created_at as timestamp,
           file_name as details
-        FROM pdf_metadata 
+        FROM file_metadata 
         WHERE username = ?
         ORDER BY timestamp DESC
         LIMIT 20
