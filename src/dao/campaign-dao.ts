@@ -15,6 +15,7 @@ export interface CampaignContext {
   id: string;
   campaign_id: string;
   context_type: string;
+  title: string;
   content: string;
   created_at: string;
   updated_at: string;
@@ -219,15 +220,17 @@ export class CampaignDAO extends BaseDAOClass {
   }
 
   async addCampaignContext(
+    id: string,
     campaignId: string,
     contextType: string,
+    title: string,
     content: string
   ): Promise<void> {
     const sql = `
-      insert into campaign_context (campaign_id, context_type, content, created_at, updated_at)
-      values (?, ?, ?, current_timestamp, current_timestamp)
+      insert into campaign_context (id, campaign_id, context_type, title, content, created_at, updated_at)
+      values (?, ?, ?, ?, ?, current_timestamp, current_timestamp)
     `;
-    await this.execute(sql, [campaignId, contextType, content]);
+    await this.execute(sql, [id, campaignId, contextType, title, content]);
   }
 
   async getCampaignCharacters(
@@ -242,15 +245,16 @@ export class CampaignDAO extends BaseDAOClass {
   }
 
   async addCampaignCharacter(
+    id: string,
     campaignId: string,
     characterName: string,
     characterData: string
   ): Promise<void> {
     const sql = `
-      insert into campaign_characters (campaign_id, character_name, character_data, created_at, updated_at)
-      values (?, ?, ?, current_timestamp, current_timestamp)
+      insert into campaign_characters (id, campaign_id, character_name, character_data, created_at, updated_at)
+      values (?, ?, ?, ?, current_timestamp, current_timestamp)
     `;
-    await this.execute(sql, [campaignId, characterName, characterData]);
+    await this.execute(sql, [id, campaignId, characterName, characterData]);
   }
 
   async getCampaignResources(campaignId: string): Promise<CampaignResource[]> {
@@ -348,7 +352,7 @@ export class CampaignDAO extends BaseDAOClass {
     resourceId: string
   ): Promise<void> {
     const sql =
-      "delete from campaign_resources where campaign_id = ? and resource_id = ?";
+      "delete from campaign_resources where campaign_id = ? and id = ?";
     await this.execute(sql, [campaignId, resourceId]);
   }
 

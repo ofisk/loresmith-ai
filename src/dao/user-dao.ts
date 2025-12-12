@@ -15,10 +15,10 @@ export interface UserStorageUsage {
 export class UserDAO extends BaseDAOClass {
   async storeOpenAIKey(username: string, apiKey: string): Promise<void> {
     const sql = `
-      insert or replace into user_openai_keys (username, api_key, updated_at)
-      values (?, ?, current_timestamp)
+      insert or replace into user_openai_keys (id, username, api_key, updated_at)
+      values (?, ?, ?, current_timestamp)
     `;
-    await this.execute(sql, [username, apiKey]);
+    await this.execute(sql, [username, username, apiKey]);
   }
 
   async getOpenAIKey(username: string): Promise<string | null> {
@@ -72,36 +72,5 @@ export class UserDAO extends BaseDAOClass {
     `;
 
     return await this.queryAll<UserStorageUsage>(sql);
-  }
-
-  async getUserActivity(username: string): Promise<{
-    campaign_count: number;
-    file_count: number;
-    last_activity: string | null;
-  }> {
-    const sql = `
-      select
-        (select count(*) from campaigns where username = ?) as campaign_count,
-        (select count(*) from file_metadata where username = ?) as file_count,
-        (select max(updated_at) from (
-          select updated_at from campaigns where username = ?
-          union all
-          select updated_at from file_metadata where username = ?
-        )) as last_activity
-    `;
-
-    const result = await this.queryFirst<{
-      campaign_count: number;
-      file_count: number;
-      last_activity: string | null;
-    }>(sql, [username, username, username, username]);
-
-    return (
-      result || {
-        campaign_count: 0,
-        file_count: 0,
-        last_activity: null,
-      }
-    );
   }
 }
