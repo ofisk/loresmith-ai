@@ -47,20 +47,21 @@ export function useNotificationStream(
     optsRef.current = options;
   }, [options]);
 
-  // Reconnect trigger is handled by the connect function dependency
-
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (bypassCircuitBreaker = false) => {
     if (isConnectingRef.current || !isMountedRef.current) {
       return;
     }
 
     // Circuit breaker: don't attempt connection if we've failed recently
-    const now = Date.now();
-    if (now - lastFailureTime.current < circuitBreakerTimeout) {
-      console.log(
-        "[useNotificationStream] Circuit breaker active, skipping connection attempt"
-      );
-      return;
+    // Can be bypassed when authentication completes (reconnectTrigger)
+    if (!bypassCircuitBreaker) {
+      const now = Date.now();
+      if (now - lastFailureTime.current < circuitBreakerTimeout) {
+        console.log(
+          "[useNotificationStream] Circuit breaker active, skipping connection attempt"
+        );
+        return;
+      }
     }
 
     // If we already have a connection, close it first
@@ -166,10 +167,24 @@ export function useNotificationStream(
         throw new Error("No stream URL returned from server");
       }
 
+      console.log(
+        "[useNotificationStream] Minted token, streamUrl:",
+        streamUrl.substring(0, 100) + "..."
+      );
+
       // Create EventSource with the short-lived stream URL
       let eventSource: EventSource;
       try {
+        console.log(
+          "[useNotificationStream] Creating EventSource with URL:",
+          streamUrl.substring(0, 100) + "..."
+        );
         eventSource = new EventSource(streamUrl);
+        console.log(
+          "[useNotificationStream] EventSource created, readyState:",
+          eventSource.readyState,
+          "(0=CONNECTING, 1=OPEN, 2=CLOSED)"
+        );
       } catch (error) {
         console.error(
           "[useNotificationStream] Error creating EventSource:",
@@ -350,6 +365,61 @@ export function useNotificationStream(
       notifications: [],
     }));
   };
+
+  // Handle reconnect trigger: reset circuit breaker and reconnect when auth state changes
+  const reconnectTriggerRef = useRef(options.reconnectTrigger);
+  useEffect(() => {
+    const prevTrigger = reconnectTriggerRef.current;
+    reconnectTriggerRef.current = options.reconnectTrigger;
+
+    // When reconnectTrigger becomes truthy (user authenticated), reset circuit breaker and reconnect
+    if (options.reconnectTrigger && !prevTrigger && isMountedRef.current) {
+      // Reset circuit breaker when authentication completes
+      lastFailureTime.current = 0;
+      reconnectAttempts.current = 0;
+      // Trigger reconnection, bypassing circuit breaker
+      if (!isConnectingRef.current && !state.isConnected) {
+        connect(true).catch((error) => {
+          console.error(
+            "[useNotificationStream] Reconnection after auth failed:",
+            error
+          );
+        });
+      }
+    }
+  }, [options.reconnectTrigger, connect, state.isConnected]);
+
+  // Handle tab visibility: reset circuit breaker when tab becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && isMountedRef.current) {
+        // Reset circuit breaker when tab becomes visible to allow reconnection
+        if (lastFailureTime.current > 0) {
+          const timeSinceFailure = Date.now() - lastFailureTime.current;
+          // Only reset if we have a token and are not already connected
+          const token = localStorage.getItem(JWT_STORAGE_KEY);
+          if (token && !state.isConnected && timeSinceFailure > 5000) {
+            // Reset circuit breaker after 5 seconds to allow reconnection
+            lastFailureTime.current = 0;
+            reconnectAttempts.current = 0;
+            if (!isConnectingRef.current) {
+              connect(true).catch((error) => {
+                console.error(
+                  "[useNotificationStream] Reconnection after visibility change failed:",
+                  error
+                );
+              });
+            }
+          }
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [connect, state.isConnected]);
 
   // Auto-connect on mount and when reconnect trigger changes
   useEffect(() => {

@@ -152,7 +152,48 @@ export async function handleNotificationStream(
       doUrl.searchParams.set("userId", userId);
       const finalRequest = new Request(doUrl.toString(), doRequest);
 
-      const response = await notificationHub.fetch(finalRequest);
+      let response: Response;
+      try {
+        response = await notificationHub.fetch(finalRequest);
+      } catch (doError) {
+        console.error(
+          `[handleNotificationStream] Durable Object fetch error:`,
+          doError
+        );
+        // If DO fetch fails (e.g., due to reset), return a reset message
+        const { readable, writable } = new TransformStream();
+        const writer = writable.getWriter();
+        const encoder = new TextEncoder();
+
+        const resetMessage = `data: ${JSON.stringify({
+          type: "durable-object-reset",
+          message: "Durable Object reset detected - reconnecting",
+          timestamp: Date.now(),
+        })}\n\n`;
+        writer.write(encoder.encode(resetMessage));
+
+        setTimeout(async () => {
+          try {
+            await writer.close();
+          } catch (_error) {
+            // Ignore error closing reset stream
+          }
+        }, 100);
+
+        return new Response(readable, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers":
+              "Content-Type, Authorization, X-Session-ID",
+            "Access-Control-Allow-Methods":
+              "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+          },
+        });
+      }
 
       if (!response.ok) {
         console.error(

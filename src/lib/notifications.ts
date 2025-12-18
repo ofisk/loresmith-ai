@@ -40,6 +40,7 @@ export async function notifyUser(
     console.log(`[notifyUser] About to call Durable Object fetch...`);
 
     // Add a timeout to the fetch call
+    // Increased timeout to 10 seconds to handle cases where DO is busy delivering queued notifications
     const fetchPromise = notificationHub.fetch(
       new Request("http://localhost/publish", {
         method: "POST",
@@ -51,7 +52,7 @@ export async function notifyUser(
     );
 
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Durable Object fetch timeout")), 2000)
+      setTimeout(() => reject(new Error("Durable Object fetch timeout")), 10000)
     );
 
     const response = (await Promise.race([
