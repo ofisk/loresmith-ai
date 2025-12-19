@@ -1,4 +1,5 @@
 import { type ActivityType, AssessmentDAO } from "@/dao/assessment-dao";
+import { getDAOFactory } from "@/dao/dao-factory";
 import { getCampaignState } from "@/lib/campaign-state-utils";
 import type { Env } from "@/middleware/auth";
 import type { ModuleAnalysis } from "@/tools/campaign-context/assessment-core";
@@ -103,10 +104,15 @@ export class AssessmentService {
       }
 
       // Get campaign data
-      const contextData =
-        await this.assessmentDAO.getCampaignContext(campaignId);
-      const charactersData =
-        await this.assessmentDAO.getCampaignCharacters(campaignId);
+      const daoFactory = getDAOFactory(this.env);
+      const contextData = await this.assessmentDAO.getCampaignContext(
+        campaignId,
+        daoFactory.entityDAO
+      );
+      const charactersData = await this.assessmentDAO.getCampaignCharacters(
+        campaignId,
+        daoFactory.entityDAO
+      );
 
       // Calculate readiness score based on data richness
       const contextCount = contextData.length;
@@ -198,36 +204,43 @@ export class AssessmentService {
     try {
       const { extractedElements, moduleName } = moduleAnalysis;
 
-      // Store all extracted elements using the DAO
+      // Store all extracted elements using the DAO with entityDAO
+      const daoFactory = getDAOFactory(this.env);
       await this.assessmentDAO.storeNPCs(
         campaignId,
         extractedElements.npcs,
-        moduleName
+        moduleName,
+        daoFactory.entityDAO
       );
       await this.assessmentDAO.storeLocations(
         campaignId,
         extractedElements.locations,
-        moduleName
+        moduleName,
+        daoFactory.entityDAO
       );
       await this.assessmentDAO.storePlotHooks(
         campaignId,
         extractedElements.plotHooks,
-        moduleName
+        moduleName,
+        daoFactory.entityDAO
       );
       await this.assessmentDAO.storeStoryBeats(
         campaignId,
         extractedElements.storyBeats,
-        moduleName
+        moduleName,
+        daoFactory.entityDAO
       );
       await this.assessmentDAO.storeKeyItems(
         campaignId,
         extractedElements.keyItems,
-        moduleName
+        moduleName,
+        daoFactory.entityDAO
       );
       await this.assessmentDAO.storeConflicts(
         campaignId,
         extractedElements.conflicts,
-        moduleName
+        moduleName,
+        daoFactory.entityDAO
       );
 
       return true;
@@ -242,7 +255,11 @@ export class AssessmentService {
    */
   async getCampaignContext(campaignId: string): Promise<any[]> {
     try {
-      return await this.assessmentDAO.getCampaignContextOrdered(campaignId);
+      const daoFactory = getDAOFactory(this.env);
+      return await this.assessmentDAO.getCampaignContextOrdered(
+        campaignId,
+        daoFactory.entityDAO
+      );
     } catch (error) {
       console.error("Failed to get campaign context:", error);
       throw new DataRetrievalError("Failed to retrieve campaign context");
@@ -254,7 +271,11 @@ export class AssessmentService {
    */
   async getCampaignCharacters(campaignId: string): Promise<any[]> {
     try {
-      return await this.assessmentDAO.getCampaignCharactersOrdered(campaignId);
+      const daoFactory = getDAOFactory(this.env);
+      return await this.assessmentDAO.getCampaignCharactersOrdered(
+        campaignId,
+        daoFactory.entityDAO
+      );
     } catch (error) {
       console.error("Failed to get campaign characters:", error);
       throw new DataRetrievalError("Failed to retrieve campaign characters");
