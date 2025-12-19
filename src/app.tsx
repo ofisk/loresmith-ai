@@ -3,7 +3,7 @@ import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import { generateId } from "ai";
 import type React from "react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 // Component imports
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
@@ -22,6 +22,8 @@ import { useUiHints } from "@/hooks/useUiHints";
 import { useGlobalShardManager } from "@/hooks/useGlobalShardManager";
 import { ShardOverlay } from "@/components/shard/ShardOverlay";
 import { API_CONFIG } from "@/shared-config";
+import { useActivityTracking } from "@/hooks/useActivityTracking";
+import { useAuthReady } from "@/hooks/useAuthReady";
 import { getHelpContent } from "@/lib/help-content";
 import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
 
@@ -79,10 +81,19 @@ export default function Chat() {
   const { campaignAdditionProgress, isAddingToCampaigns, addFileToCampaigns } =
     useCampaignAddition();
 
+  // Activity tracking for recap triggers
+  const {
+    checkShouldShowRecap,
+    markRecapShown,
+    checkHasBeenAway,
+    updateActivity,
+  } = useActivityTracking();
+
   // File upload hook
   const { handleUpload } = useFileUpload({
     onUploadSuccess: (filename, fileKey) => {
       console.log("Upload successful:", filename, fileKey);
+      updateActivity(); // Update activity timestamp on file upload
       addLocalNotification(
         NOTIFICATION_TYPES.SUCCESS,
         "File Uploaded Successfully",
@@ -235,6 +246,93 @@ export default function Chat() {
       );
     };
   }, [modalState]);
+
+  // Auth ready check for recap triggers
+  const authReady = useAuthReady();
+
+  // Track if we've already triggered a recap in this session to avoid duplicates
+  const recapTriggeredRef = useRef<Set<string>>(new Set());
+
+  // Trigger recap on app initialization if user has been away
+  useEffect(() => {
+    if (!authReady || !selectedCampaignId || isLoading) {
+      return;
+    }
+
+    const shouldTrigger =
+      checkHasBeenAway() && checkShouldShowRecap(selectedCampaignId);
+    const recapKey = `init-${selectedCampaignId}`;
+
+    if (shouldTrigger && !recapTriggeredRef.current.has(recapKey)) {
+      recapTriggeredRef.current.add(recapKey);
+      const jwt = authState.getStoredJwt();
+
+      console.log("[App] Triggering context recap after inactivity");
+
+      append({
+        role: "user",
+        content: "",
+        data: {
+          type: "context_recap_request",
+          campaignId: selectedCampaignId,
+          jwt: jwt || null,
+        },
+      });
+
+      markRecapShown(selectedCampaignId);
+    }
+  }, [
+    authReady,
+    selectedCampaignId,
+    isLoading,
+    checkHasBeenAway,
+    checkShouldShowRecap,
+    markRecapShown,
+    append,
+    authState,
+  ]);
+
+  // Trigger recap on campaign change
+  useEffect(() => {
+    if (!authReady || !selectedCampaignId || isLoading) {
+      return;
+    }
+
+    const recapKey = `campaign-${selectedCampaignId}`;
+
+    // Only trigger if we haven't already triggered for this campaign
+    if (
+      !recapTriggeredRef.current.has(recapKey) &&
+      checkShouldShowRecap(selectedCampaignId)
+    ) {
+      recapTriggeredRef.current.add(recapKey);
+      const jwt = authState.getStoredJwt();
+
+      console.log(
+        `[App] Triggering context recap for campaign change: ${selectedCampaignId}`
+      );
+
+      append({
+        role: "user",
+        content: "",
+        data: {
+          type: "context_recap_request",
+          campaignId: selectedCampaignId,
+          jwt: jwt || null,
+        },
+      });
+
+      markRecapShown(selectedCampaignId);
+    }
+  }, [
+    selectedCampaignId,
+    authReady,
+    isLoading,
+    checkShouldShowRecap,
+    markRecapShown,
+    append,
+    authState,
+  ]);
 
   useEffect(() => {
     void agentMessages;
@@ -449,6 +547,9 @@ export default function Chat() {
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!agentInput.trim()) return;
+
+    // Update activity timestamp on message send
+    updateActivity();
 
     const jwt = authState.getStoredJwt();
 

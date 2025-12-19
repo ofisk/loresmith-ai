@@ -1,5 +1,6 @@
 import type { Env } from "@/middleware/auth";
 import { R2Helper } from "@/lib/r2";
+import { getDAOFactory } from "@/dao/dao-factory";
 
 /**
  * Service to sync campaign context (characters, resources, context) as approved shards
@@ -252,7 +253,8 @@ export class CampaignContextSyncService {
     noteContent: string,
     noteType: string = "general",
     confidence: number = 0.8,
-    sourceMessageId?: string
+    sourceMessageId?: string,
+    env?: Env
   ): Promise<{ stagingKey: string; shard: any }> {
     const campaignBasePath = `campaigns/${campaignId}`;
 
@@ -290,6 +292,52 @@ export class CampaignContextSyncService {
       new TextEncoder().encode(JSON.stringify(shard)).buffer,
       "application/json"
     );
+
+    // Also create an entity in the database so it appears in the shard management UI
+    // The UI queries entities with shardStatus === "staging" in metadata
+    if (env) {
+      try {
+        const daoFactory = getDAOFactory(env);
+        const resourceId = "conversation";
+        const resourceName = "Conversation"; // Consistent name for grouping
+
+        // Create entity with staging status in metadata
+        await daoFactory.entityDAO.createEntity({
+          id: noteId,
+          campaignId,
+          entityType: "conversational_context",
+          name: noteTitle, // Individual shard title appears as entity name
+          content: { text: noteContent },
+          metadata: {
+            shardStatus: "staging",
+            resourceId,
+            resourceName,
+            fileKey: resourceId,
+            entityType: "conversational_context",
+            noteType,
+            title: noteTitle,
+            sourceType: "ai_detected",
+            confidence,
+            sourceMessageId,
+            query: noteTitle,
+            createdAt: new Date().toISOString(),
+          },
+          confidence,
+          sourceType: "ai_detected",
+          sourceId: sourceMessageId || noteId,
+        });
+
+        console.log(
+          `[CampaignContextSync] Created staging entity in database: ${noteId}`
+        );
+      } catch (entityError) {
+        console.error(
+          `[CampaignContextSync] Failed to create staging entity in database:`,
+          entityError
+        );
+        // Don't fail the operation if entity creation fails - R2 storage succeeded
+      }
+    }
 
     console.log(
       `[CampaignContextSync] Created staging shard for review: ${stagingKey}`

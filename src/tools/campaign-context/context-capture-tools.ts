@@ -149,7 +149,8 @@ export const captureConversationalContext = tool({
         content,
         contextType,
         confidence,
-        sourceMessageId
+        sourceMessageId,
+        env
       );
 
       console.log("[captureConversationalContext] Created staging shard:", {
@@ -286,7 +287,8 @@ export const saveContextExplicitly = tool({
         content,
         contextType,
         0.95, // High confidence for explicit user requests
-        undefined // No specific source message
+        undefined, // No specific source message
+        env
       );
 
       console.log("[saveContextExplicitly] Created staging shard:", {

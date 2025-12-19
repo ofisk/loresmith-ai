@@ -243,8 +243,12 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
       }
 
       // Convert entity to shard format for UI compatibility (UI uses "shard" terminology)
+      // Use metadata.title if available (for conversational shards), otherwise use entity name
+      const shardTitle = (metadata.title as string) || entity.name;
       const shard = {
         id: entity.id,
+        name: shardTitle, // Include name so UI doesn't fall back to showing the ID
+        title: shardTitle, // Also include as title for maximum compatibility
         text: JSON.stringify(entity.content),
         metadata: {
           ...metadata,

@@ -10,6 +10,7 @@ import {
 } from "../utils";
 import { getAssessmentService } from "../../lib/service-factory";
 import { CharacterEntitySyncService } from "../../services/campaign/character-entity-sync-service";
+import { PlanningContextService } from "../../services/rag/planning-context-service";
 import type { Env } from "../../middleware/auth";
 
 // Helper function to get environment from context
@@ -26,7 +27,7 @@ function getEnvFromContext(context: any): any {
 // Tool to get campaign suggestions
 export const getCampaignSuggestions = tool({
   description:
-    "Get intelligent suggestions for campaign development, session planning, and story progression",
+    "Get intelligent suggestions for campaign development, session planning, and story progression. Suggestions should be informed by the Campaign Planning Checklist, prioritizing foundational elements (Campaign Foundation, World & Setting Basics, Starting Location) before later stages.",
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
     suggestionType: z
@@ -208,7 +209,7 @@ export const getCampaignSuggestions = tool({
 // Tool to assess campaign readiness
 export const assessCampaignReadiness = tool({
   description:
-    "Assess the campaign's readiness for the next session and provide recommendations",
+    "Assess the campaign's readiness for the next session and provide recommendations. When interpreting results, reference the Campaign Planning Checklist to provide structured, prioritized recommendations based on logical dependencies (foundational elements before later stages).",
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
     assessmentType: z
@@ -303,12 +304,19 @@ export const assessCampaignReadiness = tool({
           ).length,
         });
 
-        // Perform assessment
+        // Perform semantic analysis of checklist coverage
+        const semanticAnalysis = await performSemanticChecklistAnalysis(
+          env as Env,
+          campaignId
+        );
+
+        // Perform assessment with semantic analysis results
         const assessment = performReadinessAssessment(
           assessmentType,
           allCharacters,
           allResources,
-          allContext
+          allContext,
+          semanticAnalysis
         );
 
         console.log("[Tool] Assessment completed:", assessment.score);
@@ -430,12 +438,97 @@ function generateSuggestions(
   return suggestions;
 }
 
+/**
+ * Performs semantic search to check for checklist coverage
+ * Returns an object indicating which checklist items appear to be covered
+ */
+async function performSemanticChecklistAnalysis(
+  env: Env,
+  campaignId: string
+): Promise<Record<string, boolean>> {
+  const coverage: Record<string, boolean> = {};
+
+  try {
+    if (!env.DB || !env.VECTORIZE || !env.OPENAI_API_KEY) {
+      // Semantic search not available, return empty coverage
+      return {};
+    }
+
+    const planningService = new PlanningContextService(
+      env.DB,
+      env.VECTORIZE,
+      env.OPENAI_API_KEY,
+      env
+    );
+
+    // Key checklist items to check for
+    const checklistQueries = [
+      {
+        key: "campaign_tone",
+        query: "campaign tone mood heroic grim cozy political",
+      },
+      {
+        key: "core_themes",
+        query: "core themes power faith legacy corruption",
+      },
+      { key: "world_name", query: "world name region setting location" },
+      {
+        key: "cultural_trait",
+        query: "cultural trait dominant culture society",
+      },
+      { key: "magic_system", query: "magic system common magic people react" },
+      {
+        key: "starting_location",
+        query: "starting town city location hub area",
+      },
+      {
+        key: "starting_npcs",
+        query: "NPCs non-player characters starting location",
+      },
+      {
+        key: "factions",
+        query: "factions organizations groups conflicting goals",
+      },
+      {
+        key: "campaign_pitch",
+        query: "campaign elevator pitch summary description",
+      },
+    ];
+
+    // Search for each checklist item
+    for (const { key, query } of checklistQueries) {
+      try {
+        const results = await planningService.search({
+          campaignId,
+          query,
+          limit: 3,
+        });
+
+        // Consider covered if we find at least one relevant result with good similarity
+        coverage[key] = results.length > 0 && results[0].similarityScore > 0.6;
+      } catch (error) {
+        console.warn(`[SemanticAnalysis] Failed to search for ${key}:`, error);
+        coverage[key] = false;
+      }
+    }
+  } catch (error) {
+    console.warn(
+      "[SemanticAnalysis] Failed to perform semantic analysis:",
+      error
+    );
+    // If semantic search fails, we'll just return empty coverage
+  }
+
+  return coverage;
+}
+
 // Helper function to perform readiness assessment
 function performReadinessAssessment(
   type: string,
   characters: any[],
   resources: any[],
-  context: any[]
+  context: any[],
+  semanticAnalysis?: Record<string, boolean>
 ): any {
   let score = 0;
   const recommendations = [];
@@ -466,15 +559,34 @@ function performReadinessAssessment(
   // Cap score at 100
   score = Math.min(score, 100);
 
-  // Generate recommendations
-  if (score < 50) {
-    recommendations.push("Add more campaign context and resources");
-  }
-  if (characters.length < 2) {
-    recommendations.push("Create more character profiles");
-  }
-  if (resources.length < 2) {
-    recommendations.push("Add more campaign resources");
+  // Generate recommendations based on semantic analysis if available
+  if (semanticAnalysis) {
+    if (!semanticAnalysis.campaign_tone) {
+      recommendations.push("Define campaign tone (heroic, grim, cozy, etc.)");
+    }
+    if (!semanticAnalysis.core_themes) {
+      recommendations.push("Define core themes for your campaign");
+    }
+    if (!semanticAnalysis.world_name) {
+      recommendations.push("Name your campaign world or region");
+    }
+    if (!semanticAnalysis.starting_location) {
+      recommendations.push("Establish your starting location");
+    }
+    if (!semanticAnalysis.factions) {
+      recommendations.push("Define factions or organizations in your world");
+    }
+  } else {
+    // Fallback to count-based recommendations if semantic analysis unavailable
+    if (score < 50) {
+      recommendations.push("Add more campaign context and resources");
+    }
+    if (characters.length < 2) {
+      recommendations.push("Create more character profiles");
+    }
+    if (resources.length < 2) {
+      recommendations.push("Add more campaign resources");
+    }
   }
 
   // Convert score to descriptive state
@@ -497,6 +609,7 @@ function performReadinessAssessment(
       characters: characters.length,
       resources: resources.length,
       context: context.length,
+      semanticCoverage: semanticAnalysis || {},
     },
   };
 }
