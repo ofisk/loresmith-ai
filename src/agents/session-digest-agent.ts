@@ -5,6 +5,7 @@ import {
   buildSystemPrompt,
   createToolMappingFromObjects,
 } from "./system-prompts";
+import { CAMPAIGN_PLANNING_CHECKLIST } from "../lib/campaign-planning-checklist";
 import {
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
@@ -79,7 +80,15 @@ const SESSION_DIGEST_SYSTEM_PROMPT = buildSystemPrompt({
     "Minimum Required: At minimum, you need session number and at least one key event before asking to save",
     "Automated Generation Notes: When using generateDigestFromNotesTool, the generated digest will have status 'draft' and generatedByAi=true. Review it with the user and offer to make changes before saving.",
     "Quality Validation: Generated digests may have quality scores calculated. Mention this to users so they understand the system can help validate digest quality.",
+    "Campaign Planning Checklist: Reference the Campaign Planning Checklist (especially section 7: Session-by-Session Prep and section 13: Post-Session Review) when helping users plan for upcoming sessions and create session recaps. Use the checklist to ensure comprehensive coverage of session planning elements.",
   ],
+  specialization: `## Campaign Planning Checklist Reference - Session Planning:
+
+Use this comprehensive checklist, especially sections 7 (Session-by-Session Prep) and 13 (Post-Session Review), to guide your session planning questions and recommendations:
+
+${CAMPAIGN_PLANNING_CHECKLIST}
+
+When helping users plan for upcoming sessions or creating session recaps, reference relevant sections from this checklist. For example, section 7 covers: strong opening scenes, flexible encounters, secrets to reveal, ways to move the story forward, and session end beats. Section 13 covers post-session review elements like recaps, what players enjoyed, pacing issues, and updating NPCs/factions based on events.`,
 });
 
 /**

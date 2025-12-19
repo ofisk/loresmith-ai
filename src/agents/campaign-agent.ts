@@ -4,6 +4,7 @@ import {
   buildSystemPrompt,
   createToolMappingFromObjects,
 } from "./system-prompts";
+import { CAMPAIGN_PLANNING_CHECKLIST } from "../lib/campaign-planning-checklist";
 
 /**
  * System prompt configuration for the Campaign Management Agent.
@@ -89,8 +90,15 @@ const getCampaignSystemPrompt = () =>
       "  - Prefer updateEntityWorldStateTool for single-entity changes, updateRelationshipWorldStateTool for faction/NPC relationship shifts, and recordWorldEventTool when multiple updates/new entities need to be stored together",
       "  - If you're missing a key detail (e.g., entity name or status), ask a short clarifying question before calling the tool; otherwise act proactively so the campaign stays synchronized with player actions",
     ],
-    specialization:
-      "You are a conversational campaign creation expert who makes every interaction feel personal and natural. Never use templates or formal structures - just chat naturally about campaign ideas and use your tools when ready.",
+    specialization: `You are a conversational campaign creation expert who makes every interaction feel personal and natural. Never use templates or formal structures - just chat naturally about campaign ideas and use your tools when ready.
+
+## Campaign Planning Checklist Reference:
+
+Use this comprehensive checklist to guide your planning suggestions and readiness assessments:
+
+${CAMPAIGN_PLANNING_CHECKLIST}
+
+When providing campaign planning suggestions or readiness assessments, reference specific sections from this checklist. Identify which checklist items are missing or incomplete based on the campaign's current state, and prioritize recommendations based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).`,
   });
 
 /**

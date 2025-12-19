@@ -5,6 +5,7 @@ import {
   buildSystemPrompt,
   createToolMappingFromObjects,
 } from "./system-prompts";
+import { CAMPAIGN_PLANNING_CHECKLIST } from "../lib/campaign-planning-checklist";
 
 /**
  * System prompt configuration for the Campaign Help Agent.
@@ -39,25 +40,8 @@ const CAMPAIGN_HELP_SYSTEM_PROMPT = buildSystemPrompt({
     "Next-Step Suggestions: Based on recent session digests, suggest actions like: chat more about the campaign to add more context, upload files to enrich your campaign world, record notes for a session, expand on important characters or locations that need more detail",
     "Session Digest Context: Reference information from recent session digests when making suggestions (e.g., 'You mentioned X in your last session, consider following up on Y')",
     "Prompt Suggestions: Provide 3-5 specific prompts users can copy and try, formatted clearly",
-    "Educational Content: When suggesting prompts, explain what kinds of things users should be thinking about (e.g., 'When planning a session, consider: NPC motivations, player character goals, environmental details, pacing, etc.')",
-    "Campaign Planning Concepts: Educate users on important considerations like:",
-    "  - NPC motivations and goals",
-    "  - Player character backstories and goals",
-    "  - World consistency and continuity",
-    "  - Session pacing and structure",
-    "  - Plot hooks and story beats",
-    "  - Environmental details and atmosphere",
-    "  - Faction relationships and politics",
-    "  - Resource management and preparation",
-    "Session Planning Concepts: Educate users on what makes a good session plan:",
-    "  - Clear objectives and goals",
-    "  - Multiple paths for player agency",
-    "  - Prepared NPCs with motivations",
-    "  - Environmental descriptions",
-    "  - Potential combat encounters",
-    "  - Social interaction opportunities",
-    "  - Pacing considerations",
-    "  - Backup plans for when players go off-script",
+    "Educational Content: When suggesting prompts, explain what kinds of things users should be thinking about by referencing the Campaign Planning Checklist",
+    "Campaign Planning Checklist: Use the comprehensive Campaign Planning Checklist to guide your educational content and suggestions. Reference specific sections (Campaign Foundation, World & Setting Basics, Starting Location, Factions, Player Integration, First Story Arc, Session-by-Session Prep, etc.) when educating users about planning considerations. The full checklist is provided below for your reference:",
     "Campaign-Specific Next Steps: When a campaign is selected, provide specific suggestions:",
     "  - Review recent session digests to understand what happened",
     "  - Suggest recording a session recap if one hasn't been created recently",
@@ -70,6 +54,13 @@ const CAMPAIGN_HELP_SYSTEM_PROMPT = buildSystemPrompt({
     "Format: Provide suggestions as numbered lists with clear, actionable prompts users can copy",
     "Always be encouraging and supportive",
   ],
+  specialization: `## Campaign Planning Checklist Reference:
+
+Use this comprehensive checklist to guide your educational content and suggestions. Reference specific sections when helping users understand what to think about when planning campaigns and sessions:
+
+${CAMPAIGN_PLANNING_CHECKLIST}
+
+When educating users about campaign or session planning, reference relevant sections from this checklist. For example, when discussing campaign foundation, reference section 1. When discussing session prep, reference section 7. When suggesting next steps, identify which checklist items would be most valuable based on the user's current campaign state.`,
 });
 
 /**

@@ -392,6 +392,83 @@ export class Chat extends AIChatAgent<Env> {
         );
       }
 
+      // Check for context recap request
+      if (
+        lastUserMessage &&
+        "data" in lastUserMessage &&
+        lastUserMessage.data &&
+        typeof lastUserMessage.data === "object" &&
+        "type" in lastUserMessage.data &&
+        (lastUserMessage.data as { type?: string }).type ===
+          "context_recap_request"
+      ) {
+        const messageData = lastUserMessage.data as {
+          type: string;
+          campaignId?: string;
+        };
+        const campaignId = messageData.campaignId;
+
+        if (campaignId && jwtToken) {
+          console.log(
+            `[Chat] Context recap request detected for campaign: ${campaignId}`
+          );
+
+          try {
+            // Get the campaign-context agent which has access to recap tools
+            const targetAgentInstance =
+              this.getAgentInstance("campaign-context");
+            targetAgentInstance.messages = [...this.messages];
+
+            // Call the recap tool to get the recap data
+            const { generateContextRecapTool } = await import(
+              "@/tools/general/recap-tools"
+            );
+            const recapResult = await generateContextRecapTool.execute(
+              { campaignId, jwt: jwtToken },
+              { env: this.env, toolCallId: "recap-request" } as any
+            );
+
+            if (
+              recapResult.result.success &&
+              recapResult.result.data &&
+              typeof recapResult.result.data === "object" &&
+              recapResult.result.data !== null &&
+              "recap" in recapResult.result.data
+            ) {
+              // Format the recap data into a user-friendly message request
+              const recap = (recapResult.result.data as { recap: any }).recap;
+
+              // Generate the recap prompt using the prompts library
+              const { formatContextRecapPrompt } = await import(
+                "@/lib/prompts/recap-prompts"
+              );
+              const recapPrompt = formatContextRecapPrompt(recap);
+
+              // Add the recap request as a new user message
+              targetAgentInstance.messages.push({
+                role: "user",
+                content: recapPrompt,
+                data: { campaignId, jwt: jwtToken },
+              });
+
+              // Generate the recap using the agent
+              return targetAgentInstance.onChatMessage(onFinish, {
+                abortSignal: _options?.abortSignal,
+              });
+            } else {
+              console.error(
+                "[Chat] Failed to generate recap data:",
+                recapResult.result.message
+              );
+              // Fall through to normal message handling
+            }
+          } catch (error) {
+            console.error("[Chat] Error generating context recap:", error);
+            // Fall through to normal message handling
+          }
+        }
+      }
+
       const targetAgent = await this.determineAgent(lastUserMessage.content);
       console.log(
         `[Chat] Routing to ${targetAgent} agent for message: "${lastUserMessage.content}"`
