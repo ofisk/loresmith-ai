@@ -36,13 +36,19 @@ function getEnvFromContext(context: any): any {
 
 // Tool to search campaign context
 export const searchCampaignContext = tool({
-  description: `Search through campaign context using semantic search. Searches session digests (recaps, planning notes, key events) and world state changelog entries. Entity results include their actual relationships from the entity graph, showing which entities are connected and how (e.g., 'resides_in', 'located_in', 'allied_with'). CRITICAL: For location/residence information, ONLY use explicit 'resides_in' or 'located_in' relationships shown in the search results. Do NOT infer location from entity content text, entity names, or descriptions. If an entity has no 'resides_in' or 'located_in' relationship listed, then it has NO explicit location in the entity graph. Use this to find relevant past sessions, character development, plot threads, world state information, and all entity types including: ${ENTITY_TYPES_LIST}. Use searchType parameter to filter by specific entity types (e.g., 'characters' or 'locations').`,
+  description: `Search through campaign context using semantic search and graph traversal. 
+
+SEMANTIC SEARCH: Searches session digests (recaps, planning notes, key events), world state changelog entries, and entities via semantic similarity. Entity results include their actual relationships from the entity graph, showing which entities are connected and how (e.g., 'resides_in', 'located_in', 'allied_with'). Use this to find relevant past sessions, character development, plot threads, world state information, and all entity types including: ${ENTITY_TYPES_LIST}. Use searchType parameter to filter by specific entity types (e.g., 'characters' or 'locations').
+
+GRAPH TRAVERSAL: After finding entities via semantic search, use graph traversal to explore connected entities. Provide traverseFromEntityIds (entity IDs from previous search results) to traverse the graph starting from those entities. Use traverseDepth (1-3) to control how many relationship hops to follow (1=direct neighbors, 2=neighbors of neighbors, etc.). Optionally filter by traverseRelationshipTypes to focus on specific relationship types (e.g., ['resides_in', 'located_in'] for location queries). Example workflow: (1) Search for "Location X" to find its entity ID, (2) Use traverseFromEntityIds with that ID and traverseRelationshipTypes=['resides_in'] to find all NPCs living there.
+
+CRITICAL: Entity results include explicit relationships from the entity graph. ONLY use explicit relationships shown in the results. Do NOT infer relationships from entity content text, entity names, or descriptions. If a relationship is not explicitly listed, it does NOT exist in the entity graph.`,
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
     query: z
       .string()
       .describe(
-        `The search query - can include entity names, plot points, topics, or entity types like: ${ENTITY_TYPES_LIST}`
+        `The search query - can include entity names, plot points, topics, or entity types like: ${ENTITY_TYPES_LIST}. Leave empty if using graph traversal only.`
       ),
     searchType: z
       .enum(SEARCH_TYPE_OPTIONS)
@@ -50,10 +56,47 @@ export const searchCampaignContext = tool({
       .describe(
         `Type of content to search (default: all). 'context' searches session digests and changelog; any entity type (e.g., ${STRUCTURED_ENTITY_TYPES.slice(0, 5).join(", ")}, etc.) filters entities by that specific type; 'all' uses semantic search to find any entity type (${ENTITY_TYPES_LIST}) plus session digests and changelog`
       ),
+    traverseFromEntityIds: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Entity IDs to start graph traversal from. When provided, the tool will traverse the entity graph starting from these entities, following relationships to find connected entities. Use this after an initial semantic search to explore entities connected to the found entities."
+      ),
+    traverseDepth: z
+      .number()
+      .int()
+      .min(1)
+      .max(3)
+      .optional()
+      .describe(
+        "Maximum depth to traverse from starting entities (default: 1). Depth 1 returns direct neighbors, depth 2 returns neighbors of neighbors, etc. Use depth 1 first, then increase if more context is needed."
+      ),
+    traverseRelationshipTypes: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Optional filter for specific relationship types to traverse (e.g., ['resides_in', 'located_in']). If not provided, traverses all relationship types. Use this to focus traversal on specific relationship types relevant to the query."
+      ),
+    includeTraversedEntities: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe(
+        "Whether to include traversed entities in results (default: true). Set to false if you only want to see relationships without the full entity details."
+      ),
     jwt: commonSchemas.jwt,
   }),
   execute: async (
-    { campaignId, query, searchType = "all", jwt },
+    {
+      campaignId,
+      query,
+      searchType = "all",
+      traverseFromEntityIds,
+      traverseDepth = 1,
+      traverseRelationshipTypes,
+      includeTraversedEntities = true,
+      jwt,
+    },
     context?: any
   ): Promise<ToolResult> => {
     // Extract toolCallId from context
@@ -64,6 +107,10 @@ export const searchCampaignContext = tool({
       campaignId,
       query,
       searchType,
+      traverseFromEntityIds,
+      traverseDepth,
+      traverseRelationshipTypes,
+      includeTraversedEntities,
     });
 
     try {
@@ -489,6 +536,296 @@ export const searchCampaignContext = tool({
               error
             );
             // Continue even if entity search fails
+          }
+        }
+
+        // Graph traversal: If traverseFromEntityIds is provided, traverse the graph from those entities
+        if (traverseFromEntityIds && traverseFromEntityIds.length > 0) {
+          try {
+            console.log(
+              `[Tool] searchCampaignContext - Starting graph traversal from ${traverseFromEntityIds.length} entity IDs with depth ${traverseDepth}`
+            );
+
+            const daoFactory = getDAOFactory(env);
+            const graphService = new EntityGraphService(daoFactory.entityDAO);
+
+            // Normalize relationship types if provided
+            const normalizedRelationshipTypes = traverseRelationshipTypes?.map(
+              (type) => type.toLowerCase().replace(/\s+/g, "_")
+            );
+
+            // Collect all traversed neighbors from all starting entities
+            const allTraversedNeighbors: Array<{
+              neighbor: Awaited<
+                ReturnType<typeof graphService.getNeighbors>
+              >[number];
+              sourceEntityId: string;
+            }> = [];
+
+            // Traverse from each starting entity ID
+            for (const entityId of traverseFromEntityIds) {
+              try {
+                const neighbors = await graphService.getNeighbors(
+                  campaignId,
+                  entityId,
+                  {
+                    maxDepth: traverseDepth,
+                    relationshipTypes: normalizedRelationshipTypes as any,
+                  }
+                );
+                console.log(
+                  `[Tool] searchCampaignContext - Found ${neighbors.length} neighbors for entity ${entityId}`
+                );
+                allTraversedNeighbors.push(
+                  ...neighbors.map((neighbor) => ({
+                    neighbor,
+                    sourceEntityId: entityId,
+                  }))
+                );
+              } catch (error) {
+                console.warn(
+                  `[Tool] searchCampaignContext - Failed to traverse from entity ${entityId}:`,
+                  error
+                );
+              }
+            }
+
+            // Deduplicate by entity ID (keep first occurrence)
+            const traversedEntityIdsMap = new Map<
+              string,
+              {
+                neighbor: Awaited<
+                  ReturnType<typeof graphService.getNeighbors>
+                >[number];
+                sourceEntityId: string;
+              }
+            >();
+            for (const item of allTraversedNeighbors) {
+              if (!traversedEntityIdsMap.has(item.neighbor.entityId)) {
+                traversedEntityIdsMap.set(item.neighbor.entityId, item);
+              }
+            }
+
+            const uniqueTraversedEntityIds = Array.from(
+              traversedEntityIdsMap.keys()
+            );
+
+            console.log(
+              `[Tool] searchCampaignContext - Traversed ${uniqueTraversedEntityIds.length} unique entities from graph`
+            );
+
+            if (
+              includeTraversedEntities &&
+              uniqueTraversedEntityIds.length > 0
+            ) {
+              // Fetch full entity details for traversed entities
+              const allCampaignEntities =
+                await daoFactory.entityDAO.listEntitiesByCampaign(campaignId, {
+                  limit: 1000,
+                });
+
+              const traversedEntities = allCampaignEntities.filter((entity) =>
+                uniqueTraversedEntityIds.includes(entity.id)
+              );
+
+              // Filter out rejected/ignored entities
+              const approvedTraversedEntities = traversedEntities.filter(
+                (entity) => {
+                  try {
+                    const metadata = entity.metadata
+                      ? (JSON.parse(entity.metadata as string) as Record<
+                          string,
+                          unknown
+                        >)
+                      : {};
+                    const shardStatus = metadata.shardStatus;
+                    const ignored = metadata.ignored === true;
+                    const rejected = metadata.rejected === true;
+                    return shardStatus !== "rejected" && !ignored && !rejected;
+                  } catch {
+                    return true; // Include if metadata parsing fails
+                  }
+                }
+              );
+
+              // Fetch relationships for traversed entities
+              const traversedEntityRelationshipsMap = new Map<
+                string,
+                Awaited<
+                  ReturnType<typeof graphService.getRelationshipsForEntity>
+                >
+              >();
+              const traversedRelatedEntityIds = new Set<string>();
+
+              await Promise.all(
+                approvedTraversedEntities.map(async (entity) => {
+                  try {
+                    const relationships =
+                      await graphService.getRelationshipsForEntity(
+                        campaignId,
+                        entity.id
+                      );
+                    traversedEntityRelationshipsMap.set(
+                      entity.id,
+                      relationships
+                    );
+                    for (const rel of relationships) {
+                      const otherId =
+                        rel.fromEntityId === entity.id
+                          ? rel.toEntityId
+                          : rel.fromEntityId;
+                      traversedRelatedEntityIds.add(otherId);
+                    }
+                  } catch (error) {
+                    console.warn(
+                      `[Tool] searchCampaignContext - Failed to fetch relationships for traversed entity ${entity.id}:`,
+                      error
+                    );
+                    traversedEntityRelationshipsMap.set(entity.id, []);
+                  }
+                })
+              );
+
+              // Batch-fetch related entity names
+              const traversedRelatedEntitiesMap = new Map<string, string>();
+              if (traversedRelatedEntityIds.size > 0) {
+                const allRelatedEntities =
+                  await daoFactory.entityDAO.listEntitiesByCampaign(
+                    campaignId,
+                    { limit: 1000 }
+                  );
+                for (const relatedEntity of allRelatedEntities) {
+                  if (traversedRelatedEntityIds.has(relatedEntity.id)) {
+                    traversedRelatedEntitiesMap.set(
+                      relatedEntity.id,
+                      relatedEntity.name
+                    );
+                  }
+                }
+              }
+
+              // Get source entity names for context
+              const sourceEntityMap = new Map<string, string>();
+              if (traverseFromEntityIds.length > 0) {
+                const allSourceEntities =
+                  await daoFactory.entityDAO.listEntitiesByCampaign(
+                    campaignId,
+                    { limit: 1000 }
+                  );
+                for (const sourceEntity of allSourceEntities) {
+                  if (traverseFromEntityIds.includes(sourceEntity.id)) {
+                    sourceEntityMap.set(sourceEntity.id, sourceEntity.name);
+                  }
+                }
+              }
+
+              // Transform traversed entities to match expected format
+              for (const entity of approvedTraversedEntities) {
+                const traversalInfo = traversedEntityIdsMap.get(entity.id);
+                const relationships =
+                  traversedEntityRelationshipsMap.get(entity.id) || [];
+
+                // Build relationship summary
+                const relationshipSummary = relationships.map((rel) => {
+                  const otherEntityId =
+                    rel.fromEntityId === entity.id
+                      ? rel.toEntityId
+                      : rel.fromEntityId;
+                  const direction =
+                    rel.fromEntityId === entity.id ? "outgoing" : "incoming";
+                  const otherEntityName =
+                    traversedRelatedEntitiesMap.get(otherEntityId) ||
+                    otherEntityId;
+
+                  return {
+                    relationshipType: rel.relationshipType,
+                    direction,
+                    otherEntityId,
+                    otherEntityName,
+                  };
+                });
+
+                // Build relationship header with traversal context
+                const sourceEntityName = traversalInfo?.sourceEntityId
+                  ? sourceEntityMap.get(traversalInfo.sourceEntityId) ||
+                    traversalInfo.sourceEntityId
+                  : "unknown";
+                const depth = traversalInfo?.neighbor.depth || 1;
+
+                let relationshipHeader =
+                  "═══════════════════════════════════════════════════════\n";
+                relationshipHeader +=
+                  "EXPLICIT ENTITY RELATIONSHIPS (FROM ENTITY GRAPH)\n";
+                relationshipHeader +=
+                  "═══════════════════════════════════════════════════════\n";
+                relationshipHeader += `Found via graph traversal from "${sourceEntityName}" at depth ${depth}.\n`;
+                relationshipHeader +=
+                  "CRITICAL: Use ONLY these relationships. Do NOT infer relationships from the entity content text below.\n\n";
+
+                if (relationshipSummary.length > 0) {
+                  const relationshipsByType = new Map<
+                    string,
+                    typeof relationshipSummary
+                  >();
+                  relationshipSummary.forEach((rel) => {
+                    if (!relationshipsByType.has(rel.relationshipType)) {
+                      relationshipsByType.set(rel.relationshipType, []);
+                    }
+                    relationshipsByType.get(rel.relationshipType)!.push(rel);
+                  });
+
+                  relationshipsByType.forEach((rels, relationshipType) => {
+                    relationshipHeader += `${relationshipType.toUpperCase()}:\n`;
+                    rels.forEach((rel) => {
+                      const verb =
+                        rel.direction === "outgoing"
+                          ? `${entity.name} ${relationshipType}`
+                          : `${entity.name} is related via ${relationshipType} (incoming)`;
+                      relationshipHeader += `  ${verb} ${rel.otherEntityName}\n`;
+                    });
+                    relationshipHeader += "\n";
+                  });
+                } else {
+                  relationshipHeader +=
+                    "NONE - This entity has no relationships in the entity graph.\n";
+                  relationshipHeader +=
+                    "Do NOT infer relationships from content text below. Any relationship mentions in content are NOT verified.\n\n";
+                }
+
+                relationshipHeader +=
+                  "═══════════════════════════════════════════════════════\n";
+                relationshipHeader +=
+                  "ENTITY CONTENT (may contain unverified mentions):\n";
+                relationshipHeader +=
+                  "═══════════════════════════════════════════════════════\n";
+
+                results.push({
+                  type: "entity",
+                  source: "graph_traversal",
+                  entityType: entity.entityType,
+                  title: entity.name,
+                  text: relationshipHeader + JSON.stringify(entity.content),
+                  score: 0.7 - depth * 0.1, // Lower score for deeper traversal
+                  entityId: entity.id,
+                  filename: entity.name,
+                  relationships: relationshipSummary,
+                  relationshipCount: relationships.length,
+                  // Add traversal metadata
+                  traversalDepth: depth,
+                  traversedFrom: sourceEntityName,
+                } as any);
+              }
+
+              console.log(
+                `[Tool] searchCampaignContext - Added ${approvedTraversedEntities.length} traversed entities to results`
+              );
+            }
+          } catch (error) {
+            console.warn(
+              "[Tool] searchCampaignContext - Graph traversal failed:",
+              error
+            );
+            // Continue even if traversal fails
           }
         }
 
