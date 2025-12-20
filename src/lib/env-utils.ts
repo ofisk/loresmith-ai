@@ -90,14 +90,6 @@ export async function getEnvVar(
 }
 
 /**
- * Get ADMIN_SECRET with priority order (backward compatibility)
- * @deprecated Use getEnvVar(env, 'ADMIN_SECRET') instead
- */
-export async function getAdminSecret(env: EnvWithSecrets): Promise<string> {
-  return getEnvVar(env, "ADMIN_SECRET");
-}
-
-/**
  * Validate that all required dependencies for PlanningContextService are available.
  * Throws appropriate errors if any dependencies are missing.
  *
