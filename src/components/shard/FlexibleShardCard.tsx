@@ -218,12 +218,19 @@ export function FlexibleShardCard({
   const handleDescriptionSave = () => {
     isEditingDescriptionRef.current = false;
     if (onEdit) {
-      // Try to update the most likely description field
-      const descField = ["description", "text", "summary"].find(
-        (field) => shard[field] === getShardDescription()
-      );
-      if (descField) {
-        onEdit(shard.id, { [descField]: descriptionValue });
+      const descInfo = getShardDescriptionInfo();
+      if (descInfo) {
+        // If the original was JSON, reconstruct it with the new text
+        if (descInfo.isJson && descInfo.jsonStructure) {
+          const updatedJson = {
+            ...descInfo.jsonStructure,
+            text: descriptionValue,
+          };
+          onEdit(shard.id, { [descInfo.field]: JSON.stringify(updatedJson) });
+        } else {
+          // Otherwise, save as plain text
+          onEdit(shard.id, { [descInfo.field]: descriptionValue });
+        }
       }
     }
   };
@@ -292,11 +299,44 @@ export function FlexibleShardCard({
   };
 
   const getShardDescription = () => {
+    const descInfo = getShardDescriptionInfo();
+    return descInfo?.displayText || null;
+  };
+
+  const getShardDescriptionInfo = () => {
     // Try to find a good description from common property names
     const descFields = ["description", "text", "content", "summary"];
     for (const field of descFields) {
       if (shard[field] && typeof shard[field] === "string") {
-        return shard[field];
+        const value = shard[field];
+        // Try parsing as JSON (for conversational context shards with {"text":"..."})
+        try {
+          const parsed = JSON.parse(value);
+          if (parsed?.text && typeof parsed.text === "string") {
+            return {
+              field,
+              originalValue: value,
+              displayText: parsed.text,
+              isJson: true,
+              jsonStructure: parsed,
+            };
+          }
+          // If parsed but no text field, return the original value
+          return {
+            field,
+            originalValue: value,
+            displayText: value,
+            isJson: false,
+          };
+        } catch {
+          // Not JSON, return as-is
+          return {
+            field,
+            originalValue: value,
+            displayText: value,
+            isJson: false,
+          };
+        }
       }
     }
     return null;
