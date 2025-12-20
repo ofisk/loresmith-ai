@@ -417,29 +417,61 @@ export const searchCampaignContext = tool({
               });
 
               // Build explicit relationship summary text for clarity
-              // This makes relationships prominent and easy to parse
-              let relationshipText = "";
+              // Place it FIRST so AI sees relationships before entity content
+              let relationshipHeader =
+                "═══════════════════════════════════════════════════════\n";
+              relationshipHeader +=
+                "EXPLICIT ENTITY RELATIONSHIPS (FROM ENTITY GRAPH)\n";
+              relationshipHeader +=
+                "═══════════════════════════════════════════════════════\n";
+              relationshipHeader +=
+                "CRITICAL: Use ONLY these relationships. Do NOT infer relationships from the entity content text below.\n\n";
+
               if (relationshipSummary.length > 0) {
-                const relationshipDescriptions = relationshipSummary
-                  .map((rel) => {
+                // Group relationships by type for better readability
+                const relationshipsByType = new Map<
+                  string,
+                  typeof relationshipSummary
+                >();
+                relationshipSummary.forEach((rel) => {
+                  if (!relationshipsByType.has(rel.relationshipType)) {
+                    relationshipsByType.set(rel.relationshipType, []);
+                  }
+                  relationshipsByType.get(rel.relationshipType)!.push(rel);
+                });
+
+                // List relationships grouped by type
+                relationshipsByType.forEach((rels, relationshipType) => {
+                  relationshipHeader += `${relationshipType.toUpperCase()}:\n`;
+                  rels.forEach((rel) => {
                     const verb =
                       rel.direction === "outgoing"
-                        ? `has ${rel.relationshipType} relationship with`
-                        : `is related to via ${rel.relationshipType} (incoming)`;
-                    return `  - ${entity.name} ${verb} ${rel.otherEntityName}`;
-                  })
-                  .join("\n");
-                relationshipText = `\n\nEXPLICIT ENTITY RELATIONSHIPS (from entity graph - use only these, do not infer relationships from content text):\n${relationshipDescriptions}`;
+                        ? `${entity.name} ${relationshipType}`
+                        : `${entity.name} is related via ${relationshipType} (incoming)`;
+                    relationshipHeader += `  ${verb} ${rel.otherEntityName}\n`;
+                  });
+                  relationshipHeader += "\n";
+                });
               } else {
-                relationshipText = `\n\nEXPLICIT ENTITY RELATIONSHIPS (from entity graph): NONE - This entity has no relationships in the entity graph. Do not infer relationships from entity content text, names, or descriptions.`;
+                relationshipHeader +=
+                  "NONE - This entity has no relationships in the entity graph.\n";
+                relationshipHeader +=
+                  "Do NOT infer relationships from content text below. Any relationship mentions in content are NOT verified.\n\n";
               }
+
+              relationshipHeader +=
+                "═══════════════════════════════════════════════════════\n";
+              relationshipHeader +=
+                "ENTITY CONTENT (may contain unverified mentions):\n";
+              relationshipHeader +=
+                "═══════════════════════════════════════════════════════\n";
 
               results.push({
                 type: "entity",
                 source: "entity_graph",
                 entityType: entity.entityType,
                 title: entity.name,
-                text: JSON.stringify(entity.content) + relationshipText,
+                text: relationshipHeader + JSON.stringify(entity.content),
                 score: 0.8, // Default score for entity matches
                 entityId: entity.id,
                 filename: entity.name,
