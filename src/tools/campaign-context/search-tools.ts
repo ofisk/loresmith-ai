@@ -230,26 +230,20 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
               ReturnType<typeof daoFactory.entityDAO.listEntitiesByCampaign>
             > = [];
 
-            // If searchType is a specific entity type (not "all"), filter by that type
-            if (searchType && searchType !== "all") {
-              // Map some legacy searchType values to their entity types
-              const entityTypeMap: Record<string, string> = {
-                characters: "character",
-                resources: "resource",
-              };
-              const entityType =
-                entityTypeMap[searchType] || (searchType as string);
+            // Map legacy searchType values to their entity types
+            const entityTypeMap: Record<string, string> = {
+              characters: "character",
+              resources: "resource",
+            };
+            const targetEntityType =
+              searchType && searchType !== "all"
+                ? entityTypeMap[searchType] || (searchType as string)
+                : null;
 
-              entities = await daoFactory.entityDAO.listEntitiesByCampaign(
-                campaignId,
-                {
-                  entityType,
-                  limit: 100,
-                }
-              );
-            } else {
-              // For "all", try semantic entity search if available
-              // If that fails, use the same entity finding logic as PlanningContextService
+            // If a query is provided, always use semantic/keyword search to respect the query
+            // Only fall back to listing all entities if no query is provided
+            if (query && query.trim().length > 0) {
+              // Use semantic search to find entities matching the query
               try {
                 if (planningService && env.VECTORIZE) {
                   // Use PlanningContextService to generate embeddings
@@ -366,6 +360,37 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                     `[Tool] searchCampaignContext - Keyword search returned ${entities.length} entities before filtering`
                   );
                 }
+              }
+
+              // Filter by entityType if searchType is a specific entity type
+              if (targetEntityType && entities.length > 0) {
+                const beforeFilter = entities.length;
+                entities = entities.filter(
+                  (e) => e.entityType === targetEntityType
+                );
+                console.log(
+                  `[Tool] searchCampaignContext - Filtered from ${beforeFilter} to ${entities.length} entities matching entityType: ${targetEntityType}`
+                );
+              }
+            } else {
+              // No query provided - list all entities of the requested type (backward compatibility)
+              if (targetEntityType) {
+                entities = await daoFactory.entityDAO.listEntitiesByCampaign(
+                  campaignId,
+                  {
+                    entityType: targetEntityType,
+                    limit: 100,
+                  }
+                );
+                console.log(
+                  `[Tool] searchCampaignContext - No query provided, listing all ${entities.length} entities of type: ${targetEntityType}`
+                );
+              } else {
+                // searchType is "all" and no query - should not happen, but handle gracefully
+                console.warn(
+                  "[Tool] searchCampaignContext - No query provided and searchType is 'all', returning empty results"
+                );
+                entities = [];
               }
             }
 
