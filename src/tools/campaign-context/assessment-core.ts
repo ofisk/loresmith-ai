@@ -366,29 +366,6 @@ export async function extractModuleInformation(
   };
 }
 
-/**
- * Integrates extracted module information into campaign context
- * @deprecated Use AssessmentService.storeModuleAnalysis instead, which properly uses entities
- */
-export async function integrateModuleIntoCampaign(
-  campaignId: string,
-  moduleAnalysis: ModuleAnalysis,
-  assessmentService?: any
-): Promise<boolean> {
-  if (assessmentService) {
-    // Use AssessmentService if provided (recommended approach)
-    return await assessmentService.storeModuleAnalysis(
-      campaignId,
-      moduleAnalysis
-    );
-  }
-
-  // Fallback: throw error if no service provided
-  throw new Error(
-    "integrateModuleIntoCampaign requires AssessmentService. Use AssessmentService.storeModuleAnalysis instead."
-  );
-}
-
 // Helper functions for assessment (implementations would use AI analysis)
 async function analyzeWorldBuilding(
   _campaign: Campaign,
