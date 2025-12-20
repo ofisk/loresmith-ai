@@ -10,6 +10,7 @@ import {
 import { getDAOFactory } from "../../dao/dao-factory";
 import { PlanningContextService } from "../../services/rag/planning-context-service";
 import { EntityEmbeddingService } from "../../services/vectorize/entity-embedding-service";
+import { EntityGraphService } from "../../services/graph/entity-graph-service";
 import { STRUCTURED_ENTITY_TYPES } from "../../lib/entity-types";
 
 // Dynamically build entity types list for descriptions
@@ -35,7 +36,7 @@ function getEnvFromContext(context: any): any {
 
 // Tool to search campaign context
 export const searchCampaignContext = tool({
-  description: `Search through campaign context using semantic search. Searches session digests (recaps, planning notes, key events) and world state changelog entries. Results include graph-augmented entity relationships when relevant entities are mentioned in the query. Use this to find relevant past sessions, character development, plot threads, world state information, and all entity types including: ${ENTITY_TYPES_LIST}. Use searchType parameter to filter by specific entity types (e.g., 'characters' or 'locations').`,
+  description: `Search through campaign context using semantic search. Searches session digests (recaps, planning notes, key events) and world state changelog entries. Entity results include their actual relationships from the entity graph, showing which entities are connected and how (e.g., 'resides_in', 'located_in', 'allied_with'). CRITICAL: For location/residence information, ONLY use explicit 'resides_in' or 'located_in' relationships shown in the search results. Do NOT infer location from entity content text, entity names, or descriptions. If an entity has no 'resides_in' or 'located_in' relationship listed, then it has NO explicit location in the entity graph. Use this to find relevant past sessions, character development, plot threads, world state information, and all entity types including: ${ENTITY_TYPES_LIST}. Use searchType parameter to filter by specific entity types (e.g., 'characters' or 'locations').`,
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
     query: z
@@ -339,17 +340,111 @@ export const searchCampaignContext = tool({
               }
             });
 
-            // Transform entities to match expected format
+            // Fetch relationships for entities to help AI understand actual connections
+            // Relationships are stored separately from entities, so we need to fetch them explicitly
+            const graphService = new EntityGraphService(daoFactory.entityDAO);
+
+            // Collect all relationship data first, then batch-fetch related entity names
+            const entityRelationshipsMap = new Map<
+              string,
+              Awaited<ReturnType<typeof graphService.getRelationshipsForEntity>>
+            >();
+            const relatedEntityIds = new Set<string>();
+
+            // Fetch relationships for all entities in parallel
+            await Promise.all(
+              approvedEntities.map(async (entity) => {
+                try {
+                  const relationships =
+                    await graphService.getRelationshipsForEntity(
+                      campaignId,
+                      entity.id
+                    );
+                  entityRelationshipsMap.set(entity.id, relationships);
+                  // Collect all related entity IDs for batch lookup
+                  for (const rel of relationships) {
+                    const otherId =
+                      rel.fromEntityId === entity.id
+                        ? rel.toEntityId
+                        : rel.fromEntityId;
+                    relatedEntityIds.add(otherId);
+                  }
+                } catch (error) {
+                  console.warn(
+                    `[Tool] searchCampaignContext - Failed to fetch relationships for entity ${entity.id}:`,
+                    error
+                  );
+                  entityRelationshipsMap.set(entity.id, []);
+                }
+              })
+            );
+
+            // Batch-fetch all related entity names
+            const relatedEntitiesMap = new Map<string, string>();
+            if (relatedEntityIds.size > 0) {
+              const relatedEntities =
+                await daoFactory.entityDAO.listEntitiesByCampaign(campaignId, {
+                  limit: 1000,
+                });
+              for (const relatedEntity of relatedEntities) {
+                if (relatedEntityIds.has(relatedEntity.id)) {
+                  relatedEntitiesMap.set(relatedEntity.id, relatedEntity.name);
+                }
+              }
+            }
+
+            // Transform entities to match expected format, including relationships
             for (const entity of approvedEntities) {
+              const relationships = entityRelationshipsMap.get(entity.id) || [];
+
+              // Build relationship summary for the AI with entity names
+              const relationshipSummary = relationships.map((rel) => {
+                const otherEntityId =
+                  rel.fromEntityId === entity.id
+                    ? rel.toEntityId
+                    : rel.fromEntityId;
+                const direction =
+                  rel.fromEntityId === entity.id ? "outgoing" : "incoming";
+                const otherEntityName =
+                  relatedEntitiesMap.get(otherEntityId) || otherEntityId;
+
+                return {
+                  relationshipType: rel.relationshipType,
+                  direction,
+                  otherEntityId,
+                  otherEntityName,
+                };
+              });
+
+              // Build explicit relationship summary text for clarity
+              // This makes relationships prominent and easy to parse
+              let relationshipText = "";
+              if (relationshipSummary.length > 0) {
+                const relationshipDescriptions = relationshipSummary
+                  .map((rel) => {
+                    const verb =
+                      rel.direction === "outgoing"
+                        ? `has ${rel.relationshipType} relationship with`
+                        : `is related to via ${rel.relationshipType} (incoming)`;
+                    return `  - ${entity.name} ${verb} ${rel.otherEntityName}`;
+                  })
+                  .join("\n");
+                relationshipText = `\n\nEXPLICIT ENTITY RELATIONSHIPS (from entity graph - use only these, do not infer relationships from content text):\n${relationshipDescriptions}`;
+              } else {
+                relationshipText = `\n\nEXPLICIT ENTITY RELATIONSHIPS (from entity graph): NONE - This entity has no relationships in the entity graph. Do not infer relationships from entity content text, names, or descriptions.`;
+              }
+
               results.push({
                 type: "entity",
                 source: "entity_graph",
                 entityType: entity.entityType,
                 title: entity.name,
-                text: JSON.stringify(entity.content),
+                text: JSON.stringify(entity.content) + relationshipText,
                 score: 0.8, // Default score for entity matches
                 entityId: entity.id,
                 filename: entity.name,
+                relationships: relationshipSummary,
+                relationshipCount: relationships.length,
               });
             }
 

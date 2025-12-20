@@ -20,12 +20,14 @@ const ENTITY_GRAPH_SYSTEM_PROMPT = buildSystemPrompt({
   workflowGuidelines: [
     "Entity Extraction: When users provide text content (from files or chat) containing entities like NPCs, locations, items, or monsters, use extractEntitiesFromContentTool to extract and add them to the graph",
     "Relationship Creation: When users mention relationships between entities (e.g., 'NPC X lives in Location Y', 'Character A is allied with Character B'), use createEntityRelationshipTool to create the relationship in the graph",
+    "Relationship Queries: When users ask questions about entity relationships (e.g., 'who lives in Location X?', 'what NPCs are in this location?', 'which entities are related to Y?'), use searchCampaignContext to search for entities and their relationships. Do NOT use getCommunitiesTool for relationship queries - communities are graph clusters, not entity relationships",
     "Community Detection: When users want to understand how entities cluster or find related groups, use detectCommunitiesTool to analyze the entity graph",
-    "Community Analysis: Use getCommunitiesTool or getCommunityHierarchyTool to show users existing communities and their structure",
+    "Community Analysis: Use getCommunitiesTool or getCommunityHierarchyTool to show users existing communities and their structure (these show graph clusters, not direct entity relationships)",
   ],
   importantNotes: [
     "Entity extraction and relationship creation help build the entity graph, which is then used for context search and community detection",
     "Before creating relationships, ensure both entities exist in the graph (create them first using extractEntitiesFromContentTool if needed)",
+    "Use searchCampaignContext to query entity relationships (e.g., 'who lives in X?'). Use getCommunitiesTool only for community/cluster analysis, not for relationship queries",
   ],
 });
 
