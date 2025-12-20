@@ -10,6 +10,17 @@ import {
 import { getDAOFactory } from "../../dao/dao-factory";
 import { PlanningContextService } from "../../services/rag/planning-context-service";
 import { EntityEmbeddingService } from "../../services/vectorize/entity-embedding-service";
+import { STRUCTURED_ENTITY_TYPES } from "../../lib/entity-types";
+
+// Dynamically build entity types list for descriptions
+const ENTITY_TYPES_LIST = STRUCTURED_ENTITY_TYPES.join(", ");
+
+// Build searchType enum dynamically from entity types plus special values
+const SEARCH_TYPE_OPTIONS: [string, ...string[]] = [
+  "all",
+  "context",
+  ...STRUCTURED_ENTITY_TYPES,
+];
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {
@@ -24,20 +35,19 @@ function getEnvFromContext(context: any): any {
 
 // Tool to search campaign context
 export const searchCampaignContext = tool({
-  description:
-    "Search through campaign context using semantic search. Searches session digests (recaps, planning notes, key events) and world state changelog entries. Results include graph-augmented entity relationships when relevant entities are mentioned in the query. Use this to find relevant past sessions, character development, plot threads, and world state information.",
+  description: `Search through campaign context using semantic search. Searches session digests (recaps, planning notes, key events) and world state changelog entries. Results include graph-augmented entity relationships when relevant entities are mentioned in the query. Use this to find relevant past sessions, character development, plot threads, world state information, and all entity types including: ${ENTITY_TYPES_LIST}. Use searchType parameter to filter by specific entity types (e.g., 'characters' or 'locations').`,
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
     query: z
       .string()
       .describe(
-        "The search query - can include entity names, plot points, or topics"
+        `The search query - can include entity names, plot points, topics, or entity types like: ${ENTITY_TYPES_LIST}`
       ),
     searchType: z
-      .enum(["all", "characters", "resources", "context"])
+      .enum(SEARCH_TYPE_OPTIONS)
       .optional()
       .describe(
-        "Type of content to search (default: all). 'context' searches session digests and changelog; 'characters'/'resources' searches entities; 'all' searches everything"
+        `Type of content to search (default: all). 'context' searches session digests and changelog; any entity type (e.g., ${STRUCTURED_ENTITY_TYPES.slice(0, 5).join(", ")}, etc.) filters entities by that specific type; 'all' uses semantic search to find any entity type (${ENTITY_TYPES_LIST}) plus session digests and changelog`
       ),
     jwt: commonSchemas.jwt,
   }),
@@ -160,31 +170,33 @@ export const searchCampaignContext = tool({
           );
         }
 
-        // Secondary search: Entity search (characters, resources, etc.)
-        if (
+        // Secondary search: Entity search (${ENTITY_TYPES_LIST})
+        // If searchType is a valid entity type, filter by that type; if 'all', uses semantic search for any entity type
+        const isEntityTypeSearch =
           searchType === "all" ||
-          searchType === "characters" ||
-          searchType === "resources"
-        ) {
+          (searchType && STRUCTURED_ENTITY_TYPES.includes(searchType as any));
+
+        if (isEntityTypeSearch) {
           try {
             let entities: Awaited<
               ReturnType<typeof daoFactory.entityDAO.listEntitiesByCampaign>
             > = [];
 
-            if (searchType === "characters") {
+            // If searchType is a specific entity type (not "all"), filter by that type
+            if (searchType && searchType !== "all") {
+              // Map some legacy searchType values to their entity types
+              const entityTypeMap: Record<string, string> = {
+                characters: "character",
+                resources: "resource",
+              };
+              const entityType =
+                entityTypeMap[searchType] || (searchType as string);
+
               entities = await daoFactory.entityDAO.listEntitiesByCampaign(
                 campaignId,
                 {
-                  entityType: "character",
-                  limit: 20,
-                }
-              );
-            } else if (searchType === "resources") {
-              entities = await daoFactory.entityDAO.listEntitiesByCampaign(
-                campaignId,
-                {
-                  entityType: "resource",
-                  limit: 20,
+                  entityType,
+                  limit: 100,
                 }
               );
             } else {

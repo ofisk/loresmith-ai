@@ -366,51 +366,6 @@ export async function extractModuleInformation(
   };
 }
 
-/**
- * Integrates extracted module information into campaign context
- */
-export async function integrateModuleIntoCampaign(
-  campaignId: string,
-  moduleAnalysis: ModuleAnalysis
-): Promise<boolean> {
-  try {
-    // Store NPCs in campaign context
-    for (const npc of moduleAnalysis.extractedElements.npcs) {
-      await storeNPCInContext(campaignId, npc);
-    }
-
-    // Store locations in campaign context
-    for (const location of moduleAnalysis.extractedElements.locations) {
-      await storeLocationInContext(campaignId, location);
-    }
-
-    // Store plot hooks in campaign context
-    for (const plotHook of moduleAnalysis.extractedElements.plotHooks) {
-      await storePlotHookInContext(campaignId, plotHook);
-    }
-
-    // Store story beats in campaign context
-    for (const storyBeat of moduleAnalysis.extractedElements.storyBeats) {
-      await storeStoryBeatInContext(campaignId, storyBeat);
-    }
-
-    // Store key items in campaign context
-    for (const item of moduleAnalysis.extractedElements.keyItems) {
-      await storeItemInContext(campaignId, item);
-    }
-
-    // Store conflicts in campaign context
-    for (const conflict of moduleAnalysis.extractedElements.conflicts) {
-      await storeConflictInContext(campaignId, conflict);
-    }
-
-    return true;
-  } catch (error) {
-    console.error("Failed to integrate module into campaign:", error);
-    return false;
-  }
-}
-
 // Helper functions for assessment (implementations would use AI analysis)
 async function analyzeWorldBuilding(
   _campaign: Campaign,
@@ -618,47 +573,4 @@ async function extractConflictsFromDocument(
 ): Promise<ConflictInfo[]> {
   // Implementation would use AI to extract conflicts
   return [];
-}
-
-// Context storage helper functions
-async function storeNPCInContext(
-  _campaignId: string,
-  _npc: NPCInfo
-): Promise<void> {
-  // Implementation would store NPC in campaign context
-}
-
-async function storeLocationInContext(
-  _campaignId: string,
-  _location: LocationInfo
-): Promise<void> {
-  // Implementation would store location in campaign context
-}
-
-async function storePlotHookInContext(
-  _campaignId: string,
-  _plotHook: PlotHookInfo
-): Promise<void> {
-  // Implementation would store plot hook in campaign context
-}
-
-async function storeStoryBeatInContext(
-  _campaignId: string,
-  _storyBeat: StoryBeatInfo
-): Promise<void> {
-  // Implementation would store story beat in campaign context
-}
-
-async function storeItemInContext(
-  _campaignId: string,
-  _item: ItemInfo
-): Promise<void> {
-  // Implementation would store item in campaign context
-}
-
-async function storeConflictInContext(
-  _campaignId: string,
-  _conflict: ConflictInfo
-): Promise<void> {
-  // Implementation would store conflict in campaign context
 }

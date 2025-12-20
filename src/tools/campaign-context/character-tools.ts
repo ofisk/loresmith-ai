@@ -9,7 +9,8 @@ import {
   extractUsernameFromJwt,
 } from "../utils";
 import { generateCharacterWithAI } from "./ai-helpers";
-import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
+import { getDAOFactory } from "../../dao/dao-factory";
+import type { Env } from "../../middleware/auth";
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {
@@ -121,71 +122,45 @@ export const storeCharacterInfo = tool({
           );
         }
 
-        // Store the character information
+        // Store the character as an entity
+        const daoFactory = getDAOFactory(env as Env);
         const characterId = crypto.randomUUID();
-        const now = new Date().toISOString();
 
-        await env.DB.prepare(
-          "INSERT INTO campaign_characters (id, campaign_id, character_name, character_class, character_level, character_race, backstory, personality_traits, goals, relationships, metadata, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        )
-          .bind(
-            characterId,
-            campaignId,
+        // Create character entity
+        await daoFactory.entityDAO.createEntity({
+          id: characterId,
+          campaignId,
+          entityType: "characters",
+          name: characterName,
+          content: {
             characterName,
-            characterClass || null,
-            characterLevel || null,
-            characterRace || null,
-            backstory || null,
-            personalityTraits || null,
-            goals || null,
-            relationships ? JSON.stringify(relationships) : null,
-            metadata ? JSON.stringify(metadata) : null,
-            now,
-            now
-          )
-          .run();
-
-        // Update campaign updated_at
-        await env.DB.prepare("UPDATE campaigns SET updated_at = ? WHERE id = ?")
-          .bind(now, campaignId)
-          .run();
+            characterClass: characterClass || undefined,
+            characterLevel: characterLevel || undefined,
+            characterRace: characterRace || undefined,
+            backstory: backstory || undefined,
+            personalityTraits: personalityTraits || undefined,
+            goals: goals || undefined,
+            relationships: relationships || undefined,
+          },
+          metadata: {
+            ...metadata,
+            sourceType: "user_stored",
+          },
+          sourceType: "user_stored",
+        });
 
         console.log(
-          "[Tool] Stored character info directly:",
+          "[Tool] Stored character as entity:",
           characterId,
           "name:",
           characterName
         );
 
-        // Sync to RAG for searchability
-        try {
-          const syncService = new CampaignContextSyncService(env);
-          const characterData = {
-            character_name: characterName,
-            character_class: characterClass || null,
-            character_level: characterLevel || null,
-            character_race: characterRace || null,
-            backstory: backstory || null,
-            personality_traits: personalityTraits || null,
-            goals: goals || null,
-            relationships: relationships ? JSON.stringify(relationships) : null,
-          };
-          await syncService.syncCharacter(
-            campaignId,
-            characterId,
-            characterName,
-            characterData
-          );
-          console.log("[Tool] Synced character:", characterId);
-        } catch (syncError) {
-          console.error("[Tool] Failed to sync character:", syncError);
-          // Don't fail the whole operation if sync fails
-        }
-
         return createToolSuccess(
           `Successfully stored character information for ${characterName}`,
           {
             id: characterId,
+            entityType: "characters",
             characterName,
             characterClass,
             characterLevel,
@@ -195,7 +170,6 @@ export const storeCharacterInfo = tool({
             goals,
             relationships,
             metadata,
-            createdAt: now,
           },
           toolCallId
         );
@@ -363,38 +337,37 @@ export const generateCharacterWithAITool = tool({
           toolCallId,
         });
 
-        // Store the generated character
+        // Store the generated character as an entity
+        const daoFactory = getDAOFactory(env as Env);
         const characterId = crypto.randomUUID();
-        const now = new Date().toISOString();
-
         const characterDataTyped = characterData.result.data as any;
-        await env.DB.prepare(
-          "INSERT INTO campaign_characters (id, campaign_id, character_name, character_class, character_level, character_race, backstory, personality_traits, goals, relationships, metadata, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        )
-          .bind(
-            characterId,
-            campaignId,
-            characterDataTyped.characterName,
-            characterDataTyped.characterClass,
-            characterDataTyped.characterLevel,
-            characterDataTyped.characterRace,
-            characterDataTyped.backstory,
-            characterDataTyped.personalityTraits,
-            characterDataTyped.goals,
-            JSON.stringify(characterDataTyped.relationships),
-            JSON.stringify(characterDataTyped.metadata),
-            now,
-            now
-          )
-          .run();
 
-        // Update campaign updated_at
-        await env.DB.prepare("UPDATE campaigns SET updated_at = ? WHERE id = ?")
-          .bind(now, campaignId)
-          .run();
+        await daoFactory.entityDAO.createEntity({
+          id: characterId,
+          campaignId,
+          entityType: "characters",
+          name: characterDataTyped.characterName,
+          content: {
+            characterName: characterDataTyped.characterName,
+            characterClass: characterDataTyped.characterClass,
+            characterLevel: characterDataTyped.characterLevel,
+            characterRace: characterDataTyped.characterRace,
+            backstory: characterDataTyped.backstory,
+            personalityTraits: characterDataTyped.personalityTraits,
+            goals: characterDataTyped.goals,
+            relationships: characterDataTyped.relationships,
+            ...(characterDataTyped.metadata || {}),
+          },
+          metadata: {
+            ...(characterDataTyped.metadata || {}),
+            sourceType: "ai_generated",
+            generatedWithAI: true,
+          },
+          sourceType: "ai_generated",
+        });
 
         console.log(
-          "[Tool] Generated and stored character:",
+          "[Tool] Generated and stored character as entity:",
           characterId,
           "name:",
           characterDataTyped.characterName
@@ -404,8 +377,8 @@ export const generateCharacterWithAITool = tool({
           `Successfully created character ${characterDataTyped.characterName} using AI generation`,
           {
             id: characterId,
+            entityType: "characters",
             ...characterDataTyped,
-            createdAt: now,
           },
           toolCallId
         );

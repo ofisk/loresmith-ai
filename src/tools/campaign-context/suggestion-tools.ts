@@ -105,7 +105,7 @@ export const getCampaignSuggestions = tool({
           // Don't fail suggestions if sync fails
         }
 
-        // Use AssessmentService to get all characters (includes campaign_characters, entities, and character_backstory)
+        // Use AssessmentService to get all characters (now only queries entities)
         const assessmentService = getAssessmentService(env as Env);
         const allCharacters =
           await assessmentService.getCampaignCharacters(campaignId);
@@ -283,7 +283,7 @@ export const assessCampaignReadiness = tool({
           // Don't fail assessment if sync fails
         }
 
-        // Use AssessmentService to get all characters (includes campaign_characters, entities, and character_backstory)
+        // Use AssessmentService to get all characters (now only queries entities)
         const assessmentService = getAssessmentService(env as Env);
         const allCharacters =
           await assessmentService.getCampaignCharacters(campaignId);
