@@ -248,13 +248,44 @@ export function FlexibleShardCard({
   };
 
   const getShardTitle = () => {
+    // First, check metadata.title (used by conversational context shards)
+    const metadata = shard.metadata as any;
+    if (metadata?.title && typeof metadata.title === "string") {
+      return metadata.title;
+    }
+
     // Try to find a good title from common property names
-    const titleFields = ["name", "title", "label", "id"];
+    const titleFields = ["name", "title", "label"];
     for (const field of titleFields) {
       if (shard[field] && typeof shard[field] === "string") {
         return shard[field];
       }
     }
+
+    // Try to extract text from the text field (for conversational context shards)
+    // Text might be JSON like {"text":"..."} or a plain string
+    if (shard.text && typeof shard.text === "string") {
+      try {
+        // Try parsing as JSON first
+        const parsed = JSON.parse(shard.text);
+        if (parsed?.text && typeof parsed.text === "string") {
+          // Extract first sentence or truncate to 60 chars
+          const text = parsed.text;
+          const firstSentence = text.split(/[.!?]\s/)[0];
+          return firstSentence.length > 60
+            ? firstSentence.substring(0, 57) + "..."
+            : firstSentence;
+        }
+      } catch {
+        // Not JSON, use text directly
+        const text = shard.text;
+        const firstSentence = text.split(/[.!?]\s/)[0];
+        return firstSentence.length > 60
+          ? firstSentence.substring(0, 57) + "..."
+          : firstSentence;
+      }
+    }
+
     // Use contentId if available (for structured shards), otherwise fall back to ID suffix
     const displayId = (shard as any).contentId || shard.id.slice(-8);
     return `${displayName} #${displayId}`;

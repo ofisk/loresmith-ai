@@ -98,7 +98,7 @@ Use this comprehensive checklist to guide your planning suggestions and readines
 
 ${CAMPAIGN_PLANNING_CHECKLIST}
 
-When providing campaign planning suggestions or readiness assessments, reference specific sections from this checklist. Identify which checklist items are missing or incomplete based on the campaign's current state, and prioritize recommendations based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).`,
+When providing campaign planning suggestions or readiness assessments, reference specific sections from this checklist. CRITICAL: Only suggest checklist items that are missing or incomplete. DO NOT include completed items in recommendations, and DO NOT acknowledge completed items with phrases like "You've already established..." - skip them entirely. Use searchCampaignContext to verify what's already been established before making recommendations. Prioritize recommendations based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).`,
   });
 
 /**

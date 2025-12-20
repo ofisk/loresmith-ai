@@ -74,7 +74,9 @@ ${CAMPAIGN_PLANNING_CHECKLIST}
 
 IMPORTANT: Before suggesting checklist items, use the searchCampaignContext tool to check if any of these items are already covered in the campaign data. Search for key checklist concepts like "campaign tone", "world name", "themes", "starting location", "factions", etc. to verify what's already been established.
 
-Only recommend checklist items that you've verified are missing or incomplete through your search. Analyze what appears to be missing or incomplete based on the search results, and suggest 3-5 prioritized next steps from the checklist that would be most valuable to tackle. Focus on foundational elements first (Campaign Foundation, World & Setting Basics, Starting Location) before moving to later stages.
+CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. If a checklist item appears in your search results as already established, skip it entirely and move to the next item.
+
+Analyze what appears to be missing or incomplete based on the search results, and suggest 3-5 prioritized next steps from the checklist that would be most valuable to tackle. Focus on foundational elements first (Campaign Foundation, World & Setting Basics, Starting Location) before moving to later stages.
 
 Be encouraging and helpful, framing these as exciting opportunities to build their campaign world. Prioritize based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).`;
   }
@@ -97,7 +99,9 @@ After the recap, please also assess what would be most valuable to plan next usi
 
 ${CAMPAIGN_PLANNING_CHECKLIST}
 
-IMPORTANT: Before suggesting checklist items, use the searchCampaignContext tool to verify what's already been established in the campaign. Search for key concepts related to any checklist items you're considering recommending (e.g., search for "campaign tone" if you're thinking of recommending tone definition, search for "factions" if recommending faction creation, etc.). Only recommend checklist items that are genuinely missing or incomplete based on your search results.
+IMPORTANT: Before suggesting checklist items, use the searchCampaignContext tool to verify what's already been established in the campaign. Search for key concepts related to any checklist items you're considering recommending (e.g., search for "campaign tone" if you're thinking of recommending tone definition, search for "factions" if recommending faction creation, etc.). 
+
+CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. If a checklist item appears in your search results as already established, skip it entirely and move to the next item.
 
 Based on the search results and current campaign state, suggest 2-3 prioritized next steps from the checklist that would be most valuable to tackle. Focus on what logically follows from where the campaign currently stands, and prioritize based on dependencies (e.g., setting basics before factions, starting location before first arc, etc.). Make sure your recommendations are informed by what actually exists in the campaign data, not assumptions.`;
 }
