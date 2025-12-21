@@ -159,13 +159,28 @@ CONTENT END`;
             : crypto.randomUUID();
         const entityId = `${options.campaignId}_${baseId}`;
 
+        // Build field priority list based on entity type
+        // Type-specific fields should be checked before generic "id" field
+        const nameFields = ["name", "title", "display_name"];
+
+        // Add type-specific fields based on entity type
+        if (type === "travel") {
+          nameFields.push("route"); // Travel routes use "route" as the name
+        } else if (type === "puzzles") {
+          nameFields.push("prompt"); // Puzzles use "prompt" as the name
+        } else if (type === "handouts") {
+          nameFields.push("title"); // Handouts already have "title" but ensure it's prioritized
+        } else if (type === "timelines") {
+          nameFields.push("title"); // Timelines use "title" as the name
+        } else if (type === "maps") {
+          nameFields.push("title"); // Maps use "title" as the name
+        }
+
+        // Only check "id" as a last resort (before falling back to generated name)
+        nameFields.push("id");
+
         const name =
-          this.getFirstString(record, [
-            "name",
-            "title",
-            "display_name",
-            "id",
-          ]) || `${type}-${entityId}`;
+          this.getFirstString(record, nameFields) || `${type}-${entityId}`;
 
         const relations = Array.isArray(record.relations)
           ? this.normalizeRelationships(record.relations)
