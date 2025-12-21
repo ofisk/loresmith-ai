@@ -169,7 +169,7 @@ export function useNotificationStream(
 
       console.log(
         "[useNotificationStream] Minted token, streamUrl:",
-        streamUrl.substring(0, 100) + "..."
+        `${streamUrl.substring(0, 100)}...`
       );
 
       // Create EventSource with the short-lived stream URL
@@ -177,7 +177,7 @@ export function useNotificationStream(
       try {
         console.log(
           "[useNotificationStream] Creating EventSource with URL:",
-          streamUrl.substring(0, 100) + "..."
+          `${streamUrl.substring(0, 100)}...`
         );
         eventSource = new EventSource(streamUrl);
         console.log(

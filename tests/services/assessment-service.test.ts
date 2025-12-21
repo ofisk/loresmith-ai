@@ -330,7 +330,8 @@ describe("AssessmentService", () => {
       expect(mockDAO.storeNPCs).toHaveBeenCalledWith(
         campaignId,
         mockModuleAnalysis.extractedElements.npcs,
-        "Test Module"
+        "Test Module",
+        expect.anything() // entityDAO parameter
       );
     });
 

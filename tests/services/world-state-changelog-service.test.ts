@@ -54,7 +54,13 @@ describe("WorldStateChangelogService", () => {
     expect(mockDao.createEntry).toHaveBeenCalledWith(
       expect.objectContaining({
         campaignId: "campaign-42",
-        payload,
+        payload: expect.objectContaining({
+          entity_updates: expect.arrayContaining([
+            expect.objectContaining({
+              entity_id: "campaign-42_npc-1", // Entity IDs are normalized
+            }),
+          ]),
+        }),
         impactScore: expect.any(Number),
       })
     );

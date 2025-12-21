@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/toolAuth", () => ({
+vi.mock("@/lib/tool-auth", () => ({
   authenticatedFetch: vi.fn(),
   handleAuthError: vi.fn(),
 }));
@@ -10,7 +10,7 @@ import {
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
 } from "@/tools/campaign-context/world-state-tools";
-import { authenticatedFetch, handleAuthError } from "@/lib/toolAuth";
+import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
 
 const makeResponse = (data: unknown, ok = true, status = 200) => ({
   ok,

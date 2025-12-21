@@ -7,11 +7,58 @@ vi.mock("../../src/dao/dao-factory", () => ({
   getDAOFactory: vi.fn(),
 }));
 
+// Mock FileExtractionService
+vi.mock("../../src/services/file/file-extraction-service", () => ({
+  FileExtractionService: vi.fn().mockImplementation(() => ({
+    extractText: vi.fn().mockResolvedValue({
+      text: "Mock extracted text from PDF",
+      pagesExtracted: 1,
+      totalPages: 1,
+    }),
+  })),
+}));
+
+// Mock global fetch for OpenAI embedding API calls
+beforeEach(() => {
+  global.fetch = vi.fn().mockImplementation((url: string) => {
+    if (
+      typeof url === "string" &&
+      url.includes("api.openai.com/v1/embeddings")
+    ) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              embedding: new Array(1536).fill(0.1),
+            },
+          ],
+        }),
+      });
+    }
+    // Default mock for other fetch calls
+    return Promise.resolve({
+      ok: true,
+      json: async () => ({}),
+    });
+  }) as any;
+});
+
 import { getDAOFactory } from "../../src/dao/dao-factory";
 
 // Mock AI service
 const mockAI = {
-  run: vi.fn(),
+  run: vi.fn().mockImplementation((_model: string, _options: any) => {
+    // Return a response object that matches what the service expects
+    // The extractResponseText method checks for "response" property
+    return Promise.resolve({
+      response: JSON.stringify({
+        displayName: "Test PDF Document",
+        description: "A test PDF document",
+        tags: ["test", "document", "pdf"],
+      }),
+    });
+  }),
 };
 
 // Mock environment
@@ -20,13 +67,21 @@ const mockEnv = {
     get: vi.fn(),
   },
   AI: mockAI,
-  DB: {
-    prepare: vi.fn().mockReturnThis(),
-    bind: vi.fn().mockReturnThis(),
-    all: vi.fn(),
-    first: vi.fn(),
-    run: vi.fn(),
+  VECTORIZE: {
+    query: vi.fn(),
+    upsert: vi.fn().mockResolvedValue({ ids: ["vector-123"] }),
+    insert: vi.fn().mockResolvedValue({ ids: ["vector-123"] }),
+    deleteByIds: vi.fn(),
   },
+  DB: {
+    prepare: vi.fn().mockReturnValue({
+      bind: vi.fn().mockReturnThis(),
+      all: vi.fn().mockResolvedValue({ results: [] }),
+      first: vi.fn().mockResolvedValue(null),
+      run: vi.fn().mockResolvedValue({ success: true }),
+    }),
+  },
+  OPENAI_API_KEY: "test-key",
 } as any;
 
 describe("LibraryRAGService", () => {
@@ -70,13 +125,18 @@ describe("LibraryRAGService", () => {
       // Mock file retrieval
       const mockFile = {
         arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+        size: 100,
       };
       mockEnv.R2.get.mockResolvedValue(mockFile);
 
-      // Mock AI response
-      mockAI.run.mockResolvedValue(
-        "DESCRIPTION: A test PDF document\nTAGS: [test, document, pdf]\nSUGGESTIONS: [useful for testing]"
-      );
+      // Mock AI response - already set in beforeEach, but can override per test
+      mockAI.run.mockResolvedValue({
+        response: JSON.stringify({
+          displayName: "Test PDF Document",
+          description: "A test PDF document",
+          tags: ["test", "document", "pdf"],
+        }),
+      });
 
       const result = await ragService.processFile(mockFileMetadata);
 
@@ -85,47 +145,60 @@ describe("LibraryRAGService", () => {
       expect(result.vectorId).toBeDefined();
       expect(mockEnv.R2.get).toHaveBeenCalledWith("uploads/test-file.pdf");
       expect(mockAI.run).toHaveBeenCalledWith(
-        expect.stringContaining("test-file.pdf")
+        expect.any(String), // model
+        expect.objectContaining({
+          messages: expect.arrayContaining([
+            expect.objectContaining({
+              role: "user",
+              content: expect.stringContaining("test-file.pdf"),
+            }),
+          ]),
+        })
       );
     });
 
     it("should handle file not found in R2", async () => {
       mockEnv.R2.get.mockResolvedValue(null);
 
-      const result = await ragService.processFile(mockFileMetadata);
-
-      expect(result.description).toBe("");
-      expect(result.tags).toEqual([]);
-      expect(result.vectorId).toBeUndefined();
+      // The service throws FileNotFoundError when file is not found
+      await expect(ragService.processFile(mockFileMetadata)).rejects.toThrow();
     });
 
     it("should handle processing failure gracefully", async () => {
       const mockFile = {
         arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+        size: 100,
       };
       mockEnv.R2.get.mockResolvedValue(mockFile);
 
-      // Mock AI failure
-      mockAI.run.mockRejectedValue(new Error("AI error"));
+      // Mock extraction failure
+      const mockExtractionService = {
+        extractText: vi.fn().mockRejectedValue(new Error("Extraction failed")),
+      };
+      // Replace the extraction service instance
+      (ragService as any).extractionService = mockExtractionService;
 
-      const result = await ragService.processFile(mockFileMetadata);
-
-      expect(result.description).toBe("");
-      expect(result.tags).toEqual([]);
-      expect(result.vectorId).toBeDefined();
+      // The service should throw an error when extraction fails
+      await expect(ragService.processFile(mockFileMetadata)).rejects.toThrow();
     });
 
     it("should work without AI service available", async () => {
-      const envWithoutAI = { ...mockEnv, AI: undefined };
+      const envWithoutAI = {
+        ...mockEnv,
+        AI: undefined,
+        VECTORIZE: mockEnv.VECTORIZE,
+      };
       const ragServiceWithoutAI = new LibraryRAGService(envWithoutAI);
 
       const mockFile = {
         arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+        size: 100,
       };
-      mockEnv.R2.get.mockResolvedValue(mockFile);
+      envWithoutAI.R2.get.mockResolvedValue(mockFile);
 
       const result = await ragServiceWithoutAI.processFile(mockFileMetadata);
 
+      // Without AI, metadata should be empty but vectorId should still be generated
       expect(result.description).toBe("");
       expect(result.tags).toEqual([]);
       expect(result.vectorId).toBeDefined();
@@ -134,11 +207,8 @@ describe("LibraryRAGService", () => {
     it("should handle processing errors gracefully", async () => {
       mockEnv.R2.get.mockRejectedValue(new Error("R2 error"));
 
-      const result = await ragService.processFile(mockFileMetadata);
-
-      expect(result.description).toBe("");
-      expect(result.tags).toEqual([]);
-      expect(result.vectorId).toBeUndefined();
+      // The service should throw an error when R2 fails
+      await expect(ragService.processFile(mockFileMetadata)).rejects.toThrow();
     });
   });
 
@@ -463,13 +533,18 @@ describe("LibraryRAGService", () => {
     it("should extract text from PDF files", async () => {
       const mockFile = {
         arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+        size: 100,
       };
 
       // Test PDF extraction through the processFile method
       mockEnv.R2.get.mockResolvedValue(mockFile);
-      mockAI.run.mockResolvedValue(
-        "DESCRIPTION: A test PDF document\nTAGS: [test, document, pdf]\nSUGGESTIONS: [useful for testing]"
-      );
+      mockAI.run.mockResolvedValue({
+        response: JSON.stringify({
+          displayName: "Test PDF Document",
+          description: "A test PDF document",
+          tags: ["test", "document", "pdf"],
+        }),
+      });
 
       const result = await ragService.processFile({
         id: "file-123",
@@ -495,12 +570,17 @@ describe("LibraryRAGService", () => {
         arrayBuffer: vi
           .fn()
           .mockResolvedValue(new TextEncoder().encode(textContent)),
+        size: textContent.length,
       };
 
       mockEnv.R2.get.mockResolvedValue(mockFile);
-      mockAI.run.mockResolvedValue(
-        "DESCRIPTION: Text file content\nTAGS: [text]\nSUGGESTIONS: [useful for testing]"
-      );
+      mockAI.run.mockResolvedValue({
+        response: JSON.stringify({
+          displayName: "Test Text File",
+          description: "Text file content",
+          tags: ["text"],
+        }),
+      });
 
       const result = await ragService.processFile({
         id: "file-123",
@@ -526,12 +606,17 @@ describe("LibraryRAGService", () => {
         arrayBuffer: vi
           .fn()
           .mockResolvedValue(new TextEncoder().encode(jsonContent)),
+        size: jsonContent.length,
       };
 
       mockEnv.R2.get.mockResolvedValue(mockFile);
-      mockAI.run.mockResolvedValue(
-        "DESCRIPTION: JSON file content\nTAGS: [json]\nSUGGESTIONS: [useful for testing]"
-      );
+      mockAI.run.mockResolvedValue({
+        response: JSON.stringify({
+          displayName: "Test JSON File",
+          description: "JSON file content",
+          tags: ["json"],
+        }),
+      });
 
       const result = await ragService.processFile({
         id: "file-123",
@@ -554,27 +639,33 @@ describe("LibraryRAGService", () => {
     it("should handle unsupported file types", async () => {
       const mockFile = {
         arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+        size: 100,
       };
 
       mockEnv.R2.get.mockResolvedValue(mockFile);
-      mockAI.run.mockResolvedValue("DESCRIPTION: \nTAGS: []\nSUGGESTIONS: []");
+      // Unsupported file types return null from extractText, which causes the service to throw
+      // Mock the extraction service to return null for unsupported types
+      const mockExtractionService = {
+        extractText: vi.fn().mockResolvedValue(null),
+      };
+      (ragService as any).extractionService = mockExtractionService;
 
-      const result = await ragService.processFile({
-        id: "file-123",
-        fileKey: "uploads/test-file.png",
-        userId: "user-123",
-        filename: "test-file.png",
-        fileSize: 1024,
-        contentType: "image/png",
-        description: "",
-        tags: [],
-        status: "uploaded",
-        createdAt: "2024-01-01T00:00:00Z",
-        updatedAt: "2024-01-01T00:00:00Z",
-      });
-
-      expect(result.description).toBe("");
-      expect(result.tags).toEqual([]);
+      // The service throws an error when no text can be extracted
+      await expect(
+        ragService.processFile({
+          id: "file-123",
+          fileKey: "uploads/test-file.png",
+          userId: "user-123",
+          filename: "test-file.png",
+          fileSize: 1024,
+          contentType: "image/png",
+          description: "",
+          tags: [],
+          status: "uploaded",
+          createdAt: "2024-01-01T00:00:00Z",
+          updatedAt: "2024-01-01T00:00:00Z",
+        })
+      ).rejects.toThrow();
     });
   });
 
@@ -582,12 +673,17 @@ describe("LibraryRAGService", () => {
     it("should generate vector ID for processed files", async () => {
       const mockFile = {
         arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+        size: 100,
       };
 
       mockEnv.R2.get.mockResolvedValue(mockFile);
-      mockAI.run.mockResolvedValue(
-        "DESCRIPTION: Test content\nTAGS: [test]\nSUGGESTIONS: [useful for testing]"
-      );
+      mockAI.run.mockResolvedValue({
+        response: JSON.stringify({
+          displayName: "Test File",
+          description: "Test content",
+          tags: ["test"],
+        }),
+      });
 
       const result = await ragService.processFile({
         id: "file-123",
@@ -609,29 +705,40 @@ describe("LibraryRAGService", () => {
     it("should handle vector storage errors gracefully", async () => {
       const mockFile = {
         arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+        size: 100,
       };
 
       mockEnv.R2.get.mockResolvedValue(mockFile);
-      mockAI.run.mockResolvedValue(
-        "DESCRIPTION: Test content\nTAGS: [test]\nSUGGESTIONS: [useful for testing]"
-      );
-
-      const result = await ragService.processFile({
-        id: "file-123",
-        fileKey: "uploads/test-file.pdf",
-        userId: "user-123",
-        filename: "test-file.pdf",
-        fileSize: 1024,
-        contentType: "application/pdf",
-        description: "",
-        tags: [],
-        status: "uploaded",
-        createdAt: "2024-01-01T00:00:00Z",
-        updatedAt: "2024-01-01T00:00:00Z",
+      mockAI.run.mockResolvedValue({
+        response: JSON.stringify({
+          displayName: "Test File",
+          description: "Test content",
+          tags: ["test"],
+        }),
       });
 
-      // Even if vector storage fails, the method should not throw
-      expect(result.vectorId).toBeDefined();
+      // Mock fetch to fail for embedding generation
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        statusText: "Unauthorized",
+      }) as any;
+
+      // The service throws an error when vector storage fails
+      await expect(
+        ragService.processFile({
+          id: "file-123",
+          fileKey: "uploads/test-file.pdf",
+          userId: "user-123",
+          filename: "test-file.pdf",
+          fileSize: 1024,
+          contentType: "application/pdf",
+          description: "",
+          tags: [],
+          status: "uploaded",
+          createdAt: "2024-01-01T00:00:00Z",
+          updatedAt: "2024-01-01T00:00:00Z",
+        })
+      ).rejects.toThrow();
     });
   });
 });

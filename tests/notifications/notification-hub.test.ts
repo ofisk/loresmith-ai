@@ -3,7 +3,12 @@ import { NotificationHub } from "../../src/durable-objects/notification-hub";
 
 // Mock the Cloudflare DurableObject base to avoid constructor state checks in Node
 vi.mock("cloudflare:workers", () => ({
-  DurableObject: class {},
+  DurableObject: class {
+    ctx: DurableObjectState;
+    constructor(ctx: DurableObjectState, _env: any) {
+      this.ctx = ctx;
+    }
+  },
 }));
 
 // Mock Durable Object environment (unused, keep underscore to satisfy linter)
@@ -17,12 +22,44 @@ const _mockEnv = {
 
 describe("NotificationHub", () => {
   let notificationHub: NotificationHub;
+  let mockStorage: Map<string, any>;
+  let mockState: DurableObjectState;
 
   beforeEach(() => {
-    notificationHub = new NotificationHub(
-      {} as unknown as DurableObjectState,
-      {} as any
-    );
+    mockStorage = new Map();
+    mockState = {
+      storage: {
+        get: vi.fn((key: string) => Promise.resolve(mockStorage.get(key))),
+        put: vi.fn((key: string, value: any) => {
+          mockStorage.set(key, value);
+          return Promise.resolve();
+        }),
+        delete: vi.fn((key: string | string[]) => {
+          if (Array.isArray(key)) {
+            for (const k of key) {
+              mockStorage.delete(k);
+            }
+          } else {
+            mockStorage.delete(key);
+          }
+          return Promise.resolve();
+        }),
+        list: vi.fn((options?: { prefix?: string }) => {
+          const entries: Array<[string, any]> = [];
+          const prefix = options?.prefix || "";
+          for (const [key, value] of mockStorage.entries()) {
+            if (key.startsWith(prefix)) {
+              entries.push([key, value]);
+            }
+          }
+          return Promise.resolve(entries);
+        }),
+      },
+      waitUntil: vi.fn(),
+      blockConcurrencyWhile: vi.fn(),
+    } as unknown as DurableObjectState;
+
+    notificationHub = new NotificationHub(mockState, {} as any);
   });
 
   afterEach(() => {
