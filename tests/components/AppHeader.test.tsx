@@ -1,10 +1,28 @@
 /// <reference types="vitest/globals" />
 // @vitest-environment jsdom
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { AppHeader } from "../../src/components/app/AppHeader";
 import type { Campaign } from "../../src/types/campaign";
+import { TooltipProvider } from "../../src/providers/TooltipProvider";
+
+// Mock window.matchMedia for Tooltip component
+beforeEach(() => {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+});
 
 describe("AppHeader", () => {
   const baseProps = {
@@ -39,12 +57,14 @@ describe("AppHeader", () => {
 
   it("renders campaign dropdown with no selection by default", () => {
     render(
-      <AppHeader
-        {...baseProps}
-        campaigns={campaigns}
-        selectedCampaignId={null}
-        onSelectedCampaignChange={vi.fn()}
-      />
+      <TooltipProvider>
+        <AppHeader
+          {...baseProps}
+          campaigns={campaigns}
+          selectedCampaignId={null}
+          onSelectedCampaignChange={vi.fn()}
+        />
+      </TooltipProvider>
     );
 
     const select = screen.getByDisplayValue(
@@ -59,12 +79,14 @@ describe("AppHeader", () => {
     const handleChange = vi.fn();
 
     render(
-      <AppHeader
-        {...baseProps}
-        campaigns={campaigns}
-        selectedCampaignId={null}
-        onSelectedCampaignChange={handleChange}
-      />
+      <TooltipProvider>
+        <AppHeader
+          {...baseProps}
+          campaigns={campaigns}
+          selectedCampaignId={null}
+          onSelectedCampaignChange={handleChange}
+        />
+      </TooltipProvider>
     );
 
     const select = screen.getByRole("combobox") as unknown as HTMLSelectElement;
@@ -77,12 +99,14 @@ describe("AppHeader", () => {
     const handleChange = vi.fn();
 
     render(
-      <AppHeader
-        {...baseProps}
-        campaigns={campaigns}
-        selectedCampaignId={"camp-1"}
-        onSelectedCampaignChange={handleChange}
-      />
+      <TooltipProvider>
+        <AppHeader
+          {...baseProps}
+          campaigns={campaigns}
+          selectedCampaignId={"camp-1"}
+          onSelectedCampaignChange={handleChange}
+        />
+      </TooltipProvider>
     );
 
     const select = screen.getByRole("combobox") as unknown as HTMLSelectElement;

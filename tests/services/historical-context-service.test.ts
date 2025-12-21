@@ -31,7 +31,9 @@ describe("HistoricalContextService", () => {
       r2: mockR2,
       vectorize: mockVectorize,
       openaiApiKey: "test-key",
-      env: {},
+      env: {
+        DB: mockDB,
+      },
     });
   });
 

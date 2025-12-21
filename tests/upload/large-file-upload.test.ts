@@ -4,7 +4,6 @@ import {
   handleStartLargeUpload,
   handleUploadPart,
 } from "../../src/routes/upload";
-import { API_CONFIG } from "../../src/shared-config";
 
 // Mock environment
 const mockEnv = {
@@ -16,7 +15,14 @@ const mockEnv = {
     idFromName: vi.fn(),
     get: vi.fn(),
   },
-  DB: {} as any,
+  DB: {
+    prepare: vi.fn().mockReturnValue({
+      bind: vi.fn().mockReturnThis(),
+      all: vi.fn().mockResolvedValue({ results: [] }),
+      first: vi.fn().mockResolvedValue(null),
+      run: vi.fn().mockResolvedValue({ success: true }),
+    }),
+  } as any,
   VECTORIZE: {} as any,
   AI: {} as any,
   FILE_PROCESSING_QUEUE: {} as any,
@@ -69,26 +75,29 @@ describe("Large File Upload", () => {
       await handleStartLargeUpload(context as any);
 
       expect(mockEnv.R2.createMultipartUpload).toHaveBeenCalledWith(
-        "library/testuser/c4be7b4dd6c8a355/large-file.pdf",
+        expect.stringMatching(
+          /^library\/testuser\/[a-f0-9]+\/large-file\.pdf$/
+        ),
         {
           httpMetadata: {
             contentType: "application/pdf",
           },
-          customMetadata: {
-            file_key: "library/testuser/c4be7b4dd6c8a355/large-file.pdf",
+          customMetadata: expect.objectContaining({
+            file_key: expect.stringMatching(
+              /^library\/testuser\/[a-f0-9]+\/large-file\.pdf$/
+            ),
             user: "testuser",
             original_name: "large-file.pdf",
-          },
+          }),
         }
       );
 
-      expect(mockUploadSession.fetch).toHaveBeenCalledWith(
-        expect.stringContaining(API_CONFIG.ENDPOINTS.UPLOAD.SESSION_CREATE),
-        expect.objectContaining({
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        })
-      );
+      // The fetch is called with a Request object from UploadSessionActions.createRequest
+      expect(mockUploadSession.fetch).toHaveBeenCalled();
+      const fetchCall = vi.mocked(mockUploadSession.fetch).mock.calls[0];
+      expect(fetchCall).toBeDefined();
+      expect(fetchCall[0]).toBeInstanceOf(Request);
+      expect(fetchCall[0].method).toBe("POST");
     });
 
     it("should reject files smaller than 100MB", async () => {

@@ -119,7 +119,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
         );
 
         let clientJwt: string | null = null;
-        let campaignIdHint: string | null = null;
+        let selectedCampaignId: string | null = null;
         if (
           lastUserMessage &&
           "data" in lastUserMessage &&
@@ -134,10 +134,14 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           };
           clientJwt = messageData.jwt || null;
           if (typeof messageData.campaignId === "string") {
-            campaignIdHint = messageData.campaignId;
+            selectedCampaignId = messageData.campaignId;
             console.log(
               `[${this.constructor.name}] Extracted campaignId from user message:`,
-              campaignIdHint
+              selectedCampaignId
+            );
+          } else {
+            console.log(
+              `[${this.constructor.name}] No campaignId in user message data (value: ${messageData.campaignId}, type: ${typeof messageData.campaignId})`
             );
           }
           console.log(
@@ -149,6 +153,11 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             `[${this.constructor.name}] No JWT found in user message data.`
           );
         }
+
+        console.log(
+          `[${this.constructor.name}] Final selectedCampaignId for this request:`,
+          selectedCampaignId
+        );
 
         // Filter out messages with incomplete tool invocations to prevent conversion errors
         const processedMessages = this.messages.filter((message) => {
@@ -166,32 +175,6 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           }
           return true;
         });
-
-        // If a campaign is explicitly selected, add it to the generation context
-        if (campaignIdHint) {
-          // Remove any existing campaign context messages (in case campaign changed)
-          const filteredWithoutCampaignContext = processedMessages.filter(
-            (msg: any) =>
-              !(
-                msg.role === "system" &&
-                msg.content?.includes("Active Campaign:")
-              )
-          );
-
-          // Add explicit campaign context as a system message
-          filteredWithoutCampaignContext.push({
-            role: "system",
-            content: `Active Campaign: You are currently working with campaign ID ${campaignIdHint}. All operations, context storage, world state updates, and generation should be scoped to this specific campaign. Use this campaign ID when calling tools that require a campaignId parameter.`,
-          });
-
-          // Update processedMessages to use the filtered version with campaign context
-          processedMessages.length = 0;
-          processedMessages.push(...filteredWithoutCampaignContext);
-
-          console.log(
-            `[${this.constructor.name}] Added explicit campaign context: ${campaignIdHint}`
-          );
-        }
 
         console.log(
           `[${this.constructor.name}] Filtered messages from ${this.messages.length} to ${processedMessages.length}`
@@ -257,10 +240,29 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           }
         } catch (_e) {}
 
+        // Log when tools require campaignId but no explicit selection is available
+        // This is a valid use case (e.g., user asks to delete a campaign by name without selecting it)
+        const toolsRequiringCampaignId = Object.entries(this.tools).filter(
+          ([_, tool]) => {
+            return (
+              tool.parameters &&
+              typeof tool.parameters === "object" &&
+              (tool.parameters as any).shape &&
+              "campaignId" in (tool.parameters as any).shape
+            );
+          }
+        );
+
+        if (toolsRequiringCampaignId.length > 0 && !selectedCampaignId) {
+          console.log(
+            `[${this.constructor.name}] No selectedCampaignId available. ${toolsRequiringCampaignId.length} tool(s) will use LLM-inferred campaignId: ${toolsRequiringCampaignId.map(([name]) => name).join(", ")}`
+          );
+        }
+
         // Create enhanced tools that automatically include JWT and apply stale-command guard
         const enhancedTools = this.createEnhancedTools(
           clientJwt,
-          campaignIdHint,
+          selectedCampaignId,
           { isStaleCommand }
         );
 
@@ -437,7 +439,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
    */
   protected createEnhancedTools(
     clientJwt: string | null,
-    campaignIdHint: string | null,
+    selectedCampaignId: string | null,
     staleGuard?: { isStaleCommand?: boolean }
   ): Record<string, any> {
     // Track tool calls to prevent infinite loops
@@ -494,23 +496,29 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 (tool.parameters as any).shape &&
                 "campaignId" in (tool.parameters as any).shape;
 
-              if (hasCampaignIdParam && campaignIdHint) {
-                // Always use the campaignIdHint from the current message, overriding any LLM-provided value
-                // This ensures we use the campaign the user has selected, not one from conversation history
+              if (hasCampaignIdParam && selectedCampaignId) {
+                // Always use the selectedCampaignId from the current message, overriding any LLM-provided value
+                // This ensures we use the campaign the user has explicitly selected in the dropdown
                 const previousCampaignId = enhancedArgs.campaignId;
-                enhancedArgs.campaignId = campaignIdHint;
+                enhancedArgs.campaignId = selectedCampaignId;
                 if (
                   previousCampaignId &&
-                  previousCampaignId !== campaignIdHint
+                  previousCampaignId !== selectedCampaignId
                 ) {
                   console.log(
-                    `[${this.constructor.name}] Overrode campaignId in tool ${toolName} from ${previousCampaignId} to ${campaignIdHint}`
+                    `[${this.constructor.name}] Overrode campaignId in tool ${toolName} from ${previousCampaignId} to ${selectedCampaignId}`
                   );
                 } else {
                   console.log(
-                    `[${this.constructor.name}] Injected campaignId into tool ${toolName} parameters: ${campaignIdHint}`
+                    `[${this.constructor.name}] Injected campaignId into tool ${toolName} parameters: ${selectedCampaignId}`
                   );
                 }
+              } else if (hasCampaignIdParam && !selectedCampaignId) {
+                // Valid use case: User may not have a campaign selected but wants to interact with a specific campaign.
+                // In this case, we allow the LLM to infer the campaign ID from the user's request.
+                console.log(
+                  `[${this.constructor.name}] No selectedCampaignId available for tool ${toolName}. Using LLM-provided campaignId: ${enhancedArgs.campaignId}`
+                );
               }
 
               // Block mutating tools if the last user command is stale

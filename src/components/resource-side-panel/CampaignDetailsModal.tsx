@@ -1,6 +1,6 @@
 import { FloppyDisk, PencilSimple, Trash, Plus } from "@phosphor-icons/react";
-import { useEffect, useId, useRef, useState } from "react";
-import type { Campaign } from "@/types/campaign";
+import { useEffect, useId, useRef, useState, useMemo } from "react";
+import type { Campaign, CampaignResource } from "@/types/campaign";
 import type { SessionDigestWithData } from "@/types/session-digest";
 import { Button } from "@/components/button/Button";
 import { FormButton } from "@/components/button/FormButton";
@@ -11,6 +11,9 @@ import { SessionDigestModal } from "@/components/session/SessionDigestModal";
 import { SessionDigestBulkImport } from "@/components/session/SessionDigestBulkImport";
 import { useSessionDigests } from "@/hooks/useSessionDigests";
 import type { SessionDigestData } from "@/types/session-digest";
+import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
+import { useBaseAsync } from "@/hooks/useBaseAsync";
+import { API_CONFIG } from "@/shared-config";
 
 interface CampaignDetailsModalProps {
   campaign: Campaign | null;
@@ -45,13 +48,18 @@ export function CampaignDetailsModal({
   const [confirmProgress, setConfirmProgress] = useState(0);
   const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const confirmIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [activeTab, setActiveTab] = useState<"details" | "digests">("details");
+  const [activeTab, setActiveTab] = useState<
+    "details" | "digests" | "documents"
+  >("details");
   const [isDigestModalOpen, setIsDigestModalOpen] = useState(false);
   const [editingDigest, setEditingDigest] =
     useState<SessionDigestWithData | null>(null);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [bulkImportData, setBulkImportData] =
     useState<SessionDigestData | null>(null);
+  const [resources, setResources] = useState<CampaignResource[]>([]);
+  const [resourcesLoading, setResourcesLoading] = useState(false);
+  const [resourcesError, setResourcesError] = useState<string | null>(null);
 
   const {
     digests,
@@ -61,6 +69,42 @@ export function CampaignDetailsModal({
     deleteSessionDigest,
   } = useSessionDigests();
 
+  const { makeRequestWithData } = useAuthenticatedRequest();
+
+  const fetchCampaignResources = useBaseAsync(
+    useMemo(
+      () => async (campaignId: string) => {
+        const data = await makeRequestWithData<{
+          resources: CampaignResource[];
+        }>(
+          API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(campaignId)
+          )
+        );
+        return data.resources || [];
+      },
+      [makeRequestWithData]
+    ),
+    useMemo(
+      () => ({
+        onSuccess: (resources: CampaignResource[]) => {
+          setResources(resources);
+          setResourcesError(null);
+        },
+        onError: (error: string) => {
+          setResourcesError(error);
+        },
+        onStart: () => {
+          setResourcesLoading(true);
+        },
+        onFinish: () => {
+          setResourcesLoading(false);
+        },
+      }),
+      []
+    )
+  );
+
   // Reset form when campaign changes
   useEffect(() => {
     if (campaign) {
@@ -69,8 +113,17 @@ export function CampaignDetailsModal({
       if (isOpen && activeTab === "digests") {
         fetchSessionDigests.execute(campaign.campaignId);
       }
+      if (isOpen && activeTab === "documents") {
+        fetchCampaignResources.execute(campaign.campaignId);
+      }
     }
-  }, [campaign, isOpen, activeTab, fetchSessionDigests.execute]);
+  }, [
+    campaign,
+    isOpen,
+    activeTab,
+    fetchSessionDigests.execute,
+    fetchCampaignResources.execute,
+  ]);
 
   // Fetch digests when switching to digests tab
   useEffect(() => {
@@ -78,6 +131,13 @@ export function CampaignDetailsModal({
       fetchSessionDigests.execute(campaign.campaignId);
     }
   }, [campaign, isOpen, activeTab, fetchSessionDigests.execute]);
+
+  // Fetch resources when switching to documents tab
+  useEffect(() => {
+    if (campaign && isOpen && activeTab === "documents") {
+      fetchCampaignResources.execute(campaign.campaignId);
+    }
+  }, [campaign, isOpen, activeTab, fetchCampaignResources.execute]);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -251,6 +311,17 @@ export function CampaignDetailsModal({
             >
               Session digests
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("documents")}
+              className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "documents"
+                  ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                  : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+              }`}
+            >
+              Documents
+            </button>
           </div>
         </div>
 
@@ -345,6 +416,88 @@ export function CampaignDetailsModal({
               onEdit={handleEditDigest}
               onDelete={handleDeleteDigest}
             />
+          </div>
+        )}
+
+        {/* Documents Tab */}
+        {activeTab === "documents" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Mapped Documents
+              </h3>
+            </div>
+            {resourcesLoading ? (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                Loading documents...
+              </div>
+            ) : resourcesError ? (
+              <div className="text-center py-8 text-red-500 dark:text-red-400">
+                Error loading documents: {resourcesError}
+              </div>
+            ) : resources.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                No documents mapped to this campaign.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {resources.map((resource) => (
+                  <div
+                    key={resource.id}
+                    className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-1">
+                          {resource.file_name ||
+                            resource.name ||
+                            "Unnamed Document"}
+                        </h4>
+                        {resource.description && (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                            {resource.description}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                          <span>Type: {resource.type}</span>
+                          <span>
+                            Added:{" "}
+                            {new Date(resource.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        {resource.tags && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {(() => {
+                              try {
+                                const tags =
+                                  typeof resource.tags === "string"
+                                    ? JSON.parse(resource.tags)
+                                    : resource.tags;
+                                if (Array.isArray(tags) && tags.length > 0) {
+                                  return tags.map(
+                                    (tag: string, idx: number) => (
+                                      <span
+                                        key={idx}
+                                        className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
+                                      >
+                                        {tag}
+                                      </span>
+                                    )
+                                  );
+                                }
+                              } catch {
+                                // Invalid JSON, ignore
+                              }
+                              return null;
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

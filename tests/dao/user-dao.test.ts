@@ -26,7 +26,12 @@ describe("UserDAO", () => {
       expect(mockPrepare).toHaveBeenCalledWith(
         expect.stringContaining("insert or replace")
       );
-      expect(mockBind).toHaveBeenCalledWith("testuser", "sk-test-key");
+      // The SQL uses username for both id and username parameters
+      expect(mockBind).toHaveBeenCalledWith(
+        "testuser",
+        "testuser",
+        "sk-test-key"
+      );
       expect(mockRun).toHaveBeenCalled();
     });
 

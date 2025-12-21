@@ -14,7 +14,7 @@ describe("BlockingAuthenticationModal", () => {
       <BlockingAuthenticationModal isOpen={true} onSubmit={mockOnSubmit} />
     );
 
-    expect(screen.getByText("Authentication Required")).toBeInTheDocument();
+    expect(screen.getByText("Authentication required")).toBeInTheDocument();
     expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/admin key/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/openai api key/i)).toBeInTheDocument();
@@ -29,7 +29,7 @@ describe("BlockingAuthenticationModal", () => {
     );
 
     expect(
-      screen.queryByText("Authentication Required")
+      screen.queryByText("Authentication required")
     ).not.toBeInTheDocument();
   });
 

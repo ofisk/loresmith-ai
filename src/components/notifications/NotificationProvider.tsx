@@ -109,6 +109,19 @@ export function NotificationProvider({
                 );
                 break;
               }
+              case NOTIFICATION_TYPES.CAMPAIGN_DELETED: {
+                // Dispatch campaign deleted event to trigger UI refresh
+                window.dispatchEvent(
+                  new CustomEvent("campaign-deleted", {
+                    detail: {
+                      type: "campaign-deleted",
+                      campaignId: notification?.data?.campaignId,
+                      campaignName: notification?.data?.campaignName,
+                    },
+                  })
+                );
+                break;
+              }
               case NOTIFICATION_TYPES.SHARDS_GENERATED: {
                 // If a ui_hint is present, broadcast it too (handled above)
                 const uiHint2 = notification?.data?.ui_hint;

@@ -280,7 +280,7 @@ export function FlexibleShardCard({
           const text = parsed.text;
           const firstSentence = text.split(/[.!?]\s/)[0];
           return firstSentence.length > 60
-            ? firstSentence.substring(0, 57) + "..."
+            ? `${firstSentence.substring(0, 57)}...`
             : firstSentence;
         }
       } catch {
@@ -361,6 +361,8 @@ export function FlexibleShardCard({
       const newDescription = getShardDescription();
       setDescriptionValue(newDescription || "");
     }
+    // getShardTitle and getShardDescription are recreated on each render but depend on shard
+    // We only want to update when shard changes, not when the functions change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shard]);
 

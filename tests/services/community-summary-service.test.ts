@@ -22,6 +22,7 @@ describe("CommunitySummaryService", () => {
       getSummaryById: vi.fn(),
       createSummary: vi.fn(),
       listSummariesByCampaign: vi.fn(),
+      deleteSummariesByCommunity: vi.fn(),
     };
 
     service = new CommunitySummaryService(
@@ -62,7 +63,8 @@ describe("CommunitySummaryService", () => {
 
       expect(result.summary).toEqual(existingSummary);
       expect(mockSummaryDAO.getSummaryByCommunityId).toHaveBeenCalledWith(
-        "community-1"
+        "community-1",
+        "campaign-1"
       );
     });
 
@@ -129,29 +131,32 @@ describe("CommunitySummaryService", () => {
       (mockEntityDAO.getRelationshipsForEntity as any).mockResolvedValue([]);
       (mockSummaryDAO.getSummaryByCommunityId as any).mockResolvedValue(null);
       (mockSummaryDAO.createSummary as any).mockResolvedValue(undefined);
-      (mockSummaryDAO.getSummaryById as any).mockResolvedValue({
-        id: "summary-1",
-        communityId: "community-1",
-        level: 0,
-        summaryText: "Generated summary",
-        keyEntities: ["entity-1"],
-        generatedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
 
       // Mock OpenAI API response
+      const generatedSummaryText =
+        "This community contains Test Location and Test Character.";
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
           choices: [
             {
               message: {
-                content:
-                  "This community contains Test Location and Test Character.",
+                content: generatedSummaryText,
               },
             },
           ],
         }),
+      });
+
+      // Mock getSummaryById to return the generated summary
+      (mockSummaryDAO.getSummaryById as any).mockResolvedValue({
+        id: "summary-1",
+        communityId: "community-1",
+        level: 0,
+        summaryText: generatedSummaryText,
+        keyEntities: ["entity-1"],
+        generatedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       });
 
       const result = await service.generateSummary(community, {
@@ -159,6 +164,7 @@ describe("CommunitySummaryService", () => {
       });
 
       expect(result.summary).toBeDefined();
+      // The summary text should come from the generated response
       expect(result.summary.summaryText).toContain("community");
       expect(mockEntityDAO.getEntityById).toHaveBeenCalledTimes(2);
       expect(mockSummaryDAO.createSummary).toHaveBeenCalled();

@@ -5,6 +5,57 @@ import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import type { Entity, EntityDAO } from "@/dao/entity-dao";
 import type { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 
+// Mock LLM provider factory
+vi.mock("@/services/llm/llm-provider-factory", () => ({
+  createLLMProvider: vi.fn().mockReturnValue({
+    generateStructuredOutput: vi.fn().mockResolvedValue({
+      meta: {
+        source: {
+          doc: "Chapter 1",
+        },
+      },
+      npcs: [
+        {
+          id: "npc-1",
+          name: "Aria Fenwick",
+          summary: "A keen-eyed scout.",
+          relations: [{ rel: "ally", target_id: "npc-2" }],
+        },
+      ],
+      monsters: [],
+      spells: [],
+      items: [],
+      traps: [],
+      hazards: [],
+      conditions: [],
+      vehicles: [],
+      env_effects: [],
+      hooks: [],
+      plot_lines: [],
+      quests: [],
+      scenes: [],
+      locations: [],
+      lairs: [],
+      factions: [],
+      deities: [],
+      backgrounds: [],
+      feats: [],
+      subclasses: [],
+      rules: [],
+      downtime: [],
+      tables: [],
+      encounter_tables: [],
+      treasure_tables: [],
+      maps: [],
+      handouts: [],
+      puzzles: [],
+      timelines: [],
+      travel: [],
+      custom: [],
+    }),
+  }),
+}));
+
 beforeAll(() => {
   if (
     !globalThis.crypto ||
@@ -49,7 +100,8 @@ describe("EntityExtractionService", () => {
 
     expect(results).toHaveLength(1);
     const entity = results[0];
-    expect(entity.id).toBe("npc-1");
+    // Entity IDs are normalized to include campaign ID prefix
+    expect(entity.id).toBe("campaign-123_npc-1");
     expect(entity.entityType).toBe("npcs");
     expect(entity.name).toBe("Aria Fenwick");
     expect(entity.metadata.sourceType).toBe("campaign_context");
