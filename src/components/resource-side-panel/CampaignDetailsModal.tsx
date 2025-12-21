@@ -69,6 +69,10 @@ export function CampaignDetailsModal({
   const [retryingResourceId, setRetryingResourceId] = useState<string | null>(
     null
   );
+  // Track resources that are currently being processed (in queue)
+  const [processingResources, setProcessingResources] = useState<Set<string>>(
+    new Set()
+  );
 
   const {
     digests,
@@ -162,7 +166,86 @@ export function CampaignDetailsModal({
     if (!campaign) return;
     setRetryingResourceId(resourceId);
     await retryEntityExtraction.execute(campaign.campaignId, resourceId);
+    // After queuing, mark as processing and start polling
+    setProcessingResources((prev) => new Set(prev).add(resourceId));
   };
+
+  // Check queue status for a resource
+  const checkQueueStatus = useBaseAsync(
+    useMemo(
+      () => async (campaignId: string, resourceId: string) => {
+        const data = await makeRequestWithData<{
+          inQueue: boolean;
+          status:
+            | "pending"
+            | "processing"
+            | "completed"
+            | "failed"
+            | "rate_limited"
+            | null;
+        }>(
+          API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITY_EXTRACTION_STATUS(
+              campaignId,
+              resourceId
+            )
+          ),
+          {
+            method: "GET",
+          }
+        );
+        return { data, resourceId };
+      },
+      [makeRequestWithData]
+    ),
+    useMemo(
+      () => ({
+        onSuccess: (result: { data: any; resourceId: string }) => {
+          const { data, resourceId } = result;
+          // If not in queue or completed/failed, remove from processing set
+          if (
+            !data.inQueue ||
+            data.status === "completed" ||
+            data.status === "failed"
+          ) {
+            setProcessingResources((prev) => {
+              const next = new Set(prev);
+              next.delete(resourceId);
+              return next;
+            });
+          }
+        },
+        onError: () => {
+          // On error, still remove from processing to allow retry
+          // (error might be transient)
+        },
+      }),
+      []
+    )
+  );
+
+  // Poll queue status for processing resources
+  useEffect(() => {
+    if (!campaign || processingResources.size === 0) return;
+
+    const pollInterval = setInterval(() => {
+      processingResources.forEach((resourceId) => {
+        checkQueueStatus.execute(campaign.campaignId, resourceId);
+      });
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [campaign, processingResources, checkQueueStatus]);
+
+  // Check queue status when resources are loaded (to detect already-queued items)
+  useEffect(() => {
+    if (!campaign || resources.length === 0) return;
+
+    // Check status for all resources to see if any are already in the queue
+    resources.forEach((resource) => {
+      checkQueueStatus.execute(campaign.campaignId, resource.id);
+    });
+  }, [campaign, resources, checkQueueStatus]);
 
   // Reset form when campaign changes
   useEffect(() => {
@@ -552,22 +635,39 @@ export function CampaignDetailsModal({
                           </div>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRetryEntityExtraction(resource.id)}
-                        disabled={retryingResourceId === resource.id}
-                        className="ml-4 p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        title="Retry entity extraction"
-                      >
-                        <ArrowClockwise
-                          size={20}
-                          className={
-                            retryingResourceId === resource.id
-                              ? "animate-spin"
-                              : ""
+                      <div className="ml-4 flex items-center gap-2">
+                        {processingResources.has(resource.id) && (
+                          <span className="text-xs text-blue-600 dark:text-blue-400">
+                            Processing...
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleRetryEntityExtraction(resource.id)
                           }
-                        />
-                      </button>
+                          disabled={
+                            retryingResourceId === resource.id ||
+                            processingResources.has(resource.id)
+                          }
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          title={
+                            processingResources.has(resource.id)
+                              ? "Entity extraction is processing..."
+                              : "Retry entity extraction"
+                          }
+                        >
+                          <ArrowClockwise
+                            size={20}
+                            className={
+                              retryingResourceId === resource.id ||
+                              processingResources.has(resource.id)
+                                ? "animate-spin"
+                                : ""
+                            }
+                          />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}

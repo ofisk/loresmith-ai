@@ -492,10 +492,14 @@ export async function stageEntitiesFromResource(
       let notificationMessage = "";
       if (failedChunks.length > 0 && stagedEntities.length > 0) {
         // Partial success: some chunks failed but we still got entities
-        notificationMessage = `⚠️ Partial success: ${stagedEntities.length} shards generated, but ${failedChunks.length} chunk(s) failed to process (chunks: ${failedChunks.join(", ")}). This may be due to rate limits or API errors.`;
+        // Calculate percentage for user-friendly message
+        const successRate = Math.round(
+          (successfulChunks / chunks.length) * 100
+        );
+        notificationMessage = `⚠️ We extracted ${stagedEntities.length} shards, but couldn't process some parts of the file (${successRate}% processed successfully). This usually happens when processing very large files. You can retry to process the remaining content.`;
       } else if (failedChunks.length > 0 && stagedEntities.length === 0) {
         // All chunks failed
-        notificationMessage = `❌ Failed to extract shards: all ${chunks.length} chunk(s) failed to process. This may be due to rate limits or API errors.`;
+        notificationMessage = `❌ We couldn't extract any shards from this file. This may be due to the file being too large or temporary processing issues. Please try again later.`;
       }
 
       await notifyShardGeneration(

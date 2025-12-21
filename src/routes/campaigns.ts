@@ -11,6 +11,7 @@ import {
   getCampaignRagBasePath,
 } from "@/lib/campaign-operations";
 import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
+import { EntityExtractionQueueDAO } from "@/dao/entity-extraction-queue-dao";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
 import { extractJwtFromContext } from "@/lib/auth-utils";
 import {
@@ -718,5 +719,64 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
   } catch (error) {
     console.error("Error removing resource from campaign:", error);
     return c.json({ error: "Internal server error" }, 500);
+  }
+}
+
+// Get entity extraction queue status for a resource
+export async function handleGetEntityExtractionStatus(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    const campaignId = c.req.param("campaignId");
+    const resourceId = c.req.param("resourceId");
+
+    if (!userAuth) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    // Validate campaign ownership
+    const { valid } = await validateCampaignOwnership(
+      campaignId,
+      userAuth.username,
+      c.env
+    );
+    if (!valid) {
+      return c.json({ error: "Campaign not found" }, 404);
+    }
+
+    // Check queue status
+    const queueDAO = new EntityExtractionQueueDAO(c.env.DB);
+    const queueItem = await queueDAO.getQueueItemByResource(
+      campaignId,
+      resourceId
+    );
+
+    if (!queueItem) {
+      // Not in queue - extraction is either completed or never started
+      return c.json({
+        inQueue: false,
+        status: null,
+      });
+    }
+
+    return c.json({
+      inQueue: true,
+      status: queueItem.status,
+      retryCount: queueItem.retry_count,
+      lastError: queueItem.last_error,
+      errorCode: queueItem.error_code,
+      nextRetryAt: queueItem.next_retry_at,
+      createdAt: queueItem.created_at,
+      processedAt: queueItem.processed_at,
+    });
+  } catch (error) {
+    console.error("Error getting entity extraction status:", error);
+    return c.json(
+      {
+        error: "Failed to get extraction status",
+        message:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      },
+      500
+    );
   }
 }
