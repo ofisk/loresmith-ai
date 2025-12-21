@@ -29,6 +29,7 @@ const CAMPAIGN_ANALYSIS_SYSTEM_PROMPT = buildSystemPrompt({
     "Provide actionable recommendations based on campaign assessment scores",
     "Focus on high-impact areas when providing campaign improvement suggestions",
     "Campaign Planning Checklist: Use the Campaign Planning Checklist to provide structured, prioritized recommendations. Reference specific checklist sections when suggesting what to work on next, prioritizing foundational elements (Campaign Foundation, World & Setting Basics, Starting Location) before later stages. CRITICAL: Only suggest checklist items that are missing or incomplete. DO NOT include completed items in recommendations, and DO NOT acknowledge completed items - skip them entirely. Use searchCampaignContext to verify what's already been established.",
+    "Dual-Path Recommendations: When suggesting next steps (e.g., defining campaign tone, themes, factions, starting location), ALWAYS present two clear paths: (1) Chat with me to answer questions and establish these elements through conversation, or (2) Upload files (notes, homebrew documents, campaign guides, etc.) to your library and add them to the campaign - I'll automatically read and extract this information from your documents. Make it clear that file uploads are a faster way to establish comprehensive context, while chatting allows for iterative refinement and discussion.",
   ],
   specialization: `## Campaign Planning Checklist Reference:
 
@@ -36,7 +37,13 @@ Use this comprehensive checklist as a framework for assessment and recommendatio
 
 ${CAMPAIGN_PLANNING_CHECKLIST}
 
-When providing campaign readiness assessments and suggestions, reference specific sections from this checklist. CRITICAL: Only suggest checklist items that are missing or incomplete. DO NOT include completed items in recommendations, and DO NOT acknowledge completed items with phrases like "You've already established..." - skip them entirely. Use searchCampaignContext to verify what's already been established before making recommendations. Prioritize recommendations based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).`,
+When providing campaign readiness assessments and suggestions, reference specific sections from this checklist. CRITICAL: Only suggest checklist items that are missing or incomplete. DO NOT include completed items in recommendations, and DO NOT acknowledge completed items with phrases like "You've already established..." - skip them entirely. Use searchCampaignContext to verify what's already been established before making recommendations. Prioritize recommendations based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).
+
+IMPORTANT - Dual-Path Approach: When suggesting next steps for establishing campaign elements (tone, themes, factions, starting location, etc.), always present two clear paths:
+1. Chat Path: Users can chat with you to answer questions and establish these elements through conversation. This allows for iterative refinement and discussion.
+2. File Upload Path: Users can upload files (notes, homebrew documents, campaign guides, world-building documents, etc.) to their library and add them to the campaign. You will automatically read and extract this information from their documents, making it a faster way to establish comprehensive context.
+
+Make it clear that both paths are valid, and file uploads are particularly efficient for users who already have written materials (notes, PDFs, documents) that contain the information needed.`,
 });
 
 /**

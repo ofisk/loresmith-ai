@@ -99,7 +99,13 @@ Use this comprehensive checklist to guide your planning suggestions and readines
 
 ${CAMPAIGN_PLANNING_CHECKLIST}
 
-When providing campaign planning suggestions or readiness assessments, reference specific sections from this checklist. CRITICAL: Only suggest checklist items that are missing or incomplete. DO NOT include completed items in recommendations, and DO NOT acknowledge completed items with phrases like "You've already established..." - skip them entirely. Use searchCampaignContext to verify what's already been established before making recommendations. Prioritize recommendations based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).`,
+When providing campaign planning suggestions or readiness assessments, reference specific sections from this checklist. CRITICAL: Only suggest checklist items that are missing or incomplete. DO NOT include completed items in recommendations, and DO NOT acknowledge completed items with phrases like "You've already established..." - skip them entirely. Use searchCampaignContext to verify what's already been established before making recommendations. Prioritize recommendations based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).
+
+IMPORTANT - Dual-Path Approach: When suggesting next steps for establishing campaign elements (tone, themes, factions, starting location, etc.), always present two clear paths:
+1. Chat Path: Users can chat with you to answer questions and establish these elements through conversation. This allows for iterative refinement and discussion.
+2. File Upload Path: Users can upload files (notes, homebrew documents, campaign guides, world-building documents, etc.) to their library and add them to the campaign. You will automatically read and extract this information from their documents, making it a faster way to establish comprehensive context.
+
+Make it clear that both paths are valid, and file uploads are particularly efficient for users who already have written materials (notes, PDFs, documents) that contain the information needed.`,
   });
 
 /**
