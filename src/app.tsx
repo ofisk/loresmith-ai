@@ -247,6 +247,27 @@ export default function Chat() {
     };
   }, [modalState]);
 
+  // Listen for campaign-created events to refresh campaigns list
+  useEffect(() => {
+    const handleCampaignCreated = () => {
+      console.log(
+        "[App] Campaign created event received, refreshing campaigns list"
+      );
+      refetchCampaigns();
+    };
+
+    window.addEventListener(
+      "campaign-created",
+      handleCampaignCreated as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        "campaign-created",
+        handleCampaignCreated as EventListener
+      );
+    };
+  }, [refetchCampaigns]);
+
   // Auth ready check for recap triggers
   const authReady = useAuthReady();
 
