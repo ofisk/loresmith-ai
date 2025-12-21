@@ -98,6 +98,7 @@ export async function notifyShardGeneration(
     resourceId: string;
     groups?: any[];
     chunkNumber?: number;
+    errorMessage?: string;
   }
 ): Promise<void> {
   const isNone = !shardCount || shardCount === 0;
@@ -109,12 +110,20 @@ export async function notifyShardGeneration(
   if (isNone) {
     title = "No Shards Found";
     message = `🔎 No shards were discovered from "${fileName}" in "${campaignName}".`;
+    // Include error message if provided (e.g., all chunks failed)
+    if (context?.errorMessage) {
+      message += ` ${context.errorMessage}`;
+    }
   } else if (isStreaming) {
     title = "Shards Discovered";
     message = `📦 ${shardCount} shards found in chunk ${context.chunkNumber} from "${fileName}" in "${campaignName}".`;
   } else {
     title = "New Shards Ready!";
     message = `🎉 ${shardCount} new shards generated from "${fileName}" in "${campaignName}"!`;
+    // Include warning if there were partial failures
+    if (context?.errorMessage) {
+      message += ` ${context.errorMessage}`;
+    }
   }
 
   await notifyUser(env, userId, {

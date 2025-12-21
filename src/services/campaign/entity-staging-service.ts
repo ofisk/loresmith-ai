@@ -36,6 +36,10 @@ export interface EntityStagingResult {
     }>;
   }>;
   error?: string;
+  warning?: string;
+  failedChunks?: number[];
+  successfulChunks?: number;
+  totalChunks?: number;
 }
 
 export interface EntityStagingOptions {
@@ -163,6 +167,8 @@ export async function stageEntitiesFromResource(
     // Rate limit: Process chunks with delay to respect TPM limits
     // If processing multiple chunks, add a delay to stay under 30k tokens per minute
     const CHUNK_PROCESSING_DELAY_MS = chunks.length > 1 ? 2000 : 0; // 2 second delay between chunks
+    let failedChunks: number[] = [];
+    let successfulChunks = 0;
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
@@ -176,57 +182,91 @@ export async function stageEntitiesFromResource(
           setTimeout(resolve, CHUNK_PROCESSING_DELAY_MS)
         );
       }
-      const chunkEntities = await extractionService.extractEntities({
-        content: chunk,
-        sourceName: normalizedResource.file_name || normalizedResource.id,
-        campaignId,
-        sourceId: normalizedResource.id,
-        sourceType: "file_upload",
-        openaiApiKey,
-        metadata: {
-          fileKey: normalizedResource.file_key || normalizedResource.id,
-          resourceId: normalizedResource.id,
-          resourceName: normalizedResource.file_name || normalizedResource.id,
-          staged: true,
-          shardStatus: "staging",
-          chunkIndex: i,
-          totalChunks: chunks.length,
-        },
-      });
 
-      // Merge entities by ID (same entity ID = merge content/metadata)
-      for (const entity of chunkEntities) {
-        const existing = allExtractedEntities.get(entity.id);
-        if (existing) {
-          // Merge: combine content, merge relations, update metadata
-          existing.content = {
-            ...(typeof existing.content === "object" &&
-            existing.content !== null
-              ? existing.content
-              : {}),
-            ...(typeof entity.content === "object" && entity.content !== null
-              ? entity.content
-              : {}),
-          };
-          // Merge relations (avoid duplicates)
-          const existingTargetIds = new Set(
-            existing.relations.map((r) => r.targetId)
-          );
-          for (const rel of entity.relations) {
-            if (!existingTargetIds.has(rel.targetId)) {
-              existing.relations.push(rel);
-              existingTargetIds.add(rel.targetId);
+      try {
+        const chunkEntities = await extractionService.extractEntities({
+          content: chunk,
+          sourceName: normalizedResource.file_name || normalizedResource.id,
+          campaignId,
+          sourceId: normalizedResource.id,
+          sourceType: "file_upload",
+          openaiApiKey,
+          metadata: {
+            fileKey: normalizedResource.file_key || normalizedResource.id,
+            resourceId: normalizedResource.id,
+            resourceName: normalizedResource.file_name || normalizedResource.id,
+            staged: true,
+            shardStatus: "staging",
+            chunkIndex: i,
+            totalChunks: chunks.length,
+          },
+        });
+
+        // Merge entities by ID (same entity ID = merge content/metadata)
+        for (const entity of chunkEntities) {
+          const existing = allExtractedEntities.get(entity.id);
+          if (existing) {
+            // Merge: combine content, merge relations, update metadata
+            existing.content = {
+              ...(typeof existing.content === "object" &&
+              existing.content !== null
+                ? existing.content
+                : {}),
+              ...(typeof entity.content === "object" && entity.content !== null
+                ? entity.content
+                : {}),
+            };
+            // Merge relations (avoid duplicates)
+            const existingTargetIds = new Set(
+              existing.relations.map((r) => r.targetId)
+            );
+            for (const rel of entity.relations) {
+              if (!existingTargetIds.has(rel.targetId)) {
+                existing.relations.push(rel);
+                existingTargetIds.add(rel.targetId);
+              }
             }
+            // Update metadata
+            existing.metadata = {
+              ...existing.metadata,
+              ...entity.metadata,
+            };
+          } else {
+            allExtractedEntities.set(entity.id, entity);
           }
-          // Update metadata
-          existing.metadata = {
-            ...existing.metadata,
-            ...entity.metadata,
-          };
-        } else {
-          allExtractedEntities.set(entity.id, entity);
+        }
+
+        successfulChunks++;
+      } catch (chunkError) {
+        // Log error but continue processing remaining chunks
+        const errorMessage =
+          chunkError instanceof Error ? chunkError.message : "Unknown error";
+        console.error(
+          `[EntityStaging] Error extracting entities from chunk ${i + 1}/${chunks.length} for resource ${normalizedResource.id}:`,
+          errorMessage
+        );
+        failedChunks.push(i + 1);
+
+        // If it's a rate limit error, wait longer before continuing
+        if (
+          errorMessage.includes("rate limit") ||
+          errorMessage.includes("429") ||
+          errorMessage.includes("Too Many Requests")
+        ) {
+          const rateLimitWaitMs = 5000; // Wait 5 seconds for rate limit
+          console.log(
+            `[EntityStaging] Rate limit detected, waiting ${rateLimitWaitMs}ms before processing next chunk`
+          );
+          await new Promise((resolve) => setTimeout(resolve, rateLimitWaitMs));
         }
       }
+    }
+
+    // Log summary of chunk processing
+    if (failedChunks.length > 0) {
+      console.warn(
+        `[EntityStaging] Partial success: ${successfulChunks}/${chunks.length} chunks processed successfully. Failed chunks: ${failedChunks.join(", ")}`
+      );
     }
 
     const extractedEntities = Array.from(allExtractedEntities.values());
@@ -419,13 +459,26 @@ export async function stageEntitiesFromResource(
 
     // Send notification about staged entities
     try {
+      let notificationMessage = "";
+      if (failedChunks.length > 0 && stagedEntities.length > 0) {
+        // Partial success: some chunks failed but we still got entities
+        notificationMessage = `⚠️ Partial success: ${stagedEntities.length} shards generated, but ${failedChunks.length} chunk(s) failed to process (chunks: ${failedChunks.join(", ")}). This may be due to rate limits or API errors.`;
+      } else if (failedChunks.length > 0 && stagedEntities.length === 0) {
+        // All chunks failed
+        notificationMessage = `❌ Failed to extract shards: all ${chunks.length} chunk(s) failed to process. This may be due to rate limits or API errors.`;
+      }
+
       await notifyShardGeneration(
         env,
         username,
         campaignName,
         normalizedResource.file_name || normalizedResource.id,
         stagedEntities.length,
-        { campaignId, resourceId: normalizedResource.id }
+        {
+          campaignId,
+          resourceId: normalizedResource.id,
+          ...(notificationMessage ? { errorMessage: notificationMessage } : {}),
+        }
       );
     } catch (notifyError) {
       console.error(
@@ -434,10 +487,19 @@ export async function stageEntitiesFromResource(
       );
     }
 
+    // Return success if we got any entities, even if some chunks failed
     return {
-      success: true,
+      success: stagedEntities.length > 0 || failedChunks.length === 0,
       entityCount: stagedEntities.length,
       stagedEntities,
+      ...(failedChunks.length > 0
+        ? {
+            warning: `Some chunks failed to process: ${failedChunks.join(", ")}`,
+            failedChunks,
+            successfulChunks,
+            totalChunks: chunks.length,
+          }
+        : {}),
     };
   } catch (error) {
     console.error(`[EntityStaging] Error staging entities:`, error);
