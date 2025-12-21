@@ -81,7 +81,7 @@ export const ShardOverlay = ({
   }, [isExpanded]);
 
   return (
-    <div className="fixed top-0 right-0 h-screen z-50 flex items-start pt-24">
+    <div className="fixed top-0 right-0 h-screen z-50 flex items-start pt-28">
       {/* Minimized Chevron Button */}
       {!isExpanded && isMinimized && (
         <div className="relative">
@@ -130,7 +130,7 @@ export const ShardOverlay = ({
           transition-all duration-300 ease-in-out
           ${isExpanded ? "w-[50vw] opacity-100" : "w-0 opacity-0 overflow-hidden"}
         `}
-        style={{ height: "calc(100vh - 6rem)" }}
+        style={{ height: "calc(100vh - 7rem)" }}
       >
         <div className="h-full flex flex-col">
           {/* Header */}
