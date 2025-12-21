@@ -168,20 +168,44 @@ export async function stageEntitiesFromResource(
     // Rate limit: Process chunks with delay to respect TPM limits
     // If processing multiple chunks, add a delay to stay under 30k tokens per minute
     const CHUNK_PROCESSING_DELAY_MS = chunks.length > 1 ? 2000 : 0; // 2 second delay between chunks
+    const MAX_CHUNK_RETRIES = 3; // Maximum retry attempts per chunk
+    const INITIAL_RETRY_DELAY_MS = 2000; // Initial delay for retries (2 seconds)
+    const MAX_RETRY_DELAY_MS = 30000; // Maximum delay for retries (30 seconds)
+
     const failedChunks: number[] = [];
+    const chunkRetryCounts: Map<number, number> = new Map(); // Track retry count per chunk index
+    const chunksToRetry: number[] = []; // Chunks that need retrying
     let successfulChunks = 0;
 
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
+    // Helper function to process a single chunk
+    const processChunk = async (
+      chunkIndex: number,
+      chunk: string,
+      isRetry: boolean = false
+    ): Promise<boolean> => {
+      const chunkNumber = chunkIndex + 1;
+      const retryCount = chunkRetryCounts.get(chunkIndex) || 0;
 
-      // Add delay before processing (except for first chunk)
-      if (i > 0 && CHUNK_PROCESSING_DELAY_MS > 0) {
+      // Add delay before processing (except for first chunk on initial pass)
+      if (!isRetry && chunkIndex > 0 && CHUNK_PROCESSING_DELAY_MS > 0) {
         console.log(
-          `[EntityStaging] Rate limiting: waiting ${CHUNK_PROCESSING_DELAY_MS}ms before processing chunk ${i + 1}/${chunks.length}`
+          `[EntityStaging] Rate limiting: waiting ${CHUNK_PROCESSING_DELAY_MS}ms before processing chunk ${chunkNumber}/${chunks.length}`
         );
         await new Promise((resolve) =>
           setTimeout(resolve, CHUNK_PROCESSING_DELAY_MS)
         );
+      }
+
+      // Add exponential backoff delay for retries
+      if (isRetry && retryCount > 0) {
+        const backoffDelay = Math.min(
+          INITIAL_RETRY_DELAY_MS * Math.pow(2, retryCount - 1),
+          MAX_RETRY_DELAY_MS
+        );
+        console.log(
+          `[EntityStaging] Retrying chunk ${chunkNumber} (attempt ${retryCount + 1}/${MAX_CHUNK_RETRIES + 1}), waiting ${backoffDelay}ms`
+        );
+        await new Promise((resolve) => setTimeout(resolve, backoffDelay));
       }
 
       try {
@@ -198,7 +222,7 @@ export async function stageEntitiesFromResource(
             resourceName: normalizedResource.file_name || normalizedResource.id,
             staged: true,
             shardStatus: "staging",
-            chunkIndex: i,
+            chunkIndex: chunkIndex,
             totalChunks: chunks.length,
           },
         });
@@ -237,28 +261,97 @@ export async function stageEntitiesFromResource(
           }
         }
 
-        successfulChunks++;
+        // Success - remove from retry tracking if it was a retry
+        if (isRetry) {
+          chunkRetryCounts.delete(chunkIndex);
+          console.log(
+            `[EntityStaging] Successfully retried chunk ${chunkNumber} after ${retryCount} failed attempts`
+          );
+        }
+        return true;
       } catch (chunkError) {
-        // Log error but continue processing remaining chunks
+        // Log error
         const errorMessage =
           chunkError instanceof Error ? chunkError.message : "Unknown error";
-        console.error(
-          `[EntityStaging] Error extracting entities from chunk ${i + 1}/${chunks.length} for resource ${normalizedResource.id}:`,
-          errorMessage
-        );
-        failedChunks.push(i + 1);
-
-        // If it's a rate limit error, wait longer before continuing
-        if (
+        const isRateLimit =
           errorMessage.includes("rate limit") ||
           errorMessage.includes("429") ||
-          errorMessage.includes("Too Many Requests")
-        ) {
-          const rateLimitWaitMs = 5000; // Wait 5 seconds for rate limit
-          console.log(
-            `[EntityStaging] Rate limit detected, waiting ${rateLimitWaitMs}ms before processing next chunk`
+          errorMessage.includes("Too Many Requests");
+
+        if (isRetry) {
+          console.error(
+            `[EntityStaging] Retry attempt ${retryCount + 1}/${MAX_CHUNK_RETRIES} failed for chunk ${chunkNumber}:`,
+            errorMessage
           );
-          await new Promise((resolve) => setTimeout(resolve, rateLimitWaitMs));
+        } else {
+          console.error(
+            `[EntityStaging] Error extracting entities from chunk ${chunkNumber}/${chunks.length} for resource ${normalizedResource.id}:`,
+            errorMessage
+          );
+        }
+
+        // Check if we should retry
+        if (retryCount < MAX_CHUNK_RETRIES) {
+          // Increment retry count and schedule retry
+          chunkRetryCounts.set(chunkIndex, retryCount + 1);
+
+          // For rate limits, wait longer before continuing to next chunk
+          if (isRateLimit && !isRetry) {
+            const rateLimitWaitMs = 5000; // Wait 5 seconds for rate limit
+            console.log(
+              `[EntityStaging] Rate limit detected, waiting ${rateLimitWaitMs}ms before processing next chunk`
+            );
+            await new Promise((resolve) =>
+              setTimeout(resolve, rateLimitWaitMs)
+            );
+          }
+
+          return false; // Indicates failure but will be retried
+        } else {
+          // Max retries exceeded - mark as permanently failed
+          console.error(
+            `[EntityStaging] Chunk ${chunkNumber} failed after ${MAX_CHUNK_RETRIES} retry attempts, giving up`
+          );
+          failedChunks.push(chunkNumber);
+          chunkRetryCounts.delete(chunkIndex);
+          return false; // Permanently failed
+        }
+      }
+    };
+
+    // Initial pass: process all chunks
+    for (let i = 0; i < chunks.length; i++) {
+      const success = await processChunk(i, chunks[i], false);
+      if (success) {
+        successfulChunks++;
+      } else {
+        // Check if it will be retried (retry count hasn't exceeded max)
+        const retryCount = chunkRetryCounts.get(i) || 0;
+        if (retryCount < MAX_CHUNK_RETRIES) {
+          chunksToRetry.push(i);
+        }
+      }
+    }
+
+    // Retry failed chunks
+    while (chunksToRetry.length > 0) {
+      const chunkIndex = chunksToRetry.shift()!;
+      const retryCount = chunkRetryCounts.get(chunkIndex) || 0;
+
+      if (retryCount >= MAX_CHUNK_RETRIES) {
+        // Already exceeded max retries, skip
+        continue;
+      }
+
+      const success = await processChunk(chunkIndex, chunks[chunkIndex], true);
+      if (success) {
+        successfulChunks++;
+      } else {
+        // Check if we should retry again
+        const newRetryCount = chunkRetryCounts.get(chunkIndex) || 0;
+        if (newRetryCount < MAX_CHUNK_RETRIES) {
+          // Add back to retry queue
+          chunksToRetry.push(chunkIndex);
         }
       }
     }

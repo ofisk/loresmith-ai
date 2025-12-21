@@ -5,7 +5,6 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import { EntityExtractionQueueDAO } from "@/dao/entity-extraction-queue-dao";
 import { stageEntitiesFromResource } from "./entity-staging-service";
 import { getCampaignRagBasePath } from "@/lib/campaign-operations";
-import { notifyShardGeneration } from "@/lib/notifications";
 import type { Env } from "@/middleware/auth";
 
 export interface EntityExtractionJobOptions {
@@ -186,24 +185,8 @@ export class EntityExtractionQueueService {
         // Mark as completed
         await queueDAO.markAsCompleted(item.id);
 
-        // Send notification
-        const errorMessage =
-          result.failedChunks && result.failedChunks.length > 0
-            ? `⚠️ Partial success: ${result.entityCount} shards generated, but ${result.failedChunks.length} chunk(s) failed to process (chunks: ${result.failedChunks.join(", ")}). This may be due to rate limits or API errors.`
-            : undefined;
-
-        await notifyShardGeneration(
-          env,
-          item.username,
-          campaign.name,
-          item.resource_name,
-          result.entityCount,
-          {
-            campaignId: item.campaign_id,
-            resourceId: item.resource_id,
-            ...(errorMessage ? { errorMessage } : {}),
-          }
-        );
+        // Note: Notification is already sent by stageEntitiesFromResource
+        // No need to send duplicate notification here
 
         processed++;
         console.log(
