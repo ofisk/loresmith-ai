@@ -246,7 +246,6 @@ export function CampaignDetailsModal({
       checkQueueStatus.execute(campaign.campaignId, resource.id);
     });
   }, [campaign, resources, checkQueueStatus]);
-
   // Reset form when campaign changes
   useEffect(() => {
     if (campaign) {

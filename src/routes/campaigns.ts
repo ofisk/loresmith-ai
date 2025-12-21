@@ -664,6 +664,169 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
   }
 }
 
+// Retry entity extraction for a resource
+export async function handleRetryEntityExtraction(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    const campaignId = c.req.param("campaignId");
+    const resourceId = c.req.param("resourceId");
+
+    console.log(
+      `[Server] POST /campaigns/${campaignId}/resource/${resourceId}/retry-entity-extraction - starting request`
+    );
+
+    if (!userAuth) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    // Validate campaign ownership
+    const { valid, campaign } = await validateCampaignOwnership(
+      campaignId,
+      userAuth.username,
+      c.env
+    );
+    if (!valid) {
+      console.log(
+        `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
+      );
+      return c.json({ error: "Campaign not found" }, 404);
+    }
+
+    // Check if the resource exists in this campaign
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
+    const resource = await campaignDAO.getCampaignResourceById(
+      resourceId,
+      campaignId
+    );
+
+    if (!resource) {
+      console.log(
+        `[Server] Resource ${resourceId} not found in campaign ${campaignId}`
+      );
+      return c.json({ error: "Resource not found in this campaign" }, 404);
+    }
+
+    console.log("[Server] Found resource for retry:", resource);
+
+    // Get campaign RAG base path
+    const campaignRagBasePath = await getCampaignRagBasePath(
+      userAuth.username,
+      campaignId,
+      c.env
+    );
+
+    if (!campaignRagBasePath) {
+      return c.json({ error: "Failed to get campaign RAG base path" }, 500);
+    }
+
+    // Retry entity extraction
+    const entityResult = await stageEntitiesFromResource({
+      env: c.env,
+      username: userAuth.username,
+      campaignId,
+      campaignName: campaign!.name,
+      resource,
+      campaignRagBasePath,
+      openaiApiKey: userAuth.openaiApiKey,
+    });
+
+    if (entityResult.success && entityResult.entityCount > 0) {
+      // Send notification about entity count (UI uses "shard" terminology)
+      await notifyShardGeneration(
+        c.env,
+        userAuth.username,
+        campaign!.name,
+        resource.file_name || resource.id,
+        entityResult.entityCount,
+        {
+          campaignId,
+          resourceId: resource.id,
+        }
+      );
+
+      // Return response with entity data (formatted as shards for UI compatibility)
+      const response = buildShardGenerationResponse(
+        resource,
+        entityResult.entityCount,
+        campaignId,
+        entityResult.stagedEntities
+          ? [
+              {
+                key: `entity_staging_${resourceId}`,
+                sourceRef: {
+                  fileKey: resource.file_key || resource.id,
+                  meta: {
+                    fileName: resource.file_name || resource.id,
+                    campaignId,
+                    entityType: "mixed",
+                    chunkId: "",
+                    score: 0,
+                  },
+                },
+                shards: entityResult.stagedEntities.map((entity) => ({
+                  id: entity.id,
+                  text: JSON.stringify(entity.content),
+                  metadata: {
+                    ...entity.metadata,
+                    entityType: entity.entityType,
+                    confidence: (entity.metadata.confidence as number) || 0.9,
+                  },
+                  sourceRef: {
+                    fileKey: resource.file_key || resource.id,
+                    meta: {
+                      fileName: resource.file_name || resource.id,
+                      campaignId,
+                      entityType: entity.entityType,
+                      chunkId: entity.id,
+                      score: 0,
+                    },
+                  },
+                })),
+                created_at: new Date().toISOString(),
+                campaignRagBasePath,
+              },
+            ]
+          : undefined
+      );
+      return c.json(response);
+    } else {
+      // Send zero entity notification (UI uses "shard" terminology)
+      await notifyShardGeneration(
+        c.env,
+        userAuth.username,
+        campaign!.name,
+        resource.file_name || resource.id,
+        0,
+        {
+          campaignId,
+          resourceId: resource.id,
+          ...(entityResult.warning
+            ? { errorMessage: entityResult.warning }
+            : {}),
+        }
+      );
+
+      const response = buildResourceAdditionResponse(
+        resource,
+        entityResult.warning
+          ? `Entity extraction retried. ${entityResult.warning}`
+          : "Entity extraction retried. No entities could be extracted from this resource."
+      );
+      return c.json(response);
+    }
+  } catch (error) {
+    console.error("Error retrying entity extraction:", error);
+    return c.json(
+      {
+        error: "Internal server error",
+        message:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      },
+      500
+    );
+  }
+}
+
 // Remove resource from campaign
 export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
   try {
