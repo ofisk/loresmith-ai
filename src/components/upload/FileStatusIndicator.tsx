@@ -133,21 +133,17 @@ export function FileStatusIndicator({
 
   const isMemoryLimitError = errorCode === "MEMORY_LIMIT_EXCEEDED";
 
-  // Get current status
+  // Get current status - use initialStatus if it exists in statusConfig, otherwise default to PROCESSING
   let currentStatus: keyof typeof statusConfig;
-  // Fall back to initial status
-  if (initialStatus === FileDAO.STATUS.COMPLETED) {
-    currentStatus = FileDAO.STATUS.COMPLETED;
-  } else if (
-    initialStatus === FileDAO.STATUS.ERROR ||
-    initialStatus === "failed"
-  ) {
-    // Treat "failed" status the same as "error" for display and retry purposes
-    currentStatus =
-      initialStatus === FileDAO.STATUS.ERROR ? FileDAO.STATUS.ERROR : "failed";
-  } else if (initialStatus === FileDAO.STATUS.UNINDEXED) {
-    currentStatus = FileDAO.STATUS.UNINDEXED;
+
+  // Check if initialStatus is a valid key in statusConfig
+  if (initialStatus && initialStatus in statusConfig) {
+    currentStatus = initialStatus as keyof typeof statusConfig;
+  } else if (initialStatus === "failed") {
+    // Handle legacy "failed" status
+    currentStatus = "failed";
   } else {
+    // Fall back to PROCESSING only if status is unknown
     currentStatus = FileDAO.STATUS.PROCESSING;
   }
 
