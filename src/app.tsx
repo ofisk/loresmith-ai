@@ -761,11 +761,30 @@ export default function Chat() {
 
   // Listen for shards-generated events to refresh shards overlay
   useEffect(() => {
-    const handleShardsGenerated = () => {
+    const handleShardsGenerated = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const detail = customEvent.detail;
       console.log(
-        "[App] Shards generated event received, refreshing shards overlay"
+        "[App] Shards generated event received, refreshing shards overlay",
+        {
+          campaignId: detail?.campaignId,
+          campaignName: detail?.campaignName,
+          shardCount: detail?.shardCount,
+        }
       );
-      fetchAllStagedShards();
+
+      // Add a small delay to ensure shards are fully saved to the database
+      // before fetching (entity extraction and saving can take a moment)
+      const refreshShards = async () => {
+        console.log("[App] Refreshing shards overlay");
+        await fetchAllStagedShards();
+      };
+
+      // Initial refresh after 1 second
+      setTimeout(refreshShards, 1000);
+
+      // Retry after 3 seconds in case the first fetch was too early
+      setTimeout(refreshShards, 3000);
     };
 
     window.addEventListener(

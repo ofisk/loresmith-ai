@@ -10,8 +10,8 @@ import {
   validateCampaignOwnership,
   getCampaignRagBasePath,
 } from "@/lib/campaign-operations";
-import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
 import { EntityExtractionQueueDAO } from "@/dao/entity-extraction-queue-dao";
+import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
 import { extractJwtFromContext } from "@/lib/auth-utils";
 import {
