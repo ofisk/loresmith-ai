@@ -15,6 +15,7 @@ export default defineWorkersConfig({
   test: {
     testTimeout: 30000, // 30 second timeout per test
     hookTimeout: 30000, // 30 second timeout for hooks
+    maxConcurrency: 4, // Limit concurrent test runs to prevent workerd connection exhaustion
     poolOptions: {
       workers: {
         wrangler: { configPath: "./wrangler.jsonc" },
