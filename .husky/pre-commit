@@ -7,5 +7,10 @@ npm run check
 # Build the project to ensure dist directory exists for tests
 npm run build
 
-# Run tests once (not in watch mode)
-npm test -- --run || true
+# Run tests once (not in watch mode) with timeout
+# Note: Tests may fail due to workerd connection issues - this is a known issue with Cloudflare Workers testing
+npm test -- --run --testTimeout=30000 || {
+  echo "⚠️  Tests failed or timed out. This may be due to workerd connection issues."
+  echo "   You can commit anyway with: git commit --no-verify"
+  exit 1
+}

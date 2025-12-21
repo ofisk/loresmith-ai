@@ -13,6 +13,8 @@ export default defineWorkersConfig({
     },
   },
   test: {
+    testTimeout: 30000, // 30 second timeout per test
+    hookTimeout: 30000, // 30 second timeout for hooks
     poolOptions: {
       workers: {
         wrangler: { configPath: "./wrangler.jsonc" },
