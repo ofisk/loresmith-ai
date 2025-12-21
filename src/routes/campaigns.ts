@@ -752,12 +752,18 @@ export async function handleGetEntityExtractionStatus(c: ContextWithAuth) {
 
     if (!queueItem) {
       // Not in queue - extraction is either completed or never started
+      console.log(
+        `[Server] Entity extraction status for resource ${resourceId}: not in queue (completed or never started)`
+      );
       return c.json({
         inQueue: false,
         status: null,
       });
     }
 
+    console.log(
+      `[Server] Entity extraction status for resource ${resourceId}: inQueue=true, status=${queueItem.status}, retryCount=${queueItem.retry_count}`
+    );
     return c.json({
       inQueue: true,
       status: queueItem.status,
