@@ -252,7 +252,8 @@ export const showCampaignDetails = tool({
 });
 
 export const deleteCampaign = tool({
-  description: "Delete a specific campaign",
+  description:
+    "Delete a specific campaign. IMPORTANT: Before calling this tool, you MUST ask the user for confirmation. Explain which campaign you're proposing to delete and why (e.g., 'I see that [Campaign Name] is currently selected in the dropdown menu, so I'm proposing to delete that campaign. Is that correct?'). Only call this tool after the user explicitly confirms they want to delete the campaign.",
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
     jwt: commonSchemas.jwt,
