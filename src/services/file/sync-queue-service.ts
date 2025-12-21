@@ -461,19 +461,29 @@ export class SyncQueueService {
             `[SyncQueue] Max retries (${MAX_RETRIES}) exceeded for ${item.file_name}, marking as ERROR`
           );
 
-          // Check if this is a memory limit error
+          const fileSizeMB = (item.file_size || 0) / (1024 * 1024);
+
+          // Check if this is a memory limit error or network error on large file
           const memoryLimitError = MemoryLimitError.fromRuntimeError(
             error,
-            (item.file_size || 0) / (1024 * 1024),
+            fileSizeMB,
             128,
             item.file_key,
             item.file_name
           );
 
+          // Network errors on large files (>100MB) are likely memory-related
+          const isNetworkErrorOnLargeFile =
+            (errorMessage.includes("Network connection lost") ||
+              errorMessage.includes("network") ||
+              errorMessage.includes("connection")) &&
+            fileSizeMB > 100;
+
           if (
             memoryLimitError ||
             errorMessage.includes("Memory limit") ||
-            errorMessage.includes("too large")
+            errorMessage.includes("too large") ||
+            isNetworkErrorOnLargeFile
           ) {
             // Store error code to prevent retries
             await fileDAO.updateFileRecordWithError(
@@ -484,8 +494,11 @@ export class SyncQueueService {
             );
 
             // Send user-friendly notification about memory limit
-            const fileSizeMB = (item.file_size || 0) / (1024 * 1024);
             try {
+              const userMessage = isNetworkErrorOnLargeFile
+                ? `⚠️ "${item.file_name}" (${fileSizeMB.toFixed(2)}MB) is too large to process. The file caused network connection issues during processing, likely due to memory constraints. Please split the file into smaller parts (under 100MB each).`
+                : `⚠️ "${item.file_name}" (${fileSizeMB.toFixed(2)}MB) is too large to process. Cloudflare Workers have a 128MB memory limit. Please split the file into smaller parts or use a file under 128MB.`;
+
               await notifyFileIndexingStatus(
                 env,
                 username,
@@ -494,7 +507,7 @@ export class SyncQueueService {
                 FileDAO.STATUS.ERROR,
                 {
                   visibility: "both",
-                  userMessage: `⚠️ "${item.file_name}" (${fileSizeMB.toFixed(2)}MB) is too large to process. Cloudflare Workers have a 128MB memory limit. Please split the file into smaller parts or use a file under 128MB.`,
+                  userMessage,
                   reason: "MEMORY_LIMIT_EXCEEDED",
                   fileSize: item.file_size || 0,
                 }
@@ -509,8 +522,17 @@ export class SyncQueueService {
             // For other errors, mark as error without error code (retryable)
             await fileDAO.updateFileRecord(item.file_key, FileDAO.STATUS.ERROR);
 
-            // Send error notification
+            // Send error notification with better message for network errors
             try {
+              const isNetworkError =
+                errorMessage.includes("Network connection lost") ||
+                errorMessage.includes("network") ||
+                errorMessage.includes("connection");
+
+              const userMessage = isNetworkError
+                ? `🛑 Network connection issue while indexing "${item.file_name}". This may be temporary - please try again later or contact support if the issue persists.`
+                : `🛑 Our quill slipped while indexing "${item.file_name}". Please try again later.`;
+
               await notifyFileIndexingStatus(
                 env,
                 username,
@@ -519,7 +541,7 @@ export class SyncQueueService {
                 FileDAO.STATUS.ERROR,
                 {
                   visibility: "both",
-                  userMessage: `🛑 Our quill slipped while indexing "${item.file_name}". Please try again later.`,
+                  userMessage,
                   reason: errorMessage,
                 }
               );

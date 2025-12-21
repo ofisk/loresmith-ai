@@ -86,7 +86,9 @@ export const ResourceUpload = ({
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
-    const validFiles = files.filter(
+
+    // Filter by file type
+    const typeValidFiles = files.filter(
       (file) =>
         file.type === "application/pdf" ||
         file.type === "text/plain" ||
@@ -94,6 +96,20 @@ export const ResourceUpload = ({
         file.type ===
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     );
+
+    // Filter by file size (100MB max)
+    const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+    const validFiles = typeValidFiles.filter((file) => {
+      if (file.size > MAX_FILE_SIZE) {
+        const maxSizeMB = MAX_FILE_SIZE / (1024 * 1024);
+        const fileSizeMB = file.size / (1024 * 1024);
+        alert(
+          `File "${file.name}" is too large (${fileSizeMB.toFixed(2)}MB). Maximum file size is ${maxSizeMB}MB. Please split the file into smaller parts.`
+        );
+        return false;
+      }
+      return true;
+    });
 
     if (validFiles.length > 0) {
       setSelectedFiles(validFiles);
@@ -129,7 +145,9 @@ export const ResourceUpload = ({
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault();
     const files = Array.from(event.dataTransfer.files);
-    const validFiles = files.filter(
+
+    // Filter by file type
+    const typeValidFiles = files.filter(
       (file) =>
         file.type === "application/pdf" ||
         file.type === "text/plain" ||
@@ -137,6 +155,20 @@ export const ResourceUpload = ({
         file.type ===
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     );
+
+    // Filter by file size (100MB max)
+    const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+    const validFiles = typeValidFiles.filter((file) => {
+      if (file.size > MAX_FILE_SIZE) {
+        const maxSizeMB = MAX_FILE_SIZE / (1024 * 1024);
+        const fileSizeMB = file.size / (1024 * 1024);
+        alert(
+          `File "${file.name}" is too large (${fileSizeMB.toFixed(2)}MB). Maximum file size is ${maxSizeMB}MB. Please split the file into smaller parts.`
+        );
+        return false;
+      }
+      return true;
+    });
 
     if (validFiles.length > 0) {
       setSelectedFiles(validFiles);
