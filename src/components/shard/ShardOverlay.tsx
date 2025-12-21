@@ -81,7 +81,7 @@ export const ShardOverlay = ({
   }, [isExpanded]);
 
   return (
-    <div className="fixed top-0 right-0 h-screen z-50 flex items-start pt-28 pointer-events-none">
+    <div className="fixed top-0 right-0 h-screen z-50 flex items-start pt-24 pointer-events-none">
       {/* Minimized Chevron Button */}
       {!isExpanded && isMinimized && (
         <div className="relative pointer-events-auto">
@@ -130,7 +130,7 @@ export const ShardOverlay = ({
           transition-all duration-300 ease-in-out
           ${isExpanded ? "w-[50vw] opacity-100 pointer-events-auto" : "w-0 opacity-0 overflow-hidden pointer-events-none"}
         `}
-        style={{ height: "calc(100vh - 7rem)" }}
+        style={{ height: "calc(100vh - 6rem)" }}
       >
         <div className="h-full flex flex-col">
           {/* Header */}
