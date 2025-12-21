@@ -18,6 +18,8 @@ import {
   chunkTextByPages,
   chunkTextByCharacterCount,
 } from "@/lib/text-chunking-utils";
+import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
+import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
 
 export interface EntityStagingResult {
   success: boolean;
@@ -167,7 +169,7 @@ export async function stageEntitiesFromResource(
     // Rate limit: Process chunks with delay to respect TPM limits
     // If processing multiple chunks, add a delay to stay under 30k tokens per minute
     const CHUNK_PROCESSING_DELAY_MS = chunks.length > 1 ? 2000 : 0; // 2 second delay between chunks
-    let failedChunks: number[] = [];
+    const failedChunks: number[] = [];
     let successfulChunks = 0;
 
     for (let i = 0; i < chunks.length; i++) {
@@ -292,6 +294,11 @@ export async function stageEntitiesFromResource(
     let skippedCount = 0;
     let updatedCount = 0;
     let createdCount = 0;
+    let duplicateCount = 0;
+
+    // Initialize services for semantic duplicate detection
+    const embeddingService = new EntityEmbeddingService(env.VECTORIZE);
+    const openaiEmbeddingService = new OpenAIEmbeddingService(openaiApiKey);
 
     // Update relationships to use campaign-scoped IDs
     // Entity IDs from extraction are already campaign-scoped, but relationships may reference base IDs
@@ -341,7 +348,7 @@ export async function stageEntitiesFromResource(
         );
       }
 
-      // Check if entity already exists (entity IDs are campaign-scoped with campaign prefix)
+      // Check if entity already exists by ID (entity IDs are campaign-scoped with campaign prefix)
       const existing = await daoFactory.entityDAO.getEntityById(entityId);
 
       if (existing) {
@@ -366,7 +373,59 @@ export async function stageEntitiesFromResource(
         });
         updatedCount++;
       } else {
-        // Entity doesn't exist - create new entity
+        // Entity doesn't exist by ID - check for semantic duplicates
+        let isDuplicate = false;
+        try {
+          // Generate embedding for the extracted entity to check for semantic duplicates
+          const entityText =
+            typeof extracted.content === "string"
+              ? extracted.content
+              : JSON.stringify(extracted.content || {});
+          const entityEmbedding =
+            await openaiEmbeddingService.generateEmbedding(entityText);
+
+          // Find similar entities using semantic search
+          const similarEntities = await embeddingService.findSimilarByEmbedding(
+            entityEmbedding,
+            {
+              campaignId,
+              entityType: extracted.entityType,
+              topK: 5,
+              excludeEntityIds: [entityId],
+            }
+          );
+
+          // Check if any similar entity is a high-confidence match (threshold: 0.9)
+          const HIGH_CONFIDENCE_THRESHOLD = 0.9;
+          for (const similar of similarEntities) {
+            if (similar.score >= HIGH_CONFIDENCE_THRESHOLD) {
+              const duplicateEntity = await daoFactory.entityDAO.getEntityById(
+                similar.entityId
+              );
+              if (duplicateEntity) {
+                console.log(
+                  `[EntityStaging] Entity "${extracted.name}" (${entityId}) is a semantic duplicate of "${duplicateEntity.name}" (${similar.entityId}) with score ${similar.score.toFixed(3)}, skipping`
+                );
+                isDuplicate = true;
+                duplicateCount++;
+                break;
+              }
+            }
+          }
+        } catch (error) {
+          // If duplicate detection fails, log but continue with entity creation
+          console.warn(
+            `[EntityStaging] Failed to check for semantic duplicates for entity ${entityId} (${extracted.name}):`,
+            error
+          );
+        }
+
+        if (isDuplicate) {
+          // Skip creating this entity as it's a semantic duplicate
+          continue;
+        }
+
+        // Entity doesn't exist and is not a duplicate - create new entity
         await daoFactory.entityDAO.createEntity({
           id: entityId,
           campaignId,
@@ -454,7 +513,7 @@ export async function stageEntitiesFromResource(
     }
 
     console.log(
-      `[EntityStaging] Staged ${stagedEntities.length} entities for resource: ${normalizedResource.id} (${createdCount} created, ${updatedCount} updated, ${skippedCount} skipped - already approved)`
+      `[EntityStaging] Staged ${stagedEntities.length} entities for resource: ${normalizedResource.id} (${createdCount} created, ${updatedCount} updated, ${skippedCount} skipped - already approved, ${duplicateCount} skipped - semantic duplicates)`
     );
 
     // Send notification about staged entities

@@ -1,4 +1,10 @@
-import { FloppyDisk, PencilSimple, Trash, Plus } from "@phosphor-icons/react";
+import {
+  FloppyDisk,
+  PencilSimple,
+  Trash,
+  Plus,
+  ArrowClockwise,
+} from "@phosphor-icons/react";
 import { useEffect, useId, useRef, useState, useMemo } from "react";
 import type { Campaign, CampaignResource } from "@/types/campaign";
 import type { SessionDigestWithData } from "@/types/session-digest";
@@ -60,6 +66,9 @@ export function CampaignDetailsModal({
   const [resources, setResources] = useState<CampaignResource[]>([]);
   const [resourcesLoading, setResourcesLoading] = useState(false);
   const [resourcesError, setResourcesError] = useState<string | null>(null);
+  const [retryingResourceId, setRetryingResourceId] = useState<string | null>(
+    null
+  );
 
   const {
     digests,
@@ -104,6 +113,54 @@ export function CampaignDetailsModal({
       []
     )
   );
+
+  const retryEntityExtraction = useBaseAsync(
+    useMemo(
+      () => async (campaignId: string, resourceId: string) => {
+        const data = await makeRequestWithData(
+          API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.RETRY_ENTITY_EXTRACTION(
+              campaignId,
+              resourceId
+            )
+          ),
+          {
+            method: "POST",
+          }
+        );
+        return data;
+      },
+      [makeRequestWithData]
+    ),
+    useMemo(
+      () => ({
+        onSuccess: () => {
+          // Refresh resources list after successful retry
+          if (campaign) {
+            fetchCampaignResources.execute(campaign.campaignId);
+          }
+          setRetryingResourceId(null);
+        },
+        onError: (error: string) => {
+          console.error("Failed to retry entity extraction:", error);
+          setRetryingResourceId(null);
+        },
+        onStart: () => {
+          // Retry started
+        },
+        onFinish: () => {
+          // Retry finished
+        },
+      }),
+      [campaign, fetchCampaignResources]
+    )
+  );
+
+  const handleRetryEntityExtraction = async (resourceId: string) => {
+    if (!campaign) return;
+    setRetryingResourceId(resourceId);
+    await retryEntityExtraction.execute(campaign.campaignId, resourceId);
+  };
 
   // Reset form when campaign changes
   useEffect(() => {
@@ -493,6 +550,22 @@ export function CampaignDetailsModal({
                           </div>
                         )}
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRetryEntityExtraction(resource.id)}
+                        disabled={retryingResourceId === resource.id}
+                        className="ml-4 p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        title="Retry entity extraction"
+                      >
+                        <ArrowClockwise
+                          size={20}
+                          className={
+                            retryingResourceId === resource.id
+                              ? "animate-spin"
+                              : ""
+                          }
+                        />
+                      </button>
                     </div>
                   </div>
                 ))}
