@@ -159,28 +159,22 @@ CONTENT END`;
             : crypto.randomUUID();
         const entityId = `${options.campaignId}_${baseId}`;
 
-        // Build field priority list based on entity type
-        // Type-specific fields should be checked before generic "id" field
+        // Extract name from standard fields - all entities should have name, title, or display_name
+        // The LLM is instructed to always provide at least one of these fields
         const nameFields = ["name", "title", "display_name"];
 
-        // Add type-specific fields based on entity type
-        if (type === "travel") {
-          nameFields.push("route"); // Travel routes use "route" as the name
-        } else if (type === "puzzles") {
-          nameFields.push("prompt"); // Puzzles use "prompt" as the name
-        } else if (type === "handouts") {
-          nameFields.push("title"); // Handouts already have "title" but ensure it's prioritized
-        } else if (type === "timelines") {
-          nameFields.push("title"); // Timelines use "title" as the name
-        } else if (type === "maps") {
-          nameFields.push("title"); // Maps use "title" as the name
-        }
-
-        // Only check "id" as a last resort (before falling back to generated name)
+        // Check "id" as a last resort (before falling back to generated name)
         nameFields.push("id");
 
         const name =
           this.getFirstString(record, nameFields) || `${type}-${entityId}`;
+
+        // Log warning if entity doesn't have a proper name field (shouldn't happen if LLM follows instructions)
+        if (!this.getFirstString(record, ["name", "title", "display_name"])) {
+          console.warn(
+            `[EntityExtractionService] Entity ${entityId} (type: ${type}) missing name/title/display_name field. Using fallback: ${name}`
+          );
+        }
 
         const relations = Array.isArray(record.relations)
           ? this.normalizeRelationships(record.relations)
