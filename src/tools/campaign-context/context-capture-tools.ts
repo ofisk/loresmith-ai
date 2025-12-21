@@ -138,11 +138,22 @@ export const captureConversationalContext = tool({
         );
       }
 
+      // Extract OpenAI API key from JWT if available
+      let openaiApiKey: string | undefined;
+      try {
+        if (jwt) {
+          const payload = JSON.parse(atob(jwt.split(".")[1]));
+          openaiApiKey = payload.openaiApiKey;
+        }
+      } catch {
+        // JWT parsing failed, continue without OpenAI key
+      }
+
       // Create staging shard (requires user approval)
       const syncService = new CampaignContextSyncService(env);
       const noteId = crypto.randomUUID();
 
-      const { stagingKey } = await syncService.createStagingShard(
+      const result = await syncService.createStagingShard(
         campaignId,
         noteId,
         title,
@@ -150,11 +161,28 @@ export const captureConversationalContext = tool({
         contextType,
         confidence,
         sourceMessageId,
-        env
+        env,
+        openaiApiKey
       );
 
+      // If duplicate found, return success but indicate it was skipped
+      if (result.isDuplicate) {
+        console.log(
+          "[captureConversationalContext] Shard skipped (semantic duplicate):",
+          {
+            noteId,
+            title,
+          }
+        );
+        return createToolSuccess(
+          `Context "${title}" was not saved because it's very similar to existing content.`,
+          { skipped: true, reason: "duplicate" },
+          toolCallId
+        );
+      }
+
       console.log("[captureConversationalContext] Created staging shard:", {
-        stagingKey,
+        stagingKey: result.stagingKey,
         noteId,
         title,
       });
@@ -181,7 +209,7 @@ export const captureConversationalContext = tool({
         `I've captured "${title}" as campaign context. It's pending your review in the shard management panel.`,
         {
           id: noteId,
-          stagingKey,
+          stagingKey: result.stagingKey,
           contextType,
           title,
           confidence,
@@ -276,11 +304,22 @@ export const saveContextExplicitly = tool({
         );
       }
 
+      // Extract OpenAI API key from JWT if available
+      let openaiApiKey: string | undefined;
+      try {
+        if (jwt) {
+          const payload = JSON.parse(atob(jwt.split(".")[1]));
+          openaiApiKey = payload.openaiApiKey;
+        }
+      } catch {
+        // JWT parsing failed, continue without OpenAI key
+      }
+
       // Create staging shard with high confidence (user explicitly requested)
       const syncService = new CampaignContextSyncService(env);
       const noteId = crypto.randomUUID();
 
-      const { stagingKey } = await syncService.createStagingShard(
+      const result = await syncService.createStagingShard(
         campaignId,
         noteId,
         title,
@@ -288,11 +327,28 @@ export const saveContextExplicitly = tool({
         contextType,
         0.95, // High confidence for explicit user requests
         undefined, // No specific source message
-        env
+        env,
+        openaiApiKey
       );
 
+      // If duplicate found, return success but indicate it was skipped
+      if (result.isDuplicate) {
+        console.log(
+          "[saveContextExplicitly] Shard skipped (semantic duplicate):",
+          {
+            noteId,
+            title,
+          }
+        );
+        return createToolSuccess(
+          `Context "${title}" was not saved because it's very similar to existing content.`,
+          { skipped: true, reason: "duplicate" },
+          toolCallId
+        );
+      }
+
       console.log("[saveContextExplicitly] Created staging shard:", {
-        stagingKey,
+        stagingKey: result.stagingKey,
         noteId,
         title,
         contextType,
@@ -320,7 +376,7 @@ export const saveContextExplicitly = tool({
         `I've saved "${title}" for your review. You can approve it in the shard management panel.`,
         {
           id: noteId,
-          stagingKey,
+          stagingKey: result.stagingKey,
           contextType,
           title,
           requiresApproval: true,

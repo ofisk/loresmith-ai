@@ -1,6 +1,7 @@
 import type { Env } from "@/middleware/auth";
 import { R2Helper } from "@/lib/r2";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";
 
 /**
  * Service to sync campaign context (characters, resources, context) as approved shards
@@ -254,9 +255,40 @@ export class CampaignContextSyncService {
     noteType: string = "general",
     confidence: number = 0.8,
     sourceMessageId?: string,
-    env?: Env
-  ): Promise<{ stagingKey: string; shard: any }> {
+    env?: Env,
+    openaiApiKey?: string
+  ): Promise<{ stagingKey: string; shard: any; isDuplicate?: boolean }> {
     const campaignBasePath = `campaigns/${campaignId}`;
+
+    // Check for semantic duplicates before creating the shard
+    let isDuplicate = false;
+    if (env && openaiApiKey) {
+      const shardText = `${noteTitle}\n\n${noteContent}`;
+      const duplicateResult =
+        await SemanticDuplicateDetectionService.checkForDuplicate({
+          content: shardText,
+          campaignId,
+          entityType: "conversational_context",
+          excludeEntityId: noteId,
+          env,
+          openaiApiKey,
+          context: {
+            name: noteTitle,
+            id: noteId,
+            type: "conversational_shard",
+          },
+        });
+      isDuplicate = duplicateResult.isDuplicate;
+    }
+
+    // If duplicate found, return early without creating the shard
+    if (isDuplicate) {
+      return {
+        stagingKey: "",
+        shard: null,
+        isDuplicate: true,
+      };
+    }
 
     // Create shard from detected context
     const shard = {

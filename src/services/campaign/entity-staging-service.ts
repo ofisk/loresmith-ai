@@ -18,8 +18,7 @@ import {
   chunkTextByPages,
   chunkTextByCharacterCount,
 } from "@/lib/text-chunking-utils";
-import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
-import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
+import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";
 
 export interface EntityStagingResult {
   success: boolean;
@@ -296,9 +295,7 @@ export async function stageEntitiesFromResource(
     let createdCount = 0;
     let duplicateCount = 0;
 
-    // Initialize services for semantic duplicate detection
-    const embeddingService = new EntityEmbeddingService(env.VECTORIZE);
-    const openaiEmbeddingService = new OpenAIEmbeddingService(openaiApiKey);
+    // Semantic duplicate detection will be performed per-entity below
 
     // Update relationships to use campaign-scoped IDs
     // Entity IDs from extraction are already campaign-scoped, but relationships may reference base IDs
@@ -374,54 +371,28 @@ export async function stageEntitiesFromResource(
         updatedCount++;
       } else {
         // Entity doesn't exist by ID - check for semantic duplicates
-        let isDuplicate = false;
-        try {
-          // Generate embedding for the extracted entity to check for semantic duplicates
-          const entityText =
-            typeof extracted.content === "string"
-              ? extracted.content
-              : JSON.stringify(extracted.content || {});
-          const entityEmbedding =
-            await openaiEmbeddingService.generateEmbedding(entityText);
+        const entityText =
+          typeof extracted.content === "string"
+            ? extracted.content
+            : JSON.stringify(extracted.content || {});
+        const duplicateResult =
+          await SemanticDuplicateDetectionService.checkForDuplicate({
+            content: entityText,
+            campaignId,
+            entityType: extracted.entityType,
+            excludeEntityId: entityId,
+            env,
+            openaiApiKey,
+            context: {
+              name: extracted.name,
+              id: entityId,
+              type: "entity",
+            },
+          });
 
-          // Find similar entities using semantic search
-          const similarEntities = await embeddingService.findSimilarByEmbedding(
-            entityEmbedding,
-            {
-              campaignId,
-              entityType: extracted.entityType,
-              topK: 5,
-              excludeEntityIds: [entityId],
-            }
-          );
-
-          // Check if any similar entity is a high-confidence match (threshold: 0.9)
-          const HIGH_CONFIDENCE_THRESHOLD = 0.9;
-          for (const similar of similarEntities) {
-            if (similar.score >= HIGH_CONFIDENCE_THRESHOLD) {
-              const duplicateEntity = await daoFactory.entityDAO.getEntityById(
-                similar.entityId
-              );
-              if (duplicateEntity) {
-                console.log(
-                  `[EntityStaging] Entity "${extracted.name}" (${entityId}) is a semantic duplicate of "${duplicateEntity.name}" (${similar.entityId}) with score ${similar.score.toFixed(3)}, skipping`
-                );
-                isDuplicate = true;
-                duplicateCount++;
-                break;
-              }
-            }
-          }
-        } catch (error) {
-          // If duplicate detection fails, log but continue with entity creation
-          console.warn(
-            `[EntityStaging] Failed to check for semantic duplicates for entity ${entityId} (${extracted.name}):`,
-            error
-          );
-        }
-
-        if (isDuplicate) {
+        if (duplicateResult.isDuplicate) {
           // Skip creating this entity as it's a semantic duplicate
+          duplicateCount++;
           continue;
         }
 
