@@ -224,7 +224,7 @@ async function handleProcessingError(
       FileDAO.STATUS.ERROR,
       {
         visibility: "both",
-        userMessage: `⚠️ "${filename}" (${error.fileSizeMB.toFixed(2)}MB) is too large to process. Cloudflare Workers have a ${error.memoryLimitMB}MB memory limit. Please split the file into smaller parts or use a file under ${error.memoryLimitMB}MB.`,
+        userMessage: `⚠️ "${filename}" (${error.fileSizeMB.toFixed(2)}MB) exceeds our ${error.memoryLimitMB}MB limit. Please split the file into smaller parts or use a file under ${error.memoryLimitMB}MB.`,
         reason: error.errorCode,
       }
     ).catch((notifyError) => {

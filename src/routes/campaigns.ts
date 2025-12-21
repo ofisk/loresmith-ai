@@ -467,15 +467,48 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
         }
 
         // Stage entities using the new entity staging service
-        const entityResult = await stageEntitiesFromResource({
-          env: c.env,
-          username: userAuth.username,
-          campaignId,
-          campaignName: campaign!.name,
-          resource,
-          campaignRagBasePath,
-          openaiApiKey: userAuth.openaiApiKey,
-        });
+        let entityResult: Awaited<ReturnType<typeof stageEntitiesFromResource>>;
+        try {
+          entityResult = await stageEntitiesFromResource({
+            env: c.env,
+            username: userAuth.username,
+            campaignId,
+            campaignName: campaign!.name,
+            resource,
+            campaignRagBasePath,
+            openaiApiKey: userAuth.openaiApiKey,
+          });
+        } catch (extractionError) {
+          console.error(
+            `[Server] Error during entity extraction for resource ${resourceId}:`,
+            extractionError
+          );
+          const errorMessage =
+            extractionError instanceof Error
+              ? extractionError.message
+              : String(extractionError);
+
+          // Check if it's a memory limit error
+          if (
+            errorMessage.includes("memory limit") ||
+            errorMessage.includes("exceeded") ||
+            errorMessage.includes("Worker exceeded")
+          ) {
+            // Resource was added successfully, but entity extraction failed
+            const response = buildResourceAdditionResponse(
+              resource,
+              `File added to campaign, but entity extraction failed: The file "${name || id}" exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or use the retry button after the file has been processed.`
+            );
+            return c.json(response, 207); // 207 Multi-Status - partial success
+          }
+
+          // For other errors, still return success but with a warning
+          const response = buildResourceAdditionResponse(
+            resource,
+            `File added to campaign, but entity extraction encountered an error: ${errorMessage}. You can retry entity extraction using the retry button in the Documents tab.`
+          );
+          return c.json(response, 207); // 207 Multi-Status - partial success
+        }
 
         if (entityResult.success && entityResult.entityCount > 0) {
           // Send notification about entity count (UI uses "shard" terminology)
@@ -593,7 +626,36 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
     return c.json({ resource: newResource }, 201);
   } catch (error) {
     console.error("Error adding resource to campaign:", error);
-    return c.json({ error: "Internal server error" }, 500);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Check if it's a memory limit error
+    if (
+      errorMessage.includes("memory limit") ||
+      errorMessage.includes("exceeded") ||
+      errorMessage.includes("Worker exceeded")
+    ) {
+      return c.json(
+        {
+          error: "File too large",
+          message:
+            "This file exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later.",
+        },
+        413
+      );
+    }
+
+    // Return a user-friendly error message
+    const truncatedMessage =
+      errorMessage.length > 200
+        ? `${errorMessage.substring(0, 200)}...`
+        : errorMessage;
+    return c.json(
+      {
+        error: "Failed to add file to campaign",
+        message: truncatedMessage,
+      },
+      500
+    );
   }
 }
 
@@ -653,15 +715,71 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
     }
 
     // Retry entity extraction
-    const entityResult = await stageEntitiesFromResource({
-      env: c.env,
-      username: userAuth.username,
-      campaignId,
-      campaignName: campaign!.name,
-      resource,
-      campaignRagBasePath,
-      openaiApiKey: userAuth.openaiApiKey,
-    });
+    let entityResult: Awaited<ReturnType<typeof stageEntitiesFromResource>>;
+    try {
+      entityResult = await stageEntitiesFromResource({
+        env: c.env,
+        username: userAuth.username,
+        campaignId,
+        campaignName: campaign!.name,
+        resource,
+        campaignRagBasePath,
+        openaiApiKey: userAuth.openaiApiKey,
+      });
+    } catch (error) {
+      console.error(
+        `[Server] Error during entity extraction retry for resource ${resourceId}:`,
+        error
+      );
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      // Check if it's a memory limit error
+      if (
+        errorMessage.includes("memory limit") ||
+        errorMessage.includes("exceeded") ||
+        errorMessage.includes("Worker exceeded")
+      ) {
+        return c.json(
+          {
+            success: false,
+            message: `The file "${resource.file_name}" exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later.`,
+            error: "MEMORY_LIMIT_EXCEEDED",
+          },
+          413
+        );
+      }
+
+      // For rate limit errors, provide actionable message
+      if (
+        errorMessage.includes("rate limit") ||
+        errorMessage.includes("429") ||
+        errorMessage.includes("Too Many Requests")
+      ) {
+        return c.json(
+          {
+            success: false,
+            message: `Entity extraction is being rate-limited. Please wait a few moments and try again. The file is being processed in chunks, which may take longer for large files.`,
+            error: "RATE_LIMIT_EXCEEDED",
+          },
+          429
+        );
+      }
+
+      // Generic error - truncate if too long
+      const truncatedMessage =
+        errorMessage.length > 200
+          ? `${errorMessage.substring(0, 200)}...`
+          : errorMessage;
+      return c.json(
+        {
+          success: false,
+          message: `Failed to retry entity extraction: ${truncatedMessage}. Please try again later.`,
+          error: truncatedMessage,
+        },
+        500
+      );
+    }
 
     if (entityResult.success && entityResult.entityCount > 0) {
       // Send notification about entity count (UI uses "shard" terminology)
@@ -749,11 +867,33 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
     }
   } catch (error) {
     console.error("Error retrying entity extraction:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Check if it's a memory limit error
+    if (
+      errorMessage.includes("memory limit") ||
+      errorMessage.includes("exceeded") ||
+      errorMessage.includes("Worker exceeded")
+    ) {
+      return c.json(
+        {
+          error: "File too large",
+          message:
+            "This file exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later.",
+        },
+        413
+      );
+    }
+
+    // Return a user-friendly error message
+    const truncatedMessage =
+      errorMessage.length > 200
+        ? `${errorMessage.substring(0, 200)}...`
+        : errorMessage;
     return c.json(
       {
-        error: "Internal server error",
-        message:
-          error instanceof Error ? error.message : "Unknown error occurred",
+        error: "Failed to retry entity extraction",
+        message: `An error occurred: ${truncatedMessage}. Please try again later.`,
       },
       500
     );

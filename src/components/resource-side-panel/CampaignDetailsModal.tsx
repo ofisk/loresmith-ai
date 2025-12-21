@@ -143,6 +143,8 @@ export function CampaignDetailsModal({
         },
         onError: (error: string) => {
           console.error("Failed to retry entity extraction:", error);
+          // Show user-friendly error message (error parsing already handled in useAuthenticatedRequest)
+          alert(`Failed to retry entity extraction: ${error}`);
           setRetryingResourceId(null);
         },
         onStart: () => {

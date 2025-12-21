@@ -236,7 +236,7 @@ export class SyncQueueService {
             FileDAO.STATUS.ERROR,
             {
               visibility: "both",
-              userMessage: `⚠️ "${fileName}" (${error.fileSizeMB.toFixed(2)}MB) is too large to process. Cloudflare Workers have a ${error.memoryLimitMB}MB memory limit. Please split the file into smaller parts or use a file under ${error.memoryLimitMB}MB.`,
+              userMessage: `⚠️ "${fileName}" (${error.fileSizeMB.toFixed(2)}MB) exceeds our ${error.memoryLimitMB}MB limit. Please split the file into smaller parts or use a file under ${error.memoryLimitMB}MB.`,
               reason: error.errorCode,
               fileSize: error.fileSizeMB * 1024 * 1024,
             }
@@ -497,7 +497,7 @@ export class SyncQueueService {
             try {
               const userMessage = isNetworkErrorOnLargeFile
                 ? `⚠️ "${item.file_name}" (${fileSizeMB.toFixed(2)}MB) is too large to process. The file caused network connection issues during processing, likely due to memory constraints. Please split the file into smaller parts (under 100MB each).`
-                : `⚠️ "${item.file_name}" (${fileSizeMB.toFixed(2)}MB) is too large to process. Cloudflare Workers have a 128MB memory limit. Please split the file into smaller parts or use a file under 128MB.`;
+                : `⚠️ "${item.file_name}" (${fileSizeMB.toFixed(2)}MB) exceeds our 128MB limit. Please split the file into smaller parts or use a file under 128MB.`;
 
               await notifyFileIndexingStatus(
                 env,

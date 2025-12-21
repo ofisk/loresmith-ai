@@ -98,7 +98,10 @@ export function useCampaignAddition() {
 
           if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Failed to add file to campaign: ${errorText}`);
+            const { parseErrorResponse, formatErrorForNotification } =
+              await import("@/lib/error-parsing");
+            const parsedError = parseErrorResponse(errorText, response.status);
+            throw new Error(formatErrorForNotification(parsedError));
           }
         }
 
