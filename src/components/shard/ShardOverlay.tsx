@@ -81,10 +81,10 @@ export const ShardOverlay = ({
   }, [isExpanded]);
 
   return (
-    <div className="fixed top-0 right-0 h-screen z-50 flex items-start pt-20">
+    <div className="fixed top-0 right-0 h-screen z-50 flex items-start pt-28 pointer-events-none">
       {/* Minimized Chevron Button */}
       {!isExpanded && isMinimized && (
-        <div className="relative">
+        <div className="relative pointer-events-auto">
           <button
             type="button"
             onClick={toggleExpanded}
@@ -102,7 +102,7 @@ export const ShardOverlay = ({
 
       {/* Collapsed Button with Count */}
       {!isExpanded && !isMinimized && (
-        <div className="relative">
+        <div className="relative pointer-events-auto">
           <button
             type="button"
             onClick={toggleExpanded}
@@ -128,9 +128,9 @@ export const ShardOverlay = ({
         className={`
           bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-xl
           transition-all duration-300 ease-in-out
-          ${isExpanded ? "w-[50vw] opacity-100" : "w-0 opacity-0 overflow-hidden"}
+          ${isExpanded ? "w-[50vw] opacity-100 pointer-events-auto" : "w-0 opacity-0 overflow-hidden pointer-events-none"}
         `}
-        style={{ height: "calc(100vh - 5rem)" }}
+        style={{ height: "calc(100vh - 7rem)" }}
       >
         <div className="h-full flex flex-col">
           {/* Header */}

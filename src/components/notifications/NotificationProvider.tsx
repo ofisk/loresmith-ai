@@ -123,6 +123,17 @@ export function NotificationProvider({
                 break;
               }
               case NOTIFICATION_TYPES.SHARDS_GENERATED: {
+                // Dispatch shards-generated event to trigger overlay refresh
+                window.dispatchEvent(
+                  new CustomEvent("shards-generated", {
+                    detail: {
+                      type: "shards-generated",
+                      campaignId: notification?.data?.campaignId,
+                      campaignName: notification?.data?.campaignName,
+                      shardCount: notification?.data?.shardCount,
+                    },
+                  })
+                );
                 // If a ui_hint is present, broadcast it too (handled above)
                 const uiHint2 = notification?.data?.ui_hint;
                 if (uiHint2) {

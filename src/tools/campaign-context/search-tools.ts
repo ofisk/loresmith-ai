@@ -909,7 +909,7 @@ export const searchExternalResources = tool({
     campaignId: commonSchemas.campaignId,
     query: z.string().describe("The search query for external resources"),
     resourceType: z
-      .enum(["adventures", "maps", "characters", "monsters", "items"])
+      .enum(["adventures", "maps", "characters", "monsters", "items", "worlds"])
       .optional()
       .describe("Type of external resource to search for"),
     jwt: commonSchemas.jwt,

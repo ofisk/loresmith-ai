@@ -166,8 +166,61 @@ export function StructuredShardCard({
     primary_text?: string;
   };
 
+  // Helper to check if a string looks like an ID (UUID-like or contains underscores with long hex strings)
+  const looksLikeId = (str: string): boolean => {
+    if (!str) return false;
+    // Check for UUID pattern or campaign-scoped ID pattern (campaignId_entityId)
+    return (
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(
+        str
+      ) ||
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_/i.test(
+        str
+      ) ||
+      (str.includes("_") && str.length > 30)
+    );
+  };
+
+  // Extract name from content if current name looks like an ID
+  const extractNameFromContent = (): string | null => {
+    const currentName = (shard.name as string | undefined) || "";
+    if (!looksLikeId(currentName)) {
+      return null; // Name is already human-readable
+    }
+
+    // Try to parse shard.text as JSON to get the content
+    if (shard.text && typeof shard.text === "string") {
+      try {
+        const content = JSON.parse(shard.text);
+        if (content && typeof content === "object") {
+          // Check type-specific fields based on entity type
+          const entityType = shard.type || (shard.metadata as any)?.entityType;
+
+          if (entityType === "travel" && content.route) {
+            return typeof content.route === "string" ? content.route : null;
+          }
+          if (entityType === "puzzles" && content.prompt) {
+            return typeof content.prompt === "string" ? content.prompt : null;
+          }
+          if (content.title) {
+            return typeof content.title === "string" ? content.title : null;
+          }
+          if (content.name) {
+            return typeof content.name === "string" ? content.name : null;
+          }
+        }
+      } catch {
+        // Not JSON, ignore
+      }
+    }
+    return null;
+  };
+
+  const extractedName = extractNameFromContent();
+
   const displayName: string =
     (displayMetadata.display_name as string | undefined) ||
+    extractedName ||
     (shard.name as string | undefined) ||
     (shard.title as string | undefined) ||
     (shard.id as string | undefined) ||

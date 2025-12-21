@@ -562,19 +562,29 @@ function performReadinessAssessment(
   // Generate recommendations based on semantic analysis if available
   if (semanticAnalysis) {
     if (!semanticAnalysis.campaign_tone) {
-      recommendations.push("Define campaign tone (heroic, grim, cozy, etc.)");
+      recommendations.push(
+        "Define campaign tone (heroic, grim, cozy, etc.) - You can chat with me about this or upload files containing tone descriptions"
+      );
     }
     if (!semanticAnalysis.core_themes) {
-      recommendations.push("Define core themes for your campaign");
+      recommendations.push(
+        "Define core themes for your campaign - You can discuss themes with me or upload documents that describe your campaign themes"
+      );
     }
     if (!semanticAnalysis.world_name) {
-      recommendations.push("Name your campaign world or region");
+      recommendations.push(
+        "Name your campaign world or region - You can tell me the name or upload files that mention the world name"
+      );
     }
     if (!semanticAnalysis.starting_location) {
-      recommendations.push("Establish your starting location");
+      recommendations.push(
+        "Establish your starting location - You can describe it in chat or upload location descriptions from your notes"
+      );
     }
     if (!semanticAnalysis.factions) {
-      recommendations.push("Define factions or organizations in your world");
+      recommendations.push(
+        "Define factions or organizations in your world - You can discuss them with me or upload documents describing your factions"
+      );
     }
   } else {
     // Fallback to count-based recommendations if semantic analysis unavailable

@@ -18,6 +18,7 @@ import {
   chunkTextByPages,
   chunkTextByCharacterCount,
 } from "@/lib/text-chunking-utils";
+import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";
 
 export interface EntityStagingResult {
   success: boolean;
@@ -36,6 +37,10 @@ export interface EntityStagingResult {
     }>;
   }>;
   error?: string;
+  warning?: string;
+  failedChunks?: number[];
+  successfulChunks?: number;
+  totalChunks?: number;
 }
 
 export interface EntityStagingOptions {
@@ -163,70 +168,199 @@ export async function stageEntitiesFromResource(
     // Rate limit: Process chunks with delay to respect TPM limits
     // If processing multiple chunks, add a delay to stay under 30k tokens per minute
     const CHUNK_PROCESSING_DELAY_MS = chunks.length > 1 ? 2000 : 0; // 2 second delay between chunks
+    const MAX_CHUNK_RETRIES = 3; // Maximum retry attempts per chunk
+    const INITIAL_RETRY_DELAY_MS = 2000; // Initial delay for retries (2 seconds)
+    const MAX_RETRY_DELAY_MS = 30000; // Maximum delay for retries (30 seconds)
 
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
+    const failedChunks: number[] = [];
+    const chunkRetryCounts: Map<number, number> = new Map(); // Track retry count per chunk index
+    const chunksToRetry: number[] = []; // Chunks that need retrying
+    let successfulChunks = 0;
 
-      // Add delay before processing (except for first chunk)
-      if (i > 0 && CHUNK_PROCESSING_DELAY_MS > 0) {
+    // Helper function to process a single chunk
+    const processChunk = async (
+      chunkIndex: number,
+      chunk: string,
+      isRetry: boolean = false
+    ): Promise<boolean> => {
+      const chunkNumber = chunkIndex + 1;
+      const retryCount = chunkRetryCounts.get(chunkIndex) || 0;
+
+      // Add delay before processing (except for first chunk on initial pass)
+      if (!isRetry && chunkIndex > 0 && CHUNK_PROCESSING_DELAY_MS > 0) {
         console.log(
-          `[EntityStaging] Rate limiting: waiting ${CHUNK_PROCESSING_DELAY_MS}ms before processing chunk ${i + 1}/${chunks.length}`
+          `[EntityStaging] Rate limiting: waiting ${CHUNK_PROCESSING_DELAY_MS}ms before processing chunk ${chunkNumber}/${chunks.length}`
         );
         await new Promise((resolve) =>
           setTimeout(resolve, CHUNK_PROCESSING_DELAY_MS)
         );
       }
-      const chunkEntities = await extractionService.extractEntities({
-        content: chunk,
-        sourceName: normalizedResource.file_name || normalizedResource.id,
-        campaignId,
-        sourceId: normalizedResource.id,
-        sourceType: "file_upload",
-        openaiApiKey,
-        metadata: {
-          fileKey: normalizedResource.file_key || normalizedResource.id,
-          resourceId: normalizedResource.id,
-          resourceName: normalizedResource.file_name || normalizedResource.id,
-          staged: true,
-          shardStatus: "staging",
-          chunkIndex: i,
-          totalChunks: chunks.length,
-        },
-      });
 
-      // Merge entities by ID (same entity ID = merge content/metadata)
-      for (const entity of chunkEntities) {
-        const existing = allExtractedEntities.get(entity.id);
-        if (existing) {
-          // Merge: combine content, merge relations, update metadata
-          existing.content = {
-            ...(typeof existing.content === "object" &&
-            existing.content !== null
-              ? existing.content
-              : {}),
-            ...(typeof entity.content === "object" && entity.content !== null
-              ? entity.content
-              : {}),
-          };
-          // Merge relations (avoid duplicates)
-          const existingTargetIds = new Set(
-            existing.relations.map((r) => r.targetId)
-          );
-          for (const rel of entity.relations) {
-            if (!existingTargetIds.has(rel.targetId)) {
-              existing.relations.push(rel);
-              existingTargetIds.add(rel.targetId);
+      // Add exponential backoff delay for retries
+      if (isRetry && retryCount > 0) {
+        const backoffDelay = Math.min(
+          INITIAL_RETRY_DELAY_MS * Math.pow(2, retryCount - 1),
+          MAX_RETRY_DELAY_MS
+        );
+        console.log(
+          `[EntityStaging] Retrying chunk ${chunkNumber} (attempt ${retryCount + 1}/${MAX_CHUNK_RETRIES + 1}), waiting ${backoffDelay}ms`
+        );
+        await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+      }
+
+      try {
+        const chunkEntities = await extractionService.extractEntities({
+          content: chunk,
+          sourceName: normalizedResource.file_name || normalizedResource.id,
+          campaignId,
+          sourceId: normalizedResource.id,
+          sourceType: "file_upload",
+          openaiApiKey,
+          metadata: {
+            fileKey: normalizedResource.file_key || normalizedResource.id,
+            resourceId: normalizedResource.id,
+            resourceName: normalizedResource.file_name || normalizedResource.id,
+            staged: true,
+            shardStatus: "staging",
+            chunkIndex: chunkIndex,
+            totalChunks: chunks.length,
+          },
+        });
+
+        // Merge entities by ID (same entity ID = merge content/metadata)
+        for (const entity of chunkEntities) {
+          const existing = allExtractedEntities.get(entity.id);
+          if (existing) {
+            // Merge: combine content, merge relations, update metadata
+            existing.content = {
+              ...(typeof existing.content === "object" &&
+              existing.content !== null
+                ? existing.content
+                : {}),
+              ...(typeof entity.content === "object" && entity.content !== null
+                ? entity.content
+                : {}),
+            };
+            // Merge relations (avoid duplicates)
+            const existingTargetIds = new Set(
+              existing.relations.map((r) => r.targetId)
+            );
+            for (const rel of entity.relations) {
+              if (!existingTargetIds.has(rel.targetId)) {
+                existing.relations.push(rel);
+                existingTargetIds.add(rel.targetId);
+              }
             }
+            // Update metadata
+            existing.metadata = {
+              ...existing.metadata,
+              ...entity.metadata,
+            };
+          } else {
+            allExtractedEntities.set(entity.id, entity);
           }
-          // Update metadata
-          existing.metadata = {
-            ...existing.metadata,
-            ...entity.metadata,
-          };
+        }
+
+        // Success - remove from retry tracking if it was a retry
+        if (isRetry) {
+          chunkRetryCounts.delete(chunkIndex);
+          console.log(
+            `[EntityStaging] Successfully retried chunk ${chunkNumber} after ${retryCount} failed attempts`
+          );
+        }
+        return true;
+      } catch (chunkError) {
+        // Log error
+        const errorMessage =
+          chunkError instanceof Error ? chunkError.message : "Unknown error";
+        const isRateLimit =
+          errorMessage.includes("rate limit") ||
+          errorMessage.includes("429") ||
+          errorMessage.includes("Too Many Requests");
+
+        if (isRetry) {
+          console.error(
+            `[EntityStaging] Retry attempt ${retryCount + 1}/${MAX_CHUNK_RETRIES} failed for chunk ${chunkNumber}:`,
+            errorMessage
+          );
         } else {
-          allExtractedEntities.set(entity.id, entity);
+          console.error(
+            `[EntityStaging] Error extracting entities from chunk ${chunkNumber}/${chunks.length} for resource ${normalizedResource.id}:`,
+            errorMessage
+          );
+        }
+
+        // Check if we should retry
+        if (retryCount < MAX_CHUNK_RETRIES) {
+          // Increment retry count and schedule retry
+          chunkRetryCounts.set(chunkIndex, retryCount + 1);
+
+          // For rate limits, wait longer before continuing to next chunk
+          if (isRateLimit && !isRetry) {
+            const rateLimitWaitMs = 5000; // Wait 5 seconds for rate limit
+            console.log(
+              `[EntityStaging] Rate limit detected, waiting ${rateLimitWaitMs}ms before processing next chunk`
+            );
+            await new Promise((resolve) =>
+              setTimeout(resolve, rateLimitWaitMs)
+            );
+          }
+
+          return false; // Indicates failure but will be retried
+        } else {
+          // Max retries exceeded - mark as permanently failed
+          console.error(
+            `[EntityStaging] Chunk ${chunkNumber} failed after ${MAX_CHUNK_RETRIES} retry attempts, giving up`
+          );
+          failedChunks.push(chunkNumber);
+          chunkRetryCounts.delete(chunkIndex);
+          return false; // Permanently failed
         }
       }
+    };
+
+    // Initial pass: process all chunks
+    for (let i = 0; i < chunks.length; i++) {
+      const success = await processChunk(i, chunks[i], false);
+      if (success) {
+        successfulChunks++;
+      } else {
+        // Check if it will be retried (retry count hasn't exceeded max)
+        const retryCount = chunkRetryCounts.get(i) || 0;
+        if (retryCount < MAX_CHUNK_RETRIES) {
+          chunksToRetry.push(i);
+        }
+      }
+    }
+
+    // Retry failed chunks
+    while (chunksToRetry.length > 0) {
+      const chunkIndex = chunksToRetry.shift()!;
+      const retryCount = chunkRetryCounts.get(chunkIndex) || 0;
+
+      if (retryCount >= MAX_CHUNK_RETRIES) {
+        // Already exceeded max retries, skip
+        continue;
+      }
+
+      const success = await processChunk(chunkIndex, chunks[chunkIndex], true);
+      if (success) {
+        successfulChunks++;
+      } else {
+        // Check if we should retry again
+        const newRetryCount = chunkRetryCounts.get(chunkIndex) || 0;
+        if (newRetryCount < MAX_CHUNK_RETRIES) {
+          // Add back to retry queue
+          chunksToRetry.push(chunkIndex);
+        }
+      }
+    }
+
+    // Log summary of chunk processing
+    if (failedChunks.length > 0) {
+      console.warn(
+        `[EntityStaging] Partial success: ${successfulChunks}/${chunks.length} chunks processed successfully. Failed chunks: ${failedChunks.join(", ")}`
+      );
     }
 
     const extractedEntities = Array.from(allExtractedEntities.values());
@@ -252,6 +386,9 @@ export async function stageEntitiesFromResource(
     let skippedCount = 0;
     let updatedCount = 0;
     let createdCount = 0;
+    let duplicateCount = 0;
+
+    // Semantic duplicate detection will be performed per-entity below
 
     // Update relationships to use campaign-scoped IDs
     // Entity IDs from extraction are already campaign-scoped, but relationships may reference base IDs
@@ -301,7 +438,7 @@ export async function stageEntitiesFromResource(
         );
       }
 
-      // Check if entity already exists (entity IDs are campaign-scoped with campaign prefix)
+      // Check if entity already exists by ID (entity IDs are campaign-scoped with campaign prefix)
       const existing = await daoFactory.entityDAO.getEntityById(entityId);
 
       if (existing) {
@@ -326,7 +463,33 @@ export async function stageEntitiesFromResource(
         });
         updatedCount++;
       } else {
-        // Entity doesn't exist - create new entity
+        // Entity doesn't exist by ID - check for semantic duplicates
+        const entityText =
+          typeof extracted.content === "string"
+            ? extracted.content
+            : JSON.stringify(extracted.content || {});
+        const duplicateResult =
+          await SemanticDuplicateDetectionService.checkForDuplicate({
+            content: entityText,
+            campaignId,
+            entityType: extracted.entityType,
+            excludeEntityId: entityId,
+            env,
+            openaiApiKey,
+            context: {
+              name: extracted.name,
+              id: entityId,
+              type: "entity",
+            },
+          });
+
+        if (duplicateResult.isDuplicate) {
+          // Skip creating this entity as it's a semantic duplicate
+          duplicateCount++;
+          continue;
+        }
+
+        // Entity doesn't exist and is not a duplicate - create new entity
         await daoFactory.entityDAO.createEntity({
           id: entityId,
           campaignId,
@@ -414,18 +577,35 @@ export async function stageEntitiesFromResource(
     }
 
     console.log(
-      `[EntityStaging] Staged ${stagedEntities.length} entities for resource: ${normalizedResource.id} (${createdCount} created, ${updatedCount} updated, ${skippedCount} skipped - already approved)`
+      `[EntityStaging] Staged ${stagedEntities.length} entities for resource: ${normalizedResource.id} (${createdCount} created, ${updatedCount} updated, ${skippedCount} skipped - already approved, ${duplicateCount} skipped - semantic duplicates)`
     );
 
     // Send notification about staged entities
     try {
+      let notificationMessage = "";
+      if (failedChunks.length > 0 && stagedEntities.length > 0) {
+        // Partial success: some chunks failed but we still got entities
+        // Calculate percentage for user-friendly message
+        const successRate = Math.round(
+          (successfulChunks / chunks.length) * 100
+        );
+        notificationMessage = `⚠️ We extracted ${stagedEntities.length} shards, but couldn't process some parts of the file (${successRate}% processed successfully). This usually happens when processing very large files. You can retry to process the remaining content.`;
+      } else if (failedChunks.length > 0 && stagedEntities.length === 0) {
+        // All chunks failed
+        notificationMessage = `❌ We couldn't extract any shards from this file. This may be due to the file being too large or temporary processing issues. Please try again later.`;
+      }
+
       await notifyShardGeneration(
         env,
         username,
         campaignName,
         normalizedResource.file_name || normalizedResource.id,
         stagedEntities.length,
-        { campaignId, resourceId: normalizedResource.id }
+        {
+          campaignId,
+          resourceId: normalizedResource.id,
+          ...(notificationMessage ? { errorMessage: notificationMessage } : {}),
+        }
       );
     } catch (notifyError) {
       console.error(
@@ -434,10 +614,19 @@ export async function stageEntitiesFromResource(
       );
     }
 
+    // Return success if we got any entities, even if some chunks failed
     return {
-      success: true,
+      success: stagedEntities.length > 0 || failedChunks.length === 0,
       entityCount: stagedEntities.length,
       stagedEntities,
+      ...(failedChunks.length > 0
+        ? {
+            warning: `Some chunks failed to process: ${failedChunks.join(", ")}`,
+            failedChunks,
+            successfulChunks,
+            totalChunks: chunks.length,
+          }
+        : {}),
     };
   } catch (error) {
     console.error(`[EntityStaging] Error staging entities:`, error);

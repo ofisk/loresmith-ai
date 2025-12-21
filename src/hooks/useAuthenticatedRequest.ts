@@ -49,7 +49,12 @@ export function useAuthenticatedRequest() {
       const response = await makeRequest(url, options);
 
       if (!response.ok) {
-        throw new Error(`Request failed: ${response.status}`);
+        const errorText = await response.text();
+        const { parseErrorResponse, formatErrorForNotification } = await import(
+          "@/lib/error-parsing"
+        );
+        const parsedError = parseErrorResponse(errorText, response.status);
+        throw new Error(formatErrorForNotification(parsedError));
       }
 
       return response.json() as Promise<T>;

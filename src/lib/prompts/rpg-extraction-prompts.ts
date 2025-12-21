@@ -122,7 +122,7 @@ SPEC (fields not listed under a type are optional; always include common fields 
 COMMON FIELDS (for every primitive):
 - id: stable slug (lowercase kebab). If absent, slugify name + short hash.
 - type: one of the defined types.
-- name (or title for scenes): string.
+- name OR title OR display_name: REQUIRED string field for human-readable identification. Use "name" for most entities, "title" for scenes/quests/plot_lines/maps/handouts/timelines/tables, or "display_name" if you want to explicitly set the display name. At least one of these three fields MUST be present.
 - one_line: ultra-brief pitch.
 - summary: 1–3 sentence GM-usable summary.
 - tags: array of short tags.
@@ -145,7 +145,7 @@ TYPES & REQUIRED MINIMUM FIELDS
 - quests[]: { id, type:"quest", title, objective, steps?: string[], rewards?, xp_or_milestone?, involved?: string[], prerequisites?: string[], tags?, source, relations? }
 - scenes[]: { id, type:"scene", title, scene_type?: "combat"|"social"|"exploration"|"skill", setup, goal?, participants?: string[], map_ref?, tactics?, scaling?, outcomes?, treasure?, next_scenes?: string[], read_aloud?, tags?, source, relations? }
 - locations[]: { id, type:"location", name, kind?: "room"|"site"|"region"|"city"|"dungeon_level", overview, keyed_areas?: string[], inhabitants?: string[], features?: string[], hazards?: string[], treasure?, map_refs?, travel?, tags?, source, relations? }
-- lairs[]: { id, type:"lair", owner, features?: string[], lair_actions?: string[], regional_effects?: string[], treasure?, tags?, source, relations? }
+- lairs[]: { id, type:"lair", name (or title), owner, features?: string[], lair_actions?: string[], regional_effects?: string[], treasure?, tags?, source, relations? }
 - factions[]: { id, type:"faction", name, purpose, assets?, notable_npcs?: string[], ranks?, secrets?, relationships?, tags?, source, relations? }
 - deities[]: { id, type:"deity", name, domains?, tenets?, boons?, edicts?, anathema?, rites?, favored_items?, symbol?, tags?, source }
 - backgrounds[]: { id, type:"background", name, proficiencies?, tools?, languages?, equipment?, feature?, suggested_traits?, tags?, source }
@@ -156,13 +156,13 @@ TYPES & REQUIRED MINIMUM FIELDS
 - rules[]: { id, type:"rule", name, modifies?, text, examples?, safety_notes?, tags?, source }
 - downtime[]: { id, type:"downtime", name, requirements?, procedure, checks?, time_cost?, outcomes?, complications?, tags?, source }
 - tables[]: { id, type:"table", title, dice, rows: [{range:string, result:string}], usage_notes?, tags?, source }
-- encounter_tables[]: { id, type:"encounter_table", environment?, level_band?, dice, rows:[{range:string, result:string}], notes?, tags?, source }
-- treasure_tables[]: { id, type:"treasure_table", tier_or_cr?, rows:[{range:string, result:string}], notes?, tags?, source }
+- encounter_tables[]: { id, type:"encounter_table", name (or title), environment?, level_band?, dice, rows:[{range:string, result:string}], notes?, tags?, source }
+- treasure_tables[]: { id, type:"treasure_table", name (or title), tier_or_cr?, rows:[{range:string, result:string}], notes?, tags?, source }
 - maps[]: { id, type:"map", title, scale?, grid?, keyed?: string[], player_version?: boolean?, file_refs?: string[], tags?, source }
 - handouts[]: { id, type:"handout", title, delivery?, text_or_art_ref, when_to_reveal?, redactions?, tags?, source }
-- puzzles[]: { id, type:"puzzle", prompt, solution, hints?: string[], failure_stakes?, bypass_methods?, tags?, source }
+- puzzles[]: { id, type:"puzzle", name (or title), prompt, solution, hints?: string[], failure_stakes?, bypass_methods?, tags?, source }
 - timelines[]: { id, type:"timeline", title, phases?: string[], triggers?: string[], consequences?: string[], reset_rules?, tags?, source }
-- travel[]: { id, type:"travel", route, distance?, time?, encounters_table_ref?, costs?, checkpoints?, tags?, source }
+- travel[]: { id, type:"travel", name (or title), route, distance?, time?, encounters_table_ref?, costs?, checkpoints?, tags?, source }
 
 DISPLAY METADATA (recommended for all items)
 Provide display_metadata to help the UI intelligently show the content:

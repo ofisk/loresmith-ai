@@ -759,6 +759,27 @@ export default function Chat() {
     removeProcessedShards,
   } = useGlobalShardManager(authState.getStoredJwt);
 
+  // Listen for shards-generated events to refresh shards overlay
+  useEffect(() => {
+    const handleShardsGenerated = () => {
+      console.log(
+        "[App] Shards generated event received, refreshing shards overlay"
+      );
+      fetchAllStagedShards();
+    };
+
+    window.addEventListener(
+      "shards-generated",
+      handleShardsGenerated as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        "shards-generated",
+        handleShardsGenerated as EventListener
+      );
+    };
+  }, [fetchAllStagedShards]);
+
   return (
     <>
       <div className="h-[100vh] w-full p-6 flex justify-center items-center bg-fixed">

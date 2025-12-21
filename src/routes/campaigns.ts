@@ -10,12 +10,11 @@ import {
   validateCampaignOwnership,
   getCampaignRagBasePath,
 } from "@/lib/campaign-operations";
-import { stageEntitiesFromResource } from "@/services/campaign/entity-staging-service";
+import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
+import { EntityExtractionQueueDAO } from "@/dao/entity-extraction-queue-dao";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
-import { notifyShardGeneration } from "@/lib/notifications";
 import { extractJwtFromContext } from "@/lib/auth-utils";
 import {
-  buildShardGenerationResponse,
   buildResourceAdditionResponse,
   buildCampaignCreationResponse,
   buildCampaignUpdateResponse,
@@ -424,7 +423,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 
     // 4) Add resource to campaign
     const resourceId = crypto.randomUUID();
-    const newResource = await addResourceToCampaign({
+    await addResourceToCampaign({
       env: c.env,
       username: userAuth.username,
       campaignId,
@@ -433,9 +432,11 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       fileName: name || id,
     });
 
-    // 5) Extract and stage entities for the newly added resource
+    // 5) Queue entity extraction for the newly added resource (asynchronous)
     try {
-      console.log(`[Server] Extracting entities for campaign: ${campaignId}`);
+      console.log(
+        `[Server] Queueing entity extraction for campaign: ${campaignId}`
+      );
 
       const campaignRagBasePath = await getCampaignRagBasePath(
         userAuth.username,
@@ -448,152 +449,218 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
         );
         // Continue without entity extraction
       } else {
-        // Fetch the specific resource we just created to avoid ordering issues
-        const campaignDAO = getDAOFactory(c.env).campaignDAO;
-        const resource = await campaignDAO.getCampaignResourceById(
-          resourceId,
-          campaignId
-        );
-
-        if (!resource) {
-          console.warn(
-            `[Server] Newly added resource not found in campaign: ${campaignId} (resourceId: ${resourceId})`
-          );
-          const response = buildResourceAdditionResponse(
-            { id: resourceId, file_name: name || id },
-            "Resource added to campaign. Entity extraction deferred (resource lookup failed)."
-          );
-          return c.json(response);
-        }
-
-        // Stage entities using the new entity staging service
-        const entityResult = await stageEntitiesFromResource({
+        // Queue entity extraction asynchronously
+        // This allows multiple files to be added in quick succession without overloading the backend
+        await EntityExtractionQueueService.queueEntityExtraction({
           env: c.env,
           username: userAuth.username,
           campaignId,
-          campaignName: campaign!.name,
-          resource,
-          campaignRagBasePath,
+          resourceId,
+          resourceName: name || id,
+          fileKey: id,
           openaiApiKey: userAuth.openaiApiKey,
         });
 
-        if (entityResult.success && entityResult.entityCount > 0) {
-          // Send notification about entity count (UI uses "shard" terminology)
-          await notifyShardGeneration(
-            c.env,
-            userAuth.username,
-            campaign!.name,
-            resource.file_name || resource.id,
-            entityResult.entityCount,
-            {
-              campaignId,
-              resourceId: resource.id,
-            }
-          );
-
-          // Return response with entity data (formatted as shards for UI compatibility)
-          const response = buildShardGenerationResponse(
-            resource,
-            entityResult.entityCount,
-            campaignId,
-            // Convert staged entities to server groups format for UI (UI uses "shard" terminology)
-            entityResult.stagedEntities
-              ? [
-                  {
-                    key: `entity_staging_${resourceId}`,
-                    sourceRef: {
-                      fileKey: resource.file_key || resource.id,
-                      meta: {
-                        fileName: resource.file_name || resource.id,
-                        campaignId,
-                        entityType: "mixed",
-                        chunkId: "",
-                        score: 0,
-                      },
-                    },
-                    shards: entityResult.stagedEntities.map((entity) => ({
-                      id: entity.id,
-                      text: JSON.stringify(entity.content),
-                      metadata: {
-                        ...entity.metadata,
-                        entityType: entity.entityType,
-                        confidence:
-                          (entity.metadata.confidence as number) || 0.9,
-                      },
-                      sourceRef: {
-                        fileKey: resource.file_key || resource.id,
-                        meta: {
-                          fileName: resource.file_name || resource.id,
-                          campaignId,
-                          entityType: entity.entityType,
-                          chunkId: entity.id,
-                          score: 0,
-                        },
-                      },
-                    })),
-                    created_at: new Date().toISOString(),
-                    campaignRagBasePath,
-                  },
-                ]
-              : undefined
-          );
-          return c.json(response);
-        } else {
-          // Send zero entity notification (UI uses "shard" terminology)
-          await notifyShardGeneration(
-            c.env,
-            userAuth.username,
-            campaign!.name,
-            resource.file_name || resource.id,
-            0,
-            {
-              campaignId,
-              resourceId: resource.id,
-            }
-          );
-
-          const response = buildResourceAdditionResponse(
-            resource,
-            "Resource added to campaign successfully. No entities could be extracted from this resource."
-          );
-          return c.json(response);
-        }
-      }
-    } catch (entityError) {
-      console.error(`[Server] Error extracting entities:`, entityError);
-      // Still notify user with zero entities when extraction fails
-      try {
-        const campaignData = await getDAOFactory(
-          c.env
-        ).campaignDAO.getCampaignById(campaignId);
-        if (campaignData) {
-          // Send zero entity notification (UI uses "shard" terminology)
-          await notifyShardGeneration(
-            c.env,
-            userAuth.username,
-            campaignData.name,
-            name || id,
-            0,
-            {
-              campaignId,
-              resourceId,
-            }
-          );
-        }
-      } catch (notifyErr) {
-        console.error(
-          "[Server] Failed to send zero-entity notification after error:",
-          notifyErr
+        console.log(
+          `[Server] Entity extraction queued for resource ${resourceId} in campaign ${campaignId}`
         );
       }
-      // Don't fail the resource addition if entity extraction fails
+    } catch (queueError) {
+      console.error(
+        `[Server] Error queueing entity extraction for resource ${resourceId}:`,
+        queueError
+      );
+      // Don't fail the request - resource was added successfully, extraction can be retried
     }
 
-    // 6) Return success response without shards
-    return c.json({ resource: newResource }, 201);
+    // Return success response immediately (entity extraction happens in background)
+    const response = buildResourceAdditionResponse(
+      { id: resourceId, file_name: name || id },
+      "Resource added to campaign. Entity extraction is processing in the background. You'll receive a notification when it's complete."
+    );
+    return c.json(response);
   } catch (error) {
     console.error("Error adding resource to campaign:", error);
-    return c.json({ error: "Internal server error" }, 500);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Check if it's a memory limit error
+    if (
+      errorMessage.includes("memory limit") ||
+      errorMessage.includes("exceeded") ||
+      errorMessage.includes("Worker exceeded")
+    ) {
+      return c.json(
+        {
+          error: "File too large",
+          message:
+            "This file exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later.",
+        },
+        413
+      );
+    }
+
+    // Return a user-friendly error message
+    const truncatedMessage =
+      errorMessage.length > 200
+        ? `${errorMessage.substring(0, 200)}...`
+        : errorMessage;
+    return c.json(
+      {
+        error: "Failed to add file to campaign",
+        message: truncatedMessage,
+      },
+      500
+    );
+  }
+}
+
+// Retry entity extraction for a resource
+export async function handleRetryEntityExtraction(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    const campaignId = c.req.param("campaignId");
+    const resourceId = c.req.param("resourceId");
+
+    console.log(
+      `[Server] POST /campaigns/${campaignId}/resource/${resourceId}/retry-entity-extraction - starting request`
+    );
+
+    if (!userAuth) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    // Validate campaign ownership
+    const { valid } = await validateCampaignOwnership(
+      campaignId,
+      userAuth.username,
+      c.env
+    );
+    if (!valid) {
+      console.log(
+        `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
+      );
+      return c.json({ error: "Campaign not found" }, 404);
+    }
+
+    // Check if the resource exists in this campaign
+    const campaignDAO = getDAOFactory(c.env).campaignDAO;
+    const resource = await campaignDAO.getCampaignResourceById(
+      resourceId,
+      campaignId
+    );
+
+    if (!resource) {
+      console.log(
+        `[Server] Resource ${resourceId} not found in campaign ${campaignId}`
+      );
+      return c.json({ error: "Resource not found in this campaign" }, 404);
+    }
+
+    console.log("[Server] Found resource for retry:", resource);
+
+    // Queue entity extraction retry (asynchronous)
+    try {
+      await EntityExtractionQueueService.queueEntityExtraction({
+        env: c.env,
+        username: userAuth.username,
+        campaignId,
+        resourceId,
+        resourceName: resource.file_name || resource.id,
+        fileKey: resource.file_key || undefined,
+        openaiApiKey: userAuth.openaiApiKey,
+      });
+
+      console.log(
+        `[Server] Entity extraction retry queued for resource ${resourceId} in campaign ${campaignId}`
+      );
+
+      return c.json({
+        success: true,
+        message:
+          "Entity extraction has been queued. You'll receive a notification when it's complete.",
+      });
+    } catch (error) {
+      console.error(
+        `[Server] Error during entity extraction retry for resource ${resourceId}:`,
+        error
+      );
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      // Check if it's a memory limit error
+      if (
+        errorMessage.includes("memory limit") ||
+        errorMessage.includes("exceeded") ||
+        errorMessage.includes("Worker exceeded")
+      ) {
+        return c.json(
+          {
+            success: false,
+            message: `The file "${resource.file_name}" exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later.`,
+            error: "MEMORY_LIMIT_EXCEEDED",
+          },
+          413
+        );
+      }
+
+      // For rate limit errors, provide actionable message
+      if (
+        errorMessage.includes("rate limit") ||
+        errorMessage.includes("429") ||
+        errorMessage.includes("Too Many Requests")
+      ) {
+        return c.json(
+          {
+            success: false,
+            message: `Entity extraction is being rate-limited. Please wait a few moments and try again. The file is being processed in chunks, which may take longer for large files.`,
+            error: "RATE_LIMIT_EXCEEDED",
+          },
+          429
+        );
+      }
+
+      // Generic error
+      return c.json(
+        {
+          success: false,
+          message: `Failed to queue entity extraction retry: ${errorMessage}`,
+          error: errorMessage,
+        },
+        500
+      );
+    }
+  } catch (error) {
+    console.error("Error retrying entity extraction:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Check if it's a memory limit error
+    if (
+      errorMessage.includes("memory limit") ||
+      errorMessage.includes("exceeded") ||
+      errorMessage.includes("Worker exceeded")
+    ) {
+      return c.json(
+        {
+          error: "File too large",
+          message:
+            "This file exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later.",
+        },
+        413
+      );
+    }
+
+    // Return a user-friendly error message
+    const truncatedMessage =
+      errorMessage.length > 200
+        ? `${errorMessage.substring(0, 200)}...`
+        : errorMessage;
+    return c.json(
+      {
+        error: "Failed to retry entity extraction",
+        message: `An error occurred: ${truncatedMessage}. Please try again later.`,
+      },
+      500
+    );
   }
 }
 
@@ -652,5 +719,70 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
   } catch (error) {
     console.error("Error removing resource from campaign:", error);
     return c.json({ error: "Internal server error" }, 500);
+  }
+}
+
+// Get entity extraction queue status for a resource
+export async function handleGetEntityExtractionStatus(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    const campaignId = c.req.param("campaignId");
+    const resourceId = c.req.param("resourceId");
+
+    if (!userAuth) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    // Validate campaign ownership
+    const { valid } = await validateCampaignOwnership(
+      campaignId,
+      userAuth.username,
+      c.env
+    );
+    if (!valid) {
+      return c.json({ error: "Campaign not found" }, 404);
+    }
+
+    // Check queue status
+    const queueDAO = new EntityExtractionQueueDAO(c.env.DB);
+    const queueItem = await queueDAO.getQueueItemByResource(
+      campaignId,
+      resourceId
+    );
+
+    if (!queueItem) {
+      // Not in queue - extraction is either completed or never started
+      console.log(
+        `[Server] Entity extraction status for resource ${resourceId}: not in queue (completed or never started)`
+      );
+      return c.json({
+        inQueue: false,
+        status: null,
+      });
+    }
+
+    console.log(
+      `[Server] Entity extraction status for resource ${resourceId}: inQueue=true, status=${queueItem.status}, retryCount=${queueItem.retry_count}`
+    );
+    return c.json({
+      inQueue: true,
+      status: queueItem.status,
+      retryCount: queueItem.retry_count,
+      lastError: queueItem.last_error,
+      errorCode: queueItem.error_code,
+      nextRetryAt: queueItem.next_retry_at,
+      createdAt: queueItem.created_at,
+      processedAt: queueItem.processed_at,
+    });
+  } catch (error) {
+    console.error("Error getting entity extraction status:", error);
+    return c.json(
+      {
+        error: "Failed to get extraction status",
+        message:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      },
+      500
+    );
   }
 }

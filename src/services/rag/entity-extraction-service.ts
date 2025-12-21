@@ -159,13 +159,22 @@ CONTENT END`;
             : crypto.randomUUID();
         const entityId = `${options.campaignId}_${baseId}`;
 
+        // Extract name from standard fields - all entities should have name, title, or display_name
+        // The LLM is instructed to always provide at least one of these fields
+        const nameFields = ["name", "title", "display_name"];
+
+        // Check "id" as a last resort (before falling back to generated name)
+        nameFields.push("id");
+
         const name =
-          this.getFirstString(record, [
-            "name",
-            "title",
-            "display_name",
-            "id",
-          ]) || `${type}-${entityId}`;
+          this.getFirstString(record, nameFields) || `${type}-${entityId}`;
+
+        // Log warning if entity doesn't have a proper name field (shouldn't happen if LLM follows instructions)
+        if (!this.getFirstString(record, ["name", "title", "display_name"])) {
+          console.warn(
+            `[EntityExtractionService] Entity ${entityId} (type: ${type}) missing name/title/display_name field. Using fallback: ${name}`
+          );
+        }
 
         const relations = Array.isArray(record.relations)
           ? this.normalizeRelationships(record.relations)

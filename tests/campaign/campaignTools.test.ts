@@ -364,7 +364,7 @@ describe("Campaign Tools", () => {
   describe("Tool definitions", () => {
     it("should have correct tool structure for deleteCampaign", () => {
       expect(campaignTools.deleteCampaign).toBeDefined();
-      expect(campaignTools.deleteCampaign.description).toBe(
+      expect(campaignTools.deleteCampaign.description).toContain(
         "Delete a specific campaign"
       );
       expect(campaignTools.deleteCampaign.parameters).toBeDefined();

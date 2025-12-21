@@ -265,23 +265,83 @@ export function FlexibleShardCard({
     const titleFields = ["name", "title", "label"];
     for (const field of titleFields) {
       if (shard[field] && typeof shard[field] === "string") {
-        return shard[field];
+        const value = shard[field];
+        // Check if the value looks like an ID (UUID-like or campaign-scoped ID)
+        const looksLikeId =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(
+            value
+          ) ||
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_/i.test(
+            value
+          ) ||
+          (value.includes("_") && value.length > 30);
+
+        // If it looks like an ID, try to extract name from content
+        if (looksLikeId && shard.text && typeof shard.text === "string") {
+          try {
+            const content = JSON.parse(shard.text);
+            if (content && typeof content === "object") {
+              const entityType = metadata?.entityType;
+              // Check type-specific fields
+              if (entityType === "travel" && content.route) {
+                return typeof content.route === "string"
+                  ? content.route
+                  : value;
+              }
+              if (entityType === "puzzles" && content.prompt) {
+                return typeof content.prompt === "string"
+                  ? content.prompt
+                  : value;
+              }
+              if (content.title) {
+                return typeof content.title === "string"
+                  ? content.title
+                  : value;
+              }
+              if (content.name) {
+                return typeof content.name === "string" ? content.name : value;
+              }
+            }
+          } catch {
+            // Not JSON, continue with original value
+          }
+        }
+        return value;
       }
     }
 
-    // Try to extract text from the text field (for conversational context shards)
-    // Text might be JSON like {"text":"..."} or a plain string
+    // Try to extract text from the text field (for conversational context shards or structured entities)
+    // Text might be JSON like {"text":"..."} or a structured entity object
     if (shard.text && typeof shard.text === "string") {
       try {
         // Try parsing as JSON first
         const parsed = JSON.parse(shard.text);
-        if (parsed?.text && typeof parsed.text === "string") {
-          // Extract first sentence or truncate to 60 chars
-          const text = parsed.text;
-          const firstSentence = text.split(/[.!?]\s/)[0];
-          return firstSentence.length > 60
-            ? `${firstSentence.substring(0, 57)}...`
-            : firstSentence;
+        if (parsed && typeof parsed === "object") {
+          const entityType = metadata?.entityType;
+
+          // Check for type-specific name fields first
+          if (entityType === "travel" && parsed.route) {
+            return typeof parsed.route === "string" ? parsed.route : null;
+          }
+          if (entityType === "puzzles" && parsed.prompt) {
+            return typeof parsed.prompt === "string" ? parsed.prompt : null;
+          }
+          if (parsed.title) {
+            return typeof parsed.title === "string" ? parsed.title : null;
+          }
+          if (parsed.name) {
+            return typeof parsed.name === "string" ? parsed.name : null;
+          }
+
+          // For conversational context shards, check for text field
+          if (parsed?.text && typeof parsed.text === "string") {
+            // Extract first sentence or truncate to 60 chars
+            const text = parsed.text;
+            const firstSentence = text.split(/[.!?]\s/)[0];
+            return firstSentence.length > 60
+              ? `${firstSentence.substring(0, 57)}...`
+              : firstSentence;
+          }
         }
       } catch {
         // Not JSON, use text directly

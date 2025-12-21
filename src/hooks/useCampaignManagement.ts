@@ -199,7 +199,13 @@ export function useCampaignManagement({
 
         if (!response.response.ok) {
           const errorText = await response.response.text();
-          throw new Error(`Failed to add file to campaign: ${errorText}`);
+          const { parseErrorResponse, formatErrorForNotification } =
+            await import("@/lib/error-parsing");
+          const parsedError = parseErrorResponse(
+            errorText,
+            response.response.status
+          );
+          throw new Error(formatErrorForNotification(parsedError));
         }
 
         const result = (await response.response.json()) as {
