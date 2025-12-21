@@ -6,6 +6,7 @@ import { FileSplitter } from "./lib/split";
 import type { Env } from "./middleware/auth";
 import { ChunkedProcessingService } from "./services/file/chunked-processing-service";
 import { SyncQueueService } from "./services/file/sync-queue-service";
+import { EntityExtractionQueueService } from "./services/campaign/entity-extraction-queue-service";
 import { RebuildQueueProcessor } from "./services/graph/rebuild-queue-processor";
 import type { RebuildQueueMessage } from "./types/rebuild-queue";
 import { RebuildQueueService } from "./services/graph/rebuild-queue-service";
@@ -292,6 +293,9 @@ export async function scheduled(
 
   // Process pending sync queue items for all users
   await processPendingSyncQueueItems(env);
+
+  // Process pending entity extraction queue items
+  await EntityExtractionQueueService.processPendingQueueItems(env);
 
   // Process pending file chunks for files that have been chunked
   await processPendingFileChunks(env);
