@@ -218,12 +218,19 @@ export function FlexibleShardCard({
   const handleDescriptionSave = () => {
     isEditingDescriptionRef.current = false;
     if (onEdit) {
-      // Try to update the most likely description field
-      const descField = ["description", "text", "summary"].find(
-        (field) => shard[field] === getShardDescription()
-      );
-      if (descField) {
-        onEdit(shard.id, { [descField]: descriptionValue });
+      const descInfo = getShardDescriptionInfo();
+      if (descInfo) {
+        // If the original was JSON, reconstruct it with the new text
+        if (descInfo.isJson && descInfo.jsonStructure) {
+          const updatedJson = {
+            ...descInfo.jsonStructure,
+            text: descriptionValue,
+          };
+          onEdit(shard.id, { [descInfo.field]: JSON.stringify(updatedJson) });
+        } else {
+          // Otherwise, save as plain text
+          onEdit(shard.id, { [descInfo.field]: descriptionValue });
+        }
       }
     }
   };
@@ -248,24 +255,88 @@ export function FlexibleShardCard({
   };
 
   const getShardTitle = () => {
+    // First, check metadata.title (used by conversational context shards)
+    const metadata = shard.metadata as any;
+    if (metadata?.title && typeof metadata.title === "string") {
+      return metadata.title;
+    }
+
     // Try to find a good title from common property names
-    const titleFields = ["name", "title", "label", "id"];
+    const titleFields = ["name", "title", "label"];
     for (const field of titleFields) {
       if (shard[field] && typeof shard[field] === "string") {
         return shard[field];
       }
     }
+
+    // Try to extract text from the text field (for conversational context shards)
+    // Text might be JSON like {"text":"..."} or a plain string
+    if (shard.text && typeof shard.text === "string") {
+      try {
+        // Try parsing as JSON first
+        const parsed = JSON.parse(shard.text);
+        if (parsed?.text && typeof parsed.text === "string") {
+          // Extract first sentence or truncate to 60 chars
+          const text = parsed.text;
+          const firstSentence = text.split(/[.!?]\s/)[0];
+          return firstSentence.length > 60
+            ? firstSentence.substring(0, 57) + "..."
+            : firstSentence;
+        }
+      } catch {
+        // Not JSON, use text directly
+        const text = shard.text;
+        const firstSentence = text.split(/[.!?]\s/)[0];
+        return firstSentence.length > 60
+          ? firstSentence.substring(0, 57) + "..."
+          : firstSentence;
+      }
+    }
+
     // Use contentId if available (for structured shards), otherwise fall back to ID suffix
     const displayId = (shard as any).contentId || shard.id.slice(-8);
     return `${displayName} #${displayId}`;
   };
 
   const getShardDescription = () => {
+    const descInfo = getShardDescriptionInfo();
+    return descInfo?.displayText || null;
+  };
+
+  const getShardDescriptionInfo = () => {
     // Try to find a good description from common property names
     const descFields = ["description", "text", "content", "summary"];
     for (const field of descFields) {
       if (shard[field] && typeof shard[field] === "string") {
-        return shard[field];
+        const value = shard[field];
+        // Try parsing as JSON (for conversational context shards with {"text":"..."})
+        try {
+          const parsed = JSON.parse(value);
+          if (parsed?.text && typeof parsed.text === "string") {
+            return {
+              field,
+              originalValue: value,
+              displayText: parsed.text,
+              isJson: true,
+              jsonStructure: parsed,
+            };
+          }
+          // If parsed but no text field, return the original value
+          return {
+            field,
+            originalValue: value,
+            displayText: value,
+            isJson: false,
+          };
+        } catch {
+          // Not JSON, return as-is
+          return {
+            field,
+            originalValue: value,
+            displayText: value,
+            isJson: false,
+          };
+        }
       }
     }
     return null;

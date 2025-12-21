@@ -124,6 +124,26 @@ export function PropertyField({
     if (typeof val === "object" && val !== null) {
       return JSON.stringify(val, null, 2);
     }
+    // For string values, try parsing as JSON to extract text content
+    if (typeof val === "string") {
+      try {
+        const parsed = JSON.parse(val);
+        // If it's an object with a "text" field, extract and display just that text
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          parsed.text &&
+          typeof parsed.text === "string"
+        ) {
+          return parsed.text;
+        }
+        // Otherwise return the original string
+        return val;
+      } catch {
+        // Not JSON, return as-is
+        return val;
+      }
+    }
     return String(val);
   };
 

@@ -20,12 +20,14 @@ const ENTITY_GRAPH_SYSTEM_PROMPT = buildSystemPrompt({
   workflowGuidelines: [
     "Entity Extraction: When users provide text content (from files or chat) containing entities like NPCs, locations, items, or monsters, use extractEntitiesFromContentTool to extract and add them to the graph",
     "Relationship Creation: When users mention relationships between entities (e.g., 'NPC X lives in Location Y', 'Character A is allied with Character B'), use createEntityRelationshipTool to create the relationship in the graph",
+    "Relationship Queries with Graph Traversal: When users ask questions about entity relationships (e.g., 'who lives in Location X?', 'what NPCs are in this location?', 'which entities are related to Y?'), use searchCampaignContext iteratively: (1) First, search semantically to find the target entity (e.g., query='Location X', searchType='locations'), (2) Extract the entity ID from results, (3) Use traverseFromEntityIds with that ID to traverse the graph and find connected entities, (4) Start with traverseDepth=1, optionally filter by traverseRelationshipTypes (e.g., ['resides_in'] for location queries), (5) Continue traversing if more context is needed, (6) Answer using accumulated context. Do NOT use getCommunitiesTool for relationship queries - communities are graph clusters, not entity relationships",
     "Community Detection: When users want to understand how entities cluster or find related groups, use detectCommunitiesTool to analyze the entity graph",
-    "Community Analysis: Use getCommunitiesTool or getCommunityHierarchyTool to show users existing communities and their structure",
+    "Community Analysis: Use getCommunitiesTool or getCommunityHierarchyTool to show users existing communities and their structure (these show graph clusters, not direct entity relationships)",
   ],
   importantNotes: [
     "Entity extraction and relationship creation help build the entity graph, which is then used for context search and community detection",
     "Before creating relationships, ensure both entities exist in the graph (create them first using extractEntitiesFromContentTool if needed)",
+    "Use searchCampaignContext with graph traversal to query entity relationships iteratively. First search semantically to find entities, then traverse from their IDs to explore connected entities. Use getCommunitiesTool only for community/cluster analysis, not for relationship queries",
   ],
 });
 

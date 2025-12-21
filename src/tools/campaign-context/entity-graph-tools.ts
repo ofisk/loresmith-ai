@@ -8,6 +8,7 @@ import {
   getCommunitiesTool,
   getCommunityHierarchyTool,
 } from "./community-tools";
+import { searchCampaignContext } from "./search-tools";
 
 export const entityGraphTools = {
   extractEntitiesFromContentTool,
@@ -15,4 +16,5 @@ export const entityGraphTools = {
   detectCommunitiesTool,
   getCommunitiesTool,
   getCommunityHierarchyTool,
+  searchCampaignContext,
 };

@@ -28,7 +28,7 @@ const CAMPAIGN_ANALYSIS_SYSTEM_PROMPT = buildSystemPrompt({
     "When analyzing campaigns, provide detailed scoring across narrative, character, plot hooks, and session readiness",
     "Provide actionable recommendations based on campaign assessment scores",
     "Focus on high-impact areas when providing campaign improvement suggestions",
-    "Campaign Planning Checklist: Use the Campaign Planning Checklist to provide structured, prioritized recommendations. Reference specific checklist sections when suggesting what to work on next, prioritizing foundational elements (Campaign Foundation, World & Setting Basics, Starting Location) before later stages.",
+    "Campaign Planning Checklist: Use the Campaign Planning Checklist to provide structured, prioritized recommendations. Reference specific checklist sections when suggesting what to work on next, prioritizing foundational elements (Campaign Foundation, World & Setting Basics, Starting Location) before later stages. CRITICAL: Only suggest checklist items that are missing or incomplete. DO NOT include completed items in recommendations, and DO NOT acknowledge completed items - skip them entirely. Use searchCampaignContext to verify what's already been established.",
   ],
   specialization: `## Campaign Planning Checklist Reference:
 
@@ -36,7 +36,7 @@ Use this comprehensive checklist as a framework for assessment and recommendatio
 
 ${CAMPAIGN_PLANNING_CHECKLIST}
 
-When providing campaign readiness assessments and suggestions, reference specific sections from this checklist. Identify which checklist items are missing or incomplete based on the campaign's current state, and prioritize recommendations based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).`,
+When providing campaign readiness assessments and suggestions, reference specific sections from this checklist. CRITICAL: Only suggest checklist items that are missing or incomplete. DO NOT include completed items in recommendations, and DO NOT acknowledge completed items with phrases like "You've already established..." - skip them entirely. Use searchCampaignContext to verify what's already been established before making recommendations. Prioritize recommendations based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).`,
 });
 
 /**
