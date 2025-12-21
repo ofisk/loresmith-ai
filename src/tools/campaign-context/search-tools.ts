@@ -112,6 +112,9 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
       traverseRelationshipTypes,
       includeTraversedEntities,
     });
+    console.log(
+      `[Tool] searchCampaignContext - Using campaignId: ${campaignId} (type: ${typeof campaignId})`
+    );
 
     try {
       // Try to get environment from context or global scope
@@ -138,12 +141,18 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
 
         // Verify campaign exists and belongs to user using DAO
         const campaignDAO = getDAOFactory(env).campaignDAO;
+        console.log(
+          `[Tool] searchCampaignContext - Verifying campaign ${campaignId} for user ${userId}`
+        );
         const campaign = await campaignDAO.getCampaignByIdWithMapping(
           campaignId,
           userId
         );
 
         if (!campaign) {
+          console.error(
+            `[Tool] searchCampaignContext - Campaign ${campaignId} not found for user ${userId}`
+          );
           return createToolError(
             "Campaign not found",
             "Campaign not found",
@@ -151,6 +160,10 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
             toolCallId
           );
         }
+
+        console.log(
+          `[Tool] searchCampaignContext - Verified campaign: ${campaign.name} (ID: ${campaign.campaignId})`
+        );
 
         const results: any[] = [];
         const daoFactory = getDAOFactory(env);
