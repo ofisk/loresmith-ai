@@ -182,11 +182,27 @@ export default function Chat() {
         modalState.setShowAuthModal(true);
       }
 
-      // Check if the agent performed file operations that require UI refresh
+      // Check if the agent performed operations that require UI refresh
       const content = result.content?.toLowerCase() || "";
+
+      // Check for campaign deletion
       if (
-        content.includes("deleted") ||
-        content.includes("successfully deleted")
+        content.includes("campaign") &&
+        (content.includes("deleted") ||
+          content.includes("successfully deleted"))
+      ) {
+        window.dispatchEvent(
+          new CustomEvent("campaign-deleted", {
+            detail: { type: "campaign-deleted", operation: "detected" },
+          })
+        );
+      }
+
+      // Check for file deletion (but not campaign deletion)
+      if (
+        (content.includes("deleted") ||
+          content.includes("successfully deleted")) &&
+        !content.includes("campaign")
       ) {
         window.dispatchEvent(
           new CustomEvent("file-changed", {
@@ -264,6 +280,27 @@ export default function Chat() {
       window.removeEventListener(
         "campaign-created",
         handleCampaignCreated as EventListener
+      );
+    };
+  }, [refetchCampaigns]);
+
+  // Listen for campaign-deleted events to refresh campaigns list
+  useEffect(() => {
+    const handleCampaignDeleted = () => {
+      console.log(
+        "[App] Campaign deleted event received, refreshing campaigns list"
+      );
+      refetchCampaigns();
+    };
+
+    window.addEventListener(
+      "campaign-deleted",
+      handleCampaignDeleted as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        "campaign-deleted",
+        handleCampaignDeleted as EventListener
       );
     };
   }, [refetchCampaigns]);
