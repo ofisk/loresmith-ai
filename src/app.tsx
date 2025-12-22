@@ -759,6 +759,13 @@ export default function Chat() {
     removeProcessedShards,
   } = useGlobalShardManager(authState.getStoredJwt);
 
+  // Fetch shards when authentication completes
+  useEffect(() => {
+    if (authState.isAuthenticated) {
+      fetchAllStagedShards();
+    }
+  }, [authState.isAuthenticated, fetchAllStagedShards]);
+
   // Listen for shards-generated events to refresh shards overlay
   useEffect(() => {
     const handleShardsGenerated = (event: Event) => {
