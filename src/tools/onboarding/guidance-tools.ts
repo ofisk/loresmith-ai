@@ -7,19 +7,61 @@ import { createToolError, createToolSuccess } from "../utils";
 import type { ActionSuggestion } from "./state-analysis-tools";
 
 /**
- * Tool: Provide welcome guidance for first-time users
+ * Tool: Provide contextual guidance based on user's current state
+ * For first-time users: explains core features and suggests getting started
+ * For returning users: provides personalized suggestions based on their progress
  */
 export const provideWelcomeGuidanceTool = tool({
-  description: "Provide welcome guidance for first-time users",
+  description:
+    "Provide personalized guidance based on user's current state (first-time vs returning user with existing campaigns/resources)",
   parameters: z.object({
     jwt: commonSchemas.jwt,
   }),
-  execute: async ({ jwt: _jwt }, context?: any): Promise<ToolResult> => {
+  execute: async ({ jwt }, context?: any): Promise<ToolResult> => {
     try {
-      return createToolSuccess(
-        "Welcome guidance provided successfully",
-        {
-          message: `Welcome to LoreSmith AI! 🎲
+      // Extract username from JWT
+      if (!jwt) {
+        return createToolError(
+          "No JWT provided",
+          "Authentication token is required",
+          400,
+          context?.toolCallId || "unknown"
+        );
+      }
+
+      const payload = JSON.parse(atob(jwt.split(".")[1]));
+      const username = payload.username;
+
+      if (!username) {
+        return createToolError(
+          "No username found in JWT",
+          "Unable to extract username from authentication token",
+          400,
+          context?.toolCallId || "unknown"
+        );
+      }
+
+      const env = context?.env;
+      if (!env) {
+        return createToolError(
+          "Environment not available",
+          "Database connection not available",
+          500,
+          context?.toolCallId || "unknown"
+        );
+      }
+
+      // Analyze user state to provide contextual guidance
+      const assessmentService = getAssessmentService(env);
+      const userState = await assessmentService.analyzeUserState(username);
+
+      // Provide different guidance based on user state
+      if (userState.isFirstTime) {
+        // First-time user guidance
+        return createToolSuccess(
+          "Welcome guidance provided successfully",
+          {
+            message: `Welcome to LoreSmith AI! 🎲
 
 I'm here to help you become a better Game Master by managing your inspiration library, creating rich campaign contexts, and planning engaging sessions.
 
@@ -29,60 +71,87 @@ I'm here to help you become a better Game Master by managing your inspiration li
 • **Session Planning**: Plan engaging sessions with hooks, encounters, and story beats
 
 Let's get you started! What would you like to do first?`,
-          primaryAction: {
-            title: "Upload Your First Resource",
-            description:
-              "Click the 'Add to library' button to upload documents, images, or other files to your inspiration library",
-            action: "upload_resource",
-            priority: "high",
-            estimatedTime: "5 minutes",
-          },
-          secondaryActions: [
-            {
-              title: "Create Your First Campaign",
+            primaryAction: {
+              title: "Upload Your First Resource",
               description:
-                "Set up a campaign and start organizing your story elements",
-              action: "create_campaign",
-              priority: "medium",
-              estimatedTime: "10 minutes",
+                "Click the 'Add to library' button to upload documents, images, or other files to your inspiration library",
+              action: "upload_resource",
+              priority: "high",
+              estimatedTime: "5 minutes",
             },
-            {
-              title: "Chat with Me",
+            secondaryActions: [
+              {
+                title: "Create Your First Campaign",
+                description:
+                  "Set up a campaign and start organizing your story elements",
+                action: "create_campaign",
+                priority: "medium",
+                estimatedTime: "10 minutes",
+              },
+              {
+                title: "Chat with Me",
+                description:
+                  "Tell me about your campaign ideas and I'll help you develop them",
+                action: "start_chat",
+                priority: "medium",
+                estimatedTime: "15 minutes",
+              },
+            ],
+          },
+          context?.toolCallId || "unknown"
+        );
+      } else {
+        // Returning user guidance
+        const campaignText =
+          userState.campaignCount === 1 ? "campaign" : "campaigns";
+        const resourceText =
+          userState.resourceCount === 1 ? "resource" : "resources";
+
+        return createToolSuccess(
+          "Personalized guidance provided successfully",
+          {
+            message: `Great to see you back! 🎲
+
+You currently have **${userState.campaignCount} ${campaignText}** and **${userState.resourceCount} ${resourceText}** in your library.
+
+**Here's what you can do:**
+
+• **Manage your campaigns**: View campaign details, add resources, track world state changes, and record session digests
+• **Explore your library**: Search and organize your uploaded resources
+• **Plan sessions**: Get AI-powered help planning engaging sessions based on your campaign context
+• **Add more content**: Upload new resources to enrich your campaigns
+• **Chat about your campaigns**: Ask me questions about your world, NPCs, plot hooks, or get help with session planning
+
+What would you like to work on today?`,
+            primaryAction: {
+              title: "Continue Your Campaign",
               description:
-                "Tell me about your campaign ideas and I'll help you develop them",
-              action: "start_chat",
-              priority: "medium",
+                "Work on your existing campaigns - add resources, update world state, or plan sessions",
+              action: "continue_campaign",
+              priority: "high",
               estimatedTime: "15 minutes",
             },
-          ],
-          externalTools: [
-            {
-              name: "DMsGuild",
-              url: "https://www.dmsguild.com",
-              description:
-                "Find adventures, supplements, and campaign resources",
-              category: "content",
-              relevance: "high",
-            },
-            {
-              name: "D&D Beyond",
-              url: "https://www.dndbeyond.com",
-              description: "Access official D&D content and tools",
-              category: "tools",
-              relevance: "high",
-            },
-            {
-              name: "Pinterest",
-              url: "https://www.pinterest.com",
-              description:
-                "Discover maps, character art, and campaign inspiration",
-              category: "inspiration",
-              relevance: "high",
-            },
-          ],
-        },
-        context?.toolCallId || "unknown"
-      );
+            secondaryActions: [
+              {
+                title: "Add More Resources",
+                description:
+                  "Upload additional documents, maps, or inspiration to your library",
+                action: "upload_resource",
+                priority: "medium",
+                estimatedTime: "5 minutes",
+              },
+              {
+                title: "Plan Your Next Session",
+                description: "Get AI-powered help planning an engaging session",
+                action: "plan_session",
+                priority: "medium",
+                estimatedTime: "15 minutes",
+              },
+            ],
+          },
+          context?.toolCallId || "unknown"
+        );
+      }
     } catch (error) {
       console.error("Failed to provide welcome guidance:", error);
       return createToolError(
