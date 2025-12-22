@@ -200,7 +200,12 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
     console.log("[Tool] searchCampaignContext received:", {
       campaignId,
       query,
-      queryIntent,
+      parsedIntent: {
+        entityType: queryIntent.entityType,
+        searchPlanningContext: queryIntent.searchPlanningContext,
+        isListAll: queryIntent.isListAll,
+        searchQuery: queryIntent.searchQuery,
+      },
       traverseFromEntityIds,
       traverseDepth,
       traverseRelationshipTypes,
@@ -383,12 +388,18 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                       env.VECTORIZE
                     );
 
+                    // If a target entity type is detected, filter at the embedding search level
+                    // This ensures we only search within the relevant entity type
+                    // Increase topK when filtering to ensure we get enough results
+                    const searchTopK = targetEntityType ? 20 : 10;
+
                     const similarEntities =
                       await entityEmbeddingService.findSimilarByEmbedding(
                         queryEmbedding,
                         {
                           campaignId,
-                          topK: 10,
+                          entityType: targetEntityType || undefined,
+                          topK: searchTopK,
                         }
                       );
 
@@ -435,12 +446,14 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
 
                     if (queryEmbedding) {
                       // Use PlanningContextService's findMatchingEntityIds which uses the same
+                      // Increase maxEntities when filtering by type to ensure enough results
+                      const maxEntities = targetEntityType ? 500 : 25;
                       const entityIds =
                         await planningService.findMatchingEntityIds(
                           campaignId,
                           queryIntent.searchQuery,
                           queryEmbedding,
-                          20
+                          maxEntities
                         );
 
                       if (entityIds.length > 0) {
@@ -484,7 +497,10 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                   entities = await daoFactory.entityDAO.searchEntitiesByName(
                     campaignId,
                     keywordNames,
-                    { limit: 20 }
+                    {
+                      entityType: targetEntityType || undefined,
+                      limit: targetEntityType ? 50 : 25,
+                    }
                   );
 
                   console.log(
