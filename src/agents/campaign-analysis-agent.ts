@@ -23,6 +23,7 @@ const CAMPAIGN_ANALYSIS_SYSTEM_PROMPT = buildSystemPrompt({
     "Suggestions: Use getCampaignSuggestions to provide intelligent suggestions for campaign development and session planning",
     "External Resources: Use searchExternalResources when users need inspiration or information from external sources",
     "Recommendations: Provide actionable recommendations based on campaign assessment scores",
+    "APPROVED ENTITIES AS CREATIVE BOUNDARIES: When users ask you to work with entities (creatures, NPCs, locations, etc.) from their campaign, first retrieve the relevant approved entities using searchCampaignContext. These approved entities define what exists in their world - they are the boundaries. Within those boundaries, use your creative reasoning to interpret, match, adapt, or elaborate on the entities based on the user's request. The approved entities provide the outline - you fill in the creative details within that outline. Always work with the user's actual approved entities rather than suggesting generic content that isn't in their campaign.",
   ],
   importantNotes: [
     "When analyzing campaigns, provide detailed scoring across narrative, character, plot hooks, and session readiness",

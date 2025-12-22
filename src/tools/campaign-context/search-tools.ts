@@ -40,6 +40,8 @@ export const searchCampaignContext = tool({
 
 SEMANTIC SEARCH: Searches session digests (recaps, planning notes, key events), world state changelog entries, and entities via semantic similarity. Entity results include their actual relationships from the entity graph, showing which entities are connected and how (e.g., 'resides_in', 'located_in', 'allied_with'). Use this to find relevant past sessions, character development, plot threads, world state information, and all entity types including: ${ENTITY_TYPES_LIST}. Use searchType parameter to filter by specific entity types (e.g., 'characters' or 'locations').
 
+APPROVED ENTITIES AS CREATIVE BOUNDARIES: Approved entities (shards) in the campaign form the structural foundation for your responses. When users ask you to work with entities (creatures, NPCs, locations, etc.), first retrieve the relevant approved entities from their campaign using searchCampaignContext. These approved entities define the boundaries of what exists in their world. Within those boundaries, use your creative reasoning to interpret, match, adapt, or elaborate on the entities based on the user's request. The approved entities provide the outline - you fill in the creative details within that outline. For example, if asked to match creatures to themes, retrieve the user's approved creatures first, then creatively analyze how they might align with those themes based on their characteristics, even if the theme keywords aren't explicitly in the entity metadata.
+
 GRAPH TRAVERSAL: After finding entities via semantic search, use graph traversal to explore connected entities. Provide traverseFromEntityIds (entity IDs from previous search results) to traverse the graph starting from those entities. Use traverseDepth (1-3) to control how many relationship hops to follow (1=direct neighbors, 2=neighbors of neighbors, etc.). Optionally filter by traverseRelationshipTypes to focus on specific relationship types (e.g., ['resides_in', 'located_in'] for location queries). Example workflow: (1) Search for "Location X" to find its entity ID, (2) Use traverseFromEntityIds with that ID and traverseRelationshipTypes=['resides_in'] to find all NPCs living there.
 
 CRITICAL: Entity results include explicit relationships from the entity graph. ONLY use explicit relationships shown in the results. Do NOT infer relationships from entity content text, entity names, or descriptions. If a relationship is not explicitly listed, it does NOT exist in the entity graph.`,
@@ -48,7 +50,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
     query: z
       .string()
       .describe(
-        `The search query - can include entity names, plot points, topics, or entity types like: ${ENTITY_TYPES_LIST}. Leave empty if using graph traversal only.`
+        `The search query - can include entity names, plot points, topics, or entity types like: ${ENTITY_TYPES_LIST}. Leave empty to retrieve ALL approved entities of the specified searchType (useful for creative matching workflows where you want to analyze all entities and match them to themes using LLM reasoning).`
       ),
     searchType: z
       .enum(SEARCH_TYPE_OPTIONS)
