@@ -126,10 +126,13 @@ SEMANTIC SEARCH: Searches entities via semantic similarity. Entity results inclu
 
 QUERY SYNTAX: The query string automatically infers search intent:
 - "monsters" → lists all monsters
+- "beasts" → lists all beasts
 - "fire monsters" → searches for monsters matching "fire" 
 - "all monsters" → lists all monsters
-- Empty query → lists all entities
+- Empty query → lists all entities (WARNING: Only use empty query when user doesn't specify entity types)
 - "context: session notes" → searches session digests (optional, for backward compatibility - note that session digests are temporary and get parsed into entities)
+
+CRITICAL: When users specify entity types in their request (e.g., "monsters", "beasts", "NPCs", "locations"), you MUST include those entity type keywords in the query parameter. For example, if the user asks for "monsters or beasts from my campaign", use query="monsters" or query="beasts" to filter to only those entity types. Do NOT use an empty query when entity types are specified - this will return ALL entities including unwanted types (e.g., NPCs when user asked for monsters).
 
 APPROVED ENTITIES AS CREATIVE BOUNDARIES: Approved entities (shards) in the campaign form the structural foundation for your responses. When users ask you to work with entities (creatures, NPCs, locations, etc.) from their campaign, you MUST first retrieve the relevant approved entities using this tool. These approved entities define the boundaries of what exists in their world. Within those boundaries, use your creative reasoning to interpret, match, adapt, or elaborate on the entities based on the user's request. The approved entities provide the outline - you fill in the creative details within that outline. For example, if asked to match creatures to themes, retrieve the user's approved creatures first (using query="monsters" to list all monsters), then creatively analyze how they might align with those themes based on their characteristics, even if the theme keywords aren't explicitly in the entity metadata.
 
@@ -141,7 +144,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
     query: z
       .string()
       .describe(
-        `The search query - can include entity names, plot points, topics, or entity types like: ${ENTITY_TYPES_LIST}. The tool automatically infers the entity type from your query. Examples: "monsters" lists all monsters, "fire monsters" searches for monsters matching "fire", "all monsters" lists all monsters, empty query lists all entities. Use "context:" prefix to search session digests (optional - note that session digests are temporary and get parsed into entities).`
+        `The search query - can include entity names, plot points, topics, or entity types like: ${ENTITY_TYPES_LIST}. The tool automatically infers the entity type from your query. CRITICAL: When users specify entity types in their request (e.g., "monsters", "beasts", "NPCs"), you MUST include those entity type keywords in this query parameter. Examples: "monsters" lists all monsters, "beasts" lists all beasts, "fire monsters" searches for monsters matching "fire", "all monsters" lists all monsters. Empty query lists all entities (only use when user doesn't specify entity types). Use "context:" prefix to search session digests (optional - note that session digests are temporary and get parsed into entities).`
       ),
     traverseFromEntityIds: z
       .array(z.string())
