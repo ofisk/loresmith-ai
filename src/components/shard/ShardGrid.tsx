@@ -292,26 +292,26 @@ export function ShardGrid({
                 <button
                   type="button"
                   onClick={() => handleBulkAction("approve")}
-                  className="flex items-center gap-1 px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600"
+                  className="flex items-center gap-2 font-semibold text-sm transition-colors text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
                 >
-                  <CheckSquare size={14} />
-                  Approve Selected
+                  <CheckSquare size={16} />
+                  Approve selected
                 </button>
                 <button
                   type="button"
                   onClick={() => handleBulkAction("reject")}
-                  className="flex items-center gap-1 px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600"
+                  className="flex items-center gap-2 font-semibold text-sm transition-colors text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                 >
-                  <Trash2 size={14} />
-                  Reject Selected
+                  <Trash2 size={16} />
+                  Reject selected
                 </button>
                 <button
                   type="button"
                   onClick={() => handleBulkAction("edit")}
-                  className="flex items-center gap-1 px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                  className="flex items-center gap-2 font-semibold text-sm transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                 >
-                  <Edit3 size={14} />
-                  Bulk Edit
+                  <Edit3 size={16} />
+                  Bulk edit
                 </button>
               </div>
             </div>
