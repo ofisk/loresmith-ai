@@ -309,9 +309,19 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             ?.content?.slice(0, 100),
         };
 
+        // Log compact request summary to avoid log size limits
         console.log(
           `[${this.constructor.name}] 🚀 Making OpenAI API request:`,
-          JSON.stringify(requestDetails, null, 2)
+          JSON.stringify({
+            agent: requestDetails.agent,
+            model: requestDetails.model,
+            messageCount: requestDetails.messageCount,
+            toolCount: requestDetails.toolCount,
+            toolNames: requestDetails.toolNames,
+            toolChoice: requestDetails.toolChoice,
+            maxSteps: requestDetails.maxSteps,
+            lastUserMessage: requestDetails.lastUserMessage,
+          })
         );
 
         try {
@@ -340,43 +350,60 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             onError: (errorObj) => {
               // Extract all error details
               const error = errorObj.error as Error & Record<string, any>;
+              const errorMessage = error?.message || String(error);
               const errorDetails = {
-                message: error?.message || String(error),
+                message: errorMessage,
                 name: error?.name || "Unknown",
-                stack: error?.stack,
                 // OpenAI specific fields
                 statusCode: error?.statusCode,
                 code: error?.code,
                 type: error?.type,
                 param: error?.param,
-                // Additional properties
-                ...Object.fromEntries(
-                  Object.entries(error || {}).filter(
-                    ([key]) => !["message", "name", "stack"].includes(key)
-                  )
-                ),
               };
 
               console.error(
                 `[${this.constructor.name}] ❌ OpenAI API Call Failed`
               );
+              // Log compact request summary instead of full details to avoid log size limits
               console.error(
-                `Request Details:`,
-                JSON.stringify(requestDetails, null, 2)
+                `Request Summary:`,
+                JSON.stringify({
+                  agent: requestDetails.agent,
+                  model: requestDetails.model,
+                  messageCount: requestDetails.messageCount,
+                  toolCount: requestDetails.toolCount,
+                  toolNames: requestDetails.toolNames,
+                })
               );
-              console.error(
-                `Error Details:`,
-                JSON.stringify(errorDetails, null, 2)
-              );
-              console.error(`Full Error Object:`, errorObj);
+              console.error(`Error:`, JSON.stringify(errorDetails));
+              // Only log stack trace if it's a small error (not a large request issue)
+              if (error?.stack && error.stack.length < 1000) {
+                console.error(`Stack:`, error.stack);
+              }
 
-              // Send error message to user
-              dataStream.write(
-                formatDataStreamPart(
-                  "text",
-                  "I apologize, but I encountered an error while processing your request. Please try again."
-                )
-              );
+              // Detect quota errors and provide helpful messaging
+              const isQuotaError =
+                errorMessage.includes("exceeded your current quota") ||
+                errorMessage.includes("quota") ||
+                errorMessage.includes("billing details") ||
+                errorMessage.includes("insufficient_quota");
+
+              // Send appropriate error message to user
+              if (isQuotaError) {
+                dataStream.write(
+                  formatDataStreamPart(
+                    "text",
+                    "I'm unable to process your request because your OpenAI API quota has been exceeded. If you've recently updated your billing, it may take a few minutes for the changes to take effect. Please wait 2-3 minutes and try again, or check your OpenAI billing settings at https://platform.openai.com/account/billing"
+                  )
+                );
+              } else {
+                dataStream.write(
+                  formatDataStreamPart(
+                    "text",
+                    "I apologize, but I encountered an error while processing your request. Please try again."
+                  )
+                );
+              }
             },
           });
 

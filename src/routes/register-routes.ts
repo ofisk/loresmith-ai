@@ -34,6 +34,7 @@ import {
   handleRetryEntityExtraction,
   handleGetEntityExtractionStatus,
   handleCleanupStuckEntityExtraction,
+  handleProcessEntityExtractionQueue,
   handleUpdateCampaign,
 } from "@/routes/campaigns";
 import {
@@ -286,6 +287,11 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.CAMPAIGNS.CLEANUP_STUCK_ENTITY_EXTRACTION,
     requireUserJwt,
     handleCleanupStuckEntityExtraction
+  );
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.PROCESS_ENTITY_EXTRACTION_QUEUE,
+    requireUserJwt,
+    handleProcessEntityExtractionQueue
   );
   app.delete(
     API_CONFIG.ENDPOINTS.CAMPAIGNS.DELETE(":campaignId"),

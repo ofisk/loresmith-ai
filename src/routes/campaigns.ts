@@ -832,3 +832,41 @@ export async function handleCleanupStuckEntityExtraction(c: ContextWithAuth) {
     );
   }
 }
+
+// Manually trigger entity extraction queue processing
+export async function handleProcessEntityExtractionQueue(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+
+    if (!userAuth) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    console.log(
+      `[Server] POST /campaigns/process-entity-extraction-queue - manually triggering queue processing for user ${userAuth.username}`
+    );
+
+    // Process queue for the current user
+    const result = await EntityExtractionQueueService.processQueue(
+      c.env,
+      userAuth.username
+    );
+
+    return c.json({
+      success: true,
+      processed: result.processed,
+      failed: result.failed,
+      message: `Processed ${result.processed} item(s), ${result.failed} failed`,
+    });
+  } catch (error) {
+    console.error("Error processing entity extraction queue:", error);
+    return c.json(
+      {
+        error: "Failed to process queue",
+        message:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      },
+      500
+    );
+  }
+}
