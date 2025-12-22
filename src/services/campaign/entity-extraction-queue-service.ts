@@ -2,7 +2,10 @@
 // Handles queuing and processing entity extraction jobs with rate limit handling and exponential backoff
 
 import { getDAOFactory } from "@/dao/dao-factory";
-import { EntityExtractionQueueDAO } from "@/dao/entity-extraction-queue-dao";
+import {
+  EntityExtractionQueueDAO,
+  type EntityExtractionQueueItem,
+} from "@/dao/entity-extraction-queue-dao";
 import { stageEntitiesFromResource } from "./entity-staging-service";
 import { getCampaignRagBasePath } from "@/lib/campaign-operations";
 import type { Env } from "@/middleware/auth";
@@ -102,6 +105,26 @@ export class EntityExtractionQueueService {
   ): Promise<{ processed: number; failed: number }> {
     const queueDAO = new EntityExtractionQueueDAO(env.DB);
     const daoFactory = getDAOFactory(env);
+
+    // First, check for and reset any stuck processing items for this user
+    // (This handles cases where a job got stuck before the scheduled cleanup ran)
+    if (username) {
+      const stuckItems = await queueDAO.getStuckProcessingItems(10);
+      const userStuckItems = stuckItems.filter(
+        (item) => item.username === username
+      );
+      if (userStuckItems.length > 0) {
+        console.log(
+          `[EntityExtractionQueue] Found ${userStuckItems.length} stuck processing item(s) for user ${username}, resetting`
+        );
+        for (const item of userStuckItems) {
+          await queueDAO.resetStuckProcessingItem(
+            item.id,
+            "Processing timeout detected during queue processing. Resetting to pending."
+          );
+        }
+      }
+    }
 
     // Get pending queue items
     const queueItems = username
@@ -276,6 +299,9 @@ export class EntityExtractionQueueService {
     try {
       const queueDAO = new EntityExtractionQueueDAO(env.DB);
 
+      // First, clean up stuck processing items
+      await EntityExtractionQueueService.cleanupStuckProcessingItems(env);
+
       // Get all usernames with pending items
       const usernames = await queueDAO.getUsernamesWithPendingItems();
 
@@ -319,6 +345,48 @@ export class EntityExtractionQueueService {
         "[EntityExtractionQueue] Error processing pending queue items:",
         error
       );
+    }
+  }
+
+  /**
+   * Clean up queue items that have been stuck in processing status for too long
+   * Resets them back to pending so they can be retried
+   */
+  static async cleanupStuckProcessingItems(
+    env: Env,
+    timeoutMinutes: number = 10
+  ): Promise<{ reset: number; items: EntityExtractionQueueItem[] }> {
+    try {
+      const queueDAO = new EntityExtractionQueueDAO(env.DB);
+
+      // Get stuck processing items
+      const stuckItems = await queueDAO.getStuckProcessingItems(timeoutMinutes);
+
+      if (stuckItems.length === 0) {
+        return { reset: 0, items: [] };
+      }
+
+      console.log(
+        `[EntityExtractionQueue] Found ${stuckItems.length} stuck processing item(s), resetting to pending`
+      );
+
+      // Reset each stuck item back to pending
+      for (const item of stuckItems) {
+        const errorMessage = `Processing timeout - job stuck in processing status for more than ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}. Resetting to pending for retry.`;
+        await queueDAO.resetStuckProcessingItem(item.id, errorMessage);
+
+        console.log(
+          `[EntityExtractionQueue] Reset stuck processing item ${item.id} (resource ${item.resource_id}) back to pending`
+        );
+      }
+
+      return { reset: stuckItems.length, items: stuckItems };
+    } catch (error) {
+      console.error(
+        "[EntityExtractionQueue] Error cleaning up stuck processing items:",
+        error
+      );
+      return { reset: 0, items: [] };
     }
   }
 }

@@ -97,6 +97,8 @@ export const API_CONFIG = {
         `/campaigns/${campaignId}/resource/${resourceId}/retry-entity-extraction`,
       ENTITY_EXTRACTION_STATUS: (campaignId: string, resourceId: string) =>
         `/campaigns/${campaignId}/resource/${resourceId}/entity-extraction-status`,
+      CLEANUP_STUCK_ENTITY_EXTRACTION:
+        "/campaigns/cleanup-stuck-entity-extraction",
       CONTEXT: (campaignId: string) => `/campaigns/${campaignId}/context`,
       CHARACTERS: (campaignId: string) => `/campaigns/${campaignId}/characters`,
       SUGGESTIONS: (campaignId: string) =>

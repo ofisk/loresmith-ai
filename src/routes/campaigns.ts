@@ -786,3 +786,49 @@ export async function handleGetEntityExtractionStatus(c: ContextWithAuth) {
     );
   }
 }
+
+// Clean up stuck entity extraction queue items
+export async function handleCleanupStuckEntityExtraction(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    const timeoutMinutes = parseInt(c.req.query("timeoutMinutes") || "10", 10);
+
+    if (!userAuth) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    console.log(
+      `[Server] POST /campaigns/cleanup-stuck-entity-extraction - timeoutMinutes: ${timeoutMinutes}`
+    );
+
+    const result =
+      await EntityExtractionQueueService.cleanupStuckProcessingItems(
+        c.env,
+        timeoutMinutes
+      );
+
+    return c.json({
+      success: true,
+      reset: result.reset,
+      items: result.items.map((item) => ({
+        id: item.id,
+        resourceId: item.resource_id,
+        resourceName: item.resource_name,
+        campaignId: item.campaign_id,
+        status: item.status,
+        updatedAt: item.updated_at,
+      })),
+      message: `Reset ${result.reset} stuck processing item(s) back to pending`,
+    });
+  } catch (error) {
+    console.error("Error cleaning up stuck entity extraction items:", error);
+    return c.json(
+      {
+        error: "Failed to clean up stuck items",
+        message:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      },
+      500
+    );
+  }
+}
