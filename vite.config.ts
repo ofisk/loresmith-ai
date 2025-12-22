@@ -5,7 +5,14 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [react(), cloudflare(), tailwindcss()],
+  plugins: [
+    react(),
+    cloudflare({
+      configPath: "./wrangler.dev.jsonc",
+      persistState: false, // Don't persist state
+    }),
+    tailwindcss(),
+  ],
   ssr: {
     noExternal: ["agents", "ai", "cron-schedule", "mimetext"],
   },
