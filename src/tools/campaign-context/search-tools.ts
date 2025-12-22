@@ -16,13 +16,6 @@ import { STRUCTURED_ENTITY_TYPES } from "../../lib/entity-types";
 // Dynamically build entity types list for descriptions
 const ENTITY_TYPES_LIST = STRUCTURED_ENTITY_TYPES.join(", ");
 
-// Build searchType enum dynamically from entity types plus special values
-const SEARCH_TYPE_OPTIONS: [string, ...string[]] = [
-  "all",
-  "context",
-  ...STRUCTURED_ENTITY_TYPES,
-];
-
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {
   if (context?.env) {
@@ -34,15 +27,111 @@ function getEnvFromContext(context: any): any {
   return null;
 }
 
+// Query intent parsing result
+interface QueryIntent {
+  entityType: string | null;
+  searchPlanningContext: boolean;
+  isListAll: boolean;
+  searchQuery: string;
+}
+
+/**
+ * Parse query string to infer search intent
+ * - Detects entity types in query (e.g., "monsters", "npcs")
+ * - Detects planning context intent via "context:" or "session:" prefix
+ * - Detects "list all" intent (empty query, just entity type, or "all <type>")
+ * - Extracts clean search query for semantic search
+ */
+function parseQueryIntent(query: string): QueryIntent {
+  const queryTrimmed = query.trim();
+  const queryLower = queryTrimmed.toLowerCase();
+
+  // Check for planning context prefix
+  const hasContextPrefix =
+    queryLower.startsWith("context:") || queryLower.startsWith("session:");
+  const searchPlanningContext = hasContextPrefix;
+
+  // Extract query without prefix for further processing
+  let queryWithoutPrefix = queryTrimmed;
+  if (hasContextPrefix) {
+    const colonIndex = queryTrimmed.indexOf(":");
+    queryWithoutPrefix = queryTrimmed.substring(colonIndex + 1).trim();
+  }
+
+  // Detect entity type in query (whole word matching)
+  let detectedEntityType: string | null = null;
+  for (const entityType of STRUCTURED_ENTITY_TYPES) {
+    // Match whole word to avoid false positives (e.g., "monsters" not "monster")
+    const regex = new RegExp(`\\b${entityType}\\b`, "i");
+    if (regex.test(queryWithoutPrefix)) {
+      detectedEntityType = entityType;
+      break; // Use first match
+    }
+  }
+
+  // Map entity type names to database entity types
+  const entityTypeMap: Record<string, string> = {
+    characters: "character",
+    resources: "resource",
+  };
+  const targetEntityType = detectedEntityType
+    ? entityTypeMap[detectedEntityType] || detectedEntityType
+    : null;
+
+  // Detect "list all" intent
+  let isListAll = false;
+  if (queryWithoutPrefix.length === 0) {
+    // Empty query (after removing prefix) → list all entities
+    isListAll = true;
+  } else if (detectedEntityType) {
+    const queryLowerNoPrefix = queryWithoutPrefix.toLowerCase();
+    const typeLower = detectedEntityType.toLowerCase();
+    // Check if query is just the entity type or "all <type>"
+    if (
+      queryLowerNoPrefix === typeLower ||
+      queryLowerNoPrefix === `all ${typeLower}` ||
+      queryLowerNoPrefix === `list ${typeLower}` ||
+      queryLowerNoPrefix === `list all ${typeLower}`
+    ) {
+      isListAll = true;
+    }
+  }
+
+  // Extract clean search query for semantic search
+  // Remove entity type keywords and "all" prefix
+  let searchQuery = queryWithoutPrefix;
+  if (detectedEntityType && !isListAll) {
+    // Remove entity type keyword from query for semantic search
+    const typeRegex = new RegExp(`\\b${detectedEntityType}\\b`, "gi");
+    searchQuery = searchQuery.replace(typeRegex, "").trim();
+    // Remove "all" prefix if present
+    searchQuery = searchQuery.replace(/^all\s+/i, "").trim();
+  }
+
+  return {
+    entityType: targetEntityType,
+    searchPlanningContext,
+    isListAll,
+    searchQuery,
+  };
+}
+
 // Tool to search campaign context
 export const searchCampaignContext = tool({
   description: `Search through campaign context using semantic search and graph traversal. 
 
 CRITICAL: Use this tool FIRST when users ask about entities "from my campaign", "in my world", "I've created", or similar phrases indicating existing campaign content. This tool retrieves the user's APPROVED entities (shards) that they've already added to their campaign. NEVER use searchExternalResources for entities the user has in their campaign.
 
-SEMANTIC SEARCH: Searches session digests (recaps, planning notes, key events), world state changelog entries, and entities via semantic similarity. Entity results include their actual relationships from the entity graph, showing which entities are connected and how (e.g., 'resides_in', 'located_in', 'allied_with'). Use this to find relevant past sessions, character development, plot threads, world state information, and all entity types including: ${ENTITY_TYPES_LIST}. Use searchType parameter to filter by specific entity types (e.g., 'characters' or 'locations').
+SEMANTIC SEARCH: Searches entities via semantic similarity. Entity results include their actual relationships from the entity graph, showing which entities are connected and how (e.g., 'resides_in', 'located_in', 'allied_with'). Use this to find relevant entities across all entity types including: ${ENTITY_TYPES_LIST}. 
 
-APPROVED ENTITIES AS CREATIVE BOUNDARIES: Approved entities (shards) in the campaign form the structural foundation for your responses. When users ask you to work with entities (creatures, NPCs, locations, etc.) from their campaign, you MUST first retrieve the relevant approved entities using this tool. These approved entities define the boundaries of what exists in their world. Within those boundaries, use your creative reasoning to interpret, match, adapt, or elaborate on the entities based on the user's request. The approved entities provide the outline - you fill in the creative details within that outline. For example, if asked to match creatures to themes, retrieve the user's approved creatures first (using query='' and searchType='monsters'), then creatively analyze how they might align with those themes based on their characteristics, even if the theme keywords aren't explicitly in the entity metadata.
+QUERY SYNTAX: The query string automatically infers search intent:
+- "monsters" → lists all monsters
+- "fire monsters" → searches for monsters matching "fire" 
+- "all monsters" → lists all monsters
+- Empty query → lists all entities
+- "context: session notes" → searches session digests (optional, for backward compatibility - note that session digests are temporary and get parsed into entities)
+
+APPROVED ENTITIES AS CREATIVE BOUNDARIES: Approved entities (shards) in the campaign form the structural foundation for your responses. When users ask you to work with entities (creatures, NPCs, locations, etc.) from their campaign, you MUST first retrieve the relevant approved entities using this tool. These approved entities define the boundaries of what exists in their world. Within those boundaries, use your creative reasoning to interpret, match, adapt, or elaborate on the entities based on the user's request. The approved entities provide the outline - you fill in the creative details within that outline. For example, if asked to match creatures to themes, retrieve the user's approved creatures first (using query="monsters" to list all monsters), then creatively analyze how they might align with those themes based on their characteristics, even if the theme keywords aren't explicitly in the entity metadata.
 
 GRAPH TRAVERSAL: After finding entities via semantic search, use graph traversal to explore connected entities. Provide traverseFromEntityIds (entity IDs from previous search results) to traverse the graph starting from those entities. Use traverseDepth (1-3) to control how many relationship hops to follow (1=direct neighbors, 2=neighbors of neighbors, etc.). Optionally filter by traverseRelationshipTypes to focus on specific relationship types (e.g., ['resides_in', 'located_in'] for location queries). Example workflow: (1) Search for "Location X" to find its entity ID, (2) Use traverseFromEntityIds with that ID and traverseRelationshipTypes=['resides_in'] to find all NPCs living there.
 
@@ -52,13 +141,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
     query: z
       .string()
       .describe(
-        `The search query - can include entity names, plot points, topics, or entity types like: ${ENTITY_TYPES_LIST}. Leave empty to retrieve ALL approved entities of the specified searchType (useful for creative matching workflows where you want to analyze all entities and match them to themes using LLM reasoning).`
-      ),
-    searchType: z
-      .enum(SEARCH_TYPE_OPTIONS)
-      .optional()
-      .describe(
-        `Type of content to search (default: all). 'context' searches session digests and changelog; any entity type (e.g., ${STRUCTURED_ENTITY_TYPES.slice(0, 5).join(", ")}, etc.) filters entities by that specific type; 'all' uses semantic search to find any entity type (${ENTITY_TYPES_LIST}) plus session digests and changelog`
+        `The search query - can include entity names, plot points, topics, or entity types like: ${ENTITY_TYPES_LIST}. The tool automatically infers the entity type from your query. Examples: "monsters" lists all monsters, "fire monsters" searches for monsters matching "fire", "all monsters" lists all monsters, empty query lists all entities. Use "context:" prefix to search session digests (optional - note that session digests are temporary and get parsed into entities).`
       ),
     traverseFromEntityIds: z
       .array(z.string())
@@ -94,7 +177,6 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
     {
       campaignId,
       query,
-      searchType = "all",
       traverseFromEntityIds,
       traverseDepth = 1,
       traverseRelationshipTypes,
@@ -107,10 +189,13 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
     const toolCallId = context?.toolCallId || "unknown";
     console.log("[searchCampaignContext] Using toolCallId:", toolCallId);
 
+    // Parse query intent
+    const queryIntent = parseQueryIntent(query);
+
     console.log("[Tool] searchCampaignContext received:", {
       campaignId,
       query,
-      searchType,
+      queryIntent,
       traverseFromEntityIds,
       traverseDepth,
       traverseRelationshipTypes,
@@ -171,8 +256,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
 
         const results: any[] = [];
         const daoFactory = getDAOFactory(env);
-        const requiresPlanningContext =
-          searchType === "all" || searchType === "context";
+        const requiresPlanningContext = queryIntent.searchPlanningContext;
         let planningService: PlanningContextService | null = null;
 
         try {
@@ -200,14 +284,19 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
 
         // Primary search: Use PlanningContextService for semantic search of session digests and changelog
         // This searches through session recaps, planning notes, key events, and world state changes
-        if (requiresPlanningContext && planningService) {
+        // Note: Session digests are temporary and get parsed into entities, so this is optional
+        if (
+          requiresPlanningContext &&
+          planningService &&
+          queryIntent.searchQuery.length > 0
+        ) {
           console.log(
             "[Tool] searchCampaignContext - Using PlanningContextService for semantic search"
           );
 
           const planningResults = await planningService.search({
             campaignId,
-            query,
+            query: queryIntent.searchQuery,
             limit: 10,
             applyRecencyWeighting: true,
           });
@@ -236,36 +325,52 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
         }
 
         // Secondary search: Entity search (${ENTITY_TYPES_LIST})
-        // If searchType is a valid entity type, filter by that type; if 'all', uses semantic search for any entity type
-        const isEntityTypeSearch =
-          searchType === "all" ||
-          (searchType && STRUCTURED_ENTITY_TYPES.includes(searchType as any));
-
-        if (isEntityTypeSearch) {
+        // Always search entities unless query explicitly requests planning context only
+        if (!requiresPlanningContext || queryIntent.entityType) {
           try {
             let entities: Awaited<
               ReturnType<typeof daoFactory.entityDAO.listEntitiesByCampaign>
             > = [];
 
-            // Map legacy searchType values to their entity types
-            const entityTypeMap: Record<string, string> = {
-              characters: "character",
-              resources: "resource",
-            };
-            const targetEntityType =
-              searchType && searchType !== "all"
-                ? entityTypeMap[searchType] || (searchType as string)
-                : null;
+            const targetEntityType = queryIntent.entityType;
 
-            // If a query is provided, always use semantic/keyword search to respect the query
-            // Only fall back to listing all entities if no query is provided
-            if (query && query.trim().length > 0) {
+            // If queryIntent indicates list-all, or if we have a search query, proceed
+            if (queryIntent.isListAll) {
+              // List all entities of the requested type (or all entities if no type specified)
+              if (targetEntityType) {
+                entities = await daoFactory.entityDAO.listEntitiesByCampaign(
+                  campaignId,
+                  {
+                    entityType: targetEntityType,
+                    limit: 100,
+                  }
+                );
+                console.log(
+                  `[Tool] searchCampaignContext - Listing all ${entities.length} entities of type: ${targetEntityType}`
+                );
+              } else {
+                // No entity type specified, list all entities
+                entities = await daoFactory.entityDAO.listEntitiesByCampaign(
+                  campaignId,
+                  { limit: 100 }
+                );
+                console.log(
+                  `[Tool] searchCampaignContext - Listing all ${entities.length} entities`
+                );
+              }
+            } else if (
+              queryIntent.searchQuery &&
+              queryIntent.searchQuery.trim().length > 0
+            ) {
+              // Use semantic/keyword search to respect the query
               // Use semantic search to find entities matching the query
               try {
                 if (planningService && env.VECTORIZE) {
                   // Use PlanningContextService to generate embeddings
                   const queryEmbeddings =
-                    await planningService.generateEmbeddings([query]);
+                    await planningService.generateEmbeddings([
+                      queryIntent.searchQuery,
+                    ]);
                   const queryEmbedding = queryEmbeddings[0];
 
                   if (queryEmbedding) {
@@ -318,7 +423,9 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                 try {
                   if (planningService) {
                     const queryEmbeddings =
-                      await planningService.generateEmbeddings([query]);
+                      await planningService.generateEmbeddings([
+                        queryIntent.searchQuery,
+                      ]);
                     const queryEmbedding = queryEmbeddings[0];
 
                     if (queryEmbedding) {
@@ -326,7 +433,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                       const entityIds =
                         await planningService.findMatchingEntityIds(
                           campaignId,
-                          query,
+                          queryIntent.searchQuery,
                           queryEmbedding,
                           20
                         );
@@ -357,9 +464,11 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                 // If still no entities, fall back to simple keyword search
                 if (!entities || entities.length === 0) {
                   // Extract meaningful keywords - include the full query as a keyword too
-                  const words = query.split(/\s+/).filter((w) => w.length > 2);
+                  const words = queryIntent.searchQuery
+                    .split(/\s+/)
+                    .filter((w) => w.length > 2);
                   const keywordNames = [
-                    query.toLowerCase(), // Try full query as one keyword
+                    queryIntent.searchQuery.toLowerCase(), // Try full query as one keyword
                     ...words.map((w) => w.toLowerCase()),
                   ].slice(0, 10);
 
@@ -379,7 +488,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                 }
               }
 
-              // Filter by entityType if searchType is a specific entity type
+              // Filter by entityType if a specific entity type was detected
               if (targetEntityType && entities.length > 0) {
                 const beforeFilter = entities.length;
                 entities = entities.filter(
@@ -388,26 +497,6 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                 console.log(
                   `[Tool] searchCampaignContext - Filtered from ${beforeFilter} to ${entities.length} entities matching entityType: ${targetEntityType}`
                 );
-              }
-            } else {
-              // No query provided - list all entities of the requested type (backward compatibility)
-              if (targetEntityType) {
-                entities = await daoFactory.entityDAO.listEntitiesByCampaign(
-                  campaignId,
-                  {
-                    entityType: targetEntityType,
-                    limit: 100,
-                  }
-                );
-                console.log(
-                  `[Tool] searchCampaignContext - No query provided, listing all ${entities.length} entities of type: ${targetEntityType}`
-                );
-              } else {
-                // searchType is "all" and no query - should not happen, but handle gracefully
-                console.warn(
-                  "[Tool] searchCampaignContext - No query provided and searchType is 'all', returning empty results"
-                );
-                entities = [];
               }
             }
 
@@ -874,11 +963,14 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
         // Sort results by score (highest first)
         results.sort((a, b) => (b.score || 0) - (a.score || 0));
 
+        const entityTypeLabel = queryIntent.entityType
+          ? ` (${queryIntent.entityType})`
+          : "";
         return createToolSuccess(
-          `Found ${results.length} results for "${query}"${searchType && searchType !== "all" ? ` in ${searchType}` : ""}`,
+          `Found ${results.length} results for "${query}"${entityTypeLabel}`,
           {
             query,
-            searchType,
+            queryIntent,
             results,
             totalCount: results.length,
           },
