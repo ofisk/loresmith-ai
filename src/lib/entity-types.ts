@@ -143,6 +143,36 @@ export function getEntityTypeDisplayName(type: StructuredEntityType): string {
 }
 
 /**
+ * Entity types that are especially relevant for campaign readiness
+ * analysis and graph connectivity checks (NPCs, factions, locations, hooks, etc.).
+ * Centralizing this list here ensures new types can be added in one place.
+ */
+export const CAMPAIGN_READINESS_ENTITY_TYPES: StructuredEntityType[] = [
+  "npcs",
+  "characters",
+  "player_characters",
+  "character_sheets",
+  "factions",
+  "locations",
+  "lairs",
+  "hooks",
+  "quests",
+  "plot_lines",
+  "scenes",
+] as const;
+
+/**
+ * Readiness buckets for grouping entity types into higher-level concepts.
+ * These are used for campaign readiness guidance (e.g., \"NPC-like\", \"location-like\").
+ */
+export const READINESS_ENTITY_BUCKETS = {
+  npcLike: ["npcs", "characters", "player_characters", "character_sheets"],
+  factionLike: ["factions"],
+  locationLike: ["locations", "lairs", "scenes"],
+  hookLike: ["hooks", "quests", "plot_lines", "scenes"],
+} satisfies Record<string, StructuredEntityType[]>;
+
+/**
  * Extraction hints for each entity type to guide the LLM in identifying content.
  * These hints describe common patterns, keywords, and structures to look for.
  */

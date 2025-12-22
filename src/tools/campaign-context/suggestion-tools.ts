@@ -12,6 +12,14 @@ import { getAssessmentService } from "../../lib/service-factory";
 import { CharacterEntitySyncService } from "../../services/campaign/character-entity-sync-service";
 import { PlanningContextService } from "../../services/rag/planning-context-service";
 import type { Env } from "../../middleware/auth";
+import { getDAOFactory } from "../../dao/dao-factory";
+import { EntityGraphService } from "../../services/graph/entity-graph-service";
+import {
+  CAMPAIGN_READINESS_ENTITY_TYPES,
+  READINESS_ENTITY_BUCKETS,
+  type StructuredEntityType,
+  isValidEntityType,
+} from "../../lib/entity-types";
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {
@@ -438,88 +446,210 @@ function generateSuggestions(
   return suggestions;
 }
 
+interface EntityReadinessStats {
+  entityTypeCounts: Record<string, number>;
+  lowRelationshipEntities: {
+    id: string;
+    name: string;
+    entityType: string;
+    relationshipCount: number;
+  }[];
+}
+
+interface SemanticChecklistAnalysis {
+  coverage: Record<string, boolean>;
+  entityStats?: EntityReadinessStats;
+}
+
 /**
  * Performs semantic search to check for checklist coverage
- * Returns an object indicating which checklist items appear to be covered
+ * Returns coverage booleans plus entity stats for richer readiness guidance
  */
 async function performSemanticChecklistAnalysis(
   env: Env,
   campaignId: string
-): Promise<Record<string, boolean>> {
+): Promise<SemanticChecklistAnalysis> {
   const coverage: Record<string, boolean> = {};
+  let entityStats: EntityReadinessStats | undefined;
 
   try {
     if (!env.DB || !env.VECTORIZE || !env.OPENAI_API_KEY) {
-      // Semantic search not available, return empty coverage
-      return {};
+      // Semantic search not available, return empty coverage/stats
+      return { coverage, entityStats };
     }
 
-    const planningService = new PlanningContextService(
-      env.DB,
-      env.VECTORIZE,
-      env.OPENAI_API_KEY,
-      env
-    );
+    // 1) Check existing planning-context index for checklist coverage
+    try {
+      const planningService = new PlanningContextService(
+        env.DB,
+        env.VECTORIZE,
+        env.OPENAI_API_KEY,
+        env
+      );
 
-    // Key checklist items to check for
-    const checklistQueries = [
-      {
-        key: "campaign_tone",
-        query: "campaign tone mood heroic grim cozy political",
-      },
-      {
-        key: "core_themes",
-        query: "core themes power faith legacy corruption",
-      },
-      { key: "world_name", query: "world name region setting location" },
-      {
-        key: "cultural_trait",
-        query: "cultural trait dominant culture society",
-      },
-      { key: "magic_system", query: "magic system common magic people react" },
-      {
-        key: "starting_location",
-        query: "starting town city location hub area",
-      },
-      {
-        key: "starting_npcs",
-        query: "NPCs non-player characters starting location",
-      },
-      {
-        key: "factions",
-        query: "factions organizations groups conflicting goals",
-      },
-      {
-        key: "campaign_pitch",
-        query: "campaign elevator pitch summary description",
-      },
-    ];
+      const checklistQueries = [
+        {
+          key: "campaign_tone",
+          query:
+            "overall campaign tone and mood for this game (for example lighthearted, grim, cozy, political, mythic, horror, epic), as implied by the campaign description, tags, GM notes, and the most prominent entities",
+        },
+        {
+          key: "core_themes",
+          query:
+            "core themes and central ideas of the campaign (for example power, faith, legacy, corruption, found family, rebellion), as described in campaign notes, worldbuilding text, or recurring entities and factions",
+        },
+        {
+          key: "world_name",
+          query:
+            "the proper-name of the campaign world or primary region (for example a world, continent, or plane name) mentioned in campaign description or setting notes",
+        },
+        {
+          key: "cultural_trait",
+          query:
+            "dominant cultural traits or societal norms that define everyday life in the main region (attitudes, customs, taboos, social structures)",
+        },
+        {
+          key: "magic_system",
+          query:
+            "how magic works in this setting, how common it is, and how people react to it, based on setting descriptions, notes, and rules variants",
+        },
+        {
+          key: "starting_location",
+          query:
+            "the main starting town, city, or hub location for the campaign (its name and a short description of why people live there and what's notable about it)",
+        },
+        {
+          key: "starting_npcs",
+          query:
+            "important NPCs present in the starting area (names, roles, goals, or fears) that the party is likely to meet early in the campaign",
+        },
+        {
+          key: "factions",
+          query:
+            "factions or organizations with conflicting goals or agendas in the campaign world, including what they want and how they operate",
+        },
+        {
+          key: "campaign_pitch",
+          query:
+            "a short 1–2 sentence campaign elevator pitch or summary that describes the premise, tone, and stakes of the campaign",
+        },
+      ];
 
-    // Search for each checklist item
-    for (const { key, query } of checklistQueries) {
-      try {
-        const results = await planningService.search({
-          campaignId,
-          query,
-          limit: 3,
-        });
+      for (const { key, query } of checklistQueries) {
+        try {
+          const results = await planningService.search({
+            campaignId,
+            query,
+            limit: 3,
+          });
 
-        // Consider covered if we find at least one relevant result with good similarity
-        coverage[key] = results.length > 0 && results[0].similarityScore > 0.6;
-      } catch (error) {
-        console.warn(`[SemanticAnalysis] Failed to search for ${key}:`, error);
-        coverage[key] = false;
+          // Consider covered if we find at least one relevant result with good similarity
+          coverage[key] =
+            results.length > 0 && results[0].similarityScore > 0.6;
+        } catch (error) {
+          console.warn(
+            `[SemanticAnalysis] Failed to search planning context for ${key}:`,
+            error
+          );
+          coverage[key] = coverage[key] ?? false;
+        }
       }
+    } catch (error) {
+      console.warn(
+        "[SemanticAnalysis] Failed to query planning context index:",
+        error
+      );
+    }
+
+    // 2) Also analyze entities + graph relationships for readiness guidance
+    try {
+      const daoFactory = getDAOFactory(env);
+      const entityDAO = daoFactory.entityDAO;
+      const graphService = new EntityGraphService(entityDAO);
+
+      const allEntities = await entityDAO.listEntitiesByCampaign(campaignId);
+
+      const entityTypeCounts: Record<string, number> = {};
+      for (const entity of allEntities) {
+        const type = entity.entityType || "unknown";
+        // Only count known structured entity types; this keeps stats aligned with
+        // our canonical ENTITY_TYPE registry while still allowing new types to be added there.
+        if (!isValidEntityType(type)) continue;
+        entityTypeCounts[type] = (entityTypeCounts[type] || 0) + 1;
+      }
+
+      // Treat conversational theme_preference entities as covering tone + core themes
+      for (const entity of allEntities) {
+        if (entity.entityType !== "conversational_context") continue;
+        const metadata = (entity.metadata || {}) as Record<string, unknown>;
+        const noteType = (metadata.noteType as string) || "";
+        if (noteType === "theme_preference") {
+          coverage["campaign_tone"] = true;
+          coverage["core_themes"] = true;
+        }
+      }
+
+      // Identify entities with very few relationships (< 3) for follow-up guidance
+      const lowRelationshipEntities: EntityReadinessStats["lowRelationshipEntities"] =
+        [];
+
+      const interestingTypes = new Set<StructuredEntityType>(
+        CAMPAIGN_READINESS_ENTITY_TYPES
+      );
+
+      for (const entity of allEntities) {
+        const rawType = entity.entityType || "unknown";
+        if (!isValidEntityType(rawType)) continue;
+        if (!interestingTypes.has(rawType)) continue;
+
+        let relationshipCount = 0;
+        try {
+          const relationships = await graphService.getRelationshipsForEntity(
+            campaignId,
+            entity.id
+          );
+          relationshipCount = relationships.length;
+        } catch (error) {
+          console.warn(
+            `[SemanticAnalysis] Failed to load relationships for entity ${entity.id}:`,
+            error
+          );
+        }
+
+        if (relationshipCount < 3) {
+          lowRelationshipEntities.push({
+            id: entity.id,
+            name: entity.name,
+            entityType: entity.entityType,
+            relationshipCount,
+          });
+        }
+      }
+
+      // Sort by relationship count (fewest first) and cap for safety
+      lowRelationshipEntities.sort(
+        (a, b) => a.relationshipCount - b.relationshipCount
+      );
+
+      entityStats = {
+        entityTypeCounts,
+        lowRelationshipEntities: lowRelationshipEntities.slice(0, 50),
+      };
+    } catch (error) {
+      console.warn(
+        "[SemanticAnalysis] Failed to analyze entities/graph for readiness:",
+        error
+      );
     }
   } catch (error) {
     console.warn(
       "[SemanticAnalysis] Failed to perform semantic analysis:",
       error
     );
-    // If semantic search fails, we'll just return empty coverage
+    // If semantic search fails, we'll just return empty coverage/stats
   }
 
-  return coverage;
+  return { coverage, entityStats };
 }
 
 // Helper function to perform readiness assessment
@@ -528,7 +658,7 @@ function performReadinessAssessment(
   characters: any[],
   resources: any[],
   context: any[],
-  semanticAnalysis?: Record<string, boolean>
+  semanticAnalysis?: SemanticChecklistAnalysis
 ): any {
   let score = 0;
   const recommendations = [];
@@ -559,32 +689,91 @@ function performReadinessAssessment(
   // Cap score at 100
   score = Math.min(score, 100);
 
+  const coverage = semanticAnalysis?.coverage;
+  const entityStats = semanticAnalysis?.entityStats;
+
   // Generate recommendations based on semantic analysis if available
-  if (semanticAnalysis) {
-    if (!semanticAnalysis.campaign_tone) {
+  if (coverage) {
+    if (!coverage.campaign_tone) {
       recommendations.push(
         "Define campaign tone (heroic, grim, cozy, etc.) - You can chat with me about this or upload files containing tone descriptions"
       );
     }
-    if (!semanticAnalysis.core_themes) {
+    if (!coverage.core_themes) {
       recommendations.push(
         "Define core themes for your campaign - You can discuss themes with me or upload documents that describe your campaign themes"
       );
     }
-    if (!semanticAnalysis.world_name) {
+    if (!coverage.world_name) {
       recommendations.push(
         "Name your campaign world or region - You can tell me the name or upload files that mention the world name"
       );
     }
-    if (!semanticAnalysis.starting_location) {
+    if (!coverage.starting_location) {
       recommendations.push(
         "Establish your starting location - You can describe it in chat or upload location descriptions from your notes"
       );
     }
-    if (!semanticAnalysis.factions) {
+    if (!coverage.factions) {
       recommendations.push(
         "Define factions or organizations in your world - You can discuss them with me or upload documents describing your factions"
       );
+    }
+
+    // Additional guidance based on entity coverage/stats
+    if (entityStats) {
+      const counts = entityStats.entityTypeCounts;
+
+      const sumBucket = (bucket: StructuredEntityType[]) =>
+        bucket.reduce((sum, type) => sum + (counts[type] || 0), 0);
+
+      const npcCount = sumBucket(READINESS_ENTITY_BUCKETS.npcLike);
+      if (npcCount < 3) {
+        recommendations.push(
+          "Create 3–5 named NPCs tied to your starting location (allies, patrons, troublemakers)."
+        );
+      }
+
+      const factionCount = sumBucket(READINESS_ENTITY_BUCKETS.factionLike);
+      if (factionCount < 2) {
+        recommendations.push(
+          "Define at least two factions with conflicting goals to drive tension in your campaign."
+        );
+      }
+
+      const locationCount = sumBucket(READINESS_ENTITY_BUCKETS.locationLike);
+      if (locationCount === 0) {
+        recommendations.push(
+          "Establish your starting town or hub area with a few key locations players can visit."
+        );
+      }
+
+      const hookCount = sumBucket(READINESS_ENTITY_BUCKETS.hookLike);
+      if (hookCount === 0) {
+        recommendations.push(
+          "Create 2–3 concrete adventure hooks or quests the party can pursue next."
+        );
+      }
+
+      const lowRel = entityStats.lowRelationshipEntities;
+      if (lowRel && lowRel.length > 0) {
+        const names = lowRel
+          .slice(0, 3)
+          .map((e) => e.name)
+          .filter(Boolean);
+
+        if (names.length > 0) {
+          recommendations.push(
+            `Deepen your world by adding relationships for key entities like ${names.join(
+              ", "
+            )} (aim for at least 3 connections each to NPCs, locations, and factions).`
+          );
+        } else {
+          recommendations.push(
+            "Many entities in your world only connect to 0–2 others. Add more relationships between NPCs, factions, and locations to make the world feel interconnected."
+          );
+        }
+      }
     }
   } else {
     // Fallback to count-based recommendations if semantic analysis unavailable
