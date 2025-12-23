@@ -339,6 +339,26 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               console.log(
                 `[${this.constructor.name}] onFinish steps count: ${args.steps?.length || 0}`
               );
+              // Log tool calls to help debug entity query issues
+              if (args.steps) {
+                const toolCalls = args.steps
+                  .flatMap((step) => step.toolCalls || [])
+                  .filter((call) => call.toolName === "searchCampaignContext");
+                if (toolCalls.length > 0) {
+                  console.log(
+                    `[${this.constructor.name}] searchCampaignContext was called ${toolCalls.length} time(s)`
+                  );
+                  toolCalls.forEach((call, idx) => {
+                    console.log(
+                      `[${this.constructor.name}] Tool call ${idx + 1}: query="${call.args?.query || "MISSING"}"`
+                    );
+                  });
+                } else {
+                  console.log(
+                    `[${this.constructor.name}] WARNING: searchCampaignContext was NOT called despite entity query`
+                  );
+                }
+              }
               // Convert the finish args to ChatMessage format
               const message: any = {
                 role: "assistant" as const,
