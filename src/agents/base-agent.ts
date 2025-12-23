@@ -194,20 +194,6 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             `[${this.constructor.name}] User message content:`,
             userContent
           );
-          // Check if this looks like an entity query
-          const hasEntityKeywords =
-            /\b(monster|beast|creature|npc|character|location|faction|hook)\w*\b/i.test(
-              userContent
-            );
-          const hasCampaignPhrase =
-            /\b(from my campaign|in my world|in my campaign|from my world|i've created|i have)\b/i.test(
-              userContent
-            );
-          if (hasEntityKeywords && hasCampaignPhrase) {
-            console.log(
-              `[${this.constructor.name}] ⚠️ DETECTED ENTITY QUERY - searchCampaignContext MUST be called`
-            );
-          }
         }
         console.log(
           `[${this.constructor.name}] About to call streamText with maxSteps: 2...`
@@ -284,9 +270,11 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           { isStaleCommand }
         );
 
-        // Use tools if available, otherwise use none
+        // Determine tool choice: require tool usage when tools are available
+        // This ensures the LLM makes an explicit decision about tool usage
+        // The noOpTool allows the LLM to opt out if truly no tool is needed
         const toolChoice =
-          Object.keys(enhancedTools).length > 0 ? "auto" : "none";
+          Object.keys(enhancedTools).length > 0 ? "required" : "none";
 
         // Stream the AI response using the provided model
         console.log(
@@ -357,23 +345,29 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               console.log(
                 `[${this.constructor.name}] onFinish steps count: ${args.steps?.length || 0}`
               );
-              // Log tool calls to help debug entity query issues
+              // Log tool calls for debugging
               if (args.steps) {
-                const toolCalls = args.steps
-                  .flatMap((step) => step.toolCalls || [])
-                  .filter((call) => call.toolName === "searchCampaignContext");
-                if (toolCalls.length > 0) {
+                const allToolCalls = args.steps.flatMap(
+                  (step) => step.toolCalls || []
+                );
+                if (allToolCalls.length > 0) {
                   console.log(
-                    `[${this.constructor.name}] searchCampaignContext was called ${toolCalls.length} time(s)`
+                    `[${this.constructor.name}] Tools called: ${allToolCalls.map((call) => call.toolName).join(", ")}`
                   );
-                  toolCalls.forEach((call, idx) => {
-                    console.log(
-                      `[${this.constructor.name}] Tool call ${idx + 1}: query="${call.args?.query || "MISSING"}"`
-                    );
-                  });
+                  const searchCalls = allToolCalls.filter(
+                    (call) => call.toolName === "searchCampaignContext"
+                  );
+                  if (searchCalls.length > 0) {
+                    searchCalls.forEach((call, idx) => {
+                      console.log(
+                        `[${this.constructor.name}] searchCampaignContext call ${idx + 1}: query="${call.args?.query || "MISSING"}"`
+                      );
+                    });
+                  }
                 } else {
-                  console.log(
-                    `[${this.constructor.name}] WARNING: searchCampaignContext was NOT called despite entity query`
+                  // This should not happen with toolChoice: "required", but log it if it does
+                  console.warn(
+                    `[${this.constructor.name}] ⚠️ WARNING: No tools were called despite toolChoice: "required". This may indicate an issue with the LLM or tool configuration.`
                   );
                 }
               }

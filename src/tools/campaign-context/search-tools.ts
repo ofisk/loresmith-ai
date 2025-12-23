@@ -142,6 +142,8 @@ APPROVED ENTITIES AS CREATIVE BOUNDARIES: Approved entities (shards) in the camp
 
 GRAPH TRAVERSAL: After finding entities via semantic search, use graph traversal to explore connected entities. Provide traverseFromEntityIds (entity IDs from previous search results) to traverse the graph starting from those entities. Use traverseDepth (1-3) to control how many relationship hops to follow (1=direct neighbors, 2=neighbors of neighbors, etc.). Optionally filter by traverseRelationshipTypes to focus on specific relationship types (e.g., ['resides_in', 'located_in'] for location queries). Example workflow: (1) Search for "Location X" to find its entity ID, (2) Use traverseFromEntityIds with that ID and traverseRelationshipTypes=['resides_in'] to find all NPCs living there.
 
+PAGINATION: The tool supports pagination via offset and limit parameters (default: offset=0, limit=25, max limit=50). If the response indicates there are more results (check the pagination.hasMore field), use the nextOffset value to retrieve the next page. Example: If the first call returns pagination.hasMore=true and pagination.nextOffset=25, call the tool again with offset=25 to get the next page. Continue until hasMore=false to retrieve all results.
+
 CRITICAL: Entity results include explicit relationships from the entity graph. ONLY use explicit relationships shown in the results. Do NOT infer relationships from entity content text, entity names, or descriptions. If a relationship is not explicitly listed, it does NOT exist in the entity graph.`,
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
@@ -178,6 +180,25 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
       .describe(
         "Whether to include traversed entities in results (default: true). Set to false if you only want to see relationships without the full entity details."
       ),
+    offset: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .default(0)
+      .describe(
+        "Offset for pagination (default: 0). Use this to page through results. If the response indicates there are more results, increment the offset by the limit to get the next page."
+      ),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(50)
+      .optional()
+      .default(25)
+      .describe(
+        "Maximum number of results to return (default: 25, max: 50). Use pagination (offset) to retrieve additional results if needed."
+      ),
     jwt: commonSchemas.jwt,
   }),
   execute: async (
@@ -188,6 +209,8 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
       traverseDepth = 1,
       traverseRelationshipTypes,
       includeTraversedEntities = true,
+      offset = 0,
+      limit = 25,
       jwt,
     },
     context?: any
@@ -349,25 +372,29 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
             // If queryIntent indicates list-all, or if we have a search query, proceed
             if (queryIntent.isListAll) {
               // List all entities of the requested type (or all entities if no type specified)
+              // Use pagination to avoid token limit issues when returning large result sets
+              // Request limit+1 to check if there are more results
+              const queryLimit = limit + 1;
               if (targetEntityType) {
                 entities = await daoFactory.entityDAO.listEntitiesByCampaign(
                   campaignId,
                   {
                     entityType: targetEntityType,
-                    limit: 100,
+                    limit: queryLimit,
+                    offset,
                   }
                 );
                 console.log(
-                  `[Tool] searchCampaignContext - Listing all ${entities.length} entities of type: ${targetEntityType}`
+                  `[Tool] searchCampaignContext - Listing entities of type: ${targetEntityType} (offset: ${offset}, limit: ${limit})`
                 );
               } else {
                 // No entity type specified, list all entities
                 entities = await daoFactory.entityDAO.listEntitiesByCampaign(
                   campaignId,
-                  { limit: 100 }
+                  { limit: queryLimit, offset }
                 );
                 console.log(
-                  `[Tool] searchCampaignContext - Listing all ${entities.length} entities`
+                  `[Tool] searchCampaignContext - Listing all entities (offset: ${offset}, limit: ${limit})`
                 );
               }
             } else if (
@@ -986,16 +1013,32 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
         // Sort results by score (highest first)
         results.sort((a, b) => (b.score || 0) - (a.score || 0));
 
+        // Check if there are more results (for list-all queries, we requested limit+1)
+        let hasMore = false;
+        let actualResults = results;
+        if (queryIntent.isListAll && results.length > limit) {
+          hasMore = true;
+          actualResults = results.slice(0, limit);
+        }
+
         const entityTypeLabel = queryIntent.entityType
           ? ` (${queryIntent.entityType})`
           : "";
+        const paginationInfo = hasMore
+          ? ` (showing ${actualResults.length} of ${results.length}+ results, use offset=${offset + limit} to get more)`
+          : "";
         return createToolSuccess(
-          `Found ${results.length} results for "${query}"${entityTypeLabel}`,
+          `Found ${actualResults.length} results for "${query}"${entityTypeLabel}${paginationInfo}`,
           {
             query,
             queryIntent,
-            results,
-            totalCount: results.length,
+            results: actualResults,
+            pagination: {
+              offset,
+              limit,
+              hasMore,
+              nextOffset: hasMore ? offset + limit : undefined,
+            },
           },
           toolCallId
         );
