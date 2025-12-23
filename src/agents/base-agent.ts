@@ -186,10 +186,28 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           Object.keys(this.tools)
         );
         if (lastUserMessage) {
+          const userContent =
+            typeof lastUserMessage.content === "string"
+              ? lastUserMessage.content
+              : JSON.stringify(lastUserMessage.content);
           console.log(
             `[${this.constructor.name}] User message content:`,
-            lastUserMessage.content
+            userContent
           );
+          // Check if this looks like an entity query
+          const hasEntityKeywords =
+            /\b(monster|beast|creature|npc|character|location|faction|hook)\w*\b/i.test(
+              userContent
+            );
+          const hasCampaignPhrase =
+            /\b(from my campaign|in my world|in my campaign|from my world|i've created|i have)\b/i.test(
+              userContent
+            );
+          if (hasEntityKeywords && hasCampaignPhrase) {
+            console.log(
+              `[${this.constructor.name}] ⚠️ DETECTED ENTITY QUERY - searchCampaignContext MUST be called`
+            );
+          }
         }
         console.log(
           `[${this.constructor.name}] About to call streamText with maxSteps: 2...`
