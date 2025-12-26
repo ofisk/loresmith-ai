@@ -239,7 +239,7 @@ describe("ShardOverlay", () => {
     // onAutoExpand is not called automatically - it's only called if explicitly triggered
     // So we just verify the component renders with the new shards
     // Use getAllByText since there may be multiple instances
-    const elements = screen.getAllByText((content, element) => {
+    const elements = screen.getAllByText((_content, element) => {
       return (
         element?.textContent === "2" ||
         element?.textContent?.includes("2 shards")

@@ -1,5 +1,4 @@
 import {
-  Bug,
   MapPin,
   Trash,
   NotePencil,
@@ -9,15 +8,12 @@ import {
 import { Button } from "@/components/button/Button";
 import { HelpButton } from "@/components/help/HelpButton";
 import { TopBarNotifications } from "@/components/notifications/TopBarNotifications";
-import { Toggle } from "@/components/toggle/Toggle";
 import loresmith from "@/assets/loresmith.png";
 import type { NotificationPayload } from "@/durable-objects/notification-hub";
 import type { Campaign } from "@/types/campaign";
 import { AuthService } from "@/services/core/auth-service";
 
 interface AppHeaderProps {
-  showDebug: boolean;
-  onToggleDebug: () => void;
   onClearHistory: () => void;
   onHelpAction: (action: string) => void;
   onGuidanceRequest: () => void;
@@ -45,8 +41,6 @@ interface AppHeaderProps {
  * AppHeader component - Top navigation bar with logo, controls, and notifications
  */
 export function AppHeader({
-  showDebug,
-  onToggleDebug,
   onClearHistory,
   onHelpAction,
   onGuidanceRequest,
@@ -111,15 +105,6 @@ export function AppHeader({
             ))}
           </select>
         </div>
-      </div>
-
-      <div className="flex items-center gap-2 mr-2">
-        <Bug size={16} />
-        <Toggle
-          toggled={showDebug}
-          aria-label="Toggle debug mode"
-          onClick={onToggleDebug}
-        />
       </div>
 
       {onSessionRecapRequest && (

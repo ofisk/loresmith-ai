@@ -348,7 +348,7 @@ export function FlexibleShardCard({
         const text = shard.text;
         const firstSentence = text.split(/[.!?]\s/)[0];
         return firstSentence.length > 60
-          ? firstSentence.substring(0, 57) + "..."
+          ? `${firstSentence.substring(0, 57)}...`
           : firstSentence;
       }
     }

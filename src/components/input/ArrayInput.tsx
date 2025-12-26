@@ -64,7 +64,7 @@ export function ArrayInput({
       <div className="space-y-2">
         {values.map((value, index) => (
           <div
-            key={`${value}-${index}`}
+            key={value}
             className="flex items-center justify-between gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-800"
           >
             <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">

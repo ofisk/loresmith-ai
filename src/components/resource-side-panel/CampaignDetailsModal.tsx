@@ -616,16 +616,14 @@ export function CampaignDetailsModal({
                                     ? JSON.parse(resource.tags)
                                     : resource.tags;
                                 if (Array.isArray(tags) && tags.length > 0) {
-                                  return tags.map(
-                                    (tag: string, idx: number) => (
-                                      <span
-                                        key={idx}
-                                        className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
-                                      >
-                                        {tag}
-                                      </span>
-                                    )
-                                  );
+                                  return tags.map((tag: string) => (
+                                    <span
+                                      key={tag}
+                                      className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
+                                    >
+                                      {tag}
+                                    </span>
+                                  ));
                                 }
                               } catch {
                                 // Invalid JSON, ignore
