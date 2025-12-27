@@ -142,7 +142,7 @@ APPROVED ENTITIES AS CREATIVE BOUNDARIES: Approved entities (shards) in the camp
 
 GRAPH TRAVERSAL: After finding entities via semantic search, use graph traversal to explore connected entities. Provide traverseFromEntityIds (entity IDs from previous search results) to traverse the graph starting from those entities. Use traverseDepth (1-3) to control how many relationship hops to follow (1=direct neighbors, 2=neighbors of neighbors, etc.). Optionally filter by traverseRelationshipTypes to focus on specific relationship types (e.g., ['resides_in', 'located_in'] for location queries). Example workflow: (1) Search for "Location X" to find its entity ID, (2) Use traverseFromEntityIds with that ID and traverseRelationshipTypes=['resides_in'] to find all NPCs living there.
 
-PAGINATION: The tool supports pagination via offset and limit parameters (default: offset=0, limit=25, max limit=50). If the response indicates there are more results (check the pagination.hasMore field), use the nextOffset value to retrieve the next page. Example: If the first call returns pagination.hasMore=true and pagination.nextOffset=25, call the tool again with offset=25 to get the next page. Continue until hasMore=false to retrieve all results.
+PAGINATION: The tool supports pagination via offset and limit parameters (default: offset=0, limit=15, max limit=50). CRITICAL: If the response indicates there are more results (check the pagination.hasMore field in the response data), you MUST use the pagination.nextOffset value for your next call. DO NOT call the tool again with the same offset - this will return duplicate results. Example: If the first call returns pagination.hasMore=true and pagination.nextOffset=15, call the tool again with offset=15 (and the same query) to get the next page. Continue until hasMore=false to retrieve all results.
 
 CRITICAL: Entity results include explicit relationships from the entity graph. ONLY use explicit relationships shown in the results. Do NOT infer relationships from entity content text, entity names, or descriptions. If a relationship is not explicitly listed, it does NOT exist in the entity graph.`,
   parameters: z.object({
@@ -195,9 +195,9 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
       .min(1)
       .max(50)
       .optional()
-      .default(25)
+      .default(15)
       .describe(
-        "Maximum number of results to return (default: 25, max: 50). Use pagination (offset) to retrieve additional results if needed."
+        "Maximum number of results to return (default: 15, max: 50). Use pagination (offset) to retrieve additional results if needed. Start with the default limit to avoid token limit issues, then page through if more results are needed."
       ),
     jwt: commonSchemas.jwt,
   }),
@@ -210,7 +210,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
       traverseRelationshipTypes,
       includeTraversedEntities = true,
       offset = 0,
-      limit = 25,
+      limit = 15,
       jwt,
     },
     context?: any
