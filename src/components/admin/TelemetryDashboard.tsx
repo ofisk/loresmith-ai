@@ -29,7 +29,7 @@ export function TelemetryDashboard() {
   if (dashboardLoading || latencyLoading) {
     return (
       <div className="p-8">
-        <div className="text-lg font-semibold mb-4">Telemetry Dashboard</div>
+        <div className="text-lg font-semibold mb-4">Telemetry dashboard</div>
         <div>Loading metrics...</div>
       </div>
     );
@@ -40,7 +40,7 @@ export function TelemetryDashboard() {
       dashboardError?.message || latencyError?.message || "Unknown error";
     return (
       <div className="p-8">
-        <div className="text-lg font-semibold mb-4">Telemetry Dashboard</div>
+        <div className="text-lg font-semibold mb-4">Telemetry dashboard</div>
         <div className="text-red-600">
           Error loading dashboard: {errorMessage}
         </div>
@@ -51,7 +51,7 @@ export function TelemetryDashboard() {
   return (
     <div className="p-8 space-y-6">
       <div className="text-2xl font-bold mb-6">
-        GraphRAG Telemetry Dashboard
+        GraphRAG telemetry dashboard
       </div>
 
       {/* Query Latency Section */}
@@ -99,10 +99,10 @@ export function TelemetryDashboard() {
         )}
       </div>
 
-      {/* Dashboard Summary */}
+      {/* Dashboard summary */}
       {dashboard && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Dashboard Summary</h2>
+          <h2 className="text-xl font-semibold mb-4">Dashboard summary</h2>
           <div className="grid grid-cols-2 gap-4">
             {dashboard.summary.queryLatency && (
               <div>

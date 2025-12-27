@@ -155,7 +155,7 @@ export function AppHeader({
           shape="square"
           className="!h-9 !w-9 rounded-full flex items-center justify-center"
           onClick={onAdminDashboardOpen}
-          tooltip="Admin Dashboard - View telemetry and metrics"
+          tooltip="Admin dashboard - view telemetry and metrics"
         >
           <ChartBar size={20} />
         </Button>

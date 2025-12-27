@@ -534,20 +534,20 @@ export function CampaignDetailsModal({
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                Session Digests
+                Session digests
               </h3>
               <div className="flex gap-2">
                 <FormButton
                   onClick={() => setIsBulkImportOpen(true)}
                   variant="secondary"
                 >
-                  Bulk Import
+                  Bulk import
                 </FormButton>
                 <FormButton
                   onClick={handleCreateDigest}
                   icon={<Plus size={16} />}
                 >
-                  Create Digest
+                  Create digest
                 </FormButton>
               </div>
             </div>
