@@ -90,7 +90,7 @@ export function NotificationBell({
         variant="secondary"
         size="md"
         shape="circular"
-        className="relative h-9 w-9"
+        className="!h-9 !w-9 flex items-center justify-center relative"
         aria-label="Notifications"
         onClick={() => setIsOpen(!isOpen)}
       >

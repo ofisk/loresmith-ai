@@ -112,7 +112,7 @@ export function AppHeader({
           variant="ghost"
           size="md"
           shape="square"
-          className="rounded-full h-9 w-9"
+          className="!h-9 !w-9 rounded-full flex items-center justify-center"
           onClick={onSessionRecapRequest}
           disabled={!selectedCampaignId}
           tooltip={
@@ -130,7 +130,7 @@ export function AppHeader({
           variant="ghost"
           size="md"
           shape="square"
-          className="rounded-full h-9 w-9"
+          className="!h-9 !w-9 rounded-full flex items-center justify-center"
           onClick={onNextStepsRequest}
           disabled={!selectedCampaignId}
           tooltip={
@@ -153,7 +153,7 @@ export function AppHeader({
           variant="ghost"
           size="md"
           shape="square"
-          className="rounded-full h-9 w-9"
+          className="!h-9 !w-9 rounded-full flex items-center justify-center"
           onClick={onAdminDashboardOpen}
           tooltip="Admin Dashboard - View telemetry and metrics"
         >
@@ -165,7 +165,7 @@ export function AppHeader({
         variant="ghost"
         size="md"
         shape="square"
-        className="rounded-full h-9 w-9 flex items-center justify-center"
+        className="!h-9 !w-9 rounded-full flex items-center justify-center"
         onClick={onClearHistory}
       >
         <Trash size={20} />
