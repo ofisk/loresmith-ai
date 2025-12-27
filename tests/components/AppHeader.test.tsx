@@ -26,8 +26,6 @@ beforeEach(() => {
 
 describe("AppHeader", () => {
   const baseProps = {
-    showDebug: false,
-    onToggleDebug: vi.fn(),
     onClearHistory: vi.fn(),
     onHelpAction: vi.fn(),
     onGuidanceRequest: vi.fn(),

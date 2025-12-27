@@ -199,7 +199,7 @@ export async function stageEntitiesFromResource(
       // Add exponential backoff delay for retries
       if (isRetry && retryCount > 0) {
         const backoffDelay = Math.min(
-          INITIAL_RETRY_DELAY_MS * Math.pow(2, retryCount - 1),
+          INITIAL_RETRY_DELAY_MS * 2 ** (retryCount - 1),
           MAX_RETRY_DELAY_MS
         );
         console.log(

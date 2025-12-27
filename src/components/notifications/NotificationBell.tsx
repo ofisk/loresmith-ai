@@ -90,7 +90,7 @@ export function NotificationBell({
         variant="secondary"
         size="md"
         shape="circular"
-        className="relative h-9 w-9"
+        className="!h-9 !w-9 flex items-center justify-center relative"
         aria-label="Notifications"
         onClick={() => setIsOpen(!isOpen)}
       >
@@ -147,7 +147,7 @@ export function NotificationBell({
                   {notifications.map((notification, index) => (
                     <div
                       key={`${notification.timestamp}-${index}`}
-                      className={`p-3 hover:bg-gray-800 transition-colors ${getTypeStyles(notification.type)}`}
+                      className={`p-3 hover:bg-neutral-800/50 dark:hover:bg-neutral-800/50 transition-colors ${getTypeStyles(notification.type)}`}
                     >
                       <div className="flex items-start space-x-3">
                         <div className="flex-shrink-0 text-lg">

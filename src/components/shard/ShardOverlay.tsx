@@ -90,7 +90,7 @@ export const ShardOverlay = ({
             onClick={toggleExpanded}
             className={`
               flex items-center justify-center px-1 py-2 rounded-l-lg shadow-lg border border-r-0 transition-all duration-300 ease-in-out
-              bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-750
+              bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700
               ${hasNewShards ? "animate-pulse" : ""}
             `}
             title={`Show ${displayCount} pending shard${displayCount !== "..." && displayCount !== 1 ? "s" : ""}`}
@@ -108,7 +108,7 @@ export const ShardOverlay = ({
             onClick={toggleExpanded}
             className={`
               flex items-center justify-center px-8 py-1.5 rounded-l-lg shadow-lg border border-r-0 transition-all duration-300 ease-in-out
-              bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-750
+              bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700
               ${hasNewShards ? "animate-pulse" : ""}
             `}
             title={`Show ${displayCount} pending shard${displayCount !== "..." && displayCount !== 1 ? "s" : ""}`}

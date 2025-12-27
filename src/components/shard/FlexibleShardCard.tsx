@@ -348,7 +348,7 @@ export function FlexibleShardCard({
         const text = shard.text;
         const firstSentence = text.split(/[.!?]\s/)[0];
         return firstSentence.length > 60
-          ? firstSentence.substring(0, 57) + "..."
+          ? `${firstSentence.substring(0, 57)}...`
           : firstSentence;
       }
     }
@@ -687,7 +687,7 @@ export function FlexibleShardCard({
                 className="flex items-center gap-1 px-3 py-1 text-red-400 hover:text-red-300 text-sm transition-colors"
               >
                 <Trash2 size={14} />
-                Delete Shard
+                Delete shard
               </button>
             )}
           </div>

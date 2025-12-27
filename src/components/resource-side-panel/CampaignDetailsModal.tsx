@@ -534,20 +534,20 @@ export function CampaignDetailsModal({
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                Session Digests
+                Session digests
               </h3>
               <div className="flex gap-2">
                 <FormButton
                   onClick={() => setIsBulkImportOpen(true)}
                   variant="secondary"
                 >
-                  Bulk Import
+                  Bulk import
                 </FormButton>
                 <FormButton
                   onClick={handleCreateDigest}
                   icon={<Plus size={16} />}
                 >
-                  Create Digest
+                  Create digest
                 </FormButton>
               </div>
             </div>
@@ -616,16 +616,14 @@ export function CampaignDetailsModal({
                                     ? JSON.parse(resource.tags)
                                     : resource.tags;
                                 if (Array.isArray(tags) && tags.length > 0) {
-                                  return tags.map(
-                                    (tag: string, idx: number) => (
-                                      <span
-                                        key={idx}
-                                        className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
-                                      >
-                                        {tag}
-                                      </span>
-                                    )
-                                  );
+                                  return tags.map((tag: string) => (
+                                    <span
+                                      key={tag}
+                                      className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
+                                    >
+                                      {tag}
+                                    </span>
+                                  ));
                                 }
                               } catch {
                                 // Invalid JSON, ignore

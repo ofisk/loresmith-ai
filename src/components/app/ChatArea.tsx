@@ -27,8 +27,6 @@ interface ChatAreaProps {
   onKeyDown: (e: React.KeyboardEvent) => void;
   isLoading: boolean;
   onStop: () => void;
-  showDebug: boolean;
-  addToolResult: (args: { toolCallId: string; result: unknown }) => void;
   formatTime: (date: Date) => string;
   onSuggestionSubmit: (suggestion: string) => void;
   onUploadFiles: () => void;
@@ -48,8 +46,6 @@ export function ChatArea({
   onKeyDown,
   isLoading,
   onStop,
-  showDebug,
-  addToolResult,
   formatTime,
   onSuggestionSubmit,
   onUploadFiles,
@@ -72,12 +68,7 @@ export function ChatArea({
           />
         )}
 
-        <ChatMessageList
-          messages={messages}
-          showDebug={showDebug}
-          addToolResult={addToolResult}
-          formatTime={formatTime}
-        />
+        <ChatMessageList messages={messages} formatTime={formatTime} />
 
         {/* Thinking Spinner - shown when agent is processing */}
         {isLoading && (

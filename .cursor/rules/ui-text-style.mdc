@@ -1,0 +1,58 @@
+---
+description: UI Text and Label Styling Guidelines
+globs: ["**/*.tsx", "**/*.ts", "**/*.jsx", "**/*.js"]
+alwaysApply: true
+---
+
+# UI Text Style Guidelines
+
+## Sentence Case for All UI Text
+
+All user-facing text including titles, button labels, headings, tooltips, and UI labels MUST use sentence case.
+
+### Sentence Case Rules
+
+- **First word capitalized**, rest lowercase
+- Capitalize **proper nouns** (product names, specific names, etc.)
+- Do NOT use Title Case or ALL CAPS unless it's an acronym
+
+### Examples
+
+✅ **Correct:**
+- "Upload files"
+- "Create campaign"
+- "Add to library"
+- "Record session recap"
+- "Admin dashboard"
+- "What should I do next?"
+- "Get help and guidance"
+- "Clear all"
+- "No campaign selected"
+
+❌ **Incorrect:**
+- "Upload Files" (Title Case)
+- "Create Campaign" (Title Case)
+- "Add To Library" (Title Case)
+- "Record Session Recap" (Title Case)
+- "ADMIN DASHBOARD" (ALL CAPS)
+
+### Application Areas
+
+This rule applies to:
+- Button text and labels
+- Modal titles and headings
+- Form labels and placeholders
+- Dropdown options
+- Menu items
+- Tooltips
+- Alert messages
+- Notification text
+- Section headings
+- Tab labels
+- Any other user-visible text
+
+### Exceptions
+
+- **Acronyms**: Keep uppercase (e.g., "API", "URL", "AI")
+- **Brand names**: Use official capitalization (e.g., "LoreSmith", "OpenAI")
+- **Code/technical terms**: Use appropriate casing when referring to code (e.g., "campaignId")

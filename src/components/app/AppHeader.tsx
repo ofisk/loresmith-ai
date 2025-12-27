@@ -1,5 +1,4 @@
 import {
-  Bug,
   MapPin,
   Trash,
   NotePencil,
@@ -9,15 +8,12 @@ import {
 import { Button } from "@/components/button/Button";
 import { HelpButton } from "@/components/help/HelpButton";
 import { TopBarNotifications } from "@/components/notifications/TopBarNotifications";
-import { Toggle } from "@/components/toggle/Toggle";
 import loresmith from "@/assets/loresmith.png";
 import type { NotificationPayload } from "@/durable-objects/notification-hub";
 import type { Campaign } from "@/types/campaign";
 import { AuthService } from "@/services/core/auth-service";
 
 interface AppHeaderProps {
-  showDebug: boolean;
-  onToggleDebug: () => void;
   onClearHistory: () => void;
   onHelpAction: (action: string) => void;
   onGuidanceRequest: () => void;
@@ -45,8 +41,6 @@ interface AppHeaderProps {
  * AppHeader component - Top navigation bar with logo, controls, and notifications
  */
 export function AppHeader({
-  showDebug,
-  onToggleDebug,
   onClearHistory,
   onHelpAction,
   onGuidanceRequest,
@@ -113,21 +107,12 @@ export function AppHeader({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mr-2">
-        <Bug size={16} />
-        <Toggle
-          toggled={showDebug}
-          aria-label="Toggle debug mode"
-          onClick={onToggleDebug}
-        />
-      </div>
-
       {onSessionRecapRequest && (
         <Button
           variant="ghost"
           size="md"
           shape="square"
-          className="rounded-full h-9 w-9"
+          className="!h-9 !w-9 rounded-full flex items-center justify-center"
           onClick={onSessionRecapRequest}
           disabled={!selectedCampaignId}
           tooltip={
@@ -145,7 +130,7 @@ export function AppHeader({
           variant="ghost"
           size="md"
           shape="square"
-          className="rounded-full h-9 w-9"
+          className="!h-9 !w-9 rounded-full flex items-center justify-center"
           onClick={onNextStepsRequest}
           disabled={!selectedCampaignId}
           tooltip={
@@ -168,9 +153,9 @@ export function AppHeader({
           variant="ghost"
           size="md"
           shape="square"
-          className="rounded-full h-9 w-9"
+          className="!h-9 !w-9 rounded-full flex items-center justify-center"
           onClick={onAdminDashboardOpen}
-          tooltip="Admin Dashboard - View telemetry and metrics"
+          tooltip="Admin dashboard - view telemetry and metrics"
         >
           <ChartBar size={20} />
         </Button>
@@ -180,7 +165,7 @@ export function AppHeader({
         variant="ghost"
         size="md"
         shape="square"
-        className="rounded-full h-9 w-9 flex items-center justify-center"
+        className="!h-9 !w-9 rounded-full flex items-center justify-center"
         onClick={onClearHistory}
       >
         <Trash size={20} />

@@ -1,19 +1,14 @@
 import type { Message } from "@ai-sdk/react";
 import { Card } from "@/components/card/Card";
 import { MemoizedMarkdown } from "@/components/MemoizedMarkdown";
-import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 
 interface ChatMessageListProps {
   messages: Message[];
-  showDebug: boolean;
-  addToolResult: any;
   formatTime: (date: Date) => string;
 }
 
 export function ChatMessageList({
   messages,
-  showDebug,
-  addToolResult,
   formatTime,
 }: ChatMessageListProps) {
   return (
@@ -28,20 +23,6 @@ export function ChatMessageList({
 
           return (
             <div key={m.id}>
-              {showDebug && (
-                <pre className="text-xs text-muted-foreground overflow-scroll">
-                  {JSON.stringify(
-                    {
-                      ...m,
-                      parts: m.parts?.filter(
-                        (part) => part.type !== "tool-invocation"
-                      ),
-                    },
-                    null,
-                    2
-                  )}
-                </pre>
-              )}
               <div
                 className={`flex ${isUser ? "justify-end" : "justify-start"}`}
               >
@@ -94,22 +75,6 @@ export function ChatMessageList({
                           );
                         }
 
-                        if (part.type === "tool-invocation") {
-                          const toolInvocation = part.toolInvocation;
-                          const toolCallId = toolInvocation.toolCallId;
-                          const needsConfirmation = false; // external card will manage specifics
-                          if (!showDebug) return null;
-                          return (
-                            <ToolInvocationCard
-                              key={`${m.id}-tool-${toolCallId}-${i}`}
-                              toolInvocation={toolInvocation}
-                              toolCallId={toolCallId}
-                              needsConfirmation={needsConfirmation as any}
-                              addToolResult={addToolResult}
-                              showDebug={showDebug}
-                            />
-                          );
-                        }
                         return null;
                       })}
                     </div>

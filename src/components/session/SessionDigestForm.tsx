@@ -143,7 +143,7 @@ export function SessionDigestForm({
         <div className="grid grid-cols-2 gap-4">
           <FormField
             id={sessionNumberId}
-            label="Session Number"
+            label="Session number"
             type="number"
             value={sessionNumber.toString()}
             onValueChange={(value) => {
@@ -157,7 +157,7 @@ export function SessionDigestForm({
           />
           <FormField
             id={sessionDateId}
-            label="Session Date"
+            label="Session date"
             type="date"
             value={sessionDate}
             onValueChange={setSessionDate}
@@ -172,7 +172,7 @@ export function SessionDigestForm({
           Last Session Recap
         </h3>
         <ArrayInput
-          label="Key Events"
+          label="Key events"
           values={digestData.last_session_recap.key_events}
           onChange={(values) => {
             setDigestData((prev) => ({
@@ -209,7 +209,7 @@ export function SessionDigestForm({
           />
         </div>
         <ArrayInput
-          label="Open Threads"
+          label="Open threads"
           values={digestData.last_session_recap.open_threads}
           onChange={(values) => {
             setDigestData((prev) => ({
@@ -244,7 +244,7 @@ export function SessionDigestForm({
           placeholder="Add DM objective..."
         />
         <ArrayInput
-          label="Probable Player Goals"
+          label="Probable player goals"
           values={digestData.next_session_plan.probable_player_goals}
           onChange={(values) => {
             setDigestData((prev) => ({
@@ -315,7 +315,7 @@ export function SessionDigestForm({
           placeholder="Add location..."
         />
         <ArrayInput
-          label="Encounter Seeds"
+          label="Encounter seeds"
           values={digestData.encounter_seeds}
           onChange={(values) => {
             setDigestData((prev) => ({
@@ -348,7 +348,7 @@ export function SessionDigestForm({
           placeholder="Add treasure or reward..."
         />
         <ArrayInput
-          label="Todo Checklist"
+          label="Todo checklist"
           values={digestData.todo_checklist}
           onChange={(values) => {
             setDigestData((prev) => ({
@@ -373,7 +373,7 @@ export function SessionDigestForm({
           </FormButton>
         )}
         <FormButton type="submit" loading={isLoading}>
-          {digest ? "Update Digest" : "Create Digest"}
+          {digest ? "Update digest" : "Create digest"}
         </FormButton>
       </div>
     </form>

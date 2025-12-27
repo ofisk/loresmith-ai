@@ -93,7 +93,6 @@ describe("DigestQualityService", () => {
         todo_checklist: [],
       };
 
-      // biome-ignore lint/complexity/useLiteralKeys: Private method access required for testing
       // checkSpecificity is async and requires OpenAI key, returns default score of 10 if no key
       const result = await (service as any).checkSpecificity(digest);
       // Without OpenAI key, it returns default score of 10
@@ -128,7 +127,6 @@ describe("DigestQualityService", () => {
         todo_checklist: [],
       };
 
-      // biome-ignore lint/complexity/useLiteralKeys: Private method access required for testing
       // checkSpecificity is async and requires OpenAI key, returns default score of 10 if no key
       const result = await (service as any).checkSpecificity(digest);
       // Without OpenAI key, it returns default score of 10
@@ -162,7 +160,6 @@ describe("DigestQualityService", () => {
         todo_checklist: [],
       };
 
-      // biome-ignore lint/complexity/useLiteralKeys: Private method access required for testing
       // checkConsistency is async
       const result = await (service as any).checkConsistency(digest);
       expect(result.issues.length).toBeGreaterThan(0);

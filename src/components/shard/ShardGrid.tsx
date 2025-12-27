@@ -229,7 +229,7 @@ export function ShardGrid({
                 }
                 className="px-3 py-2 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
               >
-                <option value="">All Types</option>
+                <option value="">All types</option>
                 {shardTypes.map((type) => (
                   <option key={type} value={type}>
                     {getShardTypeDisplayName(type)}
@@ -247,7 +247,7 @@ export function ShardGrid({
                 }
                 className="px-3 py-2 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
               >
-                <option value="">All Confidence</option>
+                <option value="">All confidence</option>
                 <option value="high">High (90%+)</option>
                 <option value="medium">Medium (75-89%)</option>
                 <option value="low">Low (&lt;75%)</option>
