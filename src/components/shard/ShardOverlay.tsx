@@ -149,7 +149,7 @@ export const ShardOverlay = ({
                 />
               </button>
               <h3 className="font-semibold text-neutral-800 dark:text-neutral-200">
-                Pending shards
+                Pending shards {totalShards > 0 && `(${totalShards} total)`}
               </h3>
             </div>
             <div className="flex items-center gap-2">

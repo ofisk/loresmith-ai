@@ -5,8 +5,7 @@ import { API_CONFIG } from "@/shared-config";
 import type { RebuildStatus } from "@/dao/rebuild-status-dao";
 
 interface UseRebuildStatusOptions {
-  campaignId: string;
-  pollInterval?: number; // Polling interval in milliseconds (default: 5000)
+  campaignId?: string;
   enabled?: boolean; // Whether to automatically poll (default: true)
 }
 
@@ -19,11 +18,10 @@ interface UseRebuildStatusReturn {
 
 /**
  * Hook for fetching active rebuild status for a single campaign.
- * Automatically polls for status updates when a rebuild is in progress.
+ * Uses event-based updates from notifications with fallback polling (30s) when rebuild is active.
  */
 export function useRebuildStatus({
   campaignId,
-  pollInterval = 5000,
   enabled = true,
 }: UseRebuildStatusOptions): UseRebuildStatusReturn {
   const [activeRebuild, setActiveRebuild] = useState<RebuildStatus | null>(
