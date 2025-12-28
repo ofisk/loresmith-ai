@@ -41,13 +41,7 @@ export function PropertyField({
   useEffect(() => {
     if (isFieldEditable) {
       isEditingRef.current = true; // Mark as editing when field becomes editable
-      if (inputRef.current) {
-        inputRef.current.focus();
-        inputRef.current.select();
-      } else if (textareaRef.current) {
-        textareaRef.current.focus();
-        textareaRef.current.select();
-      }
+      // Don't auto-focus/select fields when they become editable
     } else {
       isEditingRef.current = false; // Not editing when field is not editable
     }
@@ -181,43 +175,20 @@ export function PropertyField({
                   editValue.map((item, index) => (
                     <div
                       key={`${String(item)}-${index}`}
-                      className="border border-purple-600 rounded p-2 bg-purple-900/20"
+                      className="inline-flex items-center gap-2 px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded text-xs"
                     >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-purple-400">
-                          Item {index + 1}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeArrayItem(index)}
-                          className="text-purple-400 hover:text-red-400 transition-colors"
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
                       {typeof item === "object" && item !== null ? (
-                        <div className="space-y-1">
-                          {Object.entries(item).map(([key, value]) => (
-                            <div
-                              key={key}
-                              className="flex items-center gap-2 text-xs"
-                            >
-                              <span className="text-purple-400 font-medium min-w-0 flex-shrink-0">
-                                {key}:
-                              </span>
-                              <span className="text-purple-400 truncate">
-                                {typeof value === "object" && value !== null
-                                  ? JSON.stringify(value)
-                                  : String(value)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
+                        <span>{JSON.stringify(item)}</span>
                       ) : (
-                        <span className="text-purple-400 text-xs">
-                          {String(item)}
-                        </span>
+                        <span>{String(item)}</span>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => removeArrayItem(index)}
+                        className="hover:text-red-600 dark:hover:text-red-400 transition-colors flex-shrink-0"
+                      >
+                        <X size={12} />
+                      </button>
                     </div>
                   ))}
               </div>
@@ -227,13 +198,13 @@ export function PropertyField({
                   value={newArrayItem}
                   onChange={(e) => setNewArrayItem(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addArrayItem()}
-                  placeholder="Add new item (JSON for objects)"
-                  className="flex-1 px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                  placeholder="Add tag"
+                  className="flex-1 px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500"
                 />
                 <button
                   type="button"
                   onClick={addArrayItem}
-                  className="px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+                  className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                 >
                   <Plus size={14} />
                 </button>
