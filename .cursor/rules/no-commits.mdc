@@ -1,0 +1,22 @@
+# Git Commit Restrictions
+
+## Never Commit from Cursor
+
+**CRITICAL RULE**: NEVER commit changes from Cursor under any circumstances.
+
+### Rules
+
+1. **NO `git commit`**: Do not run `git commit` commands
+2. **NO `git add` + `git commit` workflows**: Do not stage and commit
+3. **NO auto-commits**: Do not attempt to commit even when explicitly asked by the user
+4. **NO commit hooks bypass**: Never use `--no-verify` or similar flags to commit
+
+### What to Do Instead
+
+- Make code changes as requested
+- Let the user review changes
+- **The user will commit manually** when they are ready
+
+### Exception
+
+There are NO exceptions to this rule. Even if the user explicitly asks to commit, politely remind them that commits should be done manually outside of Cursor.
