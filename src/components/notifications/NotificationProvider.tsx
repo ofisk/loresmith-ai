@@ -149,6 +149,27 @@ export function NotificationProvider({
                 }
                 break;
               }
+              case NOTIFICATION_TYPES.REBUILD_STARTED:
+              case NOTIFICATION_TYPES.REBUILD_PROGRESS:
+              case NOTIFICATION_TYPES.REBUILD_COMPLETED:
+              case NOTIFICATION_TYPES.REBUILD_FAILED:
+              case NOTIFICATION_TYPES.REBUILD_CANCELLED: {
+                // Dispatch rebuild status change event to update UI without polling
+                window.dispatchEvent(
+                  new CustomEvent("rebuild-status-changed", {
+                    detail: {
+                      type: "rebuild-status-changed",
+                      campaignId: notification?.data?.campaignId,
+                      rebuildId: notification?.data?.rebuildId,
+                      status: notification?.data?.status,
+                      rebuildType: notification?.data?.rebuildType,
+                      metadata: notification?.data?.metadata,
+                      errorMessage: notification?.data?.errorMessage,
+                    },
+                  })
+                );
+                break;
+              }
               default:
                 break;
             }
