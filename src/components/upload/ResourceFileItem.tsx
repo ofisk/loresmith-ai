@@ -6,6 +6,7 @@ import { ResourceFileDetails } from "./ResourceFileDetails";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { FileDAO } from "@/dao/file-dao";
 import type { Campaign } from "@/types/campaign";
+import { getDisplayName } from "@/lib/display-name-utils";
 
 interface ResourceFileItemProps {
   file: ResourceFileWithCampaigns;
@@ -19,19 +20,6 @@ interface ResourceFileItemProps {
   onRetryIndexing: (fileKey: string) => Promise<void>;
   fetchResources: () => Promise<void>;
   campaigns?: Campaign[];
-}
-
-function getDisplayName(file: {
-  file_name?: string;
-  display_name?: string;
-}): string {
-  if (file.display_name) {
-    return file.display_name;
-  }
-  if (file.file_name) {
-    return file.file_name;
-  }
-  return "Unknown file";
 }
 
 /**

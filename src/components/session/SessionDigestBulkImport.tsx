@@ -243,7 +243,7 @@ export function SessionDigestBulkImport({
 
       <FormField
         id={notesId}
-        label="Session Notes"
+        label="Session notes"
         value={notes}
         onValueChange={setNotes}
         placeholder="Paste your session notes here...&#10;&#10;Key Events:&#10;- Event 1&#10;- Event 2&#10;&#10;Objectives:&#10;- Objective 1"

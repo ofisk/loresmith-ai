@@ -9,6 +9,7 @@ export interface CampaignResource {
   campaign_id: string;
   file_key: string;
   file_name: string;
+  display_name?: string;
   description?: string;
   tags?: string;
   status: string;

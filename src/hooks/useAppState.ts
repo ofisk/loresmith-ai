@@ -30,8 +30,6 @@ export function getSessionId(): string {
 interface UseAppStateReturn {
   // UI state
   chatContainerId: string;
-  showDebug: boolean;
-  setShowDebug: (show: boolean | ((prev: boolean) => boolean)) => void;
   textareaHeight: string;
   setTextareaHeight: (height: string) => void;
   triggerFileUpload: boolean;
@@ -58,7 +56,6 @@ export function useAppState(
   const chatContainerId = useId();
 
   // Local UI state
-  const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("40px"); // Compact initial height
   const [triggerFileUpload, setTriggerFileUpload] = useState(false);
 
@@ -111,8 +108,6 @@ export function useAppState(
   return {
     // UI state
     chatContainerId,
-    showDebug,
-    setShowDebug,
     textareaHeight,
     setTextareaHeight,
     triggerFileUpload,

@@ -56,8 +56,6 @@ export default function Chat() {
   // Consolidated app state - pass modalState so it uses the same instance
   const {
     chatContainerId,
-    showDebug,
-    setShowDebug,
     textareaHeight,
     setTextareaHeight,
     triggerFileUpload,
@@ -161,7 +159,6 @@ export default function Chat() {
     messages: agentMessages,
     input: agentInput,
     handleInputChange: handleAgentInputChange,
-    addToolResult,
     clearHistory,
     isLoading,
     stop,
@@ -812,8 +809,6 @@ export default function Chat() {
         <div className="h-[calc(100vh-3rem)] w-full mx-auto max-w-[1400px] flex flex-col shadow-2xl rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950">
           {/* Top Header - LoreSmith Branding */}
           <AppHeader
-            showDebug={showDebug}
-            onToggleDebug={() => setShowDebug((prev) => !prev)}
             onClearHistory={handleClearHistory}
             onHelpAction={handleHelpAction}
             onGuidanceRequest={handleGuidanceRequest}
@@ -866,13 +861,6 @@ export default function Chat() {
               onKeyDown={handleKeyDown}
               isLoading={isLoading}
               onStop={stop}
-              showDebug={showDebug}
-              addToolResult={
-                addToolResult as (args: {
-                  toolCallId: string;
-                  result: unknown;
-                }) => void
-              }
               formatTime={formatTime}
               onSuggestionSubmit={handleSuggestionSubmit}
               onUploadFiles={() => setTriggerFileUpload(true)}

@@ -491,7 +491,7 @@ export function StructuredShardCard({
           {/* Editable Fields */}
           {isEditing && onEdit && (
             <div className="border-t border-gray-700 pt-3 space-y-3">
-              <h4 className="font-medium text-white">Edit Properties</h4>
+              <h4 className="font-medium text-white">Edit properties</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {detailedProperties.map(({ key, value, type }) => (
                   <PropertyField

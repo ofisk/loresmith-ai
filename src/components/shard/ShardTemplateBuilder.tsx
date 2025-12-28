@@ -163,7 +163,7 @@ export function ShardTemplateBuilder({
 
   const renderSampleForm = () => (
     <div className="space-y-4">
-      <h4 className="font-medium text-gray-900">Sample Form Preview</h4>
+      <h4 className="font-medium text-gray-900">Sample form preview</h4>
       <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
         <div className="space-y-3">
           {(template.fields || []).map((field) => {
@@ -266,7 +266,7 @@ export function ShardTemplateBuilder({
       <div className="p-4 space-y-6">
         {/* Basic Info */}
         <div className="space-y-3">
-          <h4 className="font-medium text-gray-900">Template Information</h4>
+          <h4 className="font-medium text-gray-900">Template information</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label
@@ -330,7 +330,7 @@ export function ShardTemplateBuilder({
 
         {/* Add New Field */}
         <div className="space-y-3">
-          <h4 className="font-medium text-gray-900">Add Field</h4>
+          <h4 className="font-medium text-gray-900">Add field</h4>
           <div className="flex gap-2">
             <input
               type="text"

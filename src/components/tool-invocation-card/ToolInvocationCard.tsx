@@ -2,7 +2,6 @@ import { CaretDown, Robot } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
-import { MemoizedMarkdown } from "@/components/MemoizedMarkdown";
 
 import { APPROVAL } from "../../shared-config";
 
@@ -22,7 +21,6 @@ interface ToolInvocationCardProps {
   toolCallId: string;
   needsConfirmation: boolean;
   addToolResult: (args: { toolCallId: string; result: string }) => void;
-  showDebug?: boolean;
 }
 
 export function ToolInvocationCard({
@@ -30,7 +28,6 @@ export function ToolInvocationCard({
   toolCallId,
   needsConfirmation,
   addToolResult,
-  showDebug = false,
 }: ToolInvocationCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -138,47 +135,6 @@ export function ToolInvocationCard({
                 >
                   Approve
                 </Button>
-              </div>
-            )}
-
-          {!needsConfirmation &&
-            toolInvocation.state === "result" &&
-            showDebug && (
-              <div className="mt-3 border-t border-[#F48120]/10 pt-3">
-                <h5 className="text-xs font-medium mb-1 text-muted-foreground">
-                  Result:
-                </h5>
-                <div className="bg-background/80 p-2 rounded-md text-xs overflow-auto max-w-[450px]">
-                  {(() => {
-                    const result = toolInvocation.result;
-                    if (typeof result === "object" && result.content) {
-                      const resultText = result.content
-                        .map((item: { type: string; text: string }) => {
-                          if (
-                            item.type === "text" &&
-                            item.text.startsWith("\n~ Page URL:")
-                          ) {
-                            const lines = item.text.split("\n").filter(Boolean);
-                            return lines
-                              .map(
-                                (line: string) =>
-                                  `- ${line.replace("\n~ ", "")}`
-                              )
-                              .join("\n");
-                          }
-                          return item.text;
-                        })
-                        .join("\n");
-
-                      return <MemoizedMarkdown content={resultText} />;
-                    }
-                    return (
-                      <pre className="whitespace-pre-wrap break-words">
-                        {JSON.stringify(result, null, 2)}
-                      </pre>
-                    );
-                  })()}
-                </div>
               </div>
             )}
         </div>
