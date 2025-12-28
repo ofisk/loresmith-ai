@@ -1,7 +1,6 @@
 import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { AuthService } from "@/services/core/auth-service";
 import { FileStatusIndicator } from "@/components/upload/FileStatusIndicator";
-import { Tooltip } from "@/components/tooltip/Tooltip";
 import { ResourceFileDetails } from "./ResourceFileDetails";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { FileDAO } from "@/dao/file-dao";
@@ -102,20 +101,18 @@ export function ResourceFileItem({
       <div className="flex flex-col h-full">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1 mr-3 min-w-0">
-            <Tooltip content={getDisplayName(file)} id={file.file_key}>
-              <h4
-                className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-help max-w-[200px]"
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }
-                }}
-              >
-                {getDisplayName(file)}
-              </h4>
-            </Tooltip>
+            <h4
+              className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[200px]"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
+            >
+              {getDisplayName(file)}
+            </h4>
             {AuthService.getUsernameFromStoredJwt() && (
               <FileStatusIndicator
                 tenant={AuthService.getUsernameFromStoredJwt()!}
