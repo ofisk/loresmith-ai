@@ -35,6 +35,7 @@ export interface CampaignResource {
   campaign_id: string;
   file_key: string;
   file_name: string;
+  display_name?: string;
   description?: string;
   tags?: string;
   status: string;
@@ -259,9 +260,13 @@ export class CampaignDAO extends BaseDAOClass {
 
   async getCampaignResources(campaignId: string): Promise<CampaignResource[]> {
     const sql = `
-      select * from campaign_resources 
-      where campaign_id = ? 
-      order by created_at desc
+      select 
+        cr.*,
+        fm.display_name
+      from campaign_resources cr
+      left join file_metadata fm on cr.file_key = fm.file_key
+      where cr.campaign_id = ? 
+      order by cr.created_at desc
     `;
     return await this.queryAll<CampaignResource>(sql, [campaignId]);
   }
@@ -335,15 +340,27 @@ export class CampaignDAO extends BaseDAOClass {
   async getCampaignResourceById(
     resourceId: string,
     campaignId: string
-  ): Promise<{ id: string; file_key: string; file_name: string } | null> {
+  ): Promise<{
+    id: string;
+    file_key: string;
+    file_name: string;
+    display_name?: string;
+  } | null> {
     const sql = `
-      select id, file_key, file_name from campaign_resources 
-      where id = ? and campaign_id = ?
+      select 
+        cr.id, 
+        cr.file_key, 
+        cr.file_name,
+        fm.display_name
+      from campaign_resources cr
+      left join file_metadata fm on cr.file_key = fm.file_key
+      where cr.id = ? and cr.campaign_id = ?
     `;
     return await this.queryFirst<{
       id: string;
       file_key: string;
       file_name: string;
+      display_name?: string;
     }>(sql, [resourceId, campaignId]);
   }
 

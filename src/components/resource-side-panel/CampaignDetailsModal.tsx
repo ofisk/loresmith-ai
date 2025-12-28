@@ -20,6 +20,7 @@ import type { SessionDigestData } from "@/types/session-digest";
 import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
 import { useBaseAsync } from "@/hooks/useBaseAsync";
 import { API_CONFIG } from "@/shared-config";
+import { getDisplayName } from "@/lib/display-name-utils";
 
 interface CampaignDetailsModalProps {
   campaign: Campaign | null;
@@ -591,9 +592,7 @@ export function CampaignDetailsModal({
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-1">
-                          {resource.file_name ||
-                            resource.name ||
-                            "Unnamed Document"}
+                          {getDisplayName(resource)}
                         </h4>
                         {resource.description && (
                           <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">

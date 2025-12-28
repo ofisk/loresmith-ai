@@ -59,7 +59,7 @@ export function ChatArea({
       {/* Main Content Area */}
       <div
         id={chatContainerId}
-        className="flex-1 overflow-y-auto px-8 py-6 space-y-6 pb-6 min-h-0"
+        className="flex-1 overflow-y-auto px-8 py-6 space-y-6 pb-12 min-h-0"
       >
         {messages.length === 0 && (
           <WelcomeMessage
@@ -85,7 +85,7 @@ export function ChatArea({
       {/* Input Area */}
       <form
         onSubmit={onFormSubmit}
-        className="px-4 py-3 bg-neutral-50/50 border-t border-neutral-200 dark:border-neutral-700 dark:bg-neutral-900/50 backdrop-blur-sm rounded-br-2xl"
+        className="px-4 pt-3 pb-8 bg-neutral-50/50 dark:bg-neutral-900/50 backdrop-blur-sm rounded-br-2xl"
       >
         <div className="flex items-center gap-2">
           <div className="flex-1 relative">
