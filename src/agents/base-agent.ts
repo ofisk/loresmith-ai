@@ -270,11 +270,11 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           { isStaleCommand }
         );
 
-        // Determine tool choice: require tool usage when tools are available
-        // This ensures the LLM makes an explicit decision about tool usage
-        // The noOpTool allows the LLM to opt out if truly no tool is needed
+        // Determine tool choice: use "auto" to allow the agent to call tools when needed
+        // and generate a final text response after tool calls
+        // The system prompt instructs the agent to use tools when appropriate
         const toolChoice =
-          Object.keys(enhancedTools).length > 0 ? "required" : "none";
+          Object.keys(enhancedTools).length > 0 ? "auto" : "none";
 
         // Stream the AI response using the provided model
         console.log(
