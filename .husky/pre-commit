@@ -1,6 +1,9 @@
 # Run lint-staged for formatting
 npx lint-staged
 
+# Run code quality checks
+npm run check
+
 # Build the project to ensure dist directory exists for tests
 npm run build
 
