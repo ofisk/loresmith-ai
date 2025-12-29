@@ -182,7 +182,8 @@ Your campaign is now ready and waiting for you to add resources, plan sessions, 
 });
 
 export const showCampaignDetails = tool({
-  description: "Show detailed information about a specific campaign",
+  description:
+    "Show detailed information about a specific campaign, including the campaign name, description, creation date, and other metadata. Use this tool when users ask about their campaign's description or basic campaign information.",
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
     jwt: commonSchemas.jwt,
@@ -226,17 +227,27 @@ export const showCampaignDetails = tool({
       }
 
       const data = (await response.json()) as {
-        name: string;
-        campaignId: string;
-        createdAt: string;
-        resources?: any[];
-        status?: string;
+        campaign: {
+          name: string;
+          campaignId: string;
+          description?: string;
+          createdAt: string;
+          updatedAt: string;
+          campaignRagBasePath?: string;
+          resources?: any[];
+          status?: string;
+        };
       };
       console.log("[showCampaignDetails] API data:", data);
 
+      const campaign = data.campaign;
+      const descriptionText = campaign.description
+        ? `\n\nDescription: ${campaign.description}`
+        : "";
+
       return createToolSuccess(
-        `Campaign Details for "${data.name}":\n\nID: ${data.campaignId}`,
-        { campaign: data },
+        `Campaign Details for "${campaign.name}":\n\nID: ${campaign.campaignId}${descriptionText}`,
+        { campaign },
         toolCallId
       );
     } catch (error) {
