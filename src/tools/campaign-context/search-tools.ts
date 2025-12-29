@@ -128,11 +128,10 @@ CRITICAL - CALL THIS TOOL ONLY ONCE: When users mention multiple synonyms (e.g.,
 SEMANTIC SEARCH: Searches entities via semantic similarity. Entity results include their actual relationships from the entity graph, showing which entities are connected and how (e.g., 'resides_in', 'located_in', 'allied_with'). Use this to find relevant entities across all entity types including: ${ENTITY_TYPES_LIST}. 
 
 QUERY SYNTAX: The query string automatically infers search intent:
-- "monsters" → lists all monsters
 - "fire monsters" → searches for monsters matching "fire" 
-- "all monsters" → lists all monsters
-- Empty query → lists all entities (WARNING: Only use empty query when user doesn't specify entity types)
 - "context: session notes" → searches session digests (optional, for backward compatibility - note that session digests are temporary and get parsed into entities)
+
+CRITICAL - USE listAllEntities FOR "LIST ALL" REQUESTS: When users explicitly ask to "list all" entities (e.g., "list all locations", "show all monsters", "all NPCs"), you MUST use the listAllEntities tool instead of this tool. The listAllEntities tool automatically handles pagination and returns all results in one response. DO NOT use searchCampaignContext for "list all" requests.
 
 AVAILABLE ENTITY TYPES: The tool recognizes these entity types: ${ENTITY_TYPES_LIST}. When users use synonyms or alternative terms (e.g., "beasts", "creatures" for monsters; "people", "characters" for NPCs; "places" for locations), you MUST map them to the correct entity type name before including in the query. For example: "beasts" or "creatures" → use "monsters" in query; "people" or "characters" (when referring to NPCs) → use "npcs" in query; "places" → use "locations" in query.
 
@@ -142,7 +141,7 @@ APPROVED ENTITIES AS CREATIVE BOUNDARIES: Approved entities (shards) in the camp
 
 GRAPH TRAVERSAL: After finding entities via semantic search, use graph traversal to explore connected entities. Provide traverseFromEntityIds (entity IDs from previous search results) to traverse the graph starting from those entities. Use traverseDepth (1-3) to control how many relationship hops to follow (1=direct neighbors, 2=neighbors of neighbors, etc.). Optionally filter by traverseRelationshipTypes to focus on specific relationship types (e.g., ['resides_in', 'located_in'] for location queries). Example workflow: (1) Search for "Location X" to find its entity ID, (2) Use traverseFromEntityIds with that ID and traverseRelationshipTypes=['resides_in'] to find all NPCs living there.
 
-PAGINATION: The tool supports pagination via offset and limit parameters (default: offset=0, limit=15, max limit=50). CRITICAL: If the response indicates there are more results (check the pagination.hasMore field in the response data), you MUST use the pagination.nextOffset value for your next call. DO NOT call the tool again with the same offset - this will return duplicate results. Example: If the first call returns pagination.hasMore=true and pagination.nextOffset=15, call the tool again with offset=15 (and the same query) to get the next page. Continue until hasMore=false to retrieve all results.
+PAGINATION: The tool supports pagination via offset and limit parameters (default: offset=0, limit=15, max limit=50). For search queries, you may stop after the first page if the results are sufficient. If you need more results, use the pagination.nextOffset from the response to fetch the next page.
 
 CRITICAL: Entity results include explicit relationships from the entity graph. ONLY use explicit relationships shown in the results. Do NOT infer relationships from entity content text, entity names, or descriptions. If a relationship is not explicitly listed, it does NOT exist in the entity graph.`,
   parameters: z.object({
@@ -294,6 +293,9 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
         const requiresPlanningContext = queryIntent.searchPlanningContext;
         let planningService: PlanningContextService | null = null;
         let totalCount: number | undefined = undefined;
+        // For list-all queries, use a high limit (500) to minimize pagination calls
+        // For regular search queries, use the provided limit (default: 15, max: 50)
+        const effectiveLimit = queryIntent.isListAll ? 500 : limit;
 
         try {
           planningService = new PlanningContextService(
@@ -370,109 +372,146 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
 
             const targetEntityType = queryIntent.entityType;
 
-            // If queryIntent indicates list-all, or if we have a search query, proceed
-            if (queryIntent.isListAll) {
-              // List all entities of the requested type (or all entities if no type specified)
-              // Use pagination to avoid token limit issues when returning large result sets
-              // Request limit+1 to check if there are more results
-              const queryLimit = limit + 1;
+            // Map to store semantic similarity scores for entities
+            const entitySimilarityScores = new Map<string, number>();
 
-              // Get total count for accurate reporting (only for list-all queries)
-              totalCount = await daoFactory.entityDAO.getEntityCountByCampaign(
-                campaignId,
-                targetEntityType ? { entityType: targetEntityType } : {}
-              );
-
-              if (targetEntityType) {
-                entities = await daoFactory.entityDAO.listEntitiesByCampaign(
-                  campaignId,
-                  {
-                    entityType: targetEntityType,
-                    limit: queryLimit,
-                    offset,
-                  }
-                );
-                console.log(
-                  `[Tool] searchCampaignContext - Listing entities of type: ${targetEntityType} (offset: ${offset}, limit: ${limit}, total: ${totalCount})`
-                );
-              } else {
-                // No entity type specified, list all entities
-                entities = await daoFactory.entityDAO.listEntitiesByCampaign(
-                  campaignId,
-                  { limit: queryLimit, offset }
-                );
-                console.log(
-                  `[Tool] searchCampaignContext - Listing all entities (offset: ${offset}, limit: ${limit}, total: ${totalCount})`
-                );
-              }
-            } else if (
+            // SEMANTIC RELEVANCY IS THE DEFAULT: Always use semantic search when we have a query
+            // This applies to both focused searches and list-all queries
+            const hasSearchQuery =
               queryIntent.searchQuery &&
-              queryIntent.searchQuery.trim().length > 0
-            ) {
-              // Use semantic/keyword search to respect the query
-              // Use semantic search to find entities matching the query
-              try {
-                if (planningService && env.VECTORIZE) {
-                  // Use PlanningContextService to generate embeddings
-                  const queryEmbeddings =
-                    await planningService.generateEmbeddings([
-                      queryIntent.searchQuery,
-                    ]);
-                  const queryEmbedding = queryEmbeddings[0];
+              queryIntent.searchQuery.trim().length > 0;
+            const shouldUseSemanticSearch =
+              hasSearchQuery && planningService !== null && env.VECTORIZE;
 
-                  if (queryEmbedding) {
-                    const entityEmbeddingService = new EntityEmbeddingService(
-                      env.VECTORIZE
+            if (shouldUseSemanticSearch && planningService) {
+              // Use semantic search as the primary method for all queries
+              try {
+                const queryEmbeddings =
+                  await planningService.generateEmbeddings([
+                    queryIntent.searchQuery,
+                  ]);
+                const queryEmbedding = queryEmbeddings[0];
+
+                if (queryEmbedding) {
+                  const entityEmbeddingService = new EntityEmbeddingService(
+                    env.VECTORIZE
+                  );
+
+                  // For list-all queries, use a higher topK to get more results
+                  // For focused searches, use a more targeted topK
+                  const searchTopK = queryIntent.isListAll
+                    ? Math.min(effectiveLimit * 2, 500) // Get more results for list-all
+                    : targetEntityType
+                      ? 20
+                      : 10; // Focused search
+
+                  const similarEntities =
+                    await entityEmbeddingService.findSimilarByEmbedding(
+                      queryEmbedding,
+                      {
+                        campaignId,
+                        entityType: targetEntityType || undefined,
+                        topK: searchTopK,
+                      }
                     );
 
-                    // If a target entity type is detected, filter at the embedding search level
-                    // This ensures we only search within the relevant entity type
-                    // Increase topK when filtering to ensure we get enough results
-                    const searchTopK = targetEntityType ? 20 : 10;
+                  // Store similarity scores for later use in sorting
+                  for (const similar of similarEntities) {
+                    entitySimilarityScores.set(similar.entityId, similar.score);
+                  }
 
-                    const similarEntities =
-                      await entityEmbeddingService.findSimilarByEmbedding(
-                        queryEmbedding,
-                        {
-                          campaignId,
-                          entityType: targetEntityType || undefined,
-                          topK: searchTopK,
-                        }
+                  // Get full entity details for semantic matches
+                  const entityIds = similarEntities.map((e) => e.entityId);
+                  if (entityIds.length > 0) {
+                    // For list-all, we might need to fetch more entities to fill the limit
+                    const fetchLimit = queryIntent.isListAll
+                      ? effectiveLimit + 1
+                      : 100;
+                    const allEntities =
+                      await daoFactory.entityDAO.listEntitiesByCampaign(
+                        campaignId,
+                        { limit: fetchLimit }
                       );
+                    entities = allEntities.filter((e) =>
+                      entityIds.includes(e.id)
+                    );
 
-                    // Get full entity details for semantic matches
-                    const entityIds = similarEntities.map((e) => e.entityId);
-                    if (entityIds.length > 0) {
-                      const allEntities =
-                        await daoFactory.entityDAO.listEntitiesByCampaign(
+                    // For list-all queries, get total count for accurate reporting
+                    if (queryIntent.isListAll && totalCount === undefined) {
+                      totalCount =
+                        await daoFactory.entityDAO.getEntityCountByCampaign(
                           campaignId,
-                          { limit: 100 }
+                          targetEntityType
+                            ? { entityType: targetEntityType }
+                            : {}
                         );
-                      entities = allEntities.filter((e) =>
-                        entityIds.includes(e.id)
-                      );
-                      console.log(
-                        `[Tool] searchCampaignContext - Semantic search found ${entities.length} entities via embeddings`
-                      );
-                    } else {
-                      throw new Error("No semantic matches found");
                     }
+
+                    console.log(
+                      `[Tool] searchCampaignContext - Semantic search found ${entities.length} entities via embeddings${queryIntent.isListAll ? " (list-all mode)" : ""}`
+                    );
                   } else {
-                    throw new Error("Failed to generate embedding");
+                    throw new Error("No semantic matches found");
                   }
                 } else {
-                  // Fallback to keyword-based entity search
-                  throw new Error("PlanningService or VECTORIZE not available");
+                  throw new Error("Failed to generate embedding");
                 }
               } catch (searchError) {
                 console.log(
-                  `[Tool] searchCampaignContext - Semantic entity search failed, falling back to keyword search:`,
+                  `[Tool] searchCampaignContext - Semantic search failed, falling back to database query:`,
                   searchError instanceof Error
                     ? searchError.message
                     : String(searchError)
                 );
+                // Fall through to database query below
+                entities = [];
+              }
+            }
 
-                // Use PlanningContextService's entity finding logic which includes LLM extraction
+            // Fallback: If semantic search wasn't used or failed, fetch from database
+            // This happens for true "list all" with no query, or if semantic search fails
+            if (!shouldUseSemanticSearch || entities.length === 0) {
+              if (queryIntent.isListAll) {
+                // List all entities of the requested type (or all entities if no type specified)
+                // Use high limit (500) for list-all queries to minimize pagination calls
+                // Request limit+1 to check if there are more results
+                const queryLimit = effectiveLimit + 1;
+
+                // Get total count for accurate reporting (only for list-all queries)
+                totalCount =
+                  await daoFactory.entityDAO.getEntityCountByCampaign(
+                    campaignId,
+                    targetEntityType ? { entityType: targetEntityType } : {}
+                  );
+
+                if (targetEntityType) {
+                  entities = await daoFactory.entityDAO.listEntitiesByCampaign(
+                    campaignId,
+                    {
+                      entityType: targetEntityType,
+                      limit: queryLimit,
+                      offset,
+                    }
+                  );
+                  console.log(
+                    `[Tool] searchCampaignContext - Listing entities of type: ${targetEntityType} (offset: ${offset}, limit: ${effectiveLimit}, total: ${totalCount})`
+                  );
+                } else {
+                  // No entity type specified, list all entities
+                  entities = await daoFactory.entityDAO.listEntitiesByCampaign(
+                    campaignId,
+                    { limit: queryLimit, offset }
+                  );
+                  console.log(
+                    `[Tool] searchCampaignContext - Listing all entities (offset: ${offset}, limit: ${effectiveLimit}, total: ${totalCount})`
+                  );
+                }
+              } else if (
+                queryIntent.searchQuery &&
+                queryIntent.searchQuery.trim().length > 0
+              ) {
+                // Fallback: If semantic search wasn't available or failed, try alternative methods
+                // This should rarely happen since semantic search is now the default
                 try {
                   if (planningService) {
                     const queryEmbeddings =
@@ -482,8 +521,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                     const queryEmbedding = queryEmbeddings[0];
 
                     if (queryEmbedding) {
-                      // Use PlanningContextService's findMatchingEntityIds which uses the same
-                      // Increase maxEntities when filtering by type to ensure enough results
+                      // Use PlanningContextService's findMatchingEntityIds as fallback
                       const maxEntities = targetEntityType ? 500 : 25;
                       const entityIds =
                         await planningService.findMatchingEntityIds(
@@ -494,7 +532,6 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                         );
 
                       if (entityIds.length > 0) {
-                        // Get full entity details for matching entity IDs
                         const allEntities =
                           await daoFactory.entityDAO.listEntitiesByCampaign(
                             campaignId,
@@ -504,31 +541,30 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                           entityIds.includes(e.id)
                         );
                         console.log(
-                          `[Tool] searchCampaignContext - Found ${entities.length} entities via PlanningContextService entity finding (entity IDs: ${entityIds.join(", ")})`
+                          `[Tool] searchCampaignContext - Found ${entities.length} entities via PlanningContextService fallback`
                         );
                       }
                     }
                   }
                 } catch (planningError) {
                   console.warn(
-                    "[Tool] searchCampaignContext - PlanningContextService entity finding failed:",
+                    "[Tool] searchCampaignContext - PlanningContextService fallback failed:",
                     planningError
                   );
                 }
 
-                // If still no entities, fall back to simple keyword search
+                // Final fallback: keyword search if still no entities
                 if (!entities || entities.length === 0) {
-                  // Extract meaningful keywords - include the full query as a keyword too
                   const words = queryIntent.searchQuery
                     .split(/\s+/)
                     .filter((w) => w.length > 2);
                   const keywordNames = [
-                    queryIntent.searchQuery.toLowerCase(), // Try full query as one keyword
+                    queryIntent.searchQuery.toLowerCase(),
                     ...words.map((w) => w.toLowerCase()),
                   ].slice(0, 10);
 
                   console.log(
-                    `[Tool] searchCampaignContext - Searching entities with keywords: ${keywordNames.join(", ")}`
+                    `[Tool] searchCampaignContext - Falling back to keyword search: ${keywordNames.join(", ")}`
                   );
 
                   entities = await daoFactory.entityDAO.searchEntitiesByName(
@@ -541,7 +577,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                   );
 
                   console.log(
-                    `[Tool] searchCampaignContext - Keyword search returned ${entities.length} entities before filtering`
+                    `[Tool] searchCampaignContext - Keyword search returned ${entities.length} entities`
                   );
                 }
               }
@@ -702,13 +738,18 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
               relationshipHeader +=
                 "═══════════════════════════════════════════════════════\n";
 
+              // Use semantic similarity score if available, otherwise use default
+              const semanticScore = entitySimilarityScores.get(entity.id);
+              const finalScore =
+                semanticScore !== undefined ? semanticScore : 0.8; // Default score for entity matches
+
               results.push({
                 type: "entity",
                 source: "entity_graph",
                 entityType: entity.entityType,
                 title: entity.name,
                 text: relationshipHeader + JSON.stringify(entity.content),
-                score: 0.8, // Default score for entity matches
+                score: finalScore, // Use semantic relevancy score when available
                 entityId: entity.id,
                 filename: entity.name,
                 relationships: relationshipSummary,
@@ -1018,16 +1059,55 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
           }
         }
 
-        // Sort results by score (highest first)
-        results.sort((a, b) => (b.score || 0) - (a.score || 0));
+        // Check if we have semantic scores (non-default scores indicate semantic relevancy was computed)
+        // Default scores are 0.8 (entity matches), 0.7 (traversed entities), or 0 (no score)
+        const hasSemanticScores = results.some((r) => {
+          const score = r.score || 0;
+          return score !== 0.8 && score !== 0.7 && score !== 0 && score !== 1.0;
+        });
+
+        // Sort results by semantic relevancy (highest score first)
+        // All results should be sorted by relevancy to the query/prompt
+        results.sort((a, b) => {
+          const scoreA = a.score || 0;
+          const scoreB = b.score || 0;
+
+          // Primary sort: by semantic relevancy score (highest first) if available
+          if (hasSemanticScores && scoreB !== scoreA) {
+            return scoreB - scoreA;
+          }
+
+          // If no semantic scores or scores are equal, sort alphabetically by name
+          const nameA = (
+            a.title ||
+            a.name ||
+            a.display_name ||
+            a.id ||
+            ""
+          ).toLowerCase();
+          const nameB = (
+            b.title ||
+            b.name ||
+            b.display_name ||
+            b.id ||
+            ""
+          ).toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
 
         // Check if there are more results (for list-all queries, we requested limit+1)
         let hasMore = false;
         let actualResults = results;
+        const limitHit =
+          queryIntent.isListAll && results.length > effectiveLimit;
 
-        if (queryIntent.isListAll && results.length > limit) {
+        if (limitHit) {
           hasMore = true;
-          actualResults = results.slice(0, limit);
+          actualResults = results.slice(0, effectiveLimit);
+        } else if (!queryIntent.isListAll && results.length > effectiveLimit) {
+          // For search queries, check if we hit the limit
+          hasMore = true;
+          actualResults = results.slice(0, effectiveLimit);
         }
 
         // Note: totalCount is already fetched above for list-all queries
@@ -1036,20 +1116,30 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
           ? ` (${queryIntent.entityType})`
           : "";
 
-        // Use total count if available, otherwise use the pagination info
+        // Build clear pagination message
         let paginationInfo = "";
-        if (queryIntent.isListAll && totalCount !== undefined) {
-          if (hasMore) {
-            paginationInfo = ` (showing ${actualResults.length} of ${totalCount} total, use offset=${offset + limit} to get more)`;
-          } else {
+        const sortInfo = hasSemanticScores
+          ? " Results are sorted from most to least relevant."
+          : " Results are sorted alphabetically by name.";
+
+        if (queryIntent.isListAll) {
+          if (limitHit && totalCount !== undefined) {
+            paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${totalCount} total entities. There are ${totalCount - actualResults.length} more entities not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
+          } else if (totalCount !== undefined) {
             paginationInfo = ` (${totalCount} total)`;
           }
-        } else if (hasMore) {
-          paginationInfo = ` (showing ${actualResults.length} of ${results.length}+ results, use offset=${offset + limit} to get more)`;
+        } else {
+          if (hasMore && totalCount !== undefined) {
+            paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${totalCount} total results. There are ${totalCount - actualResults.length} more results not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
+          } else if (hasMore) {
+            paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${results.length}+ results. There are more results not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
+          } else if (totalCount !== undefined) {
+            paginationInfo = ` (${totalCount} total)`;
+          }
         }
 
         return createToolSuccess(
-          `Found ${totalCount !== undefined ? totalCount : actualResults.length} results for "${query}"${entityTypeLabel}${paginationInfo}`,
+          `Found ${totalCount !== undefined ? totalCount : actualResults.length} results for "${query}"${entityTypeLabel}.${sortInfo}${paginationInfo}`,
           {
             query,
             queryIntent,
@@ -1057,9 +1147,9 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
             totalCount,
             pagination: {
               offset,
-              limit,
+              limit: effectiveLimit,
               hasMore,
-              nextOffset: hasMore ? offset + limit : undefined,
+              nextOffset: hasMore ? offset + effectiveLimit : undefined,
             },
           },
           toolCallId
@@ -1077,6 +1167,178 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
       console.error("Error searching campaign context:", error);
       return createToolError(
         "Failed to search campaign context",
+        error,
+        500,
+        toolCallId
+      );
+    }
+  },
+});
+
+// Tool to list all entities (handles pagination internally)
+export const listAllEntities = tool({
+  description: `List ALL entities from a campaign. This tool automatically handles pagination internally and returns every single entity in one response. Use this when users explicitly ask to "list all" entities (e.g., "list all locations", "show all monsters", "all NPCs").
+
+CRITICAL: This tool is specifically for listing ALL entities. For searching/filtering entities by keywords or semantic similarity, use searchCampaignContext instead.
+
+AVAILABLE ENTITY TYPES: ${ENTITY_TYPES_LIST}. When users use synonyms (e.g., "beasts", "creatures" for monsters; "people", "characters" for NPCs; "places" for locations), you MUST map them to the correct entity type name. Examples: "beasts" or "creatures" → use "monsters"; "people" or "characters" (when referring to NPCs) → use "npcs"; "places" → use "locations".
+
+This tool will automatically fetch all pages and return the complete list. No manual pagination is needed.`,
+  parameters: z.object({
+    campaignId: commonSchemas.campaignId,
+    entityType: z
+      .enum([
+        ...STRUCTURED_ENTITY_TYPES,
+        "character", // Maps to "characters" in database
+        "resource", // Maps to "resources" in database
+      ] as [string, ...string[]])
+      .optional()
+      .describe(
+        `Optional entity type to filter by. Available types: ${ENTITY_TYPES_LIST}. If not provided, returns all entity types.`
+      ),
+    jwt: commonSchemas.jwt,
+  }),
+  execute: async (
+    { campaignId, entityType, jwt },
+    context?: any
+  ): Promise<ToolResult> => {
+    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[listAllEntities] Using toolCallId:", toolCallId);
+
+    try {
+      const env = getEnvFromContext(context);
+      if (!env) {
+        return createToolError(
+          "Environment not available",
+          "Unable to access campaign data",
+          500,
+          toolCallId
+        );
+      }
+
+      const userId = extractUsernameFromJwt(jwt);
+      if (!userId) {
+        return createToolError(
+          "Invalid authentication token",
+          "Authentication failed",
+          AUTH_CODES.INVALID_KEY,
+          toolCallId
+        );
+      }
+
+      const daoFactory = getDAOFactory(env);
+      const campaignDAO = daoFactory.campaignDAO;
+      const campaign = await campaignDAO.getCampaignByIdWithMapping(
+        campaignId,
+        userId
+      );
+
+      if (!campaign) {
+        return createToolError(
+          "Campaign not found",
+          "Campaign not found",
+          404,
+          toolCallId
+        );
+      }
+
+      // Map entity type names to database entity types (same as searchCampaignContext)
+      const entityTypeMap: Record<string, string> = {
+        characters: "character",
+        resources: "resource",
+      };
+      const targetEntityType = entityType
+        ? entityTypeMap[entityType] || entityType
+        : null;
+
+      // Get total count first
+      const totalCount = await daoFactory.entityDAO.getEntityCountByCampaign(
+        campaignId,
+        targetEntityType ? { entityType: targetEntityType } : {}
+      );
+
+      console.log(
+        `[Tool] listAllEntities - Fetching all ${totalCount} entities${targetEntityType ? ` of type ${targetEntityType}` : ""}`
+      );
+
+      // Fetch all entities with internal pagination
+      const allEntities: any[] = [];
+      const pageSize = 50; // Use max page size to minimize calls
+      let offset = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const page = await daoFactory.entityDAO.listEntitiesByCampaign(
+          campaignId,
+          {
+            entityType: targetEntityType || undefined,
+            limit: pageSize + 1, // Request one extra to check if there are more
+            offset,
+          }
+        );
+
+        // Check if there are more results
+        if (page.length > pageSize) {
+          hasMore = true;
+          allEntities.push(...page.slice(0, pageSize));
+          offset += pageSize;
+        } else {
+          hasMore = false;
+          allEntities.push(...page);
+        }
+
+        console.log(
+          `[Tool] listAllEntities - Fetched ${allEntities.length} of ${totalCount} entities`
+        );
+      }
+
+      // Transform entities to match searchCampaignContext format
+      const results = allEntities.map((entity) => ({
+        id: entity.id,
+        type: entity.entity_type,
+        name: entity.name || entity.title || entity.display_name || entity.id,
+        title: entity.title,
+        display_name: entity.display_name,
+        text: entity.content_text,
+        metadata: entity.metadata,
+        relationships: entity.relationships || [],
+        score: 1.0, // All entities have equal relevance when listing all
+      }));
+
+      // Sort alphabetically by name for consistent ordering
+      results.sort((a, b) => {
+        const nameA = (
+          a.name ||
+          a.title ||
+          a.display_name ||
+          a.id ||
+          ""
+        ).toLowerCase();
+        const nameB = (
+          b.name ||
+          b.title ||
+          b.display_name ||
+          b.id ||
+          ""
+        ).toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+
+      const entityTypeLabel = entityType ? ` (${entityType})` : "";
+
+      return createToolSuccess(
+        `Found ${totalCount} total entities${entityTypeLabel}. Results are sorted alphabetically by name.`,
+        {
+          entityType: entityType || null,
+          results,
+          totalCount,
+        },
+        toolCallId
+      );
+    } catch (error) {
+      console.error("Error listing all entities:", error);
+      return createToolError(
+        "Failed to list all entities",
         error,
         500,
         toolCallId
