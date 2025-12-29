@@ -88,14 +88,9 @@ export function useResourceFileEvents(
     try {
       const jwt = getStoredJwt();
       if (!jwt) {
-        console.log("[ResourceList] No JWT available for refresh-all-statuses");
         return;
       }
 
-      console.log(
-        "[ResourceList] Refreshing all file statuses - CALL #",
-        Date.now()
-      );
       // Use bulk check file indexing endpoint to refresh file statuses
       const { response, jwtExpired } = await authenticatedFetchWithExpiration(
         API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.RAG.BULK_CHECK_FILE_INDEXING),
@@ -112,24 +107,12 @@ export function useResourceFileEvents(
       );
 
       if (jwtExpired) {
-        console.warn(
-          "[ResourceList] JWT expired while refreshing file statuses"
-        );
         return;
       }
 
       if (response.ok) {
-        const result = (await response.json()) as {
-          success: boolean;
-          updatedCount: number;
-          results: Array<{ filename: string; updated: boolean }>;
-        };
-
-        if (result.success && result.updatedCount > 0) {
-          console.log(
-            `[ResourceList] Updated ${result.updatedCount} file statuses`
-          );
-        }
+        await response.json();
+        // File statuses updated successfully
       }
     } catch (error) {
       console.error("[ResourceList] Error refreshing file statuses:", error);
@@ -140,27 +123,15 @@ export function useResourceFileEvents(
   const handleFileStatusUpdate = useCallback(
     (event: CustomEvent) => {
       const { completeFileData, fileKey, status, fileSize } = event.detail;
-      console.log("[ResourceList] Received file-status-updated event:", {
-        completeFileData,
-        fileKey,
-        status,
-        fileSize,
-      });
 
       // Skip processing if we don't have sufficient data
       if (completeFileData) {
         // Validate complete file data has required fields
         if (!completeFileData.file_key) {
-          console.warn(
-            "[ResourceList] Received file-status-updated event with incomplete file data, skipping"
-          );
           return;
         }
       } else if (!fileKey) {
         // Without complete file data, we need at least a fileKey to update
-        console.warn(
-          "[ResourceList] Received file-status-updated event without fileKey or completeFileData, skipping"
-        );
         return;
       }
 
@@ -171,17 +142,9 @@ export function useResourceFileEvents(
             (f) => f.file_key === completeFileData.file_key
           );
           if (!fileExists) {
-            console.log(
-              "[ResourceList] File not found in list, skipping update:",
-              completeFileData.file_key
-            );
             return prevFiles;
           }
 
-          console.log(
-            "[ResourceList] Updating file with complete data:",
-            completeFileData
-          );
           return prevFiles.map((file) => {
             if (file.file_key === completeFileData.file_key) {
               // Preserve campaigns data and status when replacing and parse tags from JSON string
@@ -200,14 +163,9 @@ export function useResourceFileEvents(
         // Fallback to individual field updates for backward compatibility
         const fileExists = prevFiles.some((f) => f.file_key === fileKey);
         if (!fileExists) {
-          console.log(
-            "[ResourceList] File not found in list, skipping update:",
-            fileKey
-          );
           return prevFiles;
         }
 
-        console.log("[ResourceList] Updating file with individual fields");
         let hasChanges = false;
         const updatedFiles = prevFiles.map((file) => {
           if (file.file_key === fileKey) {

@@ -10,6 +10,7 @@ import { MultiSelect } from "@/components/select/MultiSelect";
 import { TelemetryDashboard } from "@/components/admin/TelemetryDashboard";
 import { FormButton } from "@/components/button/FormButton";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
+import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 import { API_CONFIG } from "@/shared-config";
 import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
 import type { Campaign } from "@/types/campaign";
@@ -251,7 +252,7 @@ export function AppModals({
       <Modal
         isOpen={modalState.isCreateCampaignModalOpen}
         onClose={modalState.handleCreateCampaignClose}
-        cardStyle={{ width: 600, height: 600 }}
+        cardStyle={STANDARD_MODAL_SIZE_OBJECT}
         showCloseButton={true}
       >
         <CreateCampaignModal
@@ -281,6 +282,16 @@ export function AppModals({
         onClose={modalState.handleCampaignDetailsClose}
         onDelete={handleCampaignDelete}
         onUpdate={handleCampaignUpdate}
+        onAddFileToCampaign={async (fileKey: string, fileName: string) => {
+          if (modalState.selectedCampaign) {
+            await addFileToCampaigns(
+              { file_key: fileKey, file_name: fileName } as any,
+              [modalState.selectedCampaign.campaignId],
+              authState.getStoredJwt,
+              addLocalNotification
+            );
+          }
+        }}
       />
 
       {/* Add Resource Modal */}
@@ -290,7 +301,7 @@ export function AppModals({
           !modalState.isCreateCampaignModalOpen
         }
         onClose={modalState.handleAddResourceClose}
-        cardStyle={{ width: 600, height: 600 }}
+        cardStyle={STANDARD_MODAL_SIZE_OBJECT}
         showCloseButton={true}
       >
         <ResourceUpload
@@ -333,7 +344,7 @@ export function AppModals({
       <Modal
         isOpen={modalState.isAddToCampaignModalOpen}
         onClose={modalState.handleAddToCampaignClose}
-        cardStyle={{ width: 500, maxHeight: "90vh" }}
+        cardStyle={STANDARD_MODAL_SIZE_OBJECT}
         showCloseButton={true}
       >
         <div className="p-6">
@@ -500,12 +511,7 @@ export function AppModals({
       <Modal
         isOpen={modalState.isAdminDashboardModalOpen}
         onClose={modalState.handleAdminDashboardClose}
-        cardStyle={{
-          width: "90vw",
-          maxWidth: 1200,
-          minHeight: 600,
-          maxHeight: "90vh",
-        }}
+        cardStyle={STANDARD_MODAL_SIZE_OBJECT}
         showCloseButton={true}
       >
         <TelemetryDashboard />

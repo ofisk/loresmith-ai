@@ -23,6 +23,8 @@ import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
 import { useBaseAsync } from "@/hooks/useBaseAsync";
 import { API_CONFIG } from "@/shared-config";
 import { getDisplayName } from "@/lib/display-name-utils";
+import { useResourceFiles } from "@/hooks/useResourceFiles";
+import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 
 interface CampaignDetailsModalProps {
   campaign: Campaign | null;
@@ -31,9 +33,10 @@ interface CampaignDetailsModalProps {
   onDelete: (campaignId: string) => Promise<void>;
   onUpdate: (
     campaignId: string,
-    updates: { name: string; description: string }
+    updates: { name?: string; description?: string }
   ) => Promise<void>;
   _isLoading?: boolean;
+  onAddFileToCampaign?: (fileKey: string, fileName: string) => Promise<void>;
 }
 
 export function CampaignDetailsModal({
@@ -43,6 +46,7 @@ export function CampaignDetailsModal({
   onDelete,
   onUpdate,
   _isLoading = false,
+  onAddFileToCampaign,
 }: CampaignDetailsModalProps) {
   const nameId = useId();
   const descriptionId = useId();
@@ -80,6 +84,20 @@ export function CampaignDetailsModal({
   const [expandedResources, setExpandedResources] = useState<Set<string>>(
     new Set()
   );
+  // Track add resource modal
+  const [isAddResourceModalOpen, setIsAddResourceModalOpen] = useState(false);
+
+  // Fetch available library files
+  const { files: libraryFiles, fetchResources: fetchLibraryFiles } =
+    useResourceFiles();
+
+  // Fetch library files when campaign details modal opens (so they're ready when user clicks Add resource)
+  useEffect(() => {
+    if (isOpen && campaign) {
+      fetchLibraryFiles();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, campaign?.campaignId]);
 
   const {
     digests,
@@ -209,12 +227,9 @@ export function CampaignDetailsModal({
       () => ({
         onSuccess: (result: { data: any; resourceId: string }) => {
           const { data, resourceId } = result;
-          // If not in queue or completed/failed, remove from processing set
-          if (
-            !data.inQueue ||
-            data.status === "completed" ||
-            data.status === "failed"
-          ) {
+          // If completed or failed, remove from processing set regardless of inQueue status
+          // (completed items may still be in the queue table until cleanup)
+          if (data.status === "completed" || data.status === "failed") {
             setProcessingResources((prev) => {
               const next = new Set(prev);
               next.delete(resourceId);
@@ -231,7 +246,50 @@ export function CampaignDetailsModal({
     )
   );
 
-  // Poll queue status for processing resources
+  // Listen for entity extraction completion events from notifications
+  useEffect(() => {
+    if (!campaign) return;
+
+    const handleEntityExtractionCompleted = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { campaignId, resourceId } = customEvent.detail;
+
+      // Only handle events for this campaign
+      if (campaignId !== campaign.campaignId) return;
+
+      console.log(
+        `[CampaignDetailsModal] Entity extraction completed for resource ${resourceId}`
+      );
+
+      // Remove from processing set
+      if (resourceId) {
+        setProcessingResources((prev) => {
+          const next = new Set(prev);
+          next.delete(resourceId);
+          return next;
+        });
+      }
+
+      // Refresh the queue status for this resource
+      if (resourceId) {
+        checkQueueStatus.execute(campaign.campaignId, resourceId);
+      }
+    };
+
+    window.addEventListener(
+      "entity-extraction-completed",
+      handleEntityExtractionCompleted
+    );
+
+    return () => {
+      window.removeEventListener(
+        "entity-extraction-completed",
+        handleEntityExtractionCompleted
+      );
+    };
+  }, [campaign, checkQueueStatus]);
+
+  // Poll queue status for processing resources (fallback with 30s interval)
   useEffect(() => {
     if (!campaign || processingResources.size === 0) return;
 
@@ -239,20 +297,31 @@ export function CampaignDetailsModal({
       processingResources.forEach((resourceId) => {
         checkQueueStatus.execute(campaign.campaignId, resourceId);
       });
-    }, 3000); // Poll every 3 seconds
+    }, 30000); // Poll every 30 seconds as fallback
 
     return () => clearInterval(pollInterval);
   }, [campaign, processingResources, checkQueueStatus]);
 
   // Check queue status when resources are loaded (to detect already-queued items)
+  // Only run once when modal opens or campaign changes, not on every resources update
+  const hasCheckedInitialStatus = useRef(false);
   useEffect(() => {
     if (!campaign || resources.length === 0) return;
+
+    // Only check once per campaign
+    if (hasCheckedInitialStatus.current) return;
+    hasCheckedInitialStatus.current = true;
 
     // Check status for all resources to see if any are already in the queue
     resources.forEach((resource) => {
       checkQueueStatus.execute(campaign.campaignId, resource.id);
     });
   }, [campaign, resources, checkQueueStatus]);
+
+  // Reset the check flag when campaign changes
+  useEffect(() => {
+    hasCheckedInitialStatus.current = false;
+  }, [campaign?.campaignId]);
 
   // Reset form when campaign changes
   useEffect(() => {
@@ -424,8 +493,7 @@ export function CampaignDetailsModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      className="max-w-2xl"
-      cardStyle={{ width: "800px", maxWidth: "90vw" }}
+      cardStyle={STANDARD_MODAL_SIZE_OBJECT}
     >
       <div className="p-6">
         {/* Header */}
@@ -575,6 +643,15 @@ export function CampaignDetailsModal({
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 Linked resources
               </h3>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsAddResourceModalOpen(true)}
+                className="!text-purple-600 dark:!text-purple-400"
+              >
+                <Plus size={16} weight="bold" />
+                Add resource
+              </Button>
             </div>
             {resourcesLoading ? (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400">
@@ -855,7 +932,7 @@ export function CampaignDetailsModal({
           <Modal
             isOpen={isBulkImportOpen}
             onClose={() => setIsBulkImportOpen(false)}
-            cardStyle={{ width: "700px", maxWidth: "95vw" }}
+            cardStyle={STANDARD_MODAL_SIZE_OBJECT}
             showCloseButton={true}
           >
             <div className="p-6">
@@ -867,6 +944,71 @@ export function CampaignDetailsModal({
           </Modal>
         </>
       )}
+
+      {/* Add Resource Modal */}
+      <Modal
+        isOpen={isAddResourceModalOpen}
+        onClose={() => setIsAddResourceModalOpen(false)}
+        cardStyle={STANDARD_MODAL_SIZE_OBJECT}
+        showCloseButton={true}
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+            Add resource to campaign
+          </h3>
+
+          {libraryFiles.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              No files in library. Upload files first.
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {libraryFiles
+                .filter((file: any) => {
+                  // Filter out files already in this campaign
+                  return !resources.some((r) => r.file_key === file.file_key);
+                })
+                .map((file: any) => (
+                  <button
+                    key={file.file_key}
+                    type="button"
+                    onClick={async () => {
+                      if (onAddFileToCampaign && campaign) {
+                        await onAddFileToCampaign(
+                          file.file_key,
+                          file.file_name
+                        );
+                        setIsAddResourceModalOpen(false);
+                        // Refresh resources list
+                        if (campaign?.campaignId) {
+                          fetchCampaignResources.execute(campaign.campaignId);
+                        }
+                      }
+                    }}
+                    className="w-full p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <div className="font-medium text-gray-900 dark:text-gray-100">
+                      {getDisplayName(file)}
+                    </div>
+                    {file.description && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {file.description}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              {libraryFiles.filter(
+                (file: any) =>
+                  !resources.some((r) => r.file_key === file.file_key)
+              ).length === 0 && (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  All library files are already added to this campaign.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Modal>
     </Modal>
   );
 }

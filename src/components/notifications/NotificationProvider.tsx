@@ -134,6 +134,19 @@ export function NotificationProvider({
                     },
                   })
                 );
+
+                // Dispatch entity extraction completed event to update UI without polling
+                window.dispatchEvent(
+                  new CustomEvent("entity-extraction-completed", {
+                    detail: {
+                      campaignId: notification?.data?.campaignId,
+                      resourceId: notification?.data?.resourceId,
+                      shardCount: notification?.data?.shardCount,
+                      fileName: notification?.data?.fileName,
+                    },
+                  })
+                );
+
                 // If a ui_hint is present, broadcast it too (handled above)
                 const uiHint2 = notification?.data?.ui_hint;
                 if (uiHint2) {

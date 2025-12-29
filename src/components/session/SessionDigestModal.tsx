@@ -3,6 +3,7 @@ import { SessionDigestForm } from "./SessionDigestForm";
 import type { SessionDigestWithData } from "@/types/session-digest";
 
 import type { SessionDigestData } from "@/types/session-digest";
+import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 
 interface SessionDigestModalProps {
   isOpen: boolean;
@@ -32,7 +33,7 @@ export function SessionDigestModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      cardStyle={{ width: "900px", maxWidth: "95vw", maxHeight: "90vh" }}
+      cardStyle={STANDARD_MODAL_SIZE_OBJECT}
       showCloseButton={true}
     >
       <div className="p-6 overflow-y-auto max-h-[calc(90vh-3rem)]">

@@ -9,6 +9,7 @@ import { ERROR_MESSAGES } from "@/app-constants";
 import { Modal } from "@/components/modal/Modal";
 import { FormField } from "@/components/input/FormField";
 import { FormButton } from "@/components/button/FormButton";
+import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 
 interface EditFileModalProps {
   isOpen: boolean;
@@ -301,8 +302,7 @@ export function EditFileModal({
     <Modal
       isOpen={isOpen}
       onClose={handleCancel}
-      className="max-w-2xl"
-      cardStyle={{ width: "600px", maxWidth: "90vw" }}
+      cardStyle={STANDARD_MODAL_SIZE_OBJECT}
     >
       <div className="p-6">
         {/* Header */}
