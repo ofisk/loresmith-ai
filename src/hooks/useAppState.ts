@@ -44,6 +44,7 @@ interface UseAppStateReturn {
 
 interface UseAppStateOptions {
   modalState?: ReturnType<typeof useModalState>;
+  authState?: ReturnType<typeof useAppAuthentication>;
 }
 
 /**
@@ -59,8 +60,14 @@ export function useAppState(
   const [textareaHeight, setTextareaHeight] = useState("40px"); // Compact initial height
   const [triggerFileUpload, setTriggerFileUpload] = useState(false);
 
-  const { modalState } = options;
-  const authState = useAppAuthentication();
+  const { modalState, authState: providedAuthState } = options;
+  // Use provided authState if available, otherwise create a new instance
+  // This ensures we don't create duplicate instances when authState is passed from parent
+  // IMPORTANT: If authState is not passed, we create a fallback instance, but this should
+  // only happen in isolated contexts (e.g., tests). In production, always pass authState
+  // from the parent component to ensure consistent authentication state across the app.
+  const fallbackAuthState = useAppAuthentication();
+  const authState = providedAuthState || fallbackAuthState;
 
   // Initialize authentication on mount
   const initializeAuth = useCallback(async () => {

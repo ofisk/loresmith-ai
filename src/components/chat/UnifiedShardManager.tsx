@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import type { StagedShardGroup } from "../../types/shard";
 import { ShardManagementUI } from "./ShardManagementUI";
 
@@ -36,6 +36,26 @@ export const UnifiedShardManager: React.FC<UnifiedShardManagerProps> = ({
 
     return groups;
   }, [shards]);
+
+  const campaignEntries = Object.entries(shardsByCampaign);
+
+  // Track active campaign tab
+  const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
+
+  // Set initial active campaign when data loads
+  useEffect(() => {
+    if (campaignEntries.length > 0 && !activeCampaignId) {
+      setActiveCampaignId(campaignEntries[0][0]);
+    }
+  }, [campaignEntries, activeCampaignId]);
+
+  // Reset active campaign if it no longer exists
+  useEffect(() => {
+    if (activeCampaignId && !shardsByCampaign[activeCampaignId]) {
+      const firstCampaign = campaignEntries[0];
+      setActiveCampaignId(firstCampaign ? firstCampaign[0] : null);
+    }
+  }, [activeCampaignId, shardsByCampaign, campaignEntries]);
 
   const totalShards = shards.reduce(
     (total, group) => total + (group.shards?.length || 0),
@@ -88,32 +108,53 @@ export const UnifiedShardManager: React.FC<UnifiedShardManagerProps> = ({
     );
   }
 
+  // Get active campaign data
+  const activeCampaignData = activeCampaignId
+    ? shardsByCampaign[activeCampaignId]
+    : null;
+
   return (
-    <div className="space-y-6 pt-4 pl-4">
-      {Object.entries(shardsByCampaign).map(([campaignId, campaignData]) => (
-        <div key={campaignId} className="space-y-3">
-          <div className="border-b border-gray-700 pb-2">
-            <h3 className="text-sm font-medium text-white">
-              {campaignData.campaignName}
-            </h3>
-            <p className="text-xs text-gray-400">
-              {campaignData.shards.reduce(
+    <div className="space-y-4 pt-4 pl-4">
+      {/* Campaign Tabs */}
+      {campaignEntries.length > 1 && (
+        <div className="border-b border-gray-200 dark:border-gray-700">
+          <div className="flex gap-4 overflow-x-auto">
+            {campaignEntries.map(([campaignId, campaignData]) => {
+              const shardCount = campaignData.shards.reduce(
                 (total, group) => total + (group.shards?.length || 0),
                 0
-              )}{" "}
-              shards
-            </p>
+              );
+              return (
+                <button
+                  key={campaignId}
+                  type="button"
+                  onClick={() => setActiveCampaignId(campaignId)}
+                  className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                    activeCampaignId === campaignId
+                      ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                      : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                  }`}
+                >
+                  {campaignData.campaignName} ({shardCount})
+                </button>
+              );
+            })}
           </div>
+        </div>
+      )}
 
+      {/* Active Campaign Shards */}
+      {activeCampaignData && (
+        <div className="space-y-3">
           <ShardManagementUI
-            campaignId={campaignId}
-            campaignName={campaignData.campaignName}
-            shards={campaignData.shards}
+            campaignId={activeCampaignData.campaignId}
+            campaignName={activeCampaignData.campaignName}
+            shards={activeCampaignData.shards}
             action="show_staged"
             onShardsUpdated={onRefresh ? async () => onRefresh() : undefined}
           />
         </div>
-      ))}
+      )}
     </div>
   );
 };

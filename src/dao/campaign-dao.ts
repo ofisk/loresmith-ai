@@ -261,8 +261,16 @@ export class CampaignDAO extends BaseDAOClass {
   async getCampaignResources(campaignId: string): Promise<CampaignResource[]> {
     const sql = `
       select 
-        cr.*,
-        fm.display_name
+        cr.id,
+        cr.campaign_id,
+        cr.file_key,
+        cr.file_name,
+        coalesce(fm.display_name, cr.file_name) as display_name,
+        coalesce(fm.description, cr.description) as description,
+        coalesce(fm.tags, cr.tags) as tags,
+        cr.status,
+        cr.created_at,
+        cr.updated_at
       from campaign_resources cr
       left join file_metadata fm on cr.file_key = fm.file_key
       where cr.campaign_id = ? 

@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from "react";
 import { PrimaryActionButton } from "./button";
 import { FormField } from "./input/FormField";
 import { Modal } from "./modal/Modal";
+import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 
 interface BlockingAuthenticationModalProps {
   isOpen: boolean;
@@ -77,6 +78,7 @@ export function BlockingAuthenticationModal({
       showCloseButton={false}
       allowEscape={false}
       animatedBackground={true} // Enable the cool purple animation!
+      cardStyle={STANDARD_MODAL_SIZE_OBJECT}
     >
       <div className="p-6 max-w-md mx-auto">
         <h2 className="text-xl font-semibold mb-4">Authentication required</h2>

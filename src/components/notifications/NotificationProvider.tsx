@@ -134,6 +134,19 @@ export function NotificationProvider({
                     },
                   })
                 );
+
+                // Dispatch entity extraction completed event to update UI without polling
+                window.dispatchEvent(
+                  new CustomEvent("entity-extraction-completed", {
+                    detail: {
+                      campaignId: notification?.data?.campaignId,
+                      resourceId: notification?.data?.resourceId,
+                      shardCount: notification?.data?.shardCount,
+                      fileName: notification?.data?.fileName,
+                    },
+                  })
+                );
+
                 // If a ui_hint is present, broadcast it too (handled above)
                 const uiHint2 = notification?.data?.ui_hint;
                 if (uiHint2) {
@@ -147,6 +160,27 @@ export function NotificationProvider({
                     })
                   );
                 }
+                break;
+              }
+              case NOTIFICATION_TYPES.REBUILD_STARTED:
+              case NOTIFICATION_TYPES.REBUILD_PROGRESS:
+              case NOTIFICATION_TYPES.REBUILD_COMPLETED:
+              case NOTIFICATION_TYPES.REBUILD_FAILED:
+              case NOTIFICATION_TYPES.REBUILD_CANCELLED: {
+                // Dispatch rebuild status change event to update UI without polling
+                window.dispatchEvent(
+                  new CustomEvent("rebuild-status-changed", {
+                    detail: {
+                      type: "rebuild-status-changed",
+                      campaignId: notification?.data?.campaignId,
+                      rebuildId: notification?.data?.rebuildId,
+                      status: notification?.data?.status,
+                      rebuildType: notification?.data?.rebuildType,
+                      metadata: notification?.data?.metadata,
+                      errorMessage: notification?.data?.errorMessage,
+                    },
+                  })
+                );
                 break;
               }
               default:

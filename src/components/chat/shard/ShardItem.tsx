@@ -39,7 +39,7 @@ export const ShardItem: React.FC<ShardItemProps> = ({
 
         <div className="flex-1">
           <div className="flex items-center space-x-2 mb-2">
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-600 dark:bg-purple-600 text-white">
+            <span className="inline-flex items-center px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs font-medium">
               {shard.metadata.entityType}
             </span>
             {typeof shard.metadata.confidence === "number" &&

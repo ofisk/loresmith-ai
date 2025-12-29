@@ -13,11 +13,15 @@
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,jsonc,css,md,mjs}": [
-      "prettier --write"
+      "prettier --write",
+      "npx @biomejs/biome lint --write"
+    ],
+    "*.{ts,tsx}": [
+      "bash -c 'tsc --noEmit'"
     ]
   },
   "scripts": {
-    "start": "vite dev",
+    "start": "VITE_API_URL=http://localhost:8787 vite dev",
     "dev": "wrangler dev --config wrangler.local.jsonc --port 8787 --local",
     "dev:cloudflare": "wrangler dev --config wrangler.dev.jsonc --port 8787",
     "dev:setup": "./scripts/setup-dev.sh",

@@ -148,9 +148,6 @@ export function useResourceFiles(
   const fetchResources = useCallback(async () => {
     try {
       if (isFetchingRef.current) {
-        console.log(
-          "[ResourceList] fetchResources already in progress, skipping"
-        );
         return;
       }
 
@@ -161,10 +158,6 @@ export function useResourceFiles(
         return;
       }
 
-      console.log(
-        "[ResourceList] Starting fetchResources - CALL #",
-        Date.now()
-      );
       isFetchingRef.current = true;
       setLoading(true);
       setError(null);
@@ -190,10 +183,6 @@ export function useResourceFiles(
       };
 
       const fetchedFiles = resourcesData.files || [];
-      console.log(
-        `[ResourceList] Fetched ${fetchedFiles.length} files:`,
-        fetchedFiles.map((f) => ({ filename: f.file_name, status: f.status }))
-      );
       await fetchResourceCampaigns(fetchedFiles, campaigns);
     } catch (err) {
       console.error("Failed to fetch resources:", err);

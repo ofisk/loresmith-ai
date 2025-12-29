@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, useContext, useState } from "react";
 import { Modal } from "@/components/modal/Modal";
+import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 
 /**
  * Context type for modal state management
@@ -36,7 +37,11 @@ export const ModalProvider = ({ children }: { children: ReactNode }) => {
     <ModalContext.Provider value={{ isOpen, content, openModal, closeModal }}>
       {children}
       {isOpen && (
-        <Modal isOpen={isOpen} onClose={closeModal}>
+        <Modal
+          isOpen={isOpen}
+          onClose={closeModal}
+          cardStyle={STANDARD_MODAL_SIZE_OBJECT}
+        >
           {content}
         </Modal>
       )}

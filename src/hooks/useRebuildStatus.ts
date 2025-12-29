@@ -5,8 +5,7 @@ import { API_CONFIG } from "@/shared-config";
 import type { RebuildStatus } from "@/dao/rebuild-status-dao";
 
 interface UseRebuildStatusOptions {
-  campaignId: string;
-  pollInterval?: number; // Polling interval in milliseconds (default: 5000)
+  campaignId?: string;
   enabled?: boolean; // Whether to automatically poll (default: true)
 }
 
@@ -19,11 +18,10 @@ interface UseRebuildStatusReturn {
 
 /**
  * Hook for fetching active rebuild status for a single campaign.
- * Automatically polls for status updates when a rebuild is in progress.
+ * Uses event-based updates from notifications with fallback polling (30s) when rebuild is active.
  */
 export function useRebuildStatus({
   campaignId,
-  pollInterval = 5000,
   enabled = true,
 }: UseRebuildStatusOptions): UseRebuildStatusReturn {
   const [activeRebuild, setActiveRebuild] = useState<RebuildStatus | null>(
@@ -79,16 +77,33 @@ export function useRebuildStatus({
     // Initial fetch
     refetch();
 
-    // Set up polling if there's an active rebuild
+    // Listen for rebuild status change events from notifications
+    const handleRebuildStatusChange = (event: CustomEvent) => {
+      const detail = event.detail;
+      // Only update if this event is for our campaign
+      if (detail.campaignId === campaignId) {
+        // Refetch to get the latest status
+        refetch();
+      }
+    };
+
+    window.addEventListener(
+      "rebuild-status-changed",
+      handleRebuildStatusChange as EventListener
+    );
+
+    // Set up polling ONLY if there's an active rebuild (as a fallback)
+    // This ensures we eventually pick up status changes even if notifications fail
     const shouldPoll =
       activeRebuild &&
       (activeRebuild.status === "pending" ||
         activeRebuild.status === "in_progress");
 
     if (shouldPoll) {
+      // Poll less frequently since we have notifications (30 seconds instead of 5)
       pollIntervalRef.current = setInterval(() => {
         refetch();
-      }, pollInterval);
+      }, 30000); // 30 seconds - just as a fallback
     } else {
       // Clear polling when rebuild completes
       if (pollIntervalRef.current) {
@@ -98,12 +113,16 @@ export function useRebuildStatus({
     }
 
     return () => {
+      window.removeEventListener(
+        "rebuild-status-changed",
+        handleRebuildStatusChange as EventListener
+      );
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
       }
     };
-  }, [enabled, activeRebuild, pollInterval, refetch]);
+  }, [enabled, activeRebuild, campaignId, refetch]);
 
   return {
     activeRebuild,

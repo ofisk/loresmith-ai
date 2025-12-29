@@ -4,6 +4,8 @@ import {
   Trash,
   Plus,
   ArrowClockwise,
+  CaretDownIcon,
+  CaretRightIcon,
 } from "@phosphor-icons/react";
 import { useEffect, useId, useRef, useState, useMemo } from "react";
 import type { Campaign, CampaignResource } from "@/types/campaign";
@@ -21,6 +23,8 @@ import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
 import { useBaseAsync } from "@/hooks/useBaseAsync";
 import { API_CONFIG } from "@/shared-config";
 import { getDisplayName } from "@/lib/display-name-utils";
+import { useResourceFiles } from "@/hooks/useResourceFiles";
+import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 
 interface CampaignDetailsModalProps {
   campaign: Campaign | null;
@@ -29,9 +33,10 @@ interface CampaignDetailsModalProps {
   onDelete: (campaignId: string) => Promise<void>;
   onUpdate: (
     campaignId: string,
-    updates: { name: string; description: string }
+    updates: { name?: string; description?: string }
   ) => Promise<void>;
   _isLoading?: boolean;
+  onAddFileToCampaign?: (fileKey: string, fileName: string) => Promise<void>;
 }
 
 export function CampaignDetailsModal({
@@ -41,6 +46,7 @@ export function CampaignDetailsModal({
   onDelete,
   onUpdate,
   _isLoading = false,
+  onAddFileToCampaign,
 }: CampaignDetailsModalProps) {
   const nameId = useId();
   const descriptionId = useId();
@@ -56,7 +62,7 @@ export function CampaignDetailsModal({
   const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const confirmIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "details" | "digests" | "documents"
+    "details" | "digests" | "resources"
   >("details");
   const [isDigestModalOpen, setIsDigestModalOpen] = useState(false);
   const [editingDigest, setEditingDigest] =
@@ -74,6 +80,28 @@ export function CampaignDetailsModal({
   const [processingResources, setProcessingResources] = useState<Set<string>>(
     new Set()
   );
+  // Track expanded resources
+  const [expandedResources, setExpandedResources] = useState<Set<string>>(
+    new Set()
+  );
+  // Track add resource modal
+  const [isAddResourceModalOpen, setIsAddResourceModalOpen] = useState(false);
+  const [selectedResourceKeys, setSelectedResourceKeys] = useState<Set<string>>(
+    new Set()
+  );
+  const [isAddingResources, setIsAddingResources] = useState(false);
+
+  // Fetch available library files
+  const { files: libraryFiles, fetchResources: fetchLibraryFiles } =
+    useResourceFiles();
+
+  // Fetch library files when campaign details modal opens (so they're ready when user clicks Add resource)
+  useEffect(() => {
+    if (isOpen && campaign) {
+      fetchLibraryFiles();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, campaign?.campaignId]);
 
   const {
     digests,
@@ -203,12 +231,9 @@ export function CampaignDetailsModal({
       () => ({
         onSuccess: (result: { data: any; resourceId: string }) => {
           const { data, resourceId } = result;
-          // If not in queue or completed/failed, remove from processing set
-          if (
-            !data.inQueue ||
-            data.status === "completed" ||
-            data.status === "failed"
-          ) {
+          // If completed or failed, remove from processing set regardless of inQueue status
+          // (completed items may still be in the queue table until cleanup)
+          if (data.status === "completed" || data.status === "failed") {
             setProcessingResources((prev) => {
               const next = new Set(prev);
               next.delete(resourceId);
@@ -225,7 +250,50 @@ export function CampaignDetailsModal({
     )
   );
 
-  // Poll queue status for processing resources
+  // Listen for entity extraction completion events from notifications
+  useEffect(() => {
+    if (!campaign) return;
+
+    const handleEntityExtractionCompleted = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { campaignId, resourceId } = customEvent.detail;
+
+      // Only handle events for this campaign
+      if (campaignId !== campaign.campaignId) return;
+
+      console.log(
+        `[CampaignDetailsModal] Entity extraction completed for resource ${resourceId}`
+      );
+
+      // Remove from processing set
+      if (resourceId) {
+        setProcessingResources((prev) => {
+          const next = new Set(prev);
+          next.delete(resourceId);
+          return next;
+        });
+      }
+
+      // Refresh the queue status for this resource
+      if (resourceId) {
+        checkQueueStatus.execute(campaign.campaignId, resourceId);
+      }
+    };
+
+    window.addEventListener(
+      "entity-extraction-completed",
+      handleEntityExtractionCompleted
+    );
+
+    return () => {
+      window.removeEventListener(
+        "entity-extraction-completed",
+        handleEntityExtractionCompleted
+      );
+    };
+  }, [campaign, checkQueueStatus]);
+
+  // Poll queue status for processing resources (fallback with 30s interval)
   useEffect(() => {
     if (!campaign || processingResources.size === 0) return;
 
@@ -233,20 +301,31 @@ export function CampaignDetailsModal({
       processingResources.forEach((resourceId) => {
         checkQueueStatus.execute(campaign.campaignId, resourceId);
       });
-    }, 3000); // Poll every 3 seconds
+    }, 30000); // Poll every 30 seconds as fallback
 
     return () => clearInterval(pollInterval);
   }, [campaign, processingResources, checkQueueStatus]);
 
   // Check queue status when resources are loaded (to detect already-queued items)
+  // Only run once when modal opens or campaign changes, not on every resources update
+  const hasCheckedInitialStatus = useRef(false);
   useEffect(() => {
     if (!campaign || resources.length === 0) return;
+
+    // Only check once per campaign
+    if (hasCheckedInitialStatus.current) return;
+    hasCheckedInitialStatus.current = true;
 
     // Check status for all resources to see if any are already in the queue
     resources.forEach((resource) => {
       checkQueueStatus.execute(campaign.campaignId, resource.id);
     });
   }, [campaign, resources, checkQueueStatus]);
+
+  // Reset the check flag when campaign changes
+  useEffect(() => {
+    hasCheckedInitialStatus.current = false;
+  }, [campaign?.campaignId]);
 
   // Reset form when campaign changes
   useEffect(() => {
@@ -256,7 +335,7 @@ export function CampaignDetailsModal({
       if (isOpen && activeTab === "digests") {
         fetchSessionDigests.execute(campaign.campaignId);
       }
-      if (isOpen && activeTab === "documents") {
+      if (isOpen && activeTab === "resources") {
         fetchCampaignResources.execute(campaign.campaignId);
       }
     }
@@ -277,7 +356,7 @@ export function CampaignDetailsModal({
 
   // Fetch resources when switching to documents tab
   useEffect(() => {
-    if (campaign && isOpen && activeTab === "documents") {
+    if (campaign && isOpen && activeTab === "resources") {
       fetchCampaignResources.execute(campaign.campaignId);
     }
   }, [campaign, isOpen, activeTab, fetchCampaignResources.execute]);
@@ -418,8 +497,7 @@ export function CampaignDetailsModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      className="max-w-2xl"
-      cardStyle={{ width: "800px", maxWidth: "90vw" }}
+      cardStyle={STANDARD_MODAL_SIZE_OBJECT}
     >
       <div className="p-6">
         {/* Header */}
@@ -456,14 +534,14 @@ export function CampaignDetailsModal({
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab("documents")}
+              onClick={() => setActiveTab("resources")}
               className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === "documents"
+                activeTab === "resources"
                   ? "border-blue-500 text-blue-600 dark:text-blue-400"
                   : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
               }`}
             >
-              Documents
+              Resources
             </button>
           </div>
         </div>
@@ -562,112 +640,204 @@ export function CampaignDetailsModal({
           </div>
         )}
 
-        {/* Documents Tab */}
-        {activeTab === "documents" && (
+        {/* Resources Tab */}
+        {activeTab === "resources" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                Mapped Documents
+                Linked resources
               </h3>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsAddResourceModalOpen(true)}
+                className="!text-purple-600 dark:!text-purple-400"
+              >
+                <Plus size={16} weight="bold" />
+                Add resource
+              </Button>
             </div>
             {resourcesLoading ? (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                Loading documents...
+                Loading resources...
               </div>
             ) : resourcesError ? (
               <div className="text-center py-8 text-red-500 dark:text-red-400">
-                Error loading documents: {resourcesError}
+                Error loading resources: {resourcesError}
               </div>
             ) : resources.length === 0 ? (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                No documents mapped to this campaign.
+                No resources linked to this campaign.
               </div>
             ) : (
-              <div className="space-y-2">
-                {resources.map((resource) => (
-                  <div
-                    key={resource.id}
-                    className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-1">
-                          {getDisplayName(resource)}
-                        </h4>
-                        {resource.description && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                            {resource.description}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                          <span>Type: {resource.type}</span>
-                          <span>
-                            Added:{" "}
-                            {new Date(resource.created_at).toLocaleDateString()}
-                          </span>
+              <div className="space-y-3">
+                {resources.map((resource) => {
+                  const isExpanded = expandedResources.has(resource.id);
+                  const toggleExpand = () => {
+                    const newExpanded = new Set(expandedResources);
+                    if (isExpanded) {
+                      newExpanded.delete(resource.id);
+                    } else {
+                      newExpanded.add(resource.id);
+                    }
+                    setExpandedResources(newExpanded);
+                  };
+
+                  return (
+                    <button
+                      key={resource.id}
+                      type="button"
+                      className="relative p-2 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800 overflow-hidden cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors duration-200 w-full text-left"
+                      onClick={toggleExpand}
+                    >
+                      <div className="flex flex-col h-full">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 flex-1 mr-3 min-w-0">
+                            <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[200px]">
+                              {getDisplayName(resource)}
+                            </h4>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleExpand();
+                            }}
+                            type="button"
+                            className="flex-shrink-0 p-1 rounded-md bg-neutral-200 dark:bg-neutral-800 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors duration-200"
+                          >
+                            {isExpanded ? (
+                              <CaretDownIcon
+                                size={16}
+                                className="text-purple-600 dark:text-purple-400"
+                              />
+                            ) : (
+                              <CaretRightIcon
+                                size={16}
+                                className="text-purple-600 dark:text-purple-400"
+                              />
+                            )}
+                          </button>
                         </div>
-                        {resource.tags && (
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {(() => {
-                              try {
-                                const tags =
-                                  typeof resource.tags === "string"
-                                    ? JSON.parse(resource.tags)
-                                    : resource.tags;
-                                if (Array.isArray(tags) && tags.length > 0) {
-                                  return tags.map((tag: string) => (
-                                    <span
-                                      key={tag}
-                                      className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
-                                    >
-                                      {tag}
-                                    </span>
-                                  ));
+
+                        {isExpanded && (
+                          <div className="overflow-y-auto transition-all duration-300 ease-in-out max-h-96 opacity-100">
+                            <div className="mt-4 text-xs space-y-1">
+                              {resource.display_name && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-gray-600 dark:text-gray-400">
+                                    Display name:
+                                  </span>
+                                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                                    {resource.display_name}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="flex justify-between items-center">
+                                <span className="text-gray-600 dark:text-gray-400">
+                                  Filename:
+                                </span>
+                                <span className="font-medium text-gray-900 dark:text-gray-100">
+                                  {resource.file_name}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-gray-600 dark:text-gray-400">
+                                  Added:
+                                </span>
+                                <span className="font-medium text-gray-900 dark:text-gray-100">
+                                  {new Date(resource.created_at)
+                                    .toLocaleDateString("en-US", {
+                                      month: "short",
+                                      day: "numeric",
+                                      year: "2-digit",
+                                      hour: "numeric",
+                                      minute: "2-digit",
+                                      hour12: true,
+                                    })
+                                    .replace(",", "")
+                                    .replace(" PM", "p")
+                                    .replace(" AM", "a")}
+                                </span>
+                              </div>
+                            </div>
+
+                            {resource.description && (
+                              <div className="mt-3">
+                                <p className="text-sm text-gray-600 dark:text-gray-300">
+                                  {resource.description}
+                                </p>
+                              </div>
+                            )}
+
+                            {resource.tags &&
+                              (() => {
+                                try {
+                                  const tags =
+                                    typeof resource.tags === "string"
+                                      ? JSON.parse(resource.tags)
+                                      : resource.tags;
+                                  if (Array.isArray(tags) && tags.length > 0) {
+                                    return (
+                                      <div className="mt-3">
+                                        <div className="flex flex-wrap gap-1">
+                                          {tags.map((tag: string) => (
+                                            <span
+                                              key={tag}
+                                              className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded"
+                                            >
+                                              {tag}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                } catch {
+                                  // Invalid JSON, ignore
                                 }
-                              } catch {
-                                // Invalid JSON, ignore
-                              }
-                              return null;
-                            })()}
+                                return null;
+                              })()}
+
+                            <div className="mt-4 space-y-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRetryEntityExtraction(resource.id);
+                                }}
+                                disabled={
+                                  retryingResourceId === resource.id ||
+                                  processingResources.has(resource.id)
+                                }
+                                className="w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {processingResources.has(resource.id) ? (
+                                  <span className="flex items-center justify-center gap-2">
+                                    <ArrowClockwise
+                                      size={16}
+                                      className="animate-spin"
+                                    />
+                                    Processing...
+                                  </span>
+                                ) : retryingResourceId === resource.id ? (
+                                  <span className="flex items-center justify-center gap-2">
+                                    <ArrowClockwise
+                                      size={16}
+                                      className="animate-spin"
+                                    />
+                                    Retrying...
+                                  </span>
+                                ) : (
+                                  "Retry entity extraction"
+                                )}
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
-                      <div className="ml-4 flex items-center gap-2">
-                        {processingResources.has(resource.id) && (
-                          <span className="text-xs text-blue-600 dark:text-blue-400">
-                            Processing...
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleRetryEntityExtraction(resource.id)
-                          }
-                          disabled={
-                            retryingResourceId === resource.id ||
-                            processingResources.has(resource.id)
-                          }
-                          className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          title={
-                            processingResources.has(resource.id)
-                              ? "Entity extraction is processing..."
-                              : "Retry entity extraction"
-                          }
-                        >
-                          <ArrowClockwise
-                            size={20}
-                            className={
-                              retryingResourceId === resource.id ||
-                              processingResources.has(resource.id)
-                                ? "animate-spin"
-                                : ""
-                            }
-                          />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -766,7 +936,7 @@ export function CampaignDetailsModal({
           <Modal
             isOpen={isBulkImportOpen}
             onClose={() => setIsBulkImportOpen(false)}
-            cardStyle={{ width: "700px", maxWidth: "95vw" }}
+            cardStyle={STANDARD_MODAL_SIZE_OBJECT}
             showCloseButton={true}
           >
             <div className="p-6">
@@ -778,6 +948,149 @@ export function CampaignDetailsModal({
           </Modal>
         </>
       )}
+
+      {/* Add Resource Modal */}
+      <Modal
+        isOpen={isAddResourceModalOpen}
+        onClose={() => {
+          setIsAddResourceModalOpen(false);
+          setSelectedResourceKeys(new Set());
+        }}
+        cardStyle={STANDARD_MODAL_SIZE_OBJECT}
+        showCloseButton={true}
+      >
+        <div className="p-6 flex flex-col h-full">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+            Add resources to campaign
+          </h3>
+
+          {libraryFiles.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              No files in library. Upload files first.
+            </div>
+          ) : (
+            <>
+              <div className="flex-1 space-y-2 max-h-96 overflow-y-auto mb-6">
+                {libraryFiles
+                  .filter((file: any) => {
+                    // Filter out files already in this campaign
+                    return !resources.some((r) => r.file_key === file.file_key);
+                  })
+                  .map((file: any) => {
+                    const isSelected = selectedResourceKeys.has(file.file_key);
+                    return (
+                      <label
+                        key={file.file_key}
+                        className={`w-full p-3 flex items-start gap-3 border rounded-lg cursor-pointer transition-colors ${
+                          isSelected
+                            ? "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
+                            : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            const newSelected = new Set(selectedResourceKeys);
+                            if (e.target.checked) {
+                              newSelected.add(file.file_key);
+                            } else {
+                              newSelected.delete(file.file_key);
+                            }
+                            setSelectedResourceKeys(newSelected);
+                          }}
+                          className="mt-1 h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900 dark:text-gray-100">
+                            {getDisplayName(file)}
+                          </div>
+                          {file.description && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              {file.description}
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                {libraryFiles.filter(
+                  (file: any) =>
+                    !resources.some((r) => r.file_key === file.file_key)
+                ).length === 0 && (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    All library files are already added to this campaign.
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-700">
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  {selectedResourceKeys.size > 0 &&
+                    `${selectedResourceKeys.size} resource${selectedResourceKeys.size === 1 ? "" : "s"} selected`}
+                </div>
+                <div className="flex gap-2">
+                  <FormButton
+                    onClick={async () => {
+                      if (
+                        !onAddFileToCampaign ||
+                        !campaign ||
+                        selectedResourceKeys.size === 0
+                      )
+                        return;
+
+                      setIsAddingResources(true);
+                      try {
+                        // Add each selected resource
+                        for (const fileKey of selectedResourceKeys) {
+                          const file = libraryFiles.find(
+                            (f: any) => f.file_key === fileKey
+                          );
+                          if (file) {
+                            await onAddFileToCampaign(
+                              file.file_key,
+                              file.file_name
+                            );
+                          }
+                        }
+
+                        // Close modal and refresh
+                        setIsAddResourceModalOpen(false);
+                        setSelectedResourceKeys(new Set());
+                        if (campaign?.campaignId) {
+                          fetchCampaignResources.execute(campaign.campaignId);
+                        }
+                      } catch (error) {
+                        console.error("Failed to add resources:", error);
+                      } finally {
+                        setIsAddingResources(false);
+                      }
+                    }}
+                    disabled={
+                      selectedResourceKeys.size === 0 || isAddingResources
+                    }
+                    loading={isAddingResources}
+                    icon={<FloppyDisk size={16} />}
+                  >
+                    {isAddingResources ? "Adding..." : "Add resources"}
+                  </FormButton>
+                  <FormButton
+                    onClick={() => {
+                      setIsAddResourceModalOpen(false);
+                      setSelectedResourceKeys(new Set());
+                    }}
+                    disabled={isAddingResources}
+                    variant="secondary"
+                  >
+                    Cancel
+                  </FormButton>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
     </Modal>
   );
 }
