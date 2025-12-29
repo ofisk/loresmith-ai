@@ -35,13 +35,18 @@ function getEnvFromContext(context: any): any {
 // Tool to get campaign suggestions
 export const getCampaignSuggestions = tool({
   description:
-    "Get intelligent suggestions for campaign development, session planning, and story progression. Suggestions should be informed by the Campaign Planning Checklist, prioritizing foundational elements (Campaign Foundation, World & Setting Basics, Starting Location) before later stages.",
+    "Get intelligent suggestions for campaign development, session planning, and story progression. Suggestions should be informed by the Campaign Planning Checklist, prioritizing foundational elements (Campaign Foundation, World & Setting Basics, Starting Location) before later stages. CRITICAL: If you need suggestions for multiple types (e.g., world, session, plot), pass them as an array in a SINGLE call: suggestionType=['world', 'session', 'plot']. Do NOT make separate calls for each type. Call this tool only ONCE per user request, passing all needed suggestion types as an array.",
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
     suggestionType: z
-      .enum(["session", "character", "plot", "world", "combat"])
+      .union([
+        z.enum(["session", "character", "plot", "world", "combat"]),
+        z.array(z.enum(["session", "character", "plot", "world", "combat"])),
+      ])
       .optional()
-      .describe("Type of suggestions to generate (default: session)"),
+      .describe(
+        "Type(s) of suggestions to generate. Can be a single type or an array of types (e.g., ['world', 'session']). Default: session. IMPORTANT: If you need multiple suggestion types, pass them as an array in a SINGLE call rather than making multiple calls."
+      ),
     context: z
       .string()
       .optional()
@@ -49,9 +54,13 @@ export const getCampaignSuggestions = tool({
     jwt: commonSchemas.jwt,
   }),
   execute: async (
-    { campaignId, suggestionType = "session", context: _contextParam, jwt },
+    { campaignId, suggestionType, context: _contextParam, jwt },
     context?: any
   ): Promise<ToolResult> => {
+    // Normalize suggestionType to array - default to "session" if not provided
+    const suggestionTypes = Array.isArray(suggestionType)
+      ? suggestionType
+      : [suggestionType || "session"];
     // Extract toolCallId from context
     const toolCallId = context?.toolCallId || "unknown";
     console.log("[getCampaignSuggestions] Using toolCallId:", toolCallId);
@@ -131,26 +140,46 @@ export const getCampaignSuggestions = tool({
           ).length,
         });
 
-        // Generate suggestions based on type and available data
-        const suggestions = generateSuggestions(
-          suggestionType,
-          allCharacters,
-          allResources,
-          _contextParam
-        );
+        // Generate suggestions for all requested types
+        const allSuggestions: any[] = [];
+        const suggestionsByType: Record<string, any[]> = {};
 
-        console.log("[Tool] Generated suggestions:", suggestions.length);
+        for (const type of suggestionTypes) {
+          const typeSuggestions = generateSuggestions(
+            type,
+            allCharacters,
+            allResources,
+            _contextParam
+          );
+          suggestionsByType[type] = typeSuggestions;
+          allSuggestions.push(...typeSuggestions);
+        }
+
+        console.log(
+          "[Tool] Generated suggestions:",
+          allSuggestions.length,
+          `across ${suggestionTypes.length} type(s)`
+        );
         console.log(
           "[Tool] getCampaignSuggestions - Returning character count:",
           allCharacters.length
         );
 
+        const responseMessage =
+          suggestionTypes.length === 1
+            ? `Generated ${allSuggestions.length} ${suggestionTypes[0]} suggestions`
+            : `Generated ${allSuggestions.length} suggestions across ${suggestionTypes.length} types`;
+
         return createToolSuccess(
-          `Generated ${suggestions.length} ${suggestionType} suggestions`,
+          responseMessage,
           {
-            suggestionType,
-            suggestions,
-            totalCount: suggestions.length,
+            suggestionType:
+              suggestionTypes.length === 1
+                ? suggestionTypes[0]
+                : suggestionTypes,
+            suggestions: allSuggestions,
+            suggestionsByType,
+            totalCount: allSuggestions.length,
             context: {
               characters: allCharacters.length,
               resources: allResources.length,
@@ -172,7 +201,10 @@ export const getCampaignSuggestions = tool({
           method: "POST",
           jwt,
           body: JSON.stringify({
-            suggestionType,
+            suggestionType:
+              suggestionTypes.length === 1
+                ? suggestionTypes[0]
+                : suggestionTypes,
             context,
           }),
         }

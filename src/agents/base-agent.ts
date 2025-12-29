@@ -307,7 +307,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           toolCount: Object.keys(enhancedTools).length,
           toolNames: Object.keys(enhancedTools),
           toolChoice,
-          maxSteps: 10,
+          maxSteps: 15,
           lastUserMessage: processedMessages
             .slice()
             .reverse()
@@ -337,7 +337,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             toolChoice, // Use the variable instead of hardcoded value
             messages: processedMessages,
             tools: enhancedTools,
-            maxSteps: 10, // Allow multiple tool calls plus final response
+            maxSteps: 15, // Allow multiple tool calls plus final response
             onFinish: async (args) => {
               console.log(
                 `[${this.constructor.name}] onFinish called with finishReason: ${args.finishReason}`
