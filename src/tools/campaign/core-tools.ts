@@ -183,7 +183,7 @@ Your campaign is now ready and waiting for you to add resources, plan sessions, 
 
 export const showCampaignDetails = tool({
   description:
-    "Show detailed information about a specific campaign, including the campaign name, description, creation date, and other metadata. Use this tool when users ask about their campaign's description or basic campaign information.",
+    "Show detailed information about a specific campaign, including the campaign name, description, creation date, and other metadata. Use this tool FIRST when users mention 'campaign description', 'use the campaign's description', or ask for suggestions based on the campaign description. This tool retrieves the campaign's description and basic metadata from the database.",
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
     jwt: commonSchemas.jwt,

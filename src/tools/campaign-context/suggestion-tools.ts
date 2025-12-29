@@ -35,7 +35,7 @@ function getEnvFromContext(context: any): any {
 // Tool to get campaign suggestions
 export const getCampaignSuggestions = tool({
   description:
-    "Get intelligent suggestions for campaign development, session planning, and story progression. Suggestions should be informed by the Campaign Planning Checklist, prioritizing foundational elements (Campaign Foundation, World & Setting Basics, Starting Location) before later stages. CRITICAL: If you need suggestions for multiple types (e.g., world, session, plot), pass them as an array in a SINGLE call: suggestionType=['world', 'session', 'plot']. Do NOT make separate calls for each type. Call this tool only ONCE per user request, passing all needed suggestion types as an array.",
+    "Get intelligent suggestions for campaign development, session planning, and story progression. Suggestions should be informed by the Campaign Planning Checklist, prioritizing foundational elements (Campaign Foundation, World & Setting Basics, Starting Location) before later stages. CRITICAL: If you need suggestions for multiple types (e.g., world, session, plot), pass them as an array in a SINGLE call: suggestionType=['world', 'session', 'plot']. Do NOT make separate calls for each type. Call this tool only ONCE per user request, passing all needed suggestion types as an array. After calling this tool, you MUST immediately generate a text response to the user - do NOT make additional tool calls.",
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
     suggestionType: z
@@ -45,7 +45,7 @@ export const getCampaignSuggestions = tool({
       ])
       .optional()
       .describe(
-        "Type(s) of suggestions to generate. Can be a single type or an array of types (e.g., ['world', 'session']). Default: session. IMPORTANT: If you need multiple suggestion types, pass them as an array in a SINGLE call rather than making multiple calls."
+        "Type(s) of suggestions to generate. Can be a single type (e.g., 'session') or an array of types (e.g., ['world', 'session', 'plot']). Default: ['session']. CRITICAL: If you need suggestions for multiple types, you MUST pass them as an array in a SINGLE call: suggestionType=['world', 'session', 'plot']. Do NOT make separate calls for each type. Making multiple calls will cause the agent to hit the step limit and fail to respond."
       ),
     context: z
       .string()
