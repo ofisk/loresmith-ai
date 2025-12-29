@@ -160,7 +160,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
         );
 
         // Filter out messages with incomplete tool invocations to prevent conversion errors
-        const processedMessages = this.messages.filter((message) => {
+        let processedMessages = this.messages.filter((message) => {
           // If the message has tool invocations, check if they're all complete
           const toolInvocations = (message as any).toolInvocations;
           if (
@@ -176,9 +176,37 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           return true;
         });
 
-        console.log(
-          `[${this.constructor.name}] Filtered messages from ${this.messages.length} to ${processedMessages.length}`
-        );
+        // Filter messages by campaignId if a campaign is selected
+        if (selectedCampaignId) {
+          const campaignFilteredMessages: typeof processedMessages = [];
+
+          for (let i = 0; i < processedMessages.length; i++) {
+            const message = processedMessages[i];
+            const messageData = (message as any).data as
+              | (MessageData & { campaignId?: string | null })
+              | undefined;
+
+            // Extract campaignId from message data
+            const messageCampaignId: string | null | undefined =
+              messageData?.campaignId;
+
+            // Only include messages that explicitly have a matching campaignId
+            // Messages without campaignId are excluded when a campaign is selected
+            if (messageCampaignId === selectedCampaignId) {
+              campaignFilteredMessages.push(message);
+            }
+          }
+
+          processedMessages = campaignFilteredMessages;
+
+          console.log(
+            `[${this.constructor.name}] Filtered messages by campaign ${selectedCampaignId}: ${this.messages.length} -> ${processedMessages.length}`
+          );
+        } else {
+          console.log(
+            `[${this.constructor.name}] Filtered messages from ${this.messages.length} to ${processedMessages.length} (no campaign filter applied)`
+          );
+        }
 
         // Debug: Log available tools
         console.log(
