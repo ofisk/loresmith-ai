@@ -160,7 +160,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
         );
 
         // Filter out messages with incomplete tool invocations to prevent conversion errors
-        const processedMessages = this.messages.filter((message) => {
+        let processedMessages = this.messages.filter((message) => {
           // If the message has tool invocations, check if they're all complete
           const toolInvocations = (message as any).toolInvocations;
           if (
@@ -176,9 +176,37 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           return true;
         });
 
-        console.log(
-          `[${this.constructor.name}] Filtered messages from ${this.messages.length} to ${processedMessages.length}`
-        );
+        // Filter messages by campaignId if a campaign is selected
+        if (selectedCampaignId) {
+          const campaignFilteredMessages: typeof processedMessages = [];
+
+          for (let i = 0; i < processedMessages.length; i++) {
+            const message = processedMessages[i];
+            const messageData = (message as any).data as
+              | (MessageData & { campaignId?: string | null })
+              | undefined;
+
+            // Extract campaignId from message data
+            const messageCampaignId: string | null | undefined =
+              messageData?.campaignId;
+
+            // Only include messages that explicitly have a matching campaignId
+            // Messages without campaignId are excluded when a campaign is selected
+            if (messageCampaignId === selectedCampaignId) {
+              campaignFilteredMessages.push(message);
+            }
+          }
+
+          processedMessages = campaignFilteredMessages;
+
+          console.log(
+            `[${this.constructor.name}] Filtered messages by campaign ${selectedCampaignId}: ${this.messages.length} -> ${processedMessages.length}`
+          );
+        } else {
+          console.log(
+            `[${this.constructor.name}] Filtered messages from ${this.messages.length} to ${processedMessages.length} (no campaign filter applied)`
+          );
+        }
 
         // Debug: Log available tools
         console.log(
@@ -186,9 +214,13 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           Object.keys(this.tools)
         );
         if (lastUserMessage) {
+          const userContent =
+            typeof lastUserMessage.content === "string"
+              ? lastUserMessage.content
+              : JSON.stringify(lastUserMessage.content);
           console.log(
             `[${this.constructor.name}] User message content:`,
-            lastUserMessage.content
+            userContent
           );
         }
         console.log(
@@ -266,7 +298,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           { isStaleCommand }
         );
 
-        // Use tools if available, otherwise use none
+        // Determine tool choice: use "auto" to allow the agent to call tools when needed
+        // and generate a final text response after tool calls
+        // The system prompt instructs the agent to use tools when appropriate
         const toolChoice =
           Object.keys(enhancedTools).length > 0 ? "auto" : "none";
 
@@ -301,7 +335,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           toolCount: Object.keys(enhancedTools).length,
           toolNames: Object.keys(enhancedTools),
           toolChoice,
-          maxSteps: 5,
+          maxSteps: 15,
           lastUserMessage: processedMessages
             .slice()
             .reverse()
@@ -309,9 +343,19 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             ?.content?.slice(0, 100),
         };
 
+        // Log compact request summary to avoid log size limits
         console.log(
           `[${this.constructor.name}] 🚀 Making OpenAI API request:`,
-          JSON.stringify(requestDetails, null, 2)
+          JSON.stringify({
+            agent: requestDetails.agent,
+            model: requestDetails.model,
+            messageCount: requestDetails.messageCount,
+            toolCount: requestDetails.toolCount,
+            toolNames: requestDetails.toolNames,
+            toolChoice: requestDetails.toolChoice,
+            maxSteps: requestDetails.maxSteps,
+            lastUserMessage: requestDetails.lastUserMessage,
+          })
         );
 
         try {
@@ -321,7 +365,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             toolChoice, // Use the variable instead of hardcoded value
             messages: processedMessages,
             tools: enhancedTools,
-            maxSteps: 5, // Allow multiple steps including final response
+            maxSteps: 15, // Allow multiple tool calls plus final response
             onFinish: async (args) => {
               console.log(
                 `[${this.constructor.name}] onFinish called with finishReason: ${args.finishReason}`
@@ -329,6 +373,32 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               console.log(
                 `[${this.constructor.name}] onFinish steps count: ${args.steps?.length || 0}`
               );
+              // Log tool calls for debugging
+              if (args.steps) {
+                const allToolCalls = args.steps.flatMap(
+                  (step) => step.toolCalls || []
+                );
+                if (allToolCalls.length > 0) {
+                  console.log(
+                    `[${this.constructor.name}] Tools called: ${allToolCalls.map((call) => call.toolName).join(", ")}`
+                  );
+                  const searchCalls = allToolCalls.filter(
+                    (call) => call.toolName === "searchCampaignContext"
+                  );
+                  if (searchCalls.length > 0) {
+                    searchCalls.forEach((call, idx) => {
+                      console.log(
+                        `[${this.constructor.name}] searchCampaignContext call ${idx + 1}: query="${call.args?.query || "MISSING"}"`
+                      );
+                    });
+                  }
+                } else {
+                  // This should not happen with toolChoice: "required", but log it if it does
+                  console.warn(
+                    `[${this.constructor.name}] ⚠️ WARNING: No tools were called despite toolChoice: "required". This may indicate an issue with the LLM or tool configuration.`
+                  );
+                }
+              }
               // Convert the finish args to ChatMessage format
               const message: any = {
                 role: "assistant" as const,
@@ -340,43 +410,60 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             onError: (errorObj) => {
               // Extract all error details
               const error = errorObj.error as Error & Record<string, any>;
+              const errorMessage = error?.message || String(error);
               const errorDetails = {
-                message: error?.message || String(error),
+                message: errorMessage,
                 name: error?.name || "Unknown",
-                stack: error?.stack,
                 // OpenAI specific fields
                 statusCode: error?.statusCode,
                 code: error?.code,
                 type: error?.type,
                 param: error?.param,
-                // Additional properties
-                ...Object.fromEntries(
-                  Object.entries(error || {}).filter(
-                    ([key]) => !["message", "name", "stack"].includes(key)
-                  )
-                ),
               };
 
               console.error(
                 `[${this.constructor.name}] ❌ OpenAI API Call Failed`
               );
+              // Log compact request summary instead of full details to avoid log size limits
               console.error(
-                `Request Details:`,
-                JSON.stringify(requestDetails, null, 2)
+                `Request Summary:`,
+                JSON.stringify({
+                  agent: requestDetails.agent,
+                  model: requestDetails.model,
+                  messageCount: requestDetails.messageCount,
+                  toolCount: requestDetails.toolCount,
+                  toolNames: requestDetails.toolNames,
+                })
               );
-              console.error(
-                `Error Details:`,
-                JSON.stringify(errorDetails, null, 2)
-              );
-              console.error(`Full Error Object:`, errorObj);
+              console.error(`Error:`, JSON.stringify(errorDetails));
+              // Only log stack trace if it's a small error (not a large request issue)
+              if (error?.stack && error.stack.length < 1000) {
+                console.error(`Stack:`, error.stack);
+              }
 
-              // Send error message to user
-              dataStream.write(
-                formatDataStreamPart(
-                  "text",
-                  "I apologize, but I encountered an error while processing your request. Please try again."
-                )
-              );
+              // Detect quota errors and provide helpful messaging
+              const isQuotaError =
+                errorMessage.includes("exceeded your current quota") ||
+                errorMessage.includes("quota") ||
+                errorMessage.includes("billing details") ||
+                errorMessage.includes("insufficient_quota");
+
+              // Send appropriate error message to user
+              if (isQuotaError) {
+                dataStream.write(
+                  formatDataStreamPart(
+                    "text",
+                    "I'm unable to process your request because your OpenAI API quota has been exceeded. If you've recently updated your billing, it may take a few minutes for the changes to take effect. Please wait 2-3 minutes and try again, or check your OpenAI billing settings at https://platform.openai.com/account/billing"
+                  )
+                );
+              } else {
+                dataStream.write(
+                  formatDataStreamPart(
+                    "text",
+                    "I apologize, but I encountered an error while processing your request. Please try again."
+                  )
+                );
+              }
             },
           });
 

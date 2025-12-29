@@ -223,4 +223,39 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
       resourceId,
     ]);
   }
+
+  /**
+   * Get queue items that have been stuck in processing status for too long
+   */
+  async getStuckProcessingItems(
+    timeoutMinutes: number
+  ): Promise<EntityExtractionQueueItem[]> {
+    const sql = `
+      SELECT * FROM entity_extraction_queue
+      WHERE status = 'processing'
+        AND updated_at < datetime('now', '-' || ? || ' minutes')
+      ORDER BY updated_at ASC
+    `;
+    return await this.queryAll<EntityExtractionQueueItem>(sql, [
+      timeoutMinutes,
+    ]);
+  }
+
+  /**
+   * Reset a stuck processing item back to pending for retry
+   */
+  async resetStuckProcessingItem(
+    id: number,
+    errorMessage: string
+  ): Promise<void> {
+    const sql = `
+      UPDATE entity_extraction_queue
+      SET status = 'pending',
+          last_error = ?,
+          error_code = 'PROCESSING_TIMEOUT',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `;
+    await this.execute(sql, [errorMessage, id]);
+  }
 }

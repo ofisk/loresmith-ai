@@ -26,6 +26,7 @@ import {
 } from "../campaign-context/world-state-tools";
 // Import file management tools for campaign operations
 import { listFiles, getFileStats } from "../file/index";
+import { noOpTool } from "../common/no-op-tool";
 
 // Export all campaign tools
 export {
@@ -56,6 +57,7 @@ export {
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
+  noOpTool,
 };
 
 // Export the tools object for backward compatibility
@@ -82,4 +84,5 @@ export const campaignTools = {
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
+  noOpTool,
 };

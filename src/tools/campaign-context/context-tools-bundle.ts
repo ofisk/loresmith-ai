@@ -1,5 +1,9 @@
 // Campaign context search and storage tools bundle
-import { searchCampaignContext, searchExternalResources } from "./search-tools";
+import {
+  searchCampaignContext,
+  searchExternalResources,
+  listAllEntities,
+} from "./search-tools";
 import {
   recordWorldEventTool,
   updateEntityWorldStateTool,
@@ -9,6 +13,7 @@ import {
 export const campaignContextToolsBundle = {
   searchCampaignContext,
   searchExternalResources,
+  listAllEntities,
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,

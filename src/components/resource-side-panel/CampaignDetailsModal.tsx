@@ -95,6 +95,11 @@ export function CampaignDetailsModal({
   const { files: libraryFiles, fetchResources: fetchLibraryFiles } =
     useResourceFiles();
 
+  // Track if we've already checked initial status to avoid duplicate checks
+  const initialStatusCheckedRef = useRef<Set<string>>(new Set());
+  // Ref to track current processing resources for polling callbacks
+  const processingResourcesRef = useRef<Set<string>>(new Set());
+
   // Fetch library files when campaign details modal opens (so they're ready when user clicks Add resource)
   useEffect(() => {
     if (isOpen && campaign) {
@@ -231,9 +236,23 @@ export function CampaignDetailsModal({
       () => ({
         onSuccess: (result: { data: any; resourceId: string }) => {
           const { data, resourceId } = result;
-          // If completed or failed, remove from processing set regardless of inQueue status
-          // (completed items may still be in the queue table until cleanup)
-          if (data.status === "completed" || data.status === "failed") {
+          // If in queue and processing, add to processing set
+          if (
+            data.inQueue &&
+            (data.status === "pending" || data.status === "processing")
+          ) {
+            setProcessingResources((prev) => {
+              const next = new Set(prev);
+              next.add(resourceId);
+              return next;
+            });
+          }
+          // If not in queue or completed/failed, remove from processing set
+          if (
+            !data.inQueue ||
+            data.status === "completed" ||
+            data.status === "failed"
+          ) {
             setProcessingResources((prev) => {
               const next = new Set(prev);
               next.delete(resourceId);
@@ -241,9 +260,18 @@ export function CampaignDetailsModal({
             });
           }
         },
-        onError: () => {
-          // On error, still remove from processing to allow retry
-          // (error might be transient)
+        onError: (error: string) => {
+          // On network/resource errors, remove from processing to prevent retry loops
+          // Only log if it's not a network error (which we expect during resource exhaustion)
+          if (
+            !error.includes("Failed to fetch") &&
+            !error.includes("ERR_INSUFFICIENT_RESOURCES")
+          ) {
+            console.error(
+              `[CampaignDetailsModal] Error checking queue status:`,
+              error
+            );
+          }
         },
       }),
       []
@@ -293,13 +321,25 @@ export function CampaignDetailsModal({
     };
   }, [campaign, checkQueueStatus]);
 
-  // Poll queue status for processing resources (fallback with 30s interval)
+  // Update ref when processing resources change
+  useEffect(() => {
+    processingResourcesRef.current = processingResources;
+  }, [processingResources]);
+
+  // Poll queue status for processing resources (staggered to avoid overwhelming)
   useEffect(() => {
     if (!campaign || processingResources.size === 0) return;
 
     const pollInterval = setInterval(() => {
-      processingResources.forEach((resourceId) => {
-        checkQueueStatus.execute(campaign.campaignId, resourceId);
+      // Stagger requests by 200ms to avoid overwhelming the browser/server
+      const resourceArray = Array.from(processingResourcesRef.current);
+      resourceArray.forEach((resourceId, index) => {
+        setTimeout(() => {
+          // Only check if still in processing set (may have been removed)
+          if (processingResourcesRef.current.has(resourceId)) {
+            checkQueueStatus.execute(campaign.campaignId, resourceId);
+          }
+        }, index * 200);
       });
     }, 30000); // Poll every 30 seconds as fallback
 
@@ -307,31 +347,44 @@ export function CampaignDetailsModal({
   }, [campaign, processingResources, checkQueueStatus]);
 
   // Check queue status when resources are loaded (to detect already-queued items)
-  // Only run once when modal opens or campaign changes, not on every resources update
-  const hasCheckedInitialStatus = useRef(false);
+  // Check them in batches with delays to avoid overwhelming the browser
   useEffect(() => {
     if (!campaign || resources.length === 0) return;
 
-    // Only check once per campaign
-    if (hasCheckedInitialStatus.current) return;
-    hasCheckedInitialStatus.current = true;
+    // Only check resources we haven't checked yet
+    const uncheckedResources = resources.filter(
+      (resource) => !initialStatusCheckedRef.current.has(resource.id)
+    );
 
-    // Check status for all resources to see if any are already in the queue
-    resources.forEach((resource) => {
-      checkQueueStatus.execute(campaign.campaignId, resource.id);
+    if (uncheckedResources.length === 0) return;
+
+    // Mark all as checked to prevent duplicate checks
+    uncheckedResources.forEach((resource) => {
+      initialStatusCheckedRef.current.add(resource.id);
+    });
+
+    // Check status in batches of 3 with 500ms delay between batches
+    const BATCH_SIZE = 3;
+    const BATCH_DELAY = 500;
+
+    uncheckedResources.forEach((resource, index) => {
+      const batchIndex = Math.floor(index / BATCH_SIZE);
+      const delay = batchIndex * BATCH_DELAY;
+
+      setTimeout(() => {
+        checkQueueStatus.execute(campaign.campaignId, resource.id);
+      }, delay);
     });
   }, [campaign, resources, checkQueueStatus]);
-
-  // Reset the check flag when campaign changes
-  useEffect(() => {
-    hasCheckedInitialStatus.current = false;
-  }, [campaign?.campaignId]);
 
   // Reset form when campaign changes
   useEffect(() => {
     if (campaign) {
       setEditedName(campaign.name);
       setEditedDescription(campaign.description || "");
+      // Reset initial status check tracking when campaign changes
+      initialStatusCheckedRef.current.clear();
+      setProcessingResources(new Set());
       if (isOpen && activeTab === "digests") {
         fetchSessionDigests.execute(campaign.campaignId);
       }
