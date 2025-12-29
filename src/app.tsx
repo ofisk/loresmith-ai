@@ -53,7 +53,9 @@ export default function Chat() {
   const modalState = useModalState();
   const authState = useAppAuthentication();
 
-  // Consolidated app state - pass modalState so it uses the same instance
+  // Consolidated app state - pass modalState and authState so they use the same instances
+  // IMPORTANT: authState must be passed to prevent duplicate authentication hook instances
+  // which would cause the UI to lose authentication state on page refresh
   const {
     chatContainerId,
     textareaHeight,
@@ -61,7 +63,7 @@ export default function Chat() {
     triggerFileUpload,
     setTriggerFileUpload,
     sessionId,
-  } = useAppState({ modalState });
+  } = useAppState({ modalState, authState });
 
   const {
     createCampaign,
