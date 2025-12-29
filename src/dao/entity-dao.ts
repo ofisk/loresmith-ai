@@ -288,6 +288,31 @@ export class EntityDAO extends BaseDAOClass {
   }
 
   /**
+   * Get total count of entities by campaign and optionally by entity type
+   */
+  async getEntityCountByCampaign(
+    campaignId: string,
+    options: { entityType?: string } = {}
+  ): Promise<number> {
+    const conditions = ["campaign_id = ?"];
+    const params: any[] = [campaignId];
+
+    if (options.entityType) {
+      conditions.push("entity_type = ?");
+      params.push(options.entityType);
+    }
+
+    const sql = `
+      SELECT COUNT(*) as count
+      FROM entities
+      WHERE ${conditions.join(" AND ")}
+    `;
+
+    const result = await this.queryFirst<{ count: number }>(sql, params);
+    return result?.count || 0;
+  }
+
+  /**
    * Search entities by name keywords (case-insensitive partial match)
    */
   async searchEntitiesByName(

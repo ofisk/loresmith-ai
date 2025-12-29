@@ -293,6 +293,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
         const daoFactory = getDAOFactory(env);
         const requiresPlanningContext = queryIntent.searchPlanningContext;
         let planningService: PlanningContextService | null = null;
+        let totalCount: number | undefined = undefined;
 
         try {
           planningService = new PlanningContextService(
@@ -375,6 +376,13 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
               // Use pagination to avoid token limit issues when returning large result sets
               // Request limit+1 to check if there are more results
               const queryLimit = limit + 1;
+
+              // Get total count for accurate reporting (only for list-all queries)
+              totalCount = await daoFactory.entityDAO.getEntityCountByCampaign(
+                campaignId,
+                targetEntityType ? { entityType: targetEntityType } : {}
+              );
+
               if (targetEntityType) {
                 entities = await daoFactory.entityDAO.listEntitiesByCampaign(
                   campaignId,
@@ -385,7 +393,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                   }
                 );
                 console.log(
-                  `[Tool] searchCampaignContext - Listing entities of type: ${targetEntityType} (offset: ${offset}, limit: ${limit})`
+                  `[Tool] searchCampaignContext - Listing entities of type: ${targetEntityType} (offset: ${offset}, limit: ${limit}, total: ${totalCount})`
                 );
               } else {
                 // No entity type specified, list all entities
@@ -394,7 +402,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                   { limit: queryLimit, offset }
                 );
                 console.log(
-                  `[Tool] searchCampaignContext - Listing all entities (offset: ${offset}, limit: ${limit})`
+                  `[Tool] searchCampaignContext - Listing all entities (offset: ${offset}, limit: ${limit}, total: ${totalCount})`
                 );
               }
             } else if (
@@ -1016,23 +1024,37 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
         // Check if there are more results (for list-all queries, we requested limit+1)
         let hasMore = false;
         let actualResults = results;
+
         if (queryIntent.isListAll && results.length > limit) {
           hasMore = true;
           actualResults = results.slice(0, limit);
         }
 
+        // Note: totalCount is already fetched above for list-all queries
+
         const entityTypeLabel = queryIntent.entityType
           ? ` (${queryIntent.entityType})`
           : "";
-        const paginationInfo = hasMore
-          ? ` (showing ${actualResults.length} of ${results.length}+ results, use offset=${offset + limit} to get more)`
-          : "";
+
+        // Use total count if available, otherwise use the pagination info
+        let paginationInfo = "";
+        if (queryIntent.isListAll && totalCount !== undefined) {
+          if (hasMore) {
+            paginationInfo = ` (showing ${actualResults.length} of ${totalCount} total, use offset=${offset + limit} to get more)`;
+          } else {
+            paginationInfo = ` (${totalCount} total)`;
+          }
+        } else if (hasMore) {
+          paginationInfo = ` (showing ${actualResults.length} of ${results.length}+ results, use offset=${offset + limit} to get more)`;
+        }
+
         return createToolSuccess(
-          `Found ${actualResults.length} results for "${query}"${entityTypeLabel}${paginationInfo}`,
+          `Found ${totalCount !== undefined ? totalCount : actualResults.length} results for "${query}"${entityTypeLabel}${paginationInfo}`,
           {
             query,
             queryIntent,
             results: actualResults,
+            totalCount,
             pagination: {
               offset,
               limit,
