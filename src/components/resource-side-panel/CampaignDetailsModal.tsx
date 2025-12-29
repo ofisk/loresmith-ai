@@ -86,6 +86,10 @@ export function CampaignDetailsModal({
   );
   // Track add resource modal
   const [isAddResourceModalOpen, setIsAddResourceModalOpen] = useState(false);
+  const [selectedResourceKeys, setSelectedResourceKeys] = useState<Set<string>>(
+    new Set()
+  );
+  const [isAddingResources, setIsAddingResources] = useState(false);
 
   // Fetch available library files
   const { files: libraryFiles, fetchResources: fetchLibraryFiles } =
@@ -948,13 +952,16 @@ export function CampaignDetailsModal({
       {/* Add Resource Modal */}
       <Modal
         isOpen={isAddResourceModalOpen}
-        onClose={() => setIsAddResourceModalOpen(false)}
+        onClose={() => {
+          setIsAddResourceModalOpen(false);
+          setSelectedResourceKeys(new Set());
+        }}
         cardStyle={STANDARD_MODAL_SIZE_OBJECT}
         showCloseButton={true}
       >
-        <div className="p-6">
+        <div className="p-6 flex flex-col h-full">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-            Add resource to campaign
+            Add resources to campaign
           </h3>
 
           {libraryFiles.length === 0 ? (
@@ -962,50 +969,125 @@ export function CampaignDetailsModal({
               No files in library. Upload files first.
             </div>
           ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {libraryFiles
-                .filter((file: any) => {
-                  // Filter out files already in this campaign
-                  return !resources.some((r) => r.file_key === file.file_key);
-                })
-                .map((file: any) => (
-                  <button
-                    key={file.file_key}
-                    type="button"
+            <>
+              <div className="flex-1 space-y-2 max-h-96 overflow-y-auto mb-6">
+                {libraryFiles
+                  .filter((file: any) => {
+                    // Filter out files already in this campaign
+                    return !resources.some((r) => r.file_key === file.file_key);
+                  })
+                  .map((file: any) => {
+                    const isSelected = selectedResourceKeys.has(file.file_key);
+                    return (
+                      <label
+                        key={file.file_key}
+                        className={`w-full p-3 flex items-start gap-3 border rounded-lg cursor-pointer transition-colors ${
+                          isSelected
+                            ? "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
+                            : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            const newSelected = new Set(selectedResourceKeys);
+                            if (e.target.checked) {
+                              newSelected.add(file.file_key);
+                            } else {
+                              newSelected.delete(file.file_key);
+                            }
+                            setSelectedResourceKeys(newSelected);
+                          }}
+                          className="mt-1 h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900 dark:text-gray-100">
+                            {getDisplayName(file)}
+                          </div>
+                          {file.description && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              {file.description}
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                {libraryFiles.filter(
+                  (file: any) =>
+                    !resources.some((r) => r.file_key === file.file_key)
+                ).length === 0 && (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    All library files are already added to this campaign.
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-700">
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  {selectedResourceKeys.size > 0 &&
+                    `${selectedResourceKeys.size} resource${selectedResourceKeys.size === 1 ? "" : "s"} selected`}
+                </div>
+                <div className="flex gap-2">
+                  <FormButton
                     onClick={async () => {
-                      if (onAddFileToCampaign && campaign) {
-                        await onAddFileToCampaign(
-                          file.file_key,
-                          file.file_name
-                        );
+                      if (
+                        !onAddFileToCampaign ||
+                        !campaign ||
+                        selectedResourceKeys.size === 0
+                      )
+                        return;
+
+                      setIsAddingResources(true);
+                      try {
+                        // Add each selected resource
+                        for (const fileKey of selectedResourceKeys) {
+                          const file = libraryFiles.find(
+                            (f: any) => f.file_key === fileKey
+                          );
+                          if (file) {
+                            await onAddFileToCampaign(
+                              file.file_key,
+                              file.file_name
+                            );
+                          }
+                        }
+
+                        // Close modal and refresh
                         setIsAddResourceModalOpen(false);
-                        // Refresh resources list
+                        setSelectedResourceKeys(new Set());
                         if (campaign?.campaignId) {
                           fetchCampaignResources.execute(campaign.campaignId);
                         }
+                      } catch (error) {
+                        console.error("Failed to add resources:", error);
+                      } finally {
+                        setIsAddingResources(false);
                       }
                     }}
-                    className="w-full p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    disabled={
+                      selectedResourceKeys.size === 0 || isAddingResources
+                    }
+                    loading={isAddingResources}
+                    icon={<FloppyDisk size={16} />}
                   >
-                    <div className="font-medium text-gray-900 dark:text-gray-100">
-                      {getDisplayName(file)}
-                    </div>
-                    {file.description && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        {file.description}
-                      </div>
-                    )}
-                  </button>
-                ))}
-              {libraryFiles.filter(
-                (file: any) =>
-                  !resources.some((r) => r.file_key === file.file_key)
-              ).length === 0 && (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  All library files are already added to this campaign.
+                    {isAddingResources ? "Adding..." : "Add resources"}
+                  </FormButton>
+                  <FormButton
+                    onClick={() => {
+                      setIsAddResourceModalOpen(false);
+                      setSelectedResourceKeys(new Set());
+                    }}
+                    disabled={isAddingResources}
+                    variant="secondary"
+                  >
+                    Cancel
+                  </FormButton>
                 </div>
-              )}
-            </div>
+              </div>
+            </>
           )}
         </div>
       </Modal>
