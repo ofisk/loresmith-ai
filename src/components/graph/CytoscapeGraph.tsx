@@ -50,12 +50,20 @@ export function CytoscapeGraph({
       // Entity-level graph
       const entityData = data as EntityGraphData;
       for (const node of entityData.nodes) {
+        // Truncate long labels to prevent overflow
+        const maxLabelLength = 40;
+        const truncatedLabel =
+          node.name.length > maxLabelLength
+            ? node.name.substring(0, maxLabelLength) + "..."
+            : node.name;
+
         els.push({
           data: {
             id: node.id,
-            label: node.name,
+            label: truncatedLabel,
             entityType: node.entityType,
             importance: node.importance,
+            fullName: node.name, // Keep original for tooltips if needed
           },
         });
       }
@@ -74,14 +82,22 @@ export function CytoscapeGraph({
       // Community-level graph
       const communityData = data as CommunityGraphData;
       for (const node of communityData.nodes) {
+        // Truncate long labels to prevent overflow
+        const maxLabelLength = 50;
+        const truncatedLabel =
+          node.name.length > maxLabelLength
+            ? node.name.substring(0, maxLabelLength) + "..."
+            : node.name;
+
         els.push({
           data: {
             id: node.id,
-            label: node.name,
+            label: truncatedLabel,
             size: node.size,
             entityTypes: node.entityTypes,
             level: node.level,
             summary: node.summary,
+            fullName: node.name, // Keep original for tooltips if needed
           },
         });
       }
@@ -180,12 +196,12 @@ export function CytoscapeGraph({
                   label: "data(label)",
                   "text-valign": "center",
                   "text-halign": "center",
-                  "font-size": "12px",
-                  width: 80,
-                  height: 80,
+                  "font-size": "11px",
+                  width: "label",
+                  height: "label",
                   "text-wrap": "wrap",
-                  "text-max-width": "70px",
-                  padding: "10px",
+                  "text-max-width": "100px",
+                  padding: "8px",
                   shape: "round-rectangle",
                 },
               },
