@@ -119,77 +119,112 @@ export function CytoscapeGraph({
     const initializeCytoscape = () => {
       if (!containerRef.current || elements.length === 0) return;
 
-      try {
-        // Create new Cytoscape instance
-        const cy = cytoscape({
-          container: containerRef.current,
-          elements,
-          style: [
-            {
-              selector: "node",
-              style: {
-                "background-color": "#666",
-                label: "data(label)",
-                "text-valign": "center",
-                "text-halign": "center",
-                "font-size": "12px",
-                width: 80,
-                height: 80,
-                "text-wrap": "wrap",
-                "text-max-width": "70px",
-                padding: "10px",
-                shape: "round-rectangle",
-              },
-            },
-            {
-              selector: "edge",
-              style: {
-                width: 2,
-                "line-color": "#ccc",
-                "target-arrow-color": "#ccc",
-                "target-arrow-shape": "triangle",
-                "curve-style": "bezier",
-              },
-            },
-            {
-              selector: "node:selected",
-              style: {
-                "background-color": "#0074D9",
-                "border-width": 3,
-                "border-color": "#0059B3",
-              },
-            },
-            {
-              selector: "node.highlighted",
-              style: {
-                "background-color": "#FFD700",
-                "border-width": 3,
-                "border-color": "#FFA500",
-              },
-            },
-          ],
-          layout: {
-            name: layout,
-          },
-        });
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        if (!containerRef.current || elements.length === 0) return;
 
-        cyRef.current = cy;
-
-        // Expose Cytoscape instance on container for export operations
-        if (containerRef.current) {
-          (containerRef.current as any).__cytoscape = cy;
-        }
-
-        // Handle node clicks
-        if (onNodeClick) {
-          cy.on("tap", "node", (evt) => {
-            const nodeId = evt.target.id();
-            onNodeClick(nodeId);
+        try {
+          // Create new Cytoscape instance without layout first
+          const cy = cytoscape({
+            container: containerRef.current,
+            elements,
+            style: [
+              {
+                selector: "node",
+                style: {
+                  "background-color": "#666",
+                  label: "data(label)",
+                  "text-valign": "center",
+                  "text-halign": "center",
+                  "font-size": "12px",
+                  width: 80,
+                  height: 80,
+                  "text-wrap": "wrap",
+                  "text-max-width": "70px",
+                  padding: "10px",
+                  shape: "round-rectangle",
+                },
+              },
+              {
+                selector: "edge",
+                style: {
+                  width: 2,
+                  "line-color": "#ccc",
+                  "target-arrow-color": "#ccc",
+                  "target-arrow-shape": "triangle",
+                  "curve-style": "bezier",
+                },
+              },
+              {
+                selector: "node:selected",
+                style: {
+                  "background-color": "#0074D9",
+                  "border-width": 3,
+                  "border-color": "#0059B3",
+                },
+              },
+              {
+                selector: "node.highlighted",
+                style: {
+                  "background-color": "#FFD700",
+                  "border-width": 3,
+                  "border-color": "#FFA500",
+                },
+              },
+            ],
+            // Don't set layout during initialization - run it after ready
+            layout: {
+              name: "preset",
+            },
           });
+
+          cyRef.current = cy;
+
+          // Expose Cytoscape instance on container for export operations
+          if (containerRef.current) {
+            (containerRef.current as any).__cytoscape = cy;
+          }
+
+          // Handle node clicks
+          if (onNodeClick) {
+            cy.on("tap", "node", (evt) => {
+              const nodeId = evt.target.id();
+              onNodeClick(nodeId);
+            });
+          }
+
+          // Run layout after instance is ready
+          cy.ready(() => {
+            if (!cyRef.current || cyRef.current !== cy) return;
+            try {
+              const layoutInstance = cy.layout({
+                name: layout,
+              });
+              layoutInstance.run();
+            } catch (layoutError) {
+              console.warn(
+                "[CytoscapeGraph] Error running layout:",
+                layoutError
+              );
+              // Fallback to a simple layout if the requested one fails
+              try {
+                const fallbackLayout = cy.layout({ name: "grid" });
+                fallbackLayout.run();
+              } catch (fallbackError) {
+                console.error(
+                  "[CytoscapeGraph] Error running fallback layout:",
+                  fallbackError
+                );
+              }
+            }
+          });
+        } catch (error) {
+          console.error(
+            "[CytoscapeGraph] Error initializing Cytoscape:",
+            error
+          );
         }
-      } catch (error) {
-        console.error("[CytoscapeGraph] Error initializing Cytoscape:", error);
-      }
+      });
     };
 
     // Start checking dimensions
@@ -209,13 +244,57 @@ export function CytoscapeGraph({
         cyRef.current = null;
       }
     };
-  }, [elements, layout, onNodeClick]);
+  }, [elements, onNodeClick]);
+
+  // Handle layout changes
+  useEffect(() => {
+    if (!cyRef.current) return;
+
+    const cy = cyRef.current;
+
+    // Check if instance is still valid
+    try {
+      // Test if instance is still valid by checking container
+      if (!cy.container()) return;
+    } catch (error) {
+      // Instance is destroyed or invalid
+      return;
+    }
+
+    // Run new layout
+    try {
+      const layoutInstance = cy.layout({
+        name: layout,
+      });
+      layoutInstance.run();
+    } catch (layoutError) {
+      console.warn("[CytoscapeGraph] Error running layout:", layoutError);
+      // Fallback to a simple layout if the requested one fails
+      try {
+        const fallbackLayout = cy.layout({ name: "grid" });
+        fallbackLayout.run();
+      } catch (fallbackError) {
+        console.error(
+          "[CytoscapeGraph] Error running fallback layout:",
+          fallbackError
+        );
+      }
+    }
+  }, [layout]);
 
   // Update highlighted nodes
   useEffect(() => {
     if (!cyRef.current) return;
 
     const cy = cyRef.current;
+
+    // Check if instance is still valid
+    try {
+      if (!cy.container()) return;
+    } catch (error) {
+      return;
+    }
+
     cy.elements().removeClass("highlighted");
     if (highlightedNodes.length > 0) {
       const highlightedElements = cy
