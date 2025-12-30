@@ -31,6 +31,19 @@ export function CytoscapeGraph({
 
   // Convert graph data to Cytoscape elements
   const elements = useMemo<ElementDefinition[]>(() => {
+    console.log("[CytoscapeGraph] Converting data to elements:", {
+      hasData: !!data,
+      isEntityGraph: "communityId" in data,
+      nodeCount:
+        "communityId" in data
+          ? (data as EntityGraphData).nodes.length
+          : (data as CommunityGraphData).nodes.length,
+      edgeCount:
+        "communityId" in data
+          ? (data as EntityGraphData).edges.length
+          : (data as CommunityGraphData).edges.length,
+    });
+
     const els: ElementDefinition[] = [];
 
     if ("communityId" in data) {
@@ -86,6 +99,11 @@ export function CytoscapeGraph({
       }
     }
 
+    console.log(
+      "[CytoscapeGraph] Converted to elements:",
+      els.length,
+      "total elements"
+    );
     return els;
   }, [data]);
 
@@ -95,8 +113,17 @@ export function CytoscapeGraph({
 
     // Ensure we have elements before initializing
     if (elements.length === 0) {
+      console.warn(
+        "[CytoscapeGraph] No elements to render, skipping initialization"
+      );
       return;
     }
+
+    console.log(
+      "[CytoscapeGraph] Initializing with",
+      elements.length,
+      "elements"
+    );
 
     // Destroy existing instance if any
     if (cyRef.current) {

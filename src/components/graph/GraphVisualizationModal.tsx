@@ -50,6 +50,19 @@ export function GraphVisualizationModal({
     enabled: isOpen,
   });
 
+  // Serialize filters to prevent unnecessary re-renders
+  const filtersKey = useMemo(
+    () => JSON.stringify(filters),
+    [
+      filters.entityTypes?.join(","),
+      filters.relationshipTypes?.join(","),
+      filters.approvalStatuses?.join(","),
+      filters.communityLevel,
+      filters.communitySizeMin,
+      filters.communitySizeMax,
+    ]
+  );
+
   // Fetch community graph data when modal opens or filters change
   useEffect(() => {
     if (!isOpen || viewMode !== "community") return;
@@ -60,7 +73,7 @@ export function GraphVisualizationModal({
     }, 100);
 
     return () => clearTimeout(timeoutId);
-  }, [isOpen, viewMode, filters, fetchCommunityGraph]);
+  }, [isOpen, viewMode, filtersKey, fetchCommunityGraph]);
 
   // Fetch entity graph data when a community is selected
   useEffect(() => {
@@ -125,7 +138,18 @@ export function GraphVisualizationModal({
 
   // Filter community graph data by search term (client-side)
   const filteredCommunityGraphData = useMemo(() => {
-    if (!communityGraphData || !communitySearchTerm.trim()) {
+    if (!communityGraphData) {
+      console.log("[GraphVisualizationModal] No communityGraphData available");
+      return null;
+    }
+
+    console.log("[GraphVisualizationModal] Community graph data:", {
+      nodes: communityGraphData.nodes.length,
+      edges: communityGraphData.edges.length,
+      searchTerm: communitySearchTerm,
+    });
+
+    if (!communitySearchTerm.trim()) {
       return communityGraphData;
     }
 
@@ -209,7 +233,13 @@ export function GraphVisualizationModal({
                     highlightedNodes={highlightedNodes}
                     className="flex-1"
                   />
-                ) : null}
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-neutral-600 dark:text-neutral-400">
+                      No graph data available
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <CommunityEntityView

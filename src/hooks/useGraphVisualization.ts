@@ -105,6 +105,10 @@ export function useGraphVisualization({
     error: errorCommunityGraph,
   } = useBaseAsync(fetchCommunityGraphFn, {
     onSuccess: (data) => {
+      console.log("[useGraphVisualization] Received community graph data:", {
+        nodes: data.nodes.length,
+        edges: data.edges.length,
+      });
       setCommunityGraphData(data);
     },
     errorMessage: "Failed to load graph visualization",
