@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Modal } from "@/components/modal/Modal";
 import { CytoscapeGraph } from "./CytoscapeGraph";
 import { GraphControls } from "./GraphControls";
@@ -76,17 +76,29 @@ export function GraphVisualizationModal({
     setSelectedCommunityId(null);
   }, []);
 
-  // Handle entity search
-  const handleEntitySearch = useCallback(async () => {
-    if (!entitySearchTerm.trim()) return;
+  // Debounced entity search
+  useEffect(() => {
+    if (!entitySearchTerm.trim()) {
+      setHighlightedNodes([]);
+      return;
+    }
 
-    await searchEntity(entitySearchTerm);
+    const timeoutId = setTimeout(async () => {
+      await searchEntity(entitySearchTerm);
+    }, 500); // Wait 500ms after typing stops
+
+    return () => clearTimeout(timeoutId);
+  }, [entitySearchTerm, searchEntity]);
+
+  // Update highlighted nodes when search results change
+  useEffect(() => {
     if (searchResults) {
-      // Highlight communities containing the found entity
       const communityIds = searchResults.communities.map((c) => c.id);
       setHighlightedNodes(communityIds);
+    } else if (!entitySearchTerm.trim()) {
+      setHighlightedNodes([]);
     }
-  }, [entitySearchTerm, searchEntity, searchResults]);
+  }, [searchResults, entitySearchTerm]);
 
   // Handle export PNG
   const handleExportPNG = useCallback(() => {
@@ -112,6 +124,30 @@ export function GraphVisualizationModal({
       fetchCommunityGraph(filters);
     }
   }, [filters, viewMode, fetchCommunityGraph]);
+
+  // Filter community graph data by search term (client-side)
+  const filteredCommunityGraphData = useMemo(() => {
+    if (!communityGraphData || !communitySearchTerm.trim()) {
+      return communityGraphData;
+    }
+
+    const searchLower = communitySearchTerm.toLowerCase();
+    const filteredNodes = communityGraphData.nodes.filter((node) =>
+      node.name.toLowerCase().includes(searchLower)
+    );
+    const filteredNodeIds = new Set(filteredNodes.map((n) => n.id));
+
+    // Only include edges between filtered nodes
+    const filteredEdges = communityGraphData.edges.filter(
+      (edge) =>
+        filteredNodeIds.has(edge.source) && filteredNodeIds.has(edge.target)
+    );
+
+    return {
+      nodes: filteredNodes,
+      edges: filteredEdges,
+    };
+  }, [communityGraphData, communitySearchTerm]);
 
   return (
     <Modal
@@ -142,7 +178,6 @@ export function GraphVisualizationModal({
               onCommunitySearchChange={setCommunitySearchTerm}
               entitySearchTerm={entitySearchTerm}
               onEntitySearchChange={setEntitySearchTerm}
-              onEntitySearch={handleEntitySearch}
               layout={layout}
               onLayoutChange={setLayout}
               onResetView={handleResetView}
@@ -168,9 +203,9 @@ export function GraphVisualizationModal({
                       {errorCommunityGraph}
                     </div>
                   </div>
-                ) : communityGraphData ? (
+                ) : filteredCommunityGraphData ? (
                   <CytoscapeGraph
-                    data={communityGraphData}
+                    data={filteredCommunityGraphData}
                     layout={layout}
                     onNodeClick={handleCommunityNodeClick}
                     highlightedNodes={highlightedNodes}

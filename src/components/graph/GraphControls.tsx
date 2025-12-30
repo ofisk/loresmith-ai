@@ -22,7 +22,6 @@ interface GraphControlsProps {
   onCommunitySearchChange: (term: string) => void;
   entitySearchTerm: string;
   onEntitySearchChange: (term: string) => void;
-  onEntitySearch: () => void;
 
   // Layout
   layout: CytoscapeLayout;
@@ -62,7 +61,6 @@ export function GraphControls({
   onCommunitySearchChange,
   entitySearchTerm,
   onEntitySearchChange,
-  onEntitySearch,
   layout,
   onLayoutChange,
   onResetView,
@@ -205,25 +203,15 @@ export function GraphControls({
         {/* Entity search */}
         <div className="flex flex-col gap-1">
           <label className="text-xs text-neutral-600 dark:text-neutral-400">
-            {isCommunityView ? "Search entities" : "Search entities"}
+            Search entities
           </label>
-          <div className="flex gap-1">
-            <input
-              type="text"
-              value={entitySearchTerm}
-              onChange={(e) => onEntitySearchChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  onEntitySearch();
-                }
-              }}
-              placeholder="Search by name..."
-              className="flex-1 flex w-full rounded-md border border-gray-300 dark:border-gray-600 bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:border-blue-500 dark:focus-visible:border-blue-400"
-            />
-            <Button variant="secondary" size="sm" onClick={onEntitySearch}>
-              Search
-            </Button>
-          </div>
+          <input
+            type="text"
+            value={entitySearchTerm}
+            onChange={(e) => onEntitySearchChange(e.target.value)}
+            placeholder="Search by name..."
+            className="flex w-full rounded-md border border-gray-300 dark:border-gray-600 bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:border-blue-500 dark:focus-visible:border-blue-400"
+          />
         </div>
       </div>
 
