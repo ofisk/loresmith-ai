@@ -66,6 +66,11 @@ import {
   handleGetCommunityHierarchy,
 } from "@/routes/communities";
 import {
+  handleGetGraphVisualization,
+  handleGetCommunityEntityGraph,
+  handleSearchEntityInGraph,
+} from "@/routes/graph-visualization";
+import {
   handleCreateWorldStateChangelog,
   handleGetWorldStateOverlay,
   handleListWorldStateChangelog,
@@ -619,6 +624,26 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.HIERARCHY(":campaignId"),
     requireUserJwt,
     handleGetCommunityHierarchy
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_VISUALIZATION.BASE(":campaignId"),
+    requireUserJwt,
+    handleGetGraphVisualization
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_VISUALIZATION.COMMUNITY(
+      ":campaignId",
+      ":communityId"
+    ),
+    requireUserJwt,
+    handleGetCommunityEntityGraph
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_VISUALIZATION.SEARCH_ENTITY(
+      ":campaignId"
+    ),
+    requireUserJwt,
+    handleSearchEntityInGraph
   );
   app.get(
     API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.SUMMARY(

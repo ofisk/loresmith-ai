@@ -175,6 +175,14 @@ export const API_CONFIG = {
         GENERATE_SUMMARY: (campaignId: string, communityId: string) =>
           `/campaigns/${campaignId}/communities/${communityId}/summaries/generate`,
       },
+      GRAPH_VISUALIZATION: {
+        BASE: (campaignId: string) =>
+          `/campaigns/${campaignId}/graph-visualization`,
+        COMMUNITY: (campaignId: string, communityId: string) =>
+          `/campaigns/${campaignId}/graph-visualization/community/${communityId}`,
+        SEARCH_ENTITY: (campaignId: string) =>
+          `/campaigns/${campaignId}/graph-visualization/search-entity`,
+      },
       WORLD_STATE: {
         CHANGELOG: (campaignId: string) =>
           `/campaigns/${campaignId}/world-state/changelog`,

@@ -1,4 +1,5 @@
 import { BaseDAOClass } from "./base-dao";
+import type { ShardStatus } from "@/types/shard";
 
 /**
  * Shard Registry Record in D1
@@ -10,7 +11,7 @@ export interface ShardRegistryRecord {
   resource_name: string;
   r2_key: string;
   shard_type: string;
-  status: "staging" | "approved" | "rejected" | "deleted";
+  status: ShardStatus;
   confidence: number | null;
   source: string | null;
   rejection_reason: string | null;
@@ -29,7 +30,7 @@ export interface CreateShardRegistryInput {
   resource_name: string;
   r2_key: string;
   shard_type: string;
-  status?: "staging" | "approved" | "rejected" | "deleted";
+  status?: ShardStatus;
   confidence?: number;
   source?: string;
 }
@@ -113,7 +114,7 @@ export class ShardDAO extends BaseDAOClass {
    */
   async getShardsByCampaign(
     campaignId: string,
-    status?: "staging" | "approved" | "rejected"
+    status?: ShardStatus
   ): Promise<ShardRegistryRecord[]> {
     let query = `
       SELECT * FROM shard_registry
@@ -139,7 +140,7 @@ export class ShardDAO extends BaseDAOClass {
    */
   async getShardsByResource(
     resourceId: string,
-    status?: "staging" | "approved" | "rejected"
+    status?: ShardStatus
   ): Promise<ShardRegistryRecord[]> {
     let query = `
       SELECT * FROM shard_registry
@@ -165,7 +166,7 @@ export class ShardDAO extends BaseDAOClass {
    */
   async updateShardStatus(
     shardId: string,
-    status: "staging" | "approved" | "rejected" | "deleted",
+    status: ShardStatus,
     r2Key: string,
     rejectionReason?: string
   ): Promise<void> {
@@ -184,7 +185,7 @@ export class ShardDAO extends BaseDAOClass {
   async updateShardStatusBatch(
     updates: Array<{
       shardId: string;
-      status: "staging" | "approved" | "rejected" | "deleted";
+      status: ShardStatus;
       r2Key: string;
       rejectionReason?: string;
     }>
