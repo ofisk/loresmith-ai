@@ -50,12 +50,17 @@ export function GraphVisualizationModal({
     enabled: isOpen,
   });
 
-  // Fetch community graph data when modal opens
+  // Fetch community graph data when modal opens or filters change
   useEffect(() => {
-    if (isOpen && viewMode === "community") {
-      fetchCommunityGraph();
-    }
-  }, [isOpen, viewMode, fetchCommunityGraph]);
+    if (!isOpen || viewMode !== "community") return;
+
+    // Use a small delay to debounce rapid filter changes
+    const timeoutId = setTimeout(() => {
+      fetchCommunityGraph(filters);
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
+  }, [isOpen, viewMode, filters, fetchCommunityGraph]);
 
   // Fetch entity graph data when a community is selected
   useEffect(() => {
@@ -117,13 +122,6 @@ export function GraphVisualizationModal({
     // This will reset zoom/pan in Cytoscape
     console.log("Reset view - to be implemented");
   }, []);
-
-  // Filter community graph when filters change
-  useEffect(() => {
-    if (viewMode === "community") {
-      fetchCommunityGraph(filters);
-    }
-  }, [filters, viewMode, fetchCommunityGraph]);
 
   // Filter community graph data by search term (client-side)
   const filteredCommunityGraphData = useMemo(() => {

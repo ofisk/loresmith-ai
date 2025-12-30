@@ -1,4 +1,4 @@
-import { useCallback, useState, useMemo } from "react";
+import { useCallback, useState, useMemo, useRef, useEffect } from "react";
 import { API_CONFIG } from "@/shared-config";
 import type {
   CommunityGraphData,
@@ -53,11 +53,17 @@ export function useGraphVisualization({
     null
   );
   const [filters, setFilters] = useState<CommunityFilterState>({});
+  const filtersRef = useRef<CommunityFilterState>(filters);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
 
   // Fetch community-level graph data
   const fetchCommunityGraphFn = useMemo(
     () => async (filtersToApply?: CommunityFilterState) => {
-      const activeFilters = filtersToApply ?? filters;
+      const activeFilters = filtersToApply ?? filtersRef.current;
       const params = new URLSearchParams();
 
       if (activeFilters.entityTypes && activeFilters.entityTypes.length > 0) {
@@ -90,7 +96,7 @@ export function useGraphVisualization({
       const data = await makeRequestWithData<CommunityGraphData>(url);
       return data;
     },
-    [campaignId, filters, makeRequestWithData]
+    [campaignId, makeRequestWithData]
   );
 
   const {
@@ -106,12 +112,11 @@ export function useGraphVisualization({
 
   const fetchCommunityGraph = useCallback(
     async (filtersToApply?: CommunityFilterState) => {
-      if (filtersToApply) {
-        setFilters(filtersToApply);
-      }
-      await fetchCommunityGraphExecute(filtersToApply ?? filters);
+      // Use the provided filters or current filters from ref
+      const activeFilters = filtersToApply ?? filtersRef.current;
+      await fetchCommunityGraphExecute(activeFilters);
     },
-    [fetchCommunityGraphExecute, filters]
+    [fetchCommunityGraphExecute]
   );
 
   // Fetch entity-level graph data for a community
