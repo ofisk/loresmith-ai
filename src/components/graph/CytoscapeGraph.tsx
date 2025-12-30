@@ -25,6 +25,9 @@ export function CytoscapeGraph({
 }: CytoscapeGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
+  const layoutRef = useRef<any>(null);
+  const isReadyRef = useRef<boolean>(false);
+  const isDestroyingRef = useRef<boolean>(false);
 
   // Convert graph data to Cytoscape elements
   const elements = useMemo<ElementDefinition[]>(() => {
@@ -97,12 +100,26 @@ export function CytoscapeGraph({
 
     // Destroy existing instance if any
     if (cyRef.current) {
+      isDestroyingRef.current = true;
+
+      // Stop any running layout first
+      if (layoutRef.current) {
+        try {
+          layoutRef.current.stop();
+        } catch (error) {
+          // Ignore errors stopping layout
+        }
+        layoutRef.current = null;
+      }
+
       try {
         cyRef.current.destroy();
       } catch (error) {
         console.warn("[CytoscapeGraph] Error destroying instance:", error);
       }
       cyRef.current = null;
+      isReadyRef.current = false;
+      isDestroyingRef.current = false;
     }
 
     // Wait for container to have dimensions
@@ -195,28 +212,72 @@ export function CytoscapeGraph({
 
           // Run layout after instance is ready
           cy.ready(() => {
+            // Double-check instance is still valid
             if (!cyRef.current || cyRef.current !== cy) return;
+
+            // Check if container is still valid
             try {
-              const layoutInstance = cy.layout({
-                name: layout,
-              });
-              layoutInstance.run();
-            } catch (layoutError) {
-              console.warn(
-                "[CytoscapeGraph] Error running layout:",
-                layoutError
-              );
-              // Fallback to a simple layout if the requested one fails
-              try {
-                const fallbackLayout = cy.layout({ name: "grid" });
-                fallbackLayout.run();
-              } catch (fallbackError) {
-                console.error(
-                  "[CytoscapeGraph] Error running fallback layout:",
-                  fallbackError
-                );
-              }
+              if (!cy.container()) return;
+            } catch (error) {
+              return;
             }
+
+            // Ensure we have elements
+            if (cy.elements().length === 0) {
+              isReadyRef.current = true;
+              return;
+            }
+
+            // Small delay to ensure everything is settled
+            setTimeout(() => {
+              // Don't run if we're destroying
+              if (isDestroyingRef.current) return;
+
+              // Double-check again after delay
+              if (!cyRef.current || cyRef.current !== cy) return;
+
+              try {
+                if (!cy.container()) return;
+              } catch (error) {
+                return;
+              }
+
+              isReadyRef.current = true;
+
+              // Stop any existing layout
+              if (layoutRef.current) {
+                try {
+                  layoutRef.current.stop();
+                } catch (error) {
+                  // Ignore errors stopping layout
+                }
+                layoutRef.current = null;
+              }
+
+              try {
+                const layoutInstance = cy.layout({
+                  name: layout,
+                });
+                layoutRef.current = layoutInstance;
+                layoutInstance.run();
+              } catch (layoutError) {
+                console.warn(
+                  "[CytoscapeGraph] Error running layout:",
+                  layoutError
+                );
+                // Fallback to a simple layout if the requested one fails
+                try {
+                  const fallbackLayout = cy.layout({ name: "grid" });
+                  layoutRef.current = fallbackLayout;
+                  fallbackLayout.run();
+                } catch (fallbackError) {
+                  console.error(
+                    "[CytoscapeGraph] Error running fallback layout:",
+                    fallbackError
+                  );
+                }
+              }
+            }, 100);
           });
         } catch (error) {
           console.error(
@@ -232,6 +293,16 @@ export function CytoscapeGraph({
 
     // Cleanup on unmount
     return () => {
+      // Stop any running layout
+      if (layoutRef.current) {
+        try {
+          layoutRef.current.stop();
+        } catch (error) {
+          // Ignore errors stopping layout
+        }
+        layoutRef.current = null;
+      }
+
       if (containerRef.current) {
         delete (containerRef.current as any).__cytoscape;
       }
@@ -243,22 +314,39 @@ export function CytoscapeGraph({
         }
         cyRef.current = null;
       }
+      isReadyRef.current = false;
     };
   }, [elements, onNodeClick]);
 
   // Handle layout changes
   useEffect(() => {
-    if (!cyRef.current) return;
+    // Don't run layout changes until instance is ready or if we're destroying
+    if (!cyRef.current || !isReadyRef.current || isDestroyingRef.current)
+      return;
 
     const cy = cyRef.current;
 
     // Check if instance is still valid
     try {
       // Test if instance is still valid by checking container
-      if (!cy.container()) return;
+      if (!cy.container()) {
+        isReadyRef.current = false;
+        return;
+      }
     } catch (error) {
       // Instance is destroyed or invalid
+      isReadyRef.current = false;
       return;
+    }
+
+    // Stop any existing layout
+    if (layoutRef.current) {
+      try {
+        layoutRef.current.stop();
+      } catch (error) {
+        // Ignore errors stopping layout
+      }
+      layoutRef.current = null;
     }
 
     // Run new layout
@@ -266,12 +354,14 @@ export function CytoscapeGraph({
       const layoutInstance = cy.layout({
         name: layout,
       });
+      layoutRef.current = layoutInstance;
       layoutInstance.run();
     } catch (layoutError) {
       console.warn("[CytoscapeGraph] Error running layout:", layoutError);
       // Fallback to a simple layout if the requested one fails
       try {
         const fallbackLayout = cy.layout({ name: "grid" });
+        layoutRef.current = fallbackLayout;
         fallbackLayout.run();
       } catch (fallbackError) {
         console.error(
