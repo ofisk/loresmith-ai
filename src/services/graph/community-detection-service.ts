@@ -95,6 +95,7 @@ export class CommunityDetectionService {
       await this.entityDAO.getMinimalRelationshipsForCampaign(campaignId);
 
     // Extract entity IDs from relationships and build edges (filtering rejected relationships)
+    let rejectedRelationships = 0;
     for (const rel of relationshipRecords) {
       // Check if relationship is rejected/ignored
       let isRejected = false;
@@ -104,6 +105,7 @@ export class CommunityDetectionService {
           : {};
         if (relMetadata.rejected === true || relMetadata.ignored === true) {
           isRejected = true;
+          rejectedRelationships++;
         }
       } catch (_error) {
         // If metadata parsing fails, include the relationship (safe default)
@@ -121,6 +123,12 @@ export class CommunityDetectionService {
           weight: rel.strength ?? 1.0,
         });
       }
+    }
+
+    if (rejectedRelationships > 0) {
+      console.log(
+        `[CommunityDetection] Filtered out ${rejectedRelationships} rejected/ignored relationships (${relationshipRecords.length} total, ${edges.length} included)`
+      );
     }
 
     // Load minimal entity data using DAO (id, metadata)
@@ -159,11 +167,24 @@ export class CommunityDetectionService {
       }
     }
 
+    if (rejectedEntityIds.size > 0) {
+      console.log(
+        `[CommunityDetection] Filtered out ${rejectedEntityIds.size} rejected/ignored entities (${entityIdRecords.length} total, ${entityIds.size} included)`
+      );
+    }
+
     // Filter edges to exclude relationships involving rejected entities
+    const edgesBeforeFilter = edges.length;
     const filteredEdges = edges.filter(
       (edge) =>
         !rejectedEntityIds.has(edge.from) && !rejectedEntityIds.has(edge.to)
     );
+
+    if (filteredEdges.length < edgesBeforeFilter) {
+      console.log(
+        `[CommunityDetection] Filtered out ${edgesBeforeFilter - filteredEdges.length} edges involving rejected entities (${edgesBeforeFilter} total, ${filteredEdges.length} included)`
+      );
+    }
 
     return { entityIds, edges: filteredEdges };
   }
@@ -179,9 +200,13 @@ export class CommunityDetectionService {
     // Load minimal graph data (only IDs and edges, not full entity records)
     const { entityIds, edges } = await this.loadMinimalGraphData(campaignId);
 
+    console.log(
+      `[CommunityDetection] Loaded graph data: ${entityIds.size} entities, ${edges.length} edges for campaign ${campaignId}`
+    );
+
     if (entityIds.size === 0 || edges.length === 0) {
       console.log(
-        `[CommunityDetection] No entities or relationships found for campaign ${campaignId}`
+        `[CommunityDetection] No entities or relationships found for campaign ${campaignId} (entities: ${entityIds.size}, edges: ${edges.length})`
       );
       return [];
     }
@@ -244,9 +269,24 @@ export class CommunityDetectionService {
 
     // Filter by minimum community size
     const minSize = options.minCommunitySize ?? 2;
+    const totalCommunitiesBeforeFilter = communitiesMap.size;
     const validCommunities = Array.from(communitiesMap.entries()).filter(
       ([, entityIds]) => entityIds.length >= minSize
     );
+
+    console.log(
+      `[CommunityDetection] Leiden algorithm found ${totalCommunitiesBeforeFilter} communities, ${validCommunities.length} meet minimum size requirement (minSize: ${minSize})`
+    );
+
+    if (validCommunities.length === 0 && totalCommunitiesBeforeFilter > 0) {
+      const communitySizes = Array.from(communitiesMap.values()).map(
+        (ids) => ids.length
+      );
+      const maxSize = Math.max(...communitySizes);
+      console.warn(
+        `[CommunityDetection] All ${totalCommunitiesBeforeFilter} communities filtered out. Largest community has ${maxSize} entities (minSize: ${minSize}). Community sizes: ${communitySizes.join(", ")}`
+      );
+    }
 
     // Delete existing communities for this campaign
     await this.communityDAO.deleteCommunitiesByCampaign(campaignId);

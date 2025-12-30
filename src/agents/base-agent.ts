@@ -405,6 +405,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 content: args.text || "",
                 ...args,
               };
+
               await (onFinish ?? (() => {}))(message);
             },
             onError: (errorObj) => {

@@ -1,5 +1,6 @@
 import type { EntityDAO } from "@/dao/entity-dao";
 import type { CommunityDAO } from "@/dao/community-dao";
+import type { Community } from "@/dao/community-dao";
 import type { EntityImportanceDAO } from "@/dao/entity-importance-dao";
 import {
   mapOverrideToScore,
@@ -242,16 +243,24 @@ export class EntityImportanceService {
 
   async calculateHierarchyLevel(
     campaignId: string,
-    entityId: string
+    entityId: string,
+    communitiesMap?: Map<string, Community[]>
   ): Promise<number> {
     if (!this.communityDAO) {
       return 50;
     }
 
-    const communities = await this.communityDAO.findCommunitiesContainingEntity(
-      campaignId,
-      entityId
-    );
+    let communities: Community[];
+    if (communitiesMap) {
+      // Use pre-loaded communities map
+      communities = communitiesMap.get(entityId) || [];
+    } else {
+      // Fallback to individual query (used when called outside batch context)
+      communities = await this.communityDAO.findCommunitiesContainingEntity(
+        campaignId,
+        entityId
+      );
+    }
 
     if (communities.length === 0) {
       return 50;
@@ -478,9 +487,27 @@ export class EntityImportanceService {
     const entities = await this.entityDAO.listEntitiesByCampaign(campaignId);
     const results = new Map<string, number>();
 
+    // Load all communities once and build an in-memory map to avoid N database queries
     const hierarchyCalcStart = Date.now();
+    let communitiesMap: Map<string, Community[]> | undefined;
+    if (this.communityDAO) {
+      const allCommunities =
+        await this.communityDAO.listCommunitiesByCampaign(campaignId);
+      communitiesMap = new Map<string, Community[]>();
+      for (const community of allCommunities) {
+        for (const entityId of community.entityIds) {
+          if (!communitiesMap.has(entityId)) {
+            communitiesMap.set(entityId, []);
+          }
+          communitiesMap.get(entityId)!.push(community);
+        }
+      }
+      console.log(
+        `[EntityImportance] Loaded ${allCommunities.length} communities into memory map`
+      );
+    }
     const hierarchyPromises = entities.map((entity) =>
-      this.calculateHierarchyLevel(campaignId, entity.id)
+      this.calculateHierarchyLevel(campaignId, entity.id, communitiesMap)
     );
     const hierarchyScores = await Promise.all(hierarchyPromises);
     const hierarchyCalcTime = Date.now() - hierarchyCalcStart;
@@ -489,7 +516,20 @@ export class EntityImportanceService {
     );
 
     const writeStart = Date.now();
-    const writePromises: Promise<void>[] = [];
+
+    // Prepare batch data
+    const importanceInputs: Array<{
+      entityId: string;
+      campaignId: string;
+      pagerank: number;
+      betweennessCentrality: number;
+      hierarchyLevel: number;
+      importanceScore: number;
+    }> = [];
+    const metadataUpdates: Array<{
+      entityId: string;
+      metadata: Record<string, unknown>;
+    }> = [];
 
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
@@ -515,30 +555,41 @@ export class EntityImportanceService {
 
       // Store in table if available, otherwise fallback to metadata
       if (this.importanceDAO) {
-        writePromises.push(
-          this.importanceDAO.upsertImportance({
-            entityId: entity.id,
-            campaignId,
-            pagerank: pagerankScore,
-            betweennessCentrality: betweennessScore,
-            hierarchyLevel: Math.round(hierarchyScore),
-            importanceScore: finalScore,
-          })
-        );
+        importanceInputs.push({
+          entityId: entity.id,
+          campaignId,
+          pagerank: pagerankScore,
+          betweennessCentrality: betweennessScore,
+          hierarchyLevel: Math.round(hierarchyScore),
+          importanceScore: finalScore,
+        });
       } else {
         // Fallback to metadata
-        writePromises.push(
-          this.entityDAO.updateEntity(entity.id, {
-            metadata: {
-              ...metadata,
-              importanceScore: finalScore,
-            },
-          })
-        );
+        metadataUpdates.push({
+          entityId: entity.id,
+          metadata: {
+            ...metadata,
+            importanceScore: finalScore,
+          },
+        });
       }
     }
 
-    await Promise.all(writePromises);
+    // Batch write importance scores (single batch query instead of N queries)
+    if (this.importanceDAO && importanceInputs.length > 0) {
+      await this.importanceDAO.upsertImportanceBatch(importanceInputs);
+    }
+
+    // Fallback: update metadata individually if importanceDAO not available
+    if (metadataUpdates.length > 0) {
+      await Promise.all(
+        metadataUpdates.map((update) =>
+          this.entityDAO.updateEntity(update.entityId, {
+            metadata: update.metadata,
+          })
+        )
+      );
+    }
     const writeTime = Date.now() - writeStart;
     const totalTime = Date.now() - startTime;
     console.log(

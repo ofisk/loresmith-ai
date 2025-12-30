@@ -71,6 +71,49 @@ export class EntityImportanceDAO extends BaseDAOClass {
     ]);
   }
 
+  /**
+   * Batch upsert importance scores (more efficient than individual upserts)
+   */
+  async upsertImportanceBatch(
+    inputs: UpsertEntityImportanceInput[]
+  ): Promise<void> {
+    if (inputs.length === 0) return;
+
+    const stmt = this.db.prepare(`
+      INSERT INTO entity_importance (
+        entity_id,
+        campaign_id,
+        pagerank,
+        betweenness_centrality,
+        hierarchy_level,
+        importance_score,
+        computed_at
+      ) VALUES (
+        ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
+      )
+      ON CONFLICT(entity_id) DO UPDATE SET
+        campaign_id = excluded.campaign_id,
+        pagerank = excluded.pagerank,
+        betweenness_centrality = excluded.betweenness_centrality,
+        hierarchy_level = excluded.hierarchy_level,
+        importance_score = excluded.importance_score,
+        computed_at = CURRENT_TIMESTAMP
+    `);
+
+    const batch = inputs.map((input) =>
+      stmt.bind(
+        input.entityId,
+        input.campaignId,
+        input.pagerank,
+        input.betweennessCentrality,
+        input.hierarchyLevel,
+        input.importanceScore
+      )
+    );
+
+    await this.db.batch(batch);
+  }
+
   async getImportance(entityId: string): Promise<EntityImportance | null> {
     const sql = `
       SELECT * FROM entity_importance
