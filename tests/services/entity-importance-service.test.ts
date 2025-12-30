@@ -20,10 +20,12 @@ describe("EntityImportanceService", () => {
     };
     mockCommunityDAO = {
       findCommunitiesContainingEntity: vi.fn().mockResolvedValue([]),
+      listCommunitiesByCampaign: vi.fn().mockResolvedValue([]),
     };
     mockImportanceDAO = {
       getImportance: vi.fn(),
       upsertImportance: vi.fn(),
+      upsertImportanceBatch: vi.fn(),
       getImportanceForCampaign: vi.fn(),
     };
     service = new EntityImportanceService(
@@ -147,7 +149,13 @@ describe("EntityImportanceService", () => {
       const results =
         await service.recalculateImportanceForCampaign("campaign-123");
 
-      expect(mockImportanceDAO.upsertImportance).toHaveBeenCalledTimes(2);
+      expect(mockImportanceDAO.upsertImportanceBatch).toHaveBeenCalledTimes(1);
+      expect(mockImportanceDAO.upsertImportanceBatch).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ entityId: "entity-1" }),
+          expect.objectContaining({ entityId: "entity-2" }),
+        ])
+      );
       expect(results.size).toBe(2);
       expect(results.has("entity-1")).toBe(true);
       expect(results.has("entity-2")).toBe(true);

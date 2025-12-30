@@ -395,12 +395,15 @@ export function leidenAlgorithm(
   };
 
   // Initialize: each node in its own community
-  const communities = new Map<string, number>();
+  // Maintain mapping from original nodes to final communities throughout
+  const originalCommunities = new Map<string, number>();
   let communityId = 0;
   for (const nodeId of graph.nodes.keys()) {
-    communities.set(nodeId, communityId++);
+    originalCommunities.set(nodeId, communityId++);
   }
 
+  // Communities map for current level (starts as copy of original)
+  const communities = new Map(originalCommunities);
   let currentGraph = graph;
   let level = 0;
 
@@ -423,6 +426,15 @@ export function leidenAlgorithm(
     // Refinement phase
     refinementPhase(currentGraph, communities);
 
+    // Update original communities mapping based on current level communities
+    if (level === 0) {
+      // First level: communities map directly maps original nodes to communities
+      originalCommunities.clear();
+      for (const [nodeId, communityId] of communities) {
+        originalCommunities.set(nodeId, communityId);
+      }
+    }
+
     const finalModularity = calculateModularity(
       currentGraph,
       communities,
@@ -437,25 +449,40 @@ export function leidenAlgorithm(
     // Aggregate graph for next level
     const aggregatedGraph = aggregateGraph(currentGraph, communities);
 
-    // Map old communities to new node IDs
-    const oldToNew = new Map<number, string>();
-    let newId = 0;
+    // Update original communities: map through the aggregation
+    // Each node in aggregatedGraph represents a community from the current level
+    // Map original nodes to their new communities based on aggregated graph structure
+    const communityToNewCommunity = new Map<number, number>();
+    // Create initial communities for aggregated graph (each node in its own community)
+    let newCommunityId = 0;
     for (const nodeId of aggregatedGraph.nodes.keys()) {
-      oldToNew.set(Number(nodeId), `level${level}_${newId++}`);
+      communityToNewCommunity.set(Number(nodeId), newCommunityId++);
     }
 
-    // Update communities to use new aggregated graph structure
-    const newCommunities = new Map<string, number>();
-    for (const [nodeId, oldCommunityId] of communities) {
-      const newCommunityId = oldToNew.get(oldCommunityId);
-      if (newCommunityId) {
-        newCommunities.set(nodeId, Number(newCommunityId.split("_")[1]));
+    // Update original communities: for each original node, find its community ID
+    // from the current level, then map it through to the new community ID
+    const updatedOriginalCommunities = new Map<string, number>();
+    for (const [originalNodeId, currentCommunityId] of originalCommunities) {
+      // currentCommunityId is the community ID from the current (pre-aggregation) level
+      // Map it to the new community ID for the next level
+      const newCommunityId = communityToNewCommunity.get(currentCommunityId);
+      if (newCommunityId !== undefined) {
+        updatedOriginalCommunities.set(originalNodeId, newCommunityId);
+      } else {
+        // Keep original if mapping not found (shouldn't happen, but be safe)
+        updatedOriginalCommunities.set(originalNodeId, currentCommunityId);
       }
     }
+    originalCommunities.clear();
+    for (const [nodeId, communityId] of updatedOriginalCommunities) {
+      originalCommunities.set(nodeId, communityId);
+    }
 
+    // Create new communities map for the aggregated graph for next iteration
+    // Each aggregated node starts in its own community
     communities.clear();
-    for (const [nodeId, communityId] of newCommunities) {
-      communities.set(nodeId, communityId);
+    for (const [nodeId, communityId] of communityToNewCommunity) {
+      communities.set(nodeId.toString(), communityId);
     }
 
     currentGraph = aggregatedGraph;
@@ -465,7 +492,7 @@ export function leidenAlgorithm(
     if (level > 100) break;
   }
 
-  return communities;
+  return originalCommunities;
 }
 
 /**

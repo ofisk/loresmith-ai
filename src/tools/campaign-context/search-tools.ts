@@ -125,7 +125,7 @@ CRITICAL: Use this tool FIRST when users ask about entities "from my campaign", 
 
 CRITICAL - CALL THIS TOOL ONLY ONCE: When users mention multiple synonyms (e.g., "monsters or beasts", "beasts or creatures"), these are synonyms for the SAME entity type. You MUST map all synonyms to the correct entity type name and call this tool ONCE with that mapped type. DO NOT call this tool multiple times with different synonyms.
 
-SEMANTIC SEARCH: Searches entities via semantic similarity. Entity results include their actual relationships from the entity graph, showing which entities are connected and how (e.g., 'resides_in', 'located_in', 'allied_with'). Use this to find relevant entities across all entity types including: ${ENTITY_TYPES_LIST}. 
+SEMANTIC SEARCH: Searches entities via semantic similarity. Entity results include their actual relationships from the entity graph, showing which entities are connected and how (e.g., 'resides_in', 'located_in', 'allied_with'). The tool automatically expands results to include other entities from the same communities as the initially found entities, providing better contextual coverage. Use this to find relevant entities across all entity types including: ${ENTITY_TYPES_LIST}. 
 
 QUERY SYNTAX: The query string automatically infers search intent:
 - "fire monsters" → searches for monsters matching "fire" 
@@ -292,7 +292,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
         const daoFactory = getDAOFactory(env);
         const requiresPlanningContext = queryIntent.searchPlanningContext;
         let planningService: PlanningContextService | null = null;
-        let totalCount: number | undefined = undefined;
+        let totalCount: number | undefined;
         // For list-all queries, use a high limit (500) to minimize pagination calls
         // For regular search queries, use the provided limit (default: 15, max: 50)
         const effectiveLimit = queryIntent.isListAll ? 500 : limit;
@@ -611,6 +611,153 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                 return true; // Include if metadata parsing fails
               }
             });
+
+            // Community-based expansion: Use communities as a shortcut to find related entities
+            // If we found entities, find their communities and include other entities from those communities
+            const communityExpandedEntityIds = new Set<string>(
+              approvedEntities.map((e) => e.id)
+            );
+            if (
+              approvedEntities.length > 0 &&
+              approvedEntities.length < 50 &&
+              !queryIntent.isListAll
+            ) {
+              try {
+                const communityDAO = daoFactory.communityDAO;
+                const allCampaignEntities =
+                  await daoFactory.entityDAO.listEntitiesByCampaign(
+                    campaignId,
+                    { limit: 1000 }
+                  );
+                const allEntitiesMap = new Map(
+                  allCampaignEntities.map((e) => [e.id, e])
+                );
+
+                // Find communities for each found entity
+                const communityIdsSet = new Set<string>();
+                for (const entity of approvedEntities) {
+                  try {
+                    const communities =
+                      await communityDAO.findCommunitiesContainingEntity(
+                        campaignId,
+                        entity.id
+                      );
+                    for (const community of communities) {
+                      communityIdsSet.add(community.id);
+                    }
+                  } catch (error) {
+                    console.warn(
+                      `[Tool] searchCampaignContext - Failed to find communities for entity ${entity.id}:`,
+                      error
+                    );
+                  }
+                }
+
+                // Get all entities from those communities
+                if (communityIdsSet.size > 0) {
+                  const allCommunities =
+                    await communityDAO.listCommunitiesByCampaign(campaignId);
+                  const relevantCommunities = allCommunities.filter((c) =>
+                    communityIdsSet.has(c.id)
+                  );
+
+                  for (const community of relevantCommunities) {
+                    for (const entityId of community.entityIds) {
+                      // Only add entities that match the target entity type (if specified)
+                      const entity = allEntitiesMap.get(entityId);
+                      if (
+                        entity &&
+                        (!targetEntityType ||
+                          entity.entityType === targetEntityType)
+                      ) {
+                        // Filter out rejected/ignored entities
+                        try {
+                          const metadata = entity.metadata
+                            ? (JSON.parse(entity.metadata as string) as Record<
+                                string,
+                                unknown
+                              >)
+                            : {};
+                          const shardStatus = metadata.shardStatus;
+                          const ignored = metadata.ignored === true;
+                          const rejected = metadata.rejected === true;
+                          if (
+                            shardStatus !== "rejected" &&
+                            !ignored &&
+                            !rejected
+                          ) {
+                            communityExpandedEntityIds.add(entityId);
+                          }
+                        } catch {
+                          // Include if metadata parsing fails
+                          communityExpandedEntityIds.add(entityId);
+                        }
+                      }
+                    }
+                  }
+
+                  const expandedCount =
+                    communityExpandedEntityIds.size - approvedEntities.length;
+                  if (expandedCount > 0) {
+                    console.log(
+                      `[Tool] searchCampaignContext - Community expansion added ${expandedCount} entities from ${communityIdsSet.size} communities`
+                    );
+
+                    // Fetch the expanded entities and merge with existing results
+                    const expandedEntities = Array.from(
+                      communityExpandedEntityIds
+                    )
+                      .map((id) => allEntitiesMap.get(id))
+                      .filter(
+                        (e): e is NonNullable<typeof e> => e !== undefined
+                      );
+
+                    // Preserve order: original entities first, then community-expanded entities
+                    // Use similarity scores if available, otherwise use entity names
+                    const entityIdSet = new Set(
+                      approvedEntities.map((e) => e.id)
+                    );
+                    const newEntities = expandedEntities.filter(
+                      (e) => !entityIdSet.has(e.id)
+                    );
+
+                    // Sort new entities by similarity score if available, otherwise by name
+                    newEntities.sort((a, b) => {
+                      const scoreA = entitySimilarityScores.get(a.id) ?? 0;
+                      const scoreB = entitySimilarityScores.get(b.id) ?? 0;
+                      if (scoreA !== scoreB) {
+                        return scoreB - scoreA; // Higher score first
+                      }
+                      return a.name.localeCompare(b.name);
+                    });
+
+                    // Limit community expansion to avoid overwhelming results
+                    // Add up to limit/2 additional entities from communities
+                    const maxExpansion = Math.max(5, Math.floor(limit / 2));
+                    const limitedNewEntities = newEntities.slice(
+                      0,
+                      maxExpansion
+                    );
+
+                    // Merge: original entities first (preserve their order), then community-expanded
+                    entities = [...approvedEntities, ...limitedNewEntities];
+                  } else {
+                    entities = approvedEntities;
+                  }
+                } else {
+                  entities = approvedEntities;
+                }
+              } catch (error) {
+                console.warn(
+                  `[Tool] searchCampaignContext - Community expansion failed (non-fatal):`,
+                  error
+                );
+                // Continue with original entities if community expansion fails
+                entities = approvedEntities;
+              }
+            } else {
+              entities = approvedEntities;
+            }
 
             // Fetch relationships for entities to help AI understand actual connections
             // Relationships are stored separately from entities, so we need to fetch them explicitly

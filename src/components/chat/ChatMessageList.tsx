@@ -31,52 +31,70 @@ export function ChatMessageList({
                 >
                   <div className={isUser ? "flex-1" : "w-full"}>
                     <div>
-                      {m.parts?.map((part, i) => {
-                        const hasTopLevelRender = false;
-                        if (part.type === "text" && hasTopLevelRender) {
-                          return null;
-                        }
-                        if (part.type === "text") {
-                          return (
-                            <div key={`${m.id}-text-${i}`}>
-                              <Card
-                                className={`p-4 rounded-xl bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-sm ${
-                                  isUser
-                                    ? "rounded-br-none"
-                                    : "rounded-bl-none border-assistant-border"
-                                } ${
-                                  part.text.startsWith("scheduled message")
-                                    ? "border-accent/50"
-                                    : ""
-                                } relative shadow-sm border border-neutral-200/50 dark:border-neutral-700/50`}
-                              >
-                                {part.text.startsWith("scheduled message") && (
-                                  <span className="absolute -top-3 -left-2 text-base">
-                                    🕒
-                                  </span>
-                                )}
-                                <MemoizedMarkdown
-                                  content={part.text.replace(
-                                    /^scheduled message: /,
-                                    ""
-                                  )}
-                                />
-                              </Card>
-                              <p
-                                className={`text-xs text-muted-foreground mt-2 px-1 ${
-                                  isUser ? "text-right" : "text-left"
-                                }`}
-                              >
-                                {formatTime(
-                                  new Date(m.createdAt as unknown as string)
-                                )}
-                              </p>
-                            </div>
-                          );
+                      {(() => {
+                        // Find the index of the last text part in the original parts array
+                        const parts = m.parts || [];
+                        let lastTextPartIndex = -1;
+                        for (let j = parts.length - 1; j >= 0; j--) {
+                          if (parts[j]?.type === "text") {
+                            lastTextPartIndex = j;
+                            break;
+                          }
                         }
 
-                        return null;
-                      })}
+                        return parts.map((part, i) => {
+                          const hasTopLevelRender = false;
+                          if (part.type === "text" && hasTopLevelRender) {
+                            return null;
+                          }
+                          if (part.type === "text") {
+                            const isLastTextPart = i === lastTextPartIndex;
+
+                            return (
+                              <div key={`${m.id}-text-${i}`}>
+                                <Card
+                                  className={`p-4 rounded-xl bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-sm ${
+                                    isUser
+                                      ? "rounded-br-none"
+                                      : "rounded-bl-none border-assistant-border"
+                                  } ${
+                                    part.text.startsWith("scheduled message")
+                                      ? "border-accent/50"
+                                      : ""
+                                  } relative shadow-sm border border-neutral-200/50 dark:border-neutral-700/50`}
+                                >
+                                  {part.text.startsWith(
+                                    "scheduled message"
+                                  ) && (
+                                    <span className="absolute -top-3 -left-2 text-base">
+                                      🕒
+                                    </span>
+                                  )}
+                                  <MemoizedMarkdown
+                                    content={part.text.replace(
+                                      /^scheduled message: /,
+                                      ""
+                                    )}
+                                  />
+                                </Card>
+                                {isLastTextPart && (
+                                  <p
+                                    className={`text-xs text-muted-foreground mt-2 px-1 ${
+                                      isUser ? "text-right" : "text-left"
+                                    }`}
+                                  >
+                                    {formatTime(
+                                      new Date(m.createdAt as unknown as string)
+                                    )}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          return null;
+                        });
+                      })()}
                     </div>
                   </div>
                 </div>
