@@ -90,76 +90,110 @@ export function CytoscapeGraph({
   useEffect(() => {
     if (!containerRef.current) return;
 
+    // Ensure we have elements before initializing
+    if (elements.length === 0) {
+      return;
+    }
+
     // Destroy existing instance if any
     if (cyRef.current) {
-      cyRef.current.destroy();
+      try {
+        cyRef.current.destroy();
+      } catch (error) {
+        console.warn("[CytoscapeGraph] Error destroying instance:", error);
+      }
+      cyRef.current = null;
     }
 
-    // Create new Cytoscape instance
-    const cy = cytoscape({
-      container: containerRef.current,
-      elements,
-      style: [
-        {
-          selector: "node",
-          style: {
-            "background-color": "#666",
-            label: "data(label)",
-            "text-valign": "center",
-            "text-halign": "center",
-            "font-size": "12px",
-            width: "label",
-            height: "label",
-            padding: "10px",
-            shape: "round-rectangle",
-          },
-        },
-        {
-          selector: "edge",
-          style: {
-            width: 2,
-            "line-color": "#ccc",
-            "target-arrow-color": "#ccc",
-            "target-arrow-shape": "triangle",
-            "curve-style": "bezier",
-          },
-        },
-        {
-          selector: "node:selected",
-          style: {
-            "background-color": "#0074D9",
-            "border-width": 3,
-            "border-color": "#0059B3",
-          },
-        },
-        {
-          selector: "node.highlighted",
-          style: {
-            "background-color": "#FFD700",
-            "border-width": 3,
-            "border-color": "#FFA500",
-          },
-        },
-      ],
-      layout: {
-        name: layout,
-      },
-    });
+    // Wait for container to have dimensions
+    const container = containerRef.current;
+    const checkDimensions = () => {
+      if (container.offsetWidth > 0 && container.offsetHeight > 0) {
+        initializeCytoscape();
+      } else {
+        // Retry after a short delay
+        setTimeout(checkDimensions, 50);
+      }
+    };
 
-    cyRef.current = cy;
+    const initializeCytoscape = () => {
+      if (!containerRef.current || elements.length === 0) return;
 
-    // Expose Cytoscape instance on container for export operations
-    if (containerRef.current) {
-      (containerRef.current as any).__cytoscape = cy;
-    }
+      try {
+        // Create new Cytoscape instance
+        const cy = cytoscape({
+          container: containerRef.current,
+          elements,
+          style: [
+            {
+              selector: "node",
+              style: {
+                "background-color": "#666",
+                label: "data(label)",
+                "text-valign": "center",
+                "text-halign": "center",
+                "font-size": "12px",
+                width: 80,
+                height: 80,
+                "text-wrap": "wrap",
+                "text-max-width": "70px",
+                padding: "10px",
+                shape: "round-rectangle",
+              },
+            },
+            {
+              selector: "edge",
+              style: {
+                width: 2,
+                "line-color": "#ccc",
+                "target-arrow-color": "#ccc",
+                "target-arrow-shape": "triangle",
+                "curve-style": "bezier",
+              },
+            },
+            {
+              selector: "node:selected",
+              style: {
+                "background-color": "#0074D9",
+                "border-width": 3,
+                "border-color": "#0059B3",
+              },
+            },
+            {
+              selector: "node.highlighted",
+              style: {
+                "background-color": "#FFD700",
+                "border-width": 3,
+                "border-color": "#FFA500",
+              },
+            },
+          ],
+          layout: {
+            name: layout,
+          },
+        });
 
-    // Handle node clicks
-    if (onNodeClick) {
-      cy.on("tap", "node", (evt) => {
-        const nodeId = evt.target.id();
-        onNodeClick(nodeId);
-      });
-    }
+        cyRef.current = cy;
+
+        // Expose Cytoscape instance on container for export operations
+        if (containerRef.current) {
+          (containerRef.current as any).__cytoscape = cy;
+        }
+
+        // Handle node clicks
+        if (onNodeClick) {
+          cy.on("tap", "node", (evt) => {
+            const nodeId = evt.target.id();
+            onNodeClick(nodeId);
+          });
+        }
+      } catch (error) {
+        console.error("[CytoscapeGraph] Error initializing Cytoscape:", error);
+      }
+    };
+
+    // Start checking dimensions
+    checkDimensions();
 
     // Cleanup on unmount
     return () => {
@@ -167,7 +201,11 @@ export function CytoscapeGraph({
         delete (containerRef.current as any).__cytoscape;
       }
       if (cyRef.current) {
-        cyRef.current.destroy();
+        try {
+          cyRef.current.destroy();
+        } catch (error) {
+          console.warn("[CytoscapeGraph] Error during cleanup:", error);
+        }
         cyRef.current = null;
       }
     };
