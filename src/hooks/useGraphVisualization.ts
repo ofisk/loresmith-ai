@@ -113,25 +113,31 @@ export function useGraphVisualization({
     execute: fetchCommunityGraphExecute,
     loading: loadingCommunityGraph,
     error: errorCommunityGraph,
-  } = useBaseAsync(fetchCommunityGraphFn, {
-    onSuccess: (data) => {
-      console.log(
-        "[useGraphVisualization] onSuccess callback - Received community graph data:",
-        {
-          nodes: data.nodes.length,
-          edges: data.edges.length,
-        }
-      );
-      setCommunityGraphData(data);
-    },
-    onError: (error) => {
-      console.error(
-        "[useGraphVisualization] onError callback - Error loading graph:",
-        error
-      );
-    },
-    errorMessage: "Failed to load graph visualization",
-  });
+  } = useBaseAsync(
+    fetchCommunityGraphFn,
+    useMemo(
+      () => ({
+        onSuccess: (data: CommunityGraphData) => {
+          console.log(
+            "[useGraphVisualization] onSuccess callback - Received community graph data:",
+            {
+              nodes: data.nodes.length,
+              edges: data.edges.length,
+            }
+          );
+          setCommunityGraphData(data);
+        },
+        onError: (error: string) => {
+          console.error(
+            "[useGraphVisualization] onError callback - Error loading graph:",
+            error
+          );
+        },
+        errorMessage: "Failed to load graph visualization",
+      }),
+      []
+    )
+  );
 
   const fetchCommunityGraph = useCallback(
     async (filtersToApply?: CommunityFilterState) => {

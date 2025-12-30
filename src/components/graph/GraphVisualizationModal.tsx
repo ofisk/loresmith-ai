@@ -85,7 +85,8 @@ export function GraphVisualizationModal({
     }, 100);
 
     return () => clearTimeout(timeoutId);
-  }, [isOpen, viewMode, filtersKey, fetchCommunityGraph]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, viewMode, filtersKey]);
 
   // Fetch entity graph data when a community is selected
   useEffect(() => {
