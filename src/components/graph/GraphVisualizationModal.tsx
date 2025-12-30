@@ -65,10 +65,22 @@ export function GraphVisualizationModal({
 
   // Fetch community graph data when modal opens or filters change
   useEffect(() => {
-    if (!isOpen || viewMode !== "community") return;
+    if (!isOpen || viewMode !== "community") {
+      console.log("[GraphVisualizationModal] Skipping fetch:", {
+        isOpen,
+        viewMode,
+      });
+      return;
+    }
+
+    console.log(
+      "[GraphVisualizationModal] Triggering fetch with filters:",
+      filters
+    );
 
     // Use a small delay to debounce rapid filter changes
     const timeoutId = setTimeout(() => {
+      console.log("[GraphVisualizationModal] Executing fetchCommunityGraph");
       fetchCommunityGraph(filters);
     }, 100);
 

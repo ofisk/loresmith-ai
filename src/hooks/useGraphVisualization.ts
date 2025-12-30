@@ -63,6 +63,10 @@ export function useGraphVisualization({
   // Fetch community-level graph data
   const fetchCommunityGraphFn = useMemo(
     () => async (filtersToApply?: CommunityFilterState) => {
+      console.log(
+        "[useGraphVisualization] fetchCommunityGraphFn executing with filters:",
+        filtersToApply
+      );
       const activeFilters = filtersToApply ?? filtersRef.current;
       const params = new URLSearchParams();
 
@@ -93,7 +97,13 @@ export function useGraphVisualization({
           API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_VISUALIZATION.BASE(campaignId)
         ) + (params.toString() ? `?${params.toString()}` : "");
 
+      console.log("[useGraphVisualization] Making request to:", url);
+
       const data = await makeRequestWithData<CommunityGraphData>(url);
+      console.log("[useGraphVisualization] Request completed, data received:", {
+        nodes: data.nodes.length,
+        edges: data.edges.length,
+      });
       return data;
     },
     [campaignId, makeRequestWithData]
@@ -105,19 +115,36 @@ export function useGraphVisualization({
     error: errorCommunityGraph,
   } = useBaseAsync(fetchCommunityGraphFn, {
     onSuccess: (data) => {
-      console.log("[useGraphVisualization] Received community graph data:", {
-        nodes: data.nodes.length,
-        edges: data.edges.length,
-      });
+      console.log(
+        "[useGraphVisualization] onSuccess callback - Received community graph data:",
+        {
+          nodes: data.nodes.length,
+          edges: data.edges.length,
+        }
+      );
       setCommunityGraphData(data);
+    },
+    onError: (error) => {
+      console.error(
+        "[useGraphVisualization] onError callback - Error loading graph:",
+        error
+      );
     },
     errorMessage: "Failed to load graph visualization",
   });
 
   const fetchCommunityGraph = useCallback(
     async (filtersToApply?: CommunityFilterState) => {
+      console.log("[useGraphVisualization] fetchCommunityGraph called with:", {
+        filtersToApply,
+        currentFilters: filtersRef.current,
+      });
       // Use the provided filters or current filters from ref
       const activeFilters = filtersToApply ?? filtersRef.current;
+      console.log(
+        "[useGraphVisualization] Using activeFilters:",
+        activeFilters
+      );
       await fetchCommunityGraphExecute(activeFilters);
     },
     [fetchCommunityGraphExecute]
