@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Modal } from "@/components/modal/Modal";
 import { CytoscapeGraph } from "./CytoscapeGraph";
 import { GraphControls } from "./GraphControls";
@@ -50,6 +50,18 @@ export function GraphVisualizationModal({
     enabled: isOpen,
   });
 
+  // Use refs to store the latest function and filters to avoid dependency issues
+  const fetchCommunityGraphRef = useRef(fetchCommunityGraph);
+  const filtersRef = useRef(filters);
+
+  useEffect(() => {
+    fetchCommunityGraphRef.current = fetchCommunityGraph;
+  }, [fetchCommunityGraph]);
+
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
+
   // Serialize filters to prevent unnecessary re-renders
   const filtersKey = useMemo(
     () => JSON.stringify(filters),
@@ -75,17 +87,16 @@ export function GraphVisualizationModal({
 
     console.log(
       "[GraphVisualizationModal] Triggering fetch with filters:",
-      filters
+      filtersRef.current
     );
 
     // Use a small delay to debounce rapid filter changes
     const timeoutId = setTimeout(() => {
       console.log("[GraphVisualizationModal] Executing fetchCommunityGraph");
-      fetchCommunityGraph(filters);
+      fetchCommunityGraphRef.current(filtersRef.current);
     }, 100);
 
     return () => clearTimeout(timeoutId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, viewMode, filtersKey]);
 
   // Fetch entity graph data when a community is selected
