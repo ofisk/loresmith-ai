@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Button } from "@/components/button/Button";
 import { CytoscapeGraph } from "./CytoscapeGraph";
+import { EntityDetailPanel } from "./EntityDetailPanel";
 import type {
   EntityGraphData,
   CytoscapeLayout,
@@ -7,6 +9,7 @@ import type {
 import { cn } from "@/lib/utils";
 
 interface CommunityEntityViewProps {
+  campaignId: string;
   communityId: string;
   entityGraphData: EntityGraphData | null;
   loading: boolean;
@@ -18,6 +21,7 @@ interface CommunityEntityViewProps {
 }
 
 export function CommunityEntityView({
+  campaignId,
   communityId,
   entityGraphData,
   loading,
@@ -27,6 +31,7 @@ export function CommunityEntityView({
   onBack,
   className = "",
 }: CommunityEntityViewProps) {
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   if (loading) {
     return (
       <div className={cn("flex items-center justify-center h-full", className)}>
@@ -71,6 +76,14 @@ export function CommunityEntityView({
     );
   }
 
+  const handleEntityNodeClick = (nodeId: string) => {
+    setSelectedEntityId(nodeId);
+  };
+
+  const handleCloseDetailPanel = () => {
+    setSelectedEntityId(null);
+  };
+
   return (
     <div className={cn("flex flex-col h-full", className)}>
       <div className="flex items-center gap-4 p-4 border-b border-neutral-200 dark:border-neutral-700">
@@ -85,8 +98,24 @@ export function CommunityEntityView({
           {entityGraphData.edges.length} relationships
         </div>
       </div>
-      <div className="flex-1 min-h-0">
-        <CytoscapeGraph data={entityGraphData} layout={layout} />
+      <div className="flex-1 min-h-0 flex">
+        <div className={cn("flex-1 min-w-0", selectedEntityId && "w-2/3")}>
+          <CytoscapeGraph
+            data={entityGraphData}
+            layout={layout}
+            onNodeClick={handleEntityNodeClick}
+          />
+        </div>
+        {selectedEntityId && (
+          <div className="w-1/3 min-w-0 border-l border-neutral-200 dark:border-neutral-700">
+            <EntityDetailPanel
+              campaignId={campaignId}
+              entityId={selectedEntityId}
+              onClose={handleCloseDetailPanel}
+              className="h-full"
+            />
+          </div>
+        )}
       </div>
     </div>
   );

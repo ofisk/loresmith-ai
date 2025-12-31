@@ -281,6 +281,7 @@ export function GraphVisualizationModal({
               </>
             ) : (
               <CommunityEntityView
+                campaignId={campaignId}
                 communityId={selectedCommunityId || ""}
                 entityGraphData={entityGraphData}
                 loading={loadingEntityGraph}
