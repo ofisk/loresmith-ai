@@ -292,8 +292,9 @@ export function getCommunityName(
   community: Community,
   summary?: CommunitySummary | null
 ): string {
-  if (summary?.name) {
-    return summary.name;
+  const name = summary?.name;
+  if (name && typeof name === "string" && name.trim().length > 0) {
+    return name;
   }
   return `Community ${community.id.slice(0, 8)} (${community.entityIds.length})`;
 }
