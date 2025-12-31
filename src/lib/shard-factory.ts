@@ -1,11 +1,11 @@
 import type {
   AISearchResponse,
-  CampaignResource,
   CreateShardData,
   ShardCandidate,
   ShardMetadata,
   ShardSourceRef,
 } from "../types/shard";
+import type { CampaignResource } from "../types/campaign";
 import { STRUCTURED_ENTITY_TYPES } from "./entity-types";
 
 /**
@@ -28,11 +28,11 @@ export class ShardFactory {
     originalMetadata: Record<string, any> = {}
   ): ShardCandidate {
     // Defensive checks for resource properties
-    const resourceId = resource?.id || resource?.resource_id || "unknown";
+    const resourceId = resource?.id || resource?.file_key || "unknown";
     const resourceName =
       resource?.file_name ||
-      resource?.resource_name ||
       resource?.name ||
+      resource?.display_name ||
       resourceId;
 
     console.log(`[ShardFactory] Creating shard candidate:`, {
@@ -301,11 +301,11 @@ export class ShardFactory {
     id: string;
     name: string;
   } {
-    const resourceId = resource?.id || resource?.resource_id || "unknown";
+    const resourceId = resource?.id || resource?.file_key || "unknown";
     const resourceName =
       resource?.file_name ||
-      resource?.resource_name ||
       resource?.name ||
+      resource?.display_name ||
       resourceId;
 
     return { id: resourceId, name: resourceName };

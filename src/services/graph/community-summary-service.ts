@@ -56,7 +56,11 @@ const SUMMARY_CONFIG = {
     TRUNCATION_NOTICE: "(Showing first {limit} of {total})",
     TASK_HEADER: "TASK:",
     TASK_DESCRIPTION:
-      "Generate a concise, informative summary (2-4 sentences) that captures:",
+      "Generate both a short name and a detailed summary for this community:",
+    NAME_DESCRIPTION:
+      "- NAME: A short, descriptive name (2-5 words) that captures the essence, theme, or purpose of this community. It should be meaningful and evocative, NOT a list of entity names. Examples: 'Bear Clan Warriors', 'Mystical Ocean Lair', 'Trading Hub Network', 'Ancient Quest Alliance', 'Mystical Forest Guardians'. Avoid simply concatenating entity names - create a name that represents what the community is about.",
+    SUMMARY_DESCRIPTION:
+      "- SUMMARY: A concise, informative description (2-4 sentences) that captures:",
     TASK_ITEMS: [
       "The overall theme or focus of this community",
       "Key entities and their roles",
@@ -65,7 +69,6 @@ const SUMMARY_CONFIG = {
     ],
     TASK_FOOTER:
       "The summary should be useful for understanding the community's purpose and context in the campaign.",
-    SUMMARY_HEADER: "SUMMARY:",
   },
 } as const;
 
@@ -143,14 +146,42 @@ export class CommunitySummaryService {
       defaultMaxTokens: options.maxTokens ?? SUMMARY_CONFIG.DEFAULT_MAX_TOKENS,
     });
 
-    // Generate summary
+    // Generate name and summary using structured output
+    interface SummaryResponse {
+      name: string;
+      summary: string;
+    }
+
+    const schema = JSON.stringify({
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description:
+            "A short, descriptive name (2-5 words) for this community",
+        },
+        summary: {
+          type: "string",
+          description:
+            "A concise, informative description (2-4 sentences) of this community",
+        },
+      },
+      required: ["name", "summary"],
+    });
+
+    let name: string;
     let summaryText: string;
     try {
-      summaryText = await llmProvider.generateSummary(prompt, {
-        model: options.model || SUMMARY_CONFIG.DEFAULT_MODEL,
-        temperature: options.temperature ?? SUMMARY_CONFIG.DEFAULT_TEMPERATURE,
-        maxTokens: options.maxTokens ?? SUMMARY_CONFIG.DEFAULT_MAX_TOKENS,
-      });
+      const result =
+        await llmProvider.generateStructuredOutput<SummaryResponse>(prompt, {
+          model: options.model || SUMMARY_CONFIG.DEFAULT_MODEL,
+          temperature:
+            options.temperature ?? SUMMARY_CONFIG.DEFAULT_TEMPERATURE,
+          maxTokens: options.maxTokens ?? SUMMARY_CONFIG.DEFAULT_MAX_TOKENS,
+          schema,
+        });
+      name = result.name.trim();
+      summaryText = result.summary.trim();
     } catch (error) {
       console.error(
         `[CommunitySummaryService] Error generating summary for community ${community.id}:`,
@@ -170,6 +201,7 @@ export class CommunitySummaryService {
       id: summaryId,
       communityId: community.id,
       level: community.level,
+      name,
       summaryText,
       keyEntities,
       metadata: {
@@ -320,13 +352,19 @@ export class CommunitySummaryService {
       "",
       SUMMARY_CONFIG.PROMPT_TEMPLATE.TASK_HEADER,
       SUMMARY_CONFIG.PROMPT_TEMPLATE.TASK_DESCRIPTION,
+      "",
+      SUMMARY_CONFIG.PROMPT_TEMPLATE.NAME_DESCRIPTION,
+      "",
+      SUMMARY_CONFIG.PROMPT_TEMPLATE.SUMMARY_DESCRIPTION,
       ...SUMMARY_CONFIG.PROMPT_TEMPLATE.TASK_ITEMS.map(
         (item, index) => `${index + 1}. ${item}`
       ),
       "",
       SUMMARY_CONFIG.PROMPT_TEMPLATE.TASK_FOOTER,
       "",
-      SUMMARY_CONFIG.PROMPT_TEMPLATE.SUMMARY_HEADER,
+      "IMPORTANT: The name should be a descriptive phrase that represents the community's purpose or theme, not a list of entity names. For example, instead of 'Vyrkha & Bear Clan & TWR', use a name like 'Allied Warrior Clans' or 'Quest Alliance'. The name should be meaningful and concise (2-5 words).",
+      "",
+      "Respond with a JSON object containing 'name' (short descriptive name) and 'summary' (detailed description).",
     ];
 
     return promptParts.join("\n");

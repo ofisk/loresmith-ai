@@ -1,5 +1,13 @@
 import type { Community } from "@/dao/community-dao";
 import type { CommunityHierarchy } from "@/services/graph/community-detection-service";
+import type {
+  CommunityNode,
+  CommunityNodeBasic,
+  EntityEdge,
+  InterCommunityEdge,
+} from "@/types/graph-visualization";
+import type { Entity, EntityRelationship } from "@/dao/entity-dao";
+import type { CommunitySummary } from "@/dao/community-summary-dao";
 
 /**
  * Find all communities containing a specific entity
@@ -275,4 +283,95 @@ export async function getCommunityDescendants(
   }
 
   return descendants;
+}
+
+/**
+ * Generate a community name from summary or fallback to generated name
+ */
+export function getCommunityName(
+  community: Community,
+  summary?: CommunitySummary | null
+): string {
+  const name = summary?.name;
+  if (name && typeof name === "string" && name.trim().length > 0) {
+    return name;
+  }
+  return `Community ${community.id.slice(0, 8)} (${community.entityIds.length})`;
+}
+
+/**
+ * Transform a Community to CommunityNodeBasic (lightweight visualization node)
+ */
+export function toCommunityNodeBasic(
+  community: Community,
+  summaryMap?: Map<string, CommunitySummary>
+): CommunityNodeBasic {
+  const summary = summaryMap?.get(community.id);
+  return {
+    id: community.id,
+    name: getCommunityName(community, summary),
+    size: community.entityIds.length,
+    level: community.level,
+  };
+}
+
+/**
+ * Transform a Community to CommunityNode (full visualization node with entity types)
+ */
+export function toCommunityNode(
+  community: Community,
+  entityMap: Map<string, Entity>,
+  summaryMap?: Map<string, CommunitySummary>
+): CommunityNode {
+  const communityEntities = community.entityIds
+    .map((id) => entityMap.get(id))
+    .filter((e): e is Entity => e !== undefined);
+
+  // Get unique entity types
+  const entityTypesSet = new Set<string>();
+  for (const entity of communityEntities) {
+    entityTypesSet.add(entity.entityType);
+  }
+
+  const summary = summaryMap?.get(community.id);
+  return {
+    id: community.id,
+    name: getCommunityName(community, summary),
+    size: community.entityIds.length,
+    entityTypes: Array.from(entityTypesSet),
+    level: community.level,
+    summary: summary?.summaryText || undefined,
+  };
+}
+
+/**
+ * Transform an EntityRelationship to EntityEdge (for entity-level visualization)
+ */
+export function toEntityEdge(relationship: EntityRelationship): EntityEdge {
+  return {
+    id: relationship.id,
+    source: relationship.fromEntityId,
+    target: relationship.toEntityId,
+    relationshipType: relationship.relationshipType,
+    strength: relationship.strength ?? undefined,
+  };
+}
+
+/**
+ * Create an InterCommunityEdge from aggregated relationship data
+ */
+export function toInterCommunityEdge(
+  sourceId: string,
+  targetId: string,
+  relationshipTypes: string[],
+  strength?: number
+): InterCommunityEdge {
+  return {
+    id: `${sourceId}-${targetId}`,
+    source: sourceId,
+    target: targetId,
+    relationshipTypes,
+    relationshipCount: relationshipTypes.length,
+    strength,
+  };
 }

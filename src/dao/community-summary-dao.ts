@@ -5,6 +5,7 @@ export interface CommunitySummaryRecord {
   id: string;
   community_id: string;
   level: number;
+  name: string | null;
   summary_text: string;
   key_entities: string | null;
   metadata: string | null;
@@ -17,6 +18,7 @@ export interface CommunitySummary {
   id: string;
   communityId: string;
   level: number;
+  name: string | null;
   summaryText: string;
   keyEntities: string[];
   metadata?: unknown;
@@ -29,6 +31,7 @@ export interface CreateCommunitySummaryInput {
   id: string;
   communityId: string;
   level: number;
+  name?: string | null;
   summaryText: string;
   keyEntities?: string[];
   metadata?: unknown;
@@ -36,6 +39,7 @@ export interface CreateCommunitySummaryInput {
 
 // Partial payload for updates to an existing community summary.
 export interface UpdateCommunitySummaryInput {
+  name?: string | null;
   summaryText?: string;
   keyEntities?: string[];
   metadata?: unknown;
@@ -48,13 +52,14 @@ export class CommunitySummaryDAO extends BaseDAOClass {
         id,
         community_id,
         level,
+        name,
         summary_text,
         key_entities,
         metadata,
         generated_at,
         updated_at
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
     `;
 
@@ -62,6 +67,7 @@ export class CommunitySummaryDAO extends BaseDAOClass {
       summary.id,
       summary.communityId,
       summary.level,
+      summary.name ?? null,
       summary.summaryText,
       summary.keyEntities ? JSON.stringify(summary.keyEntities) : null,
       summary.metadata ? JSON.stringify(summary.metadata) : null,
@@ -160,6 +166,11 @@ export class CommunitySummaryDAO extends BaseDAOClass {
     const setClauses: string[] = [];
     const values: any[] = [];
 
+    if (updates.name !== undefined) {
+      setClauses.push("name = ?");
+      values.push(updates.name ?? null);
+    }
+
     if (updates.summaryText !== undefined) {
       setClauses.push("summary_text = ?");
       values.push(updates.summaryText);
@@ -222,6 +233,7 @@ export class CommunitySummaryDAO extends BaseDAOClass {
       id: record.id,
       communityId: record.community_id,
       level: record.level,
+      name: record.name ?? null,
       summaryText: record.summary_text,
       keyEntities: this.safeParseArray(record.key_entities),
       metadata: record.metadata
