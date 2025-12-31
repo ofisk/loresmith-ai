@@ -15,7 +15,9 @@ import {
   toCommunityNodeBasic,
   toEntityEdge,
   toInterCommunityEdge,
+  getCommunityName,
 } from "@/lib/graph/community-utils";
+import type { CommunitySummary } from "@/dao/community-summary-dao";
 
 type ContextWithAuth = Context<{ Bindings: Env }> & {
   userAuth?: AuthPayload;
@@ -203,7 +205,7 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
 
     // Build community nodes with metadata
     const nodes: CommunityGraphData["nodes"] = [];
-    const communitySummaryMap = new Map<string, string>();
+    const communitySummaryMap = new Map<string, CommunitySummary>();
 
     // Try to load community summaries
     if (daoFactory.communitySummaryDAO) {
@@ -214,7 +216,7 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
               community.id
             );
           if (summary) {
-            communitySummaryMap.set(community.id, summary.summaryText);
+            communitySummaryMap.set(community.id, summary);
           }
         } catch {
           // Ignore errors loading summaries
@@ -418,23 +420,19 @@ export async function handleGetCommunityEntityGraph(c: ContextWithAuth) {
     }
 
     // Get community name/summary
-    let communityName: string | undefined;
+    let communityName: string;
     if (daoFactory.communitySummaryDAO) {
       try {
         const summary =
           await daoFactory.communitySummaryDAO.getSummaryByCommunityId(
             communityId
           );
-        if (summary) {
-          communityName = summary.summaryText;
-        }
+        communityName = getCommunityName(community, summary);
       } catch {
-        // Ignore errors loading summary
+        // Ignore errors loading summary, use fallback
+        communityName = `Community ${communityId.slice(0, 8)} (${community.entityIds.length})`;
       }
-    }
-
-    // Fallback to generated name if no summary
-    if (!communityName) {
+    } else {
       communityName = `Community ${communityId.slice(0, 8)} (${community.entityIds.length})`;
     }
 
@@ -518,7 +516,7 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
       );
 
     // Load community summaries for names
-    const communitySummaryMap = new Map<string, string>();
+    const communitySummaryMap = new Map<string, CommunitySummary>();
     if (daoFactory.communitySummaryDAO) {
       for (const community of communities) {
         try {
@@ -527,7 +525,7 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
               community.id
             );
           if (summary) {
-            communitySummaryMap.set(community.id, summary.summaryText);
+            communitySummaryMap.set(community.id, summary);
           }
         } catch {
           // Ignore errors

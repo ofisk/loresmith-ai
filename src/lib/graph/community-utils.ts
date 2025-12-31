@@ -7,6 +7,7 @@ import type {
   InterCommunityEdge,
 } from "@/types/graph-visualization";
 import type { Entity, EntityRelationship } from "@/dao/entity-dao";
+import type { CommunitySummary } from "@/dao/community-summary-dao";
 
 /**
  * Find all communities containing a specific entity
@@ -289,10 +290,10 @@ export async function getCommunityDescendants(
  */
 export function getCommunityName(
   community: Community,
-  summary?: string | null
+  summary?: CommunitySummary | null
 ): string {
-  if (summary) {
-    return summary;
+  if (summary?.name) {
+    return summary.name;
   }
   return `Community ${community.id.slice(0, 8)} (${community.entityIds.length})`;
 }
@@ -302,7 +303,7 @@ export function getCommunityName(
  */
 export function toCommunityNodeBasic(
   community: Community,
-  summaryMap?: Map<string, string>
+  summaryMap?: Map<string, CommunitySummary>
 ): CommunityNodeBasic {
   const summary = summaryMap?.get(community.id);
   return {
@@ -319,7 +320,7 @@ export function toCommunityNodeBasic(
 export function toCommunityNode(
   community: Community,
   entityMap: Map<string, Entity>,
-  summaryMap?: Map<string, string>
+  summaryMap?: Map<string, CommunitySummary>
 ): CommunityNode {
   const communityEntities = community.entityIds
     .map((id) => entityMap.get(id))
@@ -338,7 +339,7 @@ export function toCommunityNode(
     size: community.entityIds.length,
     entityTypes: Array.from(entityTypesSet),
     level: community.level,
-    summary: summary || undefined,
+    summary: summary?.summaryText || undefined,
   };
 }
 

@@ -47,6 +47,7 @@ describe("CommunitySummaryService", () => {
         id: "summary-1",
         communityId: "community-1",
         level: 0,
+        name: "Test Community",
         summaryText: "Test summary",
         keyEntities: ["entity-1"],
         generatedAt: new Date().toISOString(),
@@ -133,6 +134,7 @@ describe("CommunitySummaryService", () => {
       (mockSummaryDAO.createSummary as any).mockResolvedValue(undefined);
 
       // Mock OpenAI API response
+      const generatedName = "Test Community";
       const generatedSummaryText =
         "This community contains Test Location and Test Character.";
       global.fetch = vi.fn().mockResolvedValue({
@@ -141,7 +143,10 @@ describe("CommunitySummaryService", () => {
           choices: [
             {
               message: {
-                content: generatedSummaryText,
+                content: JSON.stringify({
+                  name: generatedName,
+                  summary: generatedSummaryText,
+                }),
               },
             },
           ],
@@ -153,6 +158,7 @@ describe("CommunitySummaryService", () => {
         id: "summary-1",
         communityId: "community-1",
         level: 0,
+        name: generatedName,
         summaryText: generatedSummaryText,
         keyEntities: ["entity-1"],
         generatedAt: new Date().toISOString(),
@@ -164,10 +170,16 @@ describe("CommunitySummaryService", () => {
       });
 
       expect(result.summary).toBeDefined();
-      // The summary text should come from the generated response
+      // The name and summary text should come from the generated response
+      expect(result.summary.name).toBe(generatedName);
       expect(result.summary.summaryText).toContain("community");
       expect(mockEntityDAO.getEntityById).toHaveBeenCalledTimes(2);
-      expect(mockSummaryDAO.createSummary).toHaveBeenCalled();
+      expect(mockSummaryDAO.createSummary).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: generatedName,
+          summaryText: generatedSummaryText,
+        })
+      );
     });
   });
 
@@ -195,24 +207,31 @@ describe("CommunitySummaryService", () => {
       });
       (mockEntityDAO.getRelationshipsForEntity as any).mockResolvedValue([]);
       (mockSummaryDAO.createSummary as any).mockResolvedValue(undefined);
+      const updatedName = "Updated Community";
+      const updatedSummaryText = "Updated summary text";
+
       (mockSummaryDAO.getSummaryById as any).mockResolvedValue({
         id: "summary-2",
         communityId: "community-1",
         level: 0,
-        summaryText: "Updated summary",
+        name: updatedName,
+        summaryText: updatedSummaryText,
         keyEntities: [],
         generatedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
 
-      // Mock OpenAI API response
+      // Mock OpenAI API response for structured output
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
           choices: [
             {
               message: {
-                content: "Updated summary text",
+                content: JSON.stringify({
+                  name: updatedName,
+                  summary: updatedSummaryText,
+                }),
               },
             },
           ],
@@ -262,24 +281,32 @@ describe("CommunitySummaryService", () => {
       });
       (mockEntityDAO.getRelationshipsForEntity as any).mockResolvedValue([]);
       (mockSummaryDAO.createSummary as any).mockResolvedValue(undefined);
-      (mockSummaryDAO.getSummaryById as any).mockResolvedValue({
-        id: "summary-1",
-        communityId: "community-1",
-        level: 0,
-        summaryText: "Summary",
-        keyEntities: [],
-        generatedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+      let callCount = 0;
+      (mockSummaryDAO.getSummaryById as any).mockImplementation(() => {
+        callCount++;
+        return Promise.resolve({
+          id: `summary-${callCount}`,
+          communityId: `community-${callCount}`,
+          level: 0,
+          name: `Community ${callCount}`,
+          summaryText: `Summary ${callCount}`,
+          keyEntities: [],
+          generatedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
       });
 
-      // Mock OpenAI API response
+      // Mock OpenAI API response for structured output
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
           choices: [
             {
               message: {
-                content: "Test summary",
+                content: JSON.stringify({
+                  name: "Test Community",
+                  summary: "Test summary",
+                }),
               },
             },
           ],
@@ -341,20 +368,24 @@ describe("CommunitySummaryService", () => {
         id: "summary-2",
         communityId: "community-2",
         level: 0,
+        name: "Community 2",
         summaryText: "Summary",
         keyEntities: [],
         generatedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
 
-      // Mock OpenAI API response
+      // Mock OpenAI API response for structured output
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
           choices: [
             {
               message: {
-                content: "Test summary",
+                content: JSON.stringify({
+                  name: "Community 2",
+                  summary: "Test summary",
+                }),
               },
             },
           ],
