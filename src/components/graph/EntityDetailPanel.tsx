@@ -93,6 +93,30 @@ export function EntityDetailPanel({
     if (!entity || entity.content === undefined || entity.content === null) {
       return null;
     }
+
+    // Parse content - if it's an object, render as labeled fields
+    if (typeof entity.content === "object" && !Array.isArray(entity.content)) {
+      const contentObj = entity.content as Record<string, unknown>;
+      return (
+        <div key="content">
+          <h4 className="text-sm font-semibold mb-2 text-neutral-700 dark:text-neutral-300">
+            Content
+          </h4>
+          <div className="space-y-3">
+            {Object.entries(contentObj).map(([key, value]) => (
+              <div key={key}>
+                <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-1">
+                  {key}
+                </div>
+                <div className="text-sm">{renderValue(value)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // For strings or arrays, display as before
     return (
       <div key="content">
         <h4 className="text-sm font-semibold mb-2 text-neutral-700 dark:text-neutral-300">

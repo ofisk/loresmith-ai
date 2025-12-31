@@ -417,8 +417,30 @@ export async function handleGetCommunityEntityGraph(c: ContextWithAuth) {
       }
     }
 
+    // Get community name/summary
+    let communityName: string | undefined;
+    if (daoFactory.communitySummaryDAO) {
+      try {
+        const summary =
+          await daoFactory.communitySummaryDAO.getSummaryByCommunityId(
+            communityId
+          );
+        if (summary) {
+          communityName = summary.summaryText;
+        }
+      } catch {
+        // Ignore errors loading summary
+      }
+    }
+
+    // Fallback to generated name if no summary
+    if (!communityName) {
+      communityName = `Community ${communityId.slice(0, 8)} (${community.entityIds.length})`;
+    }
+
     return c.json({
       communityId,
+      communityName,
       nodes,
       edges,
     });

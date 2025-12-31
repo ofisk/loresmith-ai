@@ -75,6 +75,7 @@ export interface EntityEdge extends GraphEdgeBase {
  */
 export interface EntityGraphData {
   communityId: string;
+  communityName?: string;
   nodes: EntityNode[];
   edges: EntityEdge[];
 }
