@@ -324,6 +324,7 @@ export class CommunityDetectionService {
         (options as any).openaiApiKey || this.defaultOpenAIKey;
       if (openaiApiKey) {
         // Generate summaries asynchronously (don't block return)
+        // The generateSummariesAsync method will verify communities exist before generating summaries
         this.generateSummariesAsync(createdCommunities, openaiApiKey).catch(
           (error) => {
             console.error(
@@ -650,12 +651,42 @@ export class CommunityDetectionService {
       `[CommunityDetection] Generating summaries for ${communities.length} communities...`
     );
 
+    // Verify all communities exist in database before generating summaries
+    const verifiedCommunities: Community[] = [];
+    for (const community of communities) {
+      try {
+        const existing = await this.communityDAO.getCommunityById(community.id);
+        if (existing) {
+          verifiedCommunities.push(existing);
+        } else {
+          console.warn(
+            `[CommunityDetection] Community ${community.id} not found in database, skipping summary generation`
+          );
+        }
+      } catch (error) {
+        console.error(
+          `[CommunityDetection] Error verifying community ${community.id}:`,
+          error
+        );
+      }
+    }
+
+    if (verifiedCommunities.length === 0) {
+      console.warn(
+        `[CommunityDetection] No verified communities found, skipping summary generation`
+      );
+      return;
+    }
+
     try {
-      await this.summaryService.generateSummariesForCommunities(communities, {
-        openaiApiKey,
-      });
+      await this.summaryService.generateSummariesForCommunities(
+        verifiedCommunities,
+        {
+          openaiApiKey,
+        }
+      );
       console.log(
-        `[CommunityDetection] Successfully generated summaries for ${communities.length} communities`
+        `[CommunityDetection] Successfully generated summaries for ${verifiedCommunities.length} communities`
       );
     } catch (error) {
       console.error(`[CommunityDetection] Error generating summaries:`, error);

@@ -112,22 +112,17 @@ export function CytoscapeGraph({
       // Community-level graph
       const communityData = data as CommunityGraphData;
       for (const node of communityData.nodes) {
-        // Truncate long labels to prevent overflow
-        const maxLabelLength = 50;
-        const truncatedLabel =
-          node.name.length > maxLabelLength
-            ? node.name.substring(0, maxLabelLength) + "..."
-            : node.name;
-
+        // Use the full name - Cytoscape will handle wrapping and overflow
+        // The node size is fixed (120x60) so text will wrap automatically
         els.push({
           data: {
             id: node.id,
-            label: truncatedLabel,
+            label: node.name, // Use full name, no truncation
             size: node.size,
             entityTypes: node.entityTypes,
             level: node.level,
             summary: node.summary,
-            fullName: node.name, // Keep original for tooltips if needed
+            fullName: node.name,
           },
         });
       }
@@ -231,13 +226,13 @@ export function CytoscapeGraph({
                 style: {
                   "background-color": "#666",
                   label: "data(label)",
-                  "text-valign": "center",
+                  "text-valign": "top",
                   "text-halign": "center",
                   "font-size": "11px",
                   width: 120,
                   height: 60,
                   "text-wrap": "wrap",
-                  "text-max-width": "100px",
+                  "text-max-width": "110px",
                   padding: "8px",
                   shape: "round-rectangle",
                 },
