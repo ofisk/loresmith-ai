@@ -52,11 +52,16 @@ export function GraphVisualizationModal({
 
   // Use refs to store the latest function and filters to avoid dependency issues
   const fetchCommunityGraphRef = useRef(fetchCommunityGraph);
+  const fetchEntityGraphRef = useRef(fetchEntityGraph);
   const filtersRef = useRef(filters);
 
   useEffect(() => {
     fetchCommunityGraphRef.current = fetchCommunityGraph;
   }, [fetchCommunityGraph]);
+
+  useEffect(() => {
+    fetchEntityGraphRef.current = fetchEntityGraph;
+  }, [fetchEntityGraph]);
 
   useEffect(() => {
     filtersRef.current = filters;
@@ -111,9 +116,9 @@ export function GraphVisualizationModal({
   // Fetch entity graph data when a community is selected
   useEffect(() => {
     if (selectedCommunityId && viewMode === "entity") {
-      fetchEntityGraph(selectedCommunityId);
+      fetchEntityGraphRef.current(selectedCommunityId);
     }
-  }, [selectedCommunityId, viewMode, fetchEntityGraph]);
+  }, [selectedCommunityId, viewMode]);
 
   // Handle community node click
   const handleCommunityNodeClick = useCallback((nodeId: string) => {
