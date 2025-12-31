@@ -28,6 +28,30 @@ export function CytoscapeGraph({
   const layoutRef = useRef<any>(null);
   const isReadyRef = useRef<boolean>(false);
   const isDestroyingRef = useRef<boolean>(false);
+  const previousDataKeyRef = useRef<string>("");
+
+  // Create a stable key from the data to prevent unnecessary re-renders
+  const dataKey = useMemo(() => {
+    if ("communityId" in data) {
+      const entityData = data as EntityGraphData;
+      return `entity:${entityData.communityId}:${entityData.nodes.length}:${entityData.edges.length}:${entityData.nodes
+        .map((n) => n.id)
+        .sort()
+        .join(",")}:${entityData.edges
+        .map((e) => `${e.source}-${e.target}`)
+        .sort()
+        .join(",")}`;
+    } else {
+      const communityData = data as CommunityGraphData;
+      return `community:${communityData.nodes.length}:${communityData.edges.length}:${communityData.nodes
+        .map((n) => n.id)
+        .sort()
+        .join(",")}:${communityData.edges
+        .map((e) => `${e.source}-${e.target}`)
+        .sort()
+        .join(",")}`;
+    }
+  }, [data]);
 
   // Convert graph data to Cytoscape elements
   const elements = useMemo<ElementDefinition[]>(() => {
@@ -134,6 +158,13 @@ export function CytoscapeGraph({
       );
       return;
     }
+
+    // Skip if data hasn't actually changed
+    if (dataKey === previousDataKeyRef.current && cyRef.current) {
+      return;
+    }
+
+    previousDataKeyRef.current = dataKey;
 
     console.log(
       "[CytoscapeGraph] Initializing with",
@@ -370,7 +401,7 @@ export function CytoscapeGraph({
       }
       isReadyRef.current = false;
     };
-  }, [elements, onNodeClick]);
+  }, [dataKey, elements, onNodeClick]);
 
   // Handle layout changes
   useEffect(() => {
