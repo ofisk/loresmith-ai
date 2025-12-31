@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/button/Button";
 import { API_CONFIG } from "@/shared-config";
 import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
@@ -25,13 +25,13 @@ export function EntityDetailPanel({
 }: EntityDetailPanelProps) {
   const { makeRequestWithData } = useAuthenticatedRequest();
 
-  const fetchEntityFn = async () => {
+  const fetchEntityFn = useCallback(async () => {
     const url = API_CONFIG.buildUrl(
       API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DETAILS(campaignId, entityId)
     );
     const data = await makeRequestWithData<EntityResponse>(url);
     return data.entity;
-  };
+  }, [campaignId, entityId, makeRequestWithData]);
 
   const {
     execute: fetchEntity,
@@ -42,9 +42,14 @@ export function EntityDetailPanel({
     errorMessage: "Failed to load entity details",
   });
 
+  const fetchEntityRef = useRef(fetchEntity);
   useEffect(() => {
-    fetchEntity();
-  }, [entityId, fetchEntity]);
+    fetchEntityRef.current = fetchEntity;
+  }, [fetchEntity]);
+
+  useEffect(() => {
+    fetchEntityRef.current();
+  }, [entityId]);
 
   const renderValue = (value: unknown): React.ReactNode => {
     if (value === null || value === undefined) {
