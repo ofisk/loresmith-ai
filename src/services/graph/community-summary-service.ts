@@ -58,7 +58,7 @@ const SUMMARY_CONFIG = {
     TASK_DESCRIPTION:
       "Generate both a short name and a detailed summary for this community:",
     NAME_DESCRIPTION:
-      "- NAME: A short, descriptive name (2-5 words) that captures the essence of this community (e.g., 'Bear Clan Warriors', 'Mystical Ocean Lair', 'Trading Hub Network')",
+      "- NAME: A short, descriptive name (2-5 words) that captures the essence, theme, or purpose of this community. It should be meaningful and evocative, NOT a list of entity names. Examples: 'Bear Clan Warriors', 'Mystical Ocean Lair', 'Trading Hub Network', 'Ancient Quest Alliance', 'Mystical Forest Guardians'. Avoid simply concatenating entity names - create a name that represents what the community is about.",
     SUMMARY_DESCRIPTION:
       "- SUMMARY: A concise, informative description (2-4 sentences) that captures:",
     TASK_ITEMS: [
@@ -362,7 +362,9 @@ export class CommunitySummaryService {
       "",
       SUMMARY_CONFIG.PROMPT_TEMPLATE.TASK_FOOTER,
       "",
-      "Respond with a JSON object containing 'name' (short name) and 'summary' (detailed description).",
+      "IMPORTANT: The name should be a descriptive phrase that represents the community's purpose or theme, not a list of entity names. For example, instead of 'Vyrkha & Bear Clan & TWR', use a name like 'Allied Warrior Clans' or 'Quest Alliance'. The name should be meaningful and concise (2-5 words).",
+      "",
+      "Respond with a JSON object containing 'name' (short descriptive name) and 'summary' (detailed description).",
     ];
 
     return promptParts.join("\n");
