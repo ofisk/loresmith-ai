@@ -29,6 +29,12 @@ export function CytoscapeGraph({
   const isReadyRef = useRef<boolean>(false);
   const isDestroyingRef = useRef<boolean>(false);
   const previousDataKeyRef = useRef<string>("");
+  const onNodeClickRef = useRef(onNodeClick);
+
+  // Keep ref in sync with prop
+  useEffect(() => {
+    onNodeClickRef.current = onNodeClick;
+  }, [onNodeClick]);
 
   // Create a stable key from the data to prevent unnecessary re-renders
   const dataKey = useMemo(() => {
@@ -288,12 +294,12 @@ export function CytoscapeGraph({
           }
 
           // Handle node clicks
-          if (onNodeClick) {
-            cy.on("tap", "node", (evt) => {
-              const nodeId = evt.target.id();
-              onNodeClick(nodeId);
-            });
-          }
+          cy.on("tap", "node", (evt) => {
+            const nodeId = evt.target.id();
+            if (onNodeClickRef.current) {
+              onNodeClickRef.current(nodeId);
+            }
+          });
 
           // Run layout after instance is ready
           cy.ready(() => {
@@ -401,7 +407,7 @@ export function CytoscapeGraph({
       }
       isReadyRef.current = false;
     };
-  }, [dataKey, onNodeClick]);
+  }, [dataKey]);
 
   // Handle layout changes
   useEffect(() => {
