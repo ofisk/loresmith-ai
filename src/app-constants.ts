@@ -175,6 +175,8 @@ export const MODEL_CONFIG = {
     PRIMARY: "gpt-4o-mini",
     // Model for metadata generation and analysis
     ANALYSIS: "gpt-3.5-turbo",
+    // Model for metadata analysis (checklist coverage, campaign readiness)
+    METADATA_ANALYSIS: "gpt-4o-mini",
     // Model for session planning and script generation
     SESSION_PLANNING: "gpt-4o",
     // Model for embeddings (if using OpenAI embeddings)
@@ -186,10 +188,14 @@ export const MODEL_CONFIG = {
     CHAT_TEMPERATURE: 0.7,
     // Default temperature for analysis tasks
     ANALYSIS_TEMPERATURE: 0.3,
+    // Default temperature for metadata analysis
+    METADATA_ANALYSIS_TEMPERATURE: 0.1,
     // Default temperature for session planning
     SESSION_PLANNING_TEMPERATURE: 0.7,
     // Maximum tokens for responses
     MAX_TOKENS: 4000,
+    // Maximum tokens for metadata analysis
+    METADATA_ANALYSIS_MAX_TOKENS: 2000,
     // Maximum tokens for session planning (longer scripts need more tokens)
     SESSION_PLANNING_MAX_TOKENS: 8000,
     // Top P for response generation
