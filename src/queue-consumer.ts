@@ -12,6 +12,7 @@ import type { RebuildQueueMessage } from "./types/rebuild-queue";
 import { RebuildQueueService } from "./services/graph/rebuild-queue-service";
 import { RebuildTriggerService } from "./services/graph/rebuild-trigger-service";
 import { WorldStateChangelogDAO } from "./dao/world-state-changelog-dao";
+import { PARTIAL_REBUILD_THRESHOLD } from "./lib/rebuild-config";
 
 export interface ProcessingMessage {
   bucket: string;
@@ -447,6 +448,48 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
             await rebuildTriggerService.recordImpact(campaignId, totalImpact);
             console.log(
               `[RebuildCron] Recorded ${totalImpact} impact for ${entityCount} entities (no previous rebuild)`
+            );
+          }
+        }
+
+        // Check for communities with fallback names (communities without summaries or with empty names)
+        if (daoFactory.communityDAO && daoFactory.communitySummaryDAO) {
+          const communities =
+            await daoFactory.communityDAO.listCommunitiesByCampaign(campaignId);
+          const communitiesWithFallbackNames: string[] = [];
+
+          for (const community of communities) {
+            const summary =
+              await daoFactory.communitySummaryDAO.getSummaryByCommunityId(
+                community.id,
+                campaignId
+              );
+            // Community has fallback name if no summary or summary has no valid name
+            const hasFallbackName =
+              !summary ||
+              !summary.name ||
+              typeof summary.name !== "string" ||
+              summary.name.trim().length === 0;
+
+            if (hasFallbackName) {
+              communitiesWithFallbackNames.push(community.id);
+            }
+          }
+
+          if (communitiesWithFallbackNames.length > 0) {
+            console.log(
+              `[RebuildCron] Found ${communitiesWithFallbackNames.length} communities with fallback names for campaign ${campaignId}`
+            );
+            // Record impact to trigger rebuild for summary generation
+            // Use enough impact to trigger at least a partial rebuild
+            const impactPerCommunity = 1.0;
+            const totalImpact = Math.max(
+              communitiesWithFallbackNames.length * impactPerCommunity,
+              PARTIAL_REBUILD_THRESHOLD
+            );
+            await rebuildTriggerService.recordImpact(campaignId, totalImpact);
+            console.log(
+              `[RebuildCron] Recorded ${totalImpact} impact for ${communitiesWithFallbackNames.length} communities with fallback names`
             );
           }
         }
