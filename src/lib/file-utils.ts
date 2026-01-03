@@ -1,7 +1,35 @@
 /**
- * Utility functions for constructing consistent file keys and paths
+ * File utility functions for working with file names, extensions, types, and file keys
  */
 import { LIBRARY_CONFIG } from "../app-constants";
+
+/**
+ * Derives a human-readable file type from a filename based on its extension
+ * @param fileName - The filename (with or without path)
+ * @returns A human-readable file type string (e.g., "PDF", "Image", "Document")
+ */
+export function getFileTypeFromName(fileName: string): string {
+  if (!fileName) return "file";
+  const extension = fileName.split(".").pop()?.toLowerCase() || "";
+  const typeMap: Record<string, string> = {
+    pdf: "PDF",
+    doc: "Document",
+    docx: "Document",
+    txt: "Text",
+    md: "Markdown",
+    json: "JSON",
+    jpg: "Image",
+    jpeg: "Image",
+    png: "Image",
+    gif: "Image",
+    webp: "Image",
+    mp3: "Audio",
+    wav: "Audio",
+    mp4: "Video",
+    mov: "Video",
+  };
+  return typeMap[extension] || "File";
+}
 
 /**
  * Helper function to append a number to a filename before the extension

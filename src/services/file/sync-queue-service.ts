@@ -10,7 +10,7 @@ import {
 import type { FileProcessingResult } from "@/types/file-processing";
 import { ChunkedProcessingService } from "./chunked-processing-service";
 import { MemoryLimitError } from "@/lib/errors";
-import { getUniqueDisplayName } from "@/lib/file-keys";
+import { getUniqueDisplayName } from "@/lib/file-utils";
 
 export class SyncQueueService {
   /**

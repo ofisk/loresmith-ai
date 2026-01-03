@@ -126,11 +126,11 @@ export const storeCharacterInfo = tool({
         const daoFactory = getDAOFactory(env as Env);
         const characterId = crypto.randomUUID();
 
-        // Create character entity
+        // Create character entity as player character
         await daoFactory.entityDAO.createEntity({
           id: characterId,
           campaignId,
-          entityType: "characters",
+          entityType: "pcs",
           name: characterName,
           content: {
             characterName,
@@ -160,7 +160,7 @@ export const storeCharacterInfo = tool({
           `Successfully stored character information for ${characterName}`,
           {
             id: characterId,
-            entityType: "characters",
+            entityType: "pcs",
             characterName,
             characterClass,
             characterLevel,
@@ -345,7 +345,7 @@ export const generateCharacterWithAITool = tool({
         await daoFactory.entityDAO.createEntity({
           id: characterId,
           campaignId,
-          entityType: "characters",
+          entityType: "pcs",
           name: characterDataTyped.characterName,
           content: {
             characterName: characterDataTyped.characterName,
@@ -377,7 +377,7 @@ export const generateCharacterWithAITool = tool({
           `Successfully created character ${characterDataTyped.characterName} using AI generation`,
           {
             id: characterId,
-            entityType: "characters",
+            entityType: "pcs",
             ...characterDataTyped,
           },
           toolCallId

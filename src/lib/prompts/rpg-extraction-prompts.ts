@@ -151,8 +151,7 @@ TYPES & REQUIRED MINIMUM FIELDS
 - backgrounds[]: { id, type:"background", name, proficiencies?, tools?, languages?, equipment?, feature?, suggested_traits?, tags?, source }
 - feats[]: { id, type:"feat", name, prerequisites?, effect, scaling?, tags?, source }
 - subclasses[]: { id, type:"subclass", name, parent_class, level_features: { [level:number]: string }, spell_list_adds?, restrictions?, tags?, source }
-- characters[]: { id, type:"character", name, race?, class?, level?, background?, alignment?, stats?: {str, dex, con, int, wis, cha}, summary, tags?, source, relations? }
-- character_sheets[]: { id, type:"character_sheet", name, full_stats?: any, summary, tags?, source, relations? }
+- pcs[]: { id, type:"pcs", name, race?, class?, level?, background?, alignment?, stats?: {str, dex, con, int, wis, cha}, backstory?, goals?, personalityTraits?, summary, tags?, source, relations? }
 - rules[]: { id, type:"rule", name, modifies?, text, examples?, safety_notes?, tags?, source }
 - downtime[]: { id, type:"downtime", name, requirements?, procedure, checks?, time_cost?, outcomes?, complications?, tags?, source }
 - tables[]: { id, type:"table", title, dice, rows: [{range:string, result:string}], usage_notes?, tags?, source }

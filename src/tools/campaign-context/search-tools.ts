@@ -1328,7 +1328,9 @@ export const listAllEntities = tool({
 
 CRITICAL: This tool is specifically for listing ALL entities. For searching/filtering entities by keywords or semantic similarity, use searchCampaignContext instead.
 
-AVAILABLE ENTITY TYPES: ${ENTITY_TYPES_LIST}. When users use synonyms (e.g., "beasts", "creatures" for monsters; "people", "characters" for NPCs; "places" for locations), you MUST map them to the correct entity type name. Examples: "beasts" or "creatures" → use "monsters"; "people" or "characters" (when referring to NPCs) → use "npcs"; "places" → use "locations".
+AVAILABLE ENTITY TYPES: ${ENTITY_TYPES_LIST}. When users use synonyms (e.g., "beasts", "creatures" for monsters; "people", "characters" for NPCs; "places" for locations), you MUST map them to the correct entity type name. Examples: "beasts" or "creatures" → use "monsters"; "people" or "characters" (when referring to NPCs) → use "npcs"; "player characters" or "PCs" → use "pcs"; "places" → use "locations".
+
+IMPORTANT: Distinguish between "npcs" (non-player characters controlled by the GM) and "pcs" (player-controlled characters). When users ask for "characters", determine if they mean NPCs or player characters based on context. If they say "player characters", "PCs", or refer to characters that players control, use "pcs". If they mean NPCs or characters the GM controls, use "npcs".
 
 This tool will automatically fetch all pages and return the complete list. No manual pagination is needed.`,
   parameters: z.object({

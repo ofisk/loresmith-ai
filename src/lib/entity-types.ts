@@ -32,9 +32,7 @@ export const STRUCTURED_ENTITY_TYPES = [
   "backgrounds", // Character backgrounds
   "feats", // Character feats and abilities
   "subclasses", // Class options and subclasses
-  "characters", // Player or NPC character sheets
-  "player_characters", // Player characters (PCs) with backstories and character data
-  "character_sheets", // Structured character sheet representations
+  "pcs", // Player characters (PCs) with backstories and character data
   "rules", // Variant and optional rules
   "downtime", // Downtime activities and crafting
 
@@ -79,9 +77,7 @@ export const ENTITY_TYPE_CATEGORIES = {
     "backgrounds",
     "feats",
     "subclasses",
-    "characters",
-    "player_characters",
-    "character_sheets",
+    "pcs",
     "rules",
     "downtime",
   ],
@@ -123,9 +119,7 @@ export function getEntityTypeDisplayName(type: StructuredEntityType): string {
     backgrounds: "Backgrounds",
     feats: "Feats",
     subclasses: "Subclasses",
-    characters: "Characters",
-    player_characters: "Player Characters",
-    character_sheets: "Character Sheets",
+    pcs: "Player Characters",
     rules: "Rules",
     downtime: "Downtime Activities",
     tables: "Tables",
@@ -149,9 +143,7 @@ export function getEntityTypeDisplayName(type: StructuredEntityType): string {
  */
 export const CAMPAIGN_READINESS_ENTITY_TYPES: StructuredEntityType[] = [
   "npcs",
-  "characters",
-  "player_characters",
-  "character_sheets",
+  "pcs",
   "factions",
   "locations",
   "lairs",
@@ -166,7 +158,8 @@ export const CAMPAIGN_READINESS_ENTITY_TYPES: StructuredEntityType[] = [
  * These are used for campaign readiness guidance (e.g., \"NPC-like\", \"location-like\").
  */
 export const READINESS_ENTITY_BUCKETS = {
-  npcLike: ["npcs", "characters", "player_characters", "character_sheets"],
+  npcLike: ["npcs"],
+  pcLike: ["pcs"],
   factionLike: ["factions"],
   locationLike: ["locations", "lairs", "scenes"],
   hookLike: ["hooks", "quests", "plot_lines", "scenes"],

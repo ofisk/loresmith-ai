@@ -8,7 +8,11 @@ import {
   showCampaignDetails,
 } from "./core-tools";
 import { getFileLibraryStats, searchFileLibrary } from "./file-tools";
-import { generateSessionHooks, planSession } from "./planning-tools";
+import {
+  checkPlanningReadiness,
+  generateSessionHooks,
+  planSession,
+} from "./planning-tools";
 import {
   addResourceToCampaign,
   listCampaignResources,
@@ -39,6 +43,7 @@ export {
   resolveCampaignIdentifier,
   // Campaign planning tools
   planSession,
+  checkPlanningReadiness,
   generateSessionHooks,
   // Campaign resource tools
   addResourceToCampaign,
@@ -76,6 +81,7 @@ export const campaignTools = {
   listFiles,
   getFileStats,
   planSession,
+  checkPlanningReadiness,
   generateSessionHooks,
   resolveCampaignIdentifier,
   captureConversationalContext,
