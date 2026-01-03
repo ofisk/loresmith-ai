@@ -12,7 +12,8 @@ import type { RebuildQueueMessage } from "./types/rebuild-queue";
 import { RebuildQueueService } from "./services/graph/rebuild-queue-service";
 import { RebuildTriggerService } from "./services/graph/rebuild-trigger-service";
 import { WorldStateChangelogDAO } from "./dao/world-state-changelog-dao";
-import { PARTIAL_REBUILD_THRESHOLD } from "./lib/rebuild-config";
+import { CommunitySummaryService } from "./services/graph/community-summary-service";
+import type { Community } from "./dao/community-dao";
 
 export interface ProcessingMessage {
   bucket: string;
@@ -452,11 +453,11 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
           }
         }
 
-        // Check for communities with fallback names (communities without summaries or with empty names)
+        // Check for communities with fallback names and generate summaries directly
         if (daoFactory.communityDAO && daoFactory.communitySummaryDAO) {
           const communities =
             await daoFactory.communityDAO.listCommunitiesByCampaign(campaignId);
-          const communitiesWithFallbackNames: string[] = [];
+          const communitiesWithFallbackNames: Community[] = [];
 
           for (const community of communities) {
             const summary =
@@ -472,25 +473,59 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
               summary.name.trim().length === 0;
 
             if (hasFallbackName) {
-              communitiesWithFallbackNames.push(community.id);
+              communitiesWithFallbackNames.push(community);
             }
           }
 
           if (communitiesWithFallbackNames.length > 0) {
             console.log(
-              `[RebuildCron] Found ${communitiesWithFallbackNames.length} communities with fallback names for campaign ${campaignId}`
+              `[RebuildCron] Found ${communitiesWithFallbackNames.length} communities with fallback names for campaign ${campaignId}, generating summaries...`
             );
-            // Record impact to trigger rebuild for summary generation
-            // Use enough impact to trigger at least a partial rebuild
-            const impactPerCommunity = 1.0;
-            const totalImpact = Math.max(
-              communitiesWithFallbackNames.length * impactPerCommunity,
-              PARTIAL_REBUILD_THRESHOLD
-            );
-            await rebuildTriggerService.recordImpact(campaignId, totalImpact);
-            console.log(
-              `[RebuildCron] Recorded ${totalImpact} impact for ${communitiesWithFallbackNames.length} communities with fallback names`
-            );
+
+            // Get OpenAI API key from environment
+            const openaiApiKey = (env as any).OPENAI_API_KEY as
+              | string
+              | undefined;
+
+            if (openaiApiKey) {
+              // Create summary service
+              const summaryService = new CommunitySummaryService(
+                daoFactory.entityDAO,
+                daoFactory.communitySummaryDAO,
+                openaiApiKey
+              );
+
+              // Generate summaries for all communities with fallback names
+              let successCount = 0;
+              let errorCount = 0;
+
+              for (const community of communitiesWithFallbackNames) {
+                try {
+                  await summaryService.generateOrGetSummary(community, {
+                    openaiApiKey,
+                  });
+                  successCount++;
+                  console.log(
+                    `[RebuildCron] Generated summary for community ${community.id}`
+                  );
+                } catch (error) {
+                  errorCount++;
+                  console.error(
+                    `[RebuildCron] Failed to generate summary for community ${community.id}:`,
+                    error
+                  );
+                  // Continue with other communities even if one fails
+                }
+              }
+
+              console.log(
+                `[RebuildCron] Summary generation complete: ${successCount} succeeded, ${errorCount} failed`
+              );
+            } else {
+              console.warn(
+                `[RebuildCron] OpenAI API key not available, skipping summary generation for ${communitiesWithFallbackNames.length} communities`
+              );
+            }
           }
         }
 
