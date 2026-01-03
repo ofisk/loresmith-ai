@@ -939,31 +939,44 @@ export const checkPlanningReadiness = tool({
         suggestion: string;
       }> = [];
 
-      // Check for session digests (critical - can't plan next session without knowing what happened)
+      // Check for entities (NPCs, locations) using efficient count queries
+      // This avoids fetching all entities which could be 1500+ in large campaigns
+      const [npcsCount, locationsCount, totalEntitiesCount] = await Promise.all(
+        [
+          daoFactory.entityDAO.getEntityCountByCampaign(campaignId, {
+            entityType: "npcs",
+          }),
+          daoFactory.entityDAO.getEntityCountByCampaign(campaignId, {
+            entityType: "location",
+          }),
+          daoFactory.entityDAO.getEntityCountByCampaign(campaignId, {}),
+        ]
+      );
+
+      // Check for session digests
+      // Note: No session digests is acceptable for campaigns that haven't started yet
+      // This is not a critical gap - we'll encourage creating one after the first session
       const digests =
         await daoFactory.sessionDigestDAO.getSessionDigestsByCampaign(
           campaignId
         );
       if (digests.length === 0) {
+        // If campaign has entities (NPCs, locations, etc.), it might have started but no digests recorded
+        // If no entities, campaign likely hasn't started yet - both are acceptable states
+        const hasEntities = totalEntitiesCount > 0;
         gaps.push({
           type: "session_digest",
-          severity: "critical",
-          description:
-            "No session digests found. Cannot plan next session without knowing what happened in previous sessions.",
-          suggestion:
-            "Create a session digest for at least one previous session to provide context for planning.",
+          severity: "important",
+          description: hasEntities
+            ? "No session digests found. Recording session digests helps track what happened and provides context for planning future sessions."
+            : "No session digests yet. This is normal for campaigns that haven't started. After your first session, creating a session digest will help track what happened and provide context for planning future sessions.",
+          suggestion: hasEntities
+            ? "Create a session digest for your previous sessions to provide context for planning the next session."
+            : "After your first session, create a session digest to record what happened. This will help track the campaign's progress and provide context for planning future sessions.",
         });
       }
 
-      // Check for entities (NPCs, locations)
-      const entities = await daoFactory.entityDAO.listEntitiesByCampaign(
-        campaignId,
-        { limit: 100 }
-      );
-      const npcs = entities.filter((e) => e.entityType === "npc");
-      const locations = entities.filter((e) => e.entityType === "location");
-
-      if (npcs.length === 0) {
+      if (npcsCount === 0) {
         gaps.push({
           type: "npcs",
           severity: "important",
@@ -973,7 +986,7 @@ export const checkPlanningReadiness = tool({
         });
       }
 
-      if (locations.length === 0) {
+      if (locationsCount === 0) {
         gaps.push({
           type: "locations",
           severity: "important",
@@ -984,7 +997,19 @@ export const checkPlanningReadiness = tool({
       }
 
       // Check for player character entities
-      const playerCharacters = entities.filter((e) => e.entityType === "pcs");
+      // Only fetch player characters if we need to analyze them for completeness
+      const playerCharactersCount =
+        await daoFactory.entityDAO.getEntityCountByCampaign(campaignId, {
+          entityType: "pcs",
+        });
+      let playerCharacters: any[] = [];
+      if (playerCharactersCount > 0) {
+        // Only fetch player characters if they exist (for completeness analysis)
+        playerCharacters = await daoFactory.entityDAO.listEntitiesByCampaign(
+          campaignId,
+          { entityType: "pcs" }
+        );
+      }
       if (playerCharacters.length === 0) {
         gaps.push({
           type: "characters",
@@ -1032,10 +1057,10 @@ export const checkPlanningReadiness = tool({
           },
           campaignState: {
             sessionDigests: digests.length,
-            npcs: npcs.length,
-            locations: locations.length,
-            characters: playerCharacters.length,
-            totalEntities: entities.length,
+            npcs: npcsCount,
+            locations: locationsCount,
+            characters: playerCharactersCount,
+            totalEntities: totalEntitiesCount,
           },
         },
         toolCallId
