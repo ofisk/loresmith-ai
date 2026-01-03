@@ -430,7 +430,10 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                     const allEntities =
                       await daoFactory.entityDAO.listEntitiesByCampaign(
                         campaignId,
-                        { limit: fetchLimit }
+                        {
+                          limit: fetchLimit,
+                          entityType: targetEntityType || undefined,
+                        }
                       );
                     entities = allEntities.filter((e) =>
                       entityIds.includes(e.id)
@@ -532,10 +535,14 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                         );
 
                       if (entityIds.length > 0) {
+                        // CRITICAL: Always filter by entityType if specified
                         const allEntities =
                           await daoFactory.entityDAO.listEntitiesByCampaign(
                             campaignId,
-                            { limit: 100 }
+                            {
+                              limit: 100,
+                              entityType: targetEntityType || undefined,
+                            }
                           );
                         entities = allEntities.filter((e) =>
                           entityIds.includes(e.id)
@@ -1271,7 +1278,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
 
         if (queryIntent.isListAll) {
           if (limitHit && totalCount !== undefined) {
-            paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${totalCount} total entities. There are ${totalCount - actualResults.length} more entities not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
+            paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${totalCount} total shards. There are ${totalCount - actualResults.length} more shards not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
           } else if (totalCount !== undefined) {
             paginationInfo = ` (${totalCount} total)`;
           }
@@ -1476,7 +1483,7 @@ This tool will automatically fetch all pages and return the complete list. No ma
       const entityTypeLabel = entityType ? ` (${entityType})` : "";
 
       return createToolSuccess(
-        `Found ${totalCount} total entities${entityTypeLabel}. Results are sorted alphabetically by name.`,
+        `Found ${totalCount} total shards${entityTypeLabel}. Results are sorted alphabetically by name.`,
         {
           entityType: entityType || null,
           results,
