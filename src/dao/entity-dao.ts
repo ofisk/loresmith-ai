@@ -350,6 +350,30 @@ export class EntityDAO extends BaseDAOClass {
     return records.map((record) => this.mapEntityRecord(record));
   }
 
+  /**
+   * Find entity by exact name and type (case-insensitive)
+   * Used to detect if an extracted entity candidate already exists
+   */
+  async findEntityByNameAndType(
+    campaignId: string,
+    name: string,
+    entityType: string
+  ): Promise<Entity | null> {
+    const sql = `
+      SELECT * FROM entities
+      WHERE campaign_id = ? 
+        AND LOWER(name) = LOWER(?)
+        AND entity_type = ?
+      LIMIT 1
+    `;
+    const record = await this.queryFirst<EntityRecord>(sql, [
+      campaignId,
+      name,
+      entityType,
+    ]);
+    return record ? this.mapEntityRecord(record) : null;
+  }
+
   async deleteEntity(entityId: string): Promise<void> {
     await this.execute(
       "DELETE FROM entity_relationships WHERE from_entity_id = ? OR to_entity_id = ?",

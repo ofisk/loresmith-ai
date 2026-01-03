@@ -179,6 +179,8 @@ export const ENTITY_TYPE_EXTRACTION_HINTS: Partial<
   items: 'rarity, type, "requires attunement"',
   traps: "Trigger/Effect/DCs/Countermeasures",
   hazards: "Trigger/Effect/DCs/Countermeasures",
+  locations:
+    'numbered lists of places (e.g., "1. [Location Name]", "2. [Another Location]"), named areas within cities/dungeons, districts, rooms, chambers, halls, neighborhoods, quarters, wards, sections, landmarks, geographic features. Extract sub-locations (numbered items, keyed areas, rooms within dungeons, locations within cities, districts within regions) as SEPARATE location entities with "located_in" relationships to parent locations.',
   scenes: 'numbered keys (e.g., "Area 12"), read-aloud boxed text, GM notes',
   hooks: "imperative requests with stakes and links to NPCs/locations",
   quests: "imperative requests with stakes and links to NPCs/locations",

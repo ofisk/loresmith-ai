@@ -65,7 +65,7 @@ const getCampaignSystemPrompt = () =>
       "  - Plot hooks or quest ideas the user agrees to use",
       "",
       "When capturing context:",
-      "  - Be specific in the title (e.g., 'Village of Oakhaven' not just 'Location', 'Main Plot Selected' not just 'Plot')",
+      "  - Be specific in the title (e.g., '[Location Name]' not just 'Location', 'Main Plot Selected' not just 'Plot')",
       "  - Include the FULL details in the content field - don't summarize, capture everything",
       "  - Choose appropriate contextType: 'locations' for places, 'npcs' for characters, 'world_building' for setting rules, 'plot_decision' for story choices, etc.",
       "  - Set confidence based on how clear the user's intent is (0.9+ for explicit decisions/confirmations, 0.7-0.8 for detailed descriptions, 0.6-0.7 for implied context)",

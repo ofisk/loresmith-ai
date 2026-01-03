@@ -53,9 +53,23 @@ export class EntityExtractionPipeline {
 
     const persistedEntities: Entity[] = [];
     const entityIdSet = new Set<string>();
+    // Map extracted IDs to actual entity IDs (for cases where existing entity found by name/type)
+    const extractedIdToEntityId = new Map<string, string>();
 
     for (const extracted of extractedEntities) {
-      const existing = await this.entityDAO.getEntityById(extracted.id);
+      // First check if entity exists by ID (exact match)
+      let existing = await this.entityDAO.getEntityById(extracted.id);
+
+      // If not found by ID, check if an entity with the same name and type already exists
+      // This handles cases where the same entity is extracted with a different ID
+      if (!existing) {
+        existing = await this.entityDAO.findEntityByNameAndType(
+          options.campaignId,
+          extracted.name,
+          extracted.entityType
+        );
+      }
+
       const entityPayload = {
         content: extracted.content,
         metadata: extracted.metadata,
@@ -66,28 +80,65 @@ export class EntityExtractionPipeline {
       } as const;
 
       if (existing) {
-        await this.entityDAO.updateEntity(extracted.id, {
+        // Entity already exists - stage the update for user approval
+        const existingMetadata =
+          (existing.metadata as Record<string, unknown>) || {};
+
+        // Store original content in metadata for comparison during approval
+        const stagedMetadata = {
+          ...entityPayload.metadata,
+          shardStatus: "staging" as const,
+          staged: true,
+          stagedAt: new Date().toISOString(),
+          stagedFrom: {
+            sourceType: options.sourceType,
+            sourceId: options.sourceId,
+            sourceName: options.sourceName,
+          },
+          // Preserve original content for comparison
+          originalContent: existing.content,
+          originalMetadata: existingMetadata,
+        };
+
+        // Use existing entity ID (not the extracted ID, which might be different)
+        await this.entityDAO.updateEntity(existing.id, {
           name: extracted.name,
           content: entityPayload.content,
-          metadata: entityPayload.metadata,
+          metadata: stagedMetadata,
           confidence: entityPayload.confidence,
           sourceType: entityPayload.sourceType,
           sourceId: entityPayload.sourceId,
-          embeddingId: entityPayload.embeddingId,
+          embeddingId: existing.embeddingId || entityPayload.embeddingId,
         });
-        const updated = await this.entityDAO.getEntityById(extracted.id);
+
+        const updated = await this.entityDAO.getEntityById(existing.id);
         if (updated) {
           persistedEntities.push(updated);
           entityIdSet.add(updated.id);
+          // Map extracted ID to existing entity ID for relationship resolution
+          extractedIdToEntityId.set(extracted.id, updated.id);
         }
       } else {
+        // New entity - create with staging status
+        const newEntityMetadata = {
+          ...entityPayload.metadata,
+          shardStatus: "staging" as const,
+          staged: true,
+          stagedAt: new Date().toISOString(),
+          stagedFrom: {
+            sourceType: options.sourceType,
+            sourceId: options.sourceId,
+            sourceName: options.sourceName,
+          },
+        };
+
         await this.entityDAO.createEntity({
           id: extracted.id,
           campaignId: options.campaignId,
           entityType: extracted.entityType,
           name: extracted.name,
           content: entityPayload.content,
-          metadata: entityPayload.metadata,
+          metadata: newEntityMetadata,
           confidence: entityPayload.confidence,
           sourceType: entityPayload.sourceType,
           sourceId: entityPayload.sourceId,
@@ -97,16 +148,26 @@ export class EntityExtractionPipeline {
         if (created) {
           persistedEntities.push(created);
           entityIdSet.add(created.id);
+          // Map extracted ID to itself (no change)
+          extractedIdToEntityId.set(extracted.id, extracted.id);
         }
       }
 
-      await this.upsertEmbedding(extracted, options.campaignId);
+      // Use actual entity ID for embedding (may differ from extracted ID if entity was found by name/type)
+      const actualEntityId =
+        extractedIdToEntityId.get(extracted.id) || extracted.id;
+      await this.upsertEmbedding(
+        { ...extracted, id: actualEntityId },
+        options.campaignId
+      );
     }
 
     const relationships: EntityRelationship[] = [];
     const createdRelationshipKeys = new Set<string>();
     for (const extracted of extractedEntities) {
-      if (!entityIdSet.has(extracted.id)) {
+      // Get the actual entity ID (may differ from extracted ID if entity was found by name/type)
+      const actualEntityId = extractedIdToEntityId.get(extracted.id);
+      if (!actualEntityId || !entityIdSet.has(actualEntityId)) {
         continue;
       }
 
@@ -115,20 +176,24 @@ export class EntityExtractionPipeline {
           continue;
         }
 
-        if (relation.targetId === extracted.id) {
+        // Resolve target entity ID (may be mapped if entity was found by name/type)
+        const actualTargetId =
+          extractedIdToEntityId.get(relation.targetId) || relation.targetId;
+
+        if (actualTargetId === actualEntityId) {
           continue;
         }
 
-        const relationKey = `${extracted.id}:${relation.targetId}:${relation.relationshipType}`;
+        const relationKey = `${actualEntityId}:${actualTargetId}:${relation.relationshipType}`;
         if (createdRelationshipKeys.has(relationKey)) {
           continue;
         }
 
-        let targetExists = entityIdSet.has(relation.targetId);
+        let targetExists = entityIdSet.has(actualTargetId);
         if (!targetExists) {
-          const target = await this.entityDAO.getEntityById(relation.targetId);
+          const target = await this.entityDAO.getEntityById(actualTargetId);
           if (target) {
-            entityIdSet.add(relation.targetId);
+            entityIdSet.add(actualTargetId);
             targetExists = true;
           }
         }
@@ -139,8 +204,8 @@ export class EntityExtractionPipeline {
 
         const edges = await this.graphService.upsertEdge({
           campaignId: options.campaignId,
-          fromEntityId: extracted.id,
-          toEntityId: relation.targetId,
+          fromEntityId: actualEntityId,
+          toEntityId: actualTargetId,
           relationshipType: relation.relationshipType,
           strength: relation.strength ?? null,
           metadata:

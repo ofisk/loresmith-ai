@@ -979,16 +979,20 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
             );
 
             // If user requests original file search, search file chunks from entities' source files
+            // Only search files that are referenced by the found entities - if entity extraction
+            // didn't find the entity in a file, that file likely doesn't contain relevant information
             if (searchOriginalFiles && query.trim().length > 0) {
               console.log(
                 "[Tool] searchCampaignContext - Searching original file content from relevant entities"
               );
               try {
-                // Extract file keys from found entities
-                const relevantFileKeys =
-                  extractFileKeysFromEntities(approvedEntities);
+                // Extract file keys from found entities - these are the files that contain
+                // information about the entities we found, so they're the most relevant to search
+                const relevantFileKeys = Array.from(
+                  extractFileKeysFromEntities(approvedEntities)
+                );
 
-                if (relevantFileKeys.size > 0) {
+                if (relevantFileKeys.length > 0) {
                   // Search file chunks for matching text (case-insensitive)
                   const searchTermLower = query.toLowerCase();
                   const maxFileResults = 50; // Limit total file search results to avoid token overflow
@@ -1051,7 +1055,7 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
                   }
 
                   console.log(
-                    `[Tool] searchCampaignContext - Found ${fileResultCount} file content matches from ${relevantFileKeys.size} relevant files`
+                    `[Tool] searchCampaignContext - Found ${fileResultCount} file content matches from ${relevantFileKeys.length} files`
                   );
                 } else {
                   console.log(

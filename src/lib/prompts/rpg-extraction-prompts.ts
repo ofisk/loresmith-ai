@@ -93,6 +93,8 @@ Look for these common tabletop game elements:
 ${buildExtractionHints()}
 - Normalize names (title case), preserve dice notation and DCs.
 
+CRITICAL - SUB-LOCATIONS: When you encounter numbered lists of places within a location description (e.g., "1. [Location Name]", "2. [Another Location]", "Area 12: [Chamber Name]"), or sections describing named areas within a city/dungeon/region, extract EACH numbered or named sub-location as a SEPARATE location entity. Create a "located_in" relationship from each sub-location to its parent location. For example, if "[Parent City]" contains "[District 1]" and "[District 2]", extract three entities: (1) "[Parent City]" as a location, (2) "[District 1]" as a location with relation {rel: "located_in", target_id: "[parent-city-id]"}, (3) "[District 2]" as a location with relation {rel: "located_in", target_id: "[parent-city-id]"}. Do NOT just put sub-location names in the parent's "keyed_areas" array - extract them as separate entities with relationships.
+
 RELATIONSHIP EXTRACTION (CRITICAL FOR GRAPHRAG)
 Extracting relationships is THE MOST IMPORTANT aspect of this task. The knowledge graph's power comes from these connections.
 
@@ -106,7 +108,7 @@ Rules:
 Valid relationship types (use these exact strings):
 ${buildRelationshipTypeList()}
 
-Example: If you extract NPC "elizabeth-durst" and NPC "rose-durst", and the text says "Elizabeth is Rose's mother", add: \`{ "rel": "parent_of", "target_id": "rose-durst" }\` to Elizabeth's relations array. If the text also mentions "Elizabeth and Gustav are married", add: \`{ "rel": "married_to", "target_id": "gustav-durst" }\` to Elizabeth's relations.
+Example: If you extract NPC "[npc-name-1]" and NPC "[npc-name-2]", and the text says "[NPC Name 1] is [NPC Name 2]'s mother", add: \`{ "rel": "parent_of", "target_id": "[npc-name-2]" }\` to [NPC Name 1]'s relations array. If the text also mentions "[NPC Name 1] and [NPC Name 3] are married", add: \`{ "rel": "married_to", "target_id": "[npc-name-3]" }\` to [NPC Name 1]'s relations.
 
 OUTPUT RULES
 - Output one JSON object with the top-level keys exactly as in SPEC.
