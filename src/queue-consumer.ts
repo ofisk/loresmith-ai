@@ -309,6 +309,7 @@ export async function scheduled(
 
 /**
  * Check campaigns with unapplied changelog entries and trigger rebuilds if needed
+ * Also checks for campaigns with new entities created since the last rebuild
  */
 async function checkAndTriggerRebuilds(env: Env): Promise<void> {
   try {
@@ -319,18 +320,30 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
     );
 
     // Get campaigns with unapplied changelog entries
-    const campaignIds =
+    const changelogCampaignIds =
       await worldStateChangelogDAO.getCampaignIdsWithUnappliedEntries();
 
-    if (campaignIds.length === 0) {
+    // Get all campaigns that have entities (to check for new entities without changelog entries)
+    const allCampaignsWithEntities =
+      await daoFactory.entityDAO.getCampaignIdsWithEntities();
+
+    const allCampaignIds = new Set<string>();
+    for (const id of changelogCampaignIds) {
+      allCampaignIds.add(id);
+    }
+    for (const id of allCampaignsWithEntities) {
+      allCampaignIds.add(id);
+    }
+
+    if (allCampaignIds.size === 0) {
       console.log(
-        "[RebuildCron] No campaigns with unapplied changelog entries"
+        "[RebuildCron] No campaigns found to check for rebuild needs"
       );
       return;
     }
 
     console.log(
-      `[RebuildCron] Checking ${campaignIds.length} campaign(s) for rebuild needs`
+      `[RebuildCron] Checking ${allCampaignIds.size} campaign(s) for rebuild needs (${changelogCampaignIds.length} with unapplied changelog entries)`
     );
 
     if (!env.GRAPH_REBUILD_QUEUE) {
@@ -342,7 +355,7 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 
     const queueService = new RebuildQueueService(env.GRAPH_REBUILD_QUEUE);
 
-    for (const campaignId of campaignIds) {
+    for (const campaignId of allCampaignIds) {
       try {
         // Check if there's already an active rebuild
         const activeRebuilds =
@@ -376,6 +389,65 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
             if (entity.entity_id) {
               affectedEntityIds.add(entity.entity_id);
             }
+          }
+        }
+
+        // Also check for entities created since the last rebuild
+        // Get the last completed rebuild to determine the cutoff time
+        const rebuildHistory =
+          await daoFactory.rebuildStatusDAO.getRebuildHistory(campaignId, {
+            status: "completed",
+            limit: 1,
+          });
+        const lastRebuildTime =
+          rebuildHistory.length > 0 && rebuildHistory[0].completedAt
+            ? rebuildHistory[0].completedAt
+            : null;
+
+        if (lastRebuildTime) {
+          // Get entities created after the last rebuild
+          const newEntityIds =
+            await daoFactory.entityDAO.getEntityIdsCreatedAfter(
+              campaignId,
+              lastRebuildTime
+            );
+          if (newEntityIds.length > 0) {
+            console.log(
+              `[RebuildCron] Found ${newEntityIds.length} new entities created since last rebuild for campaign ${campaignId}`
+            );
+            for (const id of newEntityIds) {
+              affectedEntityIds.add(id);
+            }
+            // Record impact for new entities (1.2 points per entity, similar to changelog calculation)
+            const impactPerEntity = 1.2;
+            const totalImpact = newEntityIds.length * impactPerEntity;
+            await rebuildTriggerService.recordImpact(campaignId, totalImpact);
+            console.log(
+              `[RebuildCron] Recorded ${totalImpact} impact for ${newEntityIds.length} new entities`
+            );
+          }
+        } else {
+          // No previous rebuild - check if there are any entities at all
+          // If there are entities but no rebuild, we should trigger a rebuild
+          const entityCount =
+            await daoFactory.entityDAO.getEntityCountByCampaign(campaignId);
+          if (entityCount > 0) {
+            console.log(
+              `[RebuildCron] Campaign ${campaignId} has ${entityCount} entities but no previous rebuild, will check if rebuild needed`
+            );
+            // Get all entity IDs for the rebuild decision
+            const allEntities =
+              await daoFactory.entityDAO.listEntitiesByCampaign(campaignId);
+            for (const entity of allEntities) {
+              affectedEntityIds.add(entity.id);
+            }
+            // Record impact for all entities (treat as new entities)
+            const impactPerEntity = 1.2;
+            const totalImpact = entityCount * impactPerEntity;
+            await rebuildTriggerService.recordImpact(campaignId, totalImpact);
+            console.log(
+              `[RebuildCron] Recorded ${totalImpact} impact for ${entityCount} entities (no previous rebuild)`
+            );
           }
         }
 

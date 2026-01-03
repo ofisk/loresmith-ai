@@ -313,6 +313,40 @@ export class EntityDAO extends BaseDAOClass {
   }
 
   /**
+   * Get entity IDs created after a specific timestamp
+   */
+  async getEntityIdsCreatedAfter(
+    campaignId: string,
+    afterTimestamp: string
+  ): Promise<string[]> {
+    const sql = `
+      SELECT id
+      FROM entities
+      WHERE campaign_id = ? AND created_at > ?
+      ORDER BY created_at ASC
+    `;
+
+    const records = await this.queryAll<{ id: string }>(sql, [
+      campaignId,
+      afterTimestamp,
+    ]);
+    return records.map((record) => record.id);
+  }
+
+  /**
+   * Get all distinct campaign IDs that have entities
+   */
+  async getCampaignIdsWithEntities(): Promise<string[]> {
+    const sql = `
+      SELECT DISTINCT campaign_id
+      FROM entities
+    `;
+
+    const records = await this.queryAll<{ campaign_id: string }>(sql, []);
+    return records.map((record) => record.campaign_id);
+  }
+
+  /**
    * Search entities by name keywords (case-insensitive partial match)
    */
   async searchEntitiesByName(
