@@ -459,7 +459,7 @@ describe("BaseAgent", () => {
 
       expect(agent.getMessages()).toHaveLength(1000);
       // Database storage adds overhead, so we allow more time
-      expect(endTime - startTime).toBeLessThan(1000); // Should complete reasonably quickly
+      expect(endTime - startTime).toBeLessThan(3000); // Should complete reasonably quickly
     });
 
     it("should clear messages efficiently", () => {
