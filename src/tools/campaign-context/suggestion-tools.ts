@@ -344,10 +344,19 @@ export const assessCampaignReadiness = tool({
           ).length,
         });
 
+        // Retrieve campaign details to check metadata before semantic search
+        const daoFactory = getDAOFactory(env);
+        const campaign =
+          await daoFactory.campaignDAO.getCampaignById(campaignId);
+
         // Perform semantic analysis of checklist coverage
+        // Pass campaign metadata so it can check metadata fields before semantic search
         const semanticAnalysis = await performSemanticChecklistAnalysis(
           env as Env,
-          campaignId
+          campaignId,
+          campaign?.name,
+          campaign?.description || undefined,
+          campaign?.metadata || null
         );
 
         // Perform assessment with semantic analysis results
@@ -499,14 +508,59 @@ interface SemanticChecklistAnalysis {
  */
 async function performSemanticChecklistAnalysis(
   env: Env,
-  campaignId: string
+  campaignId: string,
+  campaignName?: string,
+  campaignDescription?: string,
+  campaignMetadata?: string | null
 ): Promise<SemanticChecklistAnalysis> {
   const coverage: Record<string, boolean> = {};
   let entityStats: EntityReadinessStats | undefined;
 
   try {
+    // Check campaign metadata first before semantic search
+    // This prevents false recommendations for information that already exists in campaign fields
+
+    // Parse campaign metadata to check for world name
+    let parsedMetadata: Record<string, unknown> = {};
+    if (campaignMetadata) {
+      try {
+        parsedMetadata = JSON.parse(campaignMetadata) as Record<
+          string,
+          unknown
+        >;
+      } catch (error) {
+        console.warn(
+          "[SemanticAnalysis] Failed to parse campaign metadata:",
+          error
+        );
+      }
+    }
+
+    // World name check: Look for world name in campaign metadata
+    const worldName =
+      parsedMetadata.worldName ||
+      parsedMetadata.world_name ||
+      parsedMetadata["world-name"];
+
+    if (
+      worldName &&
+      typeof worldName === "string" &&
+      worldName.trim().length > 0
+    ) {
+      coverage["world_name"] = true;
+    }
+
+    // Campaign pitch check: Description often serves as the campaign pitch
+    if (campaignDescription && campaignDescription.trim().length > 50) {
+      coverage["campaign_pitch"] = true;
+
+      // Note: We don't automatically mark tone/themes as covered from description alone
+      // because semantic search can provide more specific and comprehensive coverage
+      // of these aspects from session digests, entity graph, and other indexed content
+    }
+
     if (!env.DB || !env.VECTORIZE || !env.OPENAI_API_KEY) {
-      // Semantic search not available, return empty coverage/stats
+      // Semantic search not available, return coverage from metadata only
       return { coverage, entityStats };
     }
 
@@ -576,13 +630,16 @@ async function performSemanticChecklistAnalysis(
           });
 
           // Consider covered if we find at least one relevant result with good similarity
-          coverage[key] =
+          // OR if already covered by metadata (metadata takes precedence)
+          const semanticCoverage =
             results.length > 0 && results[0].similarityScore > 0.6;
+          coverage[key] = coverage[key] || semanticCoverage;
         } catch (error) {
           console.warn(
             `[SemanticAnalysis] Failed to search planning context for ${key}:`,
             error
           );
+          // Preserve existing coverage from metadata if available
           coverage[key] = coverage[key] ?? false;
         }
       }
