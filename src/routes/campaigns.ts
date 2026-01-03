@@ -164,6 +164,7 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
     const body = (await c.req.json()) as {
       name?: string;
       description?: string;
+      metadata?: Record<string, unknown>;
     };
 
     console.log(`[Server] PUT /campaigns/${campaignId} - starting request`);
@@ -185,12 +186,56 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 
     console.log("[Server] Found campaign:", campaign);
 
+    // Get existing campaign metadata to merge with new metadata
+    let existingMetadata: Record<string, unknown> = {};
+    if (campaign!.metadata) {
+      try {
+        existingMetadata = JSON.parse(campaign!.metadata) as Record<
+          string,
+          unknown
+        >;
+      } catch (error) {
+        console.warn(
+          "[handleUpdateCampaign] Failed to parse existing metadata:",
+          error
+        );
+      }
+    }
+
+    // Merge new metadata with existing metadata
+    const mergedMetadata =
+      body.metadata !== undefined
+        ? { ...existingMetadata, ...body.metadata }
+        : existingMetadata;
+
     // Update the campaign using DAO
     const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    await campaignDAO.updateCampaign(campaignId, {
-      name: body.name || campaign!.name,
-      description: body.description || "",
-    });
+    const updateData: {
+      name?: string;
+      description?: string;
+      metadata?: Record<string, unknown>;
+    } = {};
+
+    // Only include fields that are being updated
+    if (body.name !== undefined) {
+      updateData.name = body.name;
+    }
+
+    if (body.description !== undefined) {
+      updateData.description = body.description;
+    }
+
+    // Always include metadata if it was provided, or if we have merged metadata to save
+    if (body.metadata !== undefined) {
+      updateData.metadata = mergedMetadata;
+    }
+
+    // Ensure at least one field is being updated
+    if (Object.keys(updateData).length === 0) {
+      return c.json({ error: "No updates provided" }, 400);
+    }
+
+    await campaignDAO.updateCampaign(campaignId, updateData);
 
     console.log(`[Server] Updated campaign ${campaignId}`);
 

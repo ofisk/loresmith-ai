@@ -6,6 +6,7 @@ import {
   listCampaigns,
   resolveCampaignIdentifier,
   showCampaignDetails,
+  updateCampaign,
 } from "./core-tools";
 import { getFileLibraryStats, searchFileLibrary } from "./file-tools";
 import {
@@ -40,6 +41,7 @@ export {
   deleteCampaigns,
   listCampaigns,
   showCampaignDetails,
+  updateCampaign,
   resolveCampaignIdentifier,
   // Campaign planning tools
   planSession,
@@ -70,6 +72,7 @@ export const campaignTools = {
   listCampaigns,
   createCampaign,
   showCampaignDetails,
+  updateCampaign,
   deleteCampaign,
   deleteCampaigns,
   listCampaignResources,
