@@ -18,6 +18,7 @@ import {
   getCommunityName,
 } from "@/lib/graph/community-utils";
 import type { CommunitySummary } from "@/dao/community-summary-dao";
+import { CommunitySummaryService } from "@/services/graph/community-summary-service";
 
 type ContextWithAuth = Context<{ Bindings: Env }> & {
   userAuth?: AuthPayload;
@@ -207,14 +208,42 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
     const nodes: CommunityGraphData["nodes"] = [];
     const communitySummaryMap = new Map<string, CommunitySummary>();
 
-    // Try to load community summaries
+    // Load existing summaries and generate on-demand for communities without them
     if (daoFactory.communitySummaryDAO) {
+      const openaiApiKey = userAuth.openaiApiKey;
+      const summaryService = new CommunitySummaryService(
+        daoFactory.entityDAO,
+        daoFactory.communitySummaryDAO,
+        openaiApiKey
+      );
+
       for (const community of filteredCommunities) {
         try {
-          const summary =
+          let summary =
             await daoFactory.communitySummaryDAO.getSummaryByCommunityId(
               community.id
             );
+
+          // If no summary exists and we have an API key, generate one on-demand
+          if (!summary && openaiApiKey) {
+            try {
+              console.log(
+                `[GraphVisualization] Generating on-demand summary for community ${community.id}`
+              );
+              const result = await summaryService.generateOrGetSummary(
+                community,
+                { openaiApiKey }
+              );
+              summary = result.summary;
+            } catch (error) {
+              console.error(
+                `[GraphVisualization] Failed to generate summary for community ${community.id}:`,
+                error
+              );
+              // Continue without summary - will use fallback name
+            }
+          }
+
           if (summary) {
             communitySummaryMap.set(community.id, summary);
           }
@@ -419,14 +448,40 @@ export async function handleGetCommunityEntityGraph(c: ContextWithAuth) {
       }
     }
 
-    // Get community name/summary
+    // Get community name/summary, generating on-demand if needed
     let communityName: string;
     if (daoFactory.communitySummaryDAO) {
       try {
-        const summary =
+        let summary =
           await daoFactory.communitySummaryDAO.getSummaryByCommunityId(
             communityId
           );
+
+        // If no summary exists and we have an API key, generate one on-demand
+        if (!summary && userAuth.openaiApiKey) {
+          try {
+            console.log(
+              `[GraphVisualization] Generating on-demand summary for community ${communityId}`
+            );
+            const summaryService = new CommunitySummaryService(
+              daoFactory.entityDAO,
+              daoFactory.communitySummaryDAO,
+              userAuth.openaiApiKey
+            );
+            const result = await summaryService.generateOrGetSummary(
+              community,
+              { openaiApiKey: userAuth.openaiApiKey }
+            );
+            summary = result.summary;
+          } catch (error) {
+            console.error(
+              `[GraphVisualization] Failed to generate summary for community ${communityId}:`,
+              error
+            );
+            // Continue without summary - will use fallback name
+          }
+        }
+
         communityName = getCommunityName(community, summary);
       } catch {
         // Ignore errors loading summary, use fallback
