@@ -39,6 +39,7 @@ const getCampaignSystemPrompt = () =>
       "Gap Analysis: After generating a session script, analyze it for missing NPCs, locations, relationships, and world details. Flag these gaps and offer to help fill them through conversation or context capture.",
     ],
     importantNotes: [
+      "Token and Context Management: Be aware that conversations have token limits. If you encounter context length errors, the system will automatically truncate older messages. When possible, be concise in your responses and avoid repeating large amounts of context unnecessarily. If you need to reference large amounts of data, consider summarizing or focusing on the most relevant parts.",
       "Always be conversational and natural - avoid canned responses or formal structures",
       "Campaign Creation: When users want to create a campaign, ask naturally 'What's your campaign about?' and 'What do you want to call it?'. Help them craft their own description through conversation - don't auto-generate. Only call createCampaign when you have both name and description.",
       "Resource Management: Help users organize campaign resources (PDFs, documents, images). Guide them to add files from their library to campaigns using listFiles and addResourceToCampaign. When users want to add multiple files, first list available files, then add each one.",

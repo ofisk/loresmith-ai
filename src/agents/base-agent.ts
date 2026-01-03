@@ -1,6 +1,13 @@
 import { formatDataStreamPart } from "@ai-sdk/ui-utils";
 import { createDataStreamResponse, streamText } from "ai";
 import { SimpleChatAgent } from "./simple-chat-agent";
+import {
+  estimateRequestTokens,
+  estimateTokenCount,
+  estimateToolsTokens,
+  getSafeContextLimit,
+  truncateMessagesToFit,
+} from "@/lib/token-utils";
 
 interface Env {
   ADMIN_SECRET?: string;
@@ -327,15 +334,53 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           `[${this.constructor.name}] Enhanced tools count: ${Object.keys(enhancedTools).length}`
         );
 
+        // Check token limits and truncate messages if needed
+        const systemPrompt = (this.constructor as any).agentMetadata
+          .systemPrompt;
+        const modelId = this.model?.modelId || "unknown";
+        const contextLimit = getSafeContextLimit(modelId);
+        const systemPromptTokens = estimateTokenCount(systemPrompt);
+        const toolsTokens = estimateToolsTokens(enhancedTools);
+        const estimatedTokens = estimateRequestTokens(
+          systemPrompt,
+          processedMessages,
+          enhancedTools
+        );
+
+        console.log(
+          `[${this.constructor.name}] Token estimation: ${estimatedTokens} tokens (limit: ${contextLimit}, system: ${systemPromptTokens}, tools: ${toolsTokens})`
+        );
+
+        // Truncate messages if we're over the limit
+        if (estimatedTokens > contextLimit) {
+          const originalCount = processedMessages.length;
+          processedMessages = truncateMessagesToFit(
+            processedMessages,
+            contextLimit,
+            systemPromptTokens,
+            toolsTokens
+          );
+          const newEstimatedTokens = estimateRequestTokens(
+            systemPrompt,
+            processedMessages,
+            enhancedTools
+          );
+          console.warn(
+            `[${this.constructor.name}] ⚠️ Context too large (${estimatedTokens} > ${contextLimit}). Truncated messages: ${originalCount} -> ${processedMessages.length} (new estimate: ${newEstimatedTokens})`
+          );
+        }
+
         // Log request details for debugging
         const requestDetails = {
           agent: this.constructor.name,
-          model: this.model?.modelId || "unknown",
+          model: modelId,
           messageCount: processedMessages.length,
           toolCount: Object.keys(enhancedTools).length,
           toolNames: Object.keys(enhancedTools),
           toolChoice,
           maxSteps: 15,
+          estimatedTokens,
+          contextLimit,
           lastUserMessage: processedMessages
             .slice()
             .reverse()
@@ -449,12 +494,26 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 errorMessage.includes("billing details") ||
                 errorMessage.includes("insufficient_quota");
 
+              // Detect context length errors
+              const isContextLengthError =
+                errorMessage.includes("maximum context length") ||
+                errorMessage.includes("context length") ||
+                errorMessage.includes("too many tokens") ||
+                errorMessage.includes("reduce the length");
+
               // Send appropriate error message to user
               if (isQuotaError) {
                 dataStream.write(
                   formatDataStreamPart(
                     "text",
                     "I'm unable to process your request because your OpenAI API quota has been exceeded. If you've recently updated your billing, it may take a few minutes for the changes to take effect. Please wait 2-3 minutes and try again, or check your OpenAI billing settings at https://platform.openai.com/account/billing"
+                  )
+                );
+              } else if (isContextLengthError) {
+                dataStream.write(
+                  formatDataStreamPart(
+                    "text",
+                    "I encountered an issue: the conversation history has grown too large for me to process. I've automatically trimmed older messages to fit within the context limit. If this continues, you may want to start a new conversation or ask me to summarize the current context."
                   )
                 );
               } else {
@@ -507,13 +566,32 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             `[${this.constructor.name}] Error in streamText:`,
             error
           );
-          // Write error message to dataStream
-          dataStream.write(
-            formatDataStreamPart(
-              "text",
-              "I apologize, but I encountered an error while processing your request. Please try again."
-            )
-          );
+
+          // Check if it's a context length error
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          const isContextLengthError =
+            errorMessage.includes("maximum context length") ||
+            errorMessage.includes("context length") ||
+            errorMessage.includes("too many tokens") ||
+            errorMessage.includes("reduce the length");
+
+          // Write appropriate error message to dataStream
+          if (isContextLengthError) {
+            dataStream.write(
+              formatDataStreamPart(
+                "text",
+                "I encountered an issue: the conversation history has grown too large for me to process. I've automatically trimmed older messages to fit within the context limit. If this continues, you may want to start a new conversation or ask me to summarize the current context."
+              )
+            );
+          } else {
+            dataStream.write(
+              formatDataStreamPart(
+                "text",
+                "I apologize, but I encountered an error while processing your request. Please try again."
+              )
+            );
+          }
           throw error;
         }
       },

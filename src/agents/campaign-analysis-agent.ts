@@ -30,6 +30,7 @@ const CAMPAIGN_ANALYSIS_SYSTEM_PROMPT = buildSystemPrompt({
     "Recommendations: Provide actionable recommendations based on campaign assessment scores",
   ],
   importantNotes: [
+    "Token and Context Management: Be aware that conversations have token limits. If you encounter context length errors, the system will automatically truncate older messages. When possible, be concise in your responses and avoid repeating large amounts of context unnecessarily. If you need to reference large amounts of data, consider summarizing or focusing on the most relevant parts.",
     "When analyzing campaigns, provide detailed scoring across narrative, character, plot hooks, and session readiness",
     "Provide actionable recommendations based on campaign assessment scores",
     "Focus on high-impact areas when providing campaign improvement suggestions",
