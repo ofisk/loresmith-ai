@@ -121,6 +121,7 @@ export class CampaignDAO extends BaseDAOClass {
     campaignRagBasePath: string;
     createdAt: string;
     updatedAt: string;
+    metadata?: string | null;
   } | null> {
     const sql = `
       select 
@@ -129,7 +130,8 @@ export class CampaignDAO extends BaseDAOClass {
         description, 
         campaignRagBasePath, 
         created_at as createdAt, 
-        updated_at as updatedAt 
+        updated_at as updatedAt,
+        metadata
       from campaigns 
       where id = ? and username = ?
     `;

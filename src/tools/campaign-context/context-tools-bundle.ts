@@ -9,11 +9,13 @@ import {
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
 } from "./world-state-tools";
+import { showCampaignDetails } from "../campaign/core-tools";
 
 export const campaignContextToolsBundle = {
   searchCampaignContext,
   searchExternalResources,
   listAllEntities,
+  showCampaignDetails,
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,

@@ -236,6 +236,7 @@ export const showCampaignDetails = tool({
           campaignRagBasePath?: string;
           resources?: any[];
           status?: string;
+          metadata?: string | null;
         };
       };
       console.log("[showCampaignDetails] API data:", data);
@@ -245,8 +246,32 @@ export const showCampaignDetails = tool({
         ? `\n\nDescription: ${campaign.description}`
         : "";
 
+      let metadataText = "";
+      if (campaign.metadata) {
+        try {
+          const metadata = JSON.parse(campaign.metadata) as Record<
+            string,
+            unknown
+          >;
+          const metadataEntries = Object.entries(metadata)
+            .map(
+              ([key, value]) =>
+                `  ${key}: ${typeof value === "string" ? value : JSON.stringify(value)}`
+            )
+            .join("\n");
+          if (metadataEntries) {
+            metadataText = `\n\nMetadata:\n${metadataEntries}`;
+          }
+        } catch (error) {
+          console.warn(
+            "[showCampaignDetails] Failed to parse metadata:",
+            error
+          );
+        }
+      }
+
       return createToolSuccess(
-        `Campaign Details for "${campaign.name}":\n\nID: ${campaign.campaignId}${descriptionText}`,
+        `Campaign Details for "${campaign.name}":\n\nID: ${campaign.campaignId}${descriptionText}${metadataText}`,
         { campaign },
         toolCallId
       );

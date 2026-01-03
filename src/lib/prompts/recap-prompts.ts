@@ -72,7 +72,21 @@ Please provide a friendly welcome message and assess what's most important to wo
 
 ${CAMPAIGN_PLANNING_CHECKLIST}
 
-IMPORTANT: Before suggesting checklist items, use the searchCampaignContext tool to check if any of these items are already covered in the campaign data. Search for key checklist concepts like "campaign tone", "world name", "themes", "starting location", "factions", etc. to verify what's already been established.
+MANDATORY WORKFLOW: Before suggesting ANY checklist items, you MUST follow this exact workflow:
+
+1. FIRST, call showCampaignDetails to retrieve the campaign's description and metadata. Check the metadata for fields like worldName, startingLocation, and any other campaign details that might indicate completed checklist items. Also check the campaign description for mentions of tone, themes, or other checklist items.
+
+2. THEN, search for each foundational checklist item you're considering recommending:
+   - Search for "campaign tone" or "tone" to check if tone is already established
+   - Search for "core themes" or "themes" to check if themes are already established
+   - Search for "world name" or "region name" to check if world name is already established
+   - Search for "starting location" or "hub location" to check if starting location is already established
+   - Search for "factions" to check if factions are already established
+   - Search for any other checklist items you're considering recommending
+
+3. THEN, analyze both the campaign details (from showCampaignDetails) and search results. If either the campaign metadata/description OR search results show that an item is already established (e.g., campaign description mentions the tone, or search for "campaign tone" returns entities describing the tone), that item is COMPLETE and must NOT be recommended.
+
+4. FINALLY, only suggest checklist items where both the campaign details and searches show the item is missing or incomplete.
 
 CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. If a checklist item appears in your search results as already established, skip it entirely and move to the next item.
 
@@ -99,7 +113,21 @@ After the recap, please also assess what would be most valuable to plan next usi
 
 ${CAMPAIGN_PLANNING_CHECKLIST}
 
-IMPORTANT: Before suggesting checklist items, use the searchCampaignContext tool to verify what's already been established in the campaign. Search for key concepts related to any checklist items you're considering recommending (e.g., search for "campaign tone" if you're thinking of recommending tone definition, search for "factions" if recommending faction creation, etc.). 
+MANDATORY WORKFLOW: Before suggesting ANY checklist items, you MUST follow this exact workflow:
+
+1. FIRST, call showCampaignDetails to retrieve the campaign's description and metadata. Check the metadata for fields like worldName, startingLocation, and any other campaign details that might indicate completed checklist items. Also check the campaign description for mentions of tone, themes, or other checklist items.
+
+2. THEN, search for each foundational checklist item you're considering recommending:
+   - Search for "campaign tone" or "tone" to check if tone is already established
+   - Search for "core themes" or "themes" to check if themes are already established
+   - Search for "world name" or "region name" to check if world name is already established
+   - Search for "starting location" or "hub location" to check if starting location is already established
+   - Search for "factions" to check if factions are already established
+   - Search for any other checklist items you're considering recommending
+
+3. THEN, analyze both the campaign details (from showCampaignDetails) and search results. If either the campaign metadata/description OR search results show that an item is already established (e.g., campaign description mentions the tone, or search for "campaign tone" returns entities describing the tone), that item is COMPLETE and must NOT be recommended.
+
+4. FINALLY, only suggest checklist items where both the campaign details and searches show the item is missing or incomplete.
 
 CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. If a checklist item appears in your search results as already established, skip it entirely and move to the next item.
 
