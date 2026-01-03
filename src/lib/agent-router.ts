@@ -1,6 +1,7 @@
 import { streamText } from "ai";
 import { ModelManager } from "./model-manager";
 import { AgentNotRegisteredError } from "@/lib/errors";
+import { AGENT_ROUTING_PROMPTS } from "./prompts/agent-routing-prompts";
 
 export type AgentType =
   | "campaign"
@@ -146,34 +147,12 @@ export class AgentRouter {
       )
       .join("\n");
 
-    const prompt = `Based on the user's message, determine which agent should handle this request.
-
-Available agents:
-${agentDescriptions}
-
-User message: "${userMessage}"
-${recentContext ? `Recent context: "${recentContext}"` : ""}
-
-Important routing rules:
-- If the message mentions "uploaded", "file key", "metadata", "ingestion", "successfully uploaded", "processing", or "indexing" → route to "resources"
-- If the message mentions "campaign" or campaign management → route to "campaign"
-- If the message mentions "character" or character sheets → route to "campaign-context"
-- If the message is asking for help or guidance → route to "onboarding"
-- If the message mentions "session recap", "record session", "session digest", "what happened last session", or similar session recap requests → route to "session-digest"
-- For file upload completion messages or processing status inquiries → route to "resources"
-
-Respond with only the agent name (${registeredAgents.join(", ")}) and a confidence score 0-100.
-Format: agent_name|confidence|reason
-
-Examples:
-- "I have successfully uploaded the PDF file..." → resources|90|PDF upload completion
-- "Is my file still processing?" → resources|85|File processing status inquiry
-- "When will my uploaded file be searchable?" → resources|90|File processing status inquiry
-- "show me all campaigns" → campaign|85|Campaign listing request
-- "create a new campaign" → campaign|90|Campaign creation
-- "upload a character sheet" → campaign-context|85|Character sheet upload
-- "I want to record a session recap" → session-digest|95|Session recap request
-- "Let's create a session digest" → session-digest|90|Session digest creation`;
+    const prompt = AGENT_ROUTING_PROMPTS.formatAgentRoutingPrompt(
+      agentDescriptions,
+      userMessage,
+      recentContext,
+      registeredAgents
+    );
 
     try {
       // Use a simple LLM call to determine intent

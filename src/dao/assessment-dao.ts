@@ -144,12 +144,7 @@ export class AssessmentDAO {
     }
 
     // Query entities for character-related types
-    const characterEntityTypes = [
-      "characters",
-      "npcs",
-      "player_characters",
-      "character_sheets",
-    ];
+    const characterEntityTypes = ["npcs", "pcs"];
 
     // Query entities for each type and combine
     const allCharacters: any[] = [];

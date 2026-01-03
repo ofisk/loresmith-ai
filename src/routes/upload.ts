@@ -8,7 +8,7 @@ import {
   buildLibraryFileKey,
   getUniqueFilename,
   getUniqueDisplayName,
-} from "@/lib/file-keys";
+} from "@/lib/file-utils";
 import { nanoid } from "@/lib/nanoid";
 import { cleanupStuckProcessingFiles } from "@/queue-consumer";
 import { startFileProcessing } from "@/routes/upload-processing";

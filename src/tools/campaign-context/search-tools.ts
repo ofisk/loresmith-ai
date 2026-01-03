@@ -139,17 +139,30 @@ CRITICAL - SYNONYM MAPPING: When users specify entity types in their request (e.
 
 APPROVED ENTITIES AS CREATIVE BOUNDARIES: Approved entities (shards) in the campaign form the structural foundation for your responses. When users ask you to work with entities (creatures, NPCs, locations, etc.) from their campaign, you MUST first retrieve the relevant approved entities using this tool. These approved entities define the boundaries of what exists in their world. Within those boundaries, use your creative reasoning to interpret, match, adapt, or elaborate on the entities based on the user's request. The approved entities provide the outline - you fill in the creative details within that outline. For example, if asked to match creatures to themes, retrieve the user's approved creatures first (using query="monsters" to list all monsters), then creatively analyze how they might align with those themes based on their characteristics, even if the theme keywords aren't explicitly in the entity metadata.
 
-GRAPH TRAVERSAL: After finding entities via semantic search, use graph traversal to explore connected entities. Provide traverseFromEntityIds (entity IDs from previous search results) to traverse the graph starting from those entities. Use traverseDepth (1-3) to control how many relationship hops to follow (1=direct neighbors, 2=neighbors of neighbors, etc.). Optionally filter by traverseRelationshipTypes to focus on specific relationship types (e.g., ['resides_in', 'located_in'] for location queries). Example workflow: (1) Search for "Location X" to find its entity ID, (2) Use traverseFromEntityIds with that ID and traverseRelationshipTypes=['resides_in'] to find all NPCs living there.
+GRAPH TRAVERSAL: After finding entities via semantic search, use graph traversal to explore connected entities. Provide traverseFromEntityIds (entity IDs from previous search results) to traverse the graph starting from those entities. Use traverseDepth (1-3) to control how many relationship hops to follow (1=direct neighbors, 2=neighbors of neighbors, etc.). Optionally filter by traverseRelationshipTypes to focus on specific relationship types (e.g., ['resides_in', 'located_in'] for location queries). 
+
+CRITICAL - "X within Y" QUERIES: When users ask for entities "within" or "inside" another entity (e.g., "locations within [location]", "NPCs in [place]"), you MUST first identify the parent entity before searching for contained entities. Workflow: (1) Search for the parent entity to find its entity ID, (2) Use traverseFromEntityIds with that parent entity ID and appropriate traverseRelationshipTypes (e.g., ['located_in'] for locations within a location) to find entities contained within the parent. You may need multiple traversal steps depending on the query complexity. Do NOT just search for the entity type alone - that returns all entities of that type across the entire campaign, not just those within the specified parent.
 
 PAGINATION: The tool supports pagination via offset and limit parameters (default: offset=0, limit=15, max limit=50). For search queries, you may stop after the first page if the results are sufficient. If you need more results, use the pagination.nextOffset from the response to fetch the next page.
 
-CRITICAL: Entity results include explicit relationships from the entity graph. ONLY use explicit relationships shown in the results. Do NOT infer relationships from entity content text, entity names, or descriptions. If a relationship is not explicitly listed, it does NOT exist in the entity graph.`,
+CRITICAL: Entity results include explicit relationships from the entity graph. ONLY use explicit relationships shown in the results. Do NOT infer relationships from entity content text, entity names, or descriptions. If a relationship is not explicitly listed, it does NOT exist in the entity graph.
+
+ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the original text", "search the source files", "find in the original documents", or similar phrases, set searchOriginalFiles=true. This performs lexical (text) search through the original uploaded files (PDFs, text files) associated with the campaign, returning matching text chunks with their source file names. This is different from entity search - it searches raw file content, not extracted entities.`,
   parameters: z.object({
-    campaignId: commonSchemas.campaignId,
+    campaignId: commonSchemas.campaignId.describe(
+      "The campaign ID (UUID format). CRITICAL: This must be a UUID, never an entity name. The campaignId is automatically provided from the user's selected campaign - do NOT use entity names or location names as campaignId."
+    ),
     query: z
       .string()
       .describe(
         `The search query - can include entity names, plot points, topics, or entity types. Available entity types: ${ENTITY_TYPES_LIST}. The tool automatically infers the entity type from your query. CRITICAL: When users specify entity types in their request (e.g., "monsters", "beasts", "creatures", "NPCs"), you MUST: (1) Map any synonyms to the correct entity type name (e.g., "beasts"/"creatures" → "monsters", "people"/"characters" → "npcs"), (2) Include that entity type keyword in this query parameter. Examples: "monsters" lists all monsters, "fire monsters" searches for monsters matching "fire", "all monsters" lists all monsters. Empty query lists all entities (only use when user doesn't specify entity types). Use "context:" prefix to search session digests (optional - note that session digests are temporary and get parsed into entities).`
+      ),
+    searchOriginalFiles: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe(
+        "When true, searches the original source files (PDFs, text files) uploaded to the campaign for text content matching the query. Use this when users explicitly ask to 'search back through the original text', 'search the source files', 'find in the original documents', or similar phrases. This performs lexical (text) search through file chunks, not entity search."
       ),
     traverseFromEntityIds: z
       .array(z.string())
@@ -210,6 +223,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
       includeTraversedEntities = true,
       offset = 0,
       limit = 15,
+      searchOriginalFiles = false,
       jwt,
     },
     context?: any
@@ -296,6 +310,55 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
         // For list-all queries, use a high limit (500) to minimize pagination calls
         // For regular search queries, use the provided limit (default: 15, max: 50)
         const effectiveLimit = queryIntent.isListAll ? 500 : limit;
+
+        // Helper function to extract file keys from entity metadata
+        const extractFileKeysFromEntities = (
+          entities: Awaited<
+            ReturnType<typeof daoFactory.entityDAO.listEntitiesByCampaign>
+          >
+        ): Set<string> => {
+          const fileKeys = new Set<string>();
+          for (const entity of entities) {
+            try {
+              if (entity.metadata) {
+                const metadata =
+                  typeof entity.metadata === "string"
+                    ? (JSON.parse(entity.metadata) as Record<string, unknown>)
+                    : (entity.metadata as Record<string, unknown>);
+
+                // Check for fileKey in metadata (direct or nested)
+                if (metadata.fileKey && typeof metadata.fileKey === "string") {
+                  fileKeys.add(metadata.fileKey);
+                }
+
+                // Check for fileKey in sourceRef
+                if (
+                  metadata.sourceRef &&
+                  typeof metadata.sourceRef === "object" &&
+                  metadata.sourceRef !== null
+                ) {
+                  const sourceRef = metadata.sourceRef as Record<
+                    string,
+                    unknown
+                  >;
+                  if (
+                    sourceRef.fileKey &&
+                    typeof sourceRef.fileKey === "string"
+                  ) {
+                    fileKeys.add(sourceRef.fileKey);
+                  }
+                }
+              }
+            } catch (error) {
+              // Skip entities with invalid metadata
+              console.warn(
+                `[Tool] searchCampaignContext - Failed to parse metadata for entity ${entity.id}:`,
+                error
+              );
+            }
+          }
+          return fileKeys;
+        };
 
         try {
           planningService = new PlanningContextService(
@@ -430,7 +493,10 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                     const allEntities =
                       await daoFactory.entityDAO.listEntitiesByCampaign(
                         campaignId,
-                        { limit: fetchLimit }
+                        {
+                          limit: fetchLimit,
+                          entityType: targetEntityType || undefined,
+                        }
                       );
                     entities = allEntities.filter((e) =>
                       entityIds.includes(e.id)
@@ -532,10 +598,14 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
                         );
 
                       if (entityIds.length > 0) {
+                        // CRITICAL: Always filter by entityType if specified
                         const allEntities =
                           await daoFactory.entityDAO.listEntitiesByCampaign(
                             campaignId,
-                            { limit: 100 }
+                            {
+                              limit: 100,
+                              entityType: targetEntityType || undefined,
+                            }
                           );
                         entities = allEntities.filter((e) =>
                           entityIds.includes(e.id)
@@ -907,6 +977,99 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
             console.log(
               `[Tool] searchCampaignContext - Found ${approvedEntities.length} entity results`
             );
+
+            // If user requests original file search, search file chunks from entities' source files
+            // Only search files that are referenced by the found entities - if entity extraction
+            // didn't find the entity in a file, that file likely doesn't contain relevant information
+            if (searchOriginalFiles && query.trim().length > 0) {
+              console.log(
+                "[Tool] searchCampaignContext - Searching original file content from relevant entities"
+              );
+              try {
+                // Extract file keys from found entities - these are the files that contain
+                // information about the entities we found, so they're the most relevant to search
+                const relevantFileKeys = Array.from(
+                  extractFileKeysFromEntities(approvedEntities)
+                );
+
+                if (relevantFileKeys.length > 0) {
+                  // Search file chunks for matching text (case-insensitive)
+                  const searchTermLower = query.toLowerCase();
+                  const maxFileResults = 50; // Limit total file search results to avoid token overflow
+                  let fileResultCount = 0;
+
+                  // Search chunks for each relevant file
+                  for (const fileKey of relevantFileKeys) {
+                    if (fileResultCount >= maxFileResults) {
+                      break; // Stop searching if we've hit the limit
+                    }
+
+                    try {
+                      // Get all chunks for this file
+                      const allChunks =
+                        await daoFactory.fileDAO.getFileChunks(fileKey);
+
+                      // Get file metadata for display name
+                      const fileMetadata =
+                        await daoFactory.fileDAO.getFileMetadata(fileKey);
+
+                      // Filter chunks that contain the search term (case-insensitive)
+                      const matchingChunks = allChunks.filter((chunk) =>
+                        chunk.chunk_text.toLowerCase().includes(searchTermLower)
+                      );
+
+                      // Limit to first 10 matches per file, and respect global limit
+                      const remainingSlots = maxFileResults - fileResultCount;
+                      const limitedChunks = matchingChunks.slice(
+                        0,
+                        Math.min(10, remainingSlots)
+                      );
+
+                      // Add matching chunks to results
+                      for (const chunk of limitedChunks) {
+                        results.push({
+                          type: "file_content",
+                          source: "original_file",
+                          fileKey: chunk.file_key,
+                          fileName:
+                            fileMetadata?.display_name ||
+                            fileMetadata?.file_name ||
+                            "Unknown file",
+                          chunkIndex: chunk.chunk_index,
+                          text: chunk.chunk_text,
+                          title: `${
+                            fileMetadata?.display_name ||
+                            fileMetadata?.file_name ||
+                            "Unknown file"
+                          } (chunk ${chunk.chunk_index + 1})`,
+                          score: 1.0, // Lexical match, all results are equally relevant
+                        });
+                        fileResultCount++;
+                      }
+                    } catch (error) {
+                      console.warn(
+                        `[Tool] searchCampaignContext - Failed to search chunks for file ${fileKey}:`,
+                        error
+                      );
+                    }
+                  }
+
+                  console.log(
+                    `[Tool] searchCampaignContext - Found ${fileResultCount} file content matches from ${relevantFileKeys.length} files`
+                  );
+                } else {
+                  console.log(
+                    "[Tool] searchCampaignContext - No file keys found in entity metadata for file search"
+                  );
+                }
+              } catch (error) {
+                console.error(
+                  "[Tool] searchCampaignContext - Error searching file content:",
+                  error
+                );
+                // Don't fail the entire search if file search fails, just log and continue
+              }
+            }
           } catch (error) {
             console.warn(
               "[Tool] searchCampaignContext - Entity search failed:",
@@ -1271,7 +1434,7 @@ CRITICAL: Entity results include explicit relationships from the entity graph. O
 
         if (queryIntent.isListAll) {
           if (limitHit && totalCount !== undefined) {
-            paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${totalCount} total entities. There are ${totalCount - actualResults.length} more entities not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
+            paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${totalCount} total shards. There are ${totalCount - actualResults.length} more shards not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
           } else if (totalCount !== undefined) {
             paginationInfo = ` (${totalCount} total)`;
           }
@@ -1328,7 +1491,9 @@ export const listAllEntities = tool({
 
 CRITICAL: This tool is specifically for listing ALL entities. For searching/filtering entities by keywords or semantic similarity, use searchCampaignContext instead.
 
-AVAILABLE ENTITY TYPES: ${ENTITY_TYPES_LIST}. When users use synonyms (e.g., "beasts", "creatures" for monsters; "people", "characters" for NPCs; "places" for locations), you MUST map them to the correct entity type name. Examples: "beasts" or "creatures" → use "monsters"; "people" or "characters" (when referring to NPCs) → use "npcs"; "places" → use "locations".
+AVAILABLE ENTITY TYPES: ${ENTITY_TYPES_LIST}. When users use synonyms (e.g., "beasts", "creatures" for monsters; "people", "characters" for NPCs; "places" for locations), you MUST map them to the correct entity type name. Examples: "beasts" or "creatures" → use "monsters"; "people" or "characters" (when referring to NPCs) → use "npcs"; "player characters" or "PCs" → use "pcs"; "places" → use "locations".
+
+IMPORTANT: Distinguish between "npcs" (non-player characters controlled by the GM) and "pcs" (player-controlled characters). When users ask for "characters", determine if they mean NPCs or player characters based on context. If they say "player characters", "PCs", or refer to characters that players control, use "pcs". If they mean NPCs or characters the GM controls, use "npcs".
 
 This tool will automatically fetch all pages and return the complete list. No manual pagination is needed.`,
   parameters: z.object({
@@ -1474,7 +1639,7 @@ This tool will automatically fetch all pages and return the complete list. No ma
       const entityTypeLabel = entityType ? ` (${entityType})` : "";
 
       return createToolSuccess(
-        `Found ${totalCount} total entities${entityTypeLabel}. Results are sorted alphabetically by name.`,
+        `Found ${totalCount} total shards${entityTypeLabel}. Results are sorted alphabetically by name.`,
         {
           entityType: entityType || null,
           results,

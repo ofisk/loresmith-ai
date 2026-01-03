@@ -46,8 +46,7 @@ export const ALL_CONTEXT_TYPES = [
   "backgrounds",
   "feats",
   "subclasses",
-  "characters",
-  "character_sheets",
+  "pcs",
   "rules",
   "downtime",
 

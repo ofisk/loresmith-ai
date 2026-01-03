@@ -236,6 +236,7 @@ export const showCampaignDetails = tool({
           campaignRagBasePath?: string;
           resources?: any[];
           status?: string;
+          metadata?: string | null;
         };
       };
       console.log("[showCampaignDetails] API data:", data);
@@ -245,8 +246,32 @@ export const showCampaignDetails = tool({
         ? `\n\nDescription: ${campaign.description}`
         : "";
 
+      let metadataText = "";
+      if (campaign.metadata) {
+        try {
+          const metadata = JSON.parse(campaign.metadata) as Record<
+            string,
+            unknown
+          >;
+          const metadataEntries = Object.entries(metadata)
+            .map(
+              ([key, value]) =>
+                `  ${key}: ${typeof value === "string" ? value : JSON.stringify(value)}`
+            )
+            .join("\n");
+          if (metadataEntries) {
+            metadataText = `\n\nMetadata:\n${metadataEntries}`;
+          }
+        } catch (error) {
+          console.warn(
+            "[showCampaignDetails] Failed to parse metadata:",
+            error
+          );
+        }
+      }
+
       return createToolSuccess(
-        `Campaign Details for "${campaign.name}":\n\nID: ${campaign.campaignId}${descriptionText}`,
+        `Campaign Details for "${campaign.name}":\n\nID: ${campaign.campaignId}${descriptionText}${metadataText}`,
         { campaign },
         toolCallId
       );
@@ -254,6 +279,121 @@ export const showCampaignDetails = tool({
       console.error("Error getting campaign details:", error);
       return createToolError(
         `Failed to get campaign details: ${error instanceof Error ? error.message : String(error)}`,
+        { error: error instanceof Error ? error.message : String(error) },
+        AUTH_CODES.ERROR,
+        toolCallId
+      );
+    }
+  },
+});
+
+export const updateCampaign = tool({
+  description:
+    "Update campaign information including name, description, and metadata. Use this tool when users provide campaign details like world name, starting location, or other metadata that should be saved to the campaign. Extract information from user messages (e.g., 'the campaign's world is named [name]' → metadata: {worldName: '[name]'}, 'starting location will be [location]' → metadata: {startingLocation: '[location]'}). The metadata parameter accepts a JSON object that will be merged with existing metadata.",
+  parameters: z.object({
+    campaignId: commonSchemas.campaignId,
+    name: z.string().optional().describe("Campaign name"),
+    description: z.string().optional().describe("Campaign description"),
+    metadata: z
+      .record(z.unknown())
+      .optional()
+      .describe(
+        "Campaign metadata as a JSON object. Extract from user messages: world name ('world is named X' or 'world name is X') → worldName, starting location ('starting location is X' or 'starting location will be X') → startingLocation. Other campaign-specific information can also be included. This will be merged with existing metadata."
+      ),
+    jwt: commonSchemas.jwt,
+  }),
+  execute: async (
+    { campaignId, name, description, metadata, jwt },
+    context?: any
+  ): Promise<ToolResult> => {
+    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[updateCampaign] Using toolCallId:", toolCallId);
+
+    console.log("[Tool] updateCampaign received:", {
+      campaignId,
+      name,
+      description,
+      metadata,
+    });
+
+    try {
+      const updateBody: {
+        name?: string;
+        description?: string;
+        metadata?: Record<string, unknown>;
+      } = {};
+
+      if (name !== undefined) {
+        updateBody.name = name;
+      }
+      if (description !== undefined) {
+        updateBody.description = description;
+      }
+      if (metadata !== undefined) {
+        updateBody.metadata = metadata;
+      }
+
+      if (Object.keys(updateBody).length === 0) {
+        return createToolError(
+          "No updates provided",
+          "At least one field (name, description, or metadata) must be provided",
+          AUTH_CODES.ERROR,
+          toolCallId
+        );
+      }
+
+      console.log("[updateCampaign] Making API request");
+      const response = await authenticatedFetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.DETAILS(campaignId)),
+        {
+          method: "PUT",
+          jwt,
+          body: JSON.stringify(updateBody),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const authError = handleAuthError(response);
+        if (authError) {
+          return createToolError(
+            authError,
+            {
+              error: `HTTP ${response.status}`,
+            },
+            AUTH_CODES.ERROR,
+            toolCallId
+          );
+        }
+        const errorText = await response.text();
+        return createToolError(
+          `Failed to update campaign: ${response.status}`,
+          { error: errorText || `HTTP ${response.status}` },
+          AUTH_CODES.ERROR,
+          toolCallId
+        );
+      }
+
+      const data = (await response.json()) as {
+        campaign: {
+          campaignId: string;
+          name: string;
+          description?: string;
+        };
+      };
+
+      console.log("[updateCampaign] Campaign updated successfully");
+      return createToolSuccess(
+        `Campaign "${data.campaign.name}" has been updated successfully.`,
+        { campaign: data.campaign },
+        toolCallId
+      );
+    } catch (error) {
+      console.error("Error updating campaign:", error);
+      return createToolError(
+        `Failed to update campaign: ${error instanceof Error ? error.message : String(error)}`,
         { error: error instanceof Error ? error.message : String(error) },
         AUTH_CODES.ERROR,
         toolCallId

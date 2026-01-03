@@ -7,7 +7,7 @@ import {
   getStoredJwt,
 } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
-import { buildStagingFileKey } from "@/lib/file-keys";
+import { buildStagingFileKey } from "@/lib/file-utils";
 import {
   shouldUseLargeFileUpload,
   uploadLargeFile,

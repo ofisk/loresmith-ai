@@ -207,7 +207,7 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
     const nodes: CommunityGraphData["nodes"] = [];
     const communitySummaryMap = new Map<string, CommunitySummary>();
 
-    // Try to load community summaries
+    // Load existing summaries
     if (daoFactory.communitySummaryDAO) {
       for (const community of filteredCommunities) {
         try {

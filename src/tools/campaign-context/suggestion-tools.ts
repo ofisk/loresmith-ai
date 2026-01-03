@@ -1,6 +1,11 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { API_CONFIG, AUTH_CODES, type ToolResult } from "../../app-constants";
+import {
+  API_CONFIG,
+  AUTH_CODES,
+  MODEL_CONFIG,
+  type ToolResult,
+} from "../../app-constants";
 import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
 import {
   commonSchemas,
@@ -20,6 +25,8 @@ import {
   type StructuredEntityType,
   isValidEntityType,
 } from "../../lib/entity-types";
+import { createLLMProvider } from "../../services/llm/llm-provider-factory";
+import { METADATA_ANALYSIS_PROMPTS } from "../../lib/prompts/metadata-analysis-prompts";
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {
@@ -344,10 +351,19 @@ export const assessCampaignReadiness = tool({
           ).length,
         });
 
+        // Retrieve campaign details to check metadata before semantic search
+        const daoFactory = getDAOFactory(env);
+        const campaign =
+          await daoFactory.campaignDAO.getCampaignById(campaignId);
+
         // Perform semantic analysis of checklist coverage
+        // Pass campaign metadata so it can check metadata fields before semantic search
         const semanticAnalysis = await performSemanticChecklistAnalysis(
           env as Env,
-          campaignId
+          campaignId,
+          campaign?.name,
+          campaign?.description || undefined,
+          campaign?.metadata || null
         );
 
         // Perform assessment with semantic analysis results
@@ -494,19 +510,172 @@ interface SemanticChecklistAnalysis {
 }
 
 /**
+ * Checklist items that are checked for campaign readiness.
+ * These are used both for LLM metadata analysis and semantic search.
+ */
+const CHECKLIST_ITEMS = [
+  {
+    key: "campaign_tone",
+    description:
+      "overall campaign tone and mood for this game (for example lighthearted, grim, cozy, political, mythic, horror, epic), as implied by the campaign description, tags, GM notes, and the most prominent entities",
+  },
+  {
+    key: "core_themes",
+    description:
+      "core themes and central ideas of the campaign (for example power, faith, legacy, corruption, found family, rebellion), as described in campaign notes, worldbuilding text, or recurring entities and factions",
+  },
+  {
+    key: "world_name",
+    description:
+      "the proper-name of the campaign world or primary region (for example a world, continent, or plane name) mentioned in campaign description or setting notes",
+  },
+  {
+    key: "cultural_trait",
+    description:
+      "dominant cultural traits or societal norms that define everyday life in the main region (attitudes, customs, taboos, social structures)",
+  },
+  {
+    key: "magic_system",
+    description:
+      "how magic works in this setting, how common it is, and how people react to it, based on setting descriptions, notes, and rules variants",
+  },
+  {
+    key: "starting_location",
+    description:
+      "the main starting town, city, or hub location for the campaign (its name and a short description of why people live there and what's notable about it)",
+  },
+  {
+    key: "starting_npcs",
+    description:
+      "important NPCs present in the starting area (names, roles, goals, or fears) that the party is likely to meet early in the campaign",
+  },
+  {
+    key: "factions",
+    description:
+      "factions or organizations with conflicting goals or agendas in the campaign world, including what they want and how they operate",
+  },
+  {
+    key: "campaign_pitch",
+    description:
+      "a short 1–2 sentence campaign elevator pitch or summary that describes the premise, tone, and stakes of the campaign",
+  },
+] as const;
+
+/**
+ * Uses LLM to analyze campaign metadata and determine which checklist items are covered.
+ * This allows flexible metadata structures without hardcoded field mappings.
+ */
+async function analyzeMetadataCoverage(
+  env: Env,
+  metadata: Record<string, unknown>,
+  campaignDescription?: string
+): Promise<Record<string, boolean>> {
+  const coverage: Record<string, boolean> = {};
+
+  // If no OpenAI API key, return empty coverage
+  if (!env.OPENAI_API_KEY) {
+    console.warn(
+      "[MetadataAnalysis] No OpenAI API key available, skipping metadata analysis"
+    );
+    return coverage;
+  }
+
+  try {
+    const coverageSchema = z.object({
+      coverage: z
+        .record(z.boolean())
+        .describe(
+          "Object mapping checklist item keys to boolean values indicating if they are covered by the metadata"
+        ),
+    });
+
+    const prompt = METADATA_ANALYSIS_PROMPTS.formatMetadataAnalysisPrompt(
+      CHECKLIST_ITEMS,
+      metadata,
+      campaignDescription
+    );
+
+    const llmProvider = createLLMProvider({
+      provider: MODEL_CONFIG.PROVIDER.DEFAULT,
+      apiKey: env.OPENAI_API_KEY,
+      defaultModel: MODEL_CONFIG.OPENAI.METADATA_ANALYSIS,
+      defaultTemperature: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_TEMPERATURE,
+      defaultMaxTokens: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_MAX_TOKENS,
+    });
+
+    const result = await llmProvider.generateStructuredOutput<
+      z.infer<typeof coverageSchema>
+    >(prompt, {
+      model: MODEL_CONFIG.OPENAI.METADATA_ANALYSIS,
+      temperature: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_TEMPERATURE,
+      maxTokens: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_MAX_TOKENS,
+    });
+
+    const validated = coverageSchema.parse(result);
+    return validated.coverage;
+  } catch (error) {
+    console.warn(
+      "[MetadataAnalysis] Failed to analyze metadata with LLM:",
+      error instanceof Error ? error.message : String(error)
+    );
+    // Return empty coverage on error - semantic search will still work
+    return coverage;
+  }
+}
+
+/**
  * Performs semantic search to check for checklist coverage
  * Returns coverage booleans plus entity stats for richer readiness guidance
  */
 async function performSemanticChecklistAnalysis(
   env: Env,
-  campaignId: string
+  campaignId: string,
+  campaignName?: string,
+  campaignDescription?: string,
+  campaignMetadata?: string | null
 ): Promise<SemanticChecklistAnalysis> {
   const coverage: Record<string, boolean> = {};
   let entityStats: EntityReadinessStats | undefined;
 
   try {
+    // Check campaign metadata first before semantic search
+    // This prevents false recommendations for information that already exists in campaign fields
+
+    // Parse campaign metadata
+    let parsedMetadata: Record<string, unknown> = {};
+    if (campaignMetadata) {
+      try {
+        parsedMetadata = JSON.parse(campaignMetadata) as Record<
+          string,
+          unknown
+        >;
+      } catch (error) {
+        console.warn(
+          "[SemanticAnalysis] Failed to parse campaign metadata:",
+          error
+        );
+      }
+    }
+
+    // Use LLM to analyze metadata coverage if metadata exists
+    if (Object.keys(parsedMetadata).length > 0 || campaignDescription) {
+      const metadataCoverage = await analyzeMetadataCoverage(
+        env,
+        parsedMetadata,
+        campaignDescription
+      );
+      // Merge LLM's metadata coverage into our coverage object
+      Object.assign(coverage, metadataCoverage);
+    }
+
+    // Campaign pitch check: Description often serves as the campaign pitch
+    // (This is now also handled by the LLM analysis, but we keep this as a fallback)
+    if (campaignDescription && campaignDescription.trim().length > 50) {
+      coverage["campaign_pitch"] = coverage["campaign_pitch"] || true;
+    }
+
     if (!env.DB || !env.VECTORIZE || !env.OPENAI_API_KEY) {
-      // Semantic search not available, return empty coverage/stats
+      // Semantic search not available, return coverage from metadata only
       return { coverage, entityStats };
     }
 
@@ -519,55 +688,8 @@ async function performSemanticChecklistAnalysis(
         env
       );
 
-      const checklistQueries = [
-        {
-          key: "campaign_tone",
-          query:
-            "overall campaign tone and mood for this game (for example lighthearted, grim, cozy, political, mythic, horror, epic), as implied by the campaign description, tags, GM notes, and the most prominent entities",
-        },
-        {
-          key: "core_themes",
-          query:
-            "core themes and central ideas of the campaign (for example power, faith, legacy, corruption, found family, rebellion), as described in campaign notes, worldbuilding text, or recurring entities and factions",
-        },
-        {
-          key: "world_name",
-          query:
-            "the proper-name of the campaign world or primary region (for example a world, continent, or plane name) mentioned in campaign description or setting notes",
-        },
-        {
-          key: "cultural_trait",
-          query:
-            "dominant cultural traits or societal norms that define everyday life in the main region (attitudes, customs, taboos, social structures)",
-        },
-        {
-          key: "magic_system",
-          query:
-            "how magic works in this setting, how common it is, and how people react to it, based on setting descriptions, notes, and rules variants",
-        },
-        {
-          key: "starting_location",
-          query:
-            "the main starting town, city, or hub location for the campaign (its name and a short description of why people live there and what's notable about it)",
-        },
-        {
-          key: "starting_npcs",
-          query:
-            "important NPCs present in the starting area (names, roles, goals, or fears) that the party is likely to meet early in the campaign",
-        },
-        {
-          key: "factions",
-          query:
-            "factions or organizations with conflicting goals or agendas in the campaign world, including what they want and how they operate",
-        },
-        {
-          key: "campaign_pitch",
-          query:
-            "a short 1–2 sentence campaign elevator pitch or summary that describes the premise, tone, and stakes of the campaign",
-        },
-      ];
-
-      for (const { key, query } of checklistQueries) {
+      // Use CHECKLIST_ITEMS for semantic search queries
+      for (const { key, description: query } of CHECKLIST_ITEMS) {
         try {
           const results = await planningService.search({
             campaignId,
@@ -576,13 +698,16 @@ async function performSemanticChecklistAnalysis(
           });
 
           // Consider covered if we find at least one relevant result with good similarity
-          coverage[key] =
+          // OR if already covered by metadata (metadata takes precedence)
+          const semanticCoverage =
             results.length > 0 && results[0].similarityScore > 0.6;
+          coverage[key] = coverage[key] || semanticCoverage;
         } catch (error) {
           console.warn(
             `[SemanticAnalysis] Failed to search planning context for ${key}:`,
             error
           );
+          // Preserve existing coverage from metadata if available
           coverage[key] = coverage[key] ?? false;
         }
       }

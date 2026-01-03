@@ -4,7 +4,7 @@ import {
   getCampaignSuggestions,
 } from "./suggestion-tools";
 import { searchExternalResources, searchCampaignContext } from "./search-tools";
-import { showCampaignDetails } from "../campaign/core-tools";
+import { showCampaignDetails, updateCampaign } from "../campaign/core-tools";
 
 export const campaignAnalysisTools = {
   assessCampaignReadiness,
@@ -12,4 +12,5 @@ export const campaignAnalysisTools = {
   searchExternalResources,
   searchCampaignContext,
   showCampaignDetails,
+  updateCampaign,
 };
