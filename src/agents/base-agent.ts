@@ -1,13 +1,14 @@
 import { formatDataStreamPart } from "@ai-sdk/ui-utils";
 import { createDataStreamResponse, streamText } from "ai";
-import { SimpleChatAgent } from "./simple-chat-agent";
+import { SimpleChatAgent, type ChatMessage } from "./simple-chat-agent";
 import {
   estimateRequestTokens,
   estimateTokenCount,
   estimateToolsTokens,
   getSafeContextLimit,
-  truncateMessagesToFit,
 } from "@/lib/token-utils";
+import { getDAOFactory } from "@/dao/dao-factory";
+import { trimToolResultsByRelevancy } from "@/lib/tool-result-trimming";
 
 interface Env {
   ADMIN_SECRET?: string;
@@ -71,6 +72,77 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
     this.model = model;
     this.tools = tools;
     // systemPrompt is now stored in static agentMetadata
+  }
+
+  /**
+   * Override addMessage to store messages in database for persistent history
+   * Database storage happens asynchronously (fire-and-forget) to keep the method synchronous
+   */
+  addMessage(message: ChatMessage): void {
+    // Call parent to add to in-memory array
+    super.addMessage(message);
+
+    // Store message in database for persistent history (fire-and-forget)
+    // Only store if we have environment and the message has content
+    if (this.env && "DB" in this.env && this.env.DB) {
+      // Fire and forget - don't await to keep method signature synchronous
+      this.storeMessageToDatabase(message).catch((error) => {
+        // Log but don't fail - message storage is non-critical
+        console.error(
+          `[${this.constructor.name}] Failed to store message to database:`,
+          error
+        );
+      });
+    }
+  }
+
+  /**
+   * Store a message to the database asynchronously
+   */
+  private async storeMessageToDatabase(message: ChatMessage): Promise<void> {
+    const content =
+      typeof message.content === "string"
+        ? message.content
+        : JSON.stringify(message.content);
+
+    if (content.trim().length === 0) {
+      return; // Skip empty messages
+    }
+
+    // Get session ID from durable object ID
+    // Handle test environments where ctx.id might not exist
+    const sessionId = this.ctx?.id?.toString() || `session-${Date.now()}`;
+
+    // Extract username and campaignId from message data if available
+    const messageData = (message as any).data as
+      | { jwt?: string; campaignId?: string | null }
+      | undefined;
+
+    let username: string | null = null;
+    if (messageData?.jwt) {
+      try {
+        // Try to extract username from JWT
+        const jwtPayload = JSON.parse(
+          atob(messageData.jwt.split(".")[1] || "")
+        );
+        username = jwtPayload.username || null;
+      } catch (error) {
+        console.warn(
+          `[${this.constructor.name}] Failed to extract username from JWT:`,
+          error
+        );
+      }
+    }
+
+    const daoFactory = getDAOFactory(this.env as unknown as { DB: any });
+    await daoFactory.messageHistoryDAO.createMessage({
+      sessionId,
+      username,
+      campaignId: messageData?.campaignId || null,
+      role: message.role,
+      content,
+      messageData: messageData || null,
+    });
   }
 
   /**
@@ -166,54 +238,46 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           selectedCampaignId
         );
 
-        // Filter out messages with incomplete tool invocations to prevent conversion errors
-        let processedMessages = this.messages.filter((message) => {
-          // If the message has tool invocations, check if they're all complete
-          const toolInvocations = (message as any).toolInvocations;
-          if (
-            toolInvocations &&
-            Array.isArray(toolInvocations) &&
-            toolInvocations.length > 0
-          ) {
-            return toolInvocations.every(
-              (invocation: any) =>
-                invocation.state === "result" && invocation.result !== undefined
-            );
-          }
-          return true;
-        });
+        // Build minimal message context: only include the current user prompt
+        // All historical context is stored in the database and can be retrieved via getMessageHistory tool
+        // This ensures targeted graph traversal - the LLM fetches only what it needs
 
-        // Filter messages by campaignId if a campaign is selected
-        if (selectedCampaignId) {
-          const campaignFilteredMessages: typeof processedMessages = [];
+        // Find the current user message (most recent user message)
+        const currentUserMessage = this.messages
+          .slice()
+          .reverse()
+          .find((msg) => msg.role === "user");
 
-          for (let i = 0; i < processedMessages.length; i++) {
-            const message = processedMessages[i];
-            const messageData = (message as any).data as
-              | (MessageData & { campaignId?: string | null })
-              | undefined;
+        // Build minimal context: only the current user prompt
+        // The LLM can use getMessageHistory tool to fetch relevant history if needed
+        const processedMessages: typeof this.messages = [];
 
-            // Extract campaignId from message data
-            const messageCampaignId: string | null | undefined =
-              messageData?.campaignId;
+        if (currentUserMessage) {
+          processedMessages.push(currentUserMessage);
+        }
 
-            // Only include messages that explicitly have a matching campaignId
-            // Messages without campaignId are excluded when a campaign is selected
-            if (messageCampaignId === selectedCampaignId) {
-              campaignFilteredMessages.push(message);
+        // Include essential system messages (campaign context, user state) but exclude tool results
+        for (let i = 0; i < this.messages.length; i++) {
+          const message = this.messages[i];
+          if (message.role === "system") {
+            const content =
+              typeof message.content === "string" ? message.content : "";
+            // Only include essential system context, not tool results
+            if (
+              content.includes("Campaign Context:") ||
+              content.includes("User State Analysis:")
+            ) {
+              // Only add if not already in processedMessages
+              if (!processedMessages.some((m) => m === message)) {
+                processedMessages.push(message);
+              }
             }
           }
-
-          processedMessages = campaignFilteredMessages;
-
-          console.log(
-            `[${this.constructor.name}] Filtered messages by campaign ${selectedCampaignId}: ${this.messages.length} -> ${processedMessages.length}`
-          );
-        } else {
-          console.log(
-            `[${this.constructor.name}] Filtered messages from ${this.messages.length} to ${processedMessages.length} (no campaign filter applied)`
-          );
         }
+
+        console.log(
+          `[${this.constructor.name}] Built minimal message context: ${this.messages.length} total -> ${processedMessages.length} messages (only current user prompt + essential system messages). Historical context available via getMessageHistory tool.`
+        );
 
         // Debug: Log available tools
         console.log(
@@ -334,7 +398,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           `[${this.constructor.name}] Enhanced tools count: ${Object.keys(enhancedTools).length}`
         );
 
-        // Check token limits and truncate messages if needed
+        // Estimate tokens for logging (no truncation - we rely on targeted graph traversal via tools)
         const systemPrompt = (this.constructor as any).agentMetadata
           .systemPrompt;
         const modelId = this.model?.modelId || "unknown";
@@ -351,22 +415,11 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           `[${this.constructor.name}] Token estimation: ${estimatedTokens} tokens (limit: ${contextLimit}, system: ${systemPromptTokens}, tools: ${toolsTokens})`
         );
 
-        // Truncate messages if we're over the limit
+        // If we're still over the limit with minimal context, log a warning
+        // The LLM should use tools to fetch targeted context rather than including everything
         if (estimatedTokens > contextLimit) {
-          const originalCount = processedMessages.length;
-          processedMessages = truncateMessagesToFit(
-            processedMessages,
-            contextLimit,
-            systemPromptTokens,
-            toolsTokens
-          );
-          const newEstimatedTokens = estimateRequestTokens(
-            systemPrompt,
-            processedMessages,
-            enhancedTools
-          );
           console.warn(
-            `[${this.constructor.name}] ⚠️ Context too large (${estimatedTokens} > ${contextLimit}). Truncated messages: ${originalCount} -> ${processedMessages.length} (new estimate: ${newEstimatedTokens})`
+            `[${this.constructor.name}] ⚠️ Context still large (${estimatedTokens} > ${contextLimit}) even with minimal message history. The LLM should use tools for targeted graph traversal to fetch only relevant context.`
           );
         }
 
@@ -513,7 +566,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 dataStream.write(
                   formatDataStreamPart(
                     "text",
-                    "I encountered an issue: the conversation history has grown too large for me to process. I've automatically trimmed older messages to fit within the context limit. If this continues, you may want to start a new conversation or ask me to summarize the current context."
+                    "I encountered an issue: the context retrieved from your campaign is too large for me to process. I've automatically trimmed the least relevant information, but the request still exceeds my capacity. Please try a more specific query to narrow down the results."
                   )
                 );
               } else {
@@ -581,7 +634,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             dataStream.write(
               formatDataStreamPart(
                 "text",
-                "I encountered an issue: the conversation history has grown too large for me to process. I've automatically trimmed older messages to fit within the context limit. If this continues, you may want to start a new conversation or ask me to summarize the current context."
+                "I encountered an issue: the context retrieved from your campaign is too large for me to process. I've automatically trimmed the least relevant information, but the request still exceeds my capacity. Please try a more specific query to narrow down the results."
               )
             );
           } else {
@@ -672,14 +725,34 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                   previousCampaignId !== selectedCampaignId
                 ) {
                   console.log(
-                    `[${this.constructor.name}] Overrode campaignId in tool ${toolName} from ${previousCampaignId} to ${selectedCampaignId}`
-                  );
-                } else {
-                  console.log(
-                    `[${this.constructor.name}] Injected campaignId into tool ${toolName} parameters: ${selectedCampaignId}`
+                    `[${this.constructor.name}] Overriding LLM-provided campaignId (${previousCampaignId}) with selectedCampaignId (${selectedCampaignId}) for tool ${toolName}`
                   );
                 }
-              } else if (hasCampaignIdParam && !selectedCampaignId) {
+              }
+
+              // Check if the tool requires a sessionId parameter and inject it from durable object ID
+              const hasSessionIdParam =
+                tool.parameters &&
+                typeof tool.parameters === "object" &&
+                (tool.parameters as any).shape &&
+                "sessionId" in (tool.parameters as any).shape;
+
+              if (hasSessionIdParam && !enhancedArgs.sessionId) {
+                // Inject sessionId from durable object ID
+                const sessionId = this.ctx.id.toString();
+                enhancedArgs.sessionId = sessionId;
+                console.log(
+                  `[${this.constructor.name}] Injected sessionId into tool ${toolName} parameters: ${sessionId}`
+                );
+              }
+
+              // Pass sessionId and env in context for tools that need it (will be merged with existing enhancedContext below)
+              // Handle test environments where ctx.id might not exist
+              const sessionContext = {
+                sessionId: this.ctx?.id?.toString() || `session-${Date.now()}`,
+              };
+
+              if (hasCampaignIdParam && !selectedCampaignId) {
                 // Valid use case: User may not have a campaign selected but wants to interact with a specific campaign.
                 // In this case, we allow the LLM to infer the campaign ID from the user's request.
                 console.log(
@@ -712,8 +785,12 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 `[${this.constructor.name}] About to execute tool ${toolName}`
               );
 
-              // Pass environment to tools that need it
-              const enhancedContext = { ...context, env: this.env };
+              // Pass environment and sessionId to tools that need it
+              const enhancedContext = {
+                ...context,
+                env: this.env,
+                ...sessionContext,
+              };
               const toolResult = await tool.execute(
                 enhancedArgs,
                 enhancedContext
@@ -722,6 +799,45 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               console.log(
                 `[${this.constructor.name}] Tool ${toolName} result: ${JSON.stringify(toolResult).substring(0, 200)}...`
               );
+
+              // Trim tool results by relevancy if they're too large
+              // This prevents token overflow by keeping highest priority items
+              let trimmedResult = toolResult;
+              try {
+                const modelId = this.model?.modelId || "gpt-4o";
+                const contextLimit = getSafeContextLimit(modelId);
+
+                // Use a conservative limit for tool results: 30% of context limit
+                // This leaves room for system prompt, tools, messages, and response generation
+                const maxToolResultTokens = Math.floor(contextLimit * 0.3);
+
+                if (maxToolResultTokens > 0) {
+                  trimmedResult = await trimToolResultsByRelevancy(
+                    toolResult,
+                    maxToolResultTokens,
+                    this.env,
+                    selectedCampaignId
+                  );
+
+                  const originalTokens = estimateTokenCount(
+                    JSON.stringify(toolResult)
+                  );
+                  const trimmedTokens = estimateTokenCount(
+                    JSON.stringify(trimmedResult)
+                  );
+                  if (trimmedTokens < originalTokens) {
+                    console.log(
+                      `[${this.constructor.name}] Trimmed tool ${toolName} result: ${originalTokens} -> ${trimmedTokens} tokens (limit: ${maxToolResultTokens})`
+                    );
+                  }
+                }
+              } catch (trimError) {
+                console.warn(
+                  `[${this.constructor.name}] Failed to trim tool result:`,
+                  trimError
+                );
+                // Continue with original result if trimming fails
+              }
 
               // Add delay to prevent rate limiting
               await new Promise((resolve) => setTimeout(resolve, 100));
@@ -738,25 +854,26 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                   return toolResult as any;
                 }
 
-                // Wrap plain results
+                // Wrap plain results (use trimmed result)
+                const resultToWrap = trimmedResult;
                 const success =
-                  toolResult &&
-                  typeof toolResult === "object" &&
-                  "success" in toolResult
-                    ? (toolResult as any).success
+                  resultToWrap &&
+                  typeof resultToWrap === "object" &&
+                  "success" in resultToWrap
+                    ? (resultToWrap as any).success
                     : true;
                 const message =
-                  toolResult &&
-                  typeof toolResult === "object" &&
-                  "message" in toolResult
-                    ? (toolResult as any).message
+                  resultToWrap &&
+                  typeof resultToWrap === "object" &&
+                  "message" in resultToWrap
+                    ? (resultToWrap as any).message
                     : "ok";
                 const data =
-                  toolResult &&
-                  typeof toolResult === "object" &&
-                  "data" in toolResult
-                    ? (toolResult as any).data
-                    : toolResult;
+                  resultToWrap &&
+                  typeof resultToWrap === "object" &&
+                  "data" in resultToWrap
+                    ? (resultToWrap as any).data
+                    : resultToWrap;
 
                 return {
                   toolCallId: enhancedContext?.toolCallId || "unknown",

@@ -458,7 +458,8 @@ describe("BaseAgent", () => {
       const endTime = Date.now();
 
       expect(agent.getMessages()).toHaveLength(1000);
-      expect(endTime - startTime).toBeLessThan(100); // Should complete in under 100ms
+      // Database storage adds overhead, so we allow more time
+      expect(endTime - startTime).toBeLessThan(500); // Should complete reasonably quickly
     });
 
     it("should clear messages efficiently", () => {
