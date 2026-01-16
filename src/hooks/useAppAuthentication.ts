@@ -62,7 +62,7 @@ export function useAppAuthentication() {
         return false; // Indicate that auth modal should be shown
       } else {
         // JWT valid, user is authenticated
-        log.info("JWT is valid - user authenticated");
+        log.debug("JWT is valid - user authenticated");
         setIsAuthenticated(true);
         // Try to get stored OpenAI key, but don't block authentication if it fails
         try {
