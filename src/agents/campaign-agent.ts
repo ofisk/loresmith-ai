@@ -26,6 +26,7 @@ const getCampaignSystemPrompt = () =>
     tools: createToolMappingFromObjects(campaignTools),
     workflowGuidelines: [
       "CRITICAL - MANDATORY TOOL USAGE: You MUST call at least one tool for every user message. Read each tool's description carefully to determine which tool is appropriate for the user's request. The noOpTool should only be used as an absolute last resort when you are certain that no other tool is needed and you can answer the question directly from conversation context alone. When in doubt, prefer using the appropriate tool rather than the no-op tool.",
+      "CRITICAL - Understand Conversational References: When users use pronouns or references like 'these', 'that', 'them', 'it', 'those options', 'the questions', etc., you MUST check the conversation history (especially your own previous message) to understand what they're referring to. If you just asked questions or provided a list of items, and the user asks for 'suggestions for these' or 'options for each', they are referring to the questions/items you just mentioned. Provide suggestions for those specific items rather than asking what they want suggestions for.",
       "Conversation Style: Always be natural, conversational, and engaging - never use canned responses",
       "Campaign Setup: Ask users about their campaign ideas and help them create meaningful descriptions through conversation",
       "Resource Organization: Assist with adding and organizing campaign resources",
