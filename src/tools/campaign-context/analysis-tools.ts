@@ -5,6 +5,7 @@ import {
 } from "./suggestion-tools";
 import { searchExternalResources, searchCampaignContext } from "./search-tools";
 import { showCampaignDetails, updateCampaign } from "../campaign/core-tools";
+import { captureConversationalContext } from "./context-capture-tools";
 
 export const campaignAnalysisTools = {
   assessCampaignReadiness,
@@ -13,4 +14,5 @@ export const campaignAnalysisTools = {
   searchCampaignContext,
   showCampaignDetails,
   updateCampaign,
+  captureConversationalContext,
 };
