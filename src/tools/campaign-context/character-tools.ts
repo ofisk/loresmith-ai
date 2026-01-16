@@ -11,6 +11,7 @@ import {
 import { generateCharacterWithAI } from "./ai-helpers";
 import { getDAOFactory } from "../../dao/dao-factory";
 import type { Env } from "../../middleware/auth";
+import { ENTITY_TYPE_PCS } from "../../lib/entity-type-constants";
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {
@@ -130,7 +131,7 @@ export const storeCharacterInfo = tool({
         await daoFactory.entityDAO.createEntity({
           id: characterId,
           campaignId,
-          entityType: "pcs",
+          entityType: ENTITY_TYPE_PCS,
           name: characterName,
           content: {
             characterName,
@@ -160,7 +161,7 @@ export const storeCharacterInfo = tool({
           `Successfully stored character information for ${characterName}`,
           {
             id: characterId,
-            entityType: "pcs",
+            entityType: ENTITY_TYPE_PCS,
             characterName,
             characterClass,
             characterLevel,
@@ -345,7 +346,7 @@ export const generateCharacterWithAITool = tool({
         await daoFactory.entityDAO.createEntity({
           id: characterId,
           campaignId,
-          entityType: "pcs",
+          entityType: ENTITY_TYPE_PCS,
           name: characterDataTyped.characterName,
           content: {
             characterName: characterDataTyped.characterName,
@@ -377,7 +378,7 @@ export const generateCharacterWithAITool = tool({
           `Successfully created character ${characterDataTyped.characterName} using AI generation`,
           {
             id: characterId,
-            entityType: "pcs",
+            entityType: ENTITY_TYPE_PCS,
             ...characterDataTyped,
           },
           toolCallId
