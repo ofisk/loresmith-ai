@@ -7,6 +7,11 @@ import { PlanningContextService } from "@/services/rag/planning-context-service"
 import { TelemetryDAO } from "@/dao/telemetry-dao";
 import { TelemetryService } from "@/services/telemetry/telemetry-service";
 import type {
+  EntityNeighbor,
+  EntityRelationship,
+  Entity,
+} from "@/dao/entity-dao";
+import type {
   ContextAssembly,
   ContextAssemblyOptions,
   WorldKnowledgeResult,
@@ -20,6 +25,16 @@ interface CacheEntry {
   expiresAt: number;
 }
 
+interface NeighborhoodCacheEntry {
+  data: EntityNeighbor[];
+  expiresAt: number;
+}
+
+interface RelationshipCacheEntry {
+  data: EntityRelationship[];
+  expiresAt: number;
+}
+
 export class ContextAssemblyService {
   private entityGraphService: EntityGraphService;
   private entityEmbeddingService: EntityEmbeddingService;
@@ -30,6 +45,14 @@ export class ContextAssemblyService {
   // In-memory cache with TTL (5 minutes default)
   private static cache = new Map<string, CacheEntry>();
   private readonly cacheTTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+  // Neighborhood cache with TTL (2 minutes)
+  private static neighborhoodCache = new Map<string, NeighborhoodCacheEntry>();
+  private readonly neighborhoodCacheTTL = 2 * 60 * 1000; // 2 minutes
+
+  // Relationship cache with TTL (5 minutes)
+  private static relationshipCache = new Map<string, RelationshipCacheEntry>();
+  private readonly relationshipCacheTTL = 5 * 60 * 1000; // 5 minutes
 
   constructor(
     db: D1Database,
@@ -115,6 +138,136 @@ export class ContextAssemblyService {
     }
     for (const key of keysToDelete) {
       ContextAssemblyService.cache.delete(key);
+    }
+  }
+
+  /**
+   * Generate cache key for neighborhood
+   */
+  private generateNeighborhoodCacheKey(
+    entityId: string,
+    maxDepth: number,
+    relationshipTypes?: string[]
+  ): string {
+    const typesKey = relationshipTypes
+      ? relationshipTypes.sort().join(",")
+      : "all";
+    return `neighborhood:${entityId}:${maxDepth}:${typesKey}`;
+  }
+
+  /**
+   * Generate cache key for relationships
+   */
+  private generateRelationshipCacheKey(
+    entityId: string,
+    relationshipType?: string
+  ): string {
+    const typeKey = relationshipType || "all";
+    return `relationships:${entityId}:${typeKey}`;
+  }
+
+  /**
+   * Get cached neighborhood or null if not cached/expired
+   */
+  private getCachedNeighborhood(
+    entityId: string,
+    maxDepth: number,
+    relationshipTypes?: string[]
+  ): EntityNeighbor[] | null {
+    const key = this.generateNeighborhoodCacheKey(
+      entityId,
+      maxDepth,
+      relationshipTypes
+    );
+    const entry = ContextAssemblyService.neighborhoodCache.get(key);
+    if (entry && entry.expiresAt > Date.now()) {
+      return entry.data;
+    }
+    if (entry) {
+      ContextAssemblyService.neighborhoodCache.delete(key);
+    }
+    return null;
+  }
+
+  /**
+   * Cache neighborhood data
+   */
+  private setCachedNeighborhood(
+    entityId: string,
+    maxDepth: number,
+    neighbors: EntityNeighbor[],
+    relationshipTypes?: string[]
+  ): void {
+    const key = this.generateNeighborhoodCacheKey(
+      entityId,
+      maxDepth,
+      relationshipTypes
+    );
+    ContextAssemblyService.neighborhoodCache.set(key, {
+      data: neighbors,
+      expiresAt: Date.now() + this.neighborhoodCacheTTL,
+    });
+  }
+
+  /**
+   * Get cached relationships or null if not cached/expired
+   */
+  private getCachedRelationships(
+    entityId: string,
+    relationshipType?: string
+  ): EntityRelationship[] | null {
+    const key = this.generateRelationshipCacheKey(entityId, relationshipType);
+    const entry = ContextAssemblyService.relationshipCache.get(key);
+    if (entry && entry.expiresAt > Date.now()) {
+      return entry.data;
+    }
+    if (entry) {
+      ContextAssemblyService.relationshipCache.delete(key);
+    }
+    return null;
+  }
+
+  /**
+   * Cache relationships data
+   */
+  private setCachedRelationships(
+    entityId: string,
+    relationships: EntityRelationship[],
+    relationshipType?: string
+  ): void {
+    const key = this.generateRelationshipCacheKey(entityId, relationshipType);
+    ContextAssemblyService.relationshipCache.set(key, {
+      data: relationships,
+      expiresAt: Date.now() + this.relationshipCacheTTL,
+    });
+  }
+
+  /**
+   * Invalidate neighborhood and relationship caches for specific entities
+   */
+  static invalidateEntityCaches(entityIds: string[]): void {
+    for (const entityId of entityIds) {
+      // Invalidate all neighborhood caches for this entity
+      const neighborhoodKeysToDelete: string[] = [];
+      for (const key of ContextAssemblyService.neighborhoodCache.keys()) {
+        if (key.startsWith(`neighborhood:${entityId}:`)) {
+          neighborhoodKeysToDelete.push(key);
+        }
+      }
+      for (const key of neighborhoodKeysToDelete) {
+        ContextAssemblyService.neighborhoodCache.delete(key);
+      }
+
+      // Invalidate all relationship caches for this entity
+      const relationshipKeysToDelete: string[] = [];
+      for (const key of ContextAssemblyService.relationshipCache.keys()) {
+        if (key.startsWith(`relationships:${entityId}:`)) {
+          relationshipKeysToDelete.push(key);
+        }
+      }
+      for (const key of relationshipKeysToDelete) {
+        ContextAssemblyService.relationshipCache.delete(key);
+      }
     }
   }
 
@@ -246,46 +399,142 @@ export class ContextAssemblyService {
         topK: options.maxEntities,
       });
 
+    // Filter by similarity score and collect entity IDs
+    const validEntityIds = similarEntities
+      .filter((similar) => similar.score >= 0.3)
+      .map((similar) => similar.entityId);
+
+    if (validEntityIds.length === 0) {
+      return {
+        entities: [],
+        totalEntities: 0,
+        queryTime: Date.now() - startTime,
+      };
+    }
+
     const daoFactory = getDAOFactory(this.env);
+
+    // Check caches for relationships and neighbors
+    const cachedRelationships = new Map<string, EntityRelationship[]>();
+    const cachedNeighbors = new Map<string, EntityNeighbor[]>();
+    const uncachedEntityIds: string[] = [];
+    let relationshipCacheHits = 0;
+    let relationshipCacheMisses = 0;
+    let neighborhoodCacheHits = 0;
+    let neighborhoodCacheMisses = 0;
+
+    for (const entityId of validEntityIds) {
+      const cachedRel = this.getCachedRelationships(entityId);
+      const cachedNeigh = this.getCachedNeighborhood(entityId, 2);
+
+      if (cachedRel) {
+        cachedRelationships.set(entityId, cachedRel);
+        relationshipCacheHits++;
+      } else {
+        relationshipCacheMisses++;
+      }
+
+      if (cachedNeigh) {
+        cachedNeighbors.set(entityId, cachedNeigh);
+        neighborhoodCacheHits++;
+      } else {
+        neighborhoodCacheMisses++;
+      }
+
+      // If either is missing from cache, we need to fetch
+      if (!cachedRel || !cachedNeigh) {
+        uncachedEntityIds.push(entityId);
+      }
+    }
+
+    // Batch fetch entities, and only fetch relationships/neighbors for uncached entities
+    const fetchPromises: [
+      Promise<Entity[]>,
+      Promise<Map<string, EntityRelationship[]>>,
+      Promise<Map<string, EntityNeighbor[]>>,
+    ] = [
+      daoFactory.entityDAO.getEntitiesByIds(validEntityIds),
+      uncachedEntityIds.length > 0
+        ? this.entityGraphService.getRelationshipsForEntities(
+            campaignId,
+            uncachedEntityIds
+          )
+        : Promise.resolve(new Map()),
+      uncachedEntityIds.length > 0
+        ? this.entityGraphService.getNeighborsBatch(
+            campaignId,
+            uncachedEntityIds,
+            {
+              maxDepth: 2,
+            }
+          )
+        : Promise.resolve(new Map()),
+    ];
+
+    const [entities, fetchedRelationshipsMap, fetchedNeighborsMap] =
+      await Promise.all(fetchPromises);
+
+    // Merge cached and fetched data
+    const relationshipsMap = new Map(cachedRelationships);
+    const neighborsMap = new Map(cachedNeighbors);
+
+    for (const [entityId, relationships] of fetchedRelationshipsMap) {
+      relationshipsMap.set(entityId, relationships);
+      // Cache the fetched relationships
+      this.setCachedRelationships(entityId, relationships);
+    }
+
+    for (const [entityId, neighbors] of fetchedNeighborsMap) {
+      neighborsMap.set(entityId, neighbors);
+      // Cache the fetched neighbors
+      this.setCachedNeighborhood(entityId, 2, neighbors);
+    }
+
+    // Build result array, preserving order and relevance scores
     const entitiesWithRelationships: EntityWithRelationships[] = [];
+    const scoreMap = new Map(similarEntities.map((s) => [s.entityId, s.score]));
 
-    // Process each found entity and expand with graph traversal
-    for (const similar of similarEntities) {
-      // Only include if similarity score is reasonable (above 0.3)
-      if (similar.score < 0.3) {
+    for (const entity of entities) {
+      if (entity.campaignId !== campaignId) {
         continue;
       }
 
-      const entity = await daoFactory.entityDAO.getEntityById(similar.entityId);
-      if (!entity || entity.campaignId !== campaignId) {
-        continue;
-      }
-
-      // Get relationships for this entity
-      const relationships =
-        await this.entityGraphService.getRelationshipsForEntity(
-          campaignId,
-          entity.id
-        );
-
-      // Get neighbors via graph traversal
-      const neighbors = await this.entityGraphService.getNeighbors(
-        campaignId,
-        entity.id,
-        {
-          maxDepth: 2,
-        }
+      const relationships = relationshipsMap.get(entity.id) || [];
+      const neighbors = (neighborsMap.get(entity.id) || []).slice(
+        0,
+        options.maxNeighborsPerEntity
       );
 
       entitiesWithRelationships.push({
         ...entity,
         relationships,
-        neighbors: neighbors.slice(0, options.maxNeighborsPerEntity),
-        relevanceScore: similar.score,
+        neighbors,
+        relevanceScore: scoreMap.get(entity.id) || 0,
       });
     }
 
     const queryTime = Date.now() - startTime;
+
+    // Record cache metrics to telemetry (fire and forget)
+    this.telemetryService
+      .recordQueryLatency(queryTime, {
+        campaignId,
+        queryType: "graphrag_query",
+        metadata: {
+          relationshipCacheHits,
+          relationshipCacheMisses,
+          neighborhoodCacheHits,
+          neighborhoodCacheMisses,
+          totalEntities: validEntityIds.length,
+          uncachedEntities: uncachedEntityIds.length,
+        },
+      })
+      .catch((error) => {
+        console.error(
+          "[ContextAssembly] Failed to record cache telemetry:",
+          error
+        );
+      });
 
     return {
       entities: entitiesWithRelationships,

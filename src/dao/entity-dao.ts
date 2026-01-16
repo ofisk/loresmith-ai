@@ -255,6 +255,16 @@ export class EntityDAO extends BaseDAOClass {
     return record ? this.mapEntityRecord(record) : null;
   }
 
+  async getEntitiesByIds(entityIds: string[]): Promise<Entity[]> {
+    if (entityIds.length === 0) {
+      return [];
+    }
+    const placeholders = entityIds.map(() => "?").join(", ");
+    const sql = `SELECT * FROM entities WHERE id IN (${placeholders})`;
+    const records = await this.queryAll<EntityRecord>(sql, entityIds);
+    return records.map((record) => this.mapEntityRecord(record));
+  }
+
   async listEntitiesByCampaign(
     campaignId: string,
     options: { entityType?: string; limit?: number; offset?: number } = {}
@@ -501,6 +511,58 @@ export class EntityDAO extends BaseDAOClass {
     return records.map((record) => this.mapRelationshipRecord(record));
   }
 
+  async getRelationshipsForEntities(
+    entityIds: string[],
+    options: { relationshipType?: RelationshipType } = {}
+  ): Promise<Map<string, EntityRelationship[]>> {
+    if (entityIds.length === 0) {
+      return new Map();
+    }
+
+    const placeholders = entityIds.map(() => "?").join(", ");
+    const params: any[] = [...entityIds, ...entityIds];
+    const filters: string[] = [
+      `(from_entity_id IN (${placeholders}) OR to_entity_id IN (${placeholders}))`,
+    ];
+
+    if (options.relationshipType) {
+      filters.push("relationship_type = ?");
+      params.push(options.relationshipType);
+    }
+
+    const sql = `
+      SELECT * FROM entity_relationships
+      WHERE ${filters.join(" AND ")}
+      ORDER BY created_at DESC
+    `;
+
+    const records = await this.queryAll<EntityRelationshipRecord>(sql, params);
+    const relationships = records.map((record) =>
+      this.mapRelationshipRecord(record)
+    );
+
+    // Group relationships by entity ID
+    const result = new Map<string, EntityRelationship[]>();
+    for (const entityId of entityIds) {
+      result.set(entityId, []);
+    }
+
+    for (const rel of relationships) {
+      if (entityIds.includes(rel.fromEntityId)) {
+        const existing = result.get(rel.fromEntityId) || [];
+        existing.push(rel);
+        result.set(rel.fromEntityId, existing);
+      }
+      if (entityIds.includes(rel.toEntityId)) {
+        const existing = result.get(rel.toEntityId) || [];
+        existing.push(rel);
+        result.set(rel.toEntityId, existing);
+      }
+    }
+
+    return result;
+  }
+
   async getRelationshipsByType(
     campaignId: string,
     relationshipType: RelationshipType
@@ -649,6 +711,102 @@ export class EntityDAO extends BaseDAOClass {
       name: row.name,
       entityType: row.entity_type,
     }));
+  }
+
+  async getRelationshipNeighborhoodBatch(
+    entityIds: string[],
+    options: {
+      maxDepth?: number;
+      relationshipTypes?: RelationshipType[];
+    } = {}
+  ): Promise<Map<string, EntityNeighbor[]>> {
+    if (entityIds.length === 0) {
+      return new Map();
+    }
+
+    const maxDepth = Math.max(1, options.maxDepth ?? 1);
+    const relationshipTypes = options.relationshipTypes ?? [];
+
+    const entityPlaceholders = entityIds.map(() => "?").join(", ");
+    const typePlaceholders =
+      relationshipTypes.length > 0
+        ? `AND er.relationship_type IN (${relationshipTypes
+            .map(() => "?")
+            .join(", ")})`
+        : "";
+
+    const params: any[] = [
+      ...entityIds,
+      ...relationshipTypes,
+      maxDepth,
+      ...relationshipTypes,
+      ...entityIds,
+    ];
+
+    const sql = `
+      WITH RECURSIVE neighbor_tree AS (
+        SELECT
+          er.from_entity_id,
+          er.to_entity_id,
+          er.relationship_type,
+          1 AS depth,
+          er.from_entity_id AS start_entity_id
+        FROM entity_relationships er
+        WHERE er.from_entity_id IN (${entityPlaceholders})
+          ${typePlaceholders}
+        UNION ALL
+        SELECT
+          er.from_entity_id,
+          er.to_entity_id,
+          er.relationship_type,
+          nt.depth + 1 AS depth,
+          nt.start_entity_id
+        FROM entity_relationships er
+        INNER JOIN neighbor_tree nt ON er.from_entity_id = nt.to_entity_id
+        WHERE nt.depth < ?
+          ${typePlaceholders}
+      )
+      SELECT
+        nt.start_entity_id,
+        nt.to_entity_id AS entity_id,
+        nt.relationship_type,
+        nt.depth,
+        e.name,
+        e.entity_type
+      FROM neighbor_tree nt
+      INNER JOIN entities e ON e.id = nt.to_entity_id
+      WHERE nt.to_entity_id NOT IN (${entityPlaceholders})
+      ORDER BY nt.start_entity_id, nt.depth, e.name
+    `;
+
+    const records = await this.queryAll<{
+      start_entity_id: string;
+      entity_id: string;
+      relationship_type: string;
+      depth: number;
+      name: string;
+      entity_type: string;
+    }>(sql, params);
+
+    // Group neighbors by starting entity ID
+    const result = new Map<string, EntityNeighbor[]>();
+    for (const entityId of entityIds) {
+      result.set(entityId, []);
+    }
+
+    for (const row of records) {
+      const neighbors = result.get(row.start_entity_id) || [];
+      neighbors.push({
+        entityId: row.entity_id,
+        relationshipType: normalizeRelationshipType(row.relationship_type),
+        depth: row.depth,
+        name: row.name,
+        entityType: row.entity_type,
+      });
+      result.set(row.start_entity_id, neighbors);
+    }
+
+    return result;
   }
 
   mapEntityRecord(record: EntityRecord): Entity {
