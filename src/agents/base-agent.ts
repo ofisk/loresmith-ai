@@ -238,8 +238,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           selectedCampaignId
         );
 
-        // Build minimal message context: only include the current user prompt
-        // All historical context is stored in the database and can be retrieved via getMessageHistory tool
+        // Build minimal message context: include current user prompt + agent's previous response
+        // The agent's previous response is included so it can understand conversational references
+        // (e.g., "these", "that", "the name suggestions" referring to what the agent just said)
+        // All older historical context is stored in the database and can be retrieved via getMessageHistory tool
         // This ensures targeted graph traversal - the LLM fetches only what it needs
 
         // Find the current user message (most recent user message)
@@ -248,10 +250,25 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           .reverse()
           .find((msg) => msg.role === "user");
 
-        // Build minimal context: only the current user prompt
-        // The LLM can use getMessageHistory tool to fetch relevant history if needed
+        // Find the agent's most recent response (to understand conversational references)
+        const lastAssistantMessage = this.messages
+          .slice()
+          .reverse()
+          .find((msg) => msg.role === "assistant");
+
+        // Build minimal context: current user prompt + agent's previous response
+        // The LLM can use getMessageHistory tool to fetch older history if needed
         const processedMessages: typeof this.messages = [];
 
+        // Include agent's previous response first (if exists) so it can understand references
+        if (
+          lastAssistantMessage &&
+          lastAssistantMessage !== currentUserMessage
+        ) {
+          processedMessages.push(lastAssistantMessage);
+        }
+
+        // Include current user message
         if (currentUserMessage) {
           processedMessages.push(currentUserMessage);
         }
@@ -276,7 +293,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
         }
 
         console.log(
-          `[${this.constructor.name}] Built minimal message context: ${this.messages.length} total -> ${processedMessages.length} messages (only current user prompt + essential system messages). Historical context available via getMessageHistory tool.`
+          `[${this.constructor.name}] Built minimal message context: ${this.messages.length} total -> ${processedMessages.length} messages (current user prompt + agent's previous response + essential system messages). Historical context available via getMessageHistory tool.`
         );
 
         // Debug: Log available tools
