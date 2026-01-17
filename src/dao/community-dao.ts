@@ -40,6 +40,7 @@ export interface UpdateCommunityInput {
 
 export class CommunityDAO extends BaseDAOClass {
   async createCommunity(community: CreateCommunityInput): Promise<void> {
+    // Insert community record (keep entity_ids for backward compatibility during migration)
     const sql = `
       INSERT INTO communities (
         id,
@@ -59,15 +60,49 @@ export class CommunityDAO extends BaseDAOClass {
       community.campaignId,
       community.level,
       community.parentCommunityId ?? null,
-      JSON.stringify(community.entityIds),
+      JSON.stringify(community.entityIds), // Keep for backward compatibility
       community.metadata ? JSON.stringify(community.metadata) : null,
     ]);
+
+    // Insert entity relationships into join table
+    if (community.entityIds.length > 0) {
+      await this.syncCommunityEntities(community.id, community.entityIds);
+    }
+  }
+
+  /**
+   * Sync community-entity relationships in join table
+   */
+  private async syncCommunityEntities(
+    communityId: string,
+    entityIds: string[]
+  ): Promise<void> {
+    // Delete existing relationships for this community
+    await this.execute(
+      "DELETE FROM community_entities WHERE community_id = ?",
+      [communityId]
+    );
+
+    // Insert new relationships (batch insert)
+    if (entityIds.length > 0) {
+      const placeholders = entityIds.map(() => "(?, ?)").join(", ");
+      const values: string[] = [];
+      for (const entityId of entityIds) {
+        values.push(communityId, entityId);
+      }
+
+      const sql = `
+        INSERT INTO community_entities (community_id, entity_id)
+        VALUES ${placeholders}
+      `;
+      await this.execute(sql, values);
+    }
   }
 
   async getCommunityById(communityId: string): Promise<Community | null> {
     const sql = `SELECT * FROM communities WHERE id = ?`;
     const record = await this.queryFirst<CommunityRecord>(sql, [communityId]);
-    return record ? this.mapCommunityRecord(record) : null;
+    return record ? await this.mapCommunityRecordAsync(record) : null;
   }
 
   async listCommunitiesByCampaign(
@@ -99,7 +134,7 @@ export class CommunityDAO extends BaseDAOClass {
     }
 
     const records = await this.queryAll<CommunityRecord>(sql, params);
-    return records.map((record) => this.mapCommunityRecord(record));
+    return this.mapCommunityRecords(records);
   }
 
   async getCommunitiesByLevel(
@@ -119,7 +154,7 @@ export class CommunityDAO extends BaseDAOClass {
     const records = await this.queryAll<CommunityRecord>(sql, [
       parentCommunityId,
     ]);
-    return records.map((record) => this.mapCommunityRecord(record));
+    return this.mapCommunityRecords(records);
   }
 
   async updateCommunity(
@@ -130,8 +165,11 @@ export class CommunityDAO extends BaseDAOClass {
     const values: any[] = [];
 
     if (updates.entityIds !== undefined) {
+      // Update JSON column for backward compatibility during migration
       setClauses.push("entity_ids = ?");
       values.push(JSON.stringify(updates.entityIds));
+      // Sync join table
+      await this.syncCommunityEntities(communityId, updates.entityIds);
     }
 
     if (updates.metadata !== undefined) {
@@ -174,33 +212,106 @@ export class CommunityDAO extends BaseDAOClass {
     campaignId: string,
     entityId: string
   ): Promise<Community[]> {
-    // SQLite doesn't have native JSON array search, so we need to use LIKE
-    // This is not ideal but works for small to medium datasets
+    // Use join table for efficient lookup (replaces LIKE pattern on JSON)
     const sql = `
-      SELECT * FROM communities
-      WHERE campaign_id = ?
-        AND entity_ids LIKE ?
-      ORDER BY level ASC, created_at DESC
+      SELECT DISTINCT c.*
+      FROM communities c
+      INNER JOIN community_entities ce ON c.id = ce.community_id
+      WHERE c.campaign_id = ?
+        AND ce.entity_id = ?
+      ORDER BY c.level ASC, c.created_at DESC
     `;
-
-    // Escape special characters in entityId for LIKE pattern
-    const escapedEntityId = entityId.replace(/[%_]/g, "\\$&");
-    const pattern = `%"${escapedEntityId}"%`;
 
     const records = await this.queryAll<CommunityRecord>(sql, [
       campaignId,
-      pattern,
+      entityId,
     ]);
-    return records.map((record) => this.mapCommunityRecord(record));
+    return this.mapCommunityRecords(records);
   }
 
-  mapCommunityRecord(record: CommunityRecord): Community {
+  /**
+   * Find communities containing any of the given entities (batch lookup)
+   * This is more efficient than calling findCommunitiesContainingEntity multiple times
+   */
+  async findCommunitiesContainingEntities(
+    campaignId: string,
+    entityIds: string[]
+  ): Promise<Community[]> {
+    if (entityIds.length === 0) {
+      return [];
+    }
+
+    const placeholders = entityIds.map(() => "?").join(", ");
+    const sql = `
+      SELECT DISTINCT c.*
+      FROM communities c
+      INNER JOIN community_entities ce ON c.id = ce.community_id
+      WHERE c.campaign_id = ?
+        AND ce.entity_id IN (${placeholders})
+      ORDER BY c.level ASC, c.created_at DESC
+    `;
+
+    const records = await this.queryAll<CommunityRecord>(sql, [
+      campaignId,
+      ...entityIds,
+    ]);
+    return this.mapCommunityRecords(records);
+  }
+
+  /**
+   * Batch load entity IDs for multiple communities (more efficient than individual queries)
+   */
+  private async getEntityIdsForCommunities(
+    communityIds: string[]
+  ): Promise<Map<string, string[]>> {
+    if (communityIds.length === 0) {
+      return new Map();
+    }
+
+    const placeholders = communityIds.map(() => "?").join(", ");
+    const sql = `
+      SELECT community_id, entity_id 
+      FROM community_entities 
+      WHERE community_id IN (${placeholders})
+      ORDER BY community_id, entity_id
+    `;
+    const records = await this.queryAll<{
+      community_id: string;
+      entity_id: string;
+    }>(sql, communityIds);
+
+    const result = new Map<string, string[]>();
+    for (const record of records) {
+      if (!result.has(record.community_id)) {
+        result.set(record.community_id, []);
+      }
+      result.get(record.community_id)!.push(record.entity_id);
+    }
+
+    // Ensure all communityIds have an entry (even if empty)
+    for (const communityId of communityIds) {
+      if (!result.has(communityId)) {
+        result.set(communityId, []);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Map a single community record to Community object using provided entityIds map
+   */
+  private mapCommunityRecord(
+    record: CommunityRecord,
+    entityIdsMap: Map<string, string[]>
+  ): Community {
+    const entityIds = entityIdsMap.get(record.id) || [];
     return {
       id: record.id,
       campaignId: record.campaign_id,
       level: record.level,
       parentCommunityId: record.parent_community_id,
-      entityIds: this.safeParseArray(record.entity_ids),
+      entityIds,
       metadata: record.metadata
         ? this.safeParseJson(record.metadata)
         : undefined,
@@ -208,20 +319,39 @@ export class CommunityDAO extends BaseDAOClass {
     };
   }
 
+  /**
+   * Map multiple community records to Community objects with batch-loaded entityIds
+   */
+  private async mapCommunityRecords(
+    records: CommunityRecord[]
+  ): Promise<Community[]> {
+    if (records.length === 0) {
+      return [];
+    }
+
+    const communityIds = records.map((r) => r.id);
+    const entityIdsMap = await this.getEntityIdsForCommunities(communityIds);
+
+    return records.map((record) =>
+      this.mapCommunityRecord(record, entityIdsMap)
+    );
+  }
+
+  /**
+   * Map a single community record with entity IDs from join table (async version)
+   */
+  private async mapCommunityRecordAsync(
+    record: CommunityRecord
+  ): Promise<Community> {
+    const entityIdsMap = await this.getEntityIdsForCommunities([record.id]);
+    return this.mapCommunityRecord(record, entityIdsMap);
+  }
+
   private safeParseJson(value: string): unknown {
     try {
       return JSON.parse(value);
     } catch (_error) {
       return undefined;
-    }
-  }
-
-  private safeParseArray(value: string): string[] {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (_error) {
-      return [];
     }
   }
 }

@@ -485,17 +485,16 @@ export class CommunityDetectionService {
     affectedEntityIds: string[],
     options: CommunityDetectionOptions = {}
   ): Promise<Community[]> {
-    // Find communities containing affected entities
+    // Find communities containing affected entities using batch lookup
+    // This replaces the loop that was causing "LIKE pattern too complex" errors
+    const communities =
+      await this.communityDAO.findCommunitiesContainingEntities(
+        campaignId,
+        affectedEntityIds
+      );
     const affectedCommunities = new Set<string>();
-    for (const entityId of affectedEntityIds) {
-      const communities =
-        await this.communityDAO.findCommunitiesContainingEntity(
-          campaignId,
-          entityId
-        );
-      for (const community of communities) {
-        affectedCommunities.add(community.id);
-      }
+    for (const community of communities) {
+      affectedCommunities.add(community.id);
     }
 
     // For simplicity, rebuild all affected communities
