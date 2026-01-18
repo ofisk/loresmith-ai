@@ -1,16 +1,9 @@
-import {
-  MapPin,
-  Trash,
-  NotePencil,
-  Lightbulb,
-  ChartBar,
-} from "@phosphor-icons/react";
+import { Trash, NotePencil, Lightbulb, ChartBar } from "@phosphor-icons/react";
 import { Button } from "@/components/button/Button";
 import { HelpButton } from "@/components/help/HelpButton";
 import { TopBarNotifications } from "@/components/notifications/TopBarNotifications";
 import loresmith from "@/assets/loresmith.png";
 import type { NotificationPayload } from "@/durable-objects/notification-hub";
-import type { Campaign } from "@/types/campaign";
 import { AuthService } from "@/services/core/auth-service";
 
 interface AppHeaderProps {
@@ -31,9 +24,7 @@ interface AppHeaderProps {
   )[];
   onDismissNotification: (timestamp: number) => void;
   onClearAllNotifications: () => void;
-  campaigns: Campaign[];
   selectedCampaignId: string | null;
-  onSelectedCampaignChange: (campaignId: string | null) => void;
   onAdminDashboardOpen?: () => void;
 }
 
@@ -49,62 +40,32 @@ export function AppHeader({
   notifications,
   onDismissNotification,
   onClearAllNotifications,
-  campaigns,
   selectedCampaignId,
-  onSelectedCampaignChange,
   onAdminDashboardOpen,
 }: AppHeaderProps) {
-  const handleCampaignChange = (
-    event: React.ChangeEvent<HTMLSelectElement>
-  ) => {
-    const value = event.target.value;
-    if (!value) {
-      onSelectedCampaignChange(null);
-    } else {
-      onSelectedCampaignChange(value);
-    }
-  };
-
   // Check if user is admin
   const payload = AuthService.getJwtPayload();
   const isAdmin = payload?.isAdmin === true;
 
   return (
-    <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 flex items-center gap-4 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-sm rounded-t-2xl">
+    <div className="px-4 py-2 border-b border-neutral-200/50 dark:border-neutral-700/50 flex items-center gap-3 bg-white/60 dark:bg-neutral-950/60 backdrop-blur-sm rounded-t-2xl">
       <div
-        className="flex items-center justify-center rounded-lg"
-        style={{ width: 48, height: 48 }}
+        className="flex items-center justify-center"
+        style={{ width: 32, height: 32 }}
       >
         <img
           src={loresmith}
           alt="LoreSmith logo"
-          width={48}
-          height={48}
+          width={32}
+          height={32}
           className="object-contain"
         />
       </div>
 
-      <div className="flex-1 flex items-center gap-4 min-w-0">
-        <h1 className="font-semibold text-2xl whitespace-nowrap">LoreSmith</h1>
-
-        <div className="hidden sm:flex items-center gap-2 min-w-0">
-          <MapPin
-            size={16}
-            className="text-neutral-500 dark:text-neutral-400"
-          />
-          <select
-            className="max-w-xs truncate rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-neutral-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:ring-blue-400"
-            value={selectedCampaignId ?? ""}
-            onChange={handleCampaignChange}
-          >
-            <option value="">No campaign selected</option>
-            {campaigns.map((campaign) => (
-              <option key={campaign.campaignId} value={campaign.campaignId}>
-                {campaign.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="flex-1 flex items-center gap-3 min-w-0">
+        <h1 className="font-medium text-lg whitespace-nowrap text-neutral-700 dark:text-neutral-300">
+          LoreSmith
+        </h1>
       </div>
 
       {onSessionRecapRequest && (
@@ -112,7 +73,7 @@ export function AppHeader({
           variant="ghost"
           size="md"
           shape="square"
-          className="!h-9 !w-9 rounded-full flex items-center justify-center"
+          className="!h-8 !w-8 rounded-full flex items-center justify-center"
           onClick={onSessionRecapRequest}
           disabled={!selectedCampaignId}
           tooltip={
@@ -121,7 +82,7 @@ export function AppHeader({
               : "Select a campaign to record a session recap"
           }
         >
-          <NotePencil size={20} />
+          <NotePencil size={18} />
         </Button>
       )}
 
@@ -130,7 +91,7 @@ export function AppHeader({
           variant="ghost"
           size="md"
           shape="square"
-          className="!h-9 !w-9 rounded-full flex items-center justify-center"
+          className="!h-8 !w-8 rounded-full flex items-center justify-center"
           onClick={onNextStepsRequest}
           disabled={!selectedCampaignId}
           tooltip={
@@ -139,7 +100,7 @@ export function AppHeader({
               : "Select a campaign to get next-step suggestions"
           }
         >
-          <Lightbulb size={20} />
+          <Lightbulb size={18} />
         </Button>
       )}
 
@@ -153,11 +114,11 @@ export function AppHeader({
           variant="ghost"
           size="md"
           shape="square"
-          className="!h-9 !w-9 rounded-full flex items-center justify-center"
+          className="!h-8 !w-8 rounded-full flex items-center justify-center"
           onClick={onAdminDashboardOpen}
           tooltip="Admin dashboard - view telemetry and metrics"
         >
-          <ChartBar size={20} />
+          <ChartBar size={18} />
         </Button>
       )}
 
@@ -165,10 +126,10 @@ export function AppHeader({
         variant="ghost"
         size="md"
         shape="square"
-        className="!h-9 !w-9 rounded-full flex items-center justify-center"
+        className="!h-8 !w-8 rounded-full flex items-center justify-center"
         onClick={onClearHistory}
       >
-        <Trash size={20} />
+        <Trash size={18} />
       </Button>
 
       <TopBarNotifications

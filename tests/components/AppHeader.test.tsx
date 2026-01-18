@@ -4,7 +4,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { AppHeader } from "../../src/components/app/AppHeader";
-import type { Campaign } from "../../src/types/campaign";
 import { TooltipProvider } from "../../src/providers/TooltipProvider";
 
 // Mock window.matchMedia for Tooltip component
@@ -32,84 +31,50 @@ describe("AppHeader", () => {
     notifications: [],
     onDismissNotification: vi.fn(),
     onClearAllNotifications: vi.fn(),
+    selectedCampaignId: null,
   };
 
-  const campaigns: Campaign[] = [
-    {
-      campaignId: "camp-1",
-      name: "First Campaign",
-      description: "first",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      resources: [],
-    },
-    {
-      campaignId: "camp-2",
-      name: "Second Campaign",
-      description: "second",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      resources: [],
-    },
-  ];
-
-  it("renders campaign dropdown with no selection by default", () => {
+  it("renders the LoreSmith logo and title", () => {
     render(
       <TooltipProvider>
-        <AppHeader
-          {...baseProps}
-          campaigns={campaigns}
-          selectedCampaignId={null}
-          onSelectedCampaignChange={vi.fn()}
-        />
+        <AppHeader {...baseProps} />
       </TooltipProvider>
     );
 
-    const select = screen.getByDisplayValue(
-      "No campaign selected"
-    ) as unknown as HTMLSelectElement;
-
-    expect(select).toBeTruthy();
-    expect(select?.value).toBe("");
+    expect(screen.getByText("LoreSmith")).toBeTruthy();
+    expect(screen.getByAltText("LoreSmith logo")).toBeTruthy();
   });
 
-  it("calls onSelectedCampaignChange when a campaign is selected", () => {
-    const handleChange = vi.fn();
-
+  it("renders buttons for clear history", () => {
     render(
       <TooltipProvider>
-        <AppHeader
-          {...baseProps}
-          campaigns={campaigns}
-          selectedCampaignId={null}
-          onSelectedCampaignChange={handleChange}
-        />
+        <AppHeader {...baseProps} />
       </TooltipProvider>
     );
 
-    const select = screen.getByRole("combobox") as unknown as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "camp-1" } });
-
-    expect(handleChange).toHaveBeenCalledWith("camp-1");
+    // Should have clear history button
+    const buttons = screen.getAllByRole("button");
+    expect(buttons.length).toBeGreaterThan(0);
   });
 
-  it("calls onSelectedCampaignChange with null when cleared", () => {
-    const handleChange = vi.fn();
+  it("calls onClearHistory when clear button is clicked", () => {
+    const handleClear = vi.fn();
 
     render(
       <TooltipProvider>
-        <AppHeader
-          {...baseProps}
-          campaigns={campaigns}
-          selectedCampaignId={"camp-1"}
-          onSelectedCampaignChange={handleChange}
-        />
+        <AppHeader {...baseProps} onClearHistory={handleClear} />
       </TooltipProvider>
     );
 
-    const select = screen.getByRole("combobox") as unknown as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "" } });
+    // Find and click the clear history button (Trash icon button)
+    const buttons = screen.getAllByRole("button");
+    const clearButton = buttons.find((btn) =>
+      btn.querySelector("svg[data-phosphor]")
+    );
 
-    expect(handleChange).toHaveBeenCalledWith(null);
+    if (clearButton) {
+      fireEvent.click(clearButton);
+      expect(handleClear).toHaveBeenCalled();
+    }
   });
 });

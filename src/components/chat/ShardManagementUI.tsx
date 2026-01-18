@@ -1,5 +1,6 @@
 import type React from "react";
 import { useState, useMemo } from "react";
+import { CheckCircle, Spinner } from "@phosphor-icons/react";
 import {
   authenticatedFetchWithExpiration,
   getStoredJwt,
@@ -435,18 +436,40 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
     <div className="space-y-4">
       {/* Success message */}
       {processedCount > 0 && (
-        <div className="bg-green-900 border border-green-700 rounded-lg p-3">
-          <p className="text-green-300 text-sm">
-            ✅ {processedCount} shard
-            {processedCount !== 1 ? "s" : ""} processed successfully
-          </p>
+        <div className="border border-neutral-200/50 dark:border-neutral-700/50 rounded-lg p-3 bg-white/50 dark:bg-neutral-900/50">
+          <div className="flex items-center gap-2">
+            <CheckCircle size={18} className="text-green-500 flex-shrink-0" />
+            <p className="text-neutral-700 dark:text-neutral-300 text-sm">
+              {processedCount} shard
+              {processedCount !== 1 ? "s" : ""} processed successfully
+            </p>
+          </div>
         </div>
       )}
 
       {/* Show processing state */}
       {processing && (
-        <div className="bg-blue-900 border border-blue-700 rounded-lg p-3">
-          <p className="text-blue-300 text-sm">🔄 {processing} shards...</p>
+        <div className="border border-neutral-200/50 dark:border-neutral-700/50 rounded-lg p-3 bg-white/50 dark:bg-neutral-900/50">
+          <div className="flex items-center gap-2">
+            <Spinner
+              size={18}
+              className="text-blue-500 flex-shrink-0 animate-spin"
+            />
+            <p className="text-neutral-700 dark:text-neutral-300 text-sm">
+              {processing === "approve"
+                ? "Saving approved shards"
+                : processing === "reject"
+                  ? "Saving..."
+                  : processing === "editing"
+                    ? "Saving changes"
+                    : processing === "deleting"
+                      ? "Deleting shards"
+                      : processing === "refreshing"
+                        ? "Refreshing shards"
+                        : `${processing} shards`}
+              ...
+            </p>
+          </div>
         </div>
       )}
 
