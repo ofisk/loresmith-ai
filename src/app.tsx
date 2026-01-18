@@ -819,9 +819,7 @@ export default function Chat() {
             notifications={allNotifications}
             onDismissNotification={dismissNotification}
             onClearAllNotifications={clearAllNotifications}
-            campaigns={campaigns}
             selectedCampaignId={selectedCampaignId}
-            onSelectedCampaignChange={setSelectedCampaignId}
             onAdminDashboardOpen={modalState.handleAdminDashboardOpen}
           />
 
@@ -868,6 +866,9 @@ export default function Chat() {
               onUploadFiles={() => setTriggerFileUpload(true)}
               textareaHeight={textareaHeight}
               pendingToolCallConfirmation={pendingToolCallConfirmation}
+              campaigns={campaigns}
+              selectedCampaignId={selectedCampaignId}
+              onSelectedCampaignChange={setSelectedCampaignId}
             />
           </div>
         </div>

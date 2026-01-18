@@ -7,6 +7,7 @@ import { ChatInput } from "@/components/input/ChatInput";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { ThinkingSpinner } from "@/components/thinking-spinner";
 import { WelcomeMessage } from "@/components/chat/WelcomeMessage";
+import type { Campaign } from "@/types/campaign";
 
 const CHAT_PROMPTS = [
   "Need some lore?",
@@ -32,10 +33,13 @@ interface ChatAreaProps {
   onUploadFiles: () => void;
   textareaHeight: string;
   pendingToolCallConfirmation: boolean;
+  campaigns: Campaign[];
+  selectedCampaignId: string | null;
+  onSelectedCampaignChange: (campaignId: string | null) => void;
 }
 
 /**
- * ChatArea component - Main chat interface with messages and input
+ * ChatArea component - Main chat interface with messages, campaign context, and input
  */
 export function ChatArea({
   chatContainerId,
@@ -51,11 +55,42 @@ export function ChatArea({
   onUploadFiles,
   textareaHeight,
   pendingToolCallConfirmation,
+  campaigns,
+  selectedCampaignId,
+  onSelectedCampaignChange,
 }: ChatAreaProps) {
   const [placeholder] = useState(() => getRandomPrompt());
 
+  const handleCampaignChange = (
+    event: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    const value = event.target.value;
+    if (!value) {
+      onSelectedCampaignChange(null);
+    } else {
+      onSelectedCampaignChange(value);
+    }
+  };
+
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex-1 flex flex-col min-h-0 relative">
+      {/* Campaign Context Selector */}
+      <div className="absolute top-4 left-8 z-10">
+        <select
+          id="campaign-select"
+          className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-neutral-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:ring-blue-400"
+          value={selectedCampaignId ?? ""}
+          onChange={handleCampaignChange}
+        >
+          <option value="">No campaign selected</option>
+          {campaigns.map((campaign) => (
+            <option key={campaign.campaignId} value={campaign.campaignId}>
+              {campaign.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {/* Main Content Area */}
       <div
         id={chatContainerId}
