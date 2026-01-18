@@ -4,8 +4,6 @@ import {
   ChevronRight,
   Trash2,
   FileText,
-  Check,
-  X,
   Star,
 } from "lucide-react";
 import type { FlexibleShard } from "./shard-type-detector";
@@ -475,30 +473,6 @@ export function FlexibleShardCard({
                   }}
                   className="font-semibold text-lg text-white bg-transparent border-b border-gray-600 focus:border-purple-500 focus:outline-none flex-1"
                 />
-                <div ref={titleButtonsRef}>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault(); // Prevent blur from firing
-                      handleTitleSave();
-                    }}
-                    className="text-green-400 hover:text-green-300 transition-colors"
-                    title="Save changes"
-                  >
-                    <Check size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault(); // Prevent blur from firing
-                      handleTitleCancel();
-                    }}
-                    className="text-red-400 hover:text-red-300 transition-colors"
-                    title="Cancel changes"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-300">
                 <span className="capitalize">{displayName}</span>
@@ -589,36 +563,6 @@ export function FlexibleShardCard({
                   className="w-full px-3 py-2 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
                   rows={4}
                 />
-                <div
-                  ref={descriptionButtonsRef}
-                  className="flex items-center gap-2 mt-2"
-                >
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault(); // Prevent blur from firing
-                      handleDescriptionSave();
-                    }}
-                    className="text-green-400 hover:text-green-300 transition-colors"
-                    title="Save changes"
-                  >
-                    <Check size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault(); // Prevent blur from firing
-                      handleDescriptionCancel();
-                    }}
-                    className="text-red-400 hover:text-red-300 transition-colors"
-                    title="Cancel changes"
-                  >
-                    <X size={14} />
-                  </button>
-                  <span className="text-xs text-gray-400">
-                    Ctrl+Enter to save, Esc to cancel
-                  </span>
-                </div>
               </div>
             </div>
           )}

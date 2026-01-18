@@ -1,6 +1,6 @@
 import type React from "react";
 import { useState, useRef, useEffect } from "react";
-import { Check, X, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 
 interface PropertyFieldProps {
   name: string;
@@ -282,33 +282,6 @@ export function PropertyField({
         </div>
         <div className="min-h-[24px]">{renderValue()}</div>
       </div>
-
-      {isFieldEditable && (
-        <div ref={buttonRef} className="flex gap-1 mt-1">
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault(); // Prevent blur from firing
-              handleSave();
-            }}
-            className="text-green-400 hover:text-green-300 transition-colors"
-            title="Save changes"
-          >
-            <Check size={14} />
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault(); // Prevent blur from firing
-              handleCancel();
-            }}
-            className="text-red-400 hover:text-red-300 transition-colors"
-            title="Cancel changes"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
     </div>
   );
 }
