@@ -214,7 +214,7 @@ export const showCampaignDetails = tool({
             {
               error: `HTTP ${response.status}`,
             },
-            AUTH_CODES.ERROR,
+            AUTH_CODES.INVALID_KEY,
             toolCallId
           );
         }
