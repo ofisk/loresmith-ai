@@ -339,6 +339,12 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
           );
         }
 
+        // Declare name similarity tracking variables at function scope
+        // so they're accessible when filtering results later
+        const entityNameSimilarityScores = new Map<string, number>();
+        let hasStrongNameMatches = false;
+        const nameMatchThreshold = 0.6;
+
         // Verify campaign exists and belongs to user using DAO
         const campaignDAO = getDAOFactory(env).campaignDAO;
         console.log(
@@ -747,10 +753,7 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
 
             // Post-filter: Calculate name similarity scores for entities
             // This helps detect when users are asking about a specific named entity
-            const entityNameSimilarityScores = new Map<string, number>();
-            const nameMatchThreshold = 0.6; // Threshold for "strong" name matches
-            let hasStrongNameMatches = false;
-
+            // Note: entityNameSimilarityScores and hasStrongNameMatches are declared at function scope
             if (
               queryIntent.searchQuery &&
               queryIntent.searchQuery.trim().length > 0
@@ -1495,9 +1498,28 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
           return score !== 0.8 && score !== 0.7 && score !== 0 && score !== 1.0;
         });
 
+        // Filter results to prioritize strong name matches when they exist
+        // This ensures queries like "tell me about the ape clan" focus on that specific entity
+        // Note: entityNameSimilarityScores and hasStrongNameMatches are declared at function scope (line ~340)
+        let finalResults = results;
+        if (hasStrongNameMatches && entityNameSimilarityScores.size > 0) {
+          const nameMatchedResults = results.filter((result) => {
+            const nameScore = entityNameSimilarityScores.get(
+              result.entityId || ""
+            );
+            return nameScore !== undefined && nameScore >= nameMatchThreshold;
+          });
+          if (nameMatchedResults.length > 0) {
+            finalResults = nameMatchedResults;
+            console.log(
+              `[Tool] searchCampaignContext - Filtered to ${nameMatchedResults.length} entities with strong name matches (query: "${queryIntent.searchQuery}")`
+            );
+          }
+        }
+
         // Sort results by semantic relevancy (highest score first)
         // All results should be sorted by relevancy to the query/prompt
-        results.sort((a, b) => {
+        finalResults.sort((a, b) => {
           const scoreA = a.score || 0;
           const scoreB = b.score || 0;
 
@@ -1526,17 +1548,20 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
 
         // Check if there are more results (for list-all queries, we requested limit+1)
         let hasMore = false;
-        let actualResults = results;
+        let actualResults = finalResults;
         const limitHit =
-          queryIntent.isListAll && results.length > effectiveLimit;
+          queryIntent.isListAll && finalResults.length > effectiveLimit;
 
         if (limitHit) {
           hasMore = true;
-          actualResults = results.slice(0, effectiveLimit);
-        } else if (!queryIntent.isListAll && results.length > effectiveLimit) {
+          actualResults = finalResults.slice(0, effectiveLimit);
+        } else if (
+          !queryIntent.isListAll &&
+          finalResults.length > effectiveLimit
+        ) {
           // For search queries, check if we hit the limit
           hasMore = true;
-          actualResults = results.slice(0, effectiveLimit);
+          actualResults = finalResults.slice(0, effectiveLimit);
         }
 
         // Note: totalCount is already fetched above for list-all queries
@@ -1561,7 +1586,7 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
           if (hasMore && totalCount !== undefined) {
             paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${totalCount} total results. There are ${totalCount - actualResults.length} more results not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
           } else if (hasMore) {
-            paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${results.length}+ results. There are more results not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
+            paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${finalResults.length}+ results. There are more results not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
           } else if (totalCount !== undefined) {
             paginationInfo = ` (${totalCount} total)`;
           }
