@@ -117,6 +117,69 @@ function parseQueryIntent(query: string): QueryIntent {
   };
 }
 
+/**
+ * Calculate name similarity between a query and an entity name.
+ * Returns a score between 0.0 and 1.0, where 1.0 is an exact match.
+ * Used to detect when users are asking about a specific named entity.
+ */
+function calculateNameSimilarity(query: string, entityName: string): number {
+  // Normalize both strings: lowercase, trim, remove articles
+  const normalize = (str: string): string => {
+    return str
+      .toLowerCase()
+      .trim()
+      .replace(/^(the|a|an)\s+/i, "") // Remove articles
+      .replace(/\s+/g, " "); // Normalize whitespace
+  };
+
+  const normalizedQuery = normalize(query);
+  const normalizedEntityName = normalize(entityName);
+
+  // Exact match (after normalization)
+  if (normalizedQuery === normalizedEntityName) {
+    return 1.0;
+  }
+
+  // Check if entity name contains query or vice versa (partial match)
+  if (
+    normalizedEntityName.includes(normalizedQuery) ||
+    normalizedQuery.includes(normalizedEntityName)
+  ) {
+    // Boost if the longer string starts with the shorter string (better match)
+    const shorter =
+      normalizedQuery.length < normalizedEntityName.length
+        ? normalizedQuery
+        : normalizedEntityName;
+    const longer =
+      normalizedQuery.length >= normalizedEntityName.length
+        ? normalizedQuery
+        : normalizedEntityName;
+    if (longer.startsWith(shorter)) {
+      return 0.8;
+    }
+    return 0.6;
+  }
+
+  // Check for word-level matches (e.g., "ape clan" vs "Ape Clan")
+  const queryWords = normalizedQuery.split(/\s+/);
+  const entityWords = normalizedEntityName.split(/\s+/);
+  const matchingWords = queryWords.filter((word) => entityWords.includes(word));
+  if (
+    matchingWords.length > 0 &&
+    matchingWords.length === Math.min(queryWords.length, entityWords.length)
+  ) {
+    // All words match (possibly in different order)
+    return 0.7;
+  }
+  if (matchingWords.length > 0) {
+    // Some words match
+    return 0.5;
+  }
+
+  // No meaningful match
+  return 0.0;
+}
+
 // Tool to search campaign context
 export const searchCampaignContext = tool({
   description: `Search through campaign context using semantic search and graph traversal. 
@@ -682,15 +745,71 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
               }
             });
 
+            // Post-filter: Calculate name similarity scores for entities
+            // This helps detect when users are asking about a specific named entity
+            const entityNameSimilarityScores = new Map<string, number>();
+            const nameMatchThreshold = 0.6; // Threshold for "strong" name matches
+            let hasStrongNameMatches = false;
+
+            if (
+              queryIntent.searchQuery &&
+              queryIntent.searchQuery.trim().length > 0
+            ) {
+              for (const entity of approvedEntities) {
+                const nameScore = calculateNameSimilarity(
+                  queryIntent.searchQuery,
+                  entity.name
+                );
+                if (nameScore > 0) {
+                  entityNameSimilarityScores.set(entity.id, nameScore);
+                  if (nameScore >= nameMatchThreshold) {
+                    hasStrongNameMatches = true;
+                  }
+                }
+              }
+
+              // Boost semantic scores with name similarity scores
+              // If an entity has both semantic and name scores, combine them (weighted)
+              for (const [
+                entityId,
+                nameScore,
+              ] of entityNameSimilarityScores.entries()) {
+                const existingSemanticScore =
+                  entitySimilarityScores.get(entityId);
+                if (nameScore >= nameMatchThreshold) {
+                  // Strong name match: significantly boost the score
+                  // If semantic score exists, take the max; otherwise use name score * 0.9
+                  const boostedScore = existingSemanticScore
+                    ? Math.max(existingSemanticScore, nameScore * 0.9)
+                    : nameScore * 0.9;
+                  entitySimilarityScores.set(entityId, boostedScore);
+                } else if (nameScore > 0) {
+                  // Weak name match: slight boost
+                  const boostedScore = existingSemanticScore
+                    ? existingSemanticScore * (1 + nameScore * 0.1)
+                    : nameScore * 0.7;
+                  entitySimilarityScores.set(entityId, boostedScore);
+                }
+              }
+
+              if (hasStrongNameMatches) {
+                console.log(
+                  `[Tool] searchCampaignContext - Found ${entityNameSimilarityScores.size} entities with name matches (${Array.from(entityNameSimilarityScores.values()).filter((s) => s >= nameMatchThreshold).length} strong matches)`
+                );
+              }
+            }
+
             // Community-based expansion: Use communities as a shortcut to find related entities
             // If we found entities, find their communities and include other entities from those communities
+            // Skip or limit expansion if strong name matches were found (indicating a specific entity query)
             const communityExpandedEntityIds = new Set<string>(
               approvedEntities.map((e) => e.id)
             );
             if (
               approvedEntities.length > 0 &&
               approvedEntities.length < 50 &&
-              !queryIntent.isListAll
+              !queryIntent.isListAll &&
+              !hasStrongNameMatches // Skip community expansion when strong name matches exist
             ) {
               try {
                 const communityDAO = daoFactory.communityDAO;
