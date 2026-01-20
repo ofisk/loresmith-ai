@@ -1,5 +1,6 @@
 import type { Env } from "@/middleware/auth";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { ENTITY_TYPE_PCS } from "@/lib/entity-type-constants";
 
 /**
  * Service to sync character_backstory entries from campaign_context to entities table
@@ -60,7 +61,7 @@ export class CharacterEntitySyncService {
       await entityDAO.createEntity({
         id: entityId,
         campaignId,
-        entityType: "pcs",
+        entityType: ENTITY_TYPE_PCS,
         name: characterName,
         content: entityContent,
         metadata: {

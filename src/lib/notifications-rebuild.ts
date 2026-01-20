@@ -99,7 +99,7 @@ export async function notifyRebuildStatus(
       title = "Rebuild Failed";
       notificationMessage =
         message ||
-        `❌ ${rebuildTypeText} graph rebuild failed for "${campaignName || campaignId}": ${rebuildStatus.errorMessage || "Unknown error"}`;
+        `❌ ${rebuildTypeText} graph rebuild failed for "${campaignName || campaignId}". The rebuild will be retried automatically. If the problem persists, please contact support.`;
       break;
     case "cancelled":
       notificationType = NOTIFICATION_TYPES.REBUILD_CANCELLED;

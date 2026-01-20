@@ -433,3 +433,168 @@ export const createEntityRelationshipTool = tool({
     }
   },
 });
+
+/**
+ * Tool: Update entity metadata directly
+ * Updates entity metadata in the database (not just changelog).
+ * Use this when users suggest updates to entity properties like faction alignment
+ * (protagonistic/neutral/antagonistic), status, or other metadata.
+ */
+export const updateEntityMetadataTool = tool({
+  description:
+    "Update entity metadata directly in the database. Use this when users suggest updates to entity properties like faction alignment (protagonistic/neutral/antagonistic), status, or other metadata. This updates the entity itself, not just the changelog. For example, if a user says 'this faction should be protagonistic', use this tool to update the entity's metadata with {alignment: 'protagonistic'}.",
+  parameters: z.object({
+    campaignId: commonSchemas.campaignId,
+    entityId: z.string().describe("The ID of the entity to update."),
+    metadata: z
+      .record(z.unknown())
+      .describe(
+        "Metadata to update. This will be merged with existing metadata. For faction alignment, use {alignment: 'protagonistic'|'neutral'|'antagonistic'}."
+      ),
+    jwt: commonSchemas.jwt,
+  }),
+  execute: async (
+    { campaignId, entityId, metadata, jwt },
+    context?: any
+  ): Promise<ToolResult> => {
+    const toolCallId = crypto.randomUUID();
+
+    try {
+      const env = getEnvFromContext(context);
+      if (!env) {
+        // Fallback to API call
+        const response = await authenticatedFetch(
+          API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.UPDATE_SHARD(
+              campaignId,
+              entityId
+            )
+          ),
+          {
+            method: "PUT",
+            jwt,
+            body: JSON.stringify({ metadata }),
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (!response.ok) {
+          const authError = handleAuthError(response);
+          if (authError) {
+            return createToolError(
+              authError,
+              "Authentication failed",
+              response.status,
+              toolCallId
+            );
+          }
+
+          const errorData = (await response.json()) as {
+            error?: string;
+            message?: string;
+          };
+          return createToolError(
+            errorData.error || "Failed to update entity metadata",
+            errorData.message || "Unknown error",
+            response.status,
+            toolCallId
+          );
+        }
+
+        const data = (await response.json()) as {
+          shard?: { id: string; metadata: unknown };
+        };
+        return createToolSuccess(
+          "Entity metadata updated successfully",
+          data,
+          toolCallId
+        );
+      }
+
+      // Direct database access
+      const userId = extractUsernameFromJwt(jwt);
+      if (!userId) {
+        return createToolError(
+          "Invalid authentication token",
+          "Authentication failed",
+          401,
+          toolCallId
+        );
+      }
+
+      // Get DAO factory
+      const daoFactory = getDAOFactory(env);
+
+      // Verify campaign ownership
+      const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+        campaignId,
+        userId
+      );
+
+      if (!campaign) {
+        return createToolError(
+          "Campaign not found",
+          "Campaign not found or access denied",
+          404,
+          toolCallId
+        );
+      }
+
+      // Get existing entity
+      const entity = await daoFactory.entityDAO.getEntityById(entityId);
+
+      if (!entity) {
+        return createToolError(
+          "Entity not found",
+          `Entity with ID ${entityId} does not exist`,
+          404,
+          toolCallId
+        );
+      }
+
+      if (entity.campaignId !== campaignId) {
+        return createToolError(
+          "Entity belongs to different campaign",
+          "Entity campaign mismatch",
+          400,
+          toolCallId
+        );
+      }
+
+      // Merge metadata with existing metadata
+      const existingMetadata =
+        (entity.metadata as Record<string, unknown>) || {};
+      const updatedMetadata = { ...existingMetadata, ...metadata };
+
+      // Update entity metadata
+      await daoFactory.entityDAO.updateEntity(entityId, {
+        metadata: updatedMetadata,
+      });
+
+      // Get updated entity
+      const updatedEntity = await daoFactory.entityDAO.getEntityById(entityId);
+
+      return createToolSuccess(
+        `Entity metadata updated successfully for ${entity.name || entityId}`,
+        {
+          entity: {
+            id: updatedEntity?.id,
+            name: updatedEntity?.name,
+            metadata: updatedEntity?.metadata,
+          },
+        },
+        toolCallId
+      );
+    } catch (error) {
+      console.error("[updateEntityMetadataTool] Error:", error);
+      return createToolError(
+        "Failed to update entity metadata",
+        error instanceof Error ? error.message : "Unknown error",
+        500,
+        toolCallId
+      );
+    }
+  },
+});

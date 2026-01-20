@@ -73,7 +73,7 @@ describe("Campaign Tools", () => {
         result: {
           success: false,
           message: "Failed to delete campaign: 404",
-          data: { error: "HTTP 404" },
+          data: { error: "HTTP 404", errorCode: 500 },
         },
       });
     });
@@ -96,7 +96,7 @@ describe("Campaign Tools", () => {
         result: {
           success: false,
           message: "Authentication required. Please log in.",
-          data: { error: "HTTP 401" },
+          data: { error: "HTTP 401", errorCode: 500 },
         },
       });
     });
@@ -120,7 +120,7 @@ describe("Campaign Tools", () => {
           success: false,
           message:
             "Access denied. You don't have permission to perform this action.",
-          data: { error: "HTTP 403" },
+          data: { error: "HTTP 403", errorCode: 500 },
         },
       });
     });
@@ -138,7 +138,7 @@ describe("Campaign Tools", () => {
         result: {
           success: false,
           message: "Failed to delete campaign: Network error",
-          data: { error: "[object Object]" },
+          data: { error: "[object Object]", errorCode: 500 },
         },
       });
     });
@@ -226,7 +226,7 @@ describe("Campaign Tools", () => {
           success: false,
           message:
             "Access denied. You don't have permission to perform this action.",
-          data: { error: "HTTP 403" },
+          data: { error: "HTTP 403", errorCode: 500 },
         },
       });
     });
@@ -249,7 +249,7 @@ describe("Campaign Tools", () => {
         result: {
           success: false,
           message: "Authentication required. Please log in.",
-          data: { error: "HTTP 401" },
+          data: { error: "HTTP 401", errorCode: 500 },
         },
       });
     });
@@ -273,7 +273,7 @@ describe("Campaign Tools", () => {
           success: false,
           message:
             "Access denied. You don't have permission to perform this action.",
-          data: { error: "HTTP 403" },
+          data: { error: "HTTP 403", errorCode: 500 },
         },
       });
     });
@@ -296,7 +296,7 @@ describe("Campaign Tools", () => {
         result: {
           success: false,
           message: "Failed to delete campaigns: 500",
-          data: { error: "HTTP 500" },
+          data: { error: "HTTP 500", errorCode: 500 },
         },
       });
     });
@@ -314,7 +314,7 @@ describe("Campaign Tools", () => {
         result: {
           success: false,
           message: "Failed to delete campaigns: Network error",
-          data: { error: "[object Object]" },
+          data: { error: "[object Object]", errorCode: 500 },
         },
       });
     });

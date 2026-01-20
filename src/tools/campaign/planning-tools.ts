@@ -19,6 +19,11 @@ import { getEntitiesWithRelationships } from "@/lib/graph/entity-utils";
 import { MODEL_CONFIG } from "@/app-constants";
 import { HIGH_RANGE, MEDIUM_RANGE } from "@/lib/importance-config";
 import { getFileTypeFromName } from "@/lib/file-utils";
+import {
+  ENTITY_TYPE_NPCS,
+  ENTITY_TYPE_LOCATIONS,
+  ENTITY_TYPE_PCS,
+} from "@/lib/entity-type-constants";
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {
@@ -40,7 +45,7 @@ async function getPlayerCharacterEntities(
   campaignId: string
 ): Promise<any[]> {
   return await entityDAO.listEntitiesByCampaign(campaignId, {
-    entityType: "pcs",
+    entityType: ENTITY_TYPE_PCS,
   });
 }
 
@@ -618,7 +623,7 @@ function getGapSeverityByImportance(
   importanceScore: number
 ): "critical" | "important" | "minor" {
   // Player characters should always be maximum importance - missing data is critical
-  if (entityType === "pcs") {
+  if (entityType === ENTITY_TYPE_PCS) {
     return "critical";
   }
 
@@ -809,7 +814,8 @@ async function analyzePlayerCharacterCompleteness(
 
       if (!hasEnemies && neighbors.length > 0) {
         // Enemies are less critical - always minor unless it's a player character
-        const severity = character.entityType === "pcs" ? "important" : "minor";
+        const severity =
+          character.entityType === ENTITY_TYPE_PCS ? "important" : "minor";
         gaps.push({
           type: `character_enemies_${character.id}`,
           severity,
@@ -846,7 +852,8 @@ async function analyzePlayerCharacterCompleteness(
   );
   if (!hasSpotlightMoments) {
     // Spotlight moments are critical for player characters, minor for others
-    const severity = character.entityType === "pcs" ? "important" : "minor";
+    const severity =
+      character.entityType === ENTITY_TYPE_PCS ? "important" : "minor";
     gaps.push({
       type: `character_spotlight_${character.id}`,
       severity,
@@ -944,10 +951,10 @@ export const checkPlanningReadiness = tool({
       const [npcsCount, locationsCount, totalEntitiesCount] = await Promise.all(
         [
           daoFactory.entityDAO.getEntityCountByCampaign(campaignId, {
-            entityType: "npcs",
+            entityType: ENTITY_TYPE_NPCS,
           }),
           daoFactory.entityDAO.getEntityCountByCampaign(campaignId, {
-            entityType: "location",
+            entityType: ENTITY_TYPE_LOCATIONS,
           }),
           daoFactory.entityDAO.getEntityCountByCampaign(campaignId, {}),
         ]
@@ -1000,14 +1007,14 @@ export const checkPlanningReadiness = tool({
       // Only fetch player characters if we need to analyze them for completeness
       const playerCharactersCount =
         await daoFactory.entityDAO.getEntityCountByCampaign(campaignId, {
-          entityType: "pcs",
+          entityType: ENTITY_TYPE_PCS,
         });
       let playerCharacters: any[] = [];
       if (playerCharactersCount > 0) {
         // Only fetch player characters if they exist (for completeness analysis)
         playerCharacters = await daoFactory.entityDAO.listEntitiesByCampaign(
           campaignId,
-          { entityType: "pcs" }
+          { entityType: ENTITY_TYPE_PCS }
         );
       }
       if (playerCharacters.length === 0) {

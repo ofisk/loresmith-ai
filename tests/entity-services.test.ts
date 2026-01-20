@@ -131,6 +131,11 @@ describe("EntityDeduplicationService", () => {
       getEntityById: vi
         .fn()
         .mockImplementation(async (id: string) => mockEntity(id)),
+      getEntitiesByIds: vi
+        .fn()
+        .mockImplementation(async (ids: string[]) =>
+          ids.map((id) => mockEntity(id))
+        ),
       createDeduplicationEntry: vi.fn().mockResolvedValue(undefined),
       listDeduplicationEntries: vi.fn().mockResolvedValue([]),
       updateDeduplicationEntry: vi.fn().mockResolvedValue(undefined),
@@ -192,6 +197,13 @@ describe("EntityGraphService", () => {
         id,
         name: `Entity ${id}`,
       })),
+      getEntitiesByIds: vi.fn().mockImplementation(async (ids: string[]) =>
+        ids.map((id) => ({
+          ...baseEntity,
+          id,
+          name: `Entity ${id}`,
+        }))
+      ),
       upsertRelationship: vi
         .fn()
         .mockImplementation(

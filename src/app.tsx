@@ -21,7 +21,7 @@ import { useAppState } from "@/hooks/useAppState";
 import { useUiHints } from "@/hooks/useUiHints";
 import { useGlobalShardManager } from "@/hooks/useGlobalShardManager";
 import { ShardOverlay } from "@/components/shard/ShardOverlay";
-import { API_CONFIG } from "@/shared-config";
+import { API_CONFIG, AUTH_CODES } from "@/shared-config";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { getHelpContent } from "@/lib/help-content";
@@ -170,12 +170,61 @@ export default function Chat() {
     agent,
     maxSteps: 5,
     onFinish: (result) => {
-      // Check if the response indicates authentication is required
+      // Helper: Check if tool result data indicates an authentication error
+      const isAuthErrorCode = (data: unknown): boolean => {
+        if (!data || typeof data !== "object") return false;
+        const errorData = data as { errorCode?: number; error?: string };
+        const errorCode = errorData.errorCode;
+
+        // Direct auth error code (401)
+        if (errorCode === AUTH_CODES.INVALID_KEY) return true;
+
+        // Generic error (500) with auth-related message
+        if (errorCode === AUTH_CODES.ERROR) {
+          const errorMessage = errorData.error?.toLowerCase() || "";
+          return (
+            errorMessage.includes("authentication required") ||
+            errorMessage.includes("401")
+          );
+        }
+
+        return false;
+      };
+
+      // Helper: Check all tool results in steps for auth errors
+      const checkToolResultsForAuthErrors = (result: Message): boolean => {
+        // The result includes steps from streamText onFinish callback (via ...args in base-agent)
+        const resultWithSteps = result as {
+          steps?: Array<{
+            toolResults?: Array<{ result?: { data?: unknown } }>;
+          }>;
+        };
+
+        const steps = resultWithSteps.steps || [];
+        for (const step of steps) {
+          const toolResults = step.toolResults || [];
+          for (const toolResult of toolResults) {
+            const resultData = toolResult.result?.data;
+            if (isAuthErrorCode(resultData)) {
+              return true;
+            }
+          }
+        }
+        return false;
+      };
+
+      // Check tool results for authentication errors
+      if (checkToolResultsForAuthErrors(result)) {
+        console.log("[App] Authentication error detected in tool results");
+        modalState.setShowAuthModal(true);
+        return; // Early return to skip string-based checks
+      }
+
+      // Fallback: Check if the response indicates authentication is required (for backwards compatibility)
       const resultContent = result.content || "";
       if (
         resultContent.includes("AUTHENTICATION_REQUIRED:") ||
-        resultContent.includes("OpenAI API key required") ||
-        resultContent.includes("OpenAI API key")
+        resultContent.includes("OpenAI API key required")
       ) {
         console.log("[App] Authentication required detected in finish result");
         modalState.setShowAuthModal(true);

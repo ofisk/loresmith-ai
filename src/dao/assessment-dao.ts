@@ -1,4 +1,12 @@
 import type { D1Database } from "@cloudflare/workers-types";
+import {
+  ENTITY_TYPE_NPCS,
+  ENTITY_TYPE_LOCATIONS,
+  ENTITY_TYPE_HOOKS,
+  ENTITY_TYPE_PLOT_LINES,
+  ENTITY_TYPE_ITEMS,
+  ENTITY_TYPE_FACTIONS,
+} from "../lib/entity-type-constants";
 
 export interface ActivityType {
   type:
@@ -206,7 +214,7 @@ export class AssessmentDAO {
       await entityDAO.createEntity({
         id: entityId,
         campaignId,
-        entityType: "npcs",
+        entityType: ENTITY_TYPE_NPCS,
         name: npc.name || "Unnamed NPC",
         content: npc,
         metadata: {
@@ -237,7 +245,7 @@ export class AssessmentDAO {
       await entityDAO.createEntity({
         id: entityId,
         campaignId,
-        entityType: "locations",
+        entityType: ENTITY_TYPE_LOCATIONS,
         name: location.name || "Unnamed Location",
         content: location,
         metadata: {
@@ -268,7 +276,7 @@ export class AssessmentDAO {
       await entityDAO.createEntity({
         id: entityId,
         campaignId,
-        entityType: "hooks",
+        entityType: ENTITY_TYPE_HOOKS,
         name: plotHook.title || "Unnamed Plot Hook",
         content: plotHook,
         metadata: {
@@ -299,7 +307,7 @@ export class AssessmentDAO {
       await entityDAO.createEntity({
         id: entityId,
         campaignId,
-        entityType: "plot_lines",
+        entityType: ENTITY_TYPE_PLOT_LINES,
         name: storyBeat.title || "Unnamed Story Beat",
         content: storyBeat,
         metadata: {
@@ -330,7 +338,7 @@ export class AssessmentDAO {
       await entityDAO.createEntity({
         id: entityId,
         campaignId,
-        entityType: "items",
+        entityType: ENTITY_TYPE_ITEMS,
         name: item.name || "Unnamed Item",
         content: item,
         metadata: {
@@ -361,7 +369,7 @@ export class AssessmentDAO {
       await entityDAO.createEntity({
         id: entityId,
         campaignId,
-        entityType: "factions",
+        entityType: ENTITY_TYPE_FACTIONS,
         name: conflict.title || "Unnamed Conflict",
         content: conflict,
         metadata: {

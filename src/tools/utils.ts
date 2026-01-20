@@ -94,7 +94,7 @@ function formatMessageWithCampaign(
 export function createToolError(
   message: string,
   error: any,
-  _code: number,
+  code: number,
   toolCallId: string,
   _campaignId?: string | null,
   campaignName?: string | null
@@ -110,6 +110,7 @@ export function createToolError(
       message: formattedMessage,
       data: {
         error: error instanceof Error ? error.message : String(error),
+        errorCode: code,
         ...(campaignName ? { campaignName } : {}),
       },
     },

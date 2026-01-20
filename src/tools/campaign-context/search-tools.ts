@@ -8,6 +8,7 @@ import {
   extractUsernameFromJwt,
 } from "../utils";
 import { getDAOFactory } from "../../dao/dao-factory";
+import { WorldStateChangelogService } from "../../services/graph/world-state-changelog-service";
 import { PlanningContextService } from "../../services/rag/planning-context-service";
 import { EntityEmbeddingService } from "../../services/vectorize/entity-embedding-service";
 import { EntityGraphService } from "../../services/graph/entity-graph-service";
@@ -117,6 +118,69 @@ function parseQueryIntent(query: string): QueryIntent {
   };
 }
 
+/**
+ * Calculate name similarity between a query and an entity name.
+ * Returns a score between 0.0 and 1.0, where 1.0 is an exact match.
+ * Used to detect when users are asking about a specific named entity.
+ */
+function calculateNameSimilarity(query: string, entityName: string): number {
+  // Normalize both strings: lowercase, trim, remove articles
+  const normalize = (str: string): string => {
+    return str
+      .toLowerCase()
+      .trim()
+      .replace(/^(the|a|an)\s+/i, "") // Remove articles
+      .replace(/\s+/g, " "); // Normalize whitespace
+  };
+
+  const normalizedQuery = normalize(query);
+  const normalizedEntityName = normalize(entityName);
+
+  // Exact match (after normalization)
+  if (normalizedQuery === normalizedEntityName) {
+    return 1.0;
+  }
+
+  // Check if entity name contains query or vice versa (partial match)
+  if (
+    normalizedEntityName.includes(normalizedQuery) ||
+    normalizedQuery.includes(normalizedEntityName)
+  ) {
+    // Boost if the longer string starts with the shorter string (better match)
+    const shorter =
+      normalizedQuery.length < normalizedEntityName.length
+        ? normalizedQuery
+        : normalizedEntityName;
+    const longer =
+      normalizedQuery.length >= normalizedEntityName.length
+        ? normalizedQuery
+        : normalizedEntityName;
+    if (longer.startsWith(shorter)) {
+      return 0.8;
+    }
+    return 0.6;
+  }
+
+  // Check for word-level matches (e.g., "ape clan" vs "Ape Clan")
+  const queryWords = normalizedQuery.split(/\s+/);
+  const entityWords = normalizedEntityName.split(/\s+/);
+  const matchingWords = queryWords.filter((word) => entityWords.includes(word));
+  if (
+    matchingWords.length > 0 &&
+    matchingWords.length === Math.min(queryWords.length, entityWords.length)
+  ) {
+    // All words match (possibly in different order)
+    return 0.7;
+  }
+  if (matchingWords.length > 0) {
+    // Some words match
+    return 0.5;
+  }
+
+  // No meaningful match
+  return 0.0;
+}
+
 // Tool to search campaign context
 export const searchCampaignContext = tool({
   description: `Search through campaign context using semantic search and graph traversal. 
@@ -139,7 +203,7 @@ CRITICAL - SYNONYM MAPPING: When users specify entity types in their request (e.
 
 APPROVED ENTITIES AS CREATIVE BOUNDARIES: Approved entities (shards) in the campaign form the structural foundation for your responses. When users ask you to work with entities (creatures, NPCs, locations, etc.) from their campaign, you MUST first retrieve the relevant approved entities using this tool. These approved entities define the boundaries of what exists in their world. Within those boundaries, use your creative reasoning to interpret, match, adapt, or elaborate on the entities based on the user's request. The approved entities provide the outline - you fill in the creative details within that outline. For example, if asked to match creatures to themes, retrieve the user's approved creatures first (using query="monsters" to list all monsters), then creatively analyze how they might align with those themes based on their characteristics, even if the theme keywords aren't explicitly in the entity metadata.
 
-GRAPH TRAVERSAL: After finding entities via semantic search, use graph traversal to explore connected entities. Provide traverseFromEntityIds (entity IDs from previous search results) to traverse the graph starting from those entities. Use traverseDepth (1-3) to control how many relationship hops to follow (1=direct neighbors, 2=neighbors of neighbors, etc.). Optionally filter by traverseRelationshipTypes to focus on specific relationship types (e.g., ['resides_in', 'located_in'] for location queries). 
+GRAPH TRAVERSAL OPTIMIZATION: After finding entities via semantic search, use graph traversal to explore connected entities. PERFORMANCE TIP: Start with traverseDepth=1 (direct neighbors only) and only increase to depth 2 or 3 if the initial results are insufficient. Always use traverseRelationshipTypes filter when possible to reduce traversal scope (e.g., ['resides_in', 'located_in'] for location queries). This significantly improves query performance. Only traverse if the initial semantic search results don't provide enough context - many queries can be answered with just the initial search results without traversal. 
 
 CRITICAL - "X within Y" QUERIES: When users ask for entities "within" or "inside" another entity (e.g., "locations within [location]", "NPCs in [place]"), you MUST first identify the parent entity before searching for contained entities. Workflow: (1) Search for the parent entity to find its entity ID, (2) Use traverseFromEntityIds with that parent entity ID and appropriate traverseRelationshipTypes (e.g., ['located_in'] for locations within a location) to find entities contained within the parent. You may need multiple traversal steps depending on the query complexity. Do NOT just search for the entity type alone - that returns all entities of that type across the entire campaign, not just those within the specified parent.
 
@@ -275,6 +339,12 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
             toolCallId
           );
         }
+
+        // Declare name similarity tracking variables at function scope
+        // so they're accessible when filtering results later
+        const entityNameSimilarityScores = new Map<string, number>();
+        let hasStrongNameMatches = false;
+        const nameMatchThreshold = 0.6;
 
         // Verify campaign exists and belongs to user using DAO
         const campaignDAO = getDAOFactory(env).campaignDAO;
@@ -682,15 +752,68 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
               }
             });
 
+            // Post-filter: Calculate name similarity scores for entities
+            // This helps detect when users are asking about a specific named entity
+            // Note: entityNameSimilarityScores and hasStrongNameMatches are declared at function scope
+            if (
+              queryIntent.searchQuery &&
+              queryIntent.searchQuery.trim().length > 0
+            ) {
+              for (const entity of approvedEntities) {
+                const nameScore = calculateNameSimilarity(
+                  queryIntent.searchQuery,
+                  entity.name
+                );
+                if (nameScore > 0) {
+                  entityNameSimilarityScores.set(entity.id, nameScore);
+                  if (nameScore >= nameMatchThreshold) {
+                    hasStrongNameMatches = true;
+                  }
+                }
+              }
+
+              // Boost semantic scores with name similarity scores
+              // If an entity has both semantic and name scores, combine them (weighted)
+              for (const [
+                entityId,
+                nameScore,
+              ] of entityNameSimilarityScores.entries()) {
+                const existingSemanticScore =
+                  entitySimilarityScores.get(entityId);
+                if (nameScore >= nameMatchThreshold) {
+                  // Strong name match: significantly boost the score
+                  // If semantic score exists, take the max; otherwise use name score * 0.9
+                  const boostedScore = existingSemanticScore
+                    ? Math.max(existingSemanticScore, nameScore * 0.9)
+                    : nameScore * 0.9;
+                  entitySimilarityScores.set(entityId, boostedScore);
+                } else if (nameScore > 0) {
+                  // Weak name match: slight boost
+                  const boostedScore = existingSemanticScore
+                    ? existingSemanticScore * (1 + nameScore * 0.1)
+                    : nameScore * 0.7;
+                  entitySimilarityScores.set(entityId, boostedScore);
+                }
+              }
+
+              if (hasStrongNameMatches) {
+                console.log(
+                  `[Tool] searchCampaignContext - Found ${entityNameSimilarityScores.size} entities with name matches (${Array.from(entityNameSimilarityScores.values()).filter((s) => s >= nameMatchThreshold).length} strong matches)`
+                );
+              }
+            }
+
             // Community-based expansion: Use communities as a shortcut to find related entities
             // If we found entities, find their communities and include other entities from those communities
+            // Skip or limit expansion if strong name matches were found (indicating a specific entity query)
             const communityExpandedEntityIds = new Set<string>(
               approvedEntities.map((e) => e.id)
             );
             if (
               approvedEntities.length > 0 &&
               approvedEntities.length < 50 &&
-              !queryIntent.isListAll
+              !queryIntent.isListAll &&
+              !hasStrongNameMatches // Skip community expansion when strong name matches exist
             ) {
               try {
                 const communityDAO = daoFactory.communityDAO;
@@ -882,9 +1005,59 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
               }
             }
 
+            // Get changelog overlay snapshot to include world state updates (e.g., faction alignment)
+            let changelogOverlay: Awaited<
+              ReturnType<WorldStateChangelogService["getOverlaySnapshot"]>
+            > | null = null;
+            let worldStateService: WorldStateChangelogService | null = null;
+            try {
+              worldStateService = new WorldStateChangelogService({
+                db: env.DB,
+              });
+              changelogOverlay =
+                await worldStateService.getOverlaySnapshot(campaignId);
+            } catch (error) {
+              console.warn(
+                "[Tool] searchCampaignContext - Failed to get changelog overlay:",
+                error
+              );
+              // Continue without overlay if it fails
+            }
+
             // Transform entities to match expected format, including relationships
             for (const entity of approvedEntities) {
               const relationships = entityRelationshipsMap.get(entity.id) || [];
+
+              // Apply changelog overlay to include world state updates (e.g., faction alignment)
+              let worldStateInfo = "";
+              if (changelogOverlay && worldStateService) {
+                const entityWithOverlay = worldStateService.applyEntityOverlay(
+                  entity,
+                  changelogOverlay
+                );
+
+                // Include world state metadata in the entity text so the agent can see it
+                if (entityWithOverlay.worldState) {
+                  const ws = entityWithOverlay.worldState;
+                  if (ws.metadata && typeof ws.metadata === "object") {
+                    const metadataStr = JSON.stringify(ws.metadata);
+                    if (metadataStr !== "{}") {
+                      worldStateInfo = `\n\n═══════════════════════════════════════════════════════\n`;
+                      worldStateInfo += `WORLD STATE UPDATES (FROM CHANGELOG)\n`;
+                      worldStateInfo += `═══════════════════════════════════════════════════════\n`;
+                      worldStateInfo += `CRITICAL: This information overrides any conflicting information in the entity content above.\n\n`;
+                      worldStateInfo += `Metadata: ${metadataStr}\n`;
+                      if (ws.status) {
+                        worldStateInfo += `Status: ${ws.status}\n`;
+                      }
+                      if (ws.description) {
+                        worldStateInfo += `Description: ${ws.description}\n`;
+                      }
+                      worldStateInfo += `\n`;
+                    }
+                  }
+                }
+              }
 
               // Build relationship summary for the AI with entity names
               const relationshipSummary = relationships.map((rel) => {
@@ -960,12 +1133,18 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
               const finalScore =
                 semanticScore !== undefined ? semanticScore : 0.8; // Default score for entity matches
 
+              // Combine relationship header, entity content, and world state info
+              const entityText =
+                relationshipHeader +
+                JSON.stringify(entity.content) +
+                worldStateInfo;
+
               results.push({
                 type: "entity",
                 source: "entity_graph",
                 entityType: entity.entityType,
                 title: entity.name,
-                text: relationshipHeader + JSON.stringify(entity.content),
+                text: entityText,
                 score: finalScore, // Use semantic relevancy score when available
                 entityId: entity.id,
                 filename: entity.name,
@@ -1376,9 +1555,28 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
           return score !== 0.8 && score !== 0.7 && score !== 0 && score !== 1.0;
         });
 
+        // Filter results to prioritize strong name matches when they exist
+        // This ensures queries like "tell me about the ape clan" focus on that specific entity
+        // Note: entityNameSimilarityScores and hasStrongNameMatches are declared at function scope (line ~340)
+        let finalResults = results;
+        if (hasStrongNameMatches && entityNameSimilarityScores.size > 0) {
+          const nameMatchedResults = results.filter((result) => {
+            const nameScore = entityNameSimilarityScores.get(
+              result.entityId || ""
+            );
+            return nameScore !== undefined && nameScore >= nameMatchThreshold;
+          });
+          if (nameMatchedResults.length > 0) {
+            finalResults = nameMatchedResults;
+            console.log(
+              `[Tool] searchCampaignContext - Filtered to ${nameMatchedResults.length} entities with strong name matches (query: "${queryIntent.searchQuery}")`
+            );
+          }
+        }
+
         // Sort results by semantic relevancy (highest score first)
         // All results should be sorted by relevancy to the query/prompt
-        results.sort((a, b) => {
+        finalResults.sort((a, b) => {
           const scoreA = a.score || 0;
           const scoreB = b.score || 0;
 
@@ -1407,17 +1605,20 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
 
         // Check if there are more results (for list-all queries, we requested limit+1)
         let hasMore = false;
-        let actualResults = results;
+        let actualResults = finalResults;
         const limitHit =
-          queryIntent.isListAll && results.length > effectiveLimit;
+          queryIntent.isListAll && finalResults.length > effectiveLimit;
 
         if (limitHit) {
           hasMore = true;
-          actualResults = results.slice(0, effectiveLimit);
-        } else if (!queryIntent.isListAll && results.length > effectiveLimit) {
+          actualResults = finalResults.slice(0, effectiveLimit);
+        } else if (
+          !queryIntent.isListAll &&
+          finalResults.length > effectiveLimit
+        ) {
           // For search queries, check if we hit the limit
           hasMore = true;
-          actualResults = results.slice(0, effectiveLimit);
+          actualResults = finalResults.slice(0, effectiveLimit);
         }
 
         // Note: totalCount is already fetched above for list-all queries
@@ -1442,7 +1643,7 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
           if (hasMore && totalCount !== undefined) {
             paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${totalCount} total results. There are ${totalCount - actualResults.length} more results not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
           } else if (hasMore) {
-            paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${results.length}+ results. There are more results not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
+            paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${finalResults.length}+ results. There are more results not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
           } else if (totalCount !== undefined) {
             paginationInfo = ` (${totalCount} total)`;
           }

@@ -16,6 +16,7 @@ import {
   SelfReferentialRelationshipError,
   EntityNotFoundError,
 } from "@/lib/errors";
+import { ContextAssemblyService } from "@/services/context/context-assembly-service";
 
 interface UpsertGraphEdgeInput {
   campaignId: string;
@@ -87,10 +88,18 @@ export class EntityGraphService {
       }
     }
 
+    // Invalidate caches for affected entities
+    ContextAssemblyService.invalidateEntityCaches([
+      input.fromEntityId,
+      input.toEntityId,
+    ]);
+
     return created;
   }
 
   async removeEdgeById(relationshipId: string): Promise<void> {
+    // Note: Cache invalidation skipped here since we don't have entity IDs
+    // Cache will expire naturally or be invalidated on next relationship update
     await this.entityDAO.deleteRelationship(relationshipId);
   }
 
@@ -106,6 +115,9 @@ export class EntityGraphService {
       toEntityId,
       normalizeRelationshipType(relationshipType)
     );
+
+    // Invalidate caches for affected entities
+    ContextAssemblyService.invalidateEntityCaches([fromEntityId, toEntityId]);
   }
 
   async getRelationshipsForEntity(
@@ -139,18 +151,56 @@ export class EntityGraphService {
     });
   }
 
+  async getRelationshipsForEntities(
+    campaignId: string,
+    entityIds: string[],
+    options: { relationshipType?: string } = {}
+  ): Promise<Map<string, EntityRelationship[]>> {
+    if (entityIds.length === 0) {
+      return new Map();
+    }
+    await this.ensureEntitiesInCampaign(campaignId, entityIds);
+
+    return this.entityDAO.getRelationshipsForEntities(entityIds, {
+      relationshipType: options.relationshipType
+        ? normalizeRelationshipType(options.relationshipType)
+        : undefined,
+    });
+  }
+
+  async getNeighborsBatch(
+    campaignId: string,
+    entityIds: string[],
+    options: GraphTraversalOptions = {}
+  ): Promise<Map<string, EntityNeighbor[]>> {
+    if (entityIds.length === 0) {
+      return new Map();
+    }
+    await this.ensureEntitiesInCampaign(campaignId, entityIds);
+
+    const normalizedTypes = options.relationshipTypes?.map((type) =>
+      normalizeRelationshipType(type)
+    );
+
+    return this.entityDAO.getRelationshipNeighborhoodBatch(entityIds, {
+      maxDepth: options.maxDepth,
+      relationshipTypes: normalizedTypes,
+    });
+  }
+
   private async ensureEntitiesInCampaign(
     campaignId: string,
     entityIds: string[]
   ): Promise<void> {
     const uniqueIds = Array.from(new Set(entityIds));
-    const entities = await Promise.all(
-      uniqueIds.map((id) => this.entityDAO.getEntityById(id))
-    );
+    if (uniqueIds.length === 0) {
+      return;
+    }
 
-    for (let i = 0; i < entities.length; i++) {
-      const entity = entities[i];
-      const entityId = uniqueIds[i];
+    const entities = await this.entityDAO.getEntitiesByIds(uniqueIds);
+
+    for (const entityId of uniqueIds) {
+      const entity = entities.find((e) => e.id === entityId);
       if (!entity || entity.campaignId !== campaignId) {
         throw new EntityNotFoundError(entityId, campaignId);
       }
