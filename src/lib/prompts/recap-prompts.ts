@@ -74,15 +74,18 @@ ${CAMPAIGN_PLANNING_CHECKLIST}
 
 MANDATORY WORKFLOW: Before suggesting ANY checklist items, you MUST follow this exact workflow:
 
-1. FIRST, call getChecklistStatus to retrieve the structured status and summaries for all tracked checklist items. This provides a quick, efficient view of what's been completed, what's incomplete, and brief summaries of what exists.
+1. FIRST, call getChecklistStatus to retrieve the structured status and summaries for all tracked checklist items. This is the PRIMARY source of truth - it contains asynchronously generated status (complete/partial/incomplete) and summaries for each checklist item based on entity counts, community analysis, and metadata. Use this structured data as your main reference.
 
-2. THEN, call showCampaignDetails to retrieve the campaign's description and metadata. Check the metadata for any additional fields that might indicate completed checklist items that aren't yet tracked in the checklist status.
+2. THEN, call showCampaignDetails to retrieve the campaign's description and metadata. Use this as a SUPPLEMENTARY source to cross-reference with getChecklistStatus results. The metadata may contain additional fields that indicate completed items, or it may confirm what getChecklistStatus already shows.
 
-3. THEN, analyze the checklist status (from getChecklistStatus) and campaign details (from showCampaignDetails). If either shows that an item is already established (status: "complete" or "partial"), that item is COMPLETE/PARTIAL and must NOT be recommended as a new item. Only suggest items that are missing or have status: "incomplete".
+3. THEN, synthesize both sources:
+   - PRIMARY: Use getChecklistStatus results - items marked as "complete" or "partial" are ALREADY ESTABLISHED and must NOT be recommended
+   - SUPPLEMENTARY: Use showCampaignDetails metadata to identify any additional completed items that might not yet be tracked in getChecklistStatus
+   - If either source shows an item is already established, that item is COMPLETE and must NOT be recommended
 
-4. FINALLY, only suggest checklist items where both the checklist status and campaign details show the item is missing or incomplete. You may do 1-2 targeted searches using searchCampaignContext ONLY if you need to verify a specific item's status, but limit yourself to 1-2 searches maximum to prevent context overflow.
+4. FINALLY, only suggest checklist items that are missing or incomplete according to your synthesis. You may do 1-2 targeted searches using searchCampaignContext ONLY if you need to verify a specific item's status that's unclear from getChecklistStatus and metadata, but limit yourself to 1-2 searches maximum to prevent context overflow.
 
-CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. If a checklist item appears in your search results as already established, skip it entirely and move to the next item.
+CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. Dynamically determine what's already set by analyzing the metadata and context, then skip those items entirely.
 
 Analyze what appears to be missing or incomplete based on the search results, and suggest 3-5 prioritized next steps from the checklist that would be most valuable to tackle. Focus on foundational elements first (Campaign Foundation, World & Setting Basics, Starting Location) before moving to later stages.
 
@@ -109,15 +112,18 @@ ${CAMPAIGN_PLANNING_CHECKLIST}
 
 MANDATORY WORKFLOW: Before suggesting ANY checklist items, you MUST follow this exact workflow:
 
-1. FIRST, call getChecklistStatus to retrieve the structured status and summaries for all tracked checklist items. This provides a quick, efficient view of what's been completed, what's incomplete, and brief summaries of what exists.
+1. FIRST, call getChecklistStatus to retrieve the structured status and summaries for all tracked checklist items. This is the PRIMARY source of truth - it contains asynchronously generated status (complete/partial/incomplete) and summaries for each checklist item based on entity counts, community analysis, and metadata. Use this structured data as your main reference.
 
-2. THEN, call showCampaignDetails to retrieve the campaign's description and metadata. Check the metadata for any additional fields that might indicate completed checklist items that aren't yet tracked in the checklist status.
+2. THEN, call showCampaignDetails to retrieve the campaign's description and metadata. Use this as a SUPPLEMENTARY source to cross-reference with getChecklistStatus results. The metadata may contain additional fields that indicate completed items, or it may confirm what getChecklistStatus already shows.
 
-3. THEN, analyze the checklist status (from getChecklistStatus) and campaign details (from showCampaignDetails). If either shows that an item is already established (status: "complete" or "partial"), that item is COMPLETE/PARTIAL and must NOT be recommended as a new item. Only suggest items that are missing or have status: "incomplete".
+3. THEN, synthesize both sources:
+   - PRIMARY: Use getChecklistStatus results - items marked as "complete" or "partial" are ALREADY ESTABLISHED and must NOT be recommended
+   - SUPPLEMENTARY: Use showCampaignDetails metadata to identify any additional completed items that might not yet be tracked in getChecklistStatus
+   - If either source shows an item is already established, that item is COMPLETE and must NOT be recommended
 
-4. FINALLY, only suggest checklist items where both the checklist status and campaign details show the item is missing or incomplete. You may do 1-2 targeted searches using searchCampaignContext ONLY if you need to verify a specific item's status, but limit yourself to 1-2 searches maximum to prevent context overflow.
+4. FINALLY, only suggest checklist items that are missing or incomplete according to your synthesis. You may do 1-2 targeted searches using searchCampaignContext ONLY if you need to verify a specific item's status that's unclear from getChecklistStatus and metadata, but limit yourself to 1-2 searches maximum to prevent context overflow.
 
-CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. If a checklist item appears in your search results as already established, skip it entirely and move to the next item.
+CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. Dynamically determine what's already set by analyzing the metadata and context, then skip those items entirely.
 
 Based on the search results and current campaign state, suggest 2-3 prioritized next steps from the checklist that would be most valuable to tackle. Focus on what logically follows from where the campaign currently stands, and prioritize based on dependencies (e.g., setting basics before factions, starting location before first arc, etc.). Make sure your recommendations are informed by what actually exists in the campaign data, not assumptions.`;
 }
