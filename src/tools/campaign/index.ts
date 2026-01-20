@@ -29,6 +29,7 @@ import {
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
 } from "../campaign-context/world-state-tools";
+import { updateEntityMetadataTool } from "../campaign-context/entity-tools";
 // Import file management tools for campaign operations
 import { listFiles, getFileStats } from "../file/index";
 import { noOpTool } from "../common/no-op-tool";
@@ -64,6 +65,7 @@ export {
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
+  updateEntityMetadataTool,
   noOpTool,
 };
 
@@ -93,5 +95,6 @@ export const campaignTools = {
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
+  updateEntityMetadataTool,
   noOpTool,
 };

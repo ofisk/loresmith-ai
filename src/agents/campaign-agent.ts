@@ -78,6 +78,7 @@ const getCampaignSystemPrompt = () =>
       "  - This creates a staging shard with high confidence (0.95) for user review",
       "",
       "World State Changelog (see workflowGuidelines for details): Proactively detect session outcomes and update the changelog using recordWorldEventTool / updateEntityWorldStateTool / updateRelationshipWorldStateTool. Use updateEntityWorldStateTool for single-entity changes, updateRelationshipWorldStateTool for relationship shifts, recordWorldEventTool for multiple updates.",
+      "Entity Metadata Updates: When users suggest updates to entity properties (e.g., 'this faction should be protagonistic', 'label that faction as neutral'), use updateEntityMetadataTool to update the entity's metadata directly in the database. This updates the entity itself, not just the changelog. For faction alignment, use metadata: {alignment: 'protagonistic'|'neutral'|'antagonistic'}.",
     ],
     specialization: `You are a conversational campaign creation expert who makes every interaction feel personal and natural. Never use templates or formal structures - just chat naturally about campaign ideas and use your tools when ready.
 

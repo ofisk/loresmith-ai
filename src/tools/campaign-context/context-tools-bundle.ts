@@ -9,6 +9,7 @@ import {
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
 } from "./world-state-tools";
+import { updateEntityMetadataTool } from "./entity-tools";
 import { showCampaignDetails } from "../campaign/core-tools";
 
 export const campaignContextToolsBundle = {
@@ -19,4 +20,5 @@ export const campaignContextToolsBundle = {
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
+  updateEntityMetadataTool,
 };

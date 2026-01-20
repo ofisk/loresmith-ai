@@ -8,6 +8,7 @@ import {
   extractUsernameFromJwt,
 } from "../utils";
 import { getDAOFactory } from "../../dao/dao-factory";
+import { WorldStateChangelogService } from "../../services/graph/world-state-changelog-service";
 import { PlanningContextService } from "../../services/rag/planning-context-service";
 import { EntityEmbeddingService } from "../../services/vectorize/entity-embedding-service";
 import { EntityGraphService } from "../../services/graph/entity-graph-service";
@@ -1004,9 +1005,59 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
               }
             }
 
+            // Get changelog overlay snapshot to include world state updates (e.g., faction alignment)
+            let changelogOverlay: Awaited<
+              ReturnType<WorldStateChangelogService["getOverlaySnapshot"]>
+            > | null = null;
+            let worldStateService: WorldStateChangelogService | null = null;
+            try {
+              worldStateService = new WorldStateChangelogService({
+                db: env.DB,
+              });
+              changelogOverlay =
+                await worldStateService.getOverlaySnapshot(campaignId);
+            } catch (error) {
+              console.warn(
+                "[Tool] searchCampaignContext - Failed to get changelog overlay:",
+                error
+              );
+              // Continue without overlay if it fails
+            }
+
             // Transform entities to match expected format, including relationships
             for (const entity of approvedEntities) {
               const relationships = entityRelationshipsMap.get(entity.id) || [];
+
+              // Apply changelog overlay to include world state updates (e.g., faction alignment)
+              let worldStateInfo = "";
+              if (changelogOverlay && worldStateService) {
+                const entityWithOverlay = worldStateService.applyEntityOverlay(
+                  entity,
+                  changelogOverlay
+                );
+
+                // Include world state metadata in the entity text so the agent can see it
+                if (entityWithOverlay.worldState) {
+                  const ws = entityWithOverlay.worldState;
+                  if (ws.metadata && typeof ws.metadata === "object") {
+                    const metadataStr = JSON.stringify(ws.metadata);
+                    if (metadataStr !== "{}") {
+                      worldStateInfo = `\n\n═══════════════════════════════════════════════════════\n`;
+                      worldStateInfo += `WORLD STATE UPDATES (FROM CHANGELOG)\n`;
+                      worldStateInfo += `═══════════════════════════════════════════════════════\n`;
+                      worldStateInfo += `CRITICAL: This information overrides any conflicting information in the entity content above.\n\n`;
+                      worldStateInfo += `Metadata: ${metadataStr}\n`;
+                      if (ws.status) {
+                        worldStateInfo += `Status: ${ws.status}\n`;
+                      }
+                      if (ws.description) {
+                        worldStateInfo += `Description: ${ws.description}\n`;
+                      }
+                      worldStateInfo += `\n`;
+                    }
+                  }
+                }
+              }
 
               // Build relationship summary for the AI with entity names
               const relationshipSummary = relationships.map((rel) => {
@@ -1082,12 +1133,18 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
               const finalScore =
                 semanticScore !== undefined ? semanticScore : 0.8; // Default score for entity matches
 
+              // Combine relationship header, entity content, and world state info
+              const entityText =
+                relationshipHeader +
+                JSON.stringify(entity.content) +
+                worldStateInfo;
+
               results.push({
                 type: "entity",
                 source: "entity_graph",
                 entityType: entity.entityType,
                 title: entity.name,
-                text: relationshipHeader + JSON.stringify(entity.content),
+                text: entityText,
                 score: finalScore, // Use semantic relevancy score when available
                 entityId: entity.id,
                 filename: entity.name,
