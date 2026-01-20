@@ -74,13 +74,13 @@ ${CAMPAIGN_PLANNING_CHECKLIST}
 
 MANDATORY WORKFLOW: Before suggesting ANY checklist items, you MUST follow this exact workflow:
 
-1. FIRST, call showCampaignDetails to retrieve the campaign's description and metadata. Check the metadata and description for any information that indicates completed checklist items. If showCampaignDetails fails (e.g., authentication error), proceed to step 2 - you can still find campaign information through searchCampaignContext.
+1. FIRST, call showCampaignDetails to retrieve the campaign's description and metadata. Check the metadata for fields that indicate completed checklist items (e.g., worldName, startingLocation, campaignTone, campaignTheme). Also check the campaign description for mentions of checklist items.
 
-2. THEN, for EACH checklist item you're considering recommending, you MUST search for existing information about that item using searchCampaignContext. This step is MANDATORY even if showCampaignDetails failed. For each item, search using relevant keywords (e.g., if considering recommending "Define campaign tone", search for "tone" or "campaign tone"; if considering "Define core themes", search for "themes" or "core themes"; if considering "Identify threats", search for "threats" or "emerging threat"). Use searchCampaignContext to find entities, session digests, or other campaign content that indicates the item is already established.
+2. THEN, do 2-4 BROAD searches using searchCampaignContext to understand what campaign information exists. Look at the checklist structure above and identify the main categories (e.g., Campaign Foundation, World & Setting Basics, Starting Location, Factions & Threats). For each main category you're considering recommending items from, do ONE broad search using keywords that would capture multiple related checklist items in that category. Do NOT search for each individual checklist item - use broad searches that cover entire categories.
 
-3. THEN, analyze both the campaign details (from showCampaignDetails, if successful) and search results. If either the campaign metadata/description OR search results show that an item is already established, that item is COMPLETE and must NOT be recommended.
+3. THEN, analyze the campaign details (from showCampaignDetails) and the broad search results. If either the campaign metadata/description OR the broad search results show that an item is already established, that item is COMPLETE and must NOT be recommended.
 
-4. FINALLY, only suggest checklist items where both the campaign details (if available) and searches show the item is missing or incomplete.
+4. FINALLY, only suggest checklist items where both the campaign details and broad searches show the item is missing or incomplete. If you're uncertain about a specific item after the broad searches, you may do ONE additional targeted search, but limit yourself to 2-3 targeted searches maximum to prevent context overflow.
 
 CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. If a checklist item appears in your search results as already established, skip it entirely and move to the next item.
 
@@ -109,13 +109,13 @@ ${CAMPAIGN_PLANNING_CHECKLIST}
 
 MANDATORY WORKFLOW: Before suggesting ANY checklist items, you MUST follow this exact workflow:
 
-1. FIRST, call showCampaignDetails to retrieve the campaign's description and metadata. Check the metadata and description for any information that indicates completed checklist items. If showCampaignDetails fails (e.g., authentication error), proceed to step 2 - you can still find campaign information through searchCampaignContext.
+1. FIRST, call showCampaignDetails to retrieve the campaign's description and metadata. Check the metadata for fields that indicate completed checklist items (e.g., worldName, startingLocation, campaignTone, campaignTheme). Also check the campaign description for mentions of checklist items.
 
-2. THEN, for EACH checklist item you're considering recommending, you MUST search for existing information about that item using searchCampaignContext. This step is MANDATORY even if showCampaignDetails failed. For each item, search using relevant keywords (e.g., if considering recommending "Define campaign tone", search for "tone" or "campaign tone"; if considering "Define core themes", search for "themes" or "core themes"; if considering "Identify threats", search for "threats" or "emerging threat"). Use searchCampaignContext to find entities, session digests, or other campaign content that indicates the item is already established.
+2. THEN, do 2-4 BROAD searches using searchCampaignContext to understand what campaign information exists. Look at the checklist structure above and identify the main categories (e.g., Campaign Foundation, World & Setting Basics, Starting Location, Factions & Threats). For each main category you're considering recommending items from, do ONE broad search using keywords that would capture multiple related checklist items in that category. Do NOT search for each individual checklist item - use broad searches that cover entire categories.
 
-3. THEN, analyze both the campaign details (from showCampaignDetails, if successful) and search results. If either the campaign metadata/description OR search results show that an item is already established, that item is COMPLETE and must NOT be recommended.
+3. THEN, analyze the campaign details (from showCampaignDetails) and the broad search results. If either the campaign metadata/description OR the broad search results show that an item is already established, that item is COMPLETE and must NOT be recommended.
 
-4. FINALLY, only suggest checklist items where both the campaign details (if available) and searches show the item is missing or incomplete.
+4. FINALLY, only suggest checklist items where both the campaign details and broad searches show the item is missing or incomplete. If you're uncertain about a specific item after the broad searches, you may do ONE additional targeted search, but limit yourself to 2-3 targeted searches maximum to prevent context overflow.
 
 CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. If a checklist item appears in your search results as already established, skip it entirely and move to the next item.
 
