@@ -405,10 +405,14 @@ export class Chat extends AIChatAgent<Env> {
         const messageData = lastUserMessage.data as {
           type: string;
           campaignId?: string;
+          jwt?: string;
         };
         const campaignId = messageData.campaignId;
+        // Use JWT from the current message data, not from stored jwtToken
+        // This ensures we use the fresh JWT that was sent with this request
+        const currentJwt = messageData.jwt || jwtToken;
 
-        if (campaignId && jwtToken) {
+        if (campaignId && currentJwt) {
           console.log(
             `[Chat] Context recap request detected for campaign: ${campaignId}`
           );
@@ -424,7 +428,7 @@ export class Chat extends AIChatAgent<Env> {
               "@/tools/general/recap-tools"
             );
             const recapResult = await generateContextRecapTool.execute(
-              { campaignId, jwt: jwtToken },
+              { campaignId, jwt: currentJwt },
               { env: this.env, toolCallId: "recap-request" } as any
             );
 
@@ -448,7 +452,7 @@ export class Chat extends AIChatAgent<Env> {
               targetAgentInstance.messages.push({
                 role: "user",
                 content: recapPrompt,
-                data: { campaignId, jwt: jwtToken },
+                data: { campaignId, jwt: currentJwt },
               });
 
               // Generate the recap using the agent
