@@ -73,6 +73,11 @@ const FILE_MAPPINGS = [
     dest: "Technical/Model-Configuration.md",
     process: true,
   },
+  {
+    src: "docs/CHECKLIST_STATUS_SYSTEM.md",
+    dest: "Technical/Checklist-Status-System.md",
+    process: true,
+  },
 ];
 
 function exec(cmd, options = {}) {
@@ -142,6 +147,7 @@ function createSidebar() {
 - [[Technical/Storage-Strategy|Storage Strategy]]
 - [[Technical/File-Analysis-System|File Analysis System]]
 - [[Technical/Model-Configuration|Model Configuration]]
+- [[Technical/Checklist-Status-System|Checklist Status System]]
 `;
 }
 
