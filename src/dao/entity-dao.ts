@@ -323,6 +323,21 @@ export class EntityDAO extends BaseDAOClass {
   }
 
   /**
+   * Get distinct campaign IDs that have entities
+   * Useful for batch processing campaigns that have entity data
+   */
+  async getCampaignIdsWithEntities(limit?: number): Promise<string[]> {
+    const sql = `
+      SELECT DISTINCT campaign_id
+      FROM entities
+      ORDER BY campaign_id
+      ${limit ? `LIMIT ${limit}` : ""}
+    `;
+    const results = await this.queryAll<{ campaign_id: string }>(sql, []);
+    return results.map((r) => r.campaign_id);
+  }
+
+  /**
    * Get entity IDs created after a specific timestamp
    */
   async getEntityIdsCreatedAfter(
@@ -341,19 +356,6 @@ export class EntityDAO extends BaseDAOClass {
       afterTimestamp,
     ]);
     return records.map((record) => record.id);
-  }
-
-  /**
-   * Get all distinct campaign IDs that have entities
-   */
-  async getCampaignIdsWithEntities(): Promise<string[]> {
-    const sql = `
-      SELECT DISTINCT campaign_id
-      FROM entities
-    `;
-
-    const records = await this.queryAll<{ campaign_id: string }>(sql, []);
-    return records.map((record) => record.campaign_id);
   }
 
   /**

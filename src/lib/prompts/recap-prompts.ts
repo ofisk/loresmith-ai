@@ -74,13 +74,13 @@ ${CAMPAIGN_PLANNING_CHECKLIST}
 
 MANDATORY WORKFLOW: Before suggesting ANY checklist items, you MUST follow this exact workflow:
 
-1. FIRST, call showCampaignDetails to retrieve the campaign's description and metadata. Check the metadata for fields that indicate completed checklist items (e.g., worldName, startingLocation, campaignTone, campaignTheme). Also check the campaign description for mentions of checklist items.
+1. FIRST, call getChecklistStatus to retrieve the structured status and summaries for all tracked checklist items. This provides a quick, efficient view of what's been completed, what's incomplete, and brief summaries of what exists.
 
-2. THEN, do 2-4 BROAD searches using searchCampaignContext to understand what campaign information exists. Look at the checklist structure above and identify the main categories (e.g., Campaign Foundation, World & Setting Basics, Starting Location, Factions & Threats). For each main category you're considering recommending items from, do ONE broad search using keywords that would capture multiple related checklist items in that category. Do NOT search for each individual checklist item - use broad searches that cover entire categories.
+2. THEN, call showCampaignDetails to retrieve the campaign's description and metadata. Check the metadata for any additional fields that might indicate completed checklist items that aren't yet tracked in the checklist status.
 
-3. THEN, analyze the campaign details (from showCampaignDetails) and the broad search results. If either the campaign metadata/description OR the broad search results show that an item is already established, that item is COMPLETE and must NOT be recommended.
+3. THEN, analyze the checklist status (from getChecklistStatus) and campaign details (from showCampaignDetails). If either shows that an item is already established (status: "complete" or "partial"), that item is COMPLETE/PARTIAL and must NOT be recommended as a new item. Only suggest items that are missing or have status: "incomplete".
 
-4. FINALLY, only suggest checklist items where both the campaign details and broad searches show the item is missing or incomplete. If you're uncertain about a specific item after the broad searches, you may do ONE additional targeted search, but limit yourself to 2-3 targeted searches maximum to prevent context overflow.
+4. FINALLY, only suggest checklist items where both the checklist status and campaign details show the item is missing or incomplete. You may do 1-2 targeted searches using searchCampaignContext ONLY if you need to verify a specific item's status, but limit yourself to 1-2 searches maximum to prevent context overflow.
 
 CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. If a checklist item appears in your search results as already established, skip it entirely and move to the next item.
 
@@ -109,13 +109,13 @@ ${CAMPAIGN_PLANNING_CHECKLIST}
 
 MANDATORY WORKFLOW: Before suggesting ANY checklist items, you MUST follow this exact workflow:
 
-1. FIRST, call showCampaignDetails to retrieve the campaign's description and metadata. Check the metadata for fields that indicate completed checklist items (e.g., worldName, startingLocation, campaignTone, campaignTheme). Also check the campaign description for mentions of checklist items.
+1. FIRST, call getChecklistStatus to retrieve the structured status and summaries for all tracked checklist items. This provides a quick, efficient view of what's been completed, what's incomplete, and brief summaries of what exists.
 
-2. THEN, do 2-4 BROAD searches using searchCampaignContext to understand what campaign information exists. Look at the checklist structure above and identify the main categories (e.g., Campaign Foundation, World & Setting Basics, Starting Location, Factions & Threats). For each main category you're considering recommending items from, do ONE broad search using keywords that would capture multiple related checklist items in that category. Do NOT search for each individual checklist item - use broad searches that cover entire categories.
+2. THEN, call showCampaignDetails to retrieve the campaign's description and metadata. Check the metadata for any additional fields that might indicate completed checklist items that aren't yet tracked in the checklist status.
 
-3. THEN, analyze the campaign details (from showCampaignDetails) and the broad search results. If either the campaign metadata/description OR the broad search results show that an item is already established, that item is COMPLETE and must NOT be recommended.
+3. THEN, analyze the checklist status (from getChecklistStatus) and campaign details (from showCampaignDetails). If either shows that an item is already established (status: "complete" or "partial"), that item is COMPLETE/PARTIAL and must NOT be recommended as a new item. Only suggest items that are missing or have status: "incomplete".
 
-4. FINALLY, only suggest checklist items where both the campaign details and broad searches show the item is missing or incomplete. If you're uncertain about a specific item after the broad searches, you may do ONE additional targeted search, but limit yourself to 2-3 targeted searches maximum to prevent context overflow.
+4. FINALLY, only suggest checklist items where both the checklist status and campaign details show the item is missing or incomplete. You may do 1-2 targeted searches using searchCampaignContext ONLY if you need to verify a specific item's status, but limit yourself to 1-2 searches maximum to prevent context overflow.
 
 CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. If a checklist item appears in your search results as already established, skip it entirely and move to the next item.
 

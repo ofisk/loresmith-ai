@@ -12,6 +12,7 @@ import {
 import { updateEntityMetadataTool } from "./entity-tools";
 import { showCampaignDetails } from "../campaign/core-tools";
 import { getMessageHistory } from "../message-history-tools";
+import { getChecklistStatusTool } from "./checklist-tools";
 
 export const campaignContextToolsBundle = {
   searchCampaignContext,
@@ -23,4 +24,5 @@ export const campaignContextToolsBundle = {
   updateRelationshipWorldStateTool,
   updateEntityMetadataTool,
   getMessageHistory,
+  getChecklistStatusTool,
 };

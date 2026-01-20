@@ -23,6 +23,7 @@ import {
   buildResourceRemovalResponse,
 } from "@/lib/response-builders";
 import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
+import { ChecklistStatusService } from "@/services/campaign/checklist-status-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -238,6 +239,29 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
     await campaignDAO.updateCampaign(campaignId, updateData);
 
     console.log(`[Server] Updated campaign ${campaignId}`);
+
+    // Update checklist status if metadata was updated
+    if (body.metadata !== undefined) {
+      try {
+        const checklistStatusService = new ChecklistStatusService(
+          c.env.DB,
+          c.env
+        );
+        await checklistStatusService.updateFromMetadata(
+          campaignId,
+          mergedMetadata
+        );
+        console.log(
+          "[handleUpdateCampaign] Updated checklist status from metadata"
+        );
+      } catch (checklistError) {
+        console.error(
+          "[handleUpdateCampaign] Failed to update checklist status:",
+          checklistError
+        );
+        // Don't fail campaign update if checklist status update fails
+      }
+    }
 
     // Sync updated campaign info
     try {

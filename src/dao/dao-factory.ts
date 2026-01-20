@@ -13,6 +13,7 @@ import { SessionDigestDAO } from "./session-digest-dao";
 import { SessionDigestTemplateDAO } from "./session-digest-template-dao";
 import { RebuildStatusDAO } from "./rebuild-status-dao";
 import { MessageHistoryDAO } from "./message-history-dao";
+import { ChecklistStatusDAO } from "./checklist-status-dao";
 
 // Cache for DAO factory instances
 const daoFactoryCache = new Map<string, DAOFactory>();
@@ -35,6 +36,7 @@ export interface DAOFactory {
   sessionDigestTemplateDAO: SessionDigestTemplateDAO;
   rebuildStatusDAO: RebuildStatusDAO;
   messageHistoryDAO: MessageHistoryDAO;
+  checklistStatusDAO: ChecklistStatusDAO;
 
   // Convenience methods for common operations
   storeOpenAIKey(username: string, apiKey: string): Promise<void>;
@@ -57,6 +59,7 @@ export class DAOFactoryImpl implements DAOFactory {
   public readonly sessionDigestTemplateDAO: SessionDigestTemplateDAO;
   public readonly rebuildStatusDAO: RebuildStatusDAO;
   public readonly messageHistoryDAO: MessageHistoryDAO;
+  public readonly checklistStatusDAO: ChecklistStatusDAO;
 
   constructor(db: D1Database) {
     this.userDAO = new UserDAO(db);
@@ -71,6 +74,7 @@ export class DAOFactoryImpl implements DAOFactory {
     this.sessionDigestTemplateDAO = new SessionDigestTemplateDAO(db);
     this.rebuildStatusDAO = new RebuildStatusDAO(db);
     this.messageHistoryDAO = new MessageHistoryDAO(db);
+    this.checklistStatusDAO = new ChecklistStatusDAO(db);
   }
 
   // Convenience methods for common operations

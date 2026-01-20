@@ -7,6 +7,7 @@ import type { Env } from "./middleware/auth";
 import { ChunkedProcessingService } from "./services/file/chunked-processing-service";
 import { SyncQueueService } from "./services/file/sync-queue-service";
 import { EntityExtractionQueueService } from "./services/campaign/entity-extraction-queue-service";
+import { ChecklistStatusService } from "./services/campaign/checklist-status-service";
 import { RebuildQueueProcessor } from "./services/graph/rebuild-queue-processor";
 import type { RebuildQueueMessage } from "./types/rebuild-queue";
 import { RebuildQueueService } from "./services/graph/rebuild-queue-service";
@@ -307,6 +308,14 @@ export async function scheduled(
 
   // Check campaigns and trigger rebuilds if needed
   await checkAndTriggerRebuilds(env);
+
+  // Analyze checklist status for all campaigns (async, non-blocking)
+  ChecklistStatusService.analyzeAllCampaigns(env).catch((error) => {
+    console.error(
+      "[Scheduled] Failed to analyze checklist status for campaigns:",
+      error
+    );
+  });
 }
 
 /**
