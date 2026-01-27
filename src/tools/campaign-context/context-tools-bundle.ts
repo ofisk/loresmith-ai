@@ -9,7 +9,10 @@ import {
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
 } from "./world-state-tools";
-import { updateEntityMetadataTool } from "./entity-tools";
+import {
+  updateEntityMetadataTool,
+  updateEntityTypeTool,
+} from "./entity-tools";
 import { showCampaignDetails } from "../campaign/core-tools";
 import { getMessageHistory } from "../message-history-tools";
 import { getChecklistStatusTool } from "./checklist-tools";
@@ -23,6 +26,7 @@ export const campaignContextToolsBundle = {
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
   updateEntityMetadataTool,
+  updateEntityTypeTool,
   getMessageHistory,
   getChecklistStatusTool,
 };

@@ -64,6 +64,7 @@ export interface UpdateEntityInput {
   sourceType?: string | null;
   sourceId?: string | null;
   embeddingId?: string | null;
+  entityType?: string;
 }
 
 // Raw row structure for the `entity_relationships` table. Matches the D1 schema
@@ -231,6 +232,11 @@ export class EntityDAO extends BaseDAOClass {
     if (updates.embeddingId !== undefined) {
       setClauses.push("embedding_id = ?");
       values.push(updates.embeddingId);
+    }
+
+    if (updates.entityType !== undefined) {
+      setClauses.push("entity_type = ?");
+      values.push(updates.entityType);
     }
 
     if (setClauses.length === 0) {
