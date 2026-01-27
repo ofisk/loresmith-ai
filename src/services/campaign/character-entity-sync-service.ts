@@ -27,8 +27,24 @@ export class CharacterEntitySyncService {
     // Use contextId as part of the entity ID to ensure uniqueness
     const entityId = `${campaignId}_${contextId}`;
 
-    // Check if entity already exists
-    const existingEntity = await entityDAO.getEntityById(entityId);
+    // Check if entity already exists by ID
+    let existingEntity = await entityDAO.getEntityById(entityId);
+
+    // If not found by ID, check for duplicates by name
+    if (!existingEntity) {
+      existingEntity = await entityDAO.findDuplicateByName(
+        campaignId,
+        characterName,
+        ENTITY_TYPE_PCS
+      );
+      if (existingEntity) {
+        // Use the existing entity's ID instead of creating a new one
+        // This prevents duplicates when the same character is synced multiple times
+        console.log(
+          `[CharacterEntitySync] Found duplicate entity by name "${characterName}", using existing ID: ${existingEntity.id}`
+        );
+      }
+    }
 
     // Prepare entity content
     const entityContent = {
@@ -45,8 +61,8 @@ export class CharacterEntitySyncService {
     };
 
     if (existingEntity) {
-      // Update existing entity
-      await entityDAO.updateEntity(entityId, {
+      // Update existing entity (use existing ID, not the generated one)
+      await entityDAO.updateEntity(existingEntity.id, {
         name: characterName,
         content: entityContent,
         metadata: {

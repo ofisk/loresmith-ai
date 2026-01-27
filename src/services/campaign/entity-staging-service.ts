@@ -463,7 +463,24 @@ export async function stageEntitiesFromResource(
         });
         updatedCount++;
       } else {
-        // Entity doesn't exist by ID - check for semantic duplicates
+        // Entity doesn't exist by ID - check for duplicates by name first
+        const duplicateByName = await daoFactory.entityDAO.findDuplicateByName(
+          campaignId,
+          extracted.name,
+          extracted.entityType,
+          entityId
+        );
+
+        if (duplicateByName) {
+          // Found a duplicate with the same name and type - skip creating
+          console.log(
+            `[EntityStagingService] Skipping duplicate entity by name: "${extracted.name}" (type: ${extracted.entityType})`
+          );
+          duplicateCount++;
+          continue;
+        }
+
+        // Check for semantic duplicates (different name but similar content)
         const entityText =
           typeof extracted.content === "string"
             ? extracted.content

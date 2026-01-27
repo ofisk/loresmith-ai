@@ -161,7 +161,7 @@ function calculateNameSimilarity(query: string, entityName: string): number {
     return 0.6;
   }
 
-  // Check for word-level matches (e.g., "ape clan" vs "Ape Clan")
+  // Check for word-level matches (e.g., "entity name" vs "Entity Name")
   const queryWords = normalizedQuery.split(/\s+/);
   const entityWords = normalizedEntityName.split(/\s+/);
   const matchingWords = queryWords.filter((word) => entityWords.includes(word));
@@ -1556,7 +1556,7 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
         });
 
         // Filter results to prioritize strong name matches when they exist
-        // This ensures queries like "tell me about the ape clan" focus on that specific entity
+        // This ensures queries like "tell me about [entity name]" focus on that specific entity
         // Note: entityNameSimilarityScores and hasStrongNameMatches are declared at function scope (line ~340)
         let finalResults = results;
         if (hasStrongNameMatches && entityNameSimilarityScores.size > 0) {
@@ -1695,6 +1695,8 @@ CRITICAL: This tool is specifically for listing ALL entities. For searching/filt
 AVAILABLE ENTITY TYPES: ${ENTITY_TYPES_LIST}. When users use synonyms (e.g., "beasts", "creatures" for monsters; "people", "characters" for NPCs; "places" for locations), you MUST map them to the correct entity type name. Examples: "beasts" or "creatures" → use "monsters"; "people" or "characters" (when referring to NPCs) → use "npcs"; "player characters" or "PCs" → use "pcs"; "places" → use "locations".
 
 IMPORTANT: Distinguish between "npcs" (non-player characters controlled by the GM) and "pcs" (player-controlled characters). When users ask for "characters", determine if they mean NPCs or player characters based on context. If they say "player characters", "PCs", or refer to characters that players control, use "pcs". If they mean NPCs or characters the GM controls, use "npcs".
+
+DUPLICATE DETECTION: This tool automatically detects duplicate entities (entities with the same name, case-insensitive) and includes a "duplicates" field in the response. If duplicates are found, you MUST proactively inform the user and offer to help consolidate them.
 
 This tool will automatically fetch all pages and return the complete list. No manual pagination is needed.`,
   parameters: z.object({
@@ -1837,14 +1839,63 @@ This tool will automatically fetch all pages and return the complete list. No ma
         return nameA.localeCompare(nameB);
       });
 
+      // Detect duplicates by name (case-insensitive)
+      const nameCounts = new Map<
+        string,
+        { count: number; entityIds: string[] }
+      >();
+      for (const entity of results) {
+        const normalizedName = (
+          entity.name ||
+          entity.title ||
+          entity.display_name ||
+          ""
+        )
+          .toLowerCase()
+          .trim();
+        if (normalizedName) {
+          const existing = nameCounts.get(normalizedName) || {
+            count: 0,
+            entityIds: [],
+          };
+          existing.count++;
+          existing.entityIds.push(entity.id);
+          nameCounts.set(normalizedName, existing);
+        }
+      }
+
+      const duplicates: Array<{
+        name: string;
+        count: number;
+        entityIds: string[];
+      }> = [];
+      for (const [name, data] of nameCounts.entries()) {
+        if (data.count > 1) {
+          duplicates.push({
+            name,
+            count: data.count,
+            entityIds: data.entityIds,
+          });
+        }
+      }
+
       const entityTypeLabel = entityType ? ` (${entityType})` : "";
+      let message = `Found ${totalCount} total shards${entityTypeLabel}. Results are sorted alphabetically by name.`;
+
+      if (duplicates.length > 0) {
+        const duplicateNames = duplicates
+          .map((d) => `"${d.name}" (${d.count} entries)`)
+          .join(", ");
+        message += ` WARNING: Detected duplicate entities: ${duplicateNames}. Consider consolidating or deleting duplicates.`;
+      }
 
       return createToolSuccess(
-        `Found ${totalCount} total shards${entityTypeLabel}. Results are sorted alphabetically by name.`,
+        message,
         {
           entityType: entityType || null,
           results,
           totalCount,
+          duplicates: duplicates.length > 0 ? duplicates : undefined,
         },
         toolCallId
       );

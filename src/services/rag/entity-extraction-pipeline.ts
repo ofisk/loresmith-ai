@@ -70,6 +70,23 @@ export class EntityExtractionPipeline {
         );
       }
 
+      // Also check for duplicates by name only (regardless of type)
+      // This helps catch cases where an entity was misclassified or has duplicates
+      if (!existing) {
+        const duplicateByName = await this.entityDAO.findDuplicateByName(
+          options.campaignId,
+          extracted.name
+        );
+        if (duplicateByName) {
+          // Found a duplicate with different type - use the existing one to avoid creating duplicates
+          // This ensures entities with the same name are consolidated
+          existing = duplicateByName;
+          console.log(
+            `[EntityExtractionPipeline] Found duplicate entity by name "${extracted.name}" (existing type: ${duplicateByName.entityType}, extracted type: ${extracted.entityType}). Using existing entity to avoid duplication.`
+          );
+        }
+      }
+
       const entityPayload = {
         content: extracted.content,
         metadata: extracted.metadata,

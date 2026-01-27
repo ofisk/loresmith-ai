@@ -29,7 +29,11 @@ import {
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
 } from "../campaign-context/world-state-tools";
-import { updateEntityMetadataTool } from "../campaign-context/entity-tools";
+import {
+  updateEntityMetadataTool,
+  updateEntityTypeTool,
+  deleteEntityTool,
+} from "../campaign-context/entity-tools";
 // Import file management tools for campaign operations
 import { listFiles, getFileStats } from "../file/index";
 import { noOpTool } from "../common/no-op-tool";
@@ -66,6 +70,8 @@ export {
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
   updateEntityMetadataTool,
+  updateEntityTypeTool,
+  deleteEntityTool,
   noOpTool,
 };
 
@@ -96,5 +102,7 @@ export const campaignTools = {
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
   updateEntityMetadataTool,
+  updateEntityTypeTool,
+  deleteEntityTool,
   noOpTool,
 };
