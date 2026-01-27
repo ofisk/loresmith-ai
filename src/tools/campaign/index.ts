@@ -23,7 +23,10 @@ import {
   captureConversationalContext,
   saveContextExplicitly,
 } from "../campaign-context/context-capture-tools";
-import { searchCampaignContext } from "../campaign-context/search-tools";
+import {
+  searchCampaignContext,
+  listAllEntities,
+} from "../campaign-context/search-tools";
 import {
   recordWorldEventTool,
   updateEntityWorldStateTool,
@@ -66,6 +69,7 @@ export {
   captureConversationalContext,
   saveContextExplicitly,
   searchCampaignContext,
+  listAllEntities,
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
@@ -98,6 +102,7 @@ export const campaignTools = {
   captureConversationalContext,
   saveContextExplicitly,
   searchCampaignContext,
+  listAllEntities,
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
