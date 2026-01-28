@@ -230,7 +230,7 @@ function buildGenerationPrompt(
     templateGuidance = `\n\nUse the following template as a guide for structure and style, but adapt the content to match the actual session notes:\n${JSON.stringify(templateData, null, 2)}`;
   }
 
-  return `You are generating a structured session digest for a D&D/TTRPG campaign from unstructured session notes.
+  return `You are generating a structured session digest for a tabletop RPG campaign from unstructured session notes.
 
 Campaign: ${campaignName}
 Session Number: ${sessionNumber}
@@ -251,7 +251,7 @@ Extract and organize the following information into a structured session digest 
    - **open_threads**: Array of strings describing unresolved plot threads or questions raised (e.g., "Who is the mysterious figure watching the party?", "What happened to the missing artifact?")
 
 2. **next_session_plan**:
-   - **objectives_dm**: Array of strings describing what the DM wants to accomplish next session
+   - **objectives_dm**: Array of strings describing what the game master wants to accomplish next session
    - **probable_player_goals**: Array of strings predicting what the players will likely try to do
    - **beats**: Array of strings describing planned story beats or scenes
    - **if_then_branches**: Array of strings describing conditional scenarios (e.g., "If players investigate the ruins, reveal ancient inscriptions")
@@ -266,7 +266,7 @@ Extract and organize the following information into a structured session digest 
 
 7. **treasure_and_rewards**: Array of strings describing items, gold, or other rewards the party received
 
-8. **todo_checklist**: Array of strings describing preparation tasks the DM needs to complete before next session
+8. **todo_checklist**: Array of strings describing preparation tasks the game master needs to complete before next session
 
 Important guidelines:
 - Extract information from the notes - do not invent details that aren't mentioned

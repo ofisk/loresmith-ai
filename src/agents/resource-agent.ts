@@ -45,8 +45,6 @@ const RESOURCE_SYSTEM_PROMPT = buildSystemPrompt({
     "When users ask to auto-generate metadata for existing files, use autoGenerateFileMetadata tool",
     "When users ask to delete files, call the deleteFile tool",
     "When users ask to delete 'all' or 'all resources', ALWAYS call listFiles first to get the current list of files, then call deleteFile for each file individually. NEVER use cached file information.",
-    "Update metadata as needed with updateFileMetadata",
-    "Auto-generate metadata for existing files with autoGenerateFileMetadata",
     "NEVER try to add files to campaigns - that's handled by the campaign agent",
     "Inform users that files are processed asynchronously after upload - they will be searchable once indexing is complete",
   ],
