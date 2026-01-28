@@ -443,14 +443,14 @@ export const createEntityRelationshipTool = tool({
  */
 export const updateEntityMetadataTool = tool({
   description:
-    "Update entity metadata directly in the database. Use this when users suggest updates to entity properties like faction alignment (protagonistic/neutral/antagonistic), status, or other metadata. This updates the entity itself, not just the changelog. For example, if a user says 'this faction should be protagonistic', use this tool to update the entity's metadata with {alignment: 'protagonistic'}.",
+    "Update entity metadata directly in the database. Use this when users suggest updates to entity properties like faction alignment (protagonistic/neutral/antagonistic), status, or other metadata. This updates the entity itself, not just the changelog. For example, if a user says 'this faction should be protagonistic', use this tool to update the entity's metadata with {alignment: 'protagonistic'}. IMPORTANT: The metadata parameter is REQUIRED - you must provide an object with the fields to update (e.g., {alignment: 'protagonistic'}). Do NOT use this tool for consolidation requests - use searchCampaignContext to synthesize information instead.",
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
-    entityId: z.string().describe("The ID of the entity to update."),
+    entityId: z.string().describe("The ID of the entity to update. Must be a real entity ID from the database, not a placeholder."),
     metadata: z
       .record(z.unknown())
       .describe(
-        "Metadata to update. This will be merged with existing metadata. For faction alignment, use {alignment: 'protagonistic'|'neutral'|'antagonistic'}."
+        "REQUIRED: Metadata to update. This will be merged with existing metadata. Must be an object (e.g., {alignment: 'protagonistic'|'neutral'|'antagonistic'}). For faction alignment, use {alignment: 'protagonistic'|'neutral'|'antagonistic'}."
       ),
     jwt: commonSchemas.jwt,
   }),
