@@ -1702,14 +1702,18 @@ This tool will automatically fetch all pages and return the complete list. No ma
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
     entityType: z
-      .enum([
-        ...STRUCTURED_ENTITY_TYPES,
-        "character", // Maps to "characters" in database
-        "resource", // Maps to "resources" in database
-      ] as [string, ...string[]])
-      .optional()
+      .preprocess(
+        (val) => (val === "" ? undefined : val),
+        z
+          .enum([
+            ...STRUCTURED_ENTITY_TYPES,
+            "character", // Maps to "characters" in database
+            "resource", // Maps to "resources" in database
+          ] as [string, ...string[]])
+          .optional()
+      )
       .describe(
-        `Optional entity type to filter by. Available types: ${ENTITY_TYPES_LIST}. If not provided, returns all entity types.`
+        `Optional entity type to filter by. Available types: ${ENTITY_TYPES_LIST}. If not provided or empty string, returns all entity types.`
       ),
     jwt: commonSchemas.jwt,
   }),
@@ -1758,13 +1762,15 @@ This tool will automatically fetch all pages and return the complete list. No ma
       }
 
       // Map entity type names to database entity types (same as searchCampaignContext)
+      // Also handle empty strings as undefined (safety check)
       const entityTypeMap: Record<string, string> = {
         characters: "character",
         resources: "resource",
       };
-      const targetEntityType = entityType
-        ? entityTypeMap[entityType] || entityType
-        : null;
+      const targetEntityType =
+        entityType && entityType.trim() !== ""
+          ? entityTypeMap[entityType] || entityType
+          : null;
 
       // Get total count first
       const totalCount = await daoFactory.entityDAO.getEntityCountByCampaign(
