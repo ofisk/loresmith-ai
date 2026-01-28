@@ -156,7 +156,7 @@ async function submitWorldStateChange(
 
 export const recordWorldEventTool = tool({
   description:
-    "Record a world state changelog entry capturing multiple entity/relationship updates or new entities at once.",
+    "Record world state changelog entries for multiple entity/relationship updates or new entities. Use newEntities when users provide entity information. Extract names/types, generate entity IDs as 'campaignId_entity-name-slug'.",
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
     campaignSessionId: z
@@ -164,9 +164,7 @@ export const recordWorldEventTool = tool({
       .int()
       .nullable()
       .optional()
-      .describe(
-        "Optional game session number this change belongs to (e.g., Session 5)."
-      ),
+      .describe("Optional game session number this change belongs to."),
     timestamp: z
       .string()
       .optional()
@@ -243,9 +241,7 @@ export const updateEntityWorldStateTool = tool({
       .int()
       .nullable()
       .optional()
-      .describe(
-        "Optional game session number for the change (e.g., Session 5)."
-      ),
+      .describe("Optional game session number for the change."),
     timestamp: z
       .string()
       .optional()
@@ -318,7 +314,7 @@ export const updateRelationshipWorldStateTool = tool({
       .int()
       .nullable()
       .optional()
-      .describe("Optional game session number (e.g., Session 5)."),
+      .describe("Optional game session number."),
     timestamp: z
       .string()
       .optional()

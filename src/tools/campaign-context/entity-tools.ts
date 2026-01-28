@@ -443,10 +443,14 @@ export const createEntityRelationshipTool = tool({
  */
 export const updateEntityMetadataTool = tool({
   description:
-    "Update entity metadata directly in the database. Use this ONLY when users explicitly suggest updates to entity metadata properties like faction alignment (protagonistic/neutral/antagonistic), status, or other metadata fields. This updates the entity itself, not just the changelog. For example, if a user says 'this faction should be protagonistic', use this tool to update the entity's metadata with {alignment: 'protagonistic'}. IMPORTANT: (1) The metadata parameter is REQUIRED - you must provide an object with the fields to update (e.g., {alignment: 'protagonistic'}). (2) The entityId must be a REAL entity ID from the database (obtained via searchCampaignContext or listAllEntities), NOT an entity name or placeholder. (3) Do NOT use this tool for: consolidation requests (use searchCampaignContext instead), creating new entities (entities must exist first), or when users are just providing information about entities (use searchCampaignContext to find/create entities instead).",
+    "Update metadata for EXISTING entities (e.g., faction alignment: protagonistic/neutral/antagonistic). REQUIRED: metadata must be an object (e.g., {alignment: 'protagonistic'}). entityId must be a real database ID from searchCampaignContext/listAllEntities, not a name or placeholder. Do NOT use for: consolidation (use searchCampaignContext), creating entities (use recordWorldEventTool with newEntities), or entity information provision (use recordWorldEventTool). Search first if unsure entity exists.",
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
-    entityId: z.string().describe("The ID of the entity to update. Must be a real entity ID from the database, not a placeholder."),
+    entityId: z
+      .string()
+      .describe(
+        "The ID of the entity to update. Must be a real entity ID from the database, not a placeholder."
+      ),
     metadata: z
       .record(z.unknown())
       .describe(

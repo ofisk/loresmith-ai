@@ -41,7 +41,7 @@ Session Digest:
 ${JSON.stringify(digestData, null, 2)}
 
 For each entry in the digest, evaluate whether it is:
-- Specific and concrete (e.g., "The party discovered a hidden chamber beneath the old tavern containing three ancient artifacts")
+- Specific and concrete (e.g., "The party discovered a hidden chamber beneath [location] containing three ancient artifacts")
 - Vague or generic (e.g., "Things happened", "Stuff occurred", "Various events", "etc.", "...", "and more")
 
 Look for:
