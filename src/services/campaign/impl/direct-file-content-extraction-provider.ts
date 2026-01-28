@@ -61,7 +61,9 @@ export class DirectFileContentExtractionProvider
         isPDF = true;
       } else if (
         contentType?.includes("text") ||
-        resource.file_name?.endsWith(".txt")
+        resource.file_name?.endsWith(".txt") ||
+        resource.file_name?.endsWith(".md") ||
+        resource.file_name?.endsWith(".mdx")
       ) {
         extractedText = new TextDecoder().decode(fileBuffer);
       } else if (

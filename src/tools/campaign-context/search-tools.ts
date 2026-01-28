@@ -183,35 +183,21 @@ function calculateNameSimilarity(query: string, entityName: string): number {
 
 // Tool to search campaign context
 export const searchCampaignContext = tool({
-  description: `Search through campaign context using semantic search and graph traversal. 
+  description: `Search campaign context via semantic search and graph traversal. Use FIRST for entities "from my campaign" or "in my world" - retrieves APPROVED entities. Never use searchExternalResources for campaign entities.
 
-CRITICAL: Use this tool FIRST when users ask about entities "from my campaign", "in my world", "I've created", or similar phrases indicating existing campaign content. This tool retrieves the user's APPROVED entities (shards) that they've already added to their campaign. NEVER use searchExternalResources for entities the user has in their campaign.
+Call ONCE: Map synonyms (e.g., "monsters or beasts") to correct entity type, call once with mapped type.
 
-CRITICAL - CALL THIS TOOL ONLY ONCE: When users mention multiple synonyms (e.g., "monsters or beasts", "beasts or creatures"), these are synonyms for the SAME entity type. You MUST map all synonyms to the correct entity type name and call this tool ONCE with that mapped type. DO NOT call this tool multiple times with different synonyms.
+Entity types: ${ENTITY_TYPES_LIST}. Map synonyms: "beasts"/"creatures" → "monsters", "people"/"characters" (NPCs) → "npcs", "places" → "locations".
 
-SEMANTIC SEARCH: Searches entities via semantic similarity. Entity results include their actual relationships from the entity graph, showing which entities are connected and how (e.g., 'resides_in', 'located_in', 'allied_with'). The tool automatically expands results to include other entities from the same communities as the initially found entities, providing better contextual coverage. Use this to find relevant entities across all entity types including: ${ENTITY_TYPES_LIST}. 
+For "list all" requests, use listAllEntities instead.
 
-QUERY SYNTAX: The query string automatically infers search intent:
-- "fire monsters" → searches for monsters matching "fire" 
-- "context: session notes" → searches session digests (optional, for backward compatibility - note that session digests are temporary and get parsed into entities)
+Query syntax: "fire monsters" searches monsters matching "fire". "context: session notes" searches session digests.
 
-CRITICAL - USE listAllEntities FOR "LIST ALL" REQUESTS: When users explicitly ask to "list all" entities (e.g., "list all locations", "show all monsters", "all NPCs"), you MUST use the listAllEntities tool instead of this tool. The listAllEntities tool automatically handles pagination and returns all results in one response. DO NOT use searchCampaignContext for "list all" requests.
+Graph traversal: Start with traverseDepth=1, use traverseRelationshipTypes filter, increase depth only if needed.
 
-AVAILABLE ENTITY TYPES: The tool recognizes these entity types: ${ENTITY_TYPES_LIST}. When users use synonyms or alternative terms (e.g., "beasts", "creatures" for monsters; "people", "characters" for NPCs; "places" for locations), you MUST map them to the correct entity type name before including in the query. For example: "beasts" or "creatures" → use "monsters" in query; "people" or "characters" (when referring to NPCs) → use "npcs" in query; "places" → use "locations" in query.
+"X within Y" queries: Search for parent entity first to get ID, then use traverseFromEntityIds with appropriate relationship types.
 
-CRITICAL - SYNONYM MAPPING: When users specify entity types in their request (e.g., "monsters", "beasts", "creatures", "NPCs", "locations"), you MUST: (1) Map ALL synonyms to the correct entity type name from the list above, (2) Call this tool ONCE with that mapped entity type in the query parameter. Examples: User says "monsters or beasts from my campaign" → call ONCE with query="monsters" (NOT twice with "monsters" and "beasts"). User says "beasts or creatures" → call ONCE with query="monsters". Do NOT use an empty query when entity types are specified - this will return ALL entities including unwanted types (e.g., NPCs when user asked for monsters).
-
-APPROVED ENTITIES AS CREATIVE BOUNDARIES: Approved entities (shards) in the campaign form the structural foundation for your responses. When users ask you to work with entities (creatures, NPCs, locations, etc.) from their campaign, you MUST first retrieve the relevant approved entities using this tool. These approved entities define the boundaries of what exists in their world. Within those boundaries, use your creative reasoning to interpret, match, adapt, or elaborate on the entities based on the user's request. The approved entities provide the outline - you fill in the creative details within that outline. For example, if asked to match creatures to themes, retrieve the user's approved creatures first (using query="monsters" to list all monsters), then creatively analyze how they might align with those themes based on their characteristics, even if the theme keywords aren't explicitly in the entity metadata.
-
-GRAPH TRAVERSAL OPTIMIZATION: After finding entities via semantic search, use graph traversal to explore connected entities. PERFORMANCE TIP: Start with traverseDepth=1 (direct neighbors only) and only increase to depth 2 or 3 if the initial results are insufficient. Always use traverseRelationshipTypes filter when possible to reduce traversal scope (e.g., ['resides_in', 'located_in'] for location queries). This significantly improves query performance. Only traverse if the initial semantic search results don't provide enough context - many queries can be answered with just the initial search results without traversal. 
-
-CRITICAL - "X within Y" QUERIES: When users ask for entities "within" or "inside" another entity (e.g., "locations within [location]", "NPCs in [place]"), you MUST first identify the parent entity before searching for contained entities. Workflow: (1) Search for the parent entity to find its entity ID, (2) Use traverseFromEntityIds with that parent entity ID and appropriate traverseRelationshipTypes (e.g., ['located_in'] for locations within a location) to find entities contained within the parent. You may need multiple traversal steps depending on the query complexity. Do NOT just search for the entity type alone - that returns all entities of that type across the entire campaign, not just those within the specified parent.
-
-PAGINATION: The tool supports pagination via offset and limit parameters (default: offset=0, limit=15, max limit=50). For search queries, you may stop after the first page if the results are sufficient. If you need more results, use the pagination.nextOffset from the response to fetch the next page.
-
-CRITICAL: Entity results include explicit relationships from the entity graph. ONLY use explicit relationships shown in the results. Do NOT infer relationships from entity content text, entity names, or descriptions. If a relationship is not explicitly listed, it does NOT exist in the entity graph.
-
-ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the original text", "search the source files", "find in the original documents", or similar phrases, set searchOriginalFiles=true. This performs lexical (text) search through the original uploaded files (PDFs, text files) associated with the campaign, returning matching text chunks with their source file names. This is different from entity search - it searches raw file content, not extracted entities.`,
+Use ONLY explicit relationships shown in results. Do NOT infer from content text.`,
   parameters: z.object({
     campaignId: commonSchemas.campaignId.describe(
       "The campaign ID (UUID format). CRITICAL: This must be a UUID, never an entity name. The campaignId is automatically provided from the user's selected campaign - do NOT use entity names or location names as campaignId."
@@ -1688,28 +1674,26 @@ ORIGINAL FILE SEARCH: When users explicitly ask to "search back through the orig
 
 // Tool to list all entities (handles pagination internally)
 export const listAllEntities = tool({
-  description: `List ALL entities from a campaign. This tool automatically handles pagination internally and returns every single entity in one response. Use this when users explicitly ask to "list all" entities (e.g., "list all locations", "show all monsters", "all NPCs").
+  description: `List ALL entities from a campaign. Handles pagination internally, returns all entities in one response. Use for "list all" requests. For keyword/semantic search, use searchCampaignContext instead.
 
-CRITICAL: This tool is specifically for listing ALL entities. For searching/filtering entities by keywords or semantic similarity, use searchCampaignContext instead.
+Entity types: ${ENTITY_TYPES_LIST}. Map synonyms: "beasts"/"creatures" → "monsters", "people"/"characters" (NPCs) → "npcs", "player characters"/"PCs" → "pcs", "places" → "locations".
 
-AVAILABLE ENTITY TYPES: ${ENTITY_TYPES_LIST}. When users use synonyms (e.g., "beasts", "creatures" for monsters; "people", "characters" for NPCs; "places" for locations), you MUST map them to the correct entity type name. Examples: "beasts" or "creatures" → use "monsters"; "people" or "characters" (when referring to NPCs) → use "npcs"; "player characters" or "PCs" → use "pcs"; "places" → use "locations".
-
-IMPORTANT: Distinguish between "npcs" (non-player characters controlled by the GM) and "pcs" (player-controlled characters). When users ask for "characters", determine if they mean NPCs or player characters based on context. If they say "player characters", "PCs", or refer to characters that players control, use "pcs". If they mean NPCs or characters the GM controls, use "npcs".
-
-DUPLICATE DETECTION: This tool automatically detects duplicate entities (entities with the same name, case-insensitive) and includes a "duplicates" field in the response. If duplicates are found, you MUST proactively inform the user and offer to help consolidate them.
-
-This tool will automatically fetch all pages and return the complete list. No manual pagination is needed.`,
+Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characters", determine context.`,
   parameters: z.object({
     campaignId: commonSchemas.campaignId,
     entityType: z
-      .enum([
-        ...STRUCTURED_ENTITY_TYPES,
-        "character", // Maps to "characters" in database
-        "resource", // Maps to "resources" in database
-      ] as [string, ...string[]])
-      .optional()
+      .preprocess(
+        (val) => (val === "" ? undefined : val),
+        z
+          .enum([
+            ...STRUCTURED_ENTITY_TYPES,
+            "character", // Maps to "characters" in database
+            "resource", // Maps to "resources" in database
+          ] as [string, ...string[]])
+          .optional()
+      )
       .describe(
-        `Optional entity type to filter by. Available types: ${ENTITY_TYPES_LIST}. If not provided, returns all entity types.`
+        `Optional entity type to filter by. Available types: ${ENTITY_TYPES_LIST}. If not provided or empty string, returns all entity types.`
       ),
     jwt: commonSchemas.jwt,
   }),
@@ -1758,13 +1742,15 @@ This tool will automatically fetch all pages and return the complete list. No ma
       }
 
       // Map entity type names to database entity types (same as searchCampaignContext)
+      // Also handle empty strings as undefined (safety check)
       const entityTypeMap: Record<string, string> = {
         characters: "character",
         resources: "resource",
       };
-      const targetEntityType = entityType
-        ? entityTypeMap[entityType] || entityType
-        : null;
+      const targetEntityType =
+        entityType && entityType.trim() !== ""
+          ? entityTypeMap[entityType] || entityType
+          : null;
 
       // Get total count first
       const totalCount = await daoFactory.entityDAO.getEntityCountByCampaign(

@@ -19,6 +19,8 @@ import {
   chunkTextByCharacterCount,
 } from "@/lib/text-chunking-utils";
 import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";
+import { CharacterSheetDetectionService } from "@/services/character-sheet/character-sheet-detection-service";
+import { CharacterSheetParserService } from "@/services/character-sheet/character-sheet-parser-service";
 
 export interface EntityStagingResult {
   success: boolean;
@@ -134,6 +136,124 @@ export async function stageEntitiesFromResource(
 
     const fileContent = extractionResult.content;
     const isPDF = extractionResult.metadata?.isPDF || false;
+
+    // Check if this is a character sheet before normal entity extraction
+    try {
+      const detectionService = new CharacterSheetDetectionService(openaiApiKey);
+      const detectionResult =
+        await detectionService.detectCharacterSheet(fileContent);
+
+      if (detectionService.isConfidentDetection(detectionResult)) {
+        console.log(
+          `[EntityStaging] Character sheet detected for resource: ${normalizedResource.id} (confidence: ${detectionResult.confidence}, character: ${detectionResult.characterName || "unknown"})`
+        );
+
+        // Parse the character sheet
+        const parserService = new CharacterSheetParserService(openaiApiKey);
+        const characterData = await parserService.parseCharacterSheet(
+          fileContent,
+          detectionResult.characterName || undefined
+        );
+
+        // Create PC entity from parsed character data
+        const daoFactory = getDAOFactory(env);
+        const characterName =
+          characterData.name ||
+          detectionResult.characterName ||
+          "Unknown Character";
+        const baseId = crypto.randomUUID();
+        const pcEntityId = `${campaignId}_${baseId}`;
+
+        // Check for duplicate by name and type before creating
+        const existingPC = await daoFactory.entityDAO.findEntityByNameAndType(
+          campaignId,
+          characterName,
+          "pcs"
+        );
+
+        let finalEntityId: string;
+        let finalMetadata: Record<string, unknown>;
+
+        if (existingPC) {
+          console.log(
+            `[EntityStaging] PC with name "${characterName}" already exists (${existingPC.id}), updating instead of creating duplicate`
+          );
+          finalEntityId = existingPC.id;
+          finalMetadata = {
+            ...((existingPC.metadata as Record<string, unknown>) || {}),
+            shardStatus: "staging",
+            staged: true,
+            resourceId: normalizedResource.id,
+            resourceName: normalizedResource.file_name || normalizedResource.id,
+            fileKey: normalizedResource.file_key || normalizedResource.id,
+            isCharacterSheet: true,
+            detectedGameSystem: detectionResult.detectedGameSystem,
+          };
+          // Update existing PC entity with new character data
+          await daoFactory.entityDAO.updateEntity(existingPC.id, {
+            content: characterData,
+            metadata: finalMetadata,
+            sourceType: "file_upload",
+            sourceId: normalizedResource.id,
+          });
+        } else {
+          // Create new PC entity
+          finalEntityId = pcEntityId;
+          finalMetadata = {
+            shardStatus: "staging",
+            staged: true,
+            resourceId: normalizedResource.id,
+            resourceName: normalizedResource.file_name || normalizedResource.id,
+            fileKey: normalizedResource.file_key || normalizedResource.id,
+            isCharacterSheet: true,
+            detectedGameSystem: detectionResult.detectedGameSystem,
+          };
+          await daoFactory.entityDAO.createEntity({
+            id: pcEntityId,
+            campaignId,
+            entityType: "pcs",
+            name: characterName,
+            content: characterData,
+            metadata: finalMetadata,
+            sourceType: "file_upload",
+            sourceId: normalizedResource.id,
+            confidence: detectionResult.confidence,
+          });
+          console.log(
+            `[EntityStaging] Created PC entity ${pcEntityId} (${characterName}) from character sheet`
+          );
+        }
+
+        // Return early with the character sheet PC entity to avoid redundant processing
+        return {
+          success: true,
+          entityCount: 1,
+          stagedEntities: [
+            {
+              id: finalEntityId,
+              entityType: "pcs",
+              name: characterName,
+              content: characterData,
+              metadata: finalMetadata,
+              relations: [],
+            },
+          ],
+        };
+      } else {
+        console.log(
+          `[EntityStaging] Not a character sheet (confidence: ${detectionResult.confidence})`
+        );
+      }
+    } catch (error) {
+      // Log error but continue with normal entity extraction
+      console.error(
+        `[EntityStaging] Error detecting/parsing character sheet for resource ${normalizedResource.id}:`,
+        error
+      );
+      console.log(
+        `[EntityStaging] Continuing with normal entity extraction despite character sheet detection error`
+      );
+    }
 
     // Chunk content to respect GPT-4o TPM (tokens per minute) limits: 30,000 tokens per request
     // Token estimation: ~4 characters per token for English text
