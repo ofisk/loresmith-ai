@@ -171,45 +171,50 @@ export async function stageEntitiesFromResource(
           "pcs"
         );
 
+        let finalEntityId: string;
+        let finalMetadata: Record<string, unknown>;
+
         if (existingPC) {
           console.log(
             `[EntityStaging] PC with name "${characterName}" already exists (${existingPC.id}), updating instead of creating duplicate`
           );
+          finalEntityId = existingPC.id;
+          finalMetadata = {
+            ...((existingPC.metadata as Record<string, unknown>) || {}),
+            shardStatus: "staging",
+            staged: true,
+            resourceId: normalizedResource.id,
+            resourceName: normalizedResource.file_name || normalizedResource.id,
+            fileKey: normalizedResource.file_key || normalizedResource.id,
+            isCharacterSheet: true,
+            detectedGameSystem: detectionResult.detectedGameSystem,
+          };
           // Update existing PC entity with new character data
           await daoFactory.entityDAO.updateEntity(existingPC.id, {
             content: characterData,
-            metadata: {
-              ...((existingPC.metadata as Record<string, unknown>) || {}),
-              shardStatus: "staging",
-              staged: true,
-              resourceId: normalizedResource.id,
-              resourceName:
-                normalizedResource.file_name || normalizedResource.id,
-              fileKey: normalizedResource.file_key || normalizedResource.id,
-              isCharacterSheet: true,
-              detectedGameSystem: detectionResult.detectedGameSystem,
-            },
+            metadata: finalMetadata,
             sourceType: "file_upload",
             sourceId: normalizedResource.id,
           });
         } else {
           // Create new PC entity
+          finalEntityId = pcEntityId;
+          finalMetadata = {
+            shardStatus: "staging",
+            staged: true,
+            resourceId: normalizedResource.id,
+            resourceName: normalizedResource.file_name || normalizedResource.id,
+            fileKey: normalizedResource.file_key || normalizedResource.id,
+            isCharacterSheet: true,
+            detectedGameSystem: detectionResult.detectedGameSystem,
+          };
           await daoFactory.entityDAO.createEntity({
             id: pcEntityId,
             campaignId,
             entityType: "pcs",
             name: characterName,
             content: characterData,
-            metadata: {
-              shardStatus: "staging",
-              staged: true,
-              resourceId: normalizedResource.id,
-              resourceName:
-                normalizedResource.file_name || normalizedResource.id,
-              fileKey: normalizedResource.file_key || normalizedResource.id,
-              isCharacterSheet: true,
-              detectedGameSystem: detectionResult.detectedGameSystem,
-            },
+            metadata: finalMetadata,
             sourceType: "file_upload",
             sourceId: normalizedResource.id,
             confidence: detectionResult.confidence,
@@ -218,6 +223,22 @@ export async function stageEntitiesFromResource(
             `[EntityStaging] Created PC entity ${pcEntityId} (${characterName}) from character sheet`
           );
         }
+
+        // Return early with the character sheet PC entity to avoid redundant processing
+        return {
+          success: true,
+          entityCount: 1,
+          stagedEntities: [
+            {
+              id: finalEntityId,
+              entityType: "pcs",
+              name: characterName,
+              content: characterData,
+              metadata: finalMetadata,
+              relations: [],
+            },
+          ],
+        };
       } else {
         console.log(
           `[EntityStaging] Not a character sheet (confidence: ${detectionResult.confidence})`
