@@ -64,6 +64,7 @@ export interface UpdateEntityInput {
   sourceType?: string | null;
   sourceId?: string | null;
   embeddingId?: string | null;
+  entityType?: string;
 }
 
 // Raw row structure for the `entity_relationships` table. Matches the D1 schema
@@ -233,6 +234,11 @@ export class EntityDAO extends BaseDAOClass {
       values.push(updates.embeddingId);
     }
 
+    if (updates.entityType !== undefined) {
+      setClauses.push("entity_type = ?");
+      values.push(updates.entityType);
+    }
+
     if (setClauses.length === 0) {
       return;
     }
@@ -323,6 +329,21 @@ export class EntityDAO extends BaseDAOClass {
   }
 
   /**
+   * Get distinct campaign IDs that have entities
+   * Useful for batch processing campaigns that have entity data
+   */
+  async getCampaignIdsWithEntities(limit?: number): Promise<string[]> {
+    const sql = `
+      SELECT DISTINCT campaign_id
+      FROM entities
+      ORDER BY campaign_id
+      ${limit ? `LIMIT ${limit}` : ""}
+    `;
+    const results = await this.queryAll<{ campaign_id: string }>(sql, []);
+    return results.map((r) => r.campaign_id);
+  }
+
+  /**
    * Get entity IDs created after a specific timestamp
    */
   async getEntityIdsCreatedAfter(
@@ -341,19 +362,6 @@ export class EntityDAO extends BaseDAOClass {
       afterTimestamp,
     ]);
     return records.map((record) => record.id);
-  }
-
-  /**
-   * Get all distinct campaign IDs that have entities
-   */
-  async getCampaignIdsWithEntities(): Promise<string[]> {
-    const sql = `
-      SELECT DISTINCT campaign_id
-      FROM entities
-    `;
-
-    const records = await this.queryAll<{ campaign_id: string }>(sql, []);
-    return records.map((record) => record.campaign_id);
   }
 
   /**
@@ -416,6 +424,96 @@ export class EntityDAO extends BaseDAOClass {
       entityType,
     ]);
     return record ? this.mapEntityRecord(record) : null;
+  }
+
+  /**
+   * Find all entities with the same name (case-insensitive) in a campaign.
+   * Used for duplicate detection.
+   */
+  async findEntitiesByName(
+    campaignId: string,
+    name: string,
+    entityType?: string
+  ): Promise<Entity[]> {
+    let sql = `
+      SELECT * FROM entities
+      WHERE campaign_id = ? 
+        AND LOWER(name) = LOWER(?)
+    `;
+    const params: any[] = [campaignId, name];
+
+    if (entityType) {
+      sql += ` AND entity_type = ?`;
+      params.push(entityType);
+    }
+
+    sql += ` ORDER BY created_at DESC`;
+
+    const records = await this.queryAll<EntityRecord>(sql, params);
+    return records.map((record) => this.mapEntityRecord(record));
+  }
+
+  /**
+   * Check if an entity with the same name already exists.
+   * Returns the existing entity if found, null otherwise.
+   */
+  async findDuplicateByName(
+    campaignId: string,
+    name: string,
+    entityType?: string,
+    excludeEntityId?: string
+  ): Promise<Entity | null> {
+    const duplicates = await this.findEntitiesByName(
+      campaignId,
+      name,
+      entityType
+    );
+
+    // Filter out the entity we're excluding (if updating an existing entity)
+    const filtered = excludeEntityId
+      ? duplicates.filter((e) => e.id !== excludeEntityId)
+      : duplicates;
+
+    // Return the most recent duplicate, or null if none found
+    return filtered.length > 0 ? filtered[0] : null;
+  }
+
+  /**
+   * Create an entity with duplicate checking.
+   * Returns information about whether a duplicate was found.
+   * This is useful for agent-driven entity creation where the agent should
+   * ask the user if they want to update an existing entity instead.
+   */
+  async createEntityWithDuplicateCheck(
+    entity: CreateEntityInput
+  ): Promise<{ created: boolean; entity: Entity; duplicate?: Entity }> {
+    // Check for duplicates by name (case-insensitive)
+    const duplicate = await this.findDuplicateByName(
+      entity.campaignId,
+      entity.name,
+      entity.entityType
+    );
+
+    if (duplicate) {
+      // Return the duplicate so the caller can decide what to do
+      return {
+        created: false,
+        entity: duplicate,
+        duplicate,
+      };
+    }
+
+    // No duplicate found - create the entity
+    await this.createEntity(entity);
+    const created = await this.getEntityById(entity.id);
+    if (!created) {
+      throw new Error(`Failed to create entity ${entity.id}`);
+    }
+
+    return {
+      created: true,
+      entity: created,
+    };
   }
 
   async deleteEntity(entityId: string): Promise<void> {

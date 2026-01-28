@@ -28,6 +28,7 @@ const ENTITY_GRAPH_SYSTEM_PROMPT = buildSystemPrompt({
     "Entity extraction and relationship creation help build the entity graph, which is then used for context search and community detection",
     "Before creating relationships, ensure both entities exist in the graph (create them first using extractEntitiesFromContentTool if needed)",
     "Use searchCampaignContext with graph traversal to query entity relationships iteratively. First search semantically to find entities, then traverse from their IDs to explore connected entities. Use getCommunitiesTool only for community/cluster analysis, not for relationship queries",
+    "CRITICAL - Duplicate Detection: The extractEntitiesFromContentTool automatically checks for duplicates by name before creating entities. If duplicates are found, it will update existing entities instead of creating new ones. However, if you notice duplicate entities in search results, proactively inform the user and offer to help consolidate them.",
   ],
 });
 

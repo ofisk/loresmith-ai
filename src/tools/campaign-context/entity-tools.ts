@@ -12,6 +12,7 @@ import { EntityExtractionService } from "@/services/rag/entity-extraction-servic
 import { EntityExtractionPipeline } from "@/services/rag/entity-extraction-pipeline";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
+import { STRUCTURED_ENTITY_TYPES } from "@/lib/entity-types";
 
 function getEnvFromContext(context: any): any {
   if (context?.env) {
@@ -591,6 +592,264 @@ export const updateEntityMetadataTool = tool({
       console.error("[updateEntityMetadataTool] Error:", error);
       return createToolError(
         "Failed to update entity metadata",
+        error instanceof Error ? error.message : "Unknown error",
+        500,
+        toolCallId
+      );
+    }
+  },
+});
+
+/**
+ * Tool: Update entity type
+ * Updates an entity's type in the database (e.g., from "pcs" to "npcs" or vice versa).
+ * Use this when users correct an entity's type classification.
+ */
+export const updateEntityTypeTool = tool({
+  description:
+    "Update an entity's type classification in the database. Use this when users correct an entity's type (e.g., '[entity name] is an NPC' means change entity type from 'pcs' to 'npcs', or 'this is a player character' means change from 'npcs' to 'pcs'). This is a structural change that affects how the entity is categorized and retrieved. The tool automatically updates ALL entities with the same name to ensure consistency and prevent duplicates with different types. Available entity types: " +
+    STRUCTURED_ENTITY_TYPES.join(", ") +
+    ". Most common corrections: changing between 'pcs' (player characters) and 'npcs' (non-player characters).",
+  parameters: z.object({
+    campaignId: commonSchemas.campaignId,
+    entityId: z
+      .string()
+      .describe("The ID of the entity whose type should be updated."),
+    entityType: z
+      .enum([...STRUCTURED_ENTITY_TYPES] as [string, ...string[]])
+      .describe(
+        `The new entity type. Must be one of: ${STRUCTURED_ENTITY_TYPES.join(", ")}. Common types: "pcs" (player characters), "npcs" (non-player characters), "locations", "factions", "monsters", "items".`
+      ),
+    jwt: commonSchemas.jwt,
+  }),
+  execute: async (
+    { campaignId, entityId, entityType, jwt },
+    context?: any
+  ): Promise<ToolResult> => {
+    const toolCallId = crypto.randomUUID();
+
+    try {
+      const env = getEnvFromContext(context);
+      if (!env) {
+        // Fallback to API call - but we need to check if there's an endpoint for this
+        // For now, we'll use direct database access only
+        return createToolError(
+          "Environment not available",
+          "Direct database access required for entity type updates",
+          500,
+          toolCallId
+        );
+      }
+
+      // Direct database access
+      const userId = extractUsernameFromJwt(jwt);
+      if (!userId) {
+        return createToolError(
+          "Invalid authentication token",
+          "Authentication failed",
+          401,
+          toolCallId
+        );
+      }
+
+      // Get DAO factory
+      const daoFactory = getDAOFactory(env);
+
+      // Verify campaign ownership
+      const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+        campaignId,
+        userId
+      );
+
+      if (!campaign) {
+        return createToolError(
+          "Campaign not found",
+          "Campaign not found or access denied",
+          404,
+          toolCallId
+        );
+      }
+
+      // Verify entity exists and belongs to campaign
+      const entity = await daoFactory.entityDAO.getEntityById(entityId);
+      if (!entity) {
+        return createToolError(
+          "Entity not found",
+          `Entity with ID ${entityId} not found`,
+          404,
+          toolCallId
+        );
+      }
+
+      if (entity.campaignId !== campaignId) {
+        return createToolError(
+          "Entity does not belong to campaign",
+          "Entity belongs to a different campaign",
+          403,
+          toolCallId
+        );
+      }
+
+      // Update this entity's type
+      await daoFactory.entityDAO.updateEntity(entityId, {
+        entityType,
+      });
+
+      // Also update ALL other entities with the same name in this campaign
+      // This ensures consistency when there are duplicates
+      const allEntitiesWithSameName =
+        await daoFactory.entityDAO.listEntitiesByCampaign(campaignId, {
+          limit: 1000, // Large limit to catch all duplicates
+        });
+
+      const duplicates = allEntitiesWithSameName.filter(
+        (e) => e.name === entity.name && e.id !== entityId
+      );
+
+      const updatedDuplicates: string[] = [];
+      for (const duplicate of duplicates) {
+        if (duplicate.entityType !== entityType) {
+          await daoFactory.entityDAO.updateEntity(duplicate.id, {
+            entityType,
+          });
+          updatedDuplicates.push(duplicate.id);
+        }
+      }
+
+      const message =
+        updatedDuplicates.length > 0
+          ? `Entity type updated successfully from "${entity.entityType}" to "${entityType}". Also updated ${updatedDuplicates.length} duplicate entity/entities with the same name ("${entity.name}") to ensure consistency.`
+          : `Entity type updated successfully from "${entity.entityType}" to "${entityType}"`;
+
+      return createToolSuccess(
+        message,
+        {
+          entityId,
+          oldType: entity.entityType,
+          newType: entityType,
+          updatedDuplicates: updatedDuplicates.length,
+        },
+        toolCallId
+      );
+    } catch (error) {
+      console.error("[updateEntityTypeTool] Error:", error);
+      return createToolError(
+        "Failed to update entity type",
+        error instanceof Error ? error.message : "Unknown error",
+        500,
+        toolCallId
+      );
+    }
+  },
+});
+
+/**
+ * Tool: Delete entity
+ * Deletes an entity from the database. Use this when users explicitly request to delete duplicate entities or remove entities they no longer need.
+ */
+export const deleteEntityTool = tool({
+  description:
+    "Delete an entity from the database. Use this when users explicitly request to delete duplicate entities or remove entities they no longer need. This permanently removes the entity and all its relationships. Only use this when the user explicitly asks to delete an entity.",
+  parameters: z.object({
+    campaignId: commonSchemas.campaignId,
+    entityId: z.string().describe("The ID of the entity to delete."),
+    jwt: commonSchemas.jwt,
+  }),
+  execute: async (
+    { campaignId, entityId, jwt },
+    context?: any
+  ): Promise<ToolResult> => {
+    const toolCallId = crypto.randomUUID();
+
+    try {
+      const env = getEnvFromContext(context);
+      if (!env) {
+        return createToolError(
+          "Environment not available",
+          "Direct database access required for entity deletion",
+          500,
+          toolCallId
+        );
+      }
+
+      // Direct database access
+      const userId = extractUsernameFromJwt(jwt);
+      if (!userId) {
+        return createToolError(
+          "Invalid authentication token",
+          "Authentication failed",
+          401,
+          toolCallId
+        );
+      }
+
+      // Get DAO factory
+      const daoFactory = getDAOFactory(env);
+
+      // Verify campaign ownership
+      const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+        campaignId,
+        userId
+      );
+
+      if (!campaign) {
+        return createToolError(
+          "Campaign not found",
+          "Campaign not found or access denied",
+          404,
+          toolCallId
+        );
+      }
+
+      // Verify entity exists and belongs to campaign
+      const entity = await daoFactory.entityDAO.getEntityById(entityId);
+      if (!entity) {
+        return createToolError(
+          "Entity not found",
+          `Entity with ID ${entityId} not found`,
+          404,
+          toolCallId
+        );
+      }
+
+      if (entity.campaignId !== campaignId) {
+        return createToolError(
+          "Entity does not belong to campaign",
+          "Entity belongs to a different campaign",
+          403,
+          toolCallId
+        );
+      }
+
+      // Delete entity (this also deletes relationships)
+      await daoFactory.entityDAO.deleteEntity(entityId);
+
+      // Also delete from vector index if it has an embedding
+      if (entity.embeddingId) {
+        try {
+          const embeddingService = new EntityEmbeddingService(env.VECTORIZE);
+          await embeddingService.deleteEmbedding(entityId);
+        } catch (error) {
+          console.warn(
+            `[deleteEntityTool] Failed to delete embedding for ${entityId}:`,
+            error
+          );
+          // Continue - entity is already deleted from DB
+        }
+      }
+
+      return createToolSuccess(
+        `Entity "${entity.name}" (${entityId}) deleted successfully`,
+        {
+          entityId,
+          entityName: entity.name,
+        },
+        toolCallId
+      );
+    } catch (error) {
+      console.error("[deleteEntityTool] Error:", error);
+      return createToolError(
+        "Failed to delete entity",
         error instanceof Error ? error.message : "Unknown error",
         500,
         toolCallId

@@ -23,13 +23,20 @@ import {
   captureConversationalContext,
   saveContextExplicitly,
 } from "../campaign-context/context-capture-tools";
-import { searchCampaignContext } from "../campaign-context/search-tools";
+import {
+  searchCampaignContext,
+  listAllEntities,
+} from "../campaign-context/search-tools";
 import {
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
 } from "../campaign-context/world-state-tools";
-import { updateEntityMetadataTool } from "../campaign-context/entity-tools";
+import {
+  updateEntityMetadataTool,
+  updateEntityTypeTool,
+  deleteEntityTool,
+} from "../campaign-context/entity-tools";
 // Import file management tools for campaign operations
 import { listFiles, getFileStats } from "../file/index";
 import { noOpTool } from "../common/no-op-tool";
@@ -62,10 +69,13 @@ export {
   captureConversationalContext,
   saveContextExplicitly,
   searchCampaignContext,
+  listAllEntities,
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
   updateEntityMetadataTool,
+  updateEntityTypeTool,
+  deleteEntityTool,
   noOpTool,
 };
 
@@ -92,9 +102,12 @@ export const campaignTools = {
   captureConversationalContext,
   saveContextExplicitly,
   searchCampaignContext,
+  listAllEntities,
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
   updateEntityMetadataTool,
+  updateEntityTypeTool,
+  deleteEntityTool,
   noOpTool,
 };

@@ -127,6 +127,34 @@ export const storeCharacterInfo = tool({
         const daoFactory = getDAOFactory(env as Env);
         const characterId = crypto.randomUUID();
 
+        // Check for duplicate entities with the same name
+        const duplicate = await daoFactory.entityDAO.findDuplicateByName(
+          campaignId,
+          characterName,
+          ENTITY_TYPE_PCS
+        );
+
+        if (duplicate) {
+          // Return information about the duplicate so the agent can ask the user
+          // Don't create a new entity - let the agent handle this
+          return createToolSuccess(
+            `A character entity named "${characterName}" already exists. Would you like to update the existing entity instead of creating a duplicate?`,
+            {
+              duplicateFound: true,
+              duplicateEntityId: duplicate.id,
+              duplicateEntity: {
+                id: duplicate.id,
+                name: duplicate.name,
+                entityType: duplicate.entityType,
+                content: duplicate.content,
+                metadata: duplicate.metadata,
+              },
+              message: `An entity with the name "${characterName}" already exists in this campaign. Use updateEntityMetadataTool or updateEntityTypeTool to update it, or ask the user if they want to create a new entity with a different name.`,
+            },
+            toolCallId
+          );
+        }
+
         // Create character entity as player character
         await daoFactory.entityDAO.createEntity({
           id: characterId,
@@ -162,6 +190,7 @@ export const storeCharacterInfo = tool({
           {
             id: characterId,
             entityType: ENTITY_TYPE_PCS,
+            duplicateFound: false,
             characterName,
             characterClass,
             characterLevel,

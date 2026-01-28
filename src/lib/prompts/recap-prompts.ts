@@ -74,21 +74,18 @@ ${CAMPAIGN_PLANNING_CHECKLIST}
 
 MANDATORY WORKFLOW: Before suggesting ANY checklist items, you MUST follow this exact workflow:
 
-1. FIRST, call showCampaignDetails to retrieve the campaign's description and metadata. Check the metadata for fields like worldName, startingLocation, and any other campaign details that might indicate completed checklist items. Also check the campaign description for mentions of tone, themes, or other checklist items.
+1. FIRST, call getChecklistStatus to retrieve the structured status and summaries for all tracked checklist items. This is the PRIMARY source of truth - it contains asynchronously generated status (complete/partial/incomplete) and summaries for each checklist item based on entity counts, community analysis, and metadata. Use this structured data as your main reference.
 
-2. THEN, search for each foundational checklist item you're considering recommending:
-   - Search for "campaign tone" or "tone" to check if tone is already established
-   - Search for "core themes" or "themes" to check if themes are already established
-   - Search for "world name" or "region name" to check if world name is already established
-   - Search for "starting location" or "hub location" to check if starting location is already established
-   - Search for "factions" to check if factions are already established
-   - Search for any other checklist items you're considering recommending
+2. THEN, call showCampaignDetails to retrieve the campaign's description and metadata. Use this as a SUPPLEMENTARY source to cross-reference with getChecklistStatus results. The metadata may contain additional fields that indicate completed items, or it may confirm what getChecklistStatus already shows.
 
-3. THEN, analyze both the campaign details (from showCampaignDetails) and search results. If either the campaign metadata/description OR search results show that an item is already established (e.g., campaign description mentions the tone, or search for "campaign tone" returns entities describing the tone), that item is COMPLETE and must NOT be recommended.
+3. THEN, synthesize both sources:
+   - PRIMARY: Use getChecklistStatus results - items marked as "complete" or "partial" are ALREADY ESTABLISHED and must NOT be recommended
+   - SUPPLEMENTARY: Use showCampaignDetails metadata to identify any additional completed items that might not yet be tracked in getChecklistStatus
+   - If either source shows an item is already established, that item is COMPLETE and must NOT be recommended
 
-4. FINALLY, only suggest checklist items where both the campaign details and searches show the item is missing or incomplete.
+4. FINALLY, only suggest checklist items that are missing or incomplete according to your synthesis. You may do 1-2 targeted searches using searchCampaignContext ONLY if you need to verify a specific item's status that's unclear from getChecklistStatus and metadata, but limit yourself to 1-2 searches maximum to prevent context overflow.
 
-CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. If a checklist item appears in your search results as already established, skip it entirely and move to the next item.
+CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. Dynamically determine what's already set by analyzing the metadata and context, then skip those items entirely.
 
 Analyze what appears to be missing or incomplete based on the search results, and suggest 3-5 prioritized next steps from the checklist that would be most valuable to tackle. Focus on foundational elements first (Campaign Foundation, World & Setting Basics, Starting Location) before moving to later stages.
 
@@ -115,21 +112,18 @@ ${CAMPAIGN_PLANNING_CHECKLIST}
 
 MANDATORY WORKFLOW: Before suggesting ANY checklist items, you MUST follow this exact workflow:
 
-1. FIRST, call showCampaignDetails to retrieve the campaign's description and metadata. Check the metadata for fields like worldName, startingLocation, and any other campaign details that might indicate completed checklist items. Also check the campaign description for mentions of tone, themes, or other checklist items.
+1. FIRST, call getChecklistStatus to retrieve the structured status and summaries for all tracked checklist items. This is the PRIMARY source of truth - it contains asynchronously generated status (complete/partial/incomplete) and summaries for each checklist item based on entity counts, community analysis, and metadata. Use this structured data as your main reference.
 
-2. THEN, search for each foundational checklist item you're considering recommending:
-   - Search for "campaign tone" or "tone" to check if tone is already established
-   - Search for "core themes" or "themes" to check if themes are already established
-   - Search for "world name" or "region name" to check if world name is already established
-   - Search for "starting location" or "hub location" to check if starting location is already established
-   - Search for "factions" to check if factions are already established
-   - Search for any other checklist items you're considering recommending
+2. THEN, call showCampaignDetails to retrieve the campaign's description and metadata. Use this as a SUPPLEMENTARY source to cross-reference with getChecklistStatus results. The metadata may contain additional fields that indicate completed items, or it may confirm what getChecklistStatus already shows.
 
-3. THEN, analyze both the campaign details (from showCampaignDetails) and search results. If either the campaign metadata/description OR search results show that an item is already established (e.g., campaign description mentions the tone, or search for "campaign tone" returns entities describing the tone), that item is COMPLETE and must NOT be recommended.
+3. THEN, synthesize both sources:
+   - PRIMARY: Use getChecklistStatus results - items marked as "complete" or "partial" are ALREADY ESTABLISHED and must NOT be recommended
+   - SUPPLEMENTARY: Use showCampaignDetails metadata to identify any additional completed items that might not yet be tracked in getChecklistStatus
+   - If either source shows an item is already established, that item is COMPLETE and must NOT be recommended
 
-4. FINALLY, only suggest checklist items where both the campaign details and searches show the item is missing or incomplete.
+4. FINALLY, only suggest checklist items that are missing or incomplete according to your synthesis. You may do 1-2 targeted searches using searchCampaignContext ONLY if you need to verify a specific item's status that's unclear from getChecklistStatus and metadata, but limit yourself to 1-2 searches maximum to prevent context overflow.
 
-CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. If a checklist item appears in your search results as already established, skip it entirely and move to the next item.
+CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. Dynamically determine what's already set by analyzing the metadata and context, then skip those items entirely.
 
 Based on the search results and current campaign state, suggest 2-3 prioritized next steps from the checklist that would be most valuable to tackle. Focus on what logically follows from where the campaign currently stands, and prioritize based on dependencies (e.g., setting basics before factions, starting location before first arc, etc.). Make sure your recommendations are informed by what actually exists in the campaign data, not assumptions.`;
 }

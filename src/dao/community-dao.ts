@@ -230,6 +230,167 @@ export class CommunityDAO extends BaseDAOClass {
   }
 
   /**
+   * Count entities of a type in communities that contain at least minCount of that type
+   * More efficient than findCommunitiesWithMultipleEntityType when you only need a count
+   * Example: Count all factions in communities that have at least 2 factions
+   */
+  async countEntityTypeInCommunitiesWithMinCount(
+    campaignId: string,
+    entityType: string,
+    minCount: number = 2
+  ): Promise<number> {
+    const sql = `
+      SELECT COUNT(DISTINCT ce.entity_id) as count
+      FROM communities c
+      INNER JOIN community_entities ce ON c.id = ce.community_id
+      INNER JOIN entities e ON ce.entity_id = e.id
+      WHERE c.campaign_id = ?
+        AND e.entity_type = ?
+        AND c.id IN (
+          SELECT c2.id
+          FROM communities c2
+          INNER JOIN community_entities ce2 ON c2.id = ce2.community_id
+          INNER JOIN entities e2 ON ce2.entity_id = e2.id
+          WHERE c2.campaign_id = ?
+            AND e2.entity_type = ?
+          GROUP BY c2.id
+          HAVING COUNT(DISTINCT ce2.entity_id) >= ?
+        )
+    `;
+    const result = await this.queryFirst<{ count: number }>(sql, [
+      campaignId,
+      entityType,
+      campaignId,
+      entityType,
+      minCount,
+    ]);
+    return result?.count || 0;
+  }
+
+  /**
+   * Find communities that contain multiple entities of a specific type
+   * Useful for finding communities with related entities (e.g., multiple factions)
+   */
+  async findCommunitiesWithMultipleEntityType(
+    campaignId: string,
+    entityType: string,
+    minCount: number = 2
+  ): Promise<Array<{ communityId: string; entityCount: number }>> {
+    const sql = `
+      SELECT 
+        c.id as communityId,
+        COUNT(DISTINCT ce.entity_id) as entityCount
+      FROM communities c
+      INNER JOIN community_entities ce ON c.id = ce.community_id
+      INNER JOIN entities e ON ce.entity_id = e.id
+      WHERE c.campaign_id = ?
+        AND e.entity_type = ?
+      GROUP BY c.id
+      HAVING COUNT(DISTINCT ce.entity_id) >= ?
+    `;
+    const results = await this.queryAll<{
+      communityId: string;
+      entityCount: number;
+    }>(sql, [campaignId, entityType, minCount]);
+    return results;
+  }
+
+  /**
+   * Count entities of one type in communities that also contain entities of another type
+   * More efficient than findCommunitiesWithEntityTypes when you only need a count
+   * Example: Count NPCs in communities that also contain locations
+   */
+  async countEntityTypeInCommunitiesWithOtherType(
+    campaignId: string,
+    entityTypeToCount: string,
+    requiredOtherType: string
+  ): Promise<number> {
+    const sql = `
+      SELECT COUNT(DISTINCT ce1.entity_id) as count
+      FROM communities c
+      INNER JOIN community_entities ce1 ON c.id = ce1.community_id
+      INNER JOIN entities e1 ON ce1.entity_id = e1.id
+      INNER JOIN community_entities ce2 ON c.id = ce2.community_id
+      INNER JOIN entities e2 ON ce2.entity_id = e2.id
+      WHERE c.campaign_id = ?
+        AND e1.entity_type = ?
+        AND e2.entity_type = ?
+        AND ce1.entity_id != ce2.entity_id
+    `;
+    const result = await this.queryFirst<{ count: number }>(sql, [
+      campaignId,
+      entityTypeToCount,
+      requiredOtherType,
+    ]);
+    return result?.count || 0;
+  }
+
+  /**
+   * Find communities that contain entities of multiple specified types
+   * Useful for finding communities with related entity types (e.g., NPCs and locations)
+   */
+  async findCommunitiesWithEntityTypes(
+    campaignId: string,
+    entityTypes: string[]
+  ): Promise<
+    Array<{
+      communityId: string;
+      entityTypeCounts: Record<string, number>;
+    }>
+  > {
+    if (entityTypes.length === 0) {
+      return [];
+    }
+
+    // Build a query that counts each entity type per community
+    const typeConditions = entityTypes
+      .map(() => "e.entity_type = ?")
+      .join(" OR ");
+    const sql = `
+      SELECT 
+        c.id as communityId,
+        e.entity_type,
+        COUNT(DISTINCT ce.entity_id) as count
+      FROM communities c
+      INNER JOIN community_entities ce ON c.id = ce.community_id
+      INNER JOIN entities e ON ce.entity_id = e.id
+      WHERE c.campaign_id = ?
+        AND (${typeConditions})
+      GROUP BY c.id, e.entity_type
+    `;
+    const results = await this.queryAll<{
+      communityId: string;
+      entity_type: string;
+      count: number;
+    }>(sql, [campaignId, ...entityTypes]);
+
+    // Group by community and build entityTypeCounts map
+    const communityMap = new Map<
+      string,
+      { communityId: string; entityTypeCounts: Record<string, number> }
+    >();
+
+    for (const row of results) {
+      const existing = communityMap.get(row.communityId);
+      if (existing) {
+        existing.entityTypeCounts[row.entity_type] = row.count;
+      } else {
+        communityMap.set(row.communityId, {
+          communityId: row.communityId,
+          entityTypeCounts: { [row.entity_type]: row.count },
+        });
+      }
+    }
+
+    // Filter to only communities that have all requested types
+    return Array.from(communityMap.values()).filter((community) => {
+      return entityTypes.every(
+        (type) => (community.entityTypeCounts[type] || 0) > 0
+      );
+    });
+  }
+
+  /**
    * Find communities containing any of the given entities (batch lookup)
    * This is more efficient than calling findCommunitiesContainingEntity multiple times
    */
