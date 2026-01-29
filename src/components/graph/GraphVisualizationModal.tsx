@@ -27,8 +27,7 @@ export function GraphVisualizationModal({
     null
   );
   const [layout, setLayout] = useState<CytoscapeLayout>("cose");
-  const [communitySearchTerm, setCommunitySearchTerm] = useState("");
-  const [entitySearchTerm, setEntitySearchTerm] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [highlightedNodes, setHighlightedNodes] = useState<string[]>([]);
 
   const {
@@ -42,6 +41,8 @@ export function GraphVisualizationModal({
     fetchEntityGraph,
     searchResults,
     searchEntity,
+    loadingSearch,
+    errorSearch,
     filters,
     setFilters,
     resetFilters,
@@ -132,29 +133,24 @@ export function GraphVisualizationModal({
     setSelectedCommunityId(null);
   }, []);
 
-  // Debounced entity search
+  const handleSearch = useCallback(() => {
+    const q = searchQuery.trim();
+    if (q) searchEntity(q);
+  }, [searchQuery, searchEntity]);
+
+  // Update highlighted nodes when search results change (merge communities from all results)
   useEffect(() => {
-    if (!entitySearchTerm.trim()) {
-      setHighlightedNodes([]);
-      return;
-    }
-
-    const timeoutId = setTimeout(async () => {
-      await searchEntity(entitySearchTerm);
-    }, 500); // Wait 500ms after typing stops
-
-    return () => clearTimeout(timeoutId);
-  }, [entitySearchTerm, searchEntity]);
-
-  // Update highlighted nodes when search results change
-  useEffect(() => {
-    if (searchResults) {
-      const communityIds = searchResults.communities.map((c) => c.id);
+    if (searchResults && searchResults.length > 0) {
+      const communityIds = [
+        ...new Set(
+          searchResults.flatMap((r) => r.communities.map((c) => c.id))
+        ),
+      ];
       setHighlightedNodes(communityIds);
-    } else if (!entitySearchTerm.trim()) {
+    } else {
       setHighlightedNodes([]);
     }
-  }, [searchResults, entitySearchTerm]);
+  }, [searchResults]);
 
   // Handle export PNG
   const handleExportPNG = useCallback(() => {
@@ -174,40 +170,7 @@ export function GraphVisualizationModal({
     console.log("Reset view - to be implemented");
   }, []);
 
-  // Filter community graph data by search term (client-side)
-  const filteredCommunityGraphData = useMemo(() => {
-    if (!communityGraphData) {
-      console.log("[GraphVisualizationModal] No communityGraphData available");
-      return null;
-    }
-
-    console.log("[GraphVisualizationModal] Community graph data:", {
-      nodes: communityGraphData.nodes.length,
-      edges: communityGraphData.edges.length,
-      searchTerm: communitySearchTerm,
-    });
-
-    if (!communitySearchTerm.trim()) {
-      return communityGraphData;
-    }
-
-    const searchLower = communitySearchTerm.toLowerCase();
-    const filteredNodes = communityGraphData.nodes.filter((node) =>
-      node.name.toLowerCase().includes(searchLower)
-    );
-    const filteredNodeIds = new Set(filteredNodes.map((n) => n.id));
-
-    // Only include edges between filtered nodes
-    const filteredEdges = communityGraphData.edges.filter(
-      (edge) =>
-        filteredNodeIds.has(edge.source) && filteredNodeIds.has(edge.target)
-    );
-
-    return {
-      nodes: filteredNodes,
-      edges: filteredEdges,
-    };
-  }, [communityGraphData, communitySearchTerm]);
+  const filteredCommunityGraphData = communityGraphData;
 
   return (
     <Modal
@@ -221,10 +184,42 @@ export function GraphVisualizationModal({
       }}
     >
       <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700">
-          <h2 className="text-xl font-semibold">
-            Graph visualization: {campaignName}
-          </h2>
+        <div className="flex flex-col gap-3 p-4 border-b border-neutral-200 dark:border-neutral-700">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-xl font-semibold shrink-0">
+              Graph visualization: {campaignName}
+            </h2>
+            <div className="flex items-center gap-2 min-w-0 flex-1 max-w-md">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                placeholder="Search by name or topic..."
+                className="flex flex-1 min-w-0 rounded-md border border-gray-300 dark:border-gray-600 bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400"
+                aria-label="Search entities"
+              />
+              <button
+                type="button"
+                onClick={handleSearch}
+                disabled={!searchQuery.trim() || loadingSearch}
+                className="shrink-0 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400"
+              >
+                Search
+              </button>
+              {loadingSearch && (
+                <span
+                  className="shrink-0 h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin"
+                  aria-hidden="true"
+                />
+              )}
+            </div>
+          </div>
+          {errorSearch && (
+            <p className="text-sm text-red-600 dark:text-red-400">
+              {errorSearch}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-1 min-h-0">
@@ -234,10 +229,6 @@ export function GraphVisualizationModal({
               filters={filters}
               onFiltersChange={setFilters}
               onResetFilters={resetFilters}
-              communitySearchTerm={communitySearchTerm}
-              onCommunitySearchChange={setCommunitySearchTerm}
-              entitySearchTerm={entitySearchTerm}
-              onEntitySearchChange={setEntitySearchTerm}
               layout={layout}
               onLayoutChange={setLayout}
               onResetView={handleResetView}

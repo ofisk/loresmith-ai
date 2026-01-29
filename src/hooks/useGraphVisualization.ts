@@ -27,8 +27,8 @@ interface UseGraphVisualizationReturn {
   errorEntityGraph: string | null;
   fetchEntityGraph: (communityId: string) => Promise<void>;
 
-  // Entity search
-  searchResults: EntitySearchResult | null;
+  // Entity search (array: primary + associated entities)
+  searchResults: EntitySearchResult[] | null;
   loadingSearch: boolean;
   errorSearch: string | null;
   searchEntity: (entityName: string) => Promise<void>;
@@ -49,9 +49,9 @@ export function useGraphVisualization({
     useState<CommunityGraphData | null>(null);
   const [entityGraphData, setEntityGraphData] =
     useState<EntityGraphData | null>(null);
-  const [searchResults, setSearchResults] = useState<EntitySearchResult | null>(
-    null
-  );
+  const [searchResults, setSearchResults] = useState<
+    EntitySearchResult[] | null
+  >(null);
   const [filters, setFilters] = useState<CommunityFilterState>({});
   const filtersRef = useRef<CommunityFilterState>(filters);
 
@@ -200,7 +200,7 @@ export function useGraphVisualization({
           )
         ) + `?entityName=${encodeURIComponent(entityName)}`;
 
-      const data = await makeRequestWithData<EntitySearchResult>(url);
+      const data = await makeRequestWithData<EntitySearchResult[]>(url);
       return data;
     },
     [campaignId, makeRequestWithData]
@@ -211,7 +211,7 @@ export function useGraphVisualization({
     loading: loadingSearch,
     error: errorSearch,
   } = useBaseAsync(searchEntityFn, {
-    onSuccess: (data) => {
+    onSuccess: (data: EntitySearchResult[]) => {
       setSearchResults(data);
     },
     errorMessage: "Failed to search entity",

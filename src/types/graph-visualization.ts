@@ -81,13 +81,16 @@ export interface EntityGraphData {
 }
 
 /**
- * Entity search result
+ * Entity search result (single entity and its communities).
+ * API returns an array of these; matchType distinguishes primary vs associated.
  */
 export interface EntitySearchResult {
   entityId: string;
   entityName: string;
   entityType: string;
   communities: CommunityNodeBasic[];
+  /** Whether this entity was a direct match (primary) or related (associated). */
+  matchType?: "primary" | "associated";
 }
 
 /**

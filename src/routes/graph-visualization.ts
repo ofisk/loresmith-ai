@@ -18,6 +18,9 @@ import {
   getCommunityName,
 } from "@/lib/graph/community-utils";
 import type { CommunitySummary } from "@/dao/community-summary-dao";
+import { EntitySemanticSearchService } from "@/services/vectorize/entity-semantic-search-service";
+import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
+import { EntityGraphService } from "@/services/graph/entity-graph-service";
 
 type ContextWithAuth = Context<{ Bindings: Env }> & {
   userAuth?: AuthPayload;
@@ -457,13 +460,38 @@ export async function handleGetCommunityEntityGraph(c: ContextWithAuth) {
   }
 }
 
+const SEMANTIC_SIMILARITY_THRESHOLD = 0.3;
+const SEMANTIC_TOP_K = 15;
+const LEXICAL_LIMIT = 10000;
+
+/**
+ * Build one EntitySearchResult from an entity and its communities.
+ */
+function toEntitySearchResult(
+  entity: Entity,
+  communities: Community[],
+  communitySummaryMap: Map<string, CommunitySummary>,
+  matchType: "primary" | "associated"
+): EntitySearchResult {
+  return {
+    entityId: entity.id,
+    entityName: entity.name,
+    entityType: entity.entityType,
+    communities: communities.map((community) =>
+      toCommunityNodeBasic(community, communitySummaryMap)
+    ),
+    matchType,
+  };
+}
+
 /**
  * GET /api/campaigns/:campaignId/graph-visualization/search-entity
- * Search for entities and find communities containing them
+ * Search for entities (semantic or lexical) and include associated entities
+ * (e.g. entities related to a location). Returns an array of EntitySearchResult.
  */
 export async function handleSearchEntityInGraph(c: ContextWithAuth) {
   try {
-    const userAuth = (c as any).userAuth;
+    const userAuth = (c as any).userAuth as AuthPayload | undefined;
     if (!userAuth) {
       return c.json({ error: "Authentication required" }, 401);
     }
@@ -489,60 +517,134 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
       );
     }
 
-    // Find entity by ID or name
-    let entity: Entity | null = null;
+    const graphService = new EntityGraphService(daoFactory.entityDAO);
+    const primaryEntities: Entity[] = [];
+    const associatedEntityIds = new Set<string>();
+
     if (entityId) {
-      entity = await daoFactory.entityDAO.getEntityById(entityId);
+      const entity = await daoFactory.entityDAO.getEntityById(entityId);
+      if (!entity || entity.campaignId !== campaignId) {
+        return c.json({ error: "Entity not found" }, 404);
+      }
+      primaryEntities.push(entity);
     } else if (entityName) {
-      const allEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
-        campaignId,
-        { limit: 10000 }
-      );
-      entity =
-        allEntities.find((e) =>
+      const openaiApiKey =
+        userAuth.openaiApiKey || (c.env.OPENAI_API_KEY as string | undefined);
+      if (c.env.VECTORIZE && openaiApiKey) {
+        const openaiEmbeddingService = new OpenAIEmbeddingService(openaiApiKey);
+        const getQueryEmbedding = async (q: string) => {
+          const [emb] = await openaiEmbeddingService.generateEmbeddings([q]);
+          return emb;
+        };
+        const semanticSearch = new EntitySemanticSearchService(
+          c.env.VECTORIZE,
+          getQueryEmbedding
+        );
+        const matches = await semanticSearch.searchEntities(
+          campaignId,
+          entityName,
+          {
+            topK: SEMANTIC_TOP_K,
+            minScore: SEMANTIC_SIMILARITY_THRESHOLD,
+          }
+        );
+        for (const m of matches) {
+          const entity = await daoFactory.entityDAO.getEntityById(m.entityId);
+          if (entity && entity.campaignId === campaignId) {
+            primaryEntities.push(entity);
+          }
+        }
+      }
+
+      if (primaryEntities.length === 0) {
+        const allEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
+          campaignId,
+          {
+            limit: LEXICAL_LIMIT,
+          }
+        );
+        const match = allEntities.find((e) =>
           e.name.toLowerCase().includes(entityName.toLowerCase())
-        ) || null;
+        );
+        if (match) primaryEntities.push(match);
+      }
     }
 
-    if (!entity || entity.campaignId !== campaignId) {
+    if (primaryEntities.length === 0) {
       return c.json({ error: "Entity not found" }, 404);
     }
 
-    // Find communities containing this entity
-    const communities =
-      await daoFactory.communityDAO.findCommunitiesContainingEntity(
-        campaignId,
-        entity.id
-      );
-
-    // Load community summaries for names
-    const communitySummaryMap = new Map<string, CommunitySummary>();
-    if (daoFactory.communitySummaryDAO) {
-      for (const community of communities) {
-        try {
-          const summary =
-            await daoFactory.communitySummaryDAO.getSummaryByCommunityId(
-              community.id
-            );
-          if (summary) {
-            communitySummaryMap.set(community.id, summary);
-          }
-        } catch {
-          // Ignore errors
+    for (const entity of primaryEntities) {
+      const neighbors = await graphService.getNeighbors(campaignId, entity.id, {
+        maxDepth: 1,
+      });
+      for (const n of neighbors) {
+        if (n.entityId && !primaryEntities.some((e) => e.id === n.entityId)) {
+          associatedEntityIds.add(n.entityId);
         }
       }
     }
 
-    const result: EntitySearchResult = {
-      entityId: entity.id,
-      entityName: entity.name,
-      entityType: entity.entityType,
-      communities: communities.map((community) =>
-        toCommunityNodeBasic(community, communitySummaryMap)
-      ),
-    };
+    const associatedEntities: Entity[] = [];
+    for (const id of associatedEntityIds) {
+      const entity = await daoFactory.entityDAO.getEntityById(id);
+      if (entity && entity.campaignId === campaignId) {
+        associatedEntities.push(entity);
+      }
+    }
 
-    return c.json(result);
+    const allEntities = [...primaryEntities, ...associatedEntities];
+    const allCommunityIds = new Set<string>();
+    const entityCommunities = new Map<string, Community[]>();
+
+    for (const entity of allEntities) {
+      const communities =
+        await daoFactory.communityDAO.findCommunitiesContainingEntity(
+          campaignId,
+          entity.id
+        );
+      entityCommunities.set(entity.id, communities);
+      for (const comm of communities) allCommunityIds.add(comm.id);
+    }
+
+    const communitySummaryMap = new Map<string, CommunitySummary>();
+    if (daoFactory.communitySummaryDAO) {
+      for (const cid of allCommunityIds) {
+        try {
+          const summary =
+            await daoFactory.communitySummaryDAO.getSummaryByCommunityId(cid);
+          if (summary) communitySummaryMap.set(cid, summary);
+        } catch {
+          // Ignore
+        }
+      }
+    }
+
+    const results: EntitySearchResult[] = [];
+    for (const entity of primaryEntities) {
+      const communities = entityCommunities.get(entity.id) ?? [];
+      results.push(
+        toEntitySearchResult(
+          entity,
+          communities,
+          communitySummaryMap,
+          "primary"
+        )
+      );
+    }
+    for (const entity of associatedEntities) {
+      const communities = entityCommunities.get(entity.id) ?? [];
+      results.push(
+        toEntitySearchResult(
+          entity,
+          communities,
+          communitySummaryMap,
+          "associated"
+        )
+      );
+    }
+
+    return c.json(results);
   } catch (error) {
     console.error("[GraphVisualization] Error searching entity:", error);
     return c.json(
