@@ -11,6 +11,7 @@ import {
   type LeidenOptions,
 } from "@/lib/graph/leiden-algorithm";
 import { CommunitySummaryService } from "./community-summary-service";
+import { isEntityStub } from "@/lib/entity-content-merge";
 
 export interface CommunityDetectionOptions extends LeidenOptions {
   minCommunitySize?: number; // Minimum number of entities in a community
@@ -132,12 +133,11 @@ export class CommunityDetectionService {
     }
 
     // Load minimal entity data using DAO (id, metadata)
-    // Need metadata to filter out rejected/ignored entities
     const entityIdRecords =
       await this.entityDAO.getMinimalEntitiesForCampaign(campaignId);
 
-    // Filter out rejected/ignored entities
     const rejectedEntityIds = new Set<string>();
+    const stubEntityIds = new Set<string>();
     for (const record of entityIdRecords) {
       try {
         const metadata = record.metadata
@@ -146,8 +146,8 @@ export class CommunityDetectionService {
         const shardStatus = metadata.shardStatus;
         const ignored = metadata.ignored === true;
         const rejected = metadata.rejected === true;
+        const isStub = isEntityStub({ metadata });
 
-        // Skip rejected/ignored entities
         if (
           shardStatus === "rejected" ||
           ignored === true ||
@@ -156,10 +156,12 @@ export class CommunityDetectionService {
           rejectedEntityIds.add(record.id);
           continue;
         }
-
+        if (isStub) {
+          stubEntityIds.add(record.id);
+          continue;
+        }
         entityIds.add(record.id);
       } catch (_error) {
-        // If metadata parsing fails, include the entity (safe default)
         console.warn(
           `[CommunityDetection] Failed to parse metadata for entity ${record.id}, including it`
         );
@@ -172,21 +174,34 @@ export class CommunityDetectionService {
         `[CommunityDetection] Filtered out ${rejectedEntityIds.size} rejected/ignored entities (${entityIdRecords.length} total, ${entityIds.size} included)`
       );
     }
-
-    // Filter edges to exclude relationships involving rejected entities
-    const edgesBeforeFilter = edges.length;
-    const filteredEdges = edges.filter(
-      (edge) =>
-        !rejectedEntityIds.has(edge.from) && !rejectedEntityIds.has(edge.to)
-    );
-
-    if (filteredEdges.length < edgesBeforeFilter) {
+    if (stubEntityIds.size > 0) {
       console.log(
-        `[CommunityDetection] Filtered out ${edgesBeforeFilter - filteredEdges.length} edges involving rejected entities (${edgesBeforeFilter} total, ${filteredEdges.length} included)`
+        `[CommunityDetection] Excluding ${stubEntityIds.size} stub entities from Leiden (${entityIdRecords.length} total)`
       );
     }
 
-    return { entityIds, edges: filteredEdges };
+    // Exclude stub and rejected entity IDs from entity set; exclude edges touching stubs or rejected
+    const excludeIds = new Set([...rejectedEntityIds, ...stubEntityIds]);
+    const edgesBeforeFilter = edges.length;
+    const filteredEdges = edges.filter(
+      (edge) => !excludeIds.has(edge.from) && !excludeIds.has(edge.to)
+    );
+    const filteredEntityIds = new Set<string>();
+    for (const edge of filteredEdges) {
+      filteredEntityIds.add(edge.from);
+      filteredEntityIds.add(edge.to);
+    }
+    for (const id of entityIds) {
+      if (!excludeIds.has(id)) filteredEntityIds.add(id);
+    }
+
+    if (filteredEdges.length < edgesBeforeFilter) {
+      console.log(
+        `[CommunityDetection] Filtered out ${edgesBeforeFilter - filteredEdges.length} edges involving rejected/stub entities (${edgesBeforeFilter} total, ${filteredEdges.length} included)`
+      );
+    }
+
+    return { entityIds: filteredEntityIds, edges: filteredEdges };
   }
 
   /**

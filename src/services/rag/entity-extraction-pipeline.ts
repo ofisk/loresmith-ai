@@ -4,6 +4,7 @@ import type { EntityEmbeddingService } from "@/services/vectorize/entity-embeddi
 import type { EntityExtractionService } from "./entity-extraction-service";
 import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
 import { OpenAIAPIKeyError, EmbeddingGenerationError } from "@/lib/errors";
+import { mergeEntityContent, isStubContent } from "@/lib/entity-content-merge";
 
 export interface EntityExtractionPipelineOptions {
   campaignId: string;
@@ -97,12 +98,16 @@ export class EntityExtractionPipeline {
       } as const;
 
       if (existing) {
-        // Entity already exists - stage the update for user approval
+        // Entity already exists - merge content and stage the update for user approval
         const existingMetadata =
           (existing.metadata as Record<string, unknown>) || {};
-
-        // Store original content in metadata for comparison during approval
+        const mergedContent = mergeEntityContent(
+          existing.content,
+          entityPayload.content
+        );
+        const sufficient = !isStubContent(mergedContent, extracted.entityType);
         const stagedMetadata = {
+          ...existingMetadata,
           ...entityPayload.metadata,
           shardStatus: "staging" as const,
           staged: true,
@@ -112,15 +117,14 @@ export class EntityExtractionPipeline {
             sourceId: options.sourceId,
             sourceName: options.sourceName,
           },
-          // Preserve original content for comparison
           originalContent: existing.content,
           originalMetadata: existingMetadata,
+          isStub: sufficient ? false : (existingMetadata.isStub ?? true),
         };
 
-        // Use existing entity ID (not the extracted ID, which might be different)
         await this.entityDAO.updateEntity(existing.id, {
           name: extracted.name,
-          content: entityPayload.content,
+          content: mergedContent,
           metadata: stagedMetadata,
           confidence: entityPayload.confidence,
           sourceType: entityPayload.sourceType,

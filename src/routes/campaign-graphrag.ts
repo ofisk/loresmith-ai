@@ -1,5 +1,6 @@
 import { getDAOFactory } from "@/dao/dao-factory";
 import { notifyShardApproval, notifyShardRejection } from "@/lib/notifications";
+import { isEntityStub } from "@/lib/entity-content-merge";
 import { RebuildTriggerService } from "@/services/graph/rebuild-trigger-service";
 import { EntityImportanceService } from "@/services/graph/entity-importance-service";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
@@ -187,14 +188,16 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
     const allEntities =
       await daoFactory.entityDAO.listEntitiesByCampaign(campaignId);
 
-    // Filter to only staging entities
+    // Filter to only staging entities (exclude stubs; they are not shown in approval pane)
     const stagedEntities = allEntities.filter((entity) => {
+      if (isEntityStub(entity)) {
+        return false;
+      }
       const metadata = (entity.metadata as Record<string, unknown>) || {};
       const shardStatus = metadata.shardStatus;
       if (shardStatus !== "staging") {
         return false;
       }
-      // Filter by resourceId if provided
       if (resourceId && metadata.resourceId !== resourceId) {
         return false;
       }

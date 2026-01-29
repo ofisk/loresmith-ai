@@ -13,6 +13,7 @@ import { PlanningContextService } from "../../services/rag/planning-context-serv
 import { EntityEmbeddingService } from "../../services/vectorize/entity-embedding-service";
 import { EntityGraphService } from "../../services/graph/entity-graph-service";
 import { STRUCTURED_ENTITY_TYPES } from "../../lib/entity-types";
+import { isEntityStub } from "@/lib/entity-content-merge";
 
 // Dynamically build entity types list for descriptions
 const ENTITY_TYPES_LIST = STRUCTURED_ENTITY_TYPES.join(", ");
@@ -720,7 +721,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
               }
             }
 
-            // Filter out rejected/ignored entities
+            // Filter out rejected/ignored/stub entities
             const approvedEntities = entities.filter((entity) => {
               try {
                 const metadata = entity.metadata
@@ -732,7 +733,10 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
                 const shardStatus = metadata.shardStatus;
                 const ignored = metadata.ignored === true;
                 const rejected = metadata.rejected === true;
-                return shardStatus !== "rejected" && !ignored && !rejected;
+                const stub = isEntityStub({ metadata });
+                return (
+                  shardStatus !== "rejected" && !ignored && !rejected && !stub
+                );
               } catch {
                 return true; // Include if metadata parsing fails
               }
@@ -1333,7 +1337,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
                 uniqueTraversedEntityIds.includes(entity.id)
               );
 
-              // Filter out rejected/ignored entities
+              // Filter out rejected/ignored/stub entities
               const approvedTraversedEntities = traversedEntities.filter(
                 (entity) => {
                   try {
@@ -1346,7 +1350,13 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
                     const shardStatus = metadata.shardStatus;
                     const ignored = metadata.ignored === true;
                     const rejected = metadata.rejected === true;
-                    return shardStatus !== "rejected" && !ignored && !rejected;
+                    const stub = isEntityStub({ metadata });
+                    return (
+                      shardStatus !== "rejected" &&
+                      !ignored &&
+                      !rejected &&
+                      !stub
+                    );
                   } catch {
                     return true; // Include if metadata parsing fails
                   }
@@ -1695,10 +1705,17 @@ Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characte
       .describe(
         `Optional entity type to filter by. Available types: ${ENTITY_TYPES_LIST}. If not provided or empty string, returns all entity types.`
       ),
+    includeStubs: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe(
+        "If true, include stub entities (minimal/incomplete). Use when the agent needs to surface incomplete entities and prompt the user to fill in gaps. Default false: stubs are excluded from list results."
+      ),
     jwt: commonSchemas.jwt,
   }),
   execute: async (
-    { campaignId, entityType, jwt },
+    { campaignId, entityType, includeStubs, jwt },
     context?: any
   ): Promise<ToolResult> => {
     const toolCallId = context?.toolCallId || "unknown";
@@ -1793,8 +1810,13 @@ Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characte
         );
       }
 
+      // Exclude stubs unless explicitly requested (e.g. for agent stub-specific flow)
+      const entitiesToReturn = includeStubs
+        ? allEntities
+        : allEntities.filter((e) => !isEntityStub(e));
+
       // Transform entities to match searchCampaignContext format
-      const results = allEntities.map((entity) => ({
+      const results = entitiesToReturn.map((entity) => ({
         id: entity.id,
         type: entity.entity_type,
         name: entity.name || entity.title || entity.display_name || entity.id,

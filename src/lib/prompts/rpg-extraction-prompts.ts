@@ -110,6 +110,11 @@ ${buildRelationshipTypeList()}
 
 Example: If you extract NPC "[npc-name-1]" and NPC "[npc-name-2]", and the text says "[NPC Name 1] is [NPC Name 2]'s mother", add: \`{ "rel": "parent_of", "target_id": "[npc-name-2]" }\` to [NPC Name 1]'s relations array. If the text also mentions "[NPC Name 1] and [NPC Name 3] are married", add: \`{ "rel": "married_to", "target_id": "[npc-name-3]" }\` to [NPC Name 1]'s relations.
 
+ENTITY STUBS (ANY TYPE)
+When you suspect an entity (of any type) that is referenced in the source, section title, or clear context (e.g. "Source: [Document Name]", "Chapter: [Chapter Title]", "NPC lives in [Place Name]") but you do not have full information in this chunk, output a **stub**: minimal fields \`id\`, \`type\`, \`name\`, \`source\`; optional \`relations\` (target_id must match another entity id in this response, including other stubs).
+Use a **stable id** for stubs so later chunks can merge: lowercase, hyphenated slug from name + type (e.g. name "The Town of [Name]", type location → id \`the-town-of-[name]\` or \`[name]\`; include type if needed for uniqueness, e.g. \`[name]-location\`). This allows relations like resides_in, located_in, quest_target to reference the stub; later chunks can output the same id with fuller content and staging will merge.
+For stubs, other type-specific fields (overview, summary, etc.) may be empty string, one-line placeholder, or omitted; the schema accepts flexible fields.
+
 OUTPUT RULES
 - Output one JSON object with the top-level keys exactly as in SPEC.
 - Each predefined array can be empty, but must exist.
@@ -119,6 +124,7 @@ OUTPUT RULES
 - Output plain JSON without any markdown formatting.
 - Be comprehensive and inclusive - extract everything that could be useful for game preparation.
 - When in doubt, include the content rather than exclude it.
+- You may output stub entities with only id, type, name, source (and optional relations) when an entity is clearly referenced but not fully described.
 
 SPEC (fields not listed under a type are optional; always include common fields if known)
 COMMON FIELDS (for every primitive):
@@ -168,9 +174,9 @@ TYPES & REQUIRED MINIMUM FIELDS
 DISPLAY METADATA (recommended for all items)
 Provide display_metadata to help the UI intelligently show the content:
 {
-  "display_name": "The best name/title to show (e.g., 'Fireball' or 'Ancient Red Dragon')",
-  "subtitle": ["2-3 key identifying characteristics as strings (e.g., ['Level 3', 'Evocation'] or ['CR 24', 'Gargantuan', 'Dragon'])"],
-  "quick_info": ["2-4 property names that are most important at a glance (e.g., ['casting_time', 'range', 'duration'] or ['ac', 'hp', 'speed'])"],
+  "display_name": "The best name/title to show (e.g., spell name or creature name)",
+  "subtitle": ["2-3 key identifying characteristics as strings (e.g., level/school for spells or CR/size/type for creatures)"],
+  "quick_info": ["2-4 property names that are most important at a glance (e.g., casting_time/range/duration or ac/hp/speed)"],
   "primary_text": "Name of the field containing main description (e.g., 'text', 'summary', or 'description')"
 }
 
