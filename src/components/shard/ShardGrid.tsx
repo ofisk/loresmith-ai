@@ -16,6 +16,7 @@ import {
 } from "./shard-type-detector";
 import { StructuredShardCard } from "./StructuredShardCard";
 import { FlexibleShardCard } from "./FlexibleShardCard";
+import { isStubContentSufficient } from "@/lib/entity-required-fields";
 
 interface ShardGridProps {
   shards: Shard[];
@@ -162,6 +163,22 @@ export function ShardGrid({
   const someSelected =
     selectedShards.size > 0 && selectedShards.size < filteredShards.length;
 
+  const canApproveShard = (s: Shard) => {
+    const isStub =
+      (s.metadata as Record<string, unknown> | undefined)?.isStub === true;
+    if (!isStub) return true;
+    return isStubContentSufficient(
+      s as unknown as Record<string, unknown>,
+      s.type
+    );
+  };
+  const selectedShardList = filteredShards.filter((s) =>
+    selectedShards.has(s.id)
+  );
+  const approveDisabled =
+    selectedShardList.length === 0 ||
+    selectedShardList.some((s) => !canApproveShard(s));
+
   return (
     <div className={`space-y-4 pl-4 ${className}`}>
       {/* Header */}
@@ -292,7 +309,13 @@ export function ShardGrid({
                 <button
                   type="button"
                   onClick={() => handleBulkAction("approve")}
-                  className="flex items-center gap-2 font-semibold text-sm transition-colors text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
+                  disabled={approveDisabled}
+                  title={
+                    approveDisabled && selectedShardList.length > 0
+                      ? "Fill required fields before approving"
+                      : undefined
+                  }
+                  className="flex items-center gap-2 font-semibold text-sm transition-colors text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-purple-600 dark:disabled:hover:text-purple-400"
                 >
                   <CheckSquare size={16} />
                   Approve selected

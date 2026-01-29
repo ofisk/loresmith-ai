@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Edit2, ChevronDown, ChevronRight, Star } from "lucide-react";
+import { Edit2, ChevronDown, ChevronRight, Star, Sparkles } from "lucide-react";
 import type { StructuredShard } from "./shard-type-detector";
 import {
   getConfidenceColorClass,
@@ -13,6 +13,7 @@ import {
 } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
 import { ImportanceCalculationError } from "@/lib/errors";
+import { getRequiredFieldsForEntityType } from "@/lib/entity-required-fields";
 
 type ImportanceLevel = "high" | "medium" | "low" | null;
 
@@ -38,6 +39,21 @@ export function StructuredShardCard({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [importanceLoading, setImportanceLoading] = useState(false);
+  const [generatingField, setGeneratingField] = useState<string | null>(null);
+
+  const isStub =
+    (shard.metadata as Record<string, unknown> | undefined)?.isStub === true;
+  const requiredFields = useMemo(
+    () => (isStub ? getRequiredFieldsForEntityType(shard.type) : []),
+    [isStub, shard.type]
+  );
+
+  // Auto-expand stub cards so required fields are visible
+  useEffect(() => {
+    if (isStub && requiredFields.length > 0) {
+      setIsExpanded(true);
+    }
+  }, [isStub, requiredFields.length]);
 
   // Get importance from metadata
   const importanceScore = (shard.metadata as any)?.importanceScore as
@@ -155,6 +171,52 @@ export function StructuredShardCard({
   const handlePropertyChange = (key: string, newValue: any) => {
     if (onEdit) {
       onEdit(shard.id, { [key]: newValue });
+    }
+  };
+
+  const handleGenerateField = async (field: string) => {
+    if (!campaignId || !onEdit) return;
+    setGeneratingField(field);
+    try {
+      const jwt = getStoredJwt();
+      if (!jwt) {
+        throw new Error("No authentication token available");
+      }
+      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
+        API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.GENERATE_FIELD(
+            campaignId,
+            shard.id
+          )
+        ),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${jwt}`,
+          },
+          body: JSON.stringify({ field }),
+        }
+      );
+      if (jwtExpired) {
+        throw new Error("Session expired. Please refresh the page.");
+      }
+      if (!response.ok) {
+        const err = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(err.error || "Failed to generate field");
+      }
+      const result = (await response.json()) as { value?: string };
+      const value = result.value ?? "";
+      onEdit(shard.id, { [field]: value });
+    } catch (e) {
+      console.error("[StructuredShardCard] Generate field error:", e);
+      alert(
+        e instanceof Error ? e.message : "Failed to generate field. Try again."
+      );
+    } finally {
+      setGeneratingField(null);
     }
   };
 
@@ -420,6 +482,55 @@ export function StructuredShardCard({
       {/* Expanded Details */}
       {isExpanded && (
         <div className="border-t border-gray-700 pt-3 space-y-3">
+          {/* Stub: required fields with Generate */}
+          {isStub && requiredFields.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="font-medium text-white">
+                Required fields (fill before approving)
+              </h4>
+              {requiredFields.map((fieldKey) => {
+                const value =
+                  (shard[fieldKey as keyof StructuredShard] as string) ?? "";
+                return (
+                  <div
+                    key={fieldKey}
+                    className="flex flex-col gap-2 sm:flex-row sm:items-start"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <PropertyField
+                        name={fieldKey}
+                        value={value}
+                        type="string"
+                        onChange={handlePropertyChange}
+                      />
+                      <span className="text-xs text-gray-400 mt-0.5 block">
+                        Required – fill before approving
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateField(fieldKey)}
+                      disabled={generatingField !== null}
+                      className="flex items-center gap-1.5 px-3 py-2 border border-gray-600 rounded text-sm bg-gray-700 text-gray-200 hover:bg-gray-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                      title="Generate with AI"
+                    >
+                      {generatingField === fieldKey ? (
+                        <>
+                          <span className="animate-pulse">Generating…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={14} />
+                          Generate
+                        </>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Main text content */}
           {mainText && (
             <div>

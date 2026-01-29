@@ -27,6 +27,10 @@ export function convertShardCandidateToShard(candidate: ShardCandidate): Shard {
         type: parsedData.type,
         confidence: candidate.metadata.confidence,
         display_metadata: parsedData.display_metadata,
+        metadata: {
+          ...candidate.metadata,
+          isStub: (candidate.metadata as Record<string, unknown>)?.isStub,
+        },
       } as StructuredShard;
     }
 
@@ -94,6 +98,7 @@ export function convertShardToUpdate(
       type: _type,
       confidence: _confidence,
       display_metadata: _display_metadata,
+      metadata: shardMetadata,
       ...shardData
     } = shard as StructuredShard;
     return {
@@ -101,6 +106,9 @@ export function convertShardToUpdate(
       metadata: {
         ...originalCandidate.metadata,
         confidence: _confidence || originalCandidate.metadata.confidence,
+        ...(typeof shardMetadata === "object" && shardMetadata !== null
+          ? { isStub: (shardMetadata as Record<string, unknown>)?.isStub }
+          : {}),
       },
     };
   }
