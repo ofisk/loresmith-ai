@@ -4,6 +4,7 @@ import {
   isStubContentSufficient,
   getRequiredFieldsForEntityType,
 } from "@/lib/entity-required-fields";
+import { IMPACT_PER_NEW_ENTITY } from "@/lib/rebuild-config";
 import { RebuildTriggerService } from "@/services/graph/rebuild-trigger-service";
 import { EntityImportanceService } from "@/services/graph/entity-importance-service";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
@@ -527,6 +528,18 @@ export async function handleApproveShards(c: ContextWithAuth) {
     );
 
     const approvedEntityIds = shardIds;
+
+    // Record impact for net-new entities so community rebuild triggers (cron only considered created_at; approval adds entities to the graph)
+    if (approvedCount > 0) {
+      const rebuildTriggerService = new RebuildTriggerService(
+        daoFactory.campaignDAO
+      );
+      const impact = approvedCount * IMPACT_PER_NEW_ENTITY;
+      await rebuildTriggerService.recordImpact(campaignId, impact);
+      console.log(
+        `[Server] Recorded ${impact} impact for ${approvedCount} newly approved entities`
+      );
+    }
 
     // Check if there are any remaining staging entities and run Leiden algorithm if none remain
     await checkAndRunCommunityDetection(
