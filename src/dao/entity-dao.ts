@@ -621,8 +621,8 @@ export class EntityDAO extends BaseDAOClass {
     return records.map((record) => this.mapRelationshipRecord(record));
   }
 
-  /** SQLite/D1 bound parameter limit; we use 2*batchSize (from + to IN clauses). */
-  private static readonly RELATIONSHIPS_BATCH_SIZE = 400;
+  /** SQLite/D1 bound parameter limit (999); we use 2*batchSize (from + to IN clauses). */
+  private static readonly RELATIONSHIPS_BATCH_SIZE = 300;
 
   async getRelationshipsForEntities(
     entityIds: string[],
