@@ -1,5 +1,9 @@
 import { getDAOFactory } from "@/dao/dao-factory";
 import { notifyShardApproval, notifyShardRejection } from "@/lib/notifications";
+import {
+  isStubContentSufficient,
+  getRequiredFieldsForEntityType,
+} from "@/lib/entity-required-fields";
 import { RebuildTriggerService } from "@/services/graph/rebuild-trigger-service";
 import { EntityImportanceService } from "@/services/graph/entity-importance-service";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
@@ -7,6 +11,7 @@ import { RebuildQueueService } from "@/services/graph/rebuild-queue-service";
 import { type ContextWithAuth, verifyCampaignAccess } from "@/lib/route-utils";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
+import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 
 interface PendingRelation {
   relationshipType: string;
@@ -187,14 +192,13 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
     const allEntities =
       await daoFactory.entityDAO.listEntitiesByCampaign(campaignId);
 
-    // Filter to only staging entities
+    // Filter to only staging entities (include stubs; they appear in approval pane with required fields)
     const stagedEntities = allEntities.filter((entity) => {
       const metadata = (entity.metadata as Record<string, unknown>) || {};
       const shardStatus = metadata.shardStatus;
       if (shardStatus !== "staging") {
         return false;
       }
-      // Filter by resourceId if provided
       if (resourceId && metadata.resourceId !== resourceId) {
         return false;
       }
@@ -256,6 +260,7 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
           confidence: entity.confidence || 0.9,
           importanceScore: metadata.importanceScore,
           importanceOverride: metadata.importanceOverride,
+          isStub: metadata.isStub === true,
         },
         sourceRef: {
           fileKey,
@@ -327,6 +332,54 @@ export async function handleApproveShards(c: ContextWithAuth) {
       allCampaignEntities.map((e) => `${e.id} (${e.name})`).join(", ")
     );
 
+    // Validate first: stub shards must have required fields filled; fail entire request if any are insufficient
+    const insufficientStubs: Array<{
+      entityId: string;
+      name: string;
+      missingFields: string[];
+    }> = [];
+    for (const entityId of shardIds) {
+      const validationResult = await validateStagingEntity(
+        daoFactory,
+        entityId,
+        campaignId
+      );
+      if (!validationResult) continue;
+      const { entity } = validationResult;
+      const meta = (entity.metadata as Record<string, unknown>) || {};
+      if (
+        meta.isStub === true &&
+        !isStubContentSufficient(entity.content, entity.entityType)
+      ) {
+        const required = getRequiredFieldsForEntityType(entity.entityType);
+        const contentObj =
+          entity.content && typeof entity.content === "object"
+            ? (entity.content as Record<string, unknown>)
+            : {};
+        const missingFields = required.filter(
+          (key) =>
+            contentObj[key] == null ||
+            (typeof contentObj[key] === "string" &&
+              (contentObj[key] as string).trim() === "")
+        );
+        insufficientStubs.push({
+          entityId: entity.id,
+          name: entity.name,
+          missingFields,
+        });
+      }
+    }
+    if (insufficientStubs.length > 0) {
+      return c.json(
+        {
+          error:
+            "Some stub shards have missing required fields. Fill them before approving.",
+          insufficientStubs,
+        },
+        400
+      );
+    }
+
     let approvedCount = 0;
     const relationshipCount = 0;
 
@@ -343,9 +396,9 @@ export async function handleApproveShards(c: ContextWithAuth) {
       }
 
       const { entity } = validationResult;
+      const metadata = (entity.metadata as Record<string, unknown>) || {};
 
       // Update entity status to approved (remove pendingRelations from metadata)
-      const metadata = (entity.metadata as Record<string, unknown>) || {};
       const { pendingRelations: _, ...metadataWithoutPending } = metadata;
       const updatedMetadata = {
         ...metadataWithoutPending,
@@ -729,5 +782,135 @@ export async function handleUpdateShard(c: ContextWithAuth) {
   } catch (error) {
     console.error("[Server] Error updating entity:", error);
     return c.json({ error: "Failed to update entity" }, 500);
+  }
+}
+
+/** Allowed content keys for LLM field generation (required + common). */
+const GENERATABLE_FIELD_KEYS = new Set([
+  "summary",
+  "overview",
+  "one_line",
+  "objective",
+  "setup",
+  "premise",
+  "purpose",
+  "text",
+  "effect",
+  "trigger",
+  "owner",
+  "route",
+  "procedure",
+  "feature",
+  "domains",
+  "prompt",
+  "solution",
+  "title",
+  "rows",
+]);
+
+// Generate a single field value for a stub shard via LLM
+export async function handleGenerateShardField(c: ContextWithAuth) {
+  try {
+    const campaignId = c.req.param("campaignId");
+    const shardId = c.req.param("shardId");
+    const userAuth = (c as any).userAuth;
+    const body = await c.req.json().catch(() => ({}));
+    const field = typeof body?.field === "string" ? body.field.trim() : "";
+
+    if (!field) {
+      return c.json({ error: "field is required" }, 400);
+    }
+
+    const campaign = await verifyCampaignAccess(
+      c,
+      campaignId,
+      userAuth.username
+    );
+    if (!campaign) {
+      return c.json({ error: "Campaign not found" }, 404);
+    }
+
+    const daoFactory = getDAOFactory(c.env);
+    const entity = await daoFactory.entityDAO.getEntityById(shardId);
+    if (!entity || entity.campaignId !== campaignId) {
+      return c.json({ error: "Entity not found" }, 404);
+    }
+
+    const metadata = (entity.metadata as Record<string, unknown>) || {};
+    if (metadata.shardStatus !== "staging") {
+      return c.json(
+        {
+          error:
+            "Entity is not in staging; generate-field only for pending shards",
+        },
+        400
+      );
+    }
+
+    const allowedForType = getRequiredFieldsForEntityType(entity.entityType);
+    const allowedSet = new Set([
+      ...allowedForType,
+      ...Array.from(GENERATABLE_FIELD_KEYS),
+    ]);
+    if (!allowedSet.has(field)) {
+      return c.json(
+        {
+          error: `Field "${field}" is not allowed for this entity type. Allowed: ${allowedForType.join(", ")}`,
+        },
+        400
+      );
+    }
+
+    const openaiApiKey =
+      (userAuth as { openaiApiKey?: string }).openaiApiKey ||
+      (c.env.OPENAI_API_KEY as string | undefined);
+    if (!openaiApiKey) {
+      return c.json({ error: "OpenAI API key required for generation" }, 400);
+    }
+
+    const contentObj =
+      entity.content && typeof entity.content === "object"
+        ? (entity.content as Record<string, unknown>)
+        : {};
+    const name = (entity.name || contentObj.name || shardId) as string;
+    const contextParts: string[] = [];
+    if (contentObj.source && typeof contentObj.source === "object") {
+      contextParts.push(`Source: ${JSON.stringify(contentObj.source)}`);
+    }
+    const contextStr =
+      contextParts.length > 0
+        ? `\nExisting context: ${contextParts.join("; ")}`
+        : "";
+
+    const prompt = `You are helping fill in a tabletop game master (GM) entity. Generate a brief, GM-usable value for ONE field only.
+
+Entity name: ${name}
+Entity type: ${entity.entityType}
+Field to generate: "${field}"${contextStr}
+
+Rules:
+- Return ONLY the value for "${field}". No label, no prefix, no markdown.
+- For summary/overview/one_line: 1-3 sentences, concise and useful for a GM.
+- For one_line: a single short line (e.g. one sentence).
+- For objective/setup/premise/purpose: 1-2 sentences.
+- Do not invent facts not implied by the name/type; keep it generic if little context exists.`;
+
+    const provider = createLLMProvider({
+      apiKey: openaiApiKey,
+      defaultMaxTokens: 500,
+    });
+    const value = await provider.generateSummary(prompt);
+
+    const trimmed = value?.trim() ?? "";
+    return c.json({ value: trimmed });
+  } catch (error) {
+    console.error("[Server] Error generating field:", error);
+    return c.json(
+      {
+        error: "Failed to generate field",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
+      500
+    );
   }
 }

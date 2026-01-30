@@ -21,6 +21,7 @@ import {
   handleGetStagedShards,
   handleRejectShards,
   handleUpdateShard,
+  handleGenerateShardField,
 } from "@/routes/campaign-graphrag";
 import {
   handleAddResourceToCampaign,
@@ -705,6 +706,14 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     ),
     requireUserJwt,
     handleUpdateShard
+  );
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.GENERATE_FIELD(
+      ":campaignId",
+      ":shardId"
+    ),
+    requireUserJwt,
+    handleGenerateShardField
   );
 
   app.get(API_CONFIG.ENDPOINTS.PROGRESS.WEBSOCKET, handleProgressWebSocket);

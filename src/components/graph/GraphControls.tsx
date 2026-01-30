@@ -17,12 +17,6 @@ interface GraphControlsProps {
   onFiltersChange: (filters: CommunityFilterState | EntityFilterState) => void;
   onResetFilters: () => void;
 
-  // Search
-  communitySearchTerm: string;
-  onCommunitySearchChange: (term: string) => void;
-  entitySearchTerm: string;
-  onEntitySearchChange: (term: string) => void;
-
   // Layout
   layout: CytoscapeLayout;
   onLayoutChange: (layout: CytoscapeLayout) => void;
@@ -57,10 +51,6 @@ export function GraphControls({
   filters,
   onFiltersChange,
   onResetFilters,
-  communitySearchTerm,
-  onCommunitySearchChange,
-  entitySearchTerm,
-  onEntitySearchChange,
   layout,
   onLayoutChange,
   onResetView,
@@ -178,41 +168,6 @@ export function GraphControls({
         >
           Reset filters
         </Button>
-      </div>
-
-      {/* Search */}
-      <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold">Search</h3>
-
-        {/* Community search */}
-        {isCommunityView && (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-neutral-600 dark:text-neutral-400">
-              Search communities
-            </label>
-            <input
-              type="text"
-              value={communitySearchTerm}
-              onChange={(e) => onCommunitySearchChange(e.target.value)}
-              placeholder="Search by name..."
-              className="flex w-full rounded-md border border-gray-300 dark:border-gray-600 bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:border-blue-500 dark:focus-visible:border-blue-400"
-            />
-          </div>
-        )}
-
-        {/* Entity search */}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-neutral-600 dark:text-neutral-400">
-            Search entities
-          </label>
-          <input
-            type="text"
-            value={entitySearchTerm}
-            onChange={(e) => onEntitySearchChange(e.target.value)}
-            placeholder="Search by name..."
-            className="flex w-full rounded-md border border-gray-300 dark:border-gray-600 bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:border-blue-500 dark:focus-visible:border-blue-400"
-          />
-        </div>
       </div>
 
       {/* Layout */}

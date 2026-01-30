@@ -21,6 +21,8 @@ import {
 import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";
 import { CharacterSheetDetectionService } from "@/services/character-sheet/character-sheet-detection-service";
 import { CharacterSheetParserService } from "@/services/character-sheet/character-sheet-parser-service";
+import { mergeEntityContent, isStubContent } from "@/lib/entity-content-merge";
+import { normalizeEntityType } from "@/lib/entity-types";
 
 export interface EntityStagingResult {
   success: boolean;
@@ -508,41 +510,78 @@ export async function stageEntitiesFromResource(
     let createdCount = 0;
     let duplicateCount = 0;
 
-    // Semantic duplicate detection will be performed per-entity below
+    type RelationPayload = {
+      fromEntityId: string;
+      toEntityId: string;
+      relationshipType: string;
+      strength: number | null;
+      metadata: Record<string, unknown>;
+    };
+    const relationPayloads: RelationPayload[] = [];
+
+    /** Deep equality for content; used to skip approved entities when no new information. */
+    function contentUnchanged(
+      existingContent: unknown,
+      mergedContent: unknown
+    ): boolean {
+      const normalized = (v: unknown): string => {
+        if (v === null || v === undefined) return JSON.stringify(v);
+        if (typeof v !== "object") return JSON.stringify(v);
+        if (Array.isArray(v)) return JSON.stringify(v.map(normalized));
+        const o = v as Record<string, unknown>;
+        const keys = Object.keys(o).sort();
+        return JSON.stringify(keys.map((k) => [k, normalized(o[k])]));
+      };
+      return normalized(existingContent) === normalized(mergedContent);
+    }
+
+    /** Keys that change every staging run; exclude when comparing metadata for "unchanged". */
+    const META_RUN_KEYS = new Set([
+      "resourceId",
+      "resourceName",
+      "fileKey",
+      "pendingRelations",
+      "stagedFrom",
+      "stagedAt",
+    ]);
+    function metaUnchanged(
+      existingMeta: Record<string, unknown>,
+      mergedMeta: Record<string, unknown>
+    ): boolean {
+      const strip = (m: Record<string, unknown>): Record<string, unknown> => {
+        const o: Record<string, unknown> = {};
+        for (const k of Object.keys(m)) {
+          if (!META_RUN_KEYS.has(k)) o[k] = m[k];
+        }
+        return o;
+      };
+      return contentUnchanged(strip(existingMeta), strip(mergedMeta));
+    }
 
     // Update relationships to use campaign-scoped IDs
-    // Entity IDs from extraction are already campaign-scoped, but relationships may reference base IDs
-    // Ensure all relationship targetIds have the campaign prefix
     for (const extracted of extractedEntities) {
       extracted.relations = extracted.relations.map((rel) => {
         let targetId = rel.targetId;
-        // If target ID doesn't start with campaign prefix, add it
         if (!targetId.startsWith(`${campaignId}_`)) {
           targetId = `${campaignId}_${targetId}`;
         }
-        return {
-          ...rel,
-          targetId,
-        };
+        return { ...rel, targetId };
       });
     }
 
+    // Pass 1: create or update all entities only; collect relationship payloads
     for (const extracted of extractedEntities) {
-      // Entity IDs are already campaign-scoped from extraction
       const entityId = extracted.id;
-
-      // Update relationships to use campaign-scoped IDs
       const updatedRelations = extracted.relations;
+      const entityType = normalizeEntityType(extracted.entityType ?? "");
 
-      // Store entity with staging status and relations (for later approval)
-      const entityMetadata = {
+      const entityMetadata: Record<string, unknown> = {
         ...extracted.metadata,
         shardStatus: "staging" as const,
         staged: true,
         resourceId: normalizedResource.id,
         resourceName: normalizedResource.file_name || normalizedResource.id,
         fileKey: normalizedResource.file_key || normalizedResource.id,
-        // Store relations in metadata so they can be created during approval (with updated target IDs)
         pendingRelations: updatedRelations.map((rel) => ({
           relationshipType: rel.relationshipType,
           targetId: rel.targetId,
@@ -551,127 +590,194 @@ export async function stageEntitiesFromResource(
         })),
       };
 
-      if (updatedRelations.length > 0) {
-        console.log(
-          `[EntityStaging] Storing ${updatedRelations.length} pending relationships for entity ${entityId} (${extracted.name}):`,
-          updatedRelations.map((r) => `${r.relationshipType} -> ${r.targetId}`)
-        );
-      }
-
-      // Check if entity already exists by ID (entity IDs are campaign-scoped with campaign prefix)
       const existing = await daoFactory.entityDAO.getEntityById(entityId);
+      const normalizedName = (extracted.name ?? "").trim();
 
       if (existing) {
-        // Entity exists in the current campaign
         const existingMetadata =
           (existing.metadata as Record<string, unknown>) || {};
+        const mergedContent = mergeEntityContent(
+          existing.content,
+          extracted.content
+        );
+        const mergedMetaBase = {
+          ...existingMetadata,
+          ...entityMetadata,
+          isStub: isStubContent(mergedContent, entityType) ? true : false,
+        };
+        const mergedMeta =
+          existingMetadata.shardStatus === "approved"
+            ? { ...mergedMetaBase, shardStatus: "approved" as const }
+            : { ...mergedMetaBase, shardStatus: "staging" as const };
         if (existingMetadata.shardStatus === "approved") {
-          // Don't overwrite approved entities
+          if (
+            contentUnchanged(existing.content, mergedContent) &&
+            metaUnchanged(existingMetadata, mergedMeta)
+          ) {
+            console.log(
+              `[EntityStaging] Entity ${entityId} (${extracted.name}) already approved and unchanged, skipping`
+            );
+            skippedCount++;
+            continue;
+          }
           console.log(
-            `[EntityStaging] Entity ${entityId} (${extracted.name}) already approved, skipping`
+            `[EntityStaging] Entity ${entityId} (${extracted.name}) approved but has new information, updating`
           );
-          skippedCount++;
-          continue;
         }
         await daoFactory.entityDAO.updateEntity(entityId, {
-          name: extracted.name,
-          content: extracted.content,
-          metadata: entityMetadata,
-          confidence: extracted.metadata.confidence as number | null,
+          name: normalizedName,
+          content: mergedContent,
+          metadata: mergedMeta,
+          confidence: (extracted.metadata.confidence as number) ?? null,
           sourceType: "file_upload",
           sourceId: normalizedResource.id,
         });
         updatedCount++;
-      } else {
-        // Entity doesn't exist by ID - check for duplicates by name first
-        const duplicateByName = await daoFactory.entityDAO.findDuplicateByName(
-          campaignId,
-          extracted.name,
-          extracted.entityType,
-          entityId
-        );
-
-        if (duplicateByName) {
-          // Found a duplicate with the same name and type - skip creating
-          console.log(
-            `[EntityStagingService] Skipping duplicate entity by name: "${extracted.name}" (type: ${extracted.entityType})`
-          );
-          duplicateCount++;
-          continue;
-        }
-
-        // Check for semantic duplicates (different name but similar content)
-        const entityText =
-          typeof extracted.content === "string"
-            ? extracted.content
-            : JSON.stringify(extracted.content || {});
-        const duplicateResult =
-          await SemanticDuplicateDetectionService.checkForDuplicate({
-            content: entityText,
-            campaignId,
-            entityType: extracted.entityType,
-            excludeEntityId: entityId,
-            env,
-            openaiApiKey,
-            context: {
-              name: extracted.name,
-              id: entityId,
-              type: "entity",
-            },
-          });
-
-        if (duplicateResult.isDuplicate) {
-          // Skip creating this entity as it's a semantic duplicate
-          duplicateCount++;
-          continue;
-        }
-
-        // Entity doesn't exist and is not a duplicate - create new entity
-        await daoFactory.entityDAO.createEntity({
-          id: entityId,
-          campaignId,
-          entityType: extracted.entityType,
-          name: extracted.name,
-          content: extracted.content,
-          metadata: entityMetadata,
-          confidence: (extracted.metadata.confidence as number) || null,
-          sourceType: "file_upload",
-          sourceId: normalizedResource.id,
-        });
-        createdCount++;
-      }
-
-      // Create relationships immediately with staging status so importance can be calculated
-      const graphService = new EntityGraphService(daoFactory.entityDAO);
-      for (const rel of updatedRelations) {
-        try {
-          await graphService.upsertEdge({
-            campaignId,
+        for (const rel of updatedRelations) {
+          relationPayloads.push({
             fromEntityId: entityId,
             toEntityId: rel.targetId,
             relationshipType: rel.relationshipType,
-            strength: rel.strength,
+            strength: rel.strength ?? null,
             metadata: {
               ...(rel.metadata as Record<string, unknown>),
               status: "staging",
             },
-            allowSelfRelation: false,
           });
-        } catch (error) {
-          console.warn(
-            `[EntityStaging] Failed to create relationship ${entityId} -> ${rel.targetId}:`,
-            error
-          );
         }
+        stagedEntities.push({
+          id: entityId,
+          entityType,
+          name: normalizedName,
+          content: mergedContent,
+          metadata: mergedMeta,
+          relations: updatedRelations.map((rel) => ({
+            relationshipType: rel.relationshipType,
+            targetId: rel.targetId,
+            strength: rel.strength,
+            metadata: rel.metadata,
+          })),
+        });
+        continue;
       }
 
-      // Store staged entity info
+      const entityText =
+        typeof extracted.content === "string"
+          ? extracted.content
+          : JSON.stringify(extracted.content || {});
+      const contentForSemantic = `${normalizedName} ${entityText}`.trim();
+      const duplicateEntity =
+        await SemanticDuplicateDetectionService.findDuplicateEntity({
+          content: contentForSemantic,
+          campaignId,
+          name: normalizedName,
+          entityType,
+          excludeEntityId: entityId,
+          env,
+          openaiApiKey,
+        });
+
+      if (duplicateEntity) {
+        const existingMetadata =
+          (duplicateEntity.metadata as Record<string, unknown>) || {};
+        const mergedContent = mergeEntityContent(
+          duplicateEntity.content,
+          extracted.content
+        );
+        const sufficient = !isStubContent(mergedContent, entityType);
+        const mergedMetaBase = {
+          ...existingMetadata,
+          ...entityMetadata,
+          isStub: sufficient ? false : (existingMetadata.isStub ?? true),
+        };
+        const mergedMeta =
+          existingMetadata.shardStatus === "approved"
+            ? { ...mergedMetaBase, shardStatus: "approved" as const }
+            : { ...mergedMetaBase, shardStatus: "staging" as const };
+        if (existingMetadata.shardStatus === "approved") {
+          if (
+            contentUnchanged(duplicateEntity.content, mergedContent) &&
+            metaUnchanged(existingMetadata, mergedMeta)
+          ) {
+            console.log(
+              `[EntityStaging] Duplicate "${extracted.name}" already approved and unchanged, skipping`
+            );
+            duplicateCount++;
+            continue;
+          }
+          console.log(
+            `[EntityStaging] Duplicate "${extracted.name}" approved but has new information, updating`
+          );
+        }
+        await daoFactory.entityDAO.updateEntity(duplicateEntity.id, {
+          name: normalizedName,
+          content: mergedContent,
+          metadata: mergedMeta,
+          confidence: (extracted.metadata.confidence as number) ?? null,
+          sourceType: "file_upload",
+          sourceId: normalizedResource.id,
+        });
+        updatedCount++;
+        for (const rel of updatedRelations) {
+          relationPayloads.push({
+            fromEntityId: duplicateEntity.id,
+            toEntityId: rel.targetId,
+            relationshipType: rel.relationshipType,
+            strength: rel.strength ?? null,
+            metadata: {
+              ...(rel.metadata as Record<string, unknown>),
+              status: "staging",
+            },
+          });
+        }
+        stagedEntities.push({
+          id: duplicateEntity.id,
+          entityType,
+          name: normalizedName,
+          content: mergedContent,
+          metadata: mergedMeta,
+          relations: updatedRelations.map((rel) => ({
+            relationshipType: rel.relationshipType,
+            targetId: rel.targetId,
+            strength: rel.strength,
+            metadata: rel.metadata,
+          })),
+        });
+        continue;
+      }
+
+      const isStub = isStubContent(extracted.content, entityType);
+      const newMeta = { ...entityMetadata, isStub };
+      await daoFactory.entityDAO.createEntity({
+        id: entityId,
+        campaignId,
+        entityType,
+        name: normalizedName,
+        content: extracted.content,
+        metadata: newMeta,
+        confidence: (extracted.metadata.confidence as number) ?? null,
+        sourceType: "file_upload",
+        sourceId: normalizedResource.id,
+      });
+      createdCount++;
+      for (const rel of updatedRelations) {
+        relationPayloads.push({
+          fromEntityId: entityId,
+          toEntityId: rel.targetId,
+          relationshipType: rel.relationshipType,
+          strength: rel.strength ?? null,
+          metadata: {
+            ...(rel.metadata as Record<string, unknown>),
+            status: "staging",
+          },
+        });
+      }
       stagedEntities.push({
         id: entityId,
-        entityType: extracted.entityType,
+        entityType,
         name: extracted.name,
         content: extracted.content,
-        metadata: entityMetadata,
+        metadata: newMeta,
         relations: updatedRelations.map((rel) => ({
           relationshipType: rel.relationshipType,
           targetId: rel.targetId,
@@ -679,6 +785,27 @@ export async function stageEntitiesFromResource(
           metadata: rel.metadata,
         })),
       });
+    }
+
+    // Pass 2: create all relationships (all entities now exist)
+    const graphService = new EntityGraphService(daoFactory.entityDAO);
+    for (const rel of relationPayloads) {
+      try {
+        await graphService.upsertEdge({
+          campaignId,
+          fromEntityId: rel.fromEntityId,
+          toEntityId: rel.toEntityId,
+          relationshipType: rel.relationshipType,
+          strength: rel.strength,
+          metadata: rel.metadata,
+          allowSelfRelation: false,
+        });
+      } catch (error) {
+        console.warn(
+          `[EntityStaging] Failed to create relationship ${rel.fromEntityId} -> ${rel.toEntityId}:`,
+          error
+        );
+      }
     }
 
     // Calculate importance for all entities in batch (including newly staged entities)

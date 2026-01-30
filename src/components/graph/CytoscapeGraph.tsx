@@ -2,6 +2,7 @@ import { useEffect, useRef, useMemo } from "react";
 import cytoscape, { type Core, type ElementDefinition } from "cytoscape";
 import type {
   CommunityGraphData,
+  CommunityNode,
   EntityGraphData,
   CytoscapeLayout,
 } from "@/types/graph-visualization";
@@ -94,6 +95,7 @@ export function CytoscapeGraph({
             entityType: node.entityType,
             importance: node.importance,
             fullName: node.name, // Keep original for tooltips if needed
+            isEntityNode: true, // Same display as orphan nodes (ellipse, dashed)
           },
         });
       }
@@ -109,27 +111,37 @@ export function CytoscapeGraph({
         });
       }
     } else {
-      // Community-level graph
+      // Community-level graph (communities + orphan entities)
       const communityData = data as CommunityGraphData;
       for (const node of communityData.nodes) {
-        // Use the full name - Cytoscape will handle wrapping and overflow
-        // The node size is fixed (120x60) so text will wrap automatically
-        const nodeLabel =
-          node.name || `Community ${node.id.slice(0, 8)} (${node.size})`;
-        console.log(
-          `[CytoscapeGraph] Community node ${node.id}: name="${node.name}", label="${nodeLabel}"`
-        );
-        els.push({
-          data: {
-            id: node.id,
-            label: nodeLabel, // Use full name, no truncation
-            size: node.size,
-            entityTypes: node.entityTypes,
-            level: node.level,
-            summary: node.summary,
-            fullName: node.name || nodeLabel,
-          },
-        });
+        if ("isOrphan" in node && node.isOrphan) {
+          const nodeLabel = node.name || node.id;
+          els.push({
+            data: {
+              id: node.id,
+              label: nodeLabel,
+              entityType: node.entityType,
+              isOrphan: true,
+              fullName: node.name,
+            },
+          });
+        } else {
+          const communityNode = node as CommunityNode;
+          const nodeLabel =
+            communityNode.name ||
+            `Community ${communityNode.id.slice(0, 8)} (${communityNode.size})`;
+          els.push({
+            data: {
+              id: communityNode.id,
+              label: nodeLabel,
+              size: communityNode.size,
+              entityTypes: communityNode.entityTypes,
+              level: communityNode.level,
+              summary: communityNode.summary,
+              fullName: communityNode.name || nodeLabel,
+            },
+          });
+        }
       }
       for (const edge of communityData.edges) {
         els.push({
@@ -280,6 +292,15 @@ export function CytoscapeGraph({
                   "background-color": "#FFD700",
                   "border-width": 3,
                   "border-color": "#FFA500",
+                },
+              },
+              {
+                selector: "node[isOrphan], node[isEntityNode]",
+                style: {
+                  shape: "ellipse",
+                  "background-color": "#555",
+                  "border-style": "dashed",
+                  "border-width": "2px",
                 },
               },
             ],

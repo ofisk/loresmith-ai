@@ -1,6 +1,7 @@
 import type { Env } from "@/middleware/auth";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { ENTITY_TYPE_PCS } from "@/lib/entity-type-constants";
+import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";
 
 /**
  * Service to sync character_backstory entries from campaign_context to entities table
@@ -30,18 +31,22 @@ export class CharacterEntitySyncService {
     // Check if entity already exists by ID
     let existingEntity = await entityDAO.getEntityById(entityId);
 
-    // If not found by ID, check for duplicates by name
+    // If not found by ID, check for semantic duplicate (embedding similarity) with lexical fallback
     if (!existingEntity) {
-      existingEntity = await entityDAO.findDuplicateByName(
-        campaignId,
-        characterName,
-        ENTITY_TYPE_PCS
-      );
+      const contentForSemantic = `${characterName} ${backstoryContent}`.trim();
+      const openaiApiKey = this.env.OPENAI_API_KEY as string | undefined;
+      existingEntity =
+        await SemanticDuplicateDetectionService.findDuplicateEntity({
+          content: contentForSemantic,
+          campaignId,
+          name: characterName,
+          entityType: ENTITY_TYPE_PCS,
+          env: this.env,
+          openaiApiKey,
+        });
       if (existingEntity) {
-        // Use the existing entity's ID instead of creating a new one
-        // This prevents duplicates when the same character is synced multiple times
         console.log(
-          `[CharacterEntitySync] Found duplicate entity by name "${characterName}", using existing ID: ${existingEntity.id}`
+          `[CharacterEntitySync] Found duplicate entity for "${characterName}", using existing ID: ${existingEntity.id}`
         );
       }
     }

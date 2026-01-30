@@ -1,3 +1,4 @@
+import type { Entity } from "@/dao/entity-dao";
 import { EntityEmbeddingService } from "./entity-embedding-service";
 import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
 import { getDAOFactory } from "@/dao/dao-factory";
@@ -39,11 +40,100 @@ export interface SemanticDuplicateDetectionResult {
   };
 }
 
+/** Options for finding a duplicate entity (semantic first, lexical fallback) */
+export interface FindDuplicateEntityOptions {
+  /** Text to embed for semantic search (e.g. entity name + content) */
+  content: string;
+  /** Campaign ID to scope the search */
+  campaignId: string;
+  /** Entity name for lexical fallback (exact/trimmed name match) */
+  name: string;
+  /** Entity type to filter results (optional) */
+  entityType?: string;
+  /** Entity ID to exclude (e.g. current entity being updated) */
+  excludeEntityId?: string;
+  /** Similarity threshold for semantic match (default: 0.85) */
+  threshold?: number;
+  /** Number of similar entities to check (default: 10) */
+  topK?: number;
+  env: Env;
+  /** OpenAI API key for embeddings; if missing, only lexical fallback is used */
+  openaiApiKey?: string;
+}
+
 /**
  * Service for detecting semantic duplicates using embeddings
  * Reusable across entity staging, conversational shards, and other content creation flows
  */
 export class SemanticDuplicateDetectionService {
+  /**
+   * Find an existing entity that is a duplicate of the given content.
+   * Uses semantic search first (embedding similarity); falls back to lexical name match
+   * when VECTORIZE/OpenAI is unavailable or no semantic match is above threshold.
+   */
+  static async findDuplicateEntity(
+    options: FindDuplicateEntityOptions
+  ): Promise<Entity | null> {
+    const {
+      content,
+      campaignId,
+      name,
+      entityType,
+      excludeEntityId,
+      threshold = 0.85,
+      topK = 10,
+      env,
+      openaiApiKey,
+    } = options;
+
+    const daoFactory = getDAOFactory(env);
+    const normalizedName = (name ?? "").trim();
+
+    if (env.VECTORIZE && openaiApiKey && content.trim()) {
+      try {
+        const embeddingService = new EntityEmbeddingService(env.VECTORIZE);
+        const openaiEmbeddingService = new OpenAIEmbeddingService(openaiApiKey);
+        const contentEmbedding = await openaiEmbeddingService.generateEmbedding(
+          content.trim()
+        );
+        const similarEntities = await embeddingService.findSimilarByEmbedding(
+          contentEmbedding,
+          {
+            campaignId,
+            entityType,
+            topK,
+            excludeEntityIds: excludeEntityId ? [excludeEntityId] : [],
+          }
+        );
+        for (const similar of similarEntities) {
+          if (similar.score >= threshold) {
+            const entity = await daoFactory.entityDAO.getEntityById(
+              similar.entityId
+            );
+            if (entity) {
+              console.log(
+                `[SemanticDuplicateDetection] Semantic duplicate: "${normalizedName}" matches "${entity.name}" (${entity.id}) score ${similar.score.toFixed(3)}`
+              );
+              return entity;
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(
+          "[SemanticDuplicateDetection] Semantic duplicate check failed, using lexical fallback:",
+          error
+        );
+      }
+    }
+
+    return daoFactory.entityDAO.findDuplicateByName(
+      campaignId,
+      normalizedName,
+      entityType,
+      excludeEntityId
+    );
+  }
+
   /**
    * Check if content is a semantic duplicate of existing entities
    */

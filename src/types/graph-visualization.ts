@@ -45,10 +45,17 @@ export interface InterCommunityEdge extends GraphEdgeBase {
 }
 
 /**
+ * Union type for community-level graph nodes: communities or orphan entities
+ */
+export type CommunityGraphNode =
+  | CommunityNode
+  | (EntityNode & { isOrphan: true });
+
+/**
  * Community-level graph data
  */
 export interface CommunityGraphData {
-  nodes: CommunityNode[];
+  nodes: CommunityGraphNode[];
   edges: InterCommunityEdge[];
 }
 
@@ -81,13 +88,16 @@ export interface EntityGraphData {
 }
 
 /**
- * Entity search result
+ * Entity search result (single entity and its communities).
+ * API returns an array of these; matchType distinguishes primary vs associated.
  */
 export interface EntitySearchResult {
   entityId: string;
   entityName: string;
   entityType: string;
   communities: CommunityNodeBasic[];
+  /** Whether this entity was a direct match (primary) or related (associated). */
+  matchType?: "primary" | "associated";
 }
 
 /**

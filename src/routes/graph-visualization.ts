@@ -18,6 +18,10 @@ import {
   getCommunityName,
 } from "@/lib/graph/community-utils";
 import type { CommunitySummary } from "@/dao/community-summary-dao";
+import { EntitySemanticSearchService } from "@/services/vectorize/entity-semantic-search-service";
+import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
+import { EntityGraphService } from "@/services/graph/entity-graph-service";
+import { isEntityStub } from "@/lib/entity-content-merge";
 
 type ContextWithAuth = Context<{ Bindings: Env }> & {
   userAuth?: AuthPayload;
@@ -133,15 +137,16 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
       });
     }
 
-    // Load all entities for the campaign to check filters
+    // Load all entities for the campaign to check filters (exclude stubs so they are not rendered)
     const allEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
       campaignId,
       { limit: 10000 }
     );
+    const nonStubEntities = allEntities.filter((e) => !isEntityStub(e));
 
-    // Create entity map for quick lookup
+    // Create entity map for quick lookup (stubs excluded)
     const entityMap = new Map<string, Entity>();
-    for (const entity of allEntities) {
+    for (const entity of nonStubEntities) {
       entityMap.set(entity.id, entity);
     }
 
@@ -226,6 +231,46 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
 
     for (const community of filteredCommunities) {
       nodes.push(toCommunityNode(community, entityMap, communitySummaryMap));
+    }
+
+    // Add orphan entities (not in any filtered community), with same filters
+    const entityIdsInCommunities = new Set<string>();
+    for (const community of filteredCommunities) {
+      for (const entityId of community.entityIds) {
+        entityIdsInCommunities.add(entityId);
+      }
+    }
+    for (const entity of nonStubEntities) {
+      if (entityIdsInCommunities.has(entity.id)) continue;
+
+      let passesFilters = true;
+      if (entityTypes && entityTypes.length > 0) {
+        if (!matchesEntityType(entity, entityTypes)) passesFilters = false;
+      }
+      if (
+        approvalStatuses &&
+        approvalStatuses.length > 0 &&
+        passesFilters &&
+        !matchesApprovalStatus(entity, approvalStatuses as ShardStatus[])
+      ) {
+        passesFilters = false;
+      }
+      if (relationshipTypes && relationshipTypes.length > 0 && passesFilters) {
+        const hasRel = await entityHasRelationshipTypes(
+          daoFactory.entityDAO,
+          entity.id,
+          relationshipTypes
+        );
+        if (!hasRel) passesFilters = false;
+      }
+      if (passesFilters) {
+        nodes.push({
+          id: entity.id,
+          name: entity.name,
+          entityType: entity.entityType,
+          isOrphan: true as const,
+        });
+      }
     }
 
     // Build inter-community edges
@@ -362,27 +407,27 @@ export async function handleGetCommunityEntityGraph(c: ContextWithAuth) {
       { limit: 10000 }
     );
 
-    // Filter to only entities in this community and not rejected/ignored
+    // Filter to only entities in this community, not rejected/ignored, and not stubs
     const communityEntities = allEntities.filter((entity) => {
       if (!entityIdsSet.has(entity.id)) {
         return false;
       }
-
-      // Filter out rejected/ignored entities
-      // metadata is already parsed by mapEntityRecord
+      if (isEntityStub(entity)) {
+        return false;
+      }
       const metadata = entity.metadata as Record<string, unknown> | undefined;
       if (!metadata) {
         return true;
       }
       const shardStatus = metadata.shardStatus as ShardStatus | undefined;
       const ignored = metadata.ignored === true;
-      // Use shardStatus as single source of truth - ignore if rejected or deleted
       return (
         shardStatus !== "rejected" && shardStatus !== "deleted" && !ignored
       );
     });
 
-    // Build entity nodes
+    // Build entity nodes (stubs already excluded from communityEntities)
+    const communityEntityIds = new Set(communityEntities.map((e) => e.id));
     const nodes: EntityGraphData["nodes"] = [];
     for (const entity of communityEntities) {
       nodes.push({
@@ -392,7 +437,7 @@ export async function handleGetCommunityEntityGraph(c: ContextWithAuth) {
       });
     }
 
-    // Load relationships between entities in this community
+    // Load relationships between entities in this community (exclude edges touching stubs)
     const edges: EntityGraphData["edges"] = [];
     const processedEdges = new Set<string>();
 
@@ -401,10 +446,12 @@ export async function handleGetCommunityEntityGraph(c: ContextWithAuth) {
         await daoFactory.entityDAO.getRelationshipsForEntity(entity.id);
 
       for (const rel of relationships) {
-        // Only include relationships where both entities are in this community
         const otherEntityId =
           rel.fromEntityId === entity.id ? rel.toEntityId : rel.fromEntityId;
-        if (!entityIdsSet.has(otherEntityId)) {
+        if (
+          !entityIdsSet.has(otherEntityId) ||
+          !communityEntityIds.has(otherEntityId)
+        ) {
           continue;
         }
 
@@ -457,13 +504,38 @@ export async function handleGetCommunityEntityGraph(c: ContextWithAuth) {
   }
 }
 
+const SEMANTIC_SIMILARITY_THRESHOLD = 0.3;
+const SEMANTIC_TOP_K = 15;
+const LEXICAL_LIMIT = 10000;
+
+/**
+ * Build one EntitySearchResult from an entity and its communities.
+ */
+function toEntitySearchResult(
+  entity: Entity,
+  communities: Community[],
+  communitySummaryMap: Map<string, CommunitySummary>,
+  matchType: "primary" | "associated"
+): EntitySearchResult {
+  return {
+    entityId: entity.id,
+    entityName: entity.name,
+    entityType: entity.entityType,
+    communities: communities.map((community) =>
+      toCommunityNodeBasic(community, communitySummaryMap)
+    ),
+    matchType,
+  };
+}
+
 /**
  * GET /api/campaigns/:campaignId/graph-visualization/search-entity
- * Search for entities and find communities containing them
+ * Search for entities (semantic or lexical) and include associated entities
+ * (e.g. entities related to a location). Returns an array of EntitySearchResult.
  */
 export async function handleSearchEntityInGraph(c: ContextWithAuth) {
   try {
-    const userAuth = (c as any).userAuth;
+    const userAuth = (c as any).userAuth as AuthPayload | undefined;
     if (!userAuth) {
       return c.json({ error: "Authentication required" }, 401);
     }
@@ -489,60 +561,146 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
       );
     }
 
-    // Find entity by ID or name
-    let entity: Entity | null = null;
+    const graphService = new EntityGraphService(daoFactory.entityDAO);
+    const primaryEntities: Entity[] = [];
+    const associatedEntityIds = new Set<string>();
+
     if (entityId) {
-      entity = await daoFactory.entityDAO.getEntityById(entityId);
+      const entity = await daoFactory.entityDAO.getEntityById(entityId);
+      if (!entity || entity.campaignId !== campaignId || isEntityStub(entity)) {
+        return c.json({ error: "Entity not found" }, 404);
+      }
+      primaryEntities.push(entity);
     } else if (entityName) {
-      const allEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
-        campaignId,
-        { limit: 10000 }
-      );
-      entity =
-        allEntities.find((e) =>
-          e.name.toLowerCase().includes(entityName.toLowerCase())
-        ) || null;
+      const openaiApiKey =
+        userAuth.openaiApiKey || (c.env.OPENAI_API_KEY as string | undefined);
+      if (c.env.VECTORIZE && openaiApiKey) {
+        const openaiEmbeddingService = new OpenAIEmbeddingService(openaiApiKey);
+        const getQueryEmbedding = async (q: string) => {
+          const [emb] = await openaiEmbeddingService.generateEmbeddings([q]);
+          return emb;
+        };
+        const semanticSearch = new EntitySemanticSearchService(
+          c.env.VECTORIZE,
+          getQueryEmbedding
+        );
+        const matches = await semanticSearch.searchEntities(
+          campaignId,
+          entityName,
+          {
+            topK: SEMANTIC_TOP_K,
+            minScore: SEMANTIC_SIMILARITY_THRESHOLD,
+          }
+        );
+        for (const m of matches) {
+          const entity = await daoFactory.entityDAO.getEntityById(m.entityId);
+          if (
+            entity &&
+            entity.campaignId === campaignId &&
+            !isEntityStub(entity)
+          ) {
+            primaryEntities.push(entity);
+          }
+        }
+      }
+
+      if (primaryEntities.length === 0) {
+        const allEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
+          campaignId,
+          {
+            limit: LEXICAL_LIMIT,
+          }
+        );
+        const match = allEntities.find(
+          (e) =>
+            e.name.toLowerCase().includes(entityName.toLowerCase()) &&
+            !isEntityStub(e)
+        );
+        if (match) primaryEntities.push(match);
+      }
     }
 
-    if (!entity || entity.campaignId !== campaignId) {
+    if (primaryEntities.length === 0) {
       return c.json({ error: "Entity not found" }, 404);
     }
 
-    // Find communities containing this entity
-    const communities =
-      await daoFactory.communityDAO.findCommunitiesContainingEntity(
-        campaignId,
-        entity.id
-      );
+    // Exclude stubs from primary and associated lists
+    const primaryFiltered = primaryEntities.filter((e) => !isEntityStub(e));
+    if (primaryFiltered.length === 0) {
+      return c.json({ error: "Entity not found" }, 404);
+    }
 
-    // Load community summaries for names
-    const communitySummaryMap = new Map<string, CommunitySummary>();
-    if (daoFactory.communitySummaryDAO) {
-      for (const community of communities) {
-        try {
-          const summary =
-            await daoFactory.communitySummaryDAO.getSummaryByCommunityId(
-              community.id
-            );
-          if (summary) {
-            communitySummaryMap.set(community.id, summary);
-          }
-        } catch {
-          // Ignore errors
+    for (const entity of primaryFiltered) {
+      const neighbors = await graphService.getNeighbors(campaignId, entity.id, {
+        maxDepth: 1,
+      });
+      for (const n of neighbors) {
+        if (n.entityId && !primaryFiltered.some((e) => e.id === n.entityId)) {
+          associatedEntityIds.add(n.entityId);
         }
       }
     }
 
-    const result: EntitySearchResult = {
-      entityId: entity.id,
-      entityName: entity.name,
-      entityType: entity.entityType,
-      communities: communities.map((community) =>
-        toCommunityNodeBasic(community, communitySummaryMap)
-      ),
-    };
+    const associatedEntities: Entity[] = [];
+    for (const id of associatedEntityIds) {
+      const entity = await daoFactory.entityDAO.getEntityById(id);
+      if (entity && entity.campaignId === campaignId && !isEntityStub(entity)) {
+        associatedEntities.push(entity);
+      }
+    }
 
-    return c.json(result);
+    const allEntities = [...primaryFiltered, ...associatedEntities];
+    const allCommunityIds = new Set<string>();
+    const entityCommunities = new Map<string, Community[]>();
+
+    for (const entity of allEntities) {
+      const communities =
+        await daoFactory.communityDAO.findCommunitiesContainingEntity(
+          campaignId,
+          entity.id
+        );
+      entityCommunities.set(entity.id, communities);
+      for (const comm of communities) allCommunityIds.add(comm.id);
+    }
+
+    const communitySummaryMap = new Map<string, CommunitySummary>();
+    if (daoFactory.communitySummaryDAO) {
+      for (const cid of allCommunityIds) {
+        try {
+          const summary =
+            await daoFactory.communitySummaryDAO.getSummaryByCommunityId(cid);
+          if (summary) communitySummaryMap.set(cid, summary);
+        } catch {
+          // Ignore
+        }
+      }
+    }
+
+    const results: EntitySearchResult[] = [];
+    for (const entity of primaryFiltered) {
+      const communities = entityCommunities.get(entity.id) ?? [];
+      results.push(
+        toEntitySearchResult(
+          entity,
+          communities,
+          communitySummaryMap,
+          "primary"
+        )
+      );
+    }
+    for (const entity of associatedEntities) {
+      const communities = entityCommunities.get(entity.id) ?? [];
+      results.push(
+        toEntitySearchResult(
+          entity,
+          communities,
+          communitySummaryMap,
+          "associated"
+        )
+      );
+    }
+
+    return c.json(results);
   } catch (error) {
     console.error("[GraphVisualization] Error searching entity:", error);
     return c.json(

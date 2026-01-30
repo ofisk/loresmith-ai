@@ -21,17 +21,15 @@ import { useAppState } from "@/hooks/useAppState";
 import { useUiHints } from "@/hooks/useUiHints";
 import { useGlobalShardManager } from "@/hooks/useGlobalShardManager";
 import { ShardOverlay } from "@/components/shard/ShardOverlay";
-import { API_CONFIG, AUTH_CODES } from "@/shared-config";
+import { AUTH_CODES } from "@/shared-config";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { getHelpContent } from "@/lib/help-content";
-import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
 
 import type { campaignTools } from "@/tools/campaign";
 import type { fileTools } from "@/tools/file";
 import type { generalTools } from "@/tools/general";
 import type { FileMetadata } from "@/dao/file-dao";
-import type { StagedShardGroup } from "@/types/shard";
 
 // List of tools that require human confirmation
 // NOTE: this should match the keys in the executions object in tools.ts
@@ -730,6 +728,27 @@ export default function Chat() {
 
   // Helper function to format shards as a readable chat message
 
+  // Global shard manager for unified shard handling (must be before useUiHints so callback can use fetchAllStagedShards)
+  const {
+    shards: globalShards,
+    isLoading: shardsLoading,
+    fetchAllStagedShards,
+    removeProcessedShards,
+  } = useGlobalShardManager(authState.getStoredJwt);
+
+  const shardsReadyRefetchTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (shardsReadyRefetchTimeoutRef.current) {
+        clearTimeout(shardsReadyRefetchTimeoutRef.current);
+        shardsReadyRefetchTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   // Listen for decoupled UI hints
   useUiHints({
     onUiHint: async ({ type, data }) => {
@@ -740,72 +759,18 @@ export default function Chat() {
         "campaignId" in data &&
         typeof data.campaignId === "string"
       ) {
-        const campaignId = data.campaignId;
-        try {
-          const jwt = authState.getStoredJwt();
-          if (!jwt) return;
-          const { response, jwtExpired } =
-            await authenticatedFetchWithExpiration(
-              API_CONFIG.buildUrl(
-                API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.STAGED_SHARDS(
-                  campaignId
-                )
-              ),
-              { jwt }
-            );
-          if (!jwtExpired && response.ok) {
-            const payload = (await response.json()) as {
-              shards?: Array<{
-                id: string;
-                content: string;
-                campaignId?: string;
-                resourceId?: string;
-                [key: string]: unknown;
-              }>;
-            };
-            const rawShards = payload?.shards || [];
-            if (rawShards.length > 0) {
-              // Get campaign name from campaigns list
-              const campaign = campaigns.find(
-                (c) => c.campaignId === campaignId
-              );
-              const campaignName = campaign?.name || "Unknown Campaign";
-
-              // Map to StagedShardGroup format
-              // Note: The API returns a simplified shard structure, so we use unknown
-              // and let the hook handle proper transformation
-              const shards = rawShards.map((shard) => ({
-                ...shard,
-                campaignId: campaignId,
-                resourceId: shard.resourceId || "unknown",
-              })) as unknown as StagedShardGroup[];
-
-              console.log("Adding shards to global manager:", {
-                campaignId: campaignId,
-                campaignName,
-                shardCount: shards.length,
-                shards: shards,
-              });
-
-              // Add shards to global manager
-              addShardsFromCampaign(campaignId, campaignName, shards);
-            }
-          }
-        } catch (error) {
-          console.error("Failed to fetch shards for UI hint:", error);
+        // Debounce: schedule one full refetch so we get all staging entities
+        // (multiple notifications can race; full refetch avoids partial counts)
+        if (shardsReadyRefetchTimeoutRef.current) {
+          clearTimeout(shardsReadyRefetchTimeoutRef.current);
         }
+        shardsReadyRefetchTimeoutRef.current = setTimeout(() => {
+          shardsReadyRefetchTimeoutRef.current = null;
+          fetchAllStagedShards();
+        }, 800);
       }
     },
   });
-
-  // Global shard manager for unified shard handling
-  const {
-    shards: globalShards,
-    isLoading: shardsLoading,
-    fetchAllStagedShards,
-    addShardsFromCampaign,
-    removeProcessedShards,
-  } = useGlobalShardManager(authState.getStoredJwt);
 
   // Fetch shards when authentication completes
   useEffect(() => {
@@ -815,6 +780,9 @@ export default function Chat() {
   }, [authState.isAuthenticated, fetchAllStagedShards]);
 
   // Listen for shards-generated events to refresh shards overlay
+  const shardsGeneratedTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   useEffect(() => {
     const handleShardsGenerated = (event: Event) => {
       const customEvent = event as CustomEvent;
@@ -828,18 +796,15 @@ export default function Chat() {
         }
       );
 
-      // Add a small delay to ensure shards are fully saved to the database
-      // before fetching (entity extraction and saving can take a moment)
-      const refreshShards = async () => {
+      // Debounce: one refetch 1.5s after the last notification so DB has all entities
+      if (shardsGeneratedTimeoutRef.current) {
+        clearTimeout(shardsGeneratedTimeoutRef.current);
+      }
+      shardsGeneratedTimeoutRef.current = setTimeout(() => {
+        shardsGeneratedTimeoutRef.current = null;
         console.log("[App] Refreshing shards overlay");
-        await fetchAllStagedShards();
-      };
-
-      // Initial refresh after 1 second
-      setTimeout(refreshShards, 1000);
-
-      // Retry after 3 seconds in case the first fetch was too early
-      setTimeout(refreshShards, 3000);
+        fetchAllStagedShards();
+      }, 1500);
     };
 
     window.addEventListener(
@@ -847,6 +812,10 @@ export default function Chat() {
       handleShardsGenerated as EventListener
     );
     return () => {
+      if (shardsGeneratedTimeoutRef.current) {
+        clearTimeout(shardsGeneratedTimeoutRef.current);
+        shardsGeneratedTimeoutRef.current = null;
+      }
       window.removeEventListener(
         "shards-generated",
         handleShardsGenerated as EventListener

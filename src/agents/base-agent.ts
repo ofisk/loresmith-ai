@@ -861,7 +861,15 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 
               // Normalize results from ai.tool() to the expected ToolResult envelope
               const normalized = (() => {
-                // If already in the expected envelope, pass-through
+                // If already in the expected envelope, use trimmed result so LLM gets trimmed content
+                if (
+                  trimmedResult &&
+                  typeof trimmedResult === "object" &&
+                  "toolCallId" in trimmedResult &&
+                  "result" in trimmedResult
+                ) {
+                  return trimmedResult as any;
+                }
                 if (
                   toolResult &&
                   typeof toolResult === "object" &&
