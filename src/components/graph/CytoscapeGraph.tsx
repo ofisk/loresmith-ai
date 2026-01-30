@@ -95,6 +95,7 @@ export function CytoscapeGraph({
             entityType: node.entityType,
             importance: node.importance,
             fullName: node.name, // Keep original for tooltips if needed
+            isEntityNode: true, // Same display as orphan nodes (ellipse, dashed)
           },
         });
       }
@@ -294,7 +295,7 @@ export function CytoscapeGraph({
                 },
               },
               {
-                selector: "node[isOrphan]",
+                selector: "node[isOrphan], node[isEntityNode]",
                 style: {
                   shape: "ellipse",
                   "background-color": "#555",

@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Modal } from "@/components/modal/Modal";
 import { CytoscapeGraph } from "./CytoscapeGraph";
+import { EntityDetailPanel } from "./EntityDetailPanel";
 import { GraphControls } from "./GraphControls";
 import { CommunityEntityView } from "./CommunityEntityView";
 import { useGraphVisualization } from "@/hooks/useGraphVisualization";
+import { cn } from "@/lib/utils";
 import type {
   CytoscapeLayout,
   GraphViewMode,
@@ -26,6 +28,7 @@ export function GraphVisualizationModal({
   const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(
     null
   );
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [layout, setLayout] = useState<CytoscapeLayout>("cose");
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedNodes, setHighlightedNodes] = useState<string[]>([]);
@@ -130,20 +133,29 @@ export function GraphVisualizationModal({
     );
   }, [communityGraphData?.nodes]);
 
-  // Handle community node click (Option A: no-op for orphan entities)
+  // Handle community node click: show entity details for orphans, drill to community for communities
   const handleCommunityNodeClick = useCallback(
     (nodeId: string) => {
-      if (orphanNodeIds.has(nodeId)) return;
+      if (orphanNodeIds.has(nodeId)) {
+        setSelectedEntityId(nodeId);
+        return;
+      }
+      setSelectedEntityId(null);
       setSelectedCommunityId(nodeId);
       setViewMode("entity");
     },
     [orphanNodeIds]
   );
 
+  const handleCloseEntityDetail = useCallback(() => {
+    setSelectedEntityId(null);
+  }, []);
+
   // Handle back to community view
   const handleBackToCommunity = useCallback(() => {
     setViewMode("community");
     setSelectedCommunityId(null);
+    setSelectedEntityId(null);
   }, []);
 
   const handleSearch = useCallback(() => {
@@ -151,15 +163,14 @@ export function GraphVisualizationModal({
     if (q) searchEntity(q);
   }, [searchQuery, searchEntity]);
 
-  // Update highlighted nodes when search results change (merge communities from all results)
+  // Update highlighted nodes when search results change (communities + entity nodes so orphans highlight)
   useEffect(() => {
     if (searchResults && searchResults.length > 0) {
-      const communityIds = [
-        ...new Set(
-          searchResults.flatMap((r) => r.communities.map((c) => c.id))
-        ),
-      ];
-      setHighlightedNodes(communityIds);
+      const communityIds = new Set(
+        searchResults.flatMap((r) => r.communities.map((c) => c.id))
+      );
+      const entityIds = new Set(searchResults.map((r) => r.entityId));
+      setHighlightedNodes([...communityIds, ...entityIds]);
     } else {
       setHighlightedNodes([]);
     }
@@ -268,13 +279,37 @@ export function GraphVisualizationModal({
                     </div>
                   </div>
                 ) : filteredCommunityGraphData ? (
-                  <CytoscapeGraph
-                    data={filteredCommunityGraphData}
-                    layout={layout}
-                    onNodeClick={handleCommunityNodeClick}
-                    highlightedNodes={highlightedNodes}
-                    className="flex-1"
-                  />
+                  <div
+                    className={cn(
+                      "flex-1 min-h-0 flex",
+                      selectedEntityId && "gap-0"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "min-w-0 flex-1",
+                        selectedEntityId && "w-2/3"
+                      )}
+                    >
+                      <CytoscapeGraph
+                        data={filteredCommunityGraphData}
+                        layout={layout}
+                        onNodeClick={handleCommunityNodeClick}
+                        highlightedNodes={highlightedNodes}
+                        className="h-full"
+                      />
+                    </div>
+                    {selectedEntityId && (
+                      <div className="w-1/3 min-w-0 border-l border-neutral-200 dark:border-neutral-700 flex-shrink-0">
+                        <EntityDetailPanel
+                          campaignId={campaignId}
+                          entityId={selectedEntityId}
+                          onClose={handleCloseEntityDetail}
+                          className="h-full"
+                        />
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="flex items-center justify-center h-full">
                     <div className="text-neutral-600 dark:text-neutral-400">
