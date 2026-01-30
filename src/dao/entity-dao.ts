@@ -273,7 +273,12 @@ export class EntityDAO extends BaseDAOClass {
 
   async listEntitiesByCampaign(
     campaignId: string,
-    options: { entityType?: string; limit?: number; offset?: number } = {}
+    options: {
+      entityType?: string;
+      limit?: number;
+      offset?: number;
+      orderBy?: "updated_at" | "name";
+    } = {}
   ): Promise<Entity[]> {
     const conditions = ["campaign_id = ?"];
     const params: any[] = [campaignId];
@@ -283,10 +288,14 @@ export class EntityDAO extends BaseDAOClass {
       params.push(options.entityType);
     }
 
+    const orderBy =
+      options.orderBy === "name"
+        ? "LOWER(TRIM(name)) ASC, id ASC"
+        : "updated_at DESC";
     let sql = `
       SELECT * FROM entities
       WHERE ${conditions.join(" AND ")}
-      ORDER BY updated_at DESC
+      ORDER BY ${orderBy}
     `;
 
     if (typeof options.limit === "number") {
@@ -403,24 +412,25 @@ export class EntityDAO extends BaseDAOClass {
   }
 
   /**
-   * Find entity by exact name and type (case-insensitive)
-   * Used to detect if an extracted entity candidate already exists
+   * Find entity by exact name and type (case-insensitive for name and type).
+   * Used to detect if an extracted entity candidate already exists.
    */
   async findEntityByNameAndType(
     campaignId: string,
     name: string,
     entityType: string
   ): Promise<Entity | null> {
+    const normalizedName = (name ?? "").trim();
     const sql = `
       SELECT * FROM entities
-      WHERE campaign_id = ? 
-        AND LOWER(name) = LOWER(?)
-        AND entity_type = ?
+      WHERE campaign_id = ?
+        AND LOWER(TRIM(name)) = LOWER(?)
+        AND LOWER(entity_type) = LOWER(?)
       LIMIT 1
     `;
     const record = await this.queryFirst<EntityRecord>(sql, [
       campaignId,
-      name,
+      normalizedName,
       entityType,
     ]);
     return record ? this.mapEntityRecord(record) : null;
@@ -428,22 +438,24 @@ export class EntityDAO extends BaseDAOClass {
 
   /**
    * Find all entities with the same name (case-insensitive) in a campaign.
-   * Used for duplicate detection.
+   * Name is trimmed; type comparison is case-insensitive when provided.
+   * Used as lexical fallback for duplicate detection (primary is semantic via SemanticDuplicateDetectionService) and for same-name reporting.
    */
   async findEntitiesByName(
     campaignId: string,
     name: string,
     entityType?: string
   ): Promise<Entity[]> {
+    const normalizedName = (name ?? "").trim();
     let sql = `
       SELECT * FROM entities
-      WHERE campaign_id = ? 
-        AND LOWER(name) = LOWER(?)
+      WHERE campaign_id = ?
+        AND LOWER(TRIM(name)) = LOWER(?)
     `;
-    const params: any[] = [campaignId, name];
+    const params: (string | undefined)[] = [campaignId, normalizedName];
 
-    if (entityType) {
-      sql += ` AND entity_type = ?`;
+    if (entityType !== undefined && entityType !== null && entityType !== "") {
+      sql += ` AND LOWER(entity_type) = LOWER(?)`;
       params.push(entityType);
     }
 
@@ -454,8 +466,8 @@ export class EntityDAO extends BaseDAOClass {
   }
 
   /**
-   * Check if an entity with the same name already exists.
-   * Returns the existing entity if found, null otherwise.
+   * Lexical duplicate check by name (and optional type).
+   * Used as fallback when semantic duplicate detection is unavailable; primary duplicate detection is SemanticDuplicateDetectionService.findDuplicateEntity.
    */
   async findDuplicateByName(
     campaignId: string,

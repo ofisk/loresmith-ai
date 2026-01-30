@@ -84,7 +84,19 @@ export async function trimToolResultsByRelevancy(
     return toolResult;
   }
 
-  const result = toolResult as ToolResultData;
+  const raw = toolResult as Record<string, unknown>;
+
+  // Unwrap envelope format: { toolCallId, result: { success, message, data: { results } } }
+  const inner =
+    raw.result && typeof raw.result === "object"
+      ? (raw.result as Record<string, unknown>)
+      : null;
+  const payloadToTrim =
+    inner && inner.data && typeof inner.data === "object"
+      ? (inner.data as ToolResultData)
+      : (raw as ToolResultData);
+
+  const result = payloadToTrim as ToolResultData;
 
   // Find the array to trim (results or entities)
   let itemsToTrim: TrimmableResult[] | undefined;
@@ -181,7 +193,7 @@ export async function trimToolResultsByRelevancy(
   );
 
   // Reconstruct result with trimmed items
-  const trimmedResult = { ...result };
+  const trimmedPayload = { ...result };
   if (isNested && result.data && typeof result.data === "object") {
     const trimmedData = { ...(result.data as ToolResultData) };
     if (arrayKey === "results") {
@@ -189,14 +201,24 @@ export async function trimToolResultsByRelevancy(
     } else if (arrayKey === "entities") {
       trimmedData.entities = keptItems;
     }
-    trimmedResult.data = trimmedData;
+    trimmedPayload.data = trimmedData;
   } else {
     if (arrayKey === "results") {
-      trimmedResult.results = keptItems;
+      trimmedPayload.results = keptItems;
     } else if (arrayKey === "entities") {
-      trimmedResult.entities = keptItems;
+      trimmedPayload.entities = keptItems;
     }
   }
 
-  return trimmedResult;
+  // If we unwrapped envelope format, rewrap so the agent gets the same shape
+  if (inner) {
+    return {
+      ...raw,
+      result: {
+        ...inner,
+        data: trimmedPayload,
+      },
+    };
+  }
+  return trimmedPayload;
 }

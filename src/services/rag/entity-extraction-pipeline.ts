@@ -3,8 +3,10 @@ import type { EntityGraphService } from "@/services/graph/entity-graph-service";
 import type { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import type { EntityExtractionService } from "./entity-extraction-service";
 import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
+import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";
 import { OpenAIAPIKeyError, EmbeddingGenerationError } from "@/lib/errors";
 import { mergeEntityContent, isStubContent } from "@/lib/entity-content-merge";
+import { normalizeEntityType } from "@/lib/entity-types";
 
 export interface EntityExtractionPipelineOptions {
   campaignId: string;
@@ -58,32 +60,31 @@ export class EntityExtractionPipeline {
     const extractedIdToEntityId = new Map<string, string>();
 
     for (const extracted of extractedEntities) {
+      const normalizedName = (extracted.name ?? "").trim();
+      const entityType = normalizeEntityType(extracted.entityType ?? "");
+
       // First check if entity exists by ID (exact match)
       let existing = await this.entityDAO.getEntityById(extracted.id);
 
-      // If not found by ID, check if an entity with the same name and type already exists
-      // This handles cases where the same entity is extracted with a different ID
+      // If not found by ID, use semantic duplicate detection (embedding similarity) with lexical fallback
       if (!existing) {
-        existing = await this.entityDAO.findEntityByNameAndType(
-          options.campaignId,
-          extracted.name,
-          extracted.entityType
-        );
-      }
-
-      // Also check for duplicates by name only (regardless of type)
-      // This helps catch cases where an entity was misclassified or has duplicates
-      if (!existing) {
-        const duplicateByName = await this.entityDAO.findDuplicateByName(
-          options.campaignId,
-          extracted.name
-        );
-        if (duplicateByName) {
-          // Found a duplicate with different type - use the existing one to avoid creating duplicates
-          // This ensures entities with the same name are consolidated
-          existing = duplicateByName;
+        const contentText =
+          typeof extracted.content === "string"
+            ? extracted.content
+            : JSON.stringify(extracted.content ?? {});
+        const contentForSemantic = `${normalizedName} ${contentText}`.trim();
+        const openaiKey = this.openaiApiKey ?? this.env?.OPENAI_API_KEY;
+        existing = await SemanticDuplicateDetectionService.findDuplicateEntity({
+          content: contentForSemantic,
+          campaignId: options.campaignId,
+          name: normalizedName,
+          entityType,
+          env: this.env,
+          openaiApiKey: openaiKey,
+        });
+        if (existing) {
           console.log(
-            `[EntityExtractionPipeline] Found duplicate entity by name "${extracted.name}" (existing type: ${duplicateByName.entityType}, extracted type: ${extracted.entityType}). Using existing entity to avoid duplication.`
+            `[EntityExtractionPipeline] Found duplicate entity for "${extracted.name}" (existing: ${existing.id}, type: ${existing.entityType}). Using existing entity to avoid duplication.`
           );
         }
       }
@@ -105,7 +106,7 @@ export class EntityExtractionPipeline {
           existing.content,
           entityPayload.content
         );
-        const sufficient = !isStubContent(mergedContent, extracted.entityType);
+        const sufficient = !isStubContent(mergedContent, entityType);
         const stagedMetadata = {
           ...existingMetadata,
           ...entityPayload.metadata,
@@ -123,7 +124,7 @@ export class EntityExtractionPipeline {
         };
 
         await this.entityDAO.updateEntity(existing.id, {
-          name: extracted.name,
+          name: normalizedName,
           content: mergedContent,
           metadata: stagedMetadata,
           confidence: entityPayload.confidence,
@@ -156,8 +157,8 @@ export class EntityExtractionPipeline {
         await this.entityDAO.createEntity({
           id: extracted.id,
           campaignId: options.campaignId,
-          entityType: extracted.entityType,
-          name: extracted.name,
+          entityType,
+          name: normalizedName,
           content: entityPayload.content,
           metadata: newEntityMetadata,
           confidence: entityPayload.confidence,
@@ -178,7 +179,7 @@ export class EntityExtractionPipeline {
       const actualEntityId =
         extractedIdToEntityId.get(extracted.id) || extracted.id;
       await this.upsertEmbedding(
-        { ...extracted, id: actualEntityId },
+        { ...extracted, id: actualEntityId, entityType },
         options.campaignId
       );
     }

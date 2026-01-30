@@ -94,6 +94,53 @@ export function isValidEntityType(type: string): type is StructuredEntityType {
   return STRUCTURED_ENTITY_TYPES.includes(type as StructuredEntityType);
 }
 
+/** Common singular/abbreviation -> canonical type from STRUCTURED_ENTITY_TYPES */
+const ENTITY_TYPE_ALIASES: Record<string, StructuredEntityType> = {
+  npc: "npcs",
+  pc: "pcs",
+  monster: "monsters",
+  spell: "spells",
+  item: "items",
+  trap: "traps",
+  hazard: "hazards",
+  condition: "conditions",
+  vehicle: "vehicles",
+  env_effect: "env_effects",
+  hook: "hooks",
+  plot_line: "plot_lines",
+  quest: "quests",
+  scene: "scenes",
+  location: "locations",
+  lair: "lairs",
+  faction: "factions",
+  deity: "deities",
+  background: "backgrounds",
+  feat: "feats",
+  subclass: "subclasses",
+  table: "tables",
+  encounter_table: "encounter_tables",
+  treasure_table: "treasure_tables",
+  map: "maps",
+  handout: "handouts",
+  puzzle: "puzzles",
+  timeline: "timelines",
+  travel: "travel",
+};
+
+/**
+ * Normalize an entity type string to the canonical form from STRUCTURED_ENTITY_TYPES.
+ * Ensures only one valid form exists (e.g. "npc" and "NPC" both become "npcs").
+ */
+export function normalizeEntityType(type: string): StructuredEntityType {
+  const t = (type ?? "").trim().toLowerCase();
+  if (!t) return "custom";
+  const exact = STRUCTURED_ENTITY_TYPES.find((c) => c === t);
+  if (exact) return exact;
+  const alias = ENTITY_TYPE_ALIASES[t];
+  if (alias) return alias;
+  return "custom";
+}
+
 /**
  * Get a human-readable name for an entity type.
  */

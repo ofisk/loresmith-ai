@@ -12,6 +12,7 @@ import { generateCharacterWithAI } from "./ai-helpers";
 import { getDAOFactory } from "../../dao/dao-factory";
 import type { Env } from "../../middleware/auth";
 import { ENTITY_TYPE_PCS } from "../../lib/entity-type-constants";
+import { SemanticDuplicateDetectionService } from "../../services/vectorize/semantic-duplicate-detection-service";
 
 // Helper function to get environment from context
 function getEnvFromContext(context: any): any {
@@ -127,12 +128,26 @@ export const storeCharacterInfo = tool({
         const daoFactory = getDAOFactory(env as Env);
         const characterId = crypto.randomUUID();
 
-        // Check for duplicate entities with the same name
-        const duplicate = await daoFactory.entityDAO.findDuplicateByName(
-          campaignId,
+        const contentForSemantic = [
           characterName,
-          ENTITY_TYPE_PCS
-        );
+          backstory,
+          personalityTraits,
+          goals,
+          characterClass,
+          characterRace,
+        ]
+          .filter(Boolean)
+          .join(" ");
+        const openaiApiKey = (env as Env).OPENAI_API_KEY as string | undefined;
+        const duplicate =
+          await SemanticDuplicateDetectionService.findDuplicateEntity({
+            content: contentForSemantic || characterName,
+            campaignId,
+            name: characterName,
+            entityType: ENTITY_TYPE_PCS,
+            env: env as Env,
+            openaiApiKey,
+          });
 
         if (duplicate) {
           // Return information about the duplicate so the agent can ask the user

@@ -1682,9 +1682,16 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
   },
 });
 
-// Tool to list all entities (handles pagination internally)
+// Default page size for listAllEntities (one page per call to stay within context limits)
+const LIST_ALL_ENTITIES_PAGE_SIZE = 100;
+
+// Tool to list entities from a campaign with pagination (agent must call multiple times when there are many entities)
 export const listAllEntities = tool({
-  description: `List ALL entities from a campaign. Handles pagination internally, returns all entities in one response. Use for "list all" requests. For keyword/semantic search, use searchCampaignContext instead.
+  description: `List entities from a campaign ONE PAGE AT A TIME. Returns a single page of results; totalCount and totalPages tell you if more pages exist.
+
+IMPORTANT: If totalPages > 1, you MUST call listAllEntities again with page set to 2, 3, ... until you have all pages (or enough to answer the user). Make multiple tool calls in sequence—do not assume one call returns everything when totalCount is large.
+
+Use for "list all" or counting by type. For a specific search (e.g. "entries for the abbott"), use searchCampaignContext instead.
 
 Entity types: ${ENTITY_TYPES_LIST}. Map synonyms: "beasts"/"creatures" → "monsters", "people"/"characters" (NPCs) → "npcs", "player characters"/"PCs" → "pcs", "places" → "locations".
 
@@ -1712,10 +1719,29 @@ Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characte
       .describe(
         "If true, include stub entities (minimal/incomplete). Use when the agent needs to surface incomplete entities and prompt the user to fill in gaps. Default false: stubs are excluded from list results."
       ),
+    page: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .default(1)
+      .describe(
+        "Page number (1-based). Use 1 for first page; if totalPages > 1, call again with page=2, 3, ... to get all entities."
+      ),
+    pageSize: z
+      .number()
+      .int()
+      .min(1)
+      .max(200)
+      .optional()
+      .default(LIST_ALL_ENTITIES_PAGE_SIZE)
+      .describe(
+        "Number of entities per page. Default 100. Keep default to avoid context overflow; request next page with page parameter."
+      ),
     jwt: commonSchemas.jwt,
   }),
   execute: async (
-    { campaignId, entityType, includeStubs, jwt },
+    { campaignId, entityType, includeStubs, page, pageSize, jwt },
     context?: any
   ): Promise<ToolResult> => {
     const toolCallId = context?.toolCallId || "unknown";
@@ -1769,85 +1795,55 @@ Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characte
           ? entityTypeMap[entityType] || entityType
           : null;
 
-      // Get total count first
+      // Get total count first (for all matching entities, before stub filter)
       const totalCount = await daoFactory.entityDAO.getEntityCountByCampaign(
         campaignId,
         targetEntityType ? { entityType: targetEntityType } : {}
       );
 
+      const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+      const offset = (page - 1) * pageSize;
+
       console.log(
-        `[Tool] listAllEntities - Fetching all ${totalCount} entities${targetEntityType ? ` of type ${targetEntityType}` : ""}`
+        `[Tool] listAllEntities - Page ${page}/${totalPages}, offset ${offset}, pageSize ${pageSize} (${totalCount} total)${targetEntityType ? ` of type ${targetEntityType}` : ""}`
       );
 
-      // Fetch all entities with internal pagination
-      const allEntities: any[] = [];
-      const pageSize = 50; // Use max page size to minimize calls
-      let offset = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const page = await daoFactory.entityDAO.listEntitiesByCampaign(
-          campaignId,
-          {
-            entityType: targetEntityType || undefined,
-            limit: pageSize + 1, // Request one extra to check if there are more
-            offset,
-          }
-        );
-
-        // Check if there are more results
-        if (page.length > pageSize) {
-          hasMore = true;
-          allEntities.push(...page.slice(0, pageSize));
-          offset += pageSize;
-        } else {
-          hasMore = false;
-          allEntities.push(...page);
+      // Fetch one page, ordered by name for stable pagination
+      const pageEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
+        campaignId,
+        {
+          entityType: targetEntityType || undefined,
+          limit: pageSize,
+          offset,
+          orderBy: "name",
         }
+      );
 
-        console.log(
-          `[Tool] listAllEntities - Fetched ${allEntities.length} of ${totalCount} entities`
-        );
-      }
-
-      // Exclude stubs unless explicitly requested (e.g. for agent stub-specific flow)
+      // Exclude stubs unless explicitly requested
       const entitiesToReturn = includeStubs
-        ? allEntities
-        : allEntities.filter((e) => !isEntityStub(e));
+        ? pageEntities
+        : pageEntities.filter((e) => !isEntityStub(e));
 
-      // Transform entities to match searchCampaignContext format
-      const results = entitiesToReturn.map((entity) => ({
-        id: entity.id,
-        type: entity.entity_type,
-        name: entity.name || entity.title || entity.display_name || entity.id,
-        title: entity.title,
-        display_name: entity.display_name,
-        text: entity.content_text,
-        metadata: entity.metadata,
-        relationships: entity.relationships || [],
-        score: 1.0, // All entities have equal relevance when listing all
-      }));
-
-      // Sort alphabetically by name for consistent ordering
-      results.sort((a, b) => {
-        const nameA = (
-          a.name ||
-          a.title ||
-          a.display_name ||
-          a.id ||
-          ""
-        ).toLowerCase();
-        const nameB = (
-          b.name ||
-          b.title ||
-          b.display_name ||
-          b.id ||
-          ""
-        ).toLowerCase();
-        return nameA.localeCompare(nameB);
+      // Transform to searchCampaignContext-style format (Entity uses camelCase: entityType, name, content)
+      const results = entitiesToReturn.map((entity) => {
+        const text =
+          typeof entity.content === "string"
+            ? entity.content
+            : JSON.stringify(entity.content ?? "");
+        return {
+          id: entity.id,
+          type: entity.entityType,
+          name: entity.name || entity.id,
+          title: entity.name,
+          display_name: entity.name,
+          text,
+          metadata: entity.metadata,
+          relationships: [],
+          score: 1.0,
+        };
       });
 
-      // Detect duplicates by name (case-insensitive)
+      // Duplicates within this page only (full duplicate list would require aggregating all pages)
       const nameCounts = new Map<
         string,
         { count: number; entityIds: string[] }
@@ -1871,7 +1867,6 @@ Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characte
           nameCounts.set(normalizedName, existing);
         }
       }
-
       const duplicates: Array<{
         name: string;
         count: number;
@@ -1887,14 +1882,17 @@ Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characte
         }
       }
 
+      const hasMore = page < totalPages;
       const entityTypeLabel = entityType ? ` (${entityType})` : "";
-      let message = `Found ${totalCount} total shards${entityTypeLabel}. Results are sorted alphabetically by name.`;
-
+      let message = `Page ${page} of ${totalPages}: ${results.length} entities${entityTypeLabel} (${totalCount} total, sorted by name).`;
+      if (hasMore) {
+        message += ` There are more pages. You MUST call listAllEntities again with page=${page + 1} (and same campaignId, entityType) to get the next page until you have all data or can answer the user.`;
+      }
       if (duplicates.length > 0) {
         const duplicateNames = duplicates
-          .map((d) => `"${d.name}" (${d.count} entries)`)
+          .map((d) => `"${d.name}" (${d.count} on this page)`)
           .join(", ");
-        message += ` WARNING: Detected duplicate entities: ${duplicateNames}. Consider consolidating or deleting duplicates.`;
+        message += ` Duplicates on this page: ${duplicateNames}.`;
       }
 
       return createToolSuccess(
@@ -1903,6 +1901,10 @@ Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characte
           entityType: entityType || null,
           results,
           totalCount,
+          page,
+          pageSize,
+          totalPages,
+          hasMore,
           duplicates: duplicates.length > 0 ? duplicates : undefined,
         },
         toolCallId
