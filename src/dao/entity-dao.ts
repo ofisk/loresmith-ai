@@ -5,8 +5,8 @@ import {
 } from "@/lib/relationship-types";
 import { RelationshipUpsertError } from "@/lib/errors";
 
-/** SQLite/D1 bound param limit 999; we use 2× N (from + to IN). Use small batches to stay well under limit. */
-const RELATIONSHIPS_BATCH_SIZE = 250;
+/** D1 platform limit: max 100 bound params per query. We use 2×N (from + to IN), so N ≤ 49. */
+const RELATIONSHIPS_BATCH_SIZE = 49;
 
 // Raw row shape returned directly from D1 queries against the `entities` table.
 // All fields mirror the database column names and use snake_case to match D1 results.
@@ -637,8 +637,8 @@ export class EntityDAO extends BaseDAOClass {
       result.set(entityId, []);
     }
 
-    // Iterate in small groups: SQLite/D1 limit 999 params; we use 2*N (from + to IN). Cap so 2*chunk <= 999.
-    const batchSize = Math.min(RELATIONSHIPS_BATCH_SIZE, 499);
+    // Iterate in small groups: D1 limit 100 params/query; we use 2*N (from + to IN). Cap so 2*chunk ≤ 100.
+    const batchSize = Math.min(RELATIONSHIPS_BATCH_SIZE, 49);
     for (let i = 0; i < entityIds.length; i += batchSize) {
       const chunk = entityIds.slice(i, i + batchSize);
       if (chunk.length === 0) continue;
@@ -848,24 +848,40 @@ export class EntityDAO extends BaseDAOClass {
 
     const maxDepth = Math.max(1, options.maxDepth ?? 1);
     const relationshipTypes = options.relationshipTypes ?? [];
-
-    const entityPlaceholders = entityIds.map(() => "?").join(", ");
     const typePlaceholders =
       relationshipTypes.length > 0
         ? `AND er.relationship_type IN (${relationshipTypes
             .map(() => "?")
             .join(", ")})`
         : "";
+    // D1 limit 100 params/query. Params = 2*chunk + 2*types + 1.
+    const batchSize = Math.min(
+      RELATIONSHIPS_BATCH_SIZE,
+      Math.max(0, Math.floor((99 - 2 * relationshipTypes.length) / 2))
+    );
+    if (batchSize <= 0) {
+      return new Map(entityIds.map((id) => [id, []]));
+    }
 
-    const params: any[] = [
-      ...entityIds,
-      ...relationshipTypes,
-      maxDepth,
-      ...relationshipTypes,
-      ...entityIds,
-    ];
+    const result = new Map<string, EntityNeighbor[]>();
+    for (const entityId of entityIds) {
+      result.set(entityId, []);
+    }
 
-    const sql = `
+    for (let i = 0; i < entityIds.length; i += batchSize) {
+      const chunk = entityIds.slice(i, i + batchSize);
+      if (chunk.length === 0) continue;
+
+      const entityPlaceholders = chunk.map(() => "?").join(", ");
+      const params: any[] = [
+        ...chunk,
+        ...relationshipTypes,
+        maxDepth,
+        ...relationshipTypes,
+        ...chunk,
+      ];
+
+      const sql = `
       WITH RECURSIVE neighbor_tree AS (
         SELECT
           er.from_entity_id,
@@ -901,31 +917,26 @@ export class EntityDAO extends BaseDAOClass {
       ORDER BY nt.start_entity_id, nt.depth, e.name
     `;
 
-    const records = await this.queryAll<{
-      start_entity_id: string;
-      entity_id: string;
-      relationship_type: string;
-      depth: number;
-      name: string;
-      entity_type: string;
-    }>(sql, params);
+      const records = await this.queryAll<{
+        start_entity_id: string;
+        entity_id: string;
+        relationship_type: string;
+        depth: number;
+        name: string;
+        entity_type: string;
+      }>(sql, params);
 
-    // Group neighbors by starting entity ID
-    const result = new Map<string, EntityNeighbor[]>();
-    for (const entityId of entityIds) {
-      result.set(entityId, []);
-    }
-
-    for (const row of records) {
-      const neighbors = result.get(row.start_entity_id) || [];
-      neighbors.push({
-        entityId: row.entity_id,
-        relationshipType: normalizeRelationshipType(row.relationship_type),
-        depth: row.depth,
-        name: row.name,
-        entityType: row.entity_type,
-      });
-      result.set(row.start_entity_id, neighbors);
+      for (const row of records) {
+        const neighbors = result.get(row.start_entity_id) || [];
+        neighbors.push({
+          entityId: row.entity_id,
+          relationshipType: normalizeRelationshipType(row.relationship_type),
+          depth: row.depth,
+          name: row.name,
+          entityType: row.entity_type,
+        });
+        result.set(row.start_entity_id, neighbors);
+      }
     }
 
     return result;
