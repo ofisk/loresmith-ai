@@ -121,11 +121,24 @@ export function GraphVisualizationModal({
     }
   }, [selectedCommunityId, viewMode]);
 
-  // Handle community node click
-  const handleCommunityNodeClick = useCallback((nodeId: string) => {
-    setSelectedCommunityId(nodeId);
-    setViewMode("entity");
-  }, []);
+  const orphanNodeIds = useMemo(() => {
+    if (!communityGraphData?.nodes) return new Set<string>();
+    return new Set(
+      communityGraphData.nodes
+        .filter((n) => "isOrphan" in n && n.isOrphan)
+        .map((n) => n.id)
+    );
+  }, [communityGraphData?.nodes]);
+
+  // Handle community node click (Option A: no-op for orphan entities)
+  const handleCommunityNodeClick = useCallback(
+    (nodeId: string) => {
+      if (orphanNodeIds.has(nodeId)) return;
+      setSelectedCommunityId(nodeId);
+      setViewMode("entity");
+    },
+    [orphanNodeIds]
+  );
 
   // Handle back to community view
   const handleBackToCommunity = useCallback(() => {

@@ -233,6 +233,46 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
       nodes.push(toCommunityNode(community, entityMap, communitySummaryMap));
     }
 
+    // Add orphan entities (not in any filtered community), with same filters
+    const entityIdsInCommunities = new Set<string>();
+    for (const community of filteredCommunities) {
+      for (const entityId of community.entityIds) {
+        entityIdsInCommunities.add(entityId);
+      }
+    }
+    for (const entity of nonStubEntities) {
+      if (entityIdsInCommunities.has(entity.id)) continue;
+
+      let passesFilters = true;
+      if (entityTypes && entityTypes.length > 0) {
+        if (!matchesEntityType(entity, entityTypes)) passesFilters = false;
+      }
+      if (
+        approvalStatuses &&
+        approvalStatuses.length > 0 &&
+        passesFilters &&
+        !matchesApprovalStatus(entity, approvalStatuses as ShardStatus[])
+      ) {
+        passesFilters = false;
+      }
+      if (relationshipTypes && relationshipTypes.length > 0 && passesFilters) {
+        const hasRel = await entityHasRelationshipTypes(
+          daoFactory.entityDAO,
+          entity.id,
+          relationshipTypes
+        );
+        if (!hasRel) passesFilters = false;
+      }
+      if (passesFilters) {
+        nodes.push({
+          id: entity.id,
+          name: entity.name,
+          entityType: entity.entityType,
+          isOrphan: true as const,
+        });
+      }
+    }
+
     // Build inter-community edges
     const edges: CommunityGraphData["edges"] = [];
     const edgeMap = new Map<string, Map<string, Set<string>>>();

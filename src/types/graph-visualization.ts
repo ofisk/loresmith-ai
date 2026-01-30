@@ -45,10 +45,17 @@ export interface InterCommunityEdge extends GraphEdgeBase {
 }
 
 /**
+ * Union type for community-level graph nodes: communities or orphan entities
+ */
+export type CommunityGraphNode =
+  | CommunityNode
+  | (EntityNode & { isOrphan: true });
+
+/**
  * Community-level graph data
  */
 export interface CommunityGraphData {
-  nodes: CommunityNode[];
+  nodes: CommunityGraphNode[];
   edges: InterCommunityEdge[];
 }
 
