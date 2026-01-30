@@ -6,19 +6,9 @@ import {
   createToolError,
   createToolSuccess,
   extractUsernameFromJwt,
+  getEnvFromContext,
 } from "../utils";
 import { RecapService } from "../../services/core/recap-service";
-
-// Helper function to get environment from context
-function getEnvFromContext(context: any): any {
-  if (context?.env) {
-    return context.env;
-  }
-  if (typeof globalThis !== "undefined" && "env" in globalThis) {
-    return (globalThis as any).env;
-  }
-  return null;
-}
 
 /**
  * Tool to generate context recap data for a campaign
@@ -91,7 +81,9 @@ export const generateContextRecapTool = tool({
       }
 
       // Get recap data
-      const recapService = new RecapService(env);
+      const recapService = new RecapService(
+        env as import("@/middleware/auth").Env
+      );
       const recapData = await recapService.getContextRecap(
         campaignId,
         userId,

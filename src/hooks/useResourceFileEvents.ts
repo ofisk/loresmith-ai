@@ -5,9 +5,10 @@ import {
   getStoredJwt,
 } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
+import { APP_EVENT_TYPE } from "@/lib/app-events";
 import type { FileUploadEvent } from "@/lib/event-bus";
 import { EVENT_TYPES, useEventBus } from "@/lib/event-bus";
-import { FileDAO } from "@/dao/file-dao";
+import { FileDAO } from "@/dao";
 import type { ResourceFileWithCampaigns } from "./useResourceFiles";
 
 interface UseResourceFileEventsOptions {
@@ -384,13 +385,13 @@ export function useResourceFileEvents(
   // Handle file status update events from SSE notifications
   useEffect(() => {
     window.addEventListener(
-      "file-status-updated",
+      APP_EVENT_TYPE.FILE_STATUS_UPDATED,
       handleFileStatusUpdate as EventListener
     );
 
     return () => {
       window.removeEventListener(
-        "file-status-updated",
+        APP_EVENT_TYPE.FILE_STATUS_UPDATED,
         handleFileStatusUpdate as EventListener
       );
     };
@@ -398,11 +399,14 @@ export function useResourceFileEvents(
 
   // Listen for file change events from SSE notifications
   useEffect(() => {
-    window.addEventListener("file-changed", handleFileChange as EventListener);
+    window.addEventListener(
+      APP_EVENT_TYPE.FILE_CHANGED,
+      handleFileChange as EventListener
+    );
 
     return () => {
       window.removeEventListener(
-        "file-changed",
+        APP_EVENT_TYPE.FILE_CHANGED,
         handleFileChange as EventListener
       );
     };

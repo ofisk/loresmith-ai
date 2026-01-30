@@ -1,7 +1,7 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import { DAOFactoryError } from "@/lib/errors";
 import { CampaignDAO } from "./campaign-dao";
-import { FileDAO } from "./file-dao";
+import { FileDAO } from "./file/file-dao";
 import { ShardDAO } from "./shard-dao";
 import type { UserStorageUsage } from "./user-dao";
 import { UserDAO } from "./user-dao";
@@ -13,6 +13,7 @@ import { SessionDigestDAO } from "./session-digest-dao";
 import { SessionDigestTemplateDAO } from "./session-digest-template-dao";
 import { RebuildStatusDAO } from "./rebuild-status-dao";
 import { MessageHistoryDAO } from "./message-history-dao";
+import { CharacterSheetDAO } from "./character-sheet-dao";
 import { ChecklistStatusDAO } from "./checklist-status-dao";
 
 // Cache for DAO factory instances
@@ -37,6 +38,7 @@ export interface DAOFactory {
   rebuildStatusDAO: RebuildStatusDAO;
   messageHistoryDAO: MessageHistoryDAO;
   checklistStatusDAO: ChecklistStatusDAO;
+  characterSheetDAO: CharacterSheetDAO;
 
   // Convenience methods for common operations
   storeOpenAIKey(username: string, apiKey: string): Promise<void>;
@@ -60,6 +62,7 @@ export class DAOFactoryImpl implements DAOFactory {
   public readonly rebuildStatusDAO: RebuildStatusDAO;
   public readonly messageHistoryDAO: MessageHistoryDAO;
   public readonly checklistStatusDAO: ChecklistStatusDAO;
+  public readonly characterSheetDAO: CharacterSheetDAO;
 
   constructor(db: D1Database) {
     this.userDAO = new UserDAO(db);
@@ -75,6 +78,7 @@ export class DAOFactoryImpl implements DAOFactory {
     this.rebuildStatusDAO = new RebuildStatusDAO(db);
     this.messageHistoryDAO = new MessageHistoryDAO(db);
     this.checklistStatusDAO = new ChecklistStatusDAO(db);
+    this.characterSheetDAO = new CharacterSheetDAO(db);
   }
 
   // Convenience methods for common operations
@@ -153,11 +157,13 @@ export function createDAOFactory(db: D1Database | undefined): DAOFactory {
   return factory;
 }
 
-export function getDAOFactory(env: { DB: D1Database | undefined }): DAOFactory {
-  const key = getDatabaseKey(env.DB);
+export function getDAOFactory(env: unknown): DAOFactory {
+  const e = env as { DB?: D1Database };
+  const db = e?.DB;
+  const key = getDatabaseKey(db);
 
   if (!daoFactoryCache.has(key)) {
-    return createDAOFactory(env.DB!);
+    return createDAOFactory(db!);
   }
 
   return daoFactoryCache.get(key)!;

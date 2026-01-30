@@ -1,5 +1,5 @@
 import { Button } from "@/components/button/Button";
-import { FileDAO } from "@/dao/file-dao";
+import { FileDAO } from "@/dao";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import type { Campaign } from "@/types/campaign";
 

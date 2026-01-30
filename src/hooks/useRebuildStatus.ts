@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useBaseAsync } from "./useBaseAsync";
 import { useAuthenticatedRequest } from "./useAuthenticatedRequest";
+import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { API_CONFIG } from "@/shared-config";
 import type { RebuildStatus } from "@/dao/rebuild-status-dao";
 
@@ -88,7 +89,7 @@ export function useRebuildStatus({
     };
 
     window.addEventListener(
-      "rebuild-status-changed",
+      APP_EVENT_TYPE.REBUILD_STATUS_CHANGED,
       handleRebuildStatusChange as EventListener
     );
 
@@ -114,7 +115,7 @@ export function useRebuildStatus({
 
     return () => {
       window.removeEventListener(
-        "rebuild-status-changed",
+        APP_EVENT_TYPE.REBUILD_STATUS_CHANGED,
         handleRebuildStatusChange as EventListener
       );
       if (pollIntervalRef.current) {

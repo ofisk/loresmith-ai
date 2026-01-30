@@ -12,9 +12,12 @@
     "node": ">=22.0.0"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,jsonc,css,md,mjs}": [
+    "*.{js,jsx,ts,tsx,json,jsonc}": [
       "prettier --write",
       "npx @biomejs/biome lint --write"
+    ],
+    "*.{md,css,mjs}": [
+      "prettier --write"
     ],
     "*.{ts,tsx}": [
       "bash -c 'tsc --noEmit'"

@@ -4,7 +4,7 @@ import type {
   VectorizeIndex,
 } from "@cloudflare/workers-types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { FileDAO } from "../../src/dao/file-dao";
+import { FileDAO } from "../../src/dao/file/file-dao";
 
 // Mock D1Database
 const mockDB = {

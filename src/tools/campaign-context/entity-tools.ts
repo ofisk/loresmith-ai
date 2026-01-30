@@ -1,7 +1,11 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { commonSchemas } from "../utils";
-import { createToolError, createToolSuccess } from "../utils";
+import {
+  commonSchemas,
+  createToolError,
+  createToolSuccess,
+  getEnvFromContext,
+} from "../utils";
 import type { ToolResult } from "@/app-constants";
 import { API_CONFIG } from "@/shared-config";
 import { extractUsernameFromJwt } from "../utils";
@@ -13,16 +17,6 @@ import { EntityExtractionPipeline } from "@/services/rag/entity-extraction-pipel
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import { STRUCTURED_ENTITY_TYPES } from "@/lib/entity-types";
-
-function getEnvFromContext(context: any): any {
-  if (context?.env) {
-    return context.env;
-  }
-  if ((globalThis as any).env) {
-    return (globalThis as any).env;
-  }
-  return null;
-}
 
 /**
  * Tool: Extract entities from text content
@@ -160,8 +154,13 @@ export const extractEntitiesFromContentTool = tool({
       }
 
       // Initialize services
-      const extractionService = new EntityExtractionService(env);
-      const embeddingService = new EntityEmbeddingService(env.VECTORIZE);
+      const openaiKey = env?.OPENAI_API_KEY ?? null;
+      const extractionService = new EntityExtractionService(openaiKey, null);
+      const embeddingService = new EntityEmbeddingService(
+        env.VECTORIZE as
+          | import("@cloudflare/workers-types").VectorizeIndex
+          | undefined
+      );
       const graphService = new EntityGraphService(daoFactory.entityDAO);
       const openaiApiKey = env?.OPENAI_API_KEY as string | undefined;
       const pipeline = new EntityExtractionPipeline(
@@ -831,7 +830,11 @@ export const deleteEntityTool = tool({
       // Also delete from vector index if it has an embedding
       if (entity.embeddingId) {
         try {
-          const embeddingService = new EntityEmbeddingService(env.VECTORIZE);
+          const embeddingService = new EntityEmbeddingService(
+            env.VECTORIZE as
+              | import("@cloudflare/workers-types").VectorizeIndex
+              | undefined
+          );
           await embeddingService.deleteEmbedding(entityId);
         } catch (error) {
           console.warn(

@@ -11,12 +11,18 @@ import type {
 } from "@/types/graph-visualization";
 import type { ShardStatus } from "@/types/shard";
 import {
-  toCommunityNode,
   toCommunityNodeBasic,
   toEntityEdge,
   toInterCommunityEdge,
   getCommunityName,
 } from "@/lib/graph/community-utils";
+import {
+  applyGraphFilters,
+  buildCommunityGraphNodes,
+  buildRelationshipMap,
+  computeOrphanNodes,
+  type GraphFilters,
+} from "@/lib/graph/graph-visualization-helpers";
 import type { CommunitySummary } from "@/dao/community-summary-dao";
 import { EntitySemanticSearchService } from "@/services/vectorize/entity-semantic-search-service";
 import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
@@ -26,68 +32,6 @@ import { isEntityStub } from "@/lib/entity-content-merge";
 type ContextWithAuth = Context<{ Bindings: Env }> & {
   userAuth?: AuthPayload;
 };
-
-/**
- * Helper to determine entity approval status from metadata
- * Uses shardStatus as the single source of truth
- */
-function getEntityApprovalStatus(metadata: unknown): ShardStatus {
-  if (!metadata || typeof metadata !== "object") {
-    return "staging";
-  }
-
-  const meta = metadata as Record<string, unknown>;
-  const shardStatus = meta.shardStatus;
-
-  // Validate that shardStatus is a valid ShardStatus value
-  if (
-    typeof shardStatus === "string" &&
-    (shardStatus === "staging" ||
-      shardStatus === "approved" ||
-      shardStatus === "rejected" ||
-      shardStatus === "deleted")
-  ) {
-    return shardStatus as ShardStatus;
-  }
-
-  // Default to staging if shardStatus is not set or invalid
-  return "staging";
-}
-
-/**
- * Helper to check if entity matches approval status filter
- */
-function matchesApprovalStatus(
-  entity: Entity,
-  approvalStatuses: ShardStatus[]
-): boolean {
-  const status = getEntityApprovalStatus(entity.metadata);
-  return approvalStatuses.includes(status);
-}
-
-/**
- * Helper to check if entity matches entity type filter
- */
-function matchesEntityType(entity: Entity, entityTypes: string[]): boolean {
-  return entityTypes.includes(entity.entityType);
-}
-
-/**
- * Helper to check if entity has relationships of specified types
- */
-async function entityHasRelationshipTypes(
-  entityDAO: any,
-  entityId: string,
-  relationshipTypes: string[]
-): Promise<boolean> {
-  const relationships = await entityDAO.getRelationshipsForEntity(entityId);
-  for (const rel of relationships) {
-    if (relationshipTypes.includes(rel.relationshipType)) {
-      return true;
-    }
-  }
-  return false;
-}
 
 /**
  * GET /api/campaigns/:campaignId/graph-visualization
@@ -150,69 +94,30 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
       entityMap.set(entity.id, entity);
     }
 
-    // Filter communities based on filters
-    const filteredCommunities: Community[] = [];
-    for (const community of communities) {
-      let passesFilters = true;
+    // Batch load relationships for all entities (used for filters and edges)
+    const allEntityIds = nonStubEntities.map((e) => e.id);
+    const relationshipsByEntity =
+      allEntityIds.length > 0
+        ? await daoFactory.entityDAO.getRelationshipsForEntities(allEntityIds)
+        : new Map();
+    const relationshipMap = buildRelationshipMap(relationshipsByEntity);
 
-      // Check if community has entities matching filters
-      const communityEntities = community.entityIds
-        .map((id) => entityMap.get(id))
-        .filter((e): e is Entity => e !== undefined);
+    const filters: GraphFilters = {
+      entityTypes,
+      approvalStatuses: approvalStatuses as ShardStatus[] | undefined,
+      relationshipTypes,
+    };
 
-      if (communityEntities.length === 0) {
-        continue;
-      }
+    // Filter communities using pre-built relationship map
+    const filteredCommunities = applyGraphFilters(
+      communities,
+      entityMap,
+      filters,
+      relationshipMap
+    );
 
-      // Entity type filter
-      if (entityTypes && entityTypes.length > 0) {
-        const hasMatchingType = communityEntities.some((entity) =>
-          matchesEntityType(entity, entityTypes)
-        );
-        if (!hasMatchingType) {
-          passesFilters = false;
-        }
-      }
-
-      // Approval status filter
-      if (approvalStatuses && approvalStatuses.length > 0 && passesFilters) {
-        const hasMatchingStatus = communityEntities.some((entity) =>
-          matchesApprovalStatus(entity, approvalStatuses as ShardStatus[])
-        );
-        if (!hasMatchingStatus) {
-          passesFilters = false;
-        }
-      }
-
-      // Relationship type filter
-      if (relationshipTypes && relationshipTypes.length > 0 && passesFilters) {
-        let hasMatchingRelationship = false;
-        for (const entity of communityEntities) {
-          const hasRel = await entityHasRelationshipTypes(
-            daoFactory.entityDAO,
-            entity.id,
-            relationshipTypes
-          );
-          if (hasRel) {
-            hasMatchingRelationship = true;
-            break;
-          }
-        }
-        if (!hasMatchingRelationship) {
-          passesFilters = false;
-        }
-      }
-
-      if (passesFilters) {
-        filteredCommunities.push(community);
-      }
-    }
-
-    // Build community nodes with metadata
-    const nodes: CommunityGraphData["nodes"] = [];
+    // Load community summaries
     const communitySummaryMap = new Map<string, CommunitySummary>();
-
-    // Load existing summaries
     if (daoFactory.communitySummaryDAO) {
       for (const community of filteredCommunities) {
         try {
@@ -229,55 +134,36 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
       }
     }
 
-    for (const community of filteredCommunities) {
-      nodes.push(toCommunityNode(community, entityMap, communitySummaryMap));
-    }
+    // Build community nodes
+    const communityNodes = buildCommunityGraphNodes(
+      filteredCommunities,
+      entityMap,
+      communitySummaryMap
+    );
 
-    // Add orphan entities (not in any filtered community), with same filters
+    // Compute orphan nodes (entities not in any filtered community)
     const entityIdsInCommunities = new Set<string>();
     for (const community of filteredCommunities) {
       for (const entityId of community.entityIds) {
         entityIdsInCommunities.add(entityId);
       }
     }
-    for (const entity of nonStubEntities) {
-      if (entityIdsInCommunities.has(entity.id)) continue;
+    const orphanNodes = computeOrphanNodes(
+      nonStubEntities,
+      entityIdsInCommunities,
+      filters,
+      relationshipMap
+    );
 
-      let passesFilters = true;
-      if (entityTypes && entityTypes.length > 0) {
-        if (!matchesEntityType(entity, entityTypes)) passesFilters = false;
-      }
-      if (
-        approvalStatuses &&
-        approvalStatuses.length > 0 &&
-        passesFilters &&
-        !matchesApprovalStatus(entity, approvalStatuses as ShardStatus[])
-      ) {
-        passesFilters = false;
-      }
-      if (relationshipTypes && relationshipTypes.length > 0 && passesFilters) {
-        const hasRel = await entityHasRelationshipTypes(
-          daoFactory.entityDAO,
-          entity.id,
-          relationshipTypes
-        );
-        if (!hasRel) passesFilters = false;
-      }
-      if (passesFilters) {
-        nodes.push({
-          id: entity.id,
-          name: entity.name,
-          entityType: entity.entityType,
-          isOrphan: true as const,
-        });
-      }
-    }
+    const nodes: CommunityGraphData["nodes"] = [
+      ...communityNodes,
+      ...orphanNodes,
+    ];
 
     // Build inter-community edges
     const edges: CommunityGraphData["edges"] = [];
     const edgeMap = new Map<string, Map<string, Set<string>>>();
 
-    // Create map of entity ID to community ID
     const entityToCommunityMap = new Map<string, string>();
     for (const community of filteredCommunities) {
       for (const entityId of community.entityIds) {
@@ -285,34 +171,10 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
       }
     }
 
-    // Load all relationships efficiently - we need relationship types
-    // Get relationships for all entities in filtered communities
     const filteredEntityIds = new Set<string>();
     for (const community of filteredCommunities) {
       for (const entityId of community.entityIds) {
         filteredEntityIds.add(entityId);
-      }
-    }
-
-    // Load relationships for entities in filtered communities
-    const relationshipMap = new Map<
-      string,
-      Array<{ toId: string; type: string }>
-    >();
-    for (const entityId of filteredEntityIds) {
-      try {
-        const relationships =
-          await daoFactory.entityDAO.getRelationshipsForEntity(entityId);
-        relationshipMap.set(
-          entityId,
-          relationships.map((rel) => ({
-            toId:
-              rel.fromEntityId === entityId ? rel.toEntityId : rel.fromEntityId,
-            type: rel.relationshipType,
-          }))
-        );
-      } catch {
-        // Ignore errors
       }
     }
 
@@ -437,25 +299,24 @@ export async function handleGetCommunityEntityGraph(c: ContextWithAuth) {
       });
     }
 
-    // Load relationships between entities in this community (exclude edges touching stubs)
+    // Load relationships between entities in this community (batch)
     const edges: EntityGraphData["edges"] = [];
     const processedEdges = new Set<string>();
+    const entityIdsArray = Array.from(communityEntityIds);
+    const relationshipsByEntity =
+      entityIdsArray.length > 0
+        ? await daoFactory.entityDAO.getRelationshipsForEntities(entityIdsArray)
+        : new Map();
 
-    for (const entity of communityEntities) {
-      const relationships =
-        await daoFactory.entityDAO.getRelationshipsForEntity(entity.id);
-
+    for (const [, relationships] of relationshipsByEntity) {
       for (const rel of relationships) {
-        const otherEntityId =
-          rel.fromEntityId === entity.id ? rel.toEntityId : rel.fromEntityId;
         if (
-          !entityIdsSet.has(otherEntityId) ||
-          !communityEntityIds.has(otherEntityId)
+          !communityEntityIds.has(rel.fromEntityId) ||
+          !communityEntityIds.has(rel.toEntityId)
         ) {
           continue;
         }
 
-        // Avoid duplicates
         const edgeKey = [rel.fromEntityId, rel.toEntityId].sort().join("|");
         if (processedEdges.has(edgeKey)) {
           continue;

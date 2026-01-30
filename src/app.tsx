@@ -23,13 +23,15 @@ import { useGlobalShardManager } from "@/hooks/useGlobalShardManager";
 import { ShardOverlay } from "@/components/shard/ShardOverlay";
 import { AUTH_CODES } from "@/shared-config";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
+import { useAppEventHandlers } from "@/hooks/useAppEventHandlers";
 import { useAuthReady } from "@/hooks/useAuthReady";
+import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { getHelpContent } from "@/lib/help-content";
 
 import type { campaignTools } from "@/tools/campaign";
 import type { fileTools } from "@/tools/file";
 import type { generalTools } from "@/tools/general";
-import type { FileMetadata } from "@/dao/file-dao";
+import type { FileMetadata } from "@/dao";
 
 // List of tools that require human confirmation
 // NOTE: this should match the keys in the executions object in tools.ts
@@ -117,7 +119,7 @@ export default function Chat() {
       // Dispatch event to update the file list in real-time
       if (typeof window !== "undefined") {
         window.dispatchEvent(
-          new CustomEvent("file-status-updated", {
+          new CustomEvent(APP_EVENT_TYPE.FILE_STATUS_UPDATED, {
             detail: {
               completeFileData: updatedFile,
               fileKey: updatedFile.file_key,
@@ -238,8 +240,11 @@ export default function Chat() {
           content.includes("successfully deleted"))
       ) {
         window.dispatchEvent(
-          new CustomEvent("campaign-deleted", {
-            detail: { type: "campaign-deleted", operation: "detected" },
+          new CustomEvent(APP_EVENT_TYPE.CAMPAIGN_DELETED, {
+            detail: {
+              type: APP_EVENT_TYPE.CAMPAIGN_DELETED,
+              operation: "detected",
+            },
           })
         );
       }
@@ -251,8 +256,11 @@ export default function Chat() {
         !content.includes("campaign")
       ) {
         window.dispatchEvent(
-          new CustomEvent("file-changed", {
-            detail: { type: "file-changed", operation: "detected" },
+          new CustomEvent(APP_EVENT_TYPE.FILE_CHANGED, {
+            detail: {
+              type: APP_EVENT_TYPE.FILE_CHANGED,
+              operation: "detected",
+            },
           })
         );
       }
@@ -285,158 +293,7 @@ export default function Chat() {
       }
     },
   });
-  // Listen for authentication required notifications via ui-hint events
-  useEffect(() => {
-    const handleUiHint = (e: CustomEvent<{ type: string; data?: unknown }>) => {
-      const { type } = e.detail || {};
-      if (type === "show_auth_modal") {
-        console.log(
-          "[App] Authentication required ui-hint received, showing auth modal"
-        );
-        modalState.setShowAuthModal(true);
-      }
-    };
-
-    window.addEventListener(
-      "ui-hint",
-      handleUiHint as unknown as EventListener
-    );
-    return () => {
-      window.removeEventListener(
-        "ui-hint",
-        handleUiHint as unknown as EventListener
-      );
-    };
-  }, [modalState]);
-
-  // Listen for campaign-created events to refresh campaigns list
-  useEffect(() => {
-    const handleCampaignCreated = () => {
-      console.log(
-        "[App] Campaign created event received, refreshing campaigns list"
-      );
-      refetchCampaigns();
-    };
-
-    window.addEventListener(
-      "campaign-created",
-      handleCampaignCreated as EventListener
-    );
-    return () => {
-      window.removeEventListener(
-        "campaign-created",
-        handleCampaignCreated as EventListener
-      );
-    };
-  }, [refetchCampaigns]);
-
-  // Listen for campaign-deleted events to refresh campaigns list
-  useEffect(() => {
-    const handleCampaignDeleted = () => {
-      console.log(
-        "[App] Campaign deleted event received, refreshing campaigns list"
-      );
-      refetchCampaigns();
-    };
-
-    window.addEventListener(
-      "campaign-deleted",
-      handleCampaignDeleted as EventListener
-    );
-    return () => {
-      window.removeEventListener(
-        "campaign-deleted",
-        handleCampaignDeleted as EventListener
-      );
-    };
-  }, [refetchCampaigns]);
-
-  // Auth ready check for recap triggers
   const authReady = useAuthReady();
-
-  // Track if we've already triggered a recap in this session to avoid duplicates
-  const recapTriggeredRef = useRef<Set<string>>(new Set());
-
-  // Trigger recap on app initialization if user has been away
-  useEffect(() => {
-    if (!authReady || !selectedCampaignId || isLoading) {
-      return;
-    }
-
-    const shouldTrigger =
-      checkHasBeenAway() && checkShouldShowRecap(selectedCampaignId);
-    const recapKey = `init-${selectedCampaignId}`;
-
-    if (shouldTrigger && !recapTriggeredRef.current.has(recapKey)) {
-      recapTriggeredRef.current.add(recapKey);
-      const jwt = authState.getStoredJwt();
-
-      console.log("[App] Triggering context recap after inactivity");
-
-      append({
-        role: "user",
-        content: "",
-        data: {
-          type: "context_recap_request",
-          campaignId: selectedCampaignId,
-          jwt: jwt || null,
-        },
-      });
-
-      markRecapShown(selectedCampaignId);
-    }
-  }, [
-    authReady,
-    selectedCampaignId,
-    isLoading,
-    checkHasBeenAway,
-    checkShouldShowRecap,
-    markRecapShown,
-    append,
-    authState,
-  ]);
-
-  // Trigger recap on campaign change
-  useEffect(() => {
-    if (!authReady || !selectedCampaignId || isLoading) {
-      return;
-    }
-
-    const recapKey = `campaign-${selectedCampaignId}`;
-
-    // Only trigger if we haven't already triggered for this campaign
-    if (
-      !recapTriggeredRef.current.has(recapKey) &&
-      checkShouldShowRecap(selectedCampaignId)
-    ) {
-      recapTriggeredRef.current.add(recapKey);
-      const jwt = authState.getStoredJwt();
-
-      console.log(
-        `[App] Triggering context recap for campaign change: ${selectedCampaignId}`
-      );
-
-      append({
-        role: "user",
-        content: "",
-        data: {
-          type: "context_recap_request",
-          campaignId: selectedCampaignId,
-          jwt: jwt || null,
-        },
-      });
-
-      markRecapShown(selectedCampaignId);
-    }
-  }, [
-    selectedCampaignId,
-    authReady,
-    isLoading,
-    checkShouldShowRecap,
-    markRecapShown,
-    append,
-    authState,
-  ]);
 
   useEffect(() => {
     void agentMessages;
@@ -728,13 +585,26 @@ export default function Chat() {
 
   // Helper function to format shards as a readable chat message
 
-  // Global shard manager for unified shard handling (must be before useUiHints so callback can use fetchAllStagedShards)
   const {
     shards: globalShards,
     isLoading: shardsLoading,
     fetchAllStagedShards,
     removeProcessedShards,
   } = useGlobalShardManager(authState.getStoredJwt);
+
+  useAppEventHandlers({
+    modalState,
+    refetchCampaigns,
+    fetchAllStagedShards,
+    authReady,
+    selectedCampaignId,
+    isLoading,
+    checkHasBeenAway,
+    checkShouldShowRecap,
+    markRecapShown,
+    append,
+    authState,
+  });
 
   const shardsReadyRefetchTimeoutRef = useRef<ReturnType<
     typeof setTimeout
@@ -749,7 +619,6 @@ export default function Chat() {
     };
   }, []);
 
-  // Listen for decoupled UI hints
   useUiHints({
     onUiHint: async ({ type, data }) => {
       if (
@@ -778,50 +647,6 @@ export default function Chat() {
       fetchAllStagedShards();
     }
   }, [authState.isAuthenticated, fetchAllStagedShards]);
-
-  // Listen for shards-generated events to refresh shards overlay
-  const shardsGeneratedTimeoutRef = useRef<ReturnType<
-    typeof setTimeout
-  > | null>(null);
-  useEffect(() => {
-    const handleShardsGenerated = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const detail = customEvent.detail;
-      console.log(
-        "[App] Shards generated event received, refreshing shards overlay",
-        {
-          campaignId: detail?.campaignId,
-          campaignName: detail?.campaignName,
-          shardCount: detail?.shardCount,
-        }
-      );
-
-      // Debounce: one refetch 1.5s after the last notification so DB has all entities
-      if (shardsGeneratedTimeoutRef.current) {
-        clearTimeout(shardsGeneratedTimeoutRef.current);
-      }
-      shardsGeneratedTimeoutRef.current = setTimeout(() => {
-        shardsGeneratedTimeoutRef.current = null;
-        console.log("[App] Refreshing shards overlay");
-        fetchAllStagedShards();
-      }, 1500);
-    };
-
-    window.addEventListener(
-      "shards-generated",
-      handleShardsGenerated as EventListener
-    );
-    return () => {
-      if (shardsGeneratedTimeoutRef.current) {
-        clearTimeout(shardsGeneratedTimeoutRef.current);
-        shardsGeneratedTimeoutRef.current = null;
-      }
-      window.removeEventListener(
-        "shards-generated",
-        handleShardsGenerated as EventListener
-      );
-    };
-  }, [fetchAllStagedShards]);
 
   return (
     <>

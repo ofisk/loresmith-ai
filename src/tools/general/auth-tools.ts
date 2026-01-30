@@ -6,18 +6,11 @@ import {
   USER_MESSAGES,
 } from "../../app-constants";
 import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
-import { createToolError, createToolSuccess } from "../utils";
-
-// Helper function to get environment from context
-function getEnvFromContext(context: any): any {
-  if (context?.env) {
-    return context.env;
-  }
-  if (typeof globalThis !== "undefined" && "env" in globalThis) {
-    return (globalThis as any).env;
-  }
-  return null;
-}
+import {
+  createToolError,
+  createToolSuccess,
+  getEnvFromContext,
+} from "../utils";
 
 // Tool to validate admin key
 export const validateAdminKey = tool({

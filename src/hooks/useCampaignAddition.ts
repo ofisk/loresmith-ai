@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { API_CONFIG } from "@/shared-config";
+import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
@@ -119,7 +120,7 @@ export function useCampaignAddition() {
 
         // Dispatch event to notify other components that a file was added to campaigns
         window.dispatchEvent(
-          new CustomEvent("campaign-file-added", {
+          new CustomEvent(APP_EVENT_TYPE.CAMPAIGN_FILE_ADDED, {
             detail: {
               file: selectedFile,
               campaignIds: campaignIds,

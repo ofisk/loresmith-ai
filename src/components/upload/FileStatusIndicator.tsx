@@ -5,7 +5,7 @@ import {
   ArrowClockwise,
 } from "@phosphor-icons/react";
 import { useCallback } from "react";
-import { FileDAO } from "@/dao/file-dao";
+import { FileDAO } from "@/dao";
 import {
   estimateProcessingTime,
   formatProcessingTime,

@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from "react";
+import { APP_EVENT_TYPE } from "@/lib/app-events";
 
 interface UiHint {
   type: string;
@@ -23,12 +24,12 @@ export function useUiHints(options: UseUiHintsOptions = {}) {
 
   useEffect(() => {
     window.addEventListener(
-      "ui-hint",
+      APP_EVENT_TYPE.UI_HINT,
       handleUiHint as unknown as EventListener
     );
     return () => {
       window.removeEventListener(
-        "ui-hint",
+        APP_EVENT_TYPE.UI_HINT,
         handleUiHint as unknown as EventListener
       );
     };

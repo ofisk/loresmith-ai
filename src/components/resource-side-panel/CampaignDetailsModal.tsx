@@ -1,26 +1,20 @@
-import {
-  ArrowClockwise,
-  CaretDownIcon,
-  CaretRightIcon,
-  FloppyDisk,
-  PencilSimple,
-  Plus,
-  Trash,
-} from "@phosphor-icons/react";
+import { FloppyDisk, PencilSimple } from "@phosphor-icons/react";
+import { CampaignDetailsTab } from "./CampaignDetailsTab";
+import { CampaignDigestsTab } from "./CampaignDigestsTab";
+import { CampaignResourcesTab } from "./CampaignResourcesTab";
+import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/button/Button";
 import { FormButton } from "@/components/button/FormButton";
 import { GraphVisualizationModal } from "@/components/graph/GraphVisualizationModal";
-import { FormField } from "@/components/input/FormField";
 import { Modal } from "@/components/modal/Modal";
 import { SessionDigestBulkImport } from "@/components/session/SessionDigestBulkImport";
-import { SessionDigestList } from "@/components/session/SessionDigestList";
 import { SessionDigestModal } from "@/components/session/SessionDigestModal";
 import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
 import { useBaseAsync } from "@/hooks/useBaseAsync";
 import { useResourceFiles } from "@/hooks/useResourceFiles";
 import { useSessionDigests } from "@/hooks/useSessionDigests";
+import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { getDisplayName } from "@/lib/display-name-utils";
 import { API_CONFIG } from "@/shared-config";
 import type { Campaign, CampaignResource } from "@/types/campaign";
@@ -58,12 +52,7 @@ export function CampaignDetailsModal({
   const [editedDescription, setEditedDescription] = useState(
     campaign?.description || ""
   );
-  const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [confirmProgress, setConfirmProgress] = useState(0);
-  const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const confirmIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [activeTab, setActiveTab] = useState<
     "details" | "digests" | "resources"
   >("details");
@@ -314,13 +303,13 @@ export function CampaignDetailsModal({
     };
 
     window.addEventListener(
-      "entity-extraction-completed",
+      APP_EVENT_TYPE.ENTITY_EXTRACTION_COMPLETED,
       handleEntityExtractionCompleted
     );
 
     return () => {
       window.removeEventListener(
-        "entity-extraction-completed",
+        APP_EVENT_TYPE.ENTITY_EXTRACTION_COMPLETED,
         handleEntityExtractionCompleted
       );
     };
@@ -419,18 +408,6 @@ export function CampaignDetailsModal({
     }
   }, [campaign, isOpen, activeTab, fetchCampaignResources.execute]);
 
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-      if (confirmTimeoutRef.current) {
-        clearTimeout(confirmTimeoutRef.current);
-      }
-      if (confirmIntervalRef.current) {
-        clearInterval(confirmIntervalRef.current);
-      }
-    };
-  }, []);
-
   const handleSave = async () => {
     if (!campaign) return;
 
@@ -448,54 +425,10 @@ export function CampaignDetailsModal({
     }
   };
 
-  const handleDeleteClick = () => {
-    setShowDeleteConfirm(true);
-    setConfirmProgress(0);
-
-    // Start the countdown animation
-    const startTime = Date.now();
-    const duration = 7000; // 7 seconds
-
-    confirmIntervalRef.current = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      setConfirmProgress(progress * 100);
-
-      if (progress >= 1) {
-        // Auto-cancel when countdown completes
-        handleDeleteCancel();
-      }
-    }, 50); // Update every 50ms for smooth animation
-  };
-
-  const handleDeleteConfirm = async () => {
+  const handleDeleteCampaign = async () => {
     if (!campaign) return;
-
-    setIsDeleting(true);
-    try {
-      await onDelete(campaign.campaignId);
-      onClose();
-    } catch (error) {
-      console.error("Failed to delete campaign:", error);
-    } finally {
-      setIsDeleting(false);
-      setShowDeleteConfirm(false);
-    }
-  };
-
-  const handleDeleteCancel = () => {
-    setShowDeleteConfirm(false);
-    setConfirmProgress(0);
-
-    // Clear timers
-    if (confirmTimeoutRef.current) {
-      clearTimeout(confirmTimeoutRef.current);
-      confirmTimeoutRef.current = null;
-    }
-    if (confirmIntervalRef.current) {
-      clearInterval(confirmIntervalRef.current);
-      confirmIntervalRef.current = null;
-    }
+    await onDelete(campaign.campaignId);
+    onClose();
   };
 
   const handleCancel = () => {
@@ -605,304 +538,43 @@ export function CampaignDetailsModal({
             </div>
           </div>
 
-          {/* Campaign Info - Details Tab */}
           {activeTab === "details" && (
-            <div className="space-y-4">
-              {/* Name */}
-              {isEditing ? (
-                <FormField
-                  id={nameId}
-                  label="Campaign name"
-                  value={editedName}
-                  onValueChange={(value) => setEditedName(value)}
-                  placeholder="Enter campaign name"
-                />
-              ) : (
-                <div>
-                  <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Campaign name
-                  </div>
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                    <p className="text-gray-900 dark:text-gray-100">
-                      {campaign.name}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Description */}
-              {isEditing ? (
-                <FormField
-                  id={descriptionId}
-                  label="Description"
-                  value={editedDescription}
-                  onValueChange={(value) => setEditedDescription(value)}
-                  placeholder="Enter campaign description"
-                  multiline
-                  rows={4}
-                />
-              ) : (
-                <div>
-                  <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Description
-                  </div>
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg min-h-[100px]">
-                    <p className="text-gray-900 dark:text-gray-100">
-                      {campaign.description || "No description provided"}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Metadata */}
-              <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
-                <div>
-                  <span className="font-medium">Created:</span>{" "}
-                  {new Date(campaign.createdAt).toLocaleDateString()}
-                </div>
-                <div className="text-right">
-                  <span className="font-medium">ID:</span> {campaign.campaignId}
-                </div>
-              </div>
-            </div>
+            <CampaignDetailsTab
+              campaign={campaign}
+              isEditing={isEditing}
+              editedName={editedName}
+              editedDescription={editedDescription}
+              nameId={nameId}
+              descriptionId={descriptionId}
+              onNameChange={setEditedName}
+              onDescriptionChange={setEditedDescription}
+            />
           )}
 
-          {/* Session Digests Tab */}
           {activeTab === "digests" && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  Session digests
-                </h3>
-                <div className="flex gap-2">
-                  <FormButton
-                    onClick={() => setIsBulkImportOpen(true)}
-                    variant="secondary"
-                  >
-                    Bulk import
-                  </FormButton>
-                  <FormButton
-                    onClick={handleCreateDigest}
-                    icon={<Plus size={16} />}
-                  >
-                    Create digest
-                  </FormButton>
-                </div>
-              </div>
-              <SessionDigestList
-                digests={digests}
-                loading={digestsLoading}
-                error={digestsError}
-                onEdit={handleEditDigest}
-                onDelete={handleDeleteDigest}
-              />
-            </div>
+            <CampaignDigestsTab
+              digests={digests}
+              loading={digestsLoading}
+              error={digestsError}
+              onEdit={handleEditDigest}
+              onDelete={handleDeleteDigest}
+              onCreate={handleCreateDigest}
+              onBulkImport={() => setIsBulkImportOpen(true)}
+            />
           )}
 
-          {/* Resources Tab */}
           {activeTab === "resources" && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  Linked resources
-                </h3>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setIsAddResourceModalOpen(true)}
-                  className="!text-purple-600 dark:!text-purple-400"
-                >
-                  <Plus size={16} weight="bold" />
-                  Add resource
-                </Button>
-              </div>
-              {resourcesLoading ? (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  Loading resources...
-                </div>
-              ) : resourcesError ? (
-                <div className="text-center py-8 text-red-500 dark:text-red-400">
-                  Error loading resources: {resourcesError}
-                </div>
-              ) : resources.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  No resources linked to this campaign.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {resources.map((resource) => {
-                    const isExpanded = expandedResources.has(resource.id);
-                    const toggleExpand = () => {
-                      const newExpanded = new Set(expandedResources);
-                      if (isExpanded) {
-                        newExpanded.delete(resource.id);
-                      } else {
-                        newExpanded.add(resource.id);
-                      }
-                      setExpandedResources(newExpanded);
-                    };
-
-                    return (
-                      <button
-                        key={resource.id}
-                        type="button"
-                        className="relative p-2 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800 overflow-hidden cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors duration-200 w-full text-left"
-                        onClick={toggleExpand}
-                      >
-                        <div className="flex flex-col h-full">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 flex-1 mr-3 min-w-0">
-                              <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[200px]">
-                                {getDisplayName(resource)}
-                              </h4>
-                            </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleExpand();
-                              }}
-                              type="button"
-                              className="flex-shrink-0 p-1 rounded-md bg-neutral-200 dark:bg-neutral-800 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors duration-200"
-                            >
-                              {isExpanded ? (
-                                <CaretDownIcon
-                                  size={16}
-                                  className="text-purple-600 dark:text-purple-400"
-                                />
-                              ) : (
-                                <CaretRightIcon
-                                  size={16}
-                                  className="text-purple-600 dark:text-purple-400"
-                                />
-                              )}
-                            </button>
-                          </div>
-
-                          {isExpanded && (
-                            <div className="overflow-y-auto transition-all duration-300 ease-in-out max-h-96 opacity-100">
-                              <div className="mt-4 text-xs space-y-1">
-                                {resource.display_name && (
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-gray-600 dark:text-gray-400">
-                                      Display name:
-                                    </span>
-                                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                                      {resource.display_name}
-                                    </span>
-                                  </div>
-                                )}
-                                <div className="flex justify-between items-center">
-                                  <span className="text-gray-600 dark:text-gray-400">
-                                    Filename:
-                                  </span>
-                                  <span className="font-medium text-gray-900 dark:text-gray-100">
-                                    {resource.file_name}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                  <span className="text-gray-600 dark:text-gray-400">
-                                    Added:
-                                  </span>
-                                  <span className="font-medium text-gray-900 dark:text-gray-100">
-                                    {new Date(resource.created_at)
-                                      .toLocaleDateString("en-US", {
-                                        month: "short",
-                                        day: "numeric",
-                                        year: "2-digit",
-                                        hour: "numeric",
-                                        minute: "2-digit",
-                                        hour12: true,
-                                      })
-                                      .replace(",", "")
-                                      .replace(" PM", "p")
-                                      .replace(" AM", "a")}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {resource.description && (
-                                <div className="mt-3">
-                                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                                    {resource.description}
-                                  </p>
-                                </div>
-                              )}
-
-                              {resource.tags &&
-                                (() => {
-                                  try {
-                                    const tags =
-                                      typeof resource.tags === "string"
-                                        ? JSON.parse(resource.tags)
-                                        : resource.tags;
-                                    if (
-                                      Array.isArray(tags) &&
-                                      tags.length > 0
-                                    ) {
-                                      return (
-                                        <div className="mt-3">
-                                          <div className="flex flex-wrap gap-1">
-                                            {tags.map((tag: string) => (
-                                              <span
-                                                key={tag}
-                                                className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded"
-                                              >
-                                                {tag}
-                                              </span>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-                                  } catch {
-                                    // Invalid JSON, ignore
-                                  }
-                                  return null;
-                                })()}
-
-                              <div className="mt-4 space-y-2">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRetryEntityExtraction(resource.id);
-                                  }}
-                                  disabled={
-                                    retryingResourceId === resource.id ||
-                                    processingResources.has(resource.id)
-                                  }
-                                  className="w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  {processingResources.has(resource.id) ? (
-                                    <span className="flex items-center justify-center gap-2">
-                                      <ArrowClockwise
-                                        size={16}
-                                        className="animate-spin"
-                                      />
-                                      Processing...
-                                    </span>
-                                  ) : retryingResourceId === resource.id ? (
-                                    <span className="flex items-center justify-center gap-2">
-                                      <ArrowClockwise
-                                        size={16}
-                                        className="animate-spin"
-                                      />
-                                      Retrying...
-                                    </span>
-                                  ) : (
-                                    "Retry entity extraction"
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <CampaignResourcesTab
+              resources={resources}
+              loading={resourcesLoading}
+              error={resourcesError}
+              expandedResources={expandedResources}
+              onExpandedChange={setExpandedResources}
+              processingResources={processingResources}
+              retryingResourceId={retryingResourceId}
+              onRetry={handleRetryEntityExtraction}
+              onAddResource={() => setIsAddResourceModalOpen(true)}
+            />
           )}
 
           {/* Actions */}
@@ -945,44 +617,14 @@ export function CampaignDetailsModal({
                 )}
               </div>
 
-              {!isEditing &&
-                (showDeleteConfirm ? (
-                  <div className="flex gap-2">
-                    <Button
-                      variant="secondary"
-                      onClick={handleDeleteCancel}
-                      disabled={isDeleting}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={handleDeleteConfirm}
-                      disabled={isDeleting}
-                      className="relative flex items-center gap-2 overflow-hidden"
-                    >
-                      {/* Progress bar background */}
-                      <div
-                        className="absolute inset-0 bg-gray-400/30 transition-all duration-75 ease-linear"
-                        style={{ width: `${confirmProgress}%` }}
-                      />
-                      {/* Button content */}
-                      <div className="relative z-10 flex items-center gap-2">
-                        <Trash size={16} />
-                        {isDeleting ? "Deleting..." : "Confirm delete"}
-                      </div>
-                    </Button>
-                  </div>
-                ) : (
-                  <FormButton
-                    onClick={handleDeleteClick}
-                    disabled={isDeleting || isUpdating}
-                    variant="destructive"
-                    icon={<Trash size={16} />}
-                  >
-                    Delete campaign
-                  </FormButton>
-                ))}
+              {!isEditing && (
+                <ConfirmDeleteButton
+                  label="Delete campaign"
+                  confirmLabel="Confirm delete"
+                  onConfirm={handleDeleteCampaign}
+                  disabled={isUpdating}
+                />
+              )}
             </div>
           )}
         </div>

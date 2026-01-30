@@ -1,5 +1,10 @@
-import type { R2Bucket, VectorizeIndex } from "@cloudflare/workers-types";
-import { BaseDAOClass } from "./base-dao";
+import type {
+  D1Database,
+  R2Bucket,
+  VectorizeIndex,
+} from "@cloudflare/workers-types";
+import { BaseDAOClass } from "../base-dao";
+import { FileProcessingChunksDAO } from "./file-processing-chunks-dao";
 import { LibraryRAGService } from "@/services/rag/rag-service";
 
 export interface FileMetadata {
@@ -50,6 +55,13 @@ export interface FileWithChunks extends ParsedFileMetadata {
 }
 
 export class FileDAO extends BaseDAOClass {
+  private readonly processingChunksDAO: FileProcessingChunksDAO;
+
+  constructor(db: D1Database) {
+    super(db);
+    this.processingChunksDAO = new FileProcessingChunksDAO(db);
+  }
+
   // File status constants
   static readonly STATUS = {
     // Upload flow statuses
@@ -1149,9 +1161,7 @@ export class FileDAO extends BaseDAOClass {
     return results.map((row: any) => row.username);
   }
 
-  /**
-   * Create a file processing chunk
-   */
+  /** Delegates to FileProcessingChunksDAO. */
   async createFileProcessingChunk(chunk: {
     id: string;
     fileKey: string;
@@ -1163,29 +1173,10 @@ export class FileDAO extends BaseDAOClass {
     byteRangeStart?: number;
     byteRangeEnd?: number;
   }): Promise<void> {
-    const sql = `
-      INSERT INTO file_processing_chunks (
-        id, file_key, username, chunk_index, total_chunks,
-        page_range_start, page_range_end, byte_range_start, byte_range_end,
-        status, retry_count, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, datetime('now'), datetime('now'))
-    `;
-    await this.execute(sql, [
-      chunk.id,
-      chunk.fileKey,
-      chunk.username,
-      chunk.chunkIndex,
-      chunk.totalChunks,
-      chunk.pageRangeStart || null,
-      chunk.pageRangeEnd || null,
-      chunk.byteRangeStart || null,
-      chunk.byteRangeEnd || null,
-    ]);
+    return this.processingChunksDAO.createFileProcessingChunk(chunk);
   }
 
-  /**
-   * Get all processing chunks for a file
-   */
+  /** Delegates to FileProcessingChunksDAO. */
   async getFileProcessingChunks(fileKey: string): Promise<
     Array<{
       id: string;
@@ -1206,35 +1197,10 @@ export class FileDAO extends BaseDAOClass {
       updatedAt?: string;
     }>
   > {
-    const sql = `
-      SELECT * FROM file_processing_chunks
-      WHERE file_key = ?
-      ORDER BY chunk_index ASC
-    `;
-    const rows = await this.queryAll(sql, [fileKey]);
-    return rows.map((row: any) => ({
-      id: row.id,
-      fileKey: row.file_key,
-      username: row.username,
-      chunkIndex: row.chunk_index,
-      totalChunks: row.total_chunks,
-      pageRangeStart: row.page_range_start ?? undefined,
-      pageRangeEnd: row.page_range_end ?? undefined,
-      byteRangeStart: row.byte_range_start ?? undefined,
-      byteRangeEnd: row.byte_range_end ?? undefined,
-      status: row.status,
-      vectorId: row.vector_id ?? undefined,
-      errorMessage: row.error_message ?? undefined,
-      retryCount: row.retry_count,
-      createdAt: row.created_at,
-      processedAt: row.processed_at ?? undefined,
-      updatedAt: row.updated_at ?? undefined,
-    }));
+    return this.processingChunksDAO.getFileProcessingChunks(fileKey);
   }
 
-  /**
-   * Update a file processing chunk
-   */
+  /** Delegates to FileProcessingChunksDAO. */
   async updateFileProcessingChunk(
     chunkId: string,
     updates: {
@@ -1244,55 +1210,18 @@ export class FileDAO extends BaseDAOClass {
       retryCount?: number;
     }
   ): Promise<void> {
-    const fields: string[] = [];
-    const values: any[] = [];
-
-    if (updates.status !== undefined) {
-      fields.push("status = ?");
-      values.push(updates.status);
-    }
-    if (updates.vectorId !== undefined) {
-      fields.push("vector_id = ?");
-      values.push(updates.vectorId);
-    }
-    if (updates.errorMessage !== undefined) {
-      fields.push("error_message = ?");
-      values.push(updates.errorMessage);
-    }
-    if (updates.retryCount !== undefined) {
-      fields.push("retry_count = ?");
-      values.push(updates.retryCount);
-    }
-
-    if (fields.length === 0) {
-      return;
-    }
-
-    fields.push("updated_at = datetime('now')");
-    values.push(chunkId);
-
-    const sql = `UPDATE file_processing_chunks SET ${fields.join(", ")} WHERE id = ?`;
-    await this.execute(sql, values);
+    return this.processingChunksDAO.updateFileProcessingChunk(chunkId, updates);
   }
 
-  /**
-   * Mark a file processing chunk as completed
-   */
+  /** Delegates to FileProcessingChunksDAO. */
   async markFileChunkComplete(
     chunkId: string,
     vectorId: string
   ): Promise<void> {
-    const sql = `
-      UPDATE file_processing_chunks
-      SET status = 'completed', vector_id = ?, processed_at = datetime('now'), updated_at = datetime('now')
-      WHERE id = ?
-    `;
-    await this.execute(sql, [vectorId, chunkId]);
+    return this.processingChunksDAO.markFileChunkComplete(chunkId, vectorId);
   }
 
-  /**
-   * Get pending file chunks for processing
-   */
+  /** Delegates to FileProcessingChunksDAO. */
   async getPendingFileChunks(username?: string): Promise<
     Array<{
       id: string;
@@ -1307,37 +1236,10 @@ export class FileDAO extends BaseDAOClass {
       retryCount: number;
     }>
   > {
-    let sql = `
-      SELECT * FROM file_processing_chunks
-      WHERE status = 'pending'
-    `;
-    const params: any[] = [];
-
-    if (username) {
-      sql += " AND username = ?";
-      params.push(username);
-    }
-
-    sql += " ORDER BY created_at ASC";
-
-    const rows = await this.queryAll(sql, params);
-    return rows.map((row: any) => ({
-      id: row.id,
-      fileKey: row.file_key,
-      username: row.username,
-      chunkIndex: row.chunk_index,
-      totalChunks: row.total_chunks,
-      pageRangeStart: row.page_range_start ?? undefined,
-      pageRangeEnd: row.page_range_end ?? undefined,
-      byteRangeStart: row.byte_range_start ?? undefined,
-      byteRangeEnd: row.byte_range_end ?? undefined,
-      retryCount: row.retry_count,
-    }));
+    return this.processingChunksDAO.getPendingFileChunks(username);
   }
 
-  /**
-   * Get chunk completion statistics for a file
-   */
+  /** Delegates to FileProcessingChunksDAO. */
   async getFileChunkStats(fileKey: string): Promise<{
     total: number;
     completed: number;
@@ -1345,31 +1247,11 @@ export class FileDAO extends BaseDAOClass {
     pending: number;
     processing: number;
   }> {
-    const sql = `
-      SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
-        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing
-      FROM file_processing_chunks
-      WHERE file_key = ?
-    `;
-    const result = await this.queryFirst(sql, [fileKey]);
-    return {
-      total: result?.total || 0,
-      completed: result?.completed || 0,
-      failed: result?.failed || 0,
-      pending: result?.pending || 0,
-      processing: result?.processing || 0,
-    };
+    return this.processingChunksDAO.getFileChunkStats(fileKey);
   }
 
-  /**
-   * Delete all chunks for a file (cleanup)
-   */
+  /** Delegates to FileProcessingChunksDAO. */
   async deleteFileProcessingChunks(fileKey: string): Promise<void> {
-    const sql = `DELETE FROM file_processing_chunks WHERE file_key = ?`;
-    await this.execute(sql, [fileKey]);
+    return this.processingChunksDAO.deleteFileProcessingChunks(fileKey);
   }
 }

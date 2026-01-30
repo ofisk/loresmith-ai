@@ -1,3 +1,4 @@
+import type { VectorizeIndex } from "@cloudflare/workers-types";
 import { tool } from "ai";
 import { z } from "zod";
 import { AUTH_CODES, type ToolResult } from "../../app-constants";
@@ -6,6 +7,7 @@ import {
   createToolError,
   createToolSuccess,
   extractUsernameFromJwt,
+  getEnvFromContext,
 } from "../utils";
 import { getDAOFactory } from "../../dao/dao-factory";
 import { WorldStateChangelogService } from "../../services/graph/world-state-changelog-service";
@@ -14,110 +16,10 @@ import { EntityEmbeddingService } from "../../services/vectorize/entity-embeddin
 import { EntityGraphService } from "../../services/graph/entity-graph-service";
 import { STRUCTURED_ENTITY_TYPES } from "../../lib/entity-types";
 import { isEntityStub } from "@/lib/entity-content-merge";
+import { parseQueryIntent } from "./search-tools-query-intent";
 
 // Dynamically build entity types list for descriptions
 const ENTITY_TYPES_LIST = STRUCTURED_ENTITY_TYPES.join(", ");
-
-// Helper function to get environment from context
-function getEnvFromContext(context: any): any {
-  if (context?.env) {
-    return context.env;
-  }
-  if (typeof globalThis !== "undefined" && "env" in globalThis) {
-    return (globalThis as any).env;
-  }
-  return null;
-}
-
-// Query intent parsing result
-interface QueryIntent {
-  entityType: string | null;
-  searchPlanningContext: boolean;
-  isListAll: boolean;
-  searchQuery: string;
-}
-
-/**
- * Parse query string to infer search intent
- * - Detects entity types in query (e.g., "monsters", "npcs")
- * - Detects planning context intent via "context:" or "session:" prefix
- * - Detects "list all" intent (empty query, just entity type, or "all <type>")
- * - Extracts clean search query for semantic search
- */
-function parseQueryIntent(query: string): QueryIntent {
-  const queryTrimmed = query.trim();
-  const queryLower = queryTrimmed.toLowerCase();
-
-  // Check for planning context prefix
-  const hasContextPrefix =
-    queryLower.startsWith("context:") || queryLower.startsWith("session:");
-  const searchPlanningContext = hasContextPrefix;
-
-  // Extract query without prefix for further processing
-  let queryWithoutPrefix = queryTrimmed;
-  if (hasContextPrefix) {
-    const colonIndex = queryTrimmed.indexOf(":");
-    queryWithoutPrefix = queryTrimmed.substring(colonIndex + 1).trim();
-  }
-
-  // Detect entity type in query (whole word matching against structured entity types)
-  // The LLM should map synonyms (e.g., "beasts", "creatures" → "monsters") before calling this tool
-  let detectedEntityType: string | null = null;
-  for (const entityType of STRUCTURED_ENTITY_TYPES) {
-    // Match whole word to avoid false positives (e.g., "monsters" not "monster")
-    const regex = new RegExp(`\\b${entityType}\\b`, "i");
-    if (regex.test(queryWithoutPrefix)) {
-      detectedEntityType = entityType;
-      break; // Use first match
-    }
-  }
-
-  // Map entity type names to database entity types
-  const entityTypeMap: Record<string, string> = {
-    characters: "character",
-    resources: "resource",
-  };
-  const targetEntityType = detectedEntityType
-    ? entityTypeMap[detectedEntityType] || detectedEntityType
-    : null;
-
-  // Detect "list all" intent
-  let isListAll = false;
-  if (queryWithoutPrefix.length === 0) {
-    // Empty query (after removing prefix) → list all entities
-    isListAll = true;
-  } else if (detectedEntityType) {
-    const queryLowerNoPrefix = queryWithoutPrefix.toLowerCase();
-    const typeLower = detectedEntityType.toLowerCase();
-    // Check if query is just the entity type or "all <type>"
-    if (
-      queryLowerNoPrefix === typeLower ||
-      queryLowerNoPrefix === `all ${typeLower}` ||
-      queryLowerNoPrefix === `list ${typeLower}` ||
-      queryLowerNoPrefix === `list all ${typeLower}`
-    ) {
-      isListAll = true;
-    }
-  }
-
-  // Extract clean search query for semantic search
-  // Remove entity type keywords and "all" prefix
-  let searchQuery = queryWithoutPrefix;
-  if (detectedEntityType && !isListAll) {
-    // Remove entity type keyword from query for semantic search
-    const typeRegex = new RegExp(`\\b${detectedEntityType}\\b`, "gi");
-    searchQuery = searchQuery.replace(typeRegex, "").trim();
-    // Remove "all" prefix if present
-    searchQuery = searchQuery.replace(/^all\s+/i, "").trim();
-  }
-
-  return {
-    entityType: targetEntityType,
-    searchPlanningContext,
-    isListAll,
-    searchQuery,
-  };
-}
 
 /**
  * Calculate name similarity between a query and an entity name.
@@ -420,7 +322,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
         try {
           planningService = new PlanningContextService(
             env.DB!,
-            env.VECTORIZE!,
+            env.VECTORIZE as VectorizeIndex,
             env.OPENAI_API_KEY as string,
             env
           );
@@ -514,7 +416,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 
                 if (queryEmbedding) {
                   const entityEmbeddingService = new EntityEmbeddingService(
-                    env.VECTORIZE
+                    env.VECTORIZE as VectorizeIndex | undefined
                   );
 
                   // For list-all queries, use a higher topK to get more results
@@ -1001,11 +903,13 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
             > | null = null;
             let worldStateService: WorldStateChangelogService | null = null;
             try {
-              worldStateService = new WorldStateChangelogService({
-                db: env.DB,
-              });
-              changelogOverlay =
-                await worldStateService.getOverlaySnapshot(campaignId);
+              if (env.DB) {
+                worldStateService = new WorldStateChangelogService({
+                  db: env.DB,
+                });
+                changelogOverlay =
+                  await worldStateService.getOverlaySnapshot(campaignId);
+              }
             } catch (error) {
               console.warn(
                 "[Tool] searchCampaignContext - Failed to get changelog overlay:",
@@ -1682,359 +1586,6 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
   },
 });
 
-// Default page size for listAllEntities (one page per call to stay within context limits)
-const LIST_ALL_ENTITIES_PAGE_SIZE = 100;
-
-// Tool to list entities from a campaign with pagination (agent must call multiple times when there are many entities)
-export const listAllEntities = tool({
-  description: `List entities from a campaign ONE PAGE AT A TIME. Returns a single page of results; totalCount and totalPages tell you if more pages exist.
-
-IMPORTANT: If totalPages > 1, you MUST call listAllEntities again with page set to 2, 3, ... until you have all pages (or enough to answer the user). Make multiple tool calls in sequence—do not assume one call returns everything when totalCount is large.
-
-Use for "list all" or counting by type. For a specific search (e.g. "entries for the abbott"), use searchCampaignContext instead.
-
-Entity types: ${ENTITY_TYPES_LIST}. Map synonyms: "beasts"/"creatures" → "monsters", "people"/"characters" (NPCs) → "npcs", "player characters"/"PCs" → "pcs", "places" → "locations".
-
-Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characters", determine context.`,
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    entityType: z
-      .preprocess(
-        (val) => (val === "" ? undefined : val),
-        z
-          .enum([
-            ...STRUCTURED_ENTITY_TYPES,
-            "character", // Maps to "characters" in database
-            "resource", // Maps to "resources" in database
-          ] as [string, ...string[]])
-          .optional()
-      )
-      .describe(
-        `Optional entity type to filter by. Available types: ${ENTITY_TYPES_LIST}. If not provided or empty string, returns all entity types.`
-      ),
-    includeStubs: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        "If true, include stub entities (minimal/incomplete). Use when the agent needs to surface incomplete entities and prompt the user to fill in gaps. Default false: stubs are excluded from list results."
-      ),
-    page: z
-      .number()
-      .int()
-      .min(1)
-      .optional()
-      .default(1)
-      .describe(
-        "Page number (1-based). Use 1 for first page; if totalPages > 1, call again with page=2, 3, ... to get all entities."
-      ),
-    pageSize: z
-      .number()
-      .int()
-      .min(1)
-      .max(200)
-      .optional()
-      .default(LIST_ALL_ENTITIES_PAGE_SIZE)
-      .describe(
-        "Number of entities per page. Default 100. Keep default to avoid context overflow; request next page with page parameter."
-      ),
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async (
-    { campaignId, entityType, includeStubs, page, pageSize, jwt },
-    context?: any
-  ): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || "unknown";
-    console.log("[listAllEntities] Using toolCallId:", toolCallId);
-
-    try {
-      const env = getEnvFromContext(context);
-      if (!env) {
-        return createToolError(
-          "Environment not available",
-          "Unable to access campaign data",
-          500,
-          toolCallId
-        );
-      }
-
-      const userId = extractUsernameFromJwt(jwt);
-      if (!userId) {
-        return createToolError(
-          "Invalid authentication token",
-          "Authentication failed",
-          AUTH_CODES.INVALID_KEY,
-          toolCallId
-        );
-      }
-
-      const daoFactory = getDAOFactory(env);
-      const campaignDAO = daoFactory.campaignDAO;
-      const campaign = await campaignDAO.getCampaignByIdWithMapping(
-        campaignId,
-        userId
-      );
-
-      if (!campaign) {
-        return createToolError(
-          "Campaign not found",
-          "Campaign not found",
-          404,
-          toolCallId
-        );
-      }
-
-      // Map entity type names to database entity types (same as searchCampaignContext)
-      // Also handle empty strings as undefined (safety check)
-      const entityTypeMap: Record<string, string> = {
-        characters: "character",
-        resources: "resource",
-      };
-      const targetEntityType =
-        entityType && entityType.trim() !== ""
-          ? entityTypeMap[entityType] || entityType
-          : null;
-
-      // Get total count first (for all matching entities, before stub filter)
-      const totalCount = await daoFactory.entityDAO.getEntityCountByCampaign(
-        campaignId,
-        targetEntityType ? { entityType: targetEntityType } : {}
-      );
-
-      const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-      const offset = (page - 1) * pageSize;
-
-      console.log(
-        `[Tool] listAllEntities - Page ${page}/${totalPages}, offset ${offset}, pageSize ${pageSize} (${totalCount} total)${targetEntityType ? ` of type ${targetEntityType}` : ""}`
-      );
-
-      // Fetch one page, ordered by name for stable pagination
-      const pageEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
-        campaignId,
-        {
-          entityType: targetEntityType || undefined,
-          limit: pageSize,
-          offset,
-          orderBy: "name",
-        }
-      );
-
-      // Exclude stubs unless explicitly requested
-      const entitiesToReturn = includeStubs
-        ? pageEntities
-        : pageEntities.filter((e) => !isEntityStub(e));
-
-      // Transform to searchCampaignContext-style format (Entity uses camelCase: entityType, name, content)
-      const results = entitiesToReturn.map((entity) => {
-        const text =
-          typeof entity.content === "string"
-            ? entity.content
-            : JSON.stringify(entity.content ?? "");
-        return {
-          id: entity.id,
-          type: entity.entityType,
-          name: entity.name || entity.id,
-          title: entity.name,
-          display_name: entity.name,
-          text,
-          metadata: entity.metadata,
-          relationships: [],
-          score: 1.0,
-        };
-      });
-
-      // Duplicates within this page only (full duplicate list would require aggregating all pages)
-      const nameCounts = new Map<
-        string,
-        { count: number; entityIds: string[] }
-      >();
-      for (const entity of results) {
-        const normalizedName = (
-          entity.name ||
-          entity.title ||
-          entity.display_name ||
-          ""
-        )
-          .toLowerCase()
-          .trim();
-        if (normalizedName) {
-          const existing = nameCounts.get(normalizedName) || {
-            count: 0,
-            entityIds: [],
-          };
-          existing.count++;
-          existing.entityIds.push(entity.id);
-          nameCounts.set(normalizedName, existing);
-        }
-      }
-      const duplicates: Array<{
-        name: string;
-        count: number;
-        entityIds: string[];
-      }> = [];
-      for (const [name, data] of nameCounts.entries()) {
-        if (data.count > 1) {
-          duplicates.push({
-            name,
-            count: data.count,
-            entityIds: data.entityIds,
-          });
-        }
-      }
-
-      const hasMore = page < totalPages;
-      const entityTypeLabel = entityType ? ` (${entityType})` : "";
-      let message = `Page ${page} of ${totalPages}: ${results.length} entities${entityTypeLabel} (${totalCount} total, sorted by name).`;
-      if (hasMore) {
-        message += ` There are more pages. You MUST call listAllEntities again with page=${page + 1} (and same campaignId, entityType) to get the next page until you have all data or can answer the user.`;
-      }
-      if (duplicates.length > 0) {
-        const duplicateNames = duplicates
-          .map((d) => `"${d.name}" (${d.count} on this page)`)
-          .join(", ");
-        message += ` Duplicates on this page: ${duplicateNames}.`;
-      }
-
-      return createToolSuccess(
-        message,
-        {
-          entityType: entityType || null,
-          results,
-          totalCount,
-          page,
-          pageSize,
-          totalPages,
-          hasMore,
-          duplicates: duplicates.length > 0 ? duplicates : undefined,
-        },
-        toolCallId
-      );
-    } catch (error) {
-      console.error("Error listing all entities:", error);
-      return createToolError(
-        "Failed to list all entities",
-        error,
-        500,
-        toolCallId
-      );
-    }
-  },
-});
-
-// Tool to search external resources
-export const searchExternalResources = tool({
-  description:
-    "Search for external resources and references that might be relevant to the campaign. IMPORTANT: Only use this tool when users explicitly ask for external inspiration, reference materials, or when you've confirmed the user has no approved entities of the requested type in their campaign. If the user asks about entities 'from my campaign', 'in my world', or similar phrases, use searchCampaignContext instead to retrieve their approved entities first.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    query: z.string().describe("The search query for external resources"),
-    resourceType: z
-      .enum(["adventures", "maps", "characters", "monsters", "items", "worlds"])
-      .optional()
-      .describe("Type of external resource to search for"),
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async (
-    { campaignId, query, resourceType, jwt },
-    context?: any
-  ): Promise<ToolResult> => {
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
-    console.log("[searchExternalResources] Using toolCallId:", toolCallId);
-
-    console.log("[Tool] searchExternalResources received:", {
-      campaignId,
-      query,
-      resourceType,
-    });
-
-    try {
-      // Try to get environment from context or global scope
-      const env = getEnvFromContext(context);
-      console.log("[Tool] searchExternalResources - Environment found:", !!env);
-      console.log("[Tool] searchExternalResources - JWT provided:", !!jwt);
-
-      // If we have environment, work directly with the database
-      if (env) {
-        const userId = extractUsernameFromJwt(jwt);
-        console.log(
-          "[Tool] searchExternalResources - User ID extracted:",
-          userId
-        );
-
-        if (!userId) {
-          return createToolError(
-            "Invalid authentication token",
-            "Authentication failed",
-            AUTH_CODES.INVALID_KEY,
-            toolCallId
-          );
-        }
-
-        // Verify campaign exists and belongs to user using DAO
-        const campaignDAO = getDAOFactory(env).campaignDAO;
-        const campaign = await campaignDAO.getCampaignByIdWithMapping(
-          campaignId,
-          userId
-        );
-
-        if (!campaign) {
-          return createToolError(
-            "Campaign not found",
-            "Campaign not found",
-            404,
-            toolCallId
-          );
-        }
-
-        // For now, return mock external resource suggestions
-        // In a real implementation, this would search external APIs or databases
-        const mockResults = [
-          {
-            title: `${resourceType || "Adventure"} for "${query}"`,
-            url: `https://dmsguild.com/search?q=${encodeURIComponent(query)}`,
-            description: `Find ${resourceType || "adventure"} content related to "${query}"`,
-            type: resourceType || "adventure",
-            relevance: "high",
-          },
-          {
-            title: `Reddit discussion about "${query}"`,
-            url: `https://reddit.com/r/DMAcademy/search?q=${encodeURIComponent(query)}`,
-            description: `Community discussions and advice about "${query}"`,
-            type: "discussion",
-            relevance: "medium",
-          },
-        ];
-
-        console.log("[Tool] External search results:", mockResults.length);
-
-        return createToolSuccess(
-          `Found ${mockResults.length} external resources for "${query}"`,
-          {
-            query,
-            resourceType,
-            results: mockResults,
-            totalCount: mockResults.length,
-          },
-          toolCallId
-        );
-      }
-
-      // Fallback: Environment not available, return error
-      return createToolError(
-        "Environment not available for external resource search",
-        "Unable to access external resources",
-        500,
-        toolCallId
-      );
-    } catch (error) {
-      console.error("Error searching external resources:", error);
-      return createToolError(
-        "Failed to search external resources",
-        error,
-        500,
-        toolCallId
-      );
-    }
-  },
-});
+// Re-export list and external search from split modules
+export { listAllEntities } from "./list-all-entities-tool";
+export { searchExternalResources } from "./search-external-resources-tool";

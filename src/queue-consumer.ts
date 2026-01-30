@@ -1,5 +1,5 @@
 import { getDAOFactory } from "./dao/dao-factory";
-import { FileDAO } from "./dao/file-dao";
+import { FileDAO } from "@/dao";
 import { R2Helper } from "./lib/r2";
 import { notifyFileStatusUpdated } from "./lib/notifications";
 import { FileSplitter } from "./lib/split";
@@ -11,6 +11,7 @@ import { ChecklistStatusService } from "./services/campaign/checklist-status-ser
 import { RebuildQueueProcessor } from "./services/graph/rebuild-queue-processor";
 import type { RebuildQueueMessage } from "./types/rebuild-queue";
 import { RebuildQueueService } from "./services/graph/rebuild-queue-service";
+import { IMPACT_PER_NEW_ENTITY } from "@/lib/rebuild-config";
 import { RebuildTriggerService } from "./services/graph/rebuild-trigger-service";
 import { WorldStateChangelogDAO } from "./dao/world-state-changelog-dao";
 import { CommunitySummaryService } from "./services/graph/community-summary-service";
@@ -429,9 +430,8 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
             for (const id of newEntityIds) {
               affectedEntityIds.add(id);
             }
-            // Record impact for new entities (1.2 points per entity, similar to changelog calculation)
-            const impactPerEntity = 1.2;
-            const totalImpact = newEntityIds.length * impactPerEntity;
+            // Record impact for new entities (net new to graph since last rebuild)
+            const totalImpact = newEntityIds.length * IMPACT_PER_NEW_ENTITY;
             await rebuildTriggerService.recordImpact(campaignId, totalImpact);
             console.log(
               `[RebuildCron] Recorded ${totalImpact} impact for ${newEntityIds.length} new entities`
@@ -453,8 +453,7 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
               affectedEntityIds.add(entity.id);
             }
             // Record impact for all entities (treat as new entities)
-            const impactPerEntity = 1.2;
-            const totalImpact = entityCount * impactPerEntity;
+            const totalImpact = entityCount * IMPACT_PER_NEW_ENTITY;
             await rebuildTriggerService.recordImpact(campaignId, totalImpact);
             console.log(
               `[RebuildCron] Recorded ${totalImpact} impact for ${entityCount} entities (no previous rebuild)`

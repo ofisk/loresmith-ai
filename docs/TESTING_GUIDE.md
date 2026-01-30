@@ -1,6 +1,35 @@
+# Testing guide
+
+This directory contains unit and integration tests for the LoreSmith AI application. Tests use **vitest** and follow Test-Driven Development (TDD) principles where applicable.
+
+## Running tests
+
+```bash
+# Run all tests
+npm test
+
+# Run a specific file or directory
+npm test tests/dao/
+npm test tests/lib/leiden-algorithm.test.ts
+
+# Run with coverage
+npm test -- --coverage
+```
+
+## Priority areas for coverage
+
+When adding or extending tests, these areas are high priority:
+
+- **DAOs**: Core data access (e.g. `entity-dao`, `campaign-dao`) for create, read, list, and key query methods. See `tests/dao/`.
+- **Routes**: Complex or security-sensitive routes (e.g. graph-visualization, campaign-graphrag, auth, entities). See `tests/routes/`.
+- **Tools**: Query intent, pagination, and env vs API behavior (e.g. `search-tools` query intent, `listAllEntities` pagination). See `tests/tools/`.
+- **Algorithms**: Determinism and edge cases for shared logic (e.g. Leiden community detection in `tests/lib/leiden-algorithm.test.ts`).
+
+---
+
 # Campaign Workflows Test Suite
 
-This directory contains comprehensive unit tests for the campaign management functionality in the LoreSmith AI application. The tests follow Test-Driven Development (TDD) principles and cover all aspects of campaign workflows.
+The following describes campaign-specific tests. The tests cover campaign management functionality in the LoreSmith AI application.
 
 ## Test Structure
 

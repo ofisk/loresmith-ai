@@ -158,6 +158,16 @@ export class CampaignDAO extends BaseDAOClass {
     };
   }
 
+  /**
+   * Touch campaign updated_at (e.g. after character sheet create/update).
+   */
+  async touchUpdatedAt(campaignId: string): Promise<void> {
+    const sql = `
+      UPDATE campaigns SET updated_at = datetime('now') WHERE id = ?
+    `;
+    await this.execute(sql, [campaignId]);
+  }
+
   async updateCampaign(
     campaignId: string,
     updates: Partial<Pick<Campaign, "name" | "description">> & {

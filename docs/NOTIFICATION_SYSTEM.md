@@ -26,6 +26,32 @@ This document describes the real-time notification system implemented using Serv
    - `NotificationProvider` - Context provider for notifications
    - `NotificationToast` - UI component for displaying notifications
 
+### SSE flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant MintStream as POST mint-stream
+    participant Worker
+    participant NotificationHub as NotificationHub DO
+    participant ServerCode as Server code e.g. notifyShardGeneration
+
+    Note over Client,MintStream: Subscribe path
+    Client->>MintStream: Get stream token
+    MintStream-->>Client: Token
+    Client->>Worker: GET /api/notifications/stream with token
+    Worker->>NotificationHub: Stub for user
+    NotificationHub->>NotificationHub: Add subscriber
+    NotificationHub-->>Client: SSE connection open
+
+    Note over ServerCode,Client: Publish path
+    ServerCode->>ServerCode: notifyUser or notifyShardGeneration etc
+    ServerCode->>NotificationHub: Broadcast to user stub
+    NotificationHub->>NotificationHub: Send to subscribers
+    NotificationHub-->>Client: SSE event onmessage
+    Client->>Client: Update notifications UI
+```
+
 ## Usage
 
 ### Server-side (Publishing Notifications)

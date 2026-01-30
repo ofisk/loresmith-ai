@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "@/dao/dao-factory";
-import { FileDAO } from "@/dao/file-dao";
+import { FileDAO } from "@/dao";
 import {
   notifyIndexingStarted,
   notifyIndexingCompleted,

@@ -4,7 +4,7 @@
  */
 
 import { getDAOFactory } from "@/dao/dao-factory";
-import { FileDAO } from "@/dao/file-dao";
+import { FileDAO } from "@/dao";
 import { logger, type ScopedLogger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import { SyncQueueService } from "@/services/file/sync-queue-service";

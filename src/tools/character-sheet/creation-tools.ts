@@ -1,25 +1,17 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../app-constants";
+import { getDAOFactory } from "@/dao/dao-factory";
 import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
 import {
   commonSchemas,
   createToolError,
   createToolSuccess,
   extractUsernameFromJwt,
+  getEnvFromContext,
 } from "../utils";
+import type { Env } from "@/middleware/auth";
 import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
-
-// Helper function to get environment from context
-function getEnvFromContext(context: any): any {
-  if (context?.env) {
-    return context.env;
-  }
-  if (typeof globalThis !== "undefined" && "env" in globalThis) {
-    return (globalThis as any).env;
-  }
-  return null;
-}
 
 // Tool to create a character sheet
 export const createCharacterSheet = tool({
@@ -63,7 +55,7 @@ export const createCharacterSheet = tool({
       console.log("[Tool] createCharacterSheet - JWT provided:", !!jwt);
 
       // If we have environment, work directly with the database
-      if (env) {
+      if (env?.DB) {
         const userId = extractUsernameFromJwt(jwt);
         console.log("[Tool] createCharacterSheet - User ID extracted:", userId);
 
@@ -76,14 +68,13 @@ export const createCharacterSheet = tool({
           );
         }
 
-        // Verify campaign exists and belongs to user
-        const campaignResult = await env.DB.prepare(
-          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
-        )
-          .bind(campaignId, userId)
-          .first();
-
-        if (!campaignResult) {
+        const daoFactory = getDAOFactory(env);
+        const campaign =
+          await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+            campaignId,
+            userId
+          );
+        if (!campaign) {
           return createToolError(
             "Campaign not found",
             "Campaign not found",
@@ -92,35 +83,26 @@ export const createCharacterSheet = tool({
           );
         }
 
-        // Create character sheet
         const characterId = crypto.randomUUID();
         const now = new Date().toISOString();
 
-        await env.DB.prepare(
-          "INSERT INTO character_sheets (id, campaign_id, character_name, character_class, character_level, character_race, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        )
-          .bind(
-            characterId,
-            campaignId,
-            characterName,
-            characterClass,
-            characterLevel,
-            characterRace,
-            now,
-            now
-          )
-          .run();
-
-        // Update campaign updated_at
-        await env.DB.prepare("UPDATE campaigns SET updated_at = ? WHERE id = ?")
-          .bind(now, campaignId)
-          .run();
+        await daoFactory.characterSheetDAO.createFromForm({
+          id: characterId,
+          campaignId,
+          characterName,
+          characterClass,
+          characterLevel,
+          characterRace,
+          createdAt: now,
+          updatedAt: now,
+        });
+        await daoFactory.campaignDAO.touchUpdatedAt(campaignId);
 
         console.log("[Tool] Created character sheet:", characterId);
 
         // Sync to RAG for searchability
         try {
-          const syncService = new CampaignContextSyncService(env);
+          const syncService = new CampaignContextSyncService(env as Env);
           const characterData = {
             class: characterClass,
             level: characterLevel,

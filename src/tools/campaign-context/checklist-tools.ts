@@ -4,22 +4,13 @@ import {
   commonSchemas,
   createToolSuccess,
   createToolError,
-  extractUsernameFromJwt,
+  runWithEnvOrApi,
+  type ToolContext,
 } from "../utils";
 import { getDAOFactory } from "../../dao/dao-factory";
-import { AUTH_CODES } from "../../shared-config";
+import { AUTH_CODES, API_CONFIG } from "../../shared-config";
 import { CHECKLIST_ITEM_NAMES } from "../../constants/checklist-items";
-
-// Helper function to get environment from context
-function getEnvFromContext(context: any): any {
-  if (context?.env) {
-    return context.env;
-  }
-  if (typeof globalThis !== "undefined" && "env" in globalThis) {
-    return (globalThis as any).env;
-  }
-  return null;
-}
+import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
 
 /**
  * Get checklist status for a campaign
@@ -32,86 +23,86 @@ export const getChecklistStatusTool = tool({
     campaignId: commonSchemas.campaignId,
     jwt: commonSchemas.jwt,
   }),
-  execute: async ({ campaignId, jwt }, context?: any): Promise<any> => {
+  execute: async (
+    { campaignId, jwt },
+    context?: ToolContext
+  ): Promise<unknown> => {
     const toolCallId = crypto.randomUUID();
 
     try {
-      const env = getEnvFromContext(context);
-      if (!env) {
-        return createToolError(
-          "Environment not available",
-          "Server environment is required",
-          500,
-          toolCallId
-        );
-      }
+      return await runWithEnvOrApi({
+        context,
+        jwt,
+        apiCall: async () => {
+          const response = await authenticatedFetch(
+            API_CONFIG.buildUrl(
+              API_CONFIG.ENDPOINTS.CAMPAIGNS.CHECKLIST_STATUS(campaignId)
+            ),
+            { method: "GET", jwt }
+          );
 
-      const userId = extractUsernameFromJwt(jwt as string | null | undefined);
-      if (!userId) {
-        return createToolError(
-          "Invalid authentication token",
-          "Authentication failed",
-          AUTH_CODES.INVALID_KEY,
-          toolCallId
-        );
-      }
+          if (!response.ok) {
+            const authError = handleAuthError(response);
+            if (authError) {
+              return createToolError(
+                authError,
+                "Authentication failed",
+                response.status,
+                toolCallId
+              );
+            }
+            const errorData = (await response.json()) as {
+              error?: string;
+              message?: string;
+            };
+            return createToolError(
+              errorData.error || "Failed to get checklist status",
+              errorData.message || "Unknown error",
+              response.status,
+              toolCallId
+            );
+          }
 
-      const daoFactory = getDAOFactory(env);
-      const campaignDAO = daoFactory.campaignDAO;
-      const checklistStatusDAO = daoFactory.checklistStatusDAO;
+          const data = (await response.json()) as {
+            records: Array<{
+              checklistItemKey: string;
+              status: string;
+              summary: string | null;
+            }>;
+          };
+          const statusRecords = data.records ?? [];
 
-      // Verify campaign access
-      const campaign = await campaignDAO.getCampaignByIdWithMapping(
-        campaignId,
-        userId
-      );
-      if (!campaign) {
-        return createToolError(
-          "Campaign not found or access denied",
-          `Campaign ${campaignId} not found for user ${userId}`,
-          404,
-          toolCallId
-        );
-      }
+          const statusByItem: Record<
+            string,
+            { status: string; summary: string | null }
+          > = {};
+          for (const record of statusRecords) {
+            statusByItem[record.checklistItemKey] = {
+              status: record.status,
+              summary: record.summary,
+            };
+          }
 
-      // Get all checklist status records
-      const statusRecords = await checklistStatusDAO.getChecklistStatus(
-        campaignId as string
-      );
+          const completeItems: string[] = [];
+          const incompleteItems: string[] = [];
+          const partialItems: string[] = [];
 
-      // Format results for the agent
-      const statusByItem: Record<
-        string,
-        { status: string; summary: string | null }
-      > = {};
-      for (const record of statusRecords) {
-        statusByItem[record.checklistItemKey] = {
-          status: record.status,
-          summary: record.summary,
-        };
-      }
+          for (const record of statusRecords) {
+            const itemName =
+              CHECKLIST_ITEM_NAMES[record.checklistItemKey] ||
+              record.checklistItemKey;
+            const itemInfo = `${itemName}${record.summary ? `: ${record.summary}` : ""}`;
 
-      // Build a readable summary
-      const completeItems: string[] = [];
-      const incompleteItems: string[] = [];
-      const partialItems: string[] = [];
+            if (record.status === "complete") {
+              completeItems.push(itemInfo);
+            } else if (record.status === "partial") {
+              partialItems.push(itemInfo);
+            } else {
+              incompleteItems.push(itemInfo);
+            }
+          }
 
-      for (const record of statusRecords) {
-        const itemName =
-          CHECKLIST_ITEM_NAMES[record.checklistItemKey] ||
-          record.checklistItemKey;
-        const itemInfo = `${itemName}${record.summary ? `: ${record.summary}` : ""}`;
-
-        if (record.status === "complete") {
-          completeItems.push(itemInfo);
-        } else if (record.status === "partial") {
-          partialItems.push(itemInfo);
-        } else {
-          incompleteItems.push(itemInfo);
-        }
-      }
-
-      const summaryText = `Checklist Status for Campaign:
+          const summaryText = `Checklist Status for Campaign:
 
 COMPLETE (${completeItems.length}):
 ${completeItems.length > 0 ? completeItems.map((i) => `- ${i}`).join("\n") : "None"}
@@ -124,17 +115,102 @@ ${incompleteItems.length > 0 ? incompleteItems.map((i) => `- ${i}`).join("\n") :
 
 Total tracked items: ${statusRecords.length}`;
 
-      return createToolSuccess(
-        summaryText,
-        {
-          statusByItem,
-          completeCount: completeItems.length,
-          partialCount: partialItems.length,
-          incompleteCount: incompleteItems.length,
-          totalCount: statusRecords.length,
+          return createToolSuccess(
+            summaryText,
+            {
+              statusByItem,
+              completeCount: completeItems.length,
+              partialCount: partialItems.length,
+              incompleteCount: incompleteItems.length,
+              totalCount: statusRecords.length,
+            },
+            toolCallId
+          );
         },
-        toolCallId
-      );
+        authErrorResult: createToolError(
+          "Invalid authentication token",
+          "Authentication failed",
+          AUTH_CODES.INVALID_KEY,
+          toolCallId
+        ),
+        dbCall: async (env, userId) => {
+          const daoFactory = getDAOFactory(env);
+          const campaignDAO = daoFactory.campaignDAO;
+          const checklistStatusDAO = daoFactory.checklistStatusDAO;
+
+          const campaign = await campaignDAO.getCampaignByIdWithMapping(
+            campaignId,
+            userId
+          );
+          if (!campaign) {
+            return createToolError(
+              "Campaign not found or access denied",
+              `Campaign ${campaignId} not found for user ${userId}`,
+              404,
+              toolCallId
+            );
+          }
+
+          const statusRecords = await checklistStatusDAO.getChecklistStatus(
+            campaignId as string
+          );
+
+          const statusByItem: Record<
+            string,
+            { status: string; summary: string | null }
+          > = {};
+          for (const record of statusRecords) {
+            statusByItem[record.checklistItemKey] = {
+              status: record.status,
+              summary: record.summary,
+            };
+          }
+
+          const completeItems: string[] = [];
+          const incompleteItems: string[] = [];
+          const partialItems: string[] = [];
+
+          for (const record of statusRecords) {
+            const itemName =
+              CHECKLIST_ITEM_NAMES[record.checklistItemKey] ||
+              record.checklistItemKey;
+            const itemInfo = `${itemName}${record.summary ? `: ${record.summary}` : ""}`;
+
+            if (record.status === "complete") {
+              completeItems.push(itemInfo);
+            } else if (record.status === "partial") {
+              partialItems.push(itemInfo);
+            } else {
+              incompleteItems.push(itemInfo);
+            }
+          }
+
+          const summaryText = `Checklist Status for Campaign:
+
+COMPLETE (${completeItems.length}):
+${completeItems.length > 0 ? completeItems.map((i) => `- ${i}`).join("\n") : "None"}
+
+PARTIAL (${partialItems.length}):
+${partialItems.length > 0 ? partialItems.map((i) => `- ${i}`).join("\n") : "None"}
+
+INCOMPLETE (${incompleteItems.length}):
+${incompleteItems.length > 0 ? incompleteItems.map((i) => `- ${i}`).join("\n") : "None"}
+
+Total tracked items: ${statusRecords.length}`;
+
+          return createToolSuccess(
+            summaryText,
+            {
+              statusByItem,
+              completeCount: completeItems.length,
+              partialCount: partialItems.length,
+              incompleteCount: incompleteItems.length,
+              totalCount: statusRecords.length,
+            },
+            toolCallId
+          );
+        },
+      });
     } catch (error) {
       console.error("[getChecklistStatusTool] Error:", error);
       return createToolError(

@@ -1,24 +1,15 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../app-constants";
+import { getDAOFactory } from "@/dao/dao-factory";
 import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
 import {
   commonSchemas,
   createToolError,
   createToolSuccess,
   extractUsernameFromJwt,
+  getEnvFromContext,
 } from "../utils";
-
-// Helper function to get environment from context
-function getEnvFromContext(context: any): any {
-  if (context?.env) {
-    return context.env;
-  }
-  if (typeof globalThis !== "undefined" && "env" in globalThis) {
-    return (globalThis as any).env;
-  }
-  return null;
-}
 
 // Tool to upload a character sheet
 export const uploadCharacterSheet = tool({
@@ -57,7 +48,7 @@ export const uploadCharacterSheet = tool({
       console.log("[Tool] uploadCharacterSheet - JWT provided:", !!jwt);
 
       // If we have environment, work directly with the database
-      if (env) {
+      if (env?.DB) {
         const userId = extractUsernameFromJwt(jwt);
         console.log("[Tool] uploadCharacterSheet - User ID extracted:", userId);
 
@@ -70,14 +61,13 @@ export const uploadCharacterSheet = tool({
           );
         }
 
-        // Verify campaign exists and belongs to user
-        const campaignResult = await env.DB.prepare(
-          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
-        )
-          .bind(campaignId, userId)
-          .first();
-
-        if (!campaignResult) {
+        const daoFactory = getDAOFactory(env);
+        const campaign =
+          await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+            campaignId,
+            userId
+          );
+        if (!campaign) {
           return createToolError(
             "Campaign not found",
             "Campaign not found",
@@ -86,30 +76,21 @@ export const uploadCharacterSheet = tool({
           );
         }
 
-        // Store character sheet file
         const characterId = crypto.randomUUID();
         const now = new Date().toISOString();
         const fileSize = Math.round((fileContent.length * 3) / 4); // Approximate base64 size
 
-        await env.DB.prepare(
-          "INSERT INTO character_sheets (id, campaign_id, character_name, file_name, file_content, file_size, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        )
-          .bind(
-            characterId,
-            campaignId,
-            characterName || "Unknown Character",
-            fileName,
-            fileContent,
-            fileSize,
-            now,
-            now
-          )
-          .run();
-
-        // Update campaign updated_at
-        await env.DB.prepare("UPDATE campaigns SET updated_at = ? WHERE id = ?")
-          .bind(now, campaignId)
-          .run();
+        await daoFactory.characterSheetDAO.createFromFile({
+          id: characterId,
+          campaignId,
+          characterName: characterName || "Unknown Character",
+          fileName,
+          fileContent,
+          fileSize,
+          createdAt: now,
+          updatedAt: now,
+        });
+        await daoFactory.campaignDAO.touchUpdatedAt(campaignId);
 
         console.log("[Tool] Uploaded character sheet:", characterId);
 
@@ -201,7 +182,7 @@ export const processCharacterSheet = tool({
       console.log("[Tool] processCharacterSheet - JWT provided:", !!jwt);
 
       // If we have environment, work directly with the database
-      if (env) {
+      if (env?.DB) {
         const userId = extractUsernameFromJwt(jwt);
         console.log(
           "[Tool] processCharacterSheet - User ID extracted:",
@@ -217,12 +198,12 @@ export const processCharacterSheet = tool({
           );
         }
 
-        // Get character sheet
-        const characterSheet = await env.DB.prepare(
-          "SELECT cs.*, c.username FROM character_sheets cs JOIN campaigns c ON cs.campaign_id = c.id WHERE cs.id = ? AND c.username = ?"
-        )
-          .bind(characterSheetId, userId)
-          .first();
+        const daoFactory = getDAOFactory(env);
+        const characterSheet =
+          await daoFactory.characterSheetDAO.getByIdAndUsername(
+            characterSheetId,
+            userId
+          );
 
         if (!characterSheet) {
           return createToolError(
@@ -233,16 +214,14 @@ export const processCharacterSheet = tool({
           );
         }
 
-        // Process the character sheet (extract information)
         const processedData = await processCharacterSheetData(characterSheet);
-
-        // Update character sheet with processed data
         const now = new Date().toISOString();
-        await env.DB.prepare(
-          "UPDATE character_sheets SET processed_data = ?, processed_at = ?, updated_at = ? WHERE id = ?"
-        )
-          .bind(JSON.stringify(processedData), now, now, characterSheetId)
-          .run();
+        await daoFactory.characterSheetDAO.updateProcessedData(
+          characterSheetId,
+          JSON.stringify(processedData),
+          now,
+          now
+        );
 
         console.log("[Tool] Processed character sheet:", characterSheetId);
 
@@ -301,18 +280,17 @@ export const processCharacterSheet = tool({
 });
 
 // Helper function to process character sheet data
-async function processCharacterSheetData(characterSheet: any): Promise<any> {
+async function processCharacterSheetData(
+  characterSheet: import("@/dao/character-sheet-dao").CharacterSheetRow
+): Promise<Record<string, unknown>> {
   // This is a simplified processing function
   // In a real implementation, this would use OCR or AI to extract character information
-  const processedData = {
+  return {
     characterName: characterSheet.character_name || "Unknown",
     characterClass: characterSheet.character_class || "Unknown",
-    characterLevel: characterSheet.character_level || 1,
+    characterLevel: characterSheet.character_level ?? 1,
     characterRace: characterSheet.character_race || "Unknown",
-    // Add more extracted fields as needed
     extractedAt: new Date().toISOString(),
-    confidence: 0.8, // Confidence score for extracted data
+    confidence: 0.8,
   };
-
-  return processedData;
 }
