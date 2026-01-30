@@ -621,6 +621,9 @@ export class EntityDAO extends BaseDAOClass {
     return records.map((record) => this.mapRelationshipRecord(record));
   }
 
+  /** SQLite/D1 bound parameter limit; we use 2*batchSize (from + to IN clauses). */
+  private static readonly RELATIONSHIPS_BATCH_SIZE = 400;
+
   async getRelationshipsForEntities(
     entityIds: string[],
     options: { relationshipType?: RelationshipType } = {}
@@ -629,44 +632,51 @@ export class EntityDAO extends BaseDAOClass {
       return new Map();
     }
 
-    const placeholders = entityIds.map(() => "?").join(", ");
-    const params: any[] = [...entityIds, ...entityIds];
-    const filters: string[] = [
-      `(from_entity_id IN (${placeholders}) OR to_entity_id IN (${placeholders}))`,
-    ];
-
-    if (options.relationshipType) {
-      filters.push("relationship_type = ?");
-      params.push(options.relationshipType);
-    }
-
-    const sql = `
-      SELECT * FROM entity_relationships
-      WHERE ${filters.join(" AND ")}
-      ORDER BY created_at DESC
-    `;
-
-    const records = await this.queryAll<EntityRelationshipRecord>(sql, params);
-    const relationships = records.map((record) =>
-      this.mapRelationshipRecord(record)
-    );
-
-    // Group relationships by entity ID
     const result = new Map<string, EntityRelationship[]>();
     for (const entityId of entityIds) {
       result.set(entityId, []);
     }
 
-    for (const rel of relationships) {
-      if (entityIds.includes(rel.fromEntityId)) {
-        const existing = result.get(rel.fromEntityId) || [];
-        existing.push(rel);
-        result.set(rel.fromEntityId, existing);
+    const { RELATIONSHIPS_BATCH_SIZE: batchSize } = EntityDAO;
+    for (let i = 0; i < entityIds.length; i += batchSize) {
+      const chunk = entityIds.slice(i, i + batchSize);
+      const placeholders = chunk.map(() => "?").join(", ");
+      const params: unknown[] = [...chunk, ...chunk];
+      const filters: string[] = [
+        `(from_entity_id IN (${placeholders}) OR to_entity_id IN (${placeholders}))`,
+      ];
+
+      if (options.relationshipType) {
+        filters.push("relationship_type = ?");
+        params.push(options.relationshipType);
       }
-      if (entityIds.includes(rel.toEntityId)) {
-        const existing = result.get(rel.toEntityId) || [];
-        existing.push(rel);
-        result.set(rel.toEntityId, existing);
+
+      const sql = `
+      SELECT * FROM entity_relationships
+      WHERE ${filters.join(" AND ")}
+      ORDER BY created_at DESC
+    `;
+
+      const records = await this.queryAll<EntityRelationshipRecord>(
+        sql,
+        params
+      );
+      const relationships = records.map((record) =>
+        this.mapRelationshipRecord(record)
+      );
+
+      const entityIdSet = new Set(entityIds);
+      for (const rel of relationships) {
+        if (entityIdSet.has(rel.fromEntityId)) {
+          const existing = result.get(rel.fromEntityId) ?? [];
+          existing.push(rel);
+          result.set(rel.fromEntityId, existing);
+        }
+        if (entityIdSet.has(rel.toEntityId)) {
+          const existing = result.get(rel.toEntityId) ?? [];
+          existing.push(rel);
+          result.set(rel.toEntityId, existing);
+        }
       }
     }
 
