@@ -1,5 +1,5 @@
 import type { Env } from "@/middleware/auth";
-import { FileDAO } from "@/dao/file-dao";
+import { FileDAO } from "@/dao";
 import type { ChunkDefinition } from "@/types/upload";
 import {
   FileExtractionService,

@@ -5,6 +5,7 @@ import { getDAOFactory } from "@/dao";
 import { getEnvVar } from "@/lib/env-utils";
 import { getAuthService } from "@/lib/service-factory";
 import type { Env } from "@/middleware/auth";
+import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { logger } from "@/lib/logger";
 import { extractJwtFromHeader } from "@/lib/auth-utils";
 
@@ -298,14 +299,14 @@ export class AuthService {
     log.info("JWT stored successfully, dispatching jwt-changed event");
     // Dispatch custom event to notify hooks that JWT changed
     // This helps useAuthReady detect authentication immediately
-    window.dispatchEvent(new CustomEvent("jwt-changed"));
+    window.dispatchEvent(new CustomEvent(APP_EVENT_TYPE.JWT_CHANGED));
   }
 
   static clearJwt(): void {
     if (typeof window === "undefined") return;
     localStorage.removeItem(JWT_STORAGE_KEY);
     // Dispatch custom event to notify hooks that JWT was cleared
-    window.dispatchEvent(new CustomEvent("jwt-changed"));
+    window.dispatchEvent(new CustomEvent(APP_EVENT_TYPE.JWT_CHANGED));
   }
 
   /**
@@ -361,7 +362,7 @@ export class AuthService {
       // Dispatch jwt-expired event to trigger auth modal
       if (typeof window !== "undefined") {
         window.dispatchEvent(
-          new CustomEvent("jwt-expired", {
+          new CustomEvent(APP_EVENT_TYPE.JWT_EXPIRED, {
             detail: {
               message: "Your session has expired. Please sign in again.",
             },

@@ -7,23 +7,13 @@ import {
   createToolError,
   createToolSuccess,
   extractUsernameFromJwt,
+  getEnvFromContext,
 } from "../utils";
 import { generateCharacterWithAI } from "./ai-helpers";
 import { getDAOFactory } from "../../dao/dao-factory";
 import type { Env } from "../../middleware/auth";
 import { ENTITY_TYPE_PCS } from "../../lib/entity-type-constants";
 import { SemanticDuplicateDetectionService } from "../../services/vectorize/semantic-duplicate-detection-service";
-
-// Helper function to get environment from context
-function getEnvFromContext(context: any): any {
-  if (context?.env) {
-    return context.env;
-  }
-  if (typeof globalThis !== "undefined" && "env" in globalThis) {
-    return (globalThis as any).env;
-  }
-  return null;
-}
 
 // Tool to store character information
 export const storeCharacterInfo = tool({
@@ -95,7 +85,7 @@ export const storeCharacterInfo = tool({
       console.log("[Tool] storeCharacterInfo - JWT provided:", !!jwt);
 
       // If we have environment, work directly with the database
-      if (env) {
+      if (env?.DB) {
         const userId = extractUsernameFromJwt(jwt);
         console.log("[Tool] storeCharacterInfo - User ID extracted:", userId);
 
@@ -109,9 +99,8 @@ export const storeCharacterInfo = tool({
         }
 
         // Verify campaign exists and belongs to user
-        const campaignResult = await env.DB.prepare(
-          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
-        )
+        const campaignResult = await env
+          .DB!.prepare("SELECT id FROM campaigns WHERE id = ? AND username = ?")
           .bind(campaignId, userId)
           .first();
 
@@ -354,9 +343,10 @@ export const generateCharacterWithAITool = tool({
         }
 
         // Verify campaign exists and belongs to user
-        const campaignResult = await env.DB.prepare(
-          "SELECT id, name FROM campaigns WHERE id = ? AND username = ?"
-        )
+        const campaignResult = await env
+          .DB!.prepare(
+            "SELECT id, name FROM campaigns WHERE id = ? AND username = ?"
+          )
           .bind(campaignId, userId)
           .first();
 
@@ -378,7 +368,9 @@ export const generateCharacterWithAITool = tool({
           campaignSetting,
           playerPreferences,
           partyComposition,
-          campaignName: campaignResult.name,
+          campaignName: String(
+            (campaignResult as { name?: string }).name ?? ""
+          ),
           toolCallId,
         });
 

@@ -6,22 +6,13 @@ import {
   createToolError,
   createToolSuccess,
   extractUsernameFromJwt,
+  getEnvFromContext,
 } from "../utils";
+import type { Env } from "@/middleware/auth";
 import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
 import { getDAOFactory } from "../../dao/dao-factory";
 import { notifyShardGeneration } from "../../lib/notifications";
 import { ALL_CONTEXT_TYPES } from "../../constants/context-types";
-
-// Helper function to get environment from context
-function getEnvFromContext(context: any): any {
-  if (context?.env) {
-    return context.env;
-  }
-  if (typeof globalThis !== "undefined" && "env" in globalThis) {
-    return (globalThis as any).env;
-  }
-  return null;
-}
 
 /**
  * Tool for capturing campaign context from conversations
@@ -150,7 +141,7 @@ export const captureConversationalContext = tool({
       }
 
       // Create staging shard (requires user approval)
-      const syncService = new CampaignContextSyncService(env);
+      const syncService = new CampaignContextSyncService(env as Env);
       const noteId = crypto.randomUUID();
 
       const result = await syncService.createStagingShard(
@@ -161,7 +152,7 @@ export const captureConversationalContext = tool({
         contextType,
         confidence,
         sourceMessageId,
-        env,
+        env as Env,
         openaiApiKey
       );
 
@@ -190,7 +181,7 @@ export const captureConversationalContext = tool({
       // Send notification to user about new pending shard
       try {
         await notifyShardGeneration(
-          env,
+          env as Env,
           userId,
           campaign.name,
           `Conversation: ${title}`,
@@ -316,7 +307,7 @@ export const saveContextExplicitly = tool({
       }
 
       // Create staging shard with high confidence (user explicitly requested)
-      const syncService = new CampaignContextSyncService(env);
+      const syncService = new CampaignContextSyncService(env as Env);
       const noteId = crypto.randomUUID();
 
       const result = await syncService.createStagingShard(
@@ -327,7 +318,7 @@ export const saveContextExplicitly = tool({
         contextType,
         0.95, // High confidence for explicit user requests
         undefined, // No specific source message
-        env,
+        env as Env,
         openaiApiKey
       );
 
@@ -357,7 +348,7 @@ export const saveContextExplicitly = tool({
       // Send notification to user about new pending shard
       try {
         await notifyShardGeneration(
-          env,
+          env as Env,
           userId,
           campaign.name,
           `Conversation: ${title}`,

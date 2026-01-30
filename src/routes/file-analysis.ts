@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { FileDAO } from "@/dao/file-dao";
+import { FileDAO } from "@/dao";
 import { requireUserJwt } from "@/middleware/auth";
 import { FileAnalysisOrchestrator } from "@/services/file/file-analysis-orchestrator-service";
 import { FileAnalysisService } from "@/services/file/file-analysis-service";

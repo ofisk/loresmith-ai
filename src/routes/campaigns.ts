@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "@/dao/dao-factory";
-import { FileDAO } from "@/dao/file-dao";
+import { FileDAO } from "@/dao";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import {

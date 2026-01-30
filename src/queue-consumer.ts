@@ -1,5 +1,5 @@
 import { getDAOFactory } from "./dao/dao-factory";
-import { FileDAO } from "./dao/file-dao";
+import { FileDAO } from "@/dao";
 import { R2Helper } from "./lib/r2";
 import { notifyFileStatusUpdated } from "./lib/notifications";
 import { FileSplitter } from "./lib/split";

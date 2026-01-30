@@ -1,6 +1,6 @@
 // Sync Queue Service for managing file indexing operations
 
-import { FileDAO } from "@/dao/file-dao";
+import { FileDAO } from "@/dao";
 import { LibraryRAGService } from "@/services/rag/rag-service";
 import type { FileMetadata } from "@/types/upload";
 import {

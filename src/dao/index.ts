@@ -11,12 +11,19 @@ export type {
 } from "./campaign-dao";
 // Campaign DAO
 export { CampaignDAO } from "./campaign-dao";
+export type {
+  CharacterSheetListItem,
+  CharacterSheetRow,
+  CreateCharacterSheetFileParams,
+  CreateCharacterSheetFormParams,
+} from "./character-sheet-dao";
+export { CharacterSheetDAO } from "./character-sheet-dao";
 export type { DAOFactory } from "./dao-factory";
 // DAO Factory
 export { createDAOFactory, DAOFactoryImpl, getDAOFactory } from "./dao-factory";
-export type { FileMetadata, FileWithChunks, PDFChunk } from "./file-dao";
-// File DAO
-export { FileDAO } from "./file-dao";
+export type { FileMetadata, FileWithChunks, PDFChunk } from "./file/file-dao";
+// File DAO (library file metadata + chunk pipeline; see src/dao/file/)
+export { FileDAO } from "./file/file-dao";
 export type { UserOpenAIKey, UserStorageUsage } from "./user-dao";
 // User DAO
 export { UserDAO } from "./user-dao";

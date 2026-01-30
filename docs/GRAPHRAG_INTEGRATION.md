@@ -306,11 +306,20 @@ Body: {
 }
 ```
 
+## Performance and scaling
+
+- **Batch relationship fetch**: Prefer `getRelationshipsForEntities` (or equivalent batch APIs) over calling `getRelationshipsForEntity` in a loop when building relationship maps for many entities (e.g. graph visualization).
+- **Embedding index limits**: Semantic search uses Vectorize with configurable limits; keep result sets bounded to avoid context overflow.
+- **Pagination for listAllEntities**: The list-all tool returns one page at a time (e.g. 100 entities per page). The agent is instructed to call again with the next page when `totalPages > 1`. This keeps tool results within token limits.
+
+See [TOOL_PATTERNS.md](./TOOL_PATTERNS.md) for env vs API fallback and pagination patterns.
+
 ## Related Documentation
 
 - [Campaign Shard Flow](./CAMPAIGN_SHARD_FLOW.md) - Entity extraction and shard approval
 - [DAO Layer](./DAO_LAYER.md) - Database access patterns
 - [Testing Guide](./TESTING_GUIDE.md) - Testing GraphRAG services
+- [LEIDEN_ALGORITHM.md](./LEIDEN_ALGORITHM.md) - Community detection used in graph/GraphRAG
 
 ## Future Enhancements
 

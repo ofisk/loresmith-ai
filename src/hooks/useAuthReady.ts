@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getStoredJwt, isJwtExpired } from "@/services/core/auth-service";
 import { JWT_STORAGE_KEY } from "@/app-constants";
+import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { logger } from "@/lib/logger";
 
 /**
@@ -108,7 +109,10 @@ export function useAuthReady(): boolean {
       checkAuth(true); // Log when JWT changes via event
     };
 
-    window.addEventListener("jwt-changed", handleJwtChange as EventListener);
+    window.addEventListener(
+      APP_EVENT_TYPE.JWT_CHANGED,
+      handleJwtChange as EventListener
+    );
 
     return () => {
       if (intervalIdRef.current) {
@@ -117,7 +121,7 @@ export function useAuthReady(): boolean {
       }
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener(
-        "jwt-changed",
+        APP_EVENT_TYPE.JWT_CHANGED,
         handleJwtChange as EventListener
       );
     };

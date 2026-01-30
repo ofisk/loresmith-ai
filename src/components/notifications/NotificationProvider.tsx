@@ -2,6 +2,7 @@ import type React from "react";
 import { createContext, useContext, useState } from "react";
 import type { NotificationPayload } from "../../durable-objects/notification-hub";
 import { NOTIFICATION_TYPES } from "../../constants/notification-types";
+import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
 
 interface NotificationContextType {
@@ -44,7 +45,7 @@ export function NotificationProvider({
         if (uiHint && typeof window !== "undefined") {
           try {
             window.dispatchEvent(
-              new CustomEvent("ui-hint", {
+              new CustomEvent(APP_EVENT_TYPE.UI_HINT, {
                 detail: {
                   type: uiHint.type,
                   data: uiHint.data,
@@ -64,7 +65,7 @@ export function NotificationProvider({
               case NOTIFICATION_TYPES.INDEXING_FAILED:
               case NOTIFICATION_TYPES.FILE_STATUS_UPDATED: {
                 window.dispatchEvent(
-                  new CustomEvent("file-status-updated", {
+                  new CustomEvent(APP_EVENT_TYPE.FILE_STATUS_UPDATED, {
                     detail: {
                       // Include complete file data if available (for in-place updates)
                       completeFileData: notification?.data?.completeFileData,
@@ -82,12 +83,12 @@ export function NotificationProvider({
               case NOTIFICATION_TYPES.FILE_UPLOAD_FAILED: {
                 // Pass through all the file data for immediate UI updates
                 window.dispatchEvent(
-                  new CustomEvent("file-changed", {
+                  new CustomEvent(APP_EVENT_TYPE.FILE_CHANGED, {
                     detail: {
                       // Include complete file data if available (for in-place updates)
                       completeFileData: notification?.data?.completeFileData,
                       // Also include individual fields for backward compatibility
-                      type: "file-changed",
+                      type: APP_EVENT_TYPE.FILE_CHANGED,
                       fileName: notification?.data?.fileName,
                       fileSize: notification?.data?.fileSize,
                     },
@@ -98,9 +99,9 @@ export function NotificationProvider({
               case NOTIFICATION_TYPES.CAMPAIGN_CREATED: {
                 // Dispatch campaign created event to trigger UI refresh
                 window.dispatchEvent(
-                  new CustomEvent("campaign-created", {
+                  new CustomEvent(APP_EVENT_TYPE.CAMPAIGN_CREATED, {
                     detail: {
-                      type: "campaign-created",
+                      type: APP_EVENT_TYPE.CAMPAIGN_CREATED,
                       campaignName: notification?.data?.campaignName,
                       campaignDescription:
                         notification?.data?.campaignDescription,
@@ -112,9 +113,9 @@ export function NotificationProvider({
               case NOTIFICATION_TYPES.CAMPAIGN_DELETED: {
                 // Dispatch campaign deleted event to trigger UI refresh
                 window.dispatchEvent(
-                  new CustomEvent("campaign-deleted", {
+                  new CustomEvent(APP_EVENT_TYPE.CAMPAIGN_DELETED, {
                     detail: {
-                      type: "campaign-deleted",
+                      type: APP_EVENT_TYPE.CAMPAIGN_DELETED,
                       campaignId: notification?.data?.campaignId,
                       campaignName: notification?.data?.campaignName,
                     },
@@ -125,9 +126,9 @@ export function NotificationProvider({
               case NOTIFICATION_TYPES.SHARDS_GENERATED: {
                 // Dispatch shards-generated event to trigger overlay refresh
                 window.dispatchEvent(
-                  new CustomEvent("shards-generated", {
+                  new CustomEvent(APP_EVENT_TYPE.SHARDS_GENERATED, {
                     detail: {
-                      type: "shards-generated",
+                      type: APP_EVENT_TYPE.SHARDS_GENERATED,
                       campaignId: notification?.data?.campaignId,
                       campaignName: notification?.data?.campaignName,
                       shardCount: notification?.data?.shardCount,
@@ -137,7 +138,7 @@ export function NotificationProvider({
 
                 // Dispatch entity extraction completed event to update UI without polling
                 window.dispatchEvent(
-                  new CustomEvent("entity-extraction-completed", {
+                  new CustomEvent(APP_EVENT_TYPE.ENTITY_EXTRACTION_COMPLETED, {
                     detail: {
                       campaignId: notification?.data?.campaignId,
                       resourceId: notification?.data?.resourceId,
@@ -151,7 +152,7 @@ export function NotificationProvider({
                 const uiHint2 = notification?.data?.ui_hint;
                 if (uiHint2) {
                   window.dispatchEvent(
-                    new CustomEvent("ui-hint", {
+                    new CustomEvent(APP_EVENT_TYPE.UI_HINT, {
                       detail: {
                         type: uiHint2.type,
                         data: uiHint2.data,
@@ -169,9 +170,9 @@ export function NotificationProvider({
               case NOTIFICATION_TYPES.REBUILD_CANCELLED: {
                 // Dispatch rebuild status change event to update UI without polling
                 window.dispatchEvent(
-                  new CustomEvent("rebuild-status-changed", {
+                  new CustomEvent(APP_EVENT_TYPE.REBUILD_STATUS_CHANGED, {
                     detail: {
-                      type: "rebuild-status-changed",
+                      type: APP_EVENT_TYPE.REBUILD_STATUS_CHANGED,
                       campaignId: notification?.data?.campaignId,
                       rebuildId: notification?.data?.rebuildId,
                       status: notification?.data?.status,

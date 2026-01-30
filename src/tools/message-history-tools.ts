@@ -6,21 +6,11 @@ import {
   createToolError,
   createToolSuccess,
   extractUsernameFromJwt,
+  getEnvFromContext,
 } from "./utils";
 import { getDAOFactory } from "../dao/dao-factory";
 import { EnvironmentRequiredError } from "@/lib/errors";
 import { validateCampaignOwnership } from "@/lib/campaign-operations";
-
-// Helper function to get environment from context
-function getEnvFromContext(context: any): any {
-  if (context?.env) {
-    return context.env;
-  }
-  if (typeof globalThis !== "undefined" && "env" in globalThis) {
-    return (globalThis as any).env;
-  }
-  return null;
-}
 
 /**
  * Tool to retrieve message history from persistent storage

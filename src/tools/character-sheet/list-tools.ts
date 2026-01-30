@@ -1,6 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../app-constants";
+import { getDAOFactory } from "@/dao/dao-factory";
+import { getEnvFromContext } from "../utils";
 import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
 import { AUTH_CODES } from "../../shared-config";
 import { createToolError, createToolSuccess } from "../utils";
@@ -28,8 +30,7 @@ export const listCharacterSheets = tool({
     console.log("[listCharacterSheets] Using toolCallId:", toolCallId);
 
     try {
-      // Check if we have access to the environment through context
-      const env = context?.env;
+      const env = getEnvFromContext(context);
       console.log("[listCharacterSheets] Environment from context:", !!env);
       console.log(
         "[listCharacterSheets] DB binding exists:",
@@ -41,7 +42,6 @@ export const listCharacterSheets = tool({
           "[listCharacterSheets] Running in Durable Object context, calling database directly"
         );
 
-        // Extract username from JWT
         let username = "default";
         if (jwt) {
           try {
@@ -56,14 +56,13 @@ export const listCharacterSheets = tool({
           }
         }
 
-        // Verify campaign exists and belongs to user
-        const campaignResult = await env.DB.prepare(
-          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
-        )
-          .bind(campaignId, username)
-          .first();
-
-        if (!campaignResult) {
+        const daoFactory = getDAOFactory(env);
+        const campaign =
+          await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+            campaignId,
+            username
+          );
+        if (!campaign) {
           return createToolError(
             "Campaign not found",
             {
@@ -74,17 +73,28 @@ export const listCharacterSheets = tool({
           );
         }
 
-        // For now, return a simple response since character sheets are not stored in the database yet
-        // In a real implementation, this would query a character_sheets table
+        const characterSheets =
+          await daoFactory.characterSheetDAO.listByCampaign(campaignId);
         console.log(
           "[listCharacterSheets] Listing character sheets for campaign:",
-          campaignId
+          campaignId,
+          "count:",
+          characterSheets.length
         );
 
+        const result = characterSheets.map((cs) => ({
+          id: cs.id,
+          fileName: cs.fileName ?? "",
+          fileType: cs.fileType,
+          characterName: cs.characterName,
+          status: cs.status,
+          createdAt: cs.createdAt,
+        }));
+
         return createToolSuccess(
-          `Found 0 character sheet(s) for campaign ${campaignId}`,
+          `Found ${result.length} character sheet(s) for campaign ${campaignId}`,
           {
-            characterSheets: [],
+            characterSheets: result,
             campaignId,
           },
           toolCallId

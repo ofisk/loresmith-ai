@@ -3,7 +3,7 @@ import { AuthService } from "@/services/core/auth-service";
 import { FileStatusIndicator } from "@/components/upload/FileStatusIndicator";
 import { ResourceFileDetails } from "./ResourceFileDetails";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
-import { FileDAO } from "@/dao/file-dao";
+import { FileDAO } from "@/dao";
 import type { Campaign } from "@/types/campaign";
 import { getDisplayName } from "@/lib/display-name-utils";
 

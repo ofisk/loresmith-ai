@@ -12,8 +12,9 @@ import { useResourceFiles } from "@/hooks/useResourceFiles";
 import { useResourceFileEvents } from "@/hooks/useResourceFileEvents";
 import { ResourceFileItem } from "./ResourceFileItem";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
+import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { logger } from "@/lib/logger";
-import { FileDAO } from "@/dao/file-dao";
+import { FileDAO } from "@/dao";
 
 interface ResourceListProps {
   onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
@@ -273,10 +274,13 @@ export function ResourceList({
       }
     };
 
-    window.addEventListener("jwt-changed", handleJwtChanged as EventListener);
+    window.addEventListener(
+      APP_EVENT_TYPE.JWT_CHANGED,
+      handleJwtChanged as EventListener
+    );
     return () => {
       window.removeEventListener(
-        "jwt-changed",
+        APP_EVENT_TYPE.JWT_CHANGED,
         handleJwtChanged as EventListener
       );
     };
@@ -294,29 +298,29 @@ export function ResourceList({
 
     // Listen for campaign-related events
     window.addEventListener(
-      "campaign-created",
+      APP_EVENT_TYPE.CAMPAIGN_CREATED,
       handleCampaignChange as EventListener
     );
     window.addEventListener(
-      "campaign-file-added",
+      APP_EVENT_TYPE.CAMPAIGN_FILE_ADDED,
       handleCampaignChange as EventListener
     );
     window.addEventListener(
-      "campaign-file-removed",
+      APP_EVENT_TYPE.CAMPAIGN_FILE_REMOVED,
       handleCampaignChange as EventListener
     );
 
     return () => {
       window.removeEventListener(
-        "campaign-created",
+        APP_EVENT_TYPE.CAMPAIGN_CREATED,
         handleCampaignChange as EventListener
       );
       window.removeEventListener(
-        "campaign-file-added",
+        APP_EVENT_TYPE.CAMPAIGN_FILE_ADDED,
         handleCampaignChange as EventListener
       );
       window.removeEventListener(
-        "campaign-file-removed",
+        APP_EVENT_TYPE.CAMPAIGN_FILE_REMOVED,
         handleCampaignChange as EventListener
       );
     };
@@ -348,7 +352,7 @@ export function ResourceList({
               log.warn("Auth not ready or no JWT - triggering auth modal");
               // Dispatch jwt-expired event to trigger auth modal
               window.dispatchEvent(
-                new CustomEvent("jwt-expired", {
+                new CustomEvent(APP_EVENT_TYPE.JWT_EXPIRED, {
                   detail: {
                     message: "Authentication required. Please sign in again.",
                   },

@@ -14,7 +14,7 @@ import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 import { API_CONFIG } from "@/shared-config";
 import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
 import type { Campaign } from "@/types/campaign";
-import type { FileMetadata } from "@/dao/file-dao";
+import type { FileMetadata } from "@/dao";
 import type { useModalState } from "@/hooks/useModalState";
 import type { useAppAuthentication } from "@/hooks/useAppAuthentication";
 import type { useCampaignAddition } from "@/hooks/useCampaignAddition";

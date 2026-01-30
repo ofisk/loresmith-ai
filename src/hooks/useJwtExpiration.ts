@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { USER_MESSAGES } from "@/app-constants";
+import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { getStoredJwt, isJwtExpired } from "@/services/core/auth-service";
 
 interface UseJwtExpirationOptions {
@@ -32,11 +33,14 @@ export function useJwtExpiration(options: UseJwtExpirationOptions = {}) {
       onExpiration?.();
     };
 
-    window.addEventListener("jwt-expired", handleJwtExpired as EventListener);
+    window.addEventListener(
+      APP_EVENT_TYPE.JWT_EXPIRED,
+      handleJwtExpired as EventListener
+    );
 
     return () => {
       window.removeEventListener(
-        "jwt-expired",
+        APP_EVENT_TYPE.JWT_EXPIRED,
         handleJwtExpired as EventListener
       );
     };

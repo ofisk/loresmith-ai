@@ -12,6 +12,7 @@ import {
   createToolError,
   createToolSuccess,
   extractUsernameFromJwt,
+  getEnvFromContext,
 } from "../utils";
 import { getAssessmentService } from "../../lib/service-factory";
 import { CharacterEntitySyncService } from "../../services/campaign/character-entity-sync-service";
@@ -27,17 +28,6 @@ import {
 } from "../../lib/entity-types";
 import { createLLMProvider } from "../../services/llm/llm-provider-factory";
 import { METADATA_ANALYSIS_PROMPTS } from "../../lib/prompts/metadata-analysis-prompts";
-
-// Helper function to get environment from context
-function getEnvFromContext(context: any): any {
-  if (context?.env) {
-    return context.env;
-  }
-  if (typeof globalThis !== "undefined" && "env" in globalThis) {
-    return (globalThis as any).env;
-  }
-  return null;
-}
 
 // Tool to get campaign suggestions
 export const getCampaignSuggestions = tool({
@@ -102,9 +92,8 @@ export const getCampaignSuggestions = tool({
         }
 
         // Verify campaign exists and belongs to user
-        const campaignResult = await env.DB.prepare(
-          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
-        )
+        const campaignResult = await env
+          .DB!.prepare("SELECT id FROM campaigns WHERE id = ? AND username = ?")
           .bind(campaignId, userId)
           .first();
 
@@ -302,9 +291,8 @@ export const assessCampaignReadiness = tool({
         }
 
         // Verify campaign exists and belongs to user
-        const campaignResult = await env.DB.prepare(
-          "SELECT id FROM campaigns WHERE id = ? AND username = ?"
-        )
+        const campaignResult = await env
+          .DB!.prepare("SELECT id FROM campaigns WHERE id = ? AND username = ?")
           .bind(campaignId, userId)
           .first();
 

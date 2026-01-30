@@ -1,6 +1,28 @@
+import type { D1Database } from "@cloudflare/workers-types";
 import { z } from "zod";
 import type { ToolResult } from "../app-constants";
 import { getDAOFactory } from "../dao/dao-factory";
+
+/**
+ * Minimal context passed to tool execute functions (e.g. from Durable Object).
+ * env is set when running inside a Worker/DO; toolCallId may be set by the runtime.
+ */
+export interface ToolContext {
+  env?: unknown;
+  toolCallId?: string;
+}
+
+/**
+ * Minimal env shape available from tool context (Worker/DO bindings).
+ * Used so tools can safely access env.DB, env.VECTORIZE, etc. when present.
+ */
+export interface ToolEnv {
+  DB?: D1Database;
+  VECTORIZE?: unknown;
+  OPENAI_API_KEY?: string;
+  ADMIN_SECRET?: unknown;
+  [key: string]: unknown;
+}
 
 /**
  * Common tool parameter schemas
@@ -184,4 +206,44 @@ export function isDurableObjectContext(context?: any): boolean {
  */
 export function getEnvironment(context?: any): any {
   return context?.env || {};
+}
+
+/**
+ * Get env from tool context (Durable Object or Worker). Returns null when not
+ * running in a context that provides env, so callers can fall back to API.
+ */
+export function getEnvFromContext(context: unknown): ToolEnv | null {
+  const c = context as { env?: unknown } | null | undefined;
+  if (c?.env) return c.env as ToolEnv;
+  if (typeof globalThis !== "undefined" && "env" in globalThis) {
+    return (globalThis as unknown as { env: unknown }).env as ToolEnv;
+  }
+  return null;
+}
+
+/**
+ * Run tool logic with env (DB path) or API fallback.
+ * If no env: calls apiCall() (e.g. authenticatedFetch).
+ * If env: extracts userId from JWT; if missing returns authErrorResult; else calls dbCall(env, userId).
+ */
+export async function runWithEnvOrApi<T>(params: {
+  context: unknown;
+  jwt: string | null | undefined;
+  apiCall: () => Promise<T>;
+  dbCall: (env: unknown, userId: string) => Promise<T>;
+  authErrorResult: T;
+}): Promise<T> {
+  const { context, jwt, apiCall, dbCall, authErrorResult } = params;
+  const env = getEnvFromContext(context);
+
+  if (!env) {
+    return apiCall();
+  }
+
+  const userId = extractUsernameFromJwt(jwt);
+  if (!userId) {
+    return authErrorResult;
+  }
+
+  return dbCall(env, userId);
 }
