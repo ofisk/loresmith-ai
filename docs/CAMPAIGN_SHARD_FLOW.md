@@ -219,6 +219,54 @@ Every shard includes standardized metadata:
 - **User curates content** by approving relevant shards and rejecting irrelevant ones
 - **Approved shards** are added to the campaign's knowledge base for future AI queries
 
+#### Content curation sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant UI as Campaign UI
+    participant Worker
+    participant handleAdd as handleAddResourceToCampaign
+    participant stage as stageEntitiesFromResource
+    participant Extraction as EntityExtractionService
+    participant ShardUI as Shard Approval UI
+    participant Graph as Entity Graph
+
+    User->>UI: Add resource to campaign
+    UI->>Worker: Add resource request
+    Worker->>handleAdd: handleAddResourceToCampaign
+    handleAdd->>stage: stageEntitiesFromResource
+    stage->>Extraction: Extract entities from file content
+    Extraction-->>stage: Entities and relationships
+    stage-->>Worker: Entities in staging
+    Worker-->>UI: Resource added entities staged
+    UI->>User: Shards ready for review
+    User->>ShardUI: Approve or reject shards
+    ShardUI->>Worker: Approve shards API
+    Worker->>Graph: Move approved entities to graph
+    Graph-->>Worker: Entities searchable
+    Worker-->>User: Approved shards in campaign knowledge base
+```
+
+#### Pipeline overview
+
+```mermaid
+flowchart LR
+    File[File content]
+    Extract[Entity extraction]
+    Entities[Entities and relationships]
+    Staging[Staging]
+    Approval[Approve or reject]
+    Graph[Entity graph and RAG]
+
+    File --> Extract
+    Extract --> Entities
+    Entities --> Staging
+    Staging --> Approval
+    Approval -->|Approved| Graph
+    Approval -->|Rejected| Rejected[Rejected storage]
+```
+
 ## Technical Architecture
 
 ### Library RAG Layer

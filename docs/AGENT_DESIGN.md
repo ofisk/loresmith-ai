@@ -4,6 +4,42 @@
 
 Agents in LoreSmith run inside **Durable Objects** (one DO per chat session). They use a shared **BaseAgent** for message handling, tool execution, and token management. The **AgentRouter** selects which agent handles a request based on user intent.
 
+### Request routing
+
+```mermaid
+flowchart TD
+  Request[Incoming request] --> Route[routeAgentRequest]
+  Route --> LLM[LLM classifies intent]
+  LLM --> AgentType[Agent type selected]
+  AgentType --> Instantiate[DO instantiates agent with tools]
+  Instantiate --> OnChat[onChatMessage when user sends message]
+```
+
+### Chat and tool flow
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant DO as Durable Object
+  participant BaseAgent
+  participant streamText
+  participant Tool
+
+  User->>DO: Message with JWT, campaignId
+  DO->>BaseAgent: onChatMessage
+  BaseAgent->>BaseAgent: addMessage (persist if env.DB)
+  BaseAgent->>streamText: streamText with tools
+  streamText->>Tool: execute(context)
+  alt context.env present
+    Tool->>Tool: DAO / service (DB path)
+  else context.env absent
+    Tool->>Tool: authenticatedFetch (API path)
+  end
+  Tool-->>streamText: result
+  streamText-->>BaseAgent: streamed response
+  BaseAgent-->>User: Streamed reply
+```
+
 ## Agent types and routing
 
 - **AgentRouter** (`src/lib/agent-router.ts`) maintains a registry of agent types (campaign, campaign-context, character, session-digest, etc.).

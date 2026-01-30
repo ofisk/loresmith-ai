@@ -40,6 +40,36 @@ if (!env) {
 4. If env, extract user (e.g. `extractUsernameFromJwt(jwt)`), validate campaign (e.g. `getCampaignByIdWithMapping`), then run DAO/service logic and return `createToolError` or `createToolSuccess`.
 5. Wrap in try/catch; on throw, return `createToolError` with the caught error.
 
+### Tool execute flowchart
+
+```mermaid
+flowchart TD
+    Start[Tool execute called]
+    GetToolCallId[Get toolCallId from context]
+    GetEnv[Get env via getEnvFromContext]
+    HasEnv{env present?}
+    ApiPath[API path: authenticatedFetch with JWT]
+    ApiResult[createToolSuccess or createToolError]
+    ExtractUser[Extract userId from JWT]
+    ValidJwt{JWT valid?}
+    AuthError[Return authErrorResult]
+    ValidateCampaign[Validate campaign e.g. getCampaignByIdWithMapping]
+    DaoCall[DAO or service logic]
+    DbResult[createToolSuccess or createToolError]
+
+    Start --> GetToolCallId
+    GetToolCallId --> GetEnv
+    GetEnv --> HasEnv
+    HasEnv -->|No| ApiPath
+    ApiPath --> ApiResult
+    HasEnv -->|Yes| ExtractUser
+    ExtractUser --> ValidJwt
+    ValidJwt -->|No| AuthError
+    ValidJwt -->|Yes| ValidateCampaign
+    ValidateCampaign --> DaoCall
+    DaoCall --> DbResult
+```
+
 ## Pagination and token limits
 
 - **listAllEntities** and similar tools return one page at a time (e.g. `page`, `pageSize`). The tool description tells the agent to call again with the next page when `totalPages > 1`.

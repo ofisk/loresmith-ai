@@ -8,28 +8,16 @@ Loresmith AI uses JWT (JSON Web Token) based authentication with client-side tok
 
 The authentication system operates through the following states:
 
-```
-┌─────────────────┐
-│ Unauthenticated │
-└────────┬────────┘
-         │
-         │ User submits credentials
-         ▼
-┌─────────────────┐
-│ Authenticating  │
-└────────┬────────┘
-         │
-         │ Success
-         ▼
-┌─────────────────┐
-│  Authenticated  │
-└────────┬────────┘
-         │
-         │ Token expires or invalid
-         ▼
-┌─────────────────┐
-│    Expired      │
-└─────────────────┘
+```mermaid
+stateDiagram-v2
+    [*] --> Unauthenticated: Initial
+    Unauthenticated --> Authenticating: User submits credentials
+    Authenticating --> Authenticated: Success
+    Authenticating --> Unauthenticated: Invalid credentials or server error
+    Authenticated --> Expired: Token expires or invalid
+    Expired --> Authenticated: User re-authenticates
+    Authenticated --> Unauthenticated: User logs out or token cleared
+    Expired --> Unauthenticated: User logs out or token cleared
 ```
 
 ### State Descriptions
@@ -47,6 +35,31 @@ The authentication system operates through the following states:
 - **Authenticated → Expired**: Token expiration time is reached
 - **Expired → Authenticated**: User re-authenticates successfully
 - **Any state → Unauthenticated**: User explicitly logs out or token is cleared
+
+### Full authentication path
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Worker
+    participant AuthService
+    participant D1
+    participant useAuthReady
+    participant useJwtExpiration
+
+    User->>Frontend: Enter credentials
+    Frontend->>Worker: POST /auth/authenticate
+    Worker->>AuthService: Validate admin key
+    Worker->>D1: Store or validate OpenAI key
+    Worker->>AuthService: Generate JWT
+    Worker-->>Frontend: Return JWT token
+    Frontend->>Frontend: Store in localStorage
+    Frontend->>Frontend: dispatch jwt-changed
+    useAuthReady->>useAuthReady: Poll or listen for jwt-changed
+    useJwtExpiration->>useJwtExpiration: Listen for jwt-expired
+    Frontend-->>User: Authenticated
+```
 
 ## Token Lifecycle
 

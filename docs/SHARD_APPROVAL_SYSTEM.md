@@ -58,6 +58,17 @@ Users can review staged shards through the **Shard Management Overlay** (accessi
 - **Approve**: User accepts the shard as accurate and useful
 - **Reject**: User marks the shard as incorrect/unwanted (requires a reason)
 
+#### Shard lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Staging: Shard generated
+    Staging --> Approved: User approves
+    Staging --> Rejected: User rejects
+    Approved --> [*]: Searchable via RAG
+    Rejected --> [*]: Excluded from search
+```
+
 ### 3. Approval Flow
 
 When a shard is approved:
@@ -74,6 +85,25 @@ When a shard is approved:
 3. Future campaign queries will **only return approved shards**
 
 **Implementation**: `src/services/campaign/` → shard approval services
+
+#### Approve path sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant ShardUI as Shard Management UI
+    participant API as handleApproveShards API
+    participant Storage as Approved storage
+    participant RAG as Campaign RAG
+
+    User->>ShardUI: Approve shard
+    ShardUI->>API: Approve shards request
+    API->>Storage: Move shard from staging to approved
+    Storage-->>API: Shard in approved folder
+    API-->>ShardUI: Approval complete
+    RAG->>RAG: Shard immediately searchable
+    ShardUI-->>User: Shard approved
+```
 
 ### 4. Rejection Flow
 
@@ -101,6 +131,24 @@ When a shard is rejected:
 3. Rejected shards are **permanently excluded** from all searches
 
 **Implementation**: `src/services/campaign/` → shard rejection services
+
+#### Reject path sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant ShardUI as Shard Management UI
+    participant API as Reject shards API
+    participant Storage as Rejected storage
+
+    User->>ShardUI: Reject shard with reason
+    ShardUI->>API: Reject shards request
+    API->>API: Wrap shard with rejection metadata
+    API->>Storage: Move to rejected folder
+    Storage-->>API: Stored
+    API-->>ShardUI: Rejection complete
+    ShardUI-->>User: Shard rejected and excluded from search
+```
 
 ## Enforced Filtering
 

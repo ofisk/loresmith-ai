@@ -37,29 +37,22 @@ The LoreSmith AI campaign system uses GraphRAG (Graph-based Retrieval Augmented 
 
 ### Integration Flow
 
-```
-User Query
-    ↓
-Context Assembly Service (or Planning Context Service)
-    ↓
-┌─────────────────────────────────────────────┐
-│  1. GraphRAG Query                         │
-│     - Semantic entity search               │
-│     - Graph traversal for relationships    │
-│     - Neighbor expansion                   │
-│                                             │
-│  2. Changelog Overlay Application          │
-│     - Apply world state changes            │
-│     - Update entity states                 │
-│     - Include new entities                 │
-│                                             │
-│  3. Planning Context Search                │
-│     - Session digest semantic search       │
-│     - Recency-weighted results             │
-│     - Entity graph augmentation            │
-└─────────────────────────────────────────────┘
-    ↓
-Unified Context Response
+```mermaid
+flowchart TD
+    UserQuery[User Query]
+    ContextService[Context Assembly Service or Planning Context Service]
+    GraphRAG[GraphRAG query: semantic entity search, graph traversal, neighbor expansion]
+    Changelog[Changelog overlay: world state changes, entity states, new entities]
+    Planning[Planning context search: session digest semantic search, recency-weighted, entity graph augmentation]
+    Unified[Unified Context Response]
+
+    UserQuery --> ContextService
+    ContextService --> GraphRAG
+    ContextService --> Changelog
+    ContextService --> Planning
+    GraphRAG --> Unified
+    Changelog --> Unified
+    Planning --> Unified
 ```
 
 ## Entity Extraction and Graph Building
@@ -82,6 +75,31 @@ When resources are added to campaigns, entities are automatically extracted:
    - User approves/rejects entities through shard approval UI
    - Approved entities become searchable via GraphRAG
    - Relationships are preserved and traversable
+
+#### Entity extraction and approval sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as Add Resource API
+    participant stage as stageEntitiesFromResource
+    participant Extraction as EntityExtractionService
+    participant Staging as Entities in staging
+    participant ShardUI as Shard Approval UI
+    participant ApproveAPI as Approve Shards API
+    participant Graph as Entity Graph and GraphRAG
+
+    User->>API: Add resource to campaign
+    API->>stage: stageEntitiesFromResource
+    stage->>Extraction: Extract from file content
+    Extraction-->>stage: Entities and relationships
+    stage->>Staging: Store with shardStatus staging
+    Staging-->>User: Shards ready for review
+    User->>ShardUI: Approve or reject
+    ShardUI->>ApproveAPI: Approve shards
+    ApproveAPI->>Graph: Move approved entities to graph
+    Graph-->>User: Entities searchable via GraphRAG
+```
 
 ### Manual Entity Extraction
 
@@ -304,6 +322,60 @@ Body: {
   applyRecencyWeighting?: boolean,
   decayRate?: number,
 }
+```
+
+## Graph rebuild trigger flow
+
+Community detection and graph structure are updated when cumulative "impact" for a campaign crosses configurable thresholds. Impact is recorded when new entities are created (since last rebuild) or when entities are approved; a scheduled cron and the approval handler both contribute.
+
+### When impact is recorded
+
+- **Cron** (`queue-consumer.ts` – `checkAndTriggerRebuilds`): For each campaign with entities, finds entities created after the last rebuild (or all entities if no prior rebuild) and calls `RebuildTriggerService.recordImpact(campaignId, count * IMPACT_PER_NEW_ENTITY)`.
+- **Entity approval** (`campaign-graphrag.ts` – `handleApproveShards`): After a batch of shards is approved, calls `recordImpact(campaignId, approvedCount * IMPACT_PER_NEW_ENTITY)` so newly approved entities contribute to the trigger.
+
+### Decision and enqueue
+
+Cumulative impact is stored in campaign metadata. When the cron runs, it calls `makeRebuildDecision(campaignId, affectedEntityIds)`. If `cumulativeImpact >= FULL_REBUILD_THRESHOLD` (default 100) a full rebuild is triggered; if `>= PARTIAL_REBUILD_THRESHOLD` (default 20) and there are affected entities, a partial rebuild is triggered. The cron then creates a rebuild status row and enqueues a rebuild job; the queue consumer runs the rebuild (Leiden, community summaries, etc.). Thresholds and `IMPACT_PER_NEW_ENTITY` are in `src/lib/rebuild-config.ts`.
+
+```mermaid
+flowchart TD
+    CronRun[Cron runs checkAndTriggerRebuilds]
+    EntityApproval[User approves shards]
+    RecordImpact[recordImpact campaignId score]
+    Cumulative[Cumulative impact in campaign metadata]
+    Decision[makeRebuildDecision]
+    OverThreshold{Cumulative impact >= threshold?}
+    Enqueue[Create rebuild status and enqueue job]
+    Processor[RebuildQueueProcessor runs rebuild]
+
+    CronRun --> RecordImpact
+    EntityApproval --> RecordImpact
+    RecordImpact --> Cumulative
+    CronRun --> Decision
+    Cumulative --> Decision
+    Decision --> OverThreshold
+    OverThreshold -->|Yes| Enqueue
+    Enqueue --> Processor
+```
+
+```mermaid
+sequenceDiagram
+    participant Cron as Scheduled Cron
+    participant Trigger as RebuildTriggerService
+    participant Queue as RebuildQueueService
+    participant Processor as RebuildQueueProcessor
+
+    loop For each campaign with entities
+        Cron->>Trigger: recordImpact campaignId score
+        Trigger->>Trigger: Update campaign metadata cumulativeImpact
+    end
+    Cron->>Trigger: makeRebuildDecision campaignId affectedEntityIds
+    Trigger->>Trigger: getCumulativeImpact getRebuildType
+    alt cumulativeImpact >= threshold
+        Cron->>Queue: enqueueRebuild rebuildId campaignId rebuildType
+        Queue->>Processor: Queue message
+        Processor->>Processor: Run Leiden community detection and summaries
+    end
 ```
 
 ## Performance and scaling

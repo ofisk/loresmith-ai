@@ -17,6 +17,21 @@ A comprehensive file upload and library system built with Cloudflare Workers, R2
 User Upload → Direct/Multipart Upload → R2 Storage → RAG Processing → D1 Database
 ```
 
+### Upload path: direct vs multipart
+
+```mermaid
+flowchart TD
+  Start[User selects file] --> CheckSize{File size < 100MB?}
+  CheckSize -->|Yes| Direct[PUT /upload/direct]
+  CheckSize -->|No| MultipartStart[POST /upload/start-large]
+  Direct --> R2Direct[Write body to R2]
+  R2Direct --> DoneDirect[Return key, metadata]
+  MultipartStart --> UploadParts[POST /upload/part per chunk]
+  UploadParts --> Complete[POST /upload/complete-large]
+  Complete --> R2Multipart[Assemble parts in R2]
+  R2Multipart --> DoneMultipart[Return key, metadata]
+```
+
 ## Features
 
 ### 1. Hybrid Upload System
