@@ -5,6 +5,9 @@ import {
 } from "@/lib/relationship-types";
 import { RelationshipUpsertError } from "@/lib/errors";
 
+/** SQLite/D1 bound param limit 999; we use 2× this (from + to IN). Keep ≤499. */
+const RELATIONSHIPS_BATCH_SIZE = 300;
+
 // Raw row shape returned directly from D1 queries against the `entities` table.
 // All fields mirror the database column names and use snake_case to match D1 results.
 export interface EntityRecord {
@@ -621,9 +624,6 @@ export class EntityDAO extends BaseDAOClass {
     return records.map((record) => this.mapRelationshipRecord(record));
   }
 
-  /** SQLite/D1 bound parameter limit (999); we use 2*batchSize (from + to IN clauses). */
-  private static readonly RELATIONSHIPS_BATCH_SIZE = 300;
-
   async getRelationshipsForEntities(
     entityIds: string[],
     options: { relationshipType?: RelationshipType } = {}
@@ -637,7 +637,8 @@ export class EntityDAO extends BaseDAOClass {
       result.set(entityId, []);
     }
 
-    const { RELATIONSHIPS_BATCH_SIZE: batchSize } = EntityDAO;
+    // SQLite/D1 limit 999 params; we use 2*N (from + to IN). Cap chunk so 2*chunk.length <= 999.
+    const batchSize = Math.min(RELATIONSHIPS_BATCH_SIZE, 499);
     for (let i = 0; i < entityIds.length; i += batchSize) {
       const chunk = entityIds.slice(i, i + batchSize);
       const placeholders = chunk.map(() => "?").join(", ");
