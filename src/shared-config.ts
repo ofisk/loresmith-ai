@@ -106,6 +106,8 @@ export const API_CONFIG = {
       SUGGESTIONS: (campaignId: string) =>
         `/campaigns/${campaignId}/suggestions`,
       READINESS: (campaignId: string) => `/campaigns/${campaignId}/readiness`,
+      CHECKLIST_STATUS: (campaignId: string) =>
+        `/campaigns/${campaignId}/checklist-status`,
       CAMPAIGN_GRAPHRAG: {
         APPROVE: (campaignId: string) =>
           `/campaigns/${campaignId}/graphrag/approve`,

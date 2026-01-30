@@ -143,6 +143,38 @@ export async function handleGetCampaign(c: ContextWithAuth) {
   }
 }
 
+// Get campaign checklist status (for tools running outside DO context)
+export async function handleGetChecklistStatus(c: ContextWithAuth) {
+  try {
+    const userAuth = (c as any).userAuth;
+    const campaignId = c.req.param("campaignId");
+
+    const daoFactory = getDAOFactory(c.env);
+    const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+      campaignId,
+      userAuth.username
+    );
+
+    if (!campaign) {
+      return c.json({ error: "Campaign not found" }, 404);
+    }
+
+    const records =
+      await daoFactory.checklistStatusDAO.getChecklistStatus(campaignId);
+
+    return c.json({
+      records: records.map((r) => ({
+        checklistItemKey: r.checklistItemKey,
+        status: r.status,
+        summary: r.summary,
+      })),
+    });
+  } catch (error) {
+    console.error("Error fetching checklist status:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+}
+
 // Get campaign resources
 export async function handleGetCampaignResources(c: ContextWithAuth) {
   try {

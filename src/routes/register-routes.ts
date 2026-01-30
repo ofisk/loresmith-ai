@@ -31,6 +31,7 @@ import {
   handleGetCampaign,
   handleGetCampaignResources,
   handleGetCampaigns,
+  handleGetChecklistStatus,
   handleRemoveResourceFromCampaign,
   handleRetryEntityExtraction,
   handleGetEntityExtractionStatus,
@@ -253,6 +254,11 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.CAMPAIGNS.DETAILS(":campaignId"),
     requireUserJwt,
     handleGetCampaign
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.CHECKLIST_STATUS(":campaignId"),
+    requireUserJwt,
+    handleGetChecklistStatus
   );
   app.get(
     API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(":campaignId"),
