@@ -12,11 +12,11 @@
     "node": ">=22.0.0"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,jsonc}": [
+    "*.{js,jsx,ts,tsx,json}": [
       "prettier --write",
       "npx @biomejs/biome lint --write"
     ],
-    "*.{md,css,mjs}": [
+    "*.{jsonc,md,css,mjs}": [
       "prettier --write"
     ],
     "*.{ts,tsx}": [

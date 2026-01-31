@@ -133,4 +133,10 @@
   "triggers": {
     "crons": ["*/5 * * * *"],
   },
+  "routes": [
+    {
+      "pattern": "loresmith.ai",
+      "custom_domain": true,
+    },
+  ],
 }
