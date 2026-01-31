@@ -7,7 +7,7 @@ declare namespace Cloudflare {
 		STAGING_PREFIX: "staging";
 		READINESS_TIMEOUT_SEC: "600";
 		READINESS_BACKOFF_MS: "2000";
-		PRODUCTION_URL: "https://loresmith-ai.oren-t-fisk.workers.dev";
+		PRODUCTION_URL: "https://loresmith.ai";
 		ADMIN_SECRET: string;
 		OPENAI_API_KEY: string;
 		CORS_ALLOWED_ORIGINS: string;

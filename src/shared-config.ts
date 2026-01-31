@@ -55,8 +55,7 @@ function getApiUrl(env?: any): string {
   }
 
   // Fallback for development or when environment variable is not set
-  // Use the Worker URL instead of the domain that's not configured
-  return "https://loresmith-ai.oren-t-fisk.workers.dev";
+  return "https://loresmith.ai";
 }
 
 // API Configuration - centralized base URL and endpoints
