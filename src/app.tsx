@@ -115,18 +115,35 @@ export default function Chat() {
 
   // Start tour after authentication
   useEffect(() => {
-    if (authState.isAuthenticated && !runTour) {
-      // Check if user has seen the tour before
-      const hasSeenTour = localStorage.getItem("loresmith-tour-completed");
-      if (!hasSeenTour) {
-        // Small delay to ensure everything is rendered
-        const timer = setTimeout(() => {
-          setRunTour(true);
-        }, 500);
-        return () => clearTimeout(timer);
-      }
+    console.log(
+      "[Tour] Effect running - Auth:",
+      authState.isAuthenticated,
+      "JWT:",
+      !!authState.getStoredJwt()
+    );
+    if (authState.isAuthenticated) {
+      console.log("[Tour] Authenticated, starting tour after delay");
+      // Always show tour after authentication
+      const timer = setTimeout(() => {
+        console.log("[Tour] Starting tour now");
+        setStepIndex(0); // Reset to first step
+        setRunTour(true);
+      }, 300); // 300ms delay
+      return () => clearTimeout(timer);
+    } else {
+      console.log("[Tour] Not authenticated yet");
     }
-  }, [authState.isAuthenticated, runTour]);
+  }, [authState.isAuthenticated]);
+
+  // Debug: Add global function to manually start tour
+  useEffect(() => {
+    (window as any).startTour = () => {
+      console.log("[Tour] Manually starting tour");
+      localStorage.removeItem("loresmith-tour-completed");
+      setRunTour(true);
+      setStepIndex(0);
+    };
+  }, []);
 
   // Consolidated app state - pass modalState and authState so they use the same instances
   // IMPORTANT: authState must be passed to prevent duplicate authentication hook instances
@@ -776,7 +793,7 @@ export default function Chat() {
           {
             target: ".chat-input-area",
             content:
-              "And, obvi, the forge itself: where you and LoreSmith shape your tale.",
+              "The forge itself: where you and LoreSmith shape your tale.",
             placement: "left",
           },
           {
@@ -787,7 +804,7 @@ export default function Chat() {
           {
             target: ".tour-session-recap",
             content:
-              "Record session recap. Document your gaming sessions and create summaries.",
+              "Record session recap. Share your notes and LoreSmith will generate summaries and update your campaign.",
           },
           {
             target: ".tour-next-steps",
@@ -810,7 +827,7 @@ export default function Chat() {
           {
             target: ".tour-notifications",
             content:
-              "Stay updated on file uploads, shard approvals, and system events.",
+              "LoreSmith works behind the scenes to process your content. Notifications keep you transparently updated on everything happening in your campaign.",
             disableBeacon: true,
           },
         ]}
