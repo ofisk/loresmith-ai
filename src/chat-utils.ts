@@ -1,13 +1,5 @@
-// via https://github.com/vercel/ai/blob/main/examples/next-openai/app/api/use-chat-human-in-the-loop/utils.ts
-
-import { formatDataStreamPart, type Message } from "@ai-sdk/ui-utils";
-import {
-  convertToCoreMessages,
-  type DataStreamWriter,
-  type ToolExecutionOptions,
-  type ToolSet,
-} from "ai";
-import type { z } from "zod";
+import { formatDataStreamPart } from "@ai-sdk/ui-utils";
+import type { Message } from "@/types/ai-message";
 import { APPROVAL } from "./shared-config";
 
 function isValidToolName<K extends PropertyKey, T extends object>(
@@ -15,6 +7,21 @@ function isValidToolName<K extends PropertyKey, T extends object>(
   obj: T
 ): key is K & keyof T {
   return key in obj;
+}
+
+type ExecutionContext = {
+  messages: any[];
+  toolCallId: string;
+};
+
+interface ProcessToolCallsOptions {
+  tools: Record<string, unknown>; // kept for compatibility
+  dataStream: { write: (chunk: unknown) => void };
+  messages: Message[];
+  executions: Record<
+    string,
+    ((args: any, context: ExecutionContext) => Promise<unknown>) | undefined
+  >;
 }
 
 /**
@@ -27,28 +34,11 @@ function isValidToolName<K extends PropertyKey, T extends object>(
  * @param executionFunctions - Map of tool names to execute functions
  * @returns Promise resolving to the processed messages
  */
-export async function processToolCalls<
-  Tools extends ToolSet,
-  ExecutableTools extends {
-    [Tool in keyof Tools as Tools[Tool] extends { execute: Function }
-      ? never
-      : Tool]: Tools[Tool];
-  },
->({
+export async function processToolCalls({
   dataStream,
   messages,
   executions,
-}: {
-  tools: Tools; // used for type inference
-  dataStream: DataStreamWriter;
-  messages: Message[];
-  executions: {
-    [K in keyof Tools & keyof ExecutableTools]?: (
-      args: z.infer<ExecutableTools[K]["parameters"]>,
-      context: ToolExecutionOptions
-    ) => Promise<unknown>;
-  };
-}): Promise<Message[]> {
+}: ProcessToolCallsOptions): Promise<Message[]> {
   const lastMessage = messages[messages.length - 1];
   const parts = lastMessage.parts;
   if (!parts) return messages;
@@ -76,10 +66,11 @@ export async function processToolCalls<
           return part;
         }
 
-        const toolInstance = executions[toolName];
+        const toolInstance = executions[toolName as string];
         if (toolInstance) {
           result = await toolInstance(toolInvocation.args, {
-            messages: convertToCoreMessages(messages),
+            // For now pass raw messages; callers can adapt if needed.
+            messages,
             toolCallId: toolInvocation.toolCallId,
           });
         } else {

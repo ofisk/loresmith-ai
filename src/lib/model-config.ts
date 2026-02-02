@@ -31,7 +31,8 @@ export function createModel(
   params: Record<string, any> = {}
 ) {
   validateApiKey(apiKey);
-  return openai(modelName as any, params);
+  const anyOpenAI = openai as any;
+  return anyOpenAI(modelName as any, params);
 }
 
 /**

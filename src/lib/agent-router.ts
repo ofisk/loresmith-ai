@@ -225,7 +225,7 @@ Example format: "agent_type|confidence|reason"`;
       }
 
       // Use streamText for the routing decision
-      const result = await streamText({
+      const result = await (streamText as any)({
         model: modelToUse,
         system: systemPrompt,
         messages: [{ role: "user", content: userMessage }],

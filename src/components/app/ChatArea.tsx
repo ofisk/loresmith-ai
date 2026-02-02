@@ -1,4 +1,4 @@
-import type { Message } from "@ai-sdk/react";
+import type { Message } from "@/types/ai-message";
 import { PaperPlaneRight, Stop } from "@phosphor-icons/react";
 import type React from "react";
 import { useState } from "react";

@@ -1,4 +1,4 @@
-import type { Message } from "@ai-sdk/react";
+import type { Message } from "@/types/ai-message";
 import { Card } from "@/components/card/Card";
 import { MemoizedMarkdown } from "@/components/MemoizedMarkdown";
 

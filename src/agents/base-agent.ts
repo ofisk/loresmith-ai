@@ -1,5 +1,5 @@
 import { formatDataStreamPart } from "@ai-sdk/ui-utils";
-import { createDataStreamResponse, streamText } from "ai";
+import { streamText } from "ai";
 import { SimpleChatAgent, type ChatMessage } from "./simple-chat-agent";
 import {
   estimateRequestTokens,
@@ -18,6 +18,36 @@ interface Env {
 
 interface MessageData {
   jwt?: string;
+}
+
+function createDataStreamResponse(options: {
+  execute: (dataStream: { write: (chunk: unknown) => void }) => Promise<void>;
+}): Response {
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const dataStream = {
+        write(chunk: unknown) {
+          const text =
+            typeof chunk === "string" ? chunk : JSON.stringify(chunk);
+          controller.enqueue(encoder.encode(text));
+        },
+      };
+
+      try {
+        await options.execute(dataStream);
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+    },
+  });
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { Message } from "@ai-sdk/react";
+import type { Message } from "@/types/ai-message";
 
 export interface HelpSystemProps {
   append: (message: Omit<Message, "id">) => void;

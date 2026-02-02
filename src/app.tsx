@@ -1,4 +1,4 @@
-import type { Message } from "@ai-sdk/react";
+import type { Message } from "@/types/ai-message";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import { generateId } from "ai";
