@@ -51,7 +51,7 @@ const toolsRequiringConfirmation: (
 
 export default function Chat() {
   // Tour state
-  const [runTour, setRunTour] = useState(true);
+  const [runTour, setRunTour] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
 
   const handleJoyrideCallback = (data: any) => {
@@ -65,6 +65,8 @@ export default function Chat() {
       status === "skipped"
     ) {
       setRunTour(false);
+      // Mark tour as completed
+      localStorage.setItem("loresmith-tour-completed", "true");
       return;
     }
 
@@ -110,6 +112,21 @@ export default function Chat() {
   // Modal state must be created first so it can be shared
   const modalState = useModalState();
   const authState = useAppAuthentication();
+
+  // Start tour after authentication
+  useEffect(() => {
+    if (authState.isAuthenticated && !runTour) {
+      // Check if user has seen the tour before
+      const hasSeenTour = localStorage.getItem("loresmith-tour-completed");
+      if (!hasSeenTour) {
+        // Small delay to ensure everything is rendered
+        const timer = setTimeout(() => {
+          setRunTour(true);
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [authState.isAuthenticated, runTour]);
 
   // Consolidated app state - pass modalState and authState so they use the same instances
   // IMPORTANT: authState must be passed to prevent duplicate authentication hook instances
