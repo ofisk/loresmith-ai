@@ -788,7 +788,7 @@ export default function Chat() {
           {
             target: ".tour-shard-review",
             content:
-              "After linking a resource to a campaign, you'll review and approve document sections here before they're added to your campaign.",
+              "After linking a resource to a campaign, you'll review and approve shards here before they're added to your campaign.",
           },
           {
             target: ".chat-input-area",
