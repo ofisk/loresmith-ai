@@ -20,7 +20,7 @@ export const recommendExternalToolsTool = tool({
   inputSchema: recommendExternalToolsSchema,
   execute: async (
     input: z.infer<typeof recommendExternalToolsSchema>,
-    _options: ToolExecuteOptions
+    options: ToolExecuteOptions
   ) => {
     const { userNeeds } = input;
     try {

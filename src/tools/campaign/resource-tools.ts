@@ -7,21 +7,29 @@ import {
 } from "../../app-constants";
 import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
 import { AUTH_CODES } from "../../shared-config";
-import { commonSchemas } from "../utils";
-import { createToolError, createToolSuccess } from "../utils";
+import {
+  commonSchemas,
+  createToolError,
+  createToolSuccess,
+  type ToolExecuteOptions,
+} from "../utils";
+
+const listCampaignResourcesSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  jwt: commonSchemas.jwt,
+});
 
 export const listCampaignResources = tool({
   description: "List all resources in a campaign",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async ({ campaignId, jwt }, context?: any): Promise<ToolResult> => {
+  inputSchema: listCampaignResourcesSchema,
+  execute: async (
+    input: z.infer<typeof listCampaignResourcesSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { campaignId, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[Tool] listCampaignResources received JWT:", jwt);
-    console.log("[Tool] listCampaignResources context:", context);
-
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[Tool] listCampaignResources context:", options);
     console.log("[listCampaignResources] Using toolCallId:", toolCallId);
 
     try {
@@ -76,25 +84,26 @@ export const listCampaignResources = tool({
   },
 });
 
+const addResourceToCampaignSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  resourceId: z.string().describe("The ID of the resource to add"),
+  resourceType: z
+    .string()
+    .describe("The type of resource (e.g., 'document', 'character-sheet')"),
+  jwt: commonSchemas.jwt,
+});
+
 export const addResourceToCampaign = tool({
   description: "Add a resource to a campaign",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    resourceId: z.string().describe("The ID of the resource to add"),
-    resourceType: z
-      .string()
-      .describe("The type of resource (e.g., 'document', 'character-sheet')"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: addResourceToCampaignSchema,
   execute: async (
-    { campaignId, resourceId, resourceType, jwt },
-    context?: any
+    input: z.infer<typeof addResourceToCampaignSchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
+    const { campaignId, resourceId, resourceType, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[Tool] addResourceToCampaign received JWT:", jwt);
-    console.log("[Tool] addResourceToCampaign context:", context);
-
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[Tool] addResourceToCampaign context:", options);
     console.log("[addResourceToCampaign] Using toolCallId:", toolCallId);
 
     try {
@@ -150,22 +159,23 @@ export const addResourceToCampaign = tool({
   },
 });
 
+const removeResourceFromCampaignSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  resourceId: z.string().describe("The ID of the resource to remove"),
+  jwt: commonSchemas.jwt,
+});
+
 export const removeResourceFromCampaign = tool({
   description: "Remove a resource from a campaign",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    resourceId: z.string().describe("The ID of the resource to remove"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: removeResourceFromCampaignSchema,
   execute: async (
-    { campaignId, resourceId, jwt },
-    context?: any
+    input: z.infer<typeof removeResourceFromCampaignSchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
+    const { campaignId, resourceId, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[Tool] removeResourceFromCampaign received JWT:", jwt);
-    console.log("[Tool] removeResourceFromCampaign context:", context);
-
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[Tool] removeResourceFromCampaign context:", options);
     console.log("[removeResourceFromCampaign] Using toolCallId:", toolCallId);
 
     try {

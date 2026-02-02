@@ -10,9 +10,7 @@ import {
 } from "../utils";
 
 const searchFileLibrarySchema = z.object({
-  query: z
-    .string()
-    .describe("The search query to find relevant PDF resources"),
+  query: z.string().describe("The search query to find relevant PDF resources"),
   context: z
     .string()
     .optional()

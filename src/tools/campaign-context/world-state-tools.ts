@@ -2,7 +2,12 @@ import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG } from "@/shared-config";
 import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
-import { commonSchemas, createToolError, createToolSuccess } from "../utils";
+import {
+  commonSchemas,
+  createToolError,
+  createToolSuccess,
+  type ToolExecuteOptions,
+} from "../utils";
 import type { ToolResult } from "@/app-constants";
 import type { WorldStateChangelogPayload } from "@/types/world-state";
 
@@ -154,39 +159,44 @@ async function submitWorldStateChange(
   }
 }
 
+const recordWorldEventSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  campaignSessionId: z
+    .number()
+    .int()
+    .nullable()
+    .optional()
+    .describe("Optional game session number this change belongs to."),
+  timestamp: z
+    .string()
+    .optional()
+    .describe(
+      "ISO timestamp for when the change occurred. Defaults to the current time."
+    ),
+  entityUpdates: z
+    .array(entityUpdateSchema)
+    .optional()
+    .describe("List of entity updates to record."),
+  relationshipUpdates: z
+    .array(relationshipUpdateSchema)
+    .optional()
+    .describe("List of relationship updates to record."),
+  newEntities: z
+    .array(newEntitySchema)
+    .optional()
+    .describe("List of new entities introduced into the world."),
+  jwt: commonSchemas.jwt,
+});
+
 export const recordWorldEventTool = tool({
   description:
     "Record world state changelog entries for multiple entity/relationship updates or new entities. Use newEntities when users provide entity information. Extract names/types, generate entity IDs as 'campaignId_entity-name-slug'.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    campaignSessionId: z
-      .number()
-      .int()
-      .nullable()
-      .optional()
-      .describe("Optional game session number this change belongs to."),
-    timestamp: z
-      .string()
-      .optional()
-      .describe(
-        "ISO timestamp for when the change occurred. Defaults to the current time."
-      ),
-    entityUpdates: z
-      .array(entityUpdateSchema)
-      .optional()
-      .describe("List of entity updates to record."),
-    relationshipUpdates: z
-      .array(relationshipUpdateSchema)
-      .optional()
-      .describe("List of relationship updates to record."),
-    newEntities: z
-      .array(newEntitySchema)
-      .optional()
-      .describe("List of new entities introduced into the world."),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: recordWorldEventSchema,
   execute: async (
-    {
+    input: z.infer<typeof recordWorldEventSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const {
       campaignId,
       campaignSessionId,
       timestamp,
@@ -194,10 +204,8 @@ export const recordWorldEventTool = tool({
       relationshipUpdates,
       newEntities,
       jwt,
-    },
-    context?: any
-  ) => {
-    const toolCallId = context?.toolCallId || crypto.randomUUID();
+    } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     const payload = buildPayload({
       campaignSessionId,
       timestamp,
@@ -215,41 +223,46 @@ export const recordWorldEventTool = tool({
   },
 });
 
+const updateEntityWorldStateSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  entityId: z
+    .string()
+    .describe("The entity whose world state is being updated."),
+  status: z
+    .string()
+    .describe(
+      "The new status/condition (e.g., destroyed, occupied, missing)."
+    ),
+  description: z
+    .string()
+    .optional()
+    .describe("Narrative description of the change."),
+  metadata: z
+    .record(z.unknown())
+    .optional()
+    .describe("Additional structured data about the change."),
+  campaignSessionId: z
+    .number()
+    .int()
+    .nullable()
+    .optional()
+    .describe("Optional game session number for the change."),
+  timestamp: z
+    .string()
+    .optional()
+    .describe("ISO timestamp for when the change occurred."),
+  jwt: commonSchemas.jwt,
+});
+
 export const updateEntityWorldStateTool = tool({
   description:
     "Record a world state change for a single entity (e.g., location destroyed, NPC promoted).",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    entityId: z
-      .string()
-      .describe("The entity whose world state is being updated."),
-    status: z
-      .string()
-      .describe(
-        "The new status/condition (e.g., destroyed, occupied, missing)."
-      ),
-    description: z
-      .string()
-      .optional()
-      .describe("Narrative description of the change."),
-    metadata: z
-      .record(z.unknown())
-      .optional()
-      .describe("Additional structured data about the change."),
-    campaignSessionId: z
-      .number()
-      .int()
-      .nullable()
-      .optional()
-      .describe("Optional game session number for the change."),
-    timestamp: z
-      .string()
-      .optional()
-      .describe("ISO timestamp for when the change occurred."),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: updateEntityWorldStateSchema,
   execute: async (
-    {
+    input: z.infer<typeof updateEntityWorldStateSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const {
       campaignId,
       entityId,
       status,
@@ -258,10 +271,8 @@ export const updateEntityWorldStateTool = tool({
       campaignSessionId,
       timestamp,
       jwt,
-    },
-    context?: any
-  ) => {
-    const toolCallId = context?.toolCallId || crypto.randomUUID();
+    } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     const payload = buildPayload({
       campaignSessionId,
       timestamp,
@@ -284,45 +295,50 @@ export const updateEntityWorldStateTool = tool({
   },
 });
 
+const updateRelationshipWorldStateSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  fromEntityId: z
+    .string()
+    .describe(
+      "Source entity in the relationship (e.g., initiating faction)."
+    ),
+  toEntityId: z
+    .string()
+    .describe("Target entity in the relationship (e.g., opposing faction)."),
+  newStatus: z
+    .string()
+    .optional()
+    .describe("New relationship status (e.g., allied, hostile, neutral)."),
+  description: z
+    .string()
+    .optional()
+    .describe("Narrative description of how the relationship changed."),
+  metadata: z
+    .record(z.unknown())
+    .optional()
+    .describe("Additional structured data about the change."),
+  campaignSessionId: z
+    .number()
+    .int()
+    .nullable()
+    .optional()
+    .describe("Optional game session number."),
+  timestamp: z
+    .string()
+    .optional()
+    .describe("ISO timestamp for when the change occurred."),
+  jwt: commonSchemas.jwt,
+});
+
 export const updateRelationshipWorldStateTool = tool({
   description:
     "Record a change in the relationship between two entities (e.g., allies became rivals).",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    fromEntityId: z
-      .string()
-      .describe(
-        "Source entity in the relationship (e.g., initiating faction)."
-      ),
-    toEntityId: z
-      .string()
-      .describe("Target entity in the relationship (e.g., opposing faction)."),
-    newStatus: z
-      .string()
-      .optional()
-      .describe("New relationship status (e.g., allied, hostile, neutral)."),
-    description: z
-      .string()
-      .optional()
-      .describe("Narrative description of how the relationship changed."),
-    metadata: z
-      .record(z.unknown())
-      .optional()
-      .describe("Additional structured data about the change."),
-    campaignSessionId: z
-      .number()
-      .int()
-      .nullable()
-      .optional()
-      .describe("Optional game session number."),
-    timestamp: z
-      .string()
-      .optional()
-      .describe("ISO timestamp for when the change occurred."),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: updateRelationshipWorldStateSchema,
   execute: async (
-    {
+    input: z.infer<typeof updateRelationshipWorldStateSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const {
       campaignId,
       fromEntityId,
       toEntityId,
@@ -332,10 +348,8 @@ export const updateRelationshipWorldStateTool = tool({
       campaignSessionId,
       timestamp,
       jwt,
-    },
-    context?: any
-  ) => {
-    const toolCallId = context?.toolCallId || crypto.randomUUID();
+    } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     const payload = buildPayload({
       campaignSessionId,
       timestamp,

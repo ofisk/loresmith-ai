@@ -2,40 +2,43 @@ import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../app-constants";
 import { AUTH_CODES } from "../../shared-config";
-import { createToolError, createToolSuccess } from "../utils";
+import {
+  createToolError,
+  createToolSuccess,
+  type ToolExecuteOptions,
+} from "../utils";
 
-// File metadata tools
+const updateFileMetadataSchema = z.object({
+  fileKey: z.string().describe("The file key of the uploaded file"),
+  description: z
+    .string()
+    .optional()
+    .describe("Optional description for the file"),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe("Optional tags for categorizing the file"),
+  fileSize: z
+    .number()
+    .describe("The actual size of the uploaded file in bytes"),
+  jwt: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("JWT token for authentication"),
+});
 
 export const updateFileMetadata = tool({
   description: "Update metadata for an uploaded file",
-  parameters: z.object({
-    fileKey: z.string().describe("The file key of the uploaded file"),
-    description: z
-      .string()
-      .optional()
-      .describe("Optional description for the file"),
-    tags: z
-      .array(z.string())
-      .optional()
-      .describe("Optional tags for categorizing the file"),
-    fileSize: z
-      .number()
-      .describe("The actual size of the uploaded file in bytes"),
-    jwt: z
-      .string()
-      .nullable()
-      .optional()
-      .describe("JWT token for authentication"),
-  }),
+  inputSchema: updateFileMetadataSchema,
   execute: async (
-    { fileKey, description, tags, fileSize, jwt },
-    context?: any
+    input: z.infer<typeof updateFileMetadataSchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
+    const { fileKey, description, tags, fileSize, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[Tool] updateFileMetadata received JWT:", jwt);
-    console.log("[Tool] updateFileMetadata context:", context);
-
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[Tool] updateFileMetadata context:", options);
     console.log("[updateFileMetadata] Using toolCallId:", toolCallId);
 
     try {
@@ -120,26 +123,29 @@ export const updateFileMetadata = tool({
   },
 });
 
+const autoGenerateFileMetadataSchema = z.object({
+  fileKey: z
+    .string()
+    .describe("The file key of the file to auto-generate metadata for"),
+  jwt: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("JWT token for authentication"),
+});
+
 export const autoGenerateFileMetadata = tool({
   description:
     "Auto-generate description and tags for an existing file based on its content",
-  parameters: z.object({
-    fileKey: z
-      .string()
-      .describe("The file key of the file to auto-generate metadata for"),
-    jwt: z
-      .string()
-      .nullable()
-      .optional()
-      .describe("JWT token for authentication"),
-  }),
-  execute: async ({ fileKey, jwt }, context?: any): Promise<ToolResult> => {
+  inputSchema: autoGenerateFileMetadataSchema,
+  execute: async (
+    input: z.infer<typeof autoGenerateFileMetadataSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { fileKey, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[Tool] autoGeneratePdfMetadata received:", { fileKey, jwt });
-    console.log("[Tool] autoGeneratePdfMetadata context:", context);
-
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
-    console.log("[autoGeneratePdfMetadata] Using toolCallId:", toolCallId);
+    console.log("[Tool] autoGeneratePdfMetadata context:", options);
 
     try {
       console.log("[autoGeneratePdfMetadata] Using JWT:", jwt);
@@ -153,11 +159,9 @@ export const autoGenerateFileMetadata = tool({
         );
       }
 
-      // Trigger background processing by making a lightweight API call
-      // This will start the processing in a separate worker context
       console.log("[autoGeneratePdfMetadata] Triggering background processing");
 
-      const env = context?.env;
+      const env = options?.env;
       if (env) {
         try {
           // Extract user info from JWT for the background job
@@ -166,7 +170,7 @@ export const autoGenerateFileMetadata = tool({
           const openaiApiKey = payload.openaiApiKey;
 
           // Create a background processing request
-          const processingUrl = `${env.VITE_API_URL}/pdf/process-metadata-background`;
+          const processingUrl = `${(env as { VITE_API_URL?: string }).VITE_API_URL}/pdf/process-metadata-background`;
           console.log(
             "[autoGeneratePdfMetadata] Making background processing request to:",
             processingUrl

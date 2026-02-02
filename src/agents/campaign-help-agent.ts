@@ -1,4 +1,3 @@
-import type { StreamTextOnFinishCallback, ToolSet } from "ai";
 import { onboardingTools } from "../tools/onboarding";
 import { BaseAgent } from "./base-agent";
 import {

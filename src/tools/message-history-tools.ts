@@ -7,10 +7,63 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  type ToolExecuteOptions,
 } from "./utils";
 import { getDAOFactory } from "../dao/dao-factory";
 import { EnvironmentRequiredError } from "@/lib/errors";
 import { validateCampaignOwnership } from "@/lib/campaign-operations";
+
+const getMessageHistorySchema = z.object({
+  sessionId: z
+    .string()
+    .optional()
+    .describe(
+      "The chat session ID. If not provided, will be auto-detected from the durable object context."
+    ),
+  campaignId: z
+    .string()
+    .optional()
+    .nullable()
+    .describe(
+      "Optional campaign ID to filter messages for a specific campaign"
+    ),
+  role: z
+    .enum(["user", "assistant", "system"])
+    .optional()
+    .describe("Filter by message role"),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .optional()
+    .default(20)
+    .describe("Maximum number of messages to retrieve (1-100, default: 20)"),
+  offset: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .default(0)
+    .describe("Number of messages to skip (for pagination)"),
+  searchQuery: z
+    .string()
+    .optional()
+    .describe("Search for messages containing this text in the content field"),
+  beforeDate: z
+    .string()
+    .optional()
+    .describe(
+      "Only retrieve messages before this date (ISO format, e.g., '2026-01-03T00:00:00Z')"
+    ),
+  afterDate: z
+    .string()
+    .optional()
+    .describe(
+      "Only retrieve messages after this date (ISO format, e.g., '2026-01-03T00:00:00Z')"
+    ),
+  jwt: commonSchemas.jwt,
+});
 
 /**
  * Tool to retrieve message history from persistent storage
@@ -32,61 +85,12 @@ The tool supports filtering by:
 - Limit and offset for pagination
 
 Only retrieve message history when you actually need it - don't fetch it preemptively.`,
-  parameters: z.object({
-    sessionId: z
-      .string()
-      .optional()
-      .describe(
-        "The chat session ID. If not provided, will be auto-detected from the durable object context."
-      ),
-    campaignId: z
-      .string()
-      .optional()
-      .nullable()
-      .describe(
-        "Optional campaign ID to filter messages for a specific campaign"
-      ),
-    role: z
-      .enum(["user", "assistant", "system"])
-      .optional()
-      .describe("Filter by message role"),
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(100)
-      .optional()
-      .default(20)
-      .describe("Maximum number of messages to retrieve (1-100, default: 20)"),
-    offset: z
-      .number()
-      .int()
-      .min(0)
-      .optional()
-      .default(0)
-      .describe("Number of messages to skip (for pagination)"),
-    searchQuery: z
-      .string()
-      .optional()
-      .describe(
-        "Search for messages containing this text in the content field"
-      ),
-    beforeDate: z
-      .string()
-      .optional()
-      .describe(
-        "Only retrieve messages before this date (ISO format, e.g., '2026-01-03T00:00:00Z')"
-      ),
-    afterDate: z
-      .string()
-      .optional()
-      .describe(
-        "Only retrieve messages after this date (ISO format, e.g., '2026-01-03T00:00:00Z')"
-      ),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: getMessageHistorySchema,
   execute: async (
-    {
+    input: z.infer<typeof getMessageHistorySchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const {
       sessionId,
       campaignId,
       role,
@@ -96,14 +100,12 @@ Only retrieve message history when you actually need it - don't fetch it preempt
       beforeDate,
       afterDate,
       jwt,
-    },
-    context?: any
-  ): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || "unknown";
+    } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[getMessageHistory] Using toolCallId:", toolCallId);
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       if (!env) {
         throw new EnvironmentRequiredError();
       }
@@ -118,10 +120,10 @@ Only retrieve message history when you actually need it - don't fetch it preempt
         );
       }
 
-      // Get sessionId from context if not provided
+      const opts = options as { sessionId?: string } | undefined;
       let finalSessionId = sessionId;
-      if (!finalSessionId && context?.sessionId) {
-        finalSessionId = context.sessionId;
+      if (!finalSessionId && opts?.sessionId) {
+        finalSessionId = opts.sessionId;
       }
 
       if (!finalSessionId) {

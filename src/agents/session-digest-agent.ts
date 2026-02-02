@@ -1,4 +1,3 @@
-import type { StreamTextOnFinishCallback, ToolSet } from "ai";
 import { sessionDigestTools } from "../tools/session-digest";
 import { BaseAgent } from "./base-agent";
 import {

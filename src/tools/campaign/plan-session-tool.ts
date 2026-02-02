@@ -9,6 +9,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  type ToolExecuteOptions,
 } from "../utils";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { PlanningContextService } from "@/services/rag/planning-context-service";
@@ -24,34 +25,39 @@ import {
   analyzeGaps,
 } from "./planning-tools-utils";
 
+const planSessionSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  sessionTitle: z.string().describe("The title of the session"),
+  sessionType: z
+    .enum(["combat", "social", "exploration", "mixed"])
+    .optional()
+    .describe("Type of session to plan (default: mixed)"),
+  estimatedDuration: z
+    .number()
+    .optional()
+    .describe("Estimated session duration in hours (default: 4)"),
+  focusAreas: z
+    .array(z.string())
+    .optional()
+    .describe("Specific areas to focus on in this session"),
+  isOneOff: z
+    .boolean()
+    .optional()
+    .describe(
+      "Whether this is a one-off session (shopping, side quest, seasonal, etc.) that doesn't need to connect to the main campaign arc"
+    ),
+  jwt: commonSchemas.jwt,
+});
+
 export const planSession = tool({
   description:
     "Plan a complete game session with detailed, actionable session scripts. Generates comprehensive session plans with scenes, NPC details, location descriptions, and flexible sub-goals. Uses rich campaign context including session digests, entity graph, and world state.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    sessionTitle: z.string().describe("The title of the session"),
-    sessionType: z
-      .enum(["combat", "social", "exploration", "mixed"])
-      .optional()
-      .describe("Type of session to plan (default: mixed)"),
-    estimatedDuration: z
-      .number()
-      .optional()
-      .describe("Estimated session duration in hours (default: 4)"),
-    focusAreas: z
-      .array(z.string())
-      .optional()
-      .describe("Specific areas to focus on in this session"),
-    isOneOff: z
-      .boolean()
-      .optional()
-      .describe(
-        "Whether this is a one-off session (shopping, side quest, seasonal, etc.) that doesn't need to connect to the main campaign arc"
-      ),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: planSessionSchema,
   execute: async (
-    {
+    input: z.infer<typeof planSessionSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const {
       campaignId,
       sessionTitle,
       sessionType = "mixed",
@@ -59,10 +65,8 @@ export const planSession = tool({
       focusAreas,
       isOneOff = false,
       jwt,
-    },
-    context?: { env?: unknown; toolCallId?: string }
-  ): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || "unknown";
+    } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[planSession] Using toolCallId:", toolCallId);
 
     console.log("[Tool] planSession received:", {
@@ -75,7 +79,7 @@ export const planSession = tool({
     });
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       console.log("[Tool] planSession - Environment found:", !!env);
       console.log("[Tool] planSession - JWT provided:", !!jwt);
 
@@ -282,7 +286,7 @@ export const planSession = tool({
       const scriptContext: SessionScriptContext = {
         campaignName: campaign.name,
         sessionTitle,
-        sessionType,
+        sessionType: sessionType as SessionScriptContext["sessionType"],
         estimatedDuration,
         focusAreas,
         recentSessionDigests: recentDigests,

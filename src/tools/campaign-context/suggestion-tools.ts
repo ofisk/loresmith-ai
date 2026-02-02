@@ -13,6 +13,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  type ToolExecuteOptions,
 } from "../utils";
 import { getAssessmentService } from "../../lib/service-factory";
 import { CharacterEntitySyncService } from "../../services/campaign/character-entity-sync-service";
@@ -29,48 +30,47 @@ import {
 import { createLLMProvider } from "../../services/llm/llm-provider-factory";
 import { METADATA_ANALYSIS_PROMPTS } from "../../lib/prompts/metadata-analysis-prompts";
 
-// Tool to get campaign suggestions
+const getCampaignSuggestionsSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  suggestionType: z
+    .union([
+      z.enum(["session", "character", "plot", "world", "combat"]),
+      z.array(z.enum(["session", "character", "plot", "world", "combat"])),
+    ])
+    .optional()
+    .describe(
+      "Type(s) of suggestions to generate. Can be a single type (e.g., 'session') or an array of types (e.g., ['world', 'session', 'plot']). Default: ['session']. CRITICAL: If you need suggestions for multiple types, you MUST pass them as an array in a SINGLE call: suggestionType=['world', 'session', 'plot']. Do NOT make separate calls for each type. Making multiple calls will cause the agent to hit the step limit and fail to respond."
+    ),
+  context: z
+    .string()
+    .optional()
+    .describe("Additional context for generating suggestions"),
+  jwt: commonSchemas.jwt,
+});
+
 export const getCampaignSuggestions = tool({
   description:
     "Get intelligent suggestions for campaign development, session planning, and story progression. Suggestions should be informed by the Campaign Planning Checklist, prioritizing foundational elements (Campaign Foundation, World & Setting Basics, Starting Location) before later stages. CRITICAL: If you need suggestions for multiple types (e.g., world, session, plot), pass them as an array in a SINGLE call: suggestionType=['world', 'session', 'plot']. Do NOT make separate calls for each type. Call this tool only ONCE per user request, passing all needed suggestion types as an array. After calling this tool, you MUST immediately generate a text response to the user - do NOT make additional tool calls.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    suggestionType: z
-      .union([
-        z.enum(["session", "character", "plot", "world", "combat"]),
-        z.array(z.enum(["session", "character", "plot", "world", "combat"])),
-      ])
-      .optional()
-      .describe(
-        "Type(s) of suggestions to generate. Can be a single type (e.g., 'session') or an array of types (e.g., ['world', 'session', 'plot']). Default: ['session']. CRITICAL: If you need suggestions for multiple types, you MUST pass them as an array in a SINGLE call: suggestionType=['world', 'session', 'plot']. Do NOT make separate calls for each type. Making multiple calls will cause the agent to hit the step limit and fail to respond."
-      ),
-    context: z
-      .string()
-      .optional()
-      .describe("Additional context for generating suggestions"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: getCampaignSuggestionsSchema,
   execute: async (
-    { campaignId, suggestionType, context: _contextParam, jwt },
-    context?: any
+    input: z.infer<typeof getCampaignSuggestionsSchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    // Normalize suggestionType to array - default to "session" if not provided
+    const { campaignId, suggestionType, context: _contextParam, jwt } = input;
     const suggestionTypes = Array.isArray(suggestionType)
       ? suggestionType
       : [suggestionType || "session"];
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[getCampaignSuggestions] Using toolCallId:", toolCallId);
 
     console.log("[Tool] getCampaignSuggestions received:", {
       campaignId,
       suggestionType,
-      context,
+      context: _contextParam,
     });
 
     try {
-      // Try to get environment from context or global scope
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       console.log("[Tool] getCampaignSuggestions - Environment found:", !!env);
       console.log("[Tool] getCampaignSuggestions - JWT provided:", !!jwt);
 
@@ -201,7 +201,7 @@ export const getCampaignSuggestions = tool({
               suggestionTypes.length === 1
                 ? suggestionTypes[0]
                 : suggestionTypes,
-            context,
+            context: _contextParam,
           }),
         }
       );
@@ -242,24 +242,25 @@ export const getCampaignSuggestions = tool({
   },
 });
 
-// Tool to assess campaign readiness
+const assessCampaignReadinessSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  assessmentType: z
+    .enum(["session", "story", "characters", "world"])
+    .optional()
+    .describe("Type of readiness assessment (default: session)"),
+  jwt: commonSchemas.jwt,
+});
+
 export const assessCampaignReadiness = tool({
   description:
     "Assess the campaign's readiness for the next session and provide recommendations. When interpreting results, reference the Campaign Planning Checklist to provide structured, prioritized recommendations based on logical dependencies (foundational elements before later stages).",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    assessmentType: z
-      .enum(["session", "story", "characters", "world"])
-      .optional()
-      .describe("Type of readiness assessment (default: session)"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: assessCampaignReadinessSchema,
   execute: async (
-    { campaignId, assessmentType = "session", jwt },
-    context?: any
+    input: z.infer<typeof assessCampaignReadinessSchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    const { campaignId, assessmentType = "session", jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[assessCampaignReadiness] Using toolCallId:", toolCallId);
 
     console.log("[Tool] assessCampaignReadiness received:", {
@@ -268,8 +269,7 @@ export const assessCampaignReadiness = tool({
     });
 
     try {
-      // Try to get environment from context or global scope
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       console.log("[Tool] assessCampaignReadiness - Environment found:", !!env);
       console.log("[Tool] assessCampaignReadiness - JWT provided:", !!jwt);
 

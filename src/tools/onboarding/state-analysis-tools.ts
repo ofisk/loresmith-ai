@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { getAssessmentService } from "../../lib/service-factory";
+import type { Env } from "../../middleware/auth";
 import type { Campaign, CampaignResource } from "../../types/campaign";
 import type {
   UserState,
@@ -73,7 +74,7 @@ export const analyzeUserStateTool = tool({
         );
       }
 
-      const assessmentService = getAssessmentService(env);
+      const assessmentService = getAssessmentService(env as Env);
       const userState = await assessmentService.analyzeUserState(username);
 
       return createToolSuccess(
@@ -122,7 +123,7 @@ export const getCampaignReadinessTool = tool({
         );
       }
 
-      const assessmentService = getAssessmentService(env);
+      const assessmentService = getAssessmentService(env as Env);
       const campaignReadiness = await assessmentService.getCampaignReadiness(
         campaignId,
         {} as Campaign,
@@ -199,7 +200,7 @@ export const getUserActivityTool = tool({
         );
       }
 
-      const assessmentService = getAssessmentService(env);
+      const assessmentService = getAssessmentService(env as Env);
       const userActivity = await assessmentService.getUserActivity(username);
 
       return createToolSuccess(

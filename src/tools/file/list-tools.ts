@@ -3,28 +3,36 @@ import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../app-constants";
 import { getDAOFactory } from "../../dao/dao-factory";
 import { getLibraryService } from "../../lib/service-factory";
+import type { Env } from "../../middleware/auth";
 import type { FileResponse } from "../../types/file";
 import { fileHelpers } from "../../types/file";
-import { createToolError, createToolSuccess } from "../utils";
+import {
+  createToolError,
+  createToolSuccess,
+  getEnvFromContext,
+  type ToolExecuteOptions,
+} from "../utils";
 
-// File listing tools
+const listFilesSchema = z.object({
+  jwt: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("JWT token for authentication"),
+});
 
 export const listFiles = tool({
   description: "List all uploaded files for the current user",
-  parameters: z.object({
-    jwt: z
-      .string()
-      .nullable()
-      .optional()
-      .describe("JWT token for authentication"),
-  }),
-  execute: async ({ jwt }, context?: any): Promise<ToolResult> => {
+  inputSchema: listFilesSchema,
+  execute: async (
+    input: z.infer<typeof listFilesSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
+    const env = getEnvFromContext(options);
     console.log("[Tool] listFiles received JWT:", jwt);
-    console.log("[Tool] listFiles context:", context);
-
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
-    const env = context?.env;
+    console.log("[Tool] listFiles context:", options);
     console.log("[listFiles] Using toolCallId:", toolCallId);
 
     try {
@@ -152,15 +160,24 @@ export const listFiles = tool({
   },
 });
 
-// Execution functions for confirmation-required tools
+const deleteFileSchema = z.object({
+  fileKey: z.string().describe("The file key of the file to delete"),
+  jwt: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("JWT token for authentication"),
+});
+
 export const deleteFileExecution = async (
-  { fileKey, jwt }: { fileKey: string; jwt?: string | null },
-  context?: any
+  input: z.infer<typeof deleteFileSchema>,
+  options?: ToolExecuteOptions
 ): Promise<ToolResult> => {
+  const { fileKey, jwt } = input;
   console.log("[deleteFileExecution] Starting deletion for fileKey:", fileKey);
 
-  const toolCallId = context?.toolCallId || "unknown";
-  const env = context?.env;
+  const toolCallId = options?.toolCallId ?? "unknown";
+  const env = getEnvFromContext(options);
 
   try {
     if (!fileKey) {
@@ -194,7 +211,7 @@ export const deleteFileExecution = async (
       }
 
       // Get the library service for direct database access
-      const libraryService = getLibraryService(env);
+      const libraryService = getLibraryService(env as Env);
 
       // Delete the file using the service
       const deleteResult = await libraryService.deleteFile(fileKey, username);
@@ -326,32 +343,29 @@ export const deleteFileExecution = async (
 export const deleteFile = tool({
   description:
     "Delete a specific file for the current user. This action requires confirmation before execution.",
-  parameters: z.object({
-    fileKey: z.string().describe("The file key of the file to delete"),
-    jwt: z
-      .string()
-      .nullable()
-      .optional()
-      .describe("JWT token for authentication"),
-  }),
+  inputSchema: deleteFileSchema,
   execute: deleteFileExecution,
+});
+
+const getFileStatsSchema = z.object({
+  jwt: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("JWT token for authentication"),
 });
 
 export const getFileStats = tool({
   description: "Get statistics about uploaded files",
-  parameters: z.object({
-    jwt: z
-      .string()
-      .nullable()
-      .optional()
-      .describe("JWT token for authentication"),
-  }),
-  execute: async ({ jwt }, context?: any): Promise<ToolResult> => {
+  inputSchema: getFileStatsSchema,
+  execute: async (
+    input: z.infer<typeof getFileStatsSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[Tool] getFileStats received JWT:", jwt);
-    console.log("[Tool] getFileStats context:", context);
-
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[Tool] getFileStats context:", options);
     console.log("[getFileStats] Using toolCallId:", toolCallId);
 
     try {

@@ -74,7 +74,7 @@ export const generateDigestFromNotesTool = tool({
         );
       }
 
-      const env = context?.env;
+      const env = options?.env;
       if (!env) {
         return createToolError(
           "Environment not available",
@@ -129,7 +129,8 @@ export const generateDigestFromNotesTool = tool({
 
       // Get OpenAI API key
       const openaiApiKey =
-        env.OPENAI_API_KEY || (await daoFactory.getOpenAIKey(userId));
+        (env as { OPENAI_API_KEY?: string }).OPENAI_API_KEY ||
+        (await daoFactory.getOpenAIKey(userId));
 
       if (!openaiApiKey) {
         return createToolError(

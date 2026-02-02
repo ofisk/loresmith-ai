@@ -8,6 +8,7 @@ import {
   extractUsernameFromJwt,
   getEnvFromContext,
   runWithEnvOrApi,
+  type ToolExecuteOptions,
 } from "../utils";
 import type { ToolResult } from "@/app-constants";
 import { API_CONFIG } from "@/shared-config";
@@ -16,46 +17,45 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import { CommunityDetectionService } from "@/services/graph/community-detection-service";
 import { buildCommunityHierarchyTree } from "@/lib/graph/community-utils";
 
-/**
- * Tool: Detect communities in the entity relationship graph
- * Uses the Leiden algorithm to identify communities/clusters of related entities
- */
+const detectCommunitiesSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  resolution: z
+    .number()
+    .optional()
+    .describe(
+      "Resolution parameter (0.5-2.0). Lower values find larger communities, higher values find smaller communities. Default: 1.0"
+    ),
+  minCommunitySize: z
+    .number()
+    .optional()
+    .describe(
+      "Minimum number of entities in a community. Communities smaller than this will be filtered out. Default: 2"
+    ),
+  maxLevels: z
+    .number()
+    .optional()
+    .describe(
+      "Maximum hierarchy levels for multi-level community detection. Set to 1 for flat communities, higher for hierarchical. Default: 1"
+    ),
+  jwt: commonSchemas.jwt,
+});
+
 export const detectCommunitiesTool = tool({
   description:
     "Detect communities (clusters) of related entities in a campaign using graph analysis. " +
     "This analyzes the entity relationship graph to find groups of entities that are highly connected. " +
     "Use this when the user wants to understand how entities cluster together or find related groups.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    resolution: z
-      .number()
-      .optional()
-      .describe(
-        "Resolution parameter (0.5-2.0). Lower values find larger communities, higher values find smaller communities. Default: 1.0"
-      ),
-    minCommunitySize: z
-      .number()
-      .optional()
-      .describe(
-        "Minimum number of entities in a community. Communities smaller than this will be filtered out. Default: 2"
-      ),
-    maxLevels: z
-      .number()
-      .optional()
-      .describe(
-        "Maximum hierarchy levels for multi-level community detection. Set to 1 for flat communities, higher for hierarchical. Default: 1"
-      ),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: detectCommunitiesSchema,
   execute: async (
-    { campaignId, resolution, minCommunitySize, maxLevels, jwt },
-    context?: unknown
+    input: z.infer<typeof detectCommunitiesSchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = crypto.randomUUID();
+    const { campaignId, resolution, minCommunitySize, maxLevels, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
 
     try {
       return await runWithEnvOrApi({
-        context,
+        context: options,
         jwt,
         authErrorResult: createToolError(
           "Invalid authentication token",
@@ -197,32 +197,31 @@ export const detectCommunitiesTool = tool({
   },
 });
 
-/**
- * Tool: Get communities for a campaign
- * Retrieves previously detected communities
- */
+const getCommunitiesSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  level: z
+    .number()
+    .optional()
+    .describe(
+      "Filter communities by hierarchy level. 0 = top level. Omit to get all levels."
+    ),
+  jwt: commonSchemas.jwt,
+});
+
 export const getCommunitiesTool = tool({
   description:
     "Get the list of communities (entity clusters) for a campaign. " +
     "Returns communities that were previously detected. Use this to show users what communities exist.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    level: z
-      .number()
-      .optional()
-      .describe(
-        "Filter communities by hierarchy level. 0 = top level. Omit to get all levels."
-      ),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: getCommunitiesSchema,
   execute: async (
-    { campaignId, level, jwt },
-    context?: any
+    input: z.infer<typeof getCommunitiesSchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = crypto.randomUUID();
+    const { campaignId, level, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       if (!env) {
         // Fallback to API call
         const url = new URL(
@@ -328,24 +327,26 @@ export const getCommunitiesTool = tool({
   },
 });
 
-/**
- * Tool: Get community hierarchy
- * Retrieves the hierarchical structure of communities
- */
+const getCommunityHierarchySchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  jwt: commonSchemas.jwt,
+});
+
 export const getCommunityHierarchyTool = tool({
   description:
     "Get the hierarchical structure of communities for a campaign. " +
     "Returns communities organized in a tree structure showing parent-child relationships. " +
     "Use this when the user wants to see how communities are organized hierarchically.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async ({ campaignId, jwt }, context?: any): Promise<ToolResult> => {
-    const toolCallId = crypto.randomUUID();
+  inputSchema: getCommunityHierarchySchema,
+  execute: async (
+    input: z.infer<typeof getCommunityHierarchySchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { campaignId, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       if (!env) {
         // Fallback to API call
         const response = await authenticatedFetch(

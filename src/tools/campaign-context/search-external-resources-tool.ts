@@ -8,6 +8,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  type ToolExecuteOptions,
 } from "../utils";
 import { getDAOFactory } from "../../dao/dao-factory";
 
@@ -17,24 +18,26 @@ import { getDAOFactory } from "../../dao/dao-factory";
  * a search API (e.g. Serper, Tavily) and an env key; LLMs cannot browse the web.
  * Use only when the user asks for external inspiration; for campaign entities use searchCampaignContext.
  */
+const searchExternalResourcesSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  query: z.string().describe("The search query for external resources"),
+  resourceType: z
+    .enum(["adventures", "maps", "characters", "monsters", "items", "worlds"])
+    .optional()
+    .describe("Type of external resource to search for"),
+  jwt: commonSchemas.jwt,
+});
+
 export const searchExternalResources = tool({
   description:
     "Suggest where to search for external resources (DMs Guild, Reddit, etc.) with the user's query pre-filled. Returns links the user can open to search themselves—not live search results. Use when users explicitly ask for external inspiration or reference materials. If they ask about entities 'from my campaign' or 'in my world', use searchCampaignContext instead.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    query: z.string().describe("The search query for external resources"),
-    resourceType: z
-      .enum(["adventures", "maps", "characters", "monsters", "items", "worlds"])
-      .optional()
-      .describe("Type of external resource to search for"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: searchExternalResourcesSchema,
   execute: async (
-    { campaignId, query, resourceType, jwt },
-    context?: unknown
+    input: z.infer<typeof searchExternalResourcesSchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId =
-      (context as { toolCallId?: string })?.toolCallId || "unknown";
+    const { campaignId, query, resourceType, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[searchExternalResources] Using toolCallId:", toolCallId);
 
     console.log("[Tool] searchExternalResources received:", {
@@ -44,7 +47,7 @@ export const searchExternalResources = tool({
     });
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       console.log("[Tool] searchExternalResources - Environment found:", !!env);
       console.log("[Tool] searchExternalResources - JWT provided:", !!jwt);
 

@@ -9,30 +9,32 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  type ToolExecuteOptions,
 } from "../utils";
 
-// Tool to upload a character sheet
+const uploadCharacterSheetSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  fileName: z.string().describe("The name of the character sheet file"),
+  fileContent: z
+    .string()
+    .describe("Base64 encoded content of the character sheet file"),
+  characterName: z
+    .string()
+    .optional()
+    .describe("The name of the character (if known)"),
+  jwt: commonSchemas.jwt,
+});
+
 export const uploadCharacterSheet = tool({
   description:
     "Upload a character sheet file (PDF, image, or document) for a campaign",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    fileName: z.string().describe("The name of the character sheet file"),
-    fileContent: z
-      .string()
-      .describe("Base64 encoded content of the character sheet file"),
-    characterName: z
-      .string()
-      .optional()
-      .describe("The name of the character (if known)"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: uploadCharacterSheetSchema,
   execute: async (
-    { campaignId, fileName, fileContent, characterName, jwt },
-    context?: any
+    input: z.infer<typeof uploadCharacterSheetSchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    const { campaignId, fileName, fileContent, characterName, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[uploadCharacterSheet] Using toolCallId:", toolCallId);
 
     console.log("[Tool] uploadCharacterSheet received:", {
@@ -42,8 +44,7 @@ export const uploadCharacterSheet = tool({
     });
 
     try {
-      // Try to get environment from context or global scope
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       console.log("[Tool] uploadCharacterSheet - Environment found:", !!env);
       console.log("[Tool] uploadCharacterSheet - JWT provided:", !!jwt);
 
@@ -153,22 +154,23 @@ export const uploadCharacterSheet = tool({
   },
 });
 
-// Tool to process a character sheet
+const processCharacterSheetSchema = z.object({
+  characterSheetId: z
+    .string()
+    .describe("The ID of the character sheet to process"),
+  jwt: commonSchemas.jwt,
+});
+
 export const processCharacterSheet = tool({
   description:
     "Process and extract information from an uploaded character sheet",
-  parameters: z.object({
-    characterSheetId: z
-      .string()
-      .describe("The ID of the character sheet to process"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: processCharacterSheetSchema,
   execute: async (
-    { characterSheetId, jwt },
-    context?: any
+    input: z.infer<typeof processCharacterSheetSchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    const { characterSheetId, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[processCharacterSheet] Using toolCallId:", toolCallId);
 
     console.log("[Tool] processCharacterSheet received:", {
@@ -176,8 +178,7 @@ export const processCharacterSheet = tool({
     });
 
     try {
-      // Try to get environment from context or global scope
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       console.log("[Tool] processCharacterSheet - Environment found:", !!env);
       console.log("[Tool] processCharacterSheet - JWT provided:", !!jwt);
 

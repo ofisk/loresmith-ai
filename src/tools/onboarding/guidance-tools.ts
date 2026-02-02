@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { ToolResult } from "../../app-constants";
 import { getAssessmentService } from "../../lib/service-factory";
+import type { Env } from "../../middleware/auth";
 import {
   commonSchemas,
   createToolError,
@@ -61,7 +62,7 @@ export const provideWelcomeGuidanceTool = tool({
       }
 
       // Analyze user state to provide contextual guidance
-      const assessmentService = getAssessmentService(env);
+      const assessmentService = getAssessmentService(env as Env);
       const userState = await assessmentService.analyzeUserState(username);
 
       // Provide different guidance based on user state
@@ -221,7 +222,7 @@ export const suggestNextActionsTool = tool({
         );
       }
 
-      const assessmentService = getAssessmentService(env);
+      const assessmentService = getAssessmentService(env as Env);
       const userState = await assessmentService.analyzeUserState(username);
 
       const actions: ActionSuggestion[] = [];
@@ -305,7 +306,7 @@ export const provideCampaignGuidanceTool = tool({
         );
       }
 
-      const assessmentService = getAssessmentService(env);
+      const assessmentService = getAssessmentService(env as Env);
       const campaignReadiness = await assessmentService.getCampaignReadiness(
         campaignId,
         {} as any,

@@ -2,35 +2,40 @@ import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
-import { getEnvFromContext } from "../utils";
+import {
+  getEnvFromContext,
+  createToolError,
+  createToolSuccess,
+  type ToolExecuteOptions,
+} from "../utils";
 import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
 import { AUTH_CODES } from "../../shared-config";
-import { createToolError, createToolSuccess } from "../utils";
 
-// Character sheet listing tools
+const listCharacterSheetsSchema = z.object({
+  campaignId: z
+    .string()
+    .describe("The ID of the campaign to list character sheets for"),
+  jwt: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("JWT token for authentication"),
+});
 
 export const listCharacterSheets = tool({
   description: "List all character sheets associated with a campaign",
-  parameters: z.object({
-    campaignId: z
-      .string()
-      .describe("The ID of the campaign to list character sheets for"),
-    jwt: z
-      .string()
-      .nullable()
-      .optional()
-      .describe("JWT token for authentication"),
-  }),
-  execute: async ({ campaignId, jwt }, context?: any): Promise<ToolResult> => {
+  inputSchema: listCharacterSheetsSchema,
+  execute: async (
+    input: z.infer<typeof listCharacterSheetsSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { campaignId, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[Tool] listCharacterSheets received JWT:", jwt);
-    console.log("[Tool] listCharacterSheets context:", context);
-
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
-    console.log("[listCharacterSheets] Using toolCallId:", toolCallId);
+    console.log("[Tool] listCharacterSheets context:", options);
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       console.log("[listCharacterSheets] Environment from context:", !!env);
       console.log(
         "[listCharacterSheets] DB binding exists:",

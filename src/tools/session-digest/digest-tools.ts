@@ -12,6 +12,7 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import { validateSessionDigestData } from "@/types/session-digest";
 import type { UpdateSessionDigestInput } from "@/types/session-digest";
 import type { ToolResult } from "@/app-constants";
+import type { VectorizeIndex } from "@cloudflare/workers-types";
 import { PlanningContextService } from "@/services/rag/planning-context-service";
 
 const commonSchemas = {
@@ -227,7 +228,7 @@ export const createSessionDigestTool = tool({
       // Validation happens automatically in PlanningContextService constructor
       const planningService = new PlanningContextService(
         env.DB!,
-        env.VECTORIZE!,
+        env.VECTORIZE as VectorizeIndex,
         env.OPENAI_API_KEY as string,
         env
       );
@@ -570,10 +571,9 @@ export const updateSessionDigestTool = tool({
         );
       }
 
-      // Validation happens automatically in PlanningContextService constructor
       const planningService = new PlanningContextService(
         env.DB!,
-        env.VECTORIZE!,
+        env.VECTORIZE as VectorizeIndex,
         env.OPENAI_API_KEY as string,
         env
       );
