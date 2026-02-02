@@ -85,7 +85,7 @@ export function NotificationBell({
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative tour-notifications" ref={dropdownRef}>
       <Button
         variant="secondary"
         size="md"

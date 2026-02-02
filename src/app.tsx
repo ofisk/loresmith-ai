@@ -3,7 +3,8 @@ import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import { generateId } from "ai";
 import type React from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Joyride from "react-joyride";
 
 // Component imports
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
@@ -49,6 +50,63 @@ const toolsRequiringConfirmation: (
 ];
 
 export default function Chat() {
+  // Tour state
+  const [runTour, setRunTour] = useState(true);
+  const [stepIndex, setStepIndex] = useState(0);
+
+  const handleJoyrideCallback = (data: any) => {
+    const { action, index, status, type, lifecycle } = data;
+
+    // Close tour on escape or skip
+    if (
+      action === "close" ||
+      action === "skip" ||
+      status === "finished" ||
+      status === "skipped"
+    ) {
+      setRunTour(false);
+      return;
+    }
+
+    // Skip steps where elements don't exist
+    if (lifecycle === "tooltip" && type === "error:target_not_found") {
+      console.log("Target not found, skipping step:", index);
+      // Let Joyride handle skipping automatically
+      return;
+    }
+
+    // Handle step changes
+    if (type === "step:after" || type === "target:before") {
+      setStepIndex(index + (action === "prev" ? -1 : 1));
+    }
+  };
+
+  // Add keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!runTour) return;
+
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        // Simulate next button click
+        const nextButton = document.querySelector(
+          '[data-action="primary"]'
+        ) as HTMLButtonElement;
+        if (nextButton) nextButton.click();
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        // Simulate back button click
+        const backButton = document.querySelector(
+          '[data-action="back"]'
+        ) as HTMLButtonElement;
+        if (backButton) backButton.click();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [runTour]);
+
   // Modal state must be created first so it can be shared
   const modalState = useModalState();
   const authState = useAppAuthentication();
@@ -661,6 +719,149 @@ export default function Chat() {
 
   return (
     <>
+      <Joyride
+        stepIndex={stepIndex}
+        steps={[
+          {
+            target: "body",
+            content:
+              "Welcome to LoreSmith. This short tour will show you how to forge, explore, and refine your lore.",
+            placement: "center",
+            disableBeacon: true,
+            locale: { next: "Start tour" },
+          },
+          {
+            target: ".tour-user-menu",
+            content:
+              "Manage your account, teams, ChatGPT credentials, and more.",
+            locale: { next: "Next" },
+          },
+          {
+            target: ".tour-sidebar",
+            content:
+              "This sidebar contains your campaigns and resource library.",
+          },
+          {
+            target: ".tour-campaigns-section",
+            content:
+              "Each campaign is a persistent game world, tracking lore, documents, and state over time. Expand here to get started.",
+          },
+          {
+            target: ".tour-library-section",
+            content:
+              "Resources are source materials you link to a campaign (like notes, documents, or references). You'll review and approve sections before they're used.",
+          },
+          {
+            target: ".tour-shard-review",
+            content:
+              "After linking a resource to a campaign, you'll review and approve document sections here before they're added to your campaign.",
+          },
+          {
+            target: ".chat-input-area",
+            content:
+              "And, obvi, the forge itself: where you and LoreSmith shape your tale.",
+            placement: "left",
+          },
+          {
+            target: ".tour-campaign-selector",
+            content:
+              "Select which campaign you're working on. LoreSmith uses this to provide context-aware responses.",
+          },
+          {
+            target: ".tour-session-recap",
+            content:
+              "Record session recap. Document your gaming sessions and create summaries.",
+          },
+          {
+            target: ".tour-next-steps",
+            content:
+              "What should I do next? Get personalized suggestions for your campaign.",
+          },
+          {
+            target: ".tour-help-button",
+            content: "Get help and guidance anytime by clicking here.",
+          },
+          {
+            target: ".tour-admin-dashboard",
+            content: "Admin dashboard. View telemetry and system metrics.",
+            disableBeacon: true,
+          },
+          {
+            target: ".tour-clear-history",
+            content: "Clear your chat history to start fresh.",
+          },
+          {
+            target: ".tour-notifications",
+            content:
+              "Stay updated on file uploads, shard approvals, and system events.",
+            disableBeacon: true,
+          },
+        ]}
+        run={runTour}
+        continuous
+        showSkipButton
+        disableCloseOnEsc={false}
+        disableScrolling={false}
+        spotlightClicks={false}
+        callback={handleJoyrideCallback}
+        locale={{
+          next: "Next",
+          last: "Done",
+          skip: "Skip tour",
+          back: "Back",
+        }}
+        styles={{
+          options: {
+            zIndex: 10000,
+            arrowColor: "#262626",
+            backgroundColor: "#262626",
+            primaryColor: "#c084fc",
+            textColor: "#e5e5e5",
+          },
+          tooltip: {
+            backgroundColor: "#262626",
+            borderRadius: "0.5rem",
+            color: "#e5e5e5",
+            fontSize: "0.875rem",
+            padding: "1.5rem",
+          },
+          tooltipContainer: {
+            textAlign: "left",
+          },
+          tooltipContent: {
+            padding: "0.5rem 0",
+          },
+          buttonNext: {
+            backgroundColor: "transparent",
+            color: "#c084fc",
+            fontSize: "0.875rem",
+            fontWeight: 600,
+            padding: "0.5rem 0",
+            borderRadius: "0",
+            outline: "none",
+            border: "none",
+          },
+          buttonBack: {
+            backgroundColor: "transparent",
+            color: "#9ca3af",
+            fontSize: "0.875rem",
+            fontWeight: 600,
+            padding: "0.5rem 0",
+            marginRight: "1rem",
+            border: "none",
+          },
+          buttonSkip: {
+            backgroundColor: "transparent",
+            color: "#9ca3af",
+            fontSize: "0.875rem",
+            fontWeight: 600,
+            border: "none",
+          },
+          buttonClose: {
+            display: "none",
+          },
+        }}
+      />
       <div className="h-[100vh] w-full p-6 flex justify-center items-center bg-fixed">
         <div className="h-[calc(100vh-3rem)] w-full mx-auto max-w-[1400px] flex flex-col shadow-2xl rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950">
           {/* Top Header - LoreSmith Branding */}
