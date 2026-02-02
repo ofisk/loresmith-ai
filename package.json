@@ -9,7 +9,7 @@
     "url": "https://github.com/ofisk/loresmith-ai"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=20 <21"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json}": [

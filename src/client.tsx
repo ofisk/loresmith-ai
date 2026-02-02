@@ -4,6 +4,8 @@ import { Providers } from "@/providers";
 import { NotificationProvider } from "./components/notifications/NotificationProvider";
 import App from "./app";
 
+document.documentElement.classList.add("dark");
+
 const root = createRoot(document.getElementById("app")!);
 
 root.render(
