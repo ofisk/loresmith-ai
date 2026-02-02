@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* Prevent flash of unstyled content: set html background before app CSS loads */
+html {
+  background: #000;
+}
+@media (prefers-color-scheme: dark) {
+  html {
+    background: #000;
+  }
+}
+
 /* Animated Auth Background Styles */
 @keyframes float-slow {
   0%,
