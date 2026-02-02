@@ -369,8 +369,15 @@ export class PlanningContextService extends BaseRAGService {
         maxTokens: 500,
       });
 
-      const validated = extractionSchema.parse(result);
-      const entityNames = validated.entityNames.filter(
+      const parsed = extractionSchema.safeParse(result);
+      if (!parsed.success) {
+        console.warn(
+          "[PlanningContext] LLM result failed schema validation:",
+          parsed.error.flatten()
+        );
+        return [];
+      }
+      const entityNames = parsed.data.entityNames.filter(
         (name) => name.length >= 2
       );
 

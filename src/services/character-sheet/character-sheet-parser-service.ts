@@ -3,6 +3,7 @@
 
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import { z } from "zod";
+import { parseOrThrow } from "@/lib/zod-utils";
 import { formatCharacterSheetParsingPrompt } from "@/lib/prompts/character-sheet-prompts";
 import { chunkTextByCharacterCount } from "@/lib/text-chunking-utils";
 
@@ -239,8 +240,11 @@ export class CharacterSheetParserService {
       }
     );
 
-    // Validate against schema
-    return CharacterDataSchema.parse(result);
+    // Validate against schema (LLM output may be malformed)
+    return parseOrThrow(CharacterDataSchema, result, {
+      logPrefix: "[CharacterSheetParser]",
+      messagePrefix: "Invalid character data",
+    });
   }
 
   /**

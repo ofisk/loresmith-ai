@@ -10,6 +10,7 @@ import {
 import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
 import { z } from "zod";
 import { OpenAIAPIKeyError, EntityExtractionError } from "@/lib/errors";
+import { parseOrThrow } from "@/lib/zod-utils";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import type { TelemetryService } from "@/services/telemetry/telemetry-service";
 
@@ -306,23 +307,19 @@ CONTENT END`;
         maxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
       });
 
-      // Validate the result against our Zod schema
-      const validated = EntityExtractionSchema.parse(result);
-
-      return validated;
+      // Validate the result against our Zod schema (LLM output may be malformed)
+      return parseOrThrow(EntityExtractionSchema, result, {
+        logPrefix: "[EntityExtractionService]",
+        messagePrefix: "Schema validation failed",
+        customError: (msg) => new EntityExtractionError(msg),
+      });
     } catch (error) {
       console.error(
         "[EntityExtractionService] Error calling OpenAI API with structured output:",
         error
       );
-      if (error instanceof z.ZodError) {
-        console.error(
-          "[EntityExtractionService] Schema validation failed:",
-          error.errors
-        );
-        throw new EntityExtractionError(
-          `Schema validation failed: ${error.errors.map((e) => e.message).join(", ")}`
-        );
+      if (error instanceof EntityExtractionError) {
+        throw error;
       }
       throw new EntityExtractionError(
         error instanceof Error ? error.message : "Unknown error"

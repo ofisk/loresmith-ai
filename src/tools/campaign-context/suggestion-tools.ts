@@ -599,8 +599,15 @@ async function analyzeMetadataCoverage(
       maxTokens: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_MAX_TOKENS,
     });
 
-    const validated = coverageSchema.parse(result);
-    return validated.coverage;
+    const parsed = coverageSchema.safeParse(result);
+    if (!parsed.success) {
+      console.warn(
+        "[MetadataAnalysis] LLM result failed schema validation:",
+        parsed.error.flatten()
+      );
+      return coverage;
+    }
+    return parsed.data.coverage;
   } catch (error) {
     console.warn(
       "[MetadataAnalysis] Failed to analyze metadata with LLM:",
