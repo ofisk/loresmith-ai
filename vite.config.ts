@@ -10,7 +10,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function ensureHtmlStringPlugin() {
   const indexHtmlAbsolute = path.resolve(__dirname, "index.html");
-  const indexHtmlFromCwd = path.join(process.cwd(), "index.html");
   return {
     name: "vite:ensure-html-string",
     enforce: "pre" as const,
@@ -29,16 +28,14 @@ function ensureHtmlStringPlugin() {
       const isIndexHtml =
         idPath === "index.html" ||
         idPath.endsWith("/index.html") ||
-        idPath.endsWith("\\index.html") ||
-        path.resolve(idPath) === indexHtmlAbsolute ||
-        path.resolve(idPath) === indexHtmlFromCwd;
+        idPath.endsWith("\\index.html");
       if (!isIndexHtml) return null;
       const filePath = path.join(process.cwd(), "index.html");
       let code = fs.readFileSync(filePath, "utf8");
       if (code.length > 0 && code.charCodeAt(0) === 0xfeff) {
         code = code.slice(1);
       }
-      return { code };
+      return { code: String(code) };
     },
   };
 }
