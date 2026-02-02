@@ -68,24 +68,19 @@ export class AgentRegistryService {
     try {
       // Lazy load agents to avoid module loading issues
       const { CampaignAgent } = await import("../agents/campaign-agent");
-      const { CampaignContextAgent } = await import(
-        "../agents/campaign-context-agent"
-      );
-      const { CampaignAnalysisAgent } = await import(
-        "../agents/campaign-analysis-agent"
-      );
+      const { CampaignContextAgent } =
+        await import("../agents/campaign-context-agent");
+      const { CampaignAnalysisAgent } =
+        await import("../agents/campaign-analysis-agent");
       const { CharacterAgent } = await import("../agents/character-agent");
-      const { CharacterSheetAgent } = await import(
-        "../agents/character-sheet-agent"
-      );
+      const { CharacterSheetAgent } =
+        await import("../agents/character-sheet-agent");
       const { EntityGraphAgent } = await import("../agents/entity-graph-agent");
-      const { CampaignHelpAgent } = await import(
-        "../agents/campaign-help-agent"
-      );
+      const { CampaignHelpAgent } =
+        await import("../agents/campaign-help-agent");
       const { ResourceAgent } = await import("../agents/resource-agent");
-      const { SessionDigestAgent } = await import(
-        "../agents/session-digest-agent"
-      );
+      const { SessionDigestAgent } =
+        await import("../agents/session-digest-agent");
       const { AgentRouter } = await import("./agent-router");
 
       // Register Campaign Agent

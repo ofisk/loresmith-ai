@@ -50,9 +50,8 @@ export function useAuthenticatedRequest() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        const { parseErrorResponse, formatErrorForNotification } = await import(
-          "@/lib/error-parsing"
-        );
+        const { parseErrorResponse, formatErrorForNotification } =
+          await import("@/lib/error-parsing");
         const parsedError = parseErrorResponse(errorText, response.status);
         throw new Error(formatErrorForNotification(parsedError));
       }

@@ -9,16 +9,15 @@ import {
   ensureCampaignAccess,
 } from "@/lib/route-utils";
 
-interface IncomingChangelogPayload
-  extends Partial<
-    Omit<
-      WorldStateChangelogPayload,
-      | "entity_updates"
-      | "relationship_updates"
-      | "new_entities"
-      | "campaign_session_id"
-    >
-  > {
+interface IncomingChangelogPayload extends Partial<
+  Omit<
+    WorldStateChangelogPayload,
+    | "entity_updates"
+    | "relationship_updates"
+    | "new_entities"
+    | "campaign_session_id"
+  >
+> {
   campaign_session_id?: number | null;
   entity_updates?: WorldStateChangelogPayload["entity_updates"];
   relationship_updates?: WorldStateChangelogPayload["relationship_updates"];

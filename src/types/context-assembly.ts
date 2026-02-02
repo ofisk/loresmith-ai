@@ -41,8 +41,7 @@ export interface WorldKnowledgeWithOverlay extends WorldKnowledgeResult {
 /**
  * Entity with overlays applied showing current world state
  */
-export interface EntityWithRelationshipsAndOverlay
-  extends EntityWithRelationships {
+export interface EntityWithRelationshipsAndOverlay extends EntityWithRelationships {
   worldState?: WorldStateEntityOverlay;
   relationships: Array<
     EntityRelationship & {

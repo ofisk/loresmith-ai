@@ -14,9 +14,7 @@ import { PDFExtractionError } from "@/lib/errors";
  * Direct file content extraction provider
  * Reads files directly from R2 and extracts text using proper PDF parsing libraries
  */
-export class DirectFileContentExtractionProvider
-  implements ContentExtractionProvider
-{
+export class DirectFileContentExtractionProvider implements ContentExtractionProvider {
   constructor(
     _env: Env,
     private r2Helper: R2Helper

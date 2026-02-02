@@ -424,9 +424,8 @@ export class Chat extends AIChatAgent<Env> {
             targetAgentInstance.messages = [...this.messages];
 
             // Call the recap tool to get the recap data
-            const { generateContextRecapTool } = await import(
-              "@/tools/general/recap-tools"
-            );
+            const { generateContextRecapTool } =
+              await import("@/tools/general/recap-tools");
             const recapResult = await generateContextRecapTool.execute(
               { campaignId, jwt: currentJwt },
               { env: this.env, toolCallId: "recap-request" } as any
@@ -443,9 +442,8 @@ export class Chat extends AIChatAgent<Env> {
               const recap = (recapResult.result.data as { recap: any }).recap;
 
               // Generate the recap prompt using the prompts library
-              const { formatContextRecapPrompt } = await import(
-                "@/lib/prompts/recap-prompts"
-              );
+              const { formatContextRecapPrompt } =
+                await import("@/lib/prompts/recap-prompts");
               const recapPrompt = formatContextRecapPrompt(recap);
 
               // Add the recap request as a new user message
