@@ -393,13 +393,14 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
         // Log when tools require campaignId but no explicit selection is available
         // This is a valid use case (e.g., user asks to delete a campaign by name without selecting it)
         const toolsRequiringCampaignId = Object.entries(this.tools).filter(
-          ([_, tool]) => {
-            return (
-              tool.parameters &&
-              typeof tool.parameters === "object" &&
-              (tool.parameters as any).shape &&
-              "campaignId" in (tool.parameters as any).shape
-            );
+          ([_, t]) => {
+            const schema = (t as any).inputSchema ?? (t as any).parameters;
+            const shape =
+              schema &&
+              typeof schema === "object" &&
+              "shape" in schema &&
+              (schema as any).shape;
+            return !!shape && "campaignId" in shape;
           }
         );
 
@@ -733,14 +734,16 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               // Ensure JWT is always included for operations that require it
               const enhancedArgs = { ...args };
 
-              // Check if the tool requires a JWT parameter and inject it if not provided
-              // For Zod schemas, we need to check the shape property
-              const hasJwtParam =
-                tool.parameters &&
-                typeof tool.parameters === "object" &&
-                (tool.parameters as any).shape &&
-                "jwt" in (tool.parameters as any).shape;
+              // Resolve schema for param checks: AI SDK v5 uses .parameters, v6 uses .inputSchema (Zod has .shape)
+              const schema =
+                (tool as any).inputSchema ?? (tool as any).parameters;
+              const shape =
+                schema &&
+                typeof schema === "object" &&
+                "shape" in schema &&
+                (schema as any).shape;
 
+              const hasJwtParam = !!shape && "jwt" in shape;
               if (hasJwtParam && !enhancedArgs.jwt) {
                 enhancedArgs.jwt = clientJwt;
                 console.log(
@@ -748,16 +751,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 );
               }
 
-              // Check if the tool requires a campaignId parameter and inject/override it with the current campaign
-              const hasCampaignIdParam =
-                tool.parameters &&
-                typeof tool.parameters === "object" &&
-                (tool.parameters as any).shape &&
-                "campaignId" in (tool.parameters as any).shape;
-
+              const hasCampaignIdParam = !!shape && "campaignId" in shape;
               if (hasCampaignIdParam && selectedCampaignId) {
                 // Always use the selectedCampaignId from the current message, overriding any LLM-provided value
-                // This ensures we use the campaign the user has explicitly selected in the dropdown
                 const previousCampaignId = enhancedArgs.campaignId;
                 enhancedArgs.campaignId = selectedCampaignId;
                 if (
@@ -770,12 +766,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 }
               }
 
-              // Check if the tool requires a sessionId parameter and inject it from durable object ID
-              const hasSessionIdParam =
-                tool.parameters &&
-                typeof tool.parameters === "object" &&
-                (tool.parameters as any).shape &&
-                "sessionId" in (tool.parameters as any).shape;
+              const hasSessionIdParam = !!shape && "sessionId" in shape;
 
               if (hasSessionIdParam && !enhancedArgs.sessionId) {
                 // Inject sessionId from durable object ID

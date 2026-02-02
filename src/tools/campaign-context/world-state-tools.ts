@@ -230,9 +230,7 @@ const updateEntityWorldStateSchema = z.object({
     .describe("The entity whose world state is being updated."),
   status: z
     .string()
-    .describe(
-      "The new status/condition (e.g., destroyed, occupied, missing)."
-    ),
+    .describe("The new status/condition (e.g., destroyed, occupied, missing)."),
   description: z
     .string()
     .optional()
@@ -299,9 +297,7 @@ const updateRelationshipWorldStateSchema = z.object({
   campaignId: commonSchemas.campaignId,
   fromEntityId: z
     .string()
-    .describe(
-      "Source entity in the relationship (e.g., initiating faction)."
-    ),
+    .describe("Source entity in the relationship (e.g., initiating faction)."),
   toEntityId: z
     .string()
     .describe("Target entity in the relationship (e.g., opposing faction)."),

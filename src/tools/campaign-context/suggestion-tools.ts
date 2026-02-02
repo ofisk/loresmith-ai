@@ -618,7 +618,7 @@ async function analyzeMetadataCoverage(
 async function performSemanticChecklistAnalysis(
   env: Env,
   campaignId: string,
-  campaignName?: string,
+  _campaignName?: string,
   campaignDescription?: string,
   campaignMetadata?: string | null
 ): Promise<SemanticChecklistAnalysis> {

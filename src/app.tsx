@@ -157,16 +157,7 @@ export default function Chat() {
     name: sessionId, // Use the session ID to create a unique Durable Object for this session
   });
 
-  const {
-    messages: agentMessages,
-    input: agentInput,
-    handleInputChange: handleAgentInputChange,
-    clearHistory,
-    isLoading,
-    stop,
-    setInput,
-    append,
-  } = useAgentChat({
+  const chatReturn = useAgentChat({
     agent,
     onFinish: (finishResult) => {
       // Helper: Check if tool result data indicates an authentication error
@@ -288,6 +279,31 @@ export default function Chat() {
       }
     },
   });
+
+  const {
+    messages: agentMessages,
+    input: agentInput,
+    handleInputChange: handleAgentInputChange,
+    clearHistory,
+    isLoading,
+    stop,
+    setInput,
+    append,
+  } = chatReturn as typeof chatReturn & {
+    input: string;
+    handleInputChange: (
+      e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    ) => void;
+    isLoading: boolean;
+    setInput: (v: string) => void;
+    append: (message: {
+      id?: string;
+      role: string;
+      content: string;
+      data?: unknown;
+    }) => void;
+  };
+
   const authReady = useAuthReady();
 
   useEffect(() => {
@@ -485,9 +501,9 @@ export default function Chat() {
     m.parts?.some(
       (part) =>
         part.type === "tool-invocation" &&
-        part.toolInvocation.state === "call" &&
+        part.toolInvocation?.state === "call" &&
         toolsRequiringConfirmation.includes(
-          part.toolInvocation.toolName as
+          (part.toolInvocation?.toolName ?? "") as
             | keyof typeof generalTools
             | keyof typeof campaignTools
             | keyof typeof fileTools

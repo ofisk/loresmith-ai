@@ -431,7 +431,7 @@ export function CytoscapeGraph({
       }
       isReadyRef.current = false;
     };
-  }, [dataKey, elements]);
+  }, [dataKey, elements, layout]);
 
   // Handle layout changes
   useEffect(() => {

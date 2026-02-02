@@ -419,10 +419,7 @@ export function FlexibleShardCard({
       const newDescription = getShardDescription();
       setDescriptionValue(newDescription || "");
     }
-    // getShardTitle and getShardDescription are recreated on each render but depend on shard
-    // We only want to update when shard changes, not when the functions change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shard]);
+  }, [shard, getShardTitle, getShardDescription]);
 
   const getQuickProperties = () => {
     // Get 2-3 key properties to show in the collapsed view

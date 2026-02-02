@@ -367,7 +367,10 @@ describe("Campaign Tools", () => {
       expect(campaignTools.deleteCampaign.description).toContain(
         "Delete a specific campaign"
       );
-      expect(campaignTools.deleteCampaign.parameters).toBeDefined();
+      expect(
+        campaignTools.deleteCampaign.inputSchema ??
+          campaignTools.deleteCampaign.parameters
+      ).toBeDefined();
     });
 
     it("should have correct tool structure for deleteCampaigns", () => {
@@ -375,30 +378,49 @@ describe("Campaign Tools", () => {
       expect(campaignTools.deleteCampaigns.description).toBe(
         "Delete all campaigns for the current user"
       );
-      expect(campaignTools.deleteCampaigns.parameters).toBeDefined();
+      expect(
+        campaignTools.deleteCampaigns.inputSchema ??
+          campaignTools.deleteCampaigns.parameters
+      ).toBeDefined();
     });
 
     it("should require campaignId parameter for deleteCampaign", () => {
-      const parameters = campaignTools.deleteCampaign.parameters;
+      const parameters =
+        campaignTools.deleteCampaign.inputSchema ??
+        campaignTools.deleteCampaign.parameters;
       expect(parameters).toBeDefined();
       // The parameters object is a Zod schema, so we can't access properties directly
       // but we can verify the tool structure is correct
     });
 
     it("should require campaignIds parameter for deleteCampaigns", () => {
-      const parameters = campaignTools.deleteCampaigns.parameters;
+      const parameters =
+        campaignTools.deleteCampaigns.inputSchema ??
+        campaignTools.deleteCampaigns.parameters;
       expect(parameters).toBeDefined();
       // The parameters object is a Zod schema, so we can't access properties directly
       // but we can verify the tool structure is correct
     });
 
     it("should have optional JWT parameter for both tools", () => {
-      expect(campaignTools.deleteCampaign.parameters).toBeDefined();
-      expect(campaignTools.deleteCampaigns.parameters).toBeDefined();
+      expect(
+        campaignTools.deleteCampaign.inputSchema ??
+          campaignTools.deleteCampaign.parameters
+      ).toBeDefined();
+      expect(
+        campaignTools.deleteCampaigns.inputSchema ??
+          campaignTools.deleteCampaigns.parameters
+      ).toBeDefined();
 
       // Verify the parameters are defined (JWT is included in commonSchemas)
-      expect(campaignTools.deleteCampaign.parameters).toBeDefined();
-      expect(campaignTools.deleteCampaigns.parameters).toBeDefined();
+      expect(
+        campaignTools.deleteCampaign.inputSchema ??
+          campaignTools.deleteCampaign.parameters
+      ).toBeDefined();
+      expect(
+        campaignTools.deleteCampaigns.inputSchema ??
+          campaignTools.deleteCampaigns.parameters
+      ).toBeDefined();
     });
   });
 });

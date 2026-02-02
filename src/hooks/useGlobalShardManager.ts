@@ -164,14 +164,13 @@ export function useGlobalShardManager(getJwt: () => string | null) {
   }, []);
 
   // Initial fetch on mount if JWT is available
-  // Note: This useEffect intentionally does not include getJwt in dependencies
-  // to avoid infinite loops. The app.tsx handles fetching when auth state changes.
+  // Note: getJwt omitted from deps to avoid infinite loops; app.tsx handles fetch on auth change.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: getJwt omitted to avoid infinite loops; app handles fetch on auth change
   useEffect(() => {
     const jwt = getJwt();
     if (jwt) {
       fetchAllStagedShards();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchAllStagedShards]);
 
   return {

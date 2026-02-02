@@ -144,7 +144,9 @@ describe("Character Sheet Tools", () => {
       expect(toolDefinition.description).toContain(
         "Upload a character sheet file"
       );
-      expect(toolDefinition.parameters).toBeDefined();
+      expect(
+        toolDefinition.inputSchema ?? toolDefinition.parameters
+      ).toBeDefined();
     });
 
     it("should require correct parameters", async () => {
@@ -152,9 +154,9 @@ describe("Character Sheet Tools", () => {
         await import("../../src/tools/character-sheet/upload-tools");
 
       const toolDefinition = uploadCharacterSheet as any;
-      const parameters = toolDefinition.parameters;
+      const schema = toolDefinition.inputSchema ?? toolDefinition.parameters;
 
-      expect(parameters).toBeDefined();
+      expect(schema).toBeDefined();
       expect(typeof toolDefinition.description).toBe("string");
     });
 
@@ -276,7 +278,9 @@ describe("Character Sheet Tools", () => {
       expect(toolDefinition.description).toContain(
         "Process and extract information"
       );
-      expect(toolDefinition.parameters).toBeDefined();
+      expect(
+        toolDefinition.inputSchema ?? toolDefinition.parameters
+      ).toBeDefined();
     });
 
     it("should handle successful processing with direct database access", async () => {
@@ -391,7 +395,9 @@ describe("Character Sheet Tools", () => {
 
       const toolDefinition = listCharacterSheets as any;
       expect(toolDefinition.description).toContain("List all character sheets");
-      expect(toolDefinition.parameters).toBeDefined();
+      expect(
+        toolDefinition.inputSchema ?? toolDefinition.parameters
+      ).toBeDefined();
     });
 
     it("should handle successful listing with direct database access", async () => {
@@ -446,7 +452,9 @@ describe("Character Sheet Tools", () => {
       expect(toolDefinition.description).toContain(
         "Create a new character sheet"
       );
-      expect(toolDefinition.parameters).toBeDefined();
+      expect(
+        toolDefinition.inputSchema ?? toolDefinition.parameters
+      ).toBeDefined();
     });
 
     it("should handle successful creation with direct database access", async () => {

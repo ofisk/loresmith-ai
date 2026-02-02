@@ -75,8 +75,7 @@ Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characte
     input: z.infer<typeof listAllEntitiesSchema>,
     options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const { campaignId, entityType, includeStubs, page, pageSize, jwt } =
-      input;
+    const { campaignId, entityType, includeStubs, page, pageSize, jwt } = input;
     const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[listAllEntities] Using toolCallId:", toolCallId);
 

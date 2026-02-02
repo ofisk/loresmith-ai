@@ -4,7 +4,6 @@ import {
   detectCommunities,
   leidenAlgorithm,
   type GraphEdge,
-  type Graph,
 } from "@/lib/graph/leiden-algorithm";
 
 describe("buildGraph", () => {

@@ -33,9 +33,7 @@ const captureConversationalContextSchema = z.object({
     .min(0)
     .max(1)
     .optional()
-    .describe(
-      "How confident you are this should be saved (0-1, default 0.8)"
-    ),
+    .describe("How confident you are this should be saved (0-1, default 0.8)"),
   tags: z
     .array(z.string())
     .optional()

@@ -271,7 +271,7 @@ export class Chat extends AIChatAgent<any> {
       userMessage,
       this.messages
         .slice(-6)
-        .map((msg) => msg.content)
+        .map((msg) => (msg as { content?: string }).content ?? "")
         .join(" "),
       null,
       model
@@ -289,7 +289,10 @@ export class Chat extends AIChatAgent<any> {
     _options?: { abortSignal?: AbortSignal }
   ) {
     try {
-      const messages = this.messages as any[];
+      const messages = this.messages as Array<{
+        role: string;
+        content?: string;
+      }>;
       const lastUserMessage = messages
         .slice()
         .reverse()
@@ -436,20 +439,39 @@ export class Chat extends AIChatAgent<any> {
             // Call the recap tool to get the recap data
             const { generateContextRecapTool } =
               await import("@/tools/general/recap-tools");
-            const recapResult = await generateContextRecapTool.execute(
-              { campaignId, jwt: currentJwt },
-              { env: this.env, toolCallId: "recap-request" } as any
-            );
+            const execute = generateContextRecapTool.execute;
+            if (!execute) {
+              console.error("[Chat] generateContextRecapTool has no execute");
+              throw new Error("Recap tool not executable");
+            }
+            const recapResult = await execute({ campaignId, jwt: currentJwt }, {
+              env: this.env,
+              toolCallId: "recap-request",
+            } as any);
+
+            const result =
+              recapResult &&
+              typeof recapResult === "object" &&
+              "result" in recapResult
+                ? (
+                    recapResult as {
+                      result: {
+                        success?: boolean;
+                        data?: unknown;
+                        message?: string;
+                      };
+                    }
+                  ).result
+                : null;
 
             if (
-              recapResult.result.success &&
-              recapResult.result.data &&
-              typeof recapResult.result.data === "object" &&
-              recapResult.result.data !== null &&
-              "recap" in recapResult.result.data
+              result?.success &&
+              result?.data &&
+              typeof result.data === "object" &&
+              result.data !== null &&
+              "recap" in result.data
             ) {
-              // Format the recap data into a user-friendly message request
-              const recap = (recapResult.result.data as { recap: any }).recap;
+              const recap = (result.data as { recap: any }).recap;
 
               // Generate the recap prompt using the prompts library
               const { formatContextRecapPrompt } =
@@ -470,7 +492,7 @@ export class Chat extends AIChatAgent<any> {
             } else {
               console.error(
                 "[Chat] Failed to generate recap data:",
-                recapResult.result.message
+                result?.message ?? "Unknown"
               );
               // Fall through to normal message handling
             }
@@ -482,7 +504,7 @@ export class Chat extends AIChatAgent<any> {
       }
 
       const targetAgent = await this.determineAgent(
-        (lastUserMessage as any).content
+        (lastUserMessage as { content?: string })?.content ?? ""
       );
       console.log(
         `[Chat] Routing to ${targetAgent} agent for message: "${(lastUserMessage as any).content}"`
@@ -599,7 +621,7 @@ export class Chat extends AIChatAgent<any> {
         role: "user",
         content: `Running scheduled task: ${description}`,
         createdAt: new Date(),
-      },
+      } as any,
     ]);
   }
 }
