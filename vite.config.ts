@@ -9,64 +9,12 @@ import { defineConfig, type Plugin, type UserConfig } from "vite";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const isCI = process.env.CI === "true" || process.env.CF_PAGES === "1";
-
-function ensureHtmlStringPlugin() {
-  const indexHtmlAbsolute = path.resolve(__dirname, "index.html");
-  return {
-    name: "vite:ensure-html-string",
-    enforce: "pre" as const,
-    resolveId(source: string) {
-      if (
-        source === "index.html" ||
-        source.endsWith("/index.html") ||
-        source.endsWith("\\index.html")
-      ) {
-        return indexHtmlAbsolute;
-      }
-      return null;
-    },
-    load(id: string) {
-      const idPath = id.replace(/\?.*$/, "").replace(/#.*$/, "");
-      const isIndexHtml =
-        idPath === "index.html" ||
-        idPath.endsWith("/index.html") ||
-        idPath.endsWith("\\index.html");
-      if (!isIndexHtml) return null;
-      const filePath = path.join(process.cwd(), "index.html");
-      let code = fs.readFileSync(filePath, "utf8");
-      if (code.length > 0 && code.charCodeAt(0) === 0xfeff) {
-        code = code.slice(1);
-      }
-      return { code: String(code) };
-    },
-  };
-}
-
-/** Post-phase transform: ensure index.html module code is a string (CI Rollup setSource InvalidArg). */
-function ensureHtmlStringPostPlugin() {
-  return {
-    name: "vite:ensure-html-string-post",
-    enforce: "post" as const,
-    transform(code: string | Buffer | undefined, id: string) {
-      const idPath = id.replace(/\?.*$/, "").replace(/#.*$/, "");
-      const isIndexHtml =
-        idPath === "index.html" ||
-        idPath.endsWith("/index.html") ||
-        idPath.endsWith("\\index.html");
-      if (!isIndexHtml) return null;
-      return typeof code === "string" ? code : String(code ?? "");
-    },
-  };
-}
-
-/** When CI: use JS entry and emit index.html in bundle to avoid vite:build-html load/transform InvalidArg. */
+/** Use JS entry and emit index.html in bundle to avoid vite:build-html load/transform InvalidArg on CI. */
 function ciHtmlEntryPlugin(): Plugin {
   return {
     name: "vite:ci-html-entry",
     enforce: "post" as const,
     config(config: UserConfig) {
-      if (!isCI) return;
       const root = config.root ?? process.cwd();
       return {
         build: {
@@ -78,7 +26,6 @@ function ciHtmlEntryPlugin(): Plugin {
       };
     },
     generateBundle(_outputOptions, bundle: OutputBundle) {
-      if (!isCI) return;
       const entryChunk = Object.values(bundle).find(
         (o): o is OutputChunk =>
           o.type === "chunk" && (o as OutputChunk).isEntry === true
@@ -98,8 +45,6 @@ function ciHtmlEntryPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [
-    ensureHtmlStringPlugin(),
-    ensureHtmlStringPostPlugin(),
     react(),
     cloudflare({
       configPath: "./wrangler.dev.jsonc",
