@@ -43,6 +43,8 @@ function ciHtmlEntryPlugin(): Plugin {
   };
 }
 
+const clientEntry = path.resolve(__dirname, "src/client.tsx");
+
 export default defineConfig({
   plugins: [
     react(),
@@ -56,10 +58,19 @@ export default defineConfig({
   ssr: {
     noExternal: ["agents", "ai", "cron-schedule", "mimetext"],
   },
+  // Explicit client environment input so @cloudflare/vite-plugin uses JS entry (avoids vite:build-html InvalidArg on CI).
+  environments: {
+    client: {
+      build: {
+        rollupOptions: {
+          input: clientEntry,
+        },
+      },
+    },
+  },
   build: {
     rollupOptions: {
-      // JS entry avoids vite:build-html load/transform InvalidArg on Cloudflare CI; index.html is emitted in generateBundle.
-      input: path.resolve(__dirname, "src/client.tsx"),
+      input: clientEntry,
       external: ["cloudflare:email", "cloudflare:workers"],
       output: {
         manualChunks: {
