@@ -58,7 +58,8 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      input: path.resolve(__dirname, "index.html"),
+      // JS entry avoids vite:build-html load/transform InvalidArg on Cloudflare CI; index.html is emitted in generateBundle.
+      input: path.resolve(__dirname, "src/client.tsx"),
       external: ["cloudflare:email", "cloudflare:workers"],
       output: {
         manualChunks: {
