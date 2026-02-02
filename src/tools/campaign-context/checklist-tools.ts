@@ -5,12 +5,17 @@ import {
   createToolSuccess,
   createToolError,
   runWithEnvOrApi,
-  type ToolContext,
+  type ToolExecuteOptions,
 } from "../utils";
 import { getDAOFactory } from "../../dao/dao-factory";
 import { AUTH_CODES, API_CONFIG } from "../../shared-config";
 import { CHECKLIST_ITEM_NAMES } from "../../constants/checklist-items";
 import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
+
+const getChecklistStatusSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  jwt: commonSchemas.jwt,
+});
 
 /**
  * Get checklist status for a campaign
@@ -19,19 +24,17 @@ import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
 export const getChecklistStatusTool = tool({
   description:
     "Get the current status and summaries for all campaign planning checklist items. This provides a quick, structured view of what's been completed, what's incomplete, and brief summaries of what exists for each item. Use this instead of doing multiple broad searches when checking what checklist items are already established. IMPORTANT: Status marked as 'partial' with 'Preliminary:' summaries are based on entity counts only - you should investigate further using searchCampaignContext to verify if items are truly complete (e.g., factions may exist but not be well-defined or integrated into the campaign).",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: getChecklistStatusSchema,
   execute: async (
-    { campaignId, jwt },
-    context?: ToolContext
+    input: z.infer<typeof getChecklistStatusSchema>,
+    options?: ToolExecuteOptions
   ): Promise<unknown> => {
-    const toolCallId = crypto.randomUUID();
+    const { campaignId, jwt } = input;
+    const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 
     try {
       return await runWithEnvOrApi({
-        context,
+        context: options,
         jwt,
         apiCall: async () => {
           const response = await authenticatedFetch(

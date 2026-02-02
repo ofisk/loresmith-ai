@@ -15,7 +15,7 @@ export function formatAgentRoutingPrompt(
   agentDescriptions: string,
   userMessage: string,
   recentContext: string | undefined,
-  registeredAgents: string[]
+  _registeredAgents: string[]
 ): string {
   return `Based on the user's message, determine which agent should handle this request.
 

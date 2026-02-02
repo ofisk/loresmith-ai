@@ -10,23 +10,29 @@ import {
   createToolError,
   createToolSuccess,
   getEnvFromContext,
+  type ToolExecuteOptions,
 } from "../utils";
+
+const validateAdminKeySchema = z.object({
+  adminKey: z.string().describe("The admin key to validate"),
+  jwt: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("JWT token for authentication"),
+});
 
 // Tool to validate admin key
 export const validateAdminKey = tool({
   description:
     "Validate the admin key for accessing file upload and processing features",
-  parameters: z.object({
-    adminKey: z.string().describe("The admin key to validate"),
-    jwt: z
-      .string()
-      .nullable()
-      .optional()
-      .describe("JWT token for authentication"),
-  }),
-  execute: async ({ adminKey, jwt }, context?: any): Promise<ToolResult> => {
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+  inputSchema: validateAdminKeySchema,
+  execute: async (
+    input: z.infer<typeof validateAdminKeySchema>,
+    options: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { adminKey, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[validateAdminKey] Using toolCallId:", toolCallId);
 
     console.log("[Tool] validateAdminKey received:", {
@@ -34,8 +40,7 @@ export const validateAdminKey = tool({
     });
 
     try {
-      // Try to get environment from context or global scope
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       console.log("[Tool] validateAdminKey - Environment found:", !!env);
       console.log("[Tool] validateAdminKey - JWT provided:", !!jwt);
 

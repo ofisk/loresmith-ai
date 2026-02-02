@@ -41,7 +41,6 @@ interface UseGraphVisualizationReturn {
 
 export function useGraphVisualization({
   campaignId,
-  enabled = true,
 }: UseGraphVisualizationOptions): UseGraphVisualizationReturn {
   const { makeRequestWithData } = useAuthenticatedRequest();
 
@@ -193,12 +192,11 @@ export function useGraphVisualization({
   // Search for entities
   const searchEntityFn = useMemo(
     () => async (entityName: string) => {
-      const url =
-        API_CONFIG.buildUrl(
-          API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_VISUALIZATION.SEARCH_ENTITY(
-            campaignId
-          )
-        ) + `?entityName=${encodeURIComponent(entityName)}`;
+      const url = `${API_CONFIG.buildUrl(
+        API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_VISUALIZATION.SEARCH_ENTITY(
+          campaignId
+        )
+      )}?entityName=${encodeURIComponent(entityName)}`;
 
       const data = await makeRequestWithData<EntitySearchResult[]>(url);
       return data;

@@ -148,10 +148,7 @@ export class SessionDigestAgent extends BaseAgent {
   /**
    * Override onChatMessage to add campaign context
    */
-  async onChatMessage(
-    onFinish: StreamTextOnFinishCallback<ToolSet>,
-    options?: { abortSignal?: AbortSignal }
-  ) {
+  async onChatMessage(onFinish: any, options?: { abortSignal?: AbortSignal }) {
     // Extract campaignId from the last user message if available
     const lastUserMessage = this.messages
       .slice()

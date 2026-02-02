@@ -178,10 +178,7 @@ export class CampaignHelpAgent extends BaseAgent {
   /**
    * Override onChatMessage to automatically analyze user state first
    */
-  async onChatMessage(
-    onFinish: StreamTextOnFinishCallback<ToolSet>,
-    options?: { abortSignal?: AbortSignal }
-  ) {
+  async onChatMessage(onFinish: any, options?: { abortSignal?: AbortSignal }) {
     // Extract JWT from the last user message if available
     const lastUserMessage = this.messages
       .slice()

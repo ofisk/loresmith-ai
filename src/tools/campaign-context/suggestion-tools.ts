@@ -659,7 +659,7 @@ async function performSemanticChecklistAnalysis(
     // Campaign pitch check: Description often serves as the campaign pitch
     // (This is now also handled by the LLM analysis, but we keep this as a fallback)
     if (campaignDescription && campaignDescription.trim().length > 50) {
-      coverage["campaign_pitch"] = coverage["campaign_pitch"] || true;
+      coverage.campaign_pitch = coverage.campaign_pitch || true;
     }
 
     if (!env.DB || !env.VECTORIZE || !env.OPENAI_API_KEY) {
@@ -729,8 +729,8 @@ async function performSemanticChecklistAnalysis(
         const metadata = (entity.metadata || {}) as Record<string, unknown>;
         const noteType = (metadata.noteType as string) || "";
         if (noteType === "theme_preference") {
-          coverage["campaign_tone"] = true;
-          coverage["core_themes"] = true;
+          coverage.campaign_tone = true;
+          coverage.core_themes = true;
         }
       }
 

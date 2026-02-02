@@ -16,4 +16,3 @@ export interface Message {
   createdAt?: Date | string;
   data?: any;
 }
-

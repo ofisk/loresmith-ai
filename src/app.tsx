@@ -168,8 +168,7 @@ export default function Chat() {
     append,
   } = useAgentChat({
     agent,
-    maxSteps: 5,
-    onFinish: (result) => {
+    onFinish: (finishResult) => {
       // Helper: Check if tool result data indicates an authentication error
       const isAuthErrorCode = (data: unknown): boolean => {
         if (!data || typeof data !== "object") return false;
@@ -192,15 +191,11 @@ export default function Chat() {
       };
 
       // Helper: Check all tool results in steps for auth errors
-      const checkToolResultsForAuthErrors = (result: Message): boolean => {
-        // The result includes steps from streamText onFinish callback (via ...args in base-agent)
-        const resultWithSteps = result as {
-          steps?: Array<{
+      const checkToolResultsForAuthErrors = (result: any): boolean => {
+        const steps =
+          (result?.steps as Array<{
             toolResults?: Array<{ result?: { data?: unknown } }>;
-          }>;
-        };
-
-        const steps = resultWithSteps.steps || [];
+          }>) || [];
         for (const step of steps) {
           const toolResults = step.toolResults || [];
           for (const toolResult of toolResults) {
@@ -214,14 +209,14 @@ export default function Chat() {
       };
 
       // Check tool results for authentication errors
-      if (checkToolResultsForAuthErrors(result)) {
+      if (checkToolResultsForAuthErrors(finishResult)) {
         console.log("[App] Authentication error detected in tool results");
         modalState.setShowAuthModal(true);
         return; // Early return to skip string-based checks
       }
 
       // Fallback: Check if the response indicates authentication is required (for backwards compatibility)
-      const resultContent = result.content || "";
+      const resultContent = (finishResult as any).text || "";
       if (
         resultContent.includes("AUTHENTICATION_REQUIRED:") ||
         resultContent.includes("OpenAI API key required")
@@ -231,7 +226,7 @@ export default function Chat() {
       }
 
       // Check if the agent performed operations that require UI refresh
-      const content = result.content?.toLowerCase() || "";
+      const content = (resultContent || "").toLowerCase();
 
       // Check for campaign deletion
       if (

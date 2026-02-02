@@ -100,7 +100,7 @@ export function CampaignDetailsModal({
       fetchLibraryFiles();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, campaign?.campaignId]);
+  }, [isOpen, campaign, fetchLibraryFiles]);
 
   const {
     digests,

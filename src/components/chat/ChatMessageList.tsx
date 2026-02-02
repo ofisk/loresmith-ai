@@ -47,7 +47,10 @@ export function ChatMessageList({
                           if (part.type === "text" && hasTopLevelRender) {
                             return null;
                           }
-                          if (part.type === "text") {
+                          if (
+                            part.type === "text" &&
+                            typeof part.text === "string"
+                          ) {
                             const isLastTextPart = i === lastTextPartIndex;
 
                             return (

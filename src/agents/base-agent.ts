@@ -478,7 +478,6 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           toolCount: Object.keys(enhancedTools).length,
           toolNames: Object.keys(enhancedTools),
           toolChoice,
-          maxSteps: 15,
           estimatedTokens,
           contextLimit,
           lastUserMessage: processedMessages
@@ -498,7 +497,6 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             toolCount: requestDetails.toolCount,
             toolNames: requestDetails.toolNames,
             toolChoice: requestDetails.toolChoice,
-            maxSteps: requestDetails.maxSteps,
             lastUserMessage: requestDetails.lastUserMessage,
           })
         );
@@ -510,7 +508,6 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             toolChoice, // Use the variable instead of hardcoded value
             messages: processedMessages,
             tools: enhancedTools,
-            maxSteps: 15, // Allow multiple tool calls plus final response
             onFinish: async (args) => {
               console.log(
                 `[${this.constructor.name}] onFinish called with finishReason: ${args.finishReason}`
@@ -533,7 +530,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                   if (searchCalls.length > 0) {
                     searchCalls.forEach((call, idx) => {
                       console.log(
-                        `[${this.constructor.name}] searchCampaignContext call ${idx + 1}: query="${call.args?.query || "MISSING"}"`
+                        `[${this.constructor.name}] searchCampaignContext call ${
+                          idx + 1
+                        }: query="${(call as any).args?.query || "MISSING"}"`
                       );
                     });
                   }
@@ -545,13 +544,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 }
               }
               // Convert the finish args to ChatMessage format
-              const message: any = {
-                role: "assistant" as const,
-                content: args.text || "",
-                ...args,
-              };
-
-              await (onFinish ?? (() => {}))(message);
+              await (onFinish ?? (() => {}))(args);
             },
             onError: (errorObj) => {
               // Extract all error details

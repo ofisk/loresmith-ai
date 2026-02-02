@@ -2,37 +2,43 @@ import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "../../app-constants";
 import { AUTH_CODES } from "../../shared-config";
-import { commonSchemas } from "../utils";
-import { createToolError, createToolSuccess } from "../utils";
+import {
+  commonSchemas,
+  createToolError,
+  createToolSuccess,
+  type ToolExecuteOptions,
+} from "../utils";
+
+const searchFileLibrarySchema = z.object({
+  query: z
+    .string()
+    .describe("The search query to find relevant PDF resources"),
+  context: z
+    .string()
+    .optional()
+    .describe("Additional context about what the user is looking for"),
+  limit: z
+    .number()
+    .optional()
+    .describe("Maximum number of results to return (default: 5)"),
+  jwt: commonSchemas.jwt,
+});
 
 // file library tools
 
 export const searchFileLibrary = tool({
   description:
     "Search through the user's file library for resources relevant to campaign planning, world-building, or specific topics",
-  parameters: z.object({
-    query: z
-      .string()
-      .describe("The search query to find relevant PDF resources"),
-    context: z
-      .string()
-      .optional()
-      .describe("Additional context about what the user is looking for"),
-    limit: z
-      .number()
-      .optional()
-      .describe("Maximum number of results to return (default: 5)"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: searchFileLibrarySchema,
   execute: async (
-    { query, context, limit = 5, jwt },
-    aiContext?: any
+    input: z.infer<typeof searchFileLibrarySchema>,
+    options: ToolExecuteOptions
   ): Promise<ToolResult> => {
+    const { query, context, limit = 5, jwt } = input;
     console.log("[Tool] searchFileLibrary received query:", query);
-    console.log("[Tool] searchFileLibrary aiContext:", aiContext);
+    console.log("[Tool] searchFileLibrary options:", options);
 
-    // Extract toolCallId from AI SDK context
-    const toolCallId = aiContext?.toolCallId || "unknown";
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[searchFileLibrary] Using toolCallId:", toolCallId);
 
     try {
@@ -124,18 +130,22 @@ export const searchFileLibrary = tool({
   },
 });
 
+const getFileLibraryStatsSchema = z.object({
+  jwt: commonSchemas.jwt,
+});
+
 export const getFileLibraryStats = tool({
   description:
     "Get statistics about the user's file library to understand available resources",
-  parameters: z.object({
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async ({ jwt }, context?: any): Promise<ToolResult> => {
+  inputSchema: getFileLibraryStatsSchema,
+  execute: async (
+    input: z.infer<typeof getFileLibraryStatsSchema>,
+    options: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[Tool] getFileLibraryStats received JWT:", jwt);
-    console.log("[Tool] getFileLibraryStats context:", context);
-
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[Tool] getFileLibraryStats options:", options);
     console.log("[getFileLibraryStats] Using toolCallId:", toolCallId);
 
     try {

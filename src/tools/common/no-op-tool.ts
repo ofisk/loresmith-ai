@@ -1,6 +1,14 @@
-import { tool } from "ai";
+import { tool, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 import { createToolSuccess } from "../utils";
+
+const noOpToolSchema = z.object({
+  reason: z
+    .string()
+    .describe(
+      "Brief explanation of why no tool is needed (e.g., 'Answering a general question that doesn't require data access')"
+    ),
+});
 
 /**
  * No-op tool that allows the agent to explicitly opt out of using any actual tools.
@@ -29,14 +37,12 @@ DO NOT use this tool if:
 - You need to search, retrieve, or update any data → use the appropriate tool
 
 When in doubt, use the appropriate tool rather than this no-op tool.`,
-  parameters: z.object({
-    reason: z
-      .string()
-      .describe(
-        "Brief explanation of why no tool is needed (e.g., 'Answering a general question that doesn't require data access')"
-      ),
-  }),
-  execute: async ({ reason }): Promise<any> => {
+  inputSchema: noOpToolSchema,
+  execute: async (
+    input: z.infer<typeof noOpToolSchema>,
+    _options: ToolExecutionOptions
+  ): Promise<any> => {
+    const { reason } = input;
     return createToolSuccess(
       `No tool needed: ${reason}`,
       { optedOut: true, reason },

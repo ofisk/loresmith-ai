@@ -85,7 +85,7 @@ export function CytoscapeGraph({
         const maxLabelLength = 40;
         const truncatedLabel =
           node.name.length > maxLabelLength
-            ? node.name.substring(0, maxLabelLength) + "..."
+            ? `${node.name.substring(0, maxLabelLength)}...`
             : node.name;
 
         els.push({
@@ -198,7 +198,7 @@ export function CytoscapeGraph({
       if (layoutRef.current) {
         try {
           layoutRef.current.stop();
-        } catch (error) {
+        } catch (_error) {
           // Ignore errors stopping layout
         }
         layoutRef.current = null;
@@ -333,7 +333,7 @@ export function CytoscapeGraph({
             // Check if container is still valid
             try {
               if (!cy.container()) return;
-            } catch (error) {
+            } catch (_error) {
               return;
             }
 
@@ -353,7 +353,7 @@ export function CytoscapeGraph({
 
               try {
                 if (!cy.container()) return;
-              } catch (error) {
+              } catch (_error) {
                 return;
               }
 
@@ -363,7 +363,7 @@ export function CytoscapeGraph({
               if (layoutRef.current) {
                 try {
                   layoutRef.current.stop();
-                } catch (error) {
+                } catch (_error) {
                   // Ignore errors stopping layout
                 }
                 layoutRef.current = null;
@@ -412,7 +412,7 @@ export function CytoscapeGraph({
       if (layoutRef.current) {
         try {
           layoutRef.current.stop();
-        } catch (error) {
+        } catch (_error) {
           // Ignore errors stopping layout
         }
         layoutRef.current = null;
@@ -424,14 +424,14 @@ export function CytoscapeGraph({
       if (cyRef.current) {
         try {
           cyRef.current.destroy();
-        } catch (error) {
-          console.warn("[CytoscapeGraph] Error during cleanup:", error);
+        } catch (_error) {
+          console.warn("[CytoscapeGraph] Error during cleanup:", _error);
         }
         cyRef.current = null;
       }
       isReadyRef.current = false;
     };
-  }, [dataKey]);
+  }, [dataKey, elements]);
 
   // Handle layout changes
   useEffect(() => {
@@ -448,7 +448,7 @@ export function CytoscapeGraph({
         isReadyRef.current = false;
         return;
       }
-    } catch (error) {
+    } catch (_error) {
       // Instance is destroyed or invalid
       isReadyRef.current = false;
       return;
@@ -458,7 +458,7 @@ export function CytoscapeGraph({
     if (layoutRef.current) {
       try {
         layoutRef.current.stop();
-      } catch (error) {
+      } catch (_error) {
         // Ignore errors stopping layout
       }
       layoutRef.current = null;
@@ -496,7 +496,7 @@ export function CytoscapeGraph({
     // Check if instance is still valid
     try {
       if (!cy.container()) return;
-    } catch (error) {
+    } catch (_error) {
       return;
     }
 

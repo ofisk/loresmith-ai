@@ -7,6 +7,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  type ToolExecuteOptions,
 } from "../utils";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
@@ -18,22 +19,25 @@ import {
 } from "@/lib/entity-type-constants";
 import { analyzePlayerCharacterCompleteness } from "./planning-tools-utils";
 
+const checkPlanningReadinessSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  jwt: commonSchemas.jwt,
+});
+
 export const checkPlanningReadiness = tool({
   description:
     "Check if a campaign is ready for session planning by analyzing campaign state and identifying gaps. Returns readiness status and a list of gaps that should be filled before planning.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: checkPlanningReadinessSchema,
   execute: async (
-    { campaignId, jwt },
-    context?: { env?: unknown; toolCallId?: string }
+    input: z.infer<typeof checkPlanningReadinessSchema>,
+    options: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || "unknown";
+    const { campaignId, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[checkPlanningReadiness] Using toolCallId:", toolCallId);
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       if (!env) {
         return createToolError(
           "Environment not available",

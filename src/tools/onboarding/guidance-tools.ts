@@ -2,8 +2,12 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { ToolResult } from "../../app-constants";
 import { getAssessmentService } from "../../lib/service-factory";
-import { commonSchemas } from "../utils";
-import { createToolError, createToolSuccess } from "../utils";
+import {
+  commonSchemas,
+  createToolError,
+  createToolSuccess,
+  type ToolExecuteOptions,
+} from "../utils";
 import type { ActionSuggestion } from "./state-analysis-tools";
 
 /**
@@ -11,21 +15,26 @@ import type { ActionSuggestion } from "./state-analysis-tools";
  * For first-time users: explains core features and suggests getting started
  * For returning users: provides personalized suggestions based on their progress
  */
+const provideWelcomeGuidanceParameters = z.object({
+  jwt: commonSchemas.jwt,
+});
+
 export const provideWelcomeGuidanceTool = tool({
   description:
     "Provide personalized guidance based on user's current state (first-time vs returning user with existing campaigns/resources)",
-  parameters: z.object({
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async ({ jwt }, context?: any): Promise<ToolResult> => {
+  inputSchema: provideWelcomeGuidanceParameters,
+  execute: async (
+    input: z.infer<typeof provideWelcomeGuidanceParameters>,
+    options: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { jwt } = input;
     try {
-      // Extract username from JWT
       if (!jwt) {
         return createToolError(
           "No JWT provided",
           "Authentication token is required",
           400,
-          context?.toolCallId || "unknown"
+          options?.toolCallId ?? "unknown"
         );
       }
 
@@ -37,17 +46,17 @@ export const provideWelcomeGuidanceTool = tool({
           "No username found in JWT",
           "Unable to extract username from authentication token",
           400,
-          context?.toolCallId || "unknown"
+          options?.toolCallId ?? "unknown"
         );
       }
 
-      const env = context?.env;
+      const env = options?.env;
       if (!env) {
         return createToolError(
           "Environment not available",
           "Database connection not available",
           500,
-          context?.toolCallId || "unknown"
+          options?.toolCallId ?? "unknown"
         );
       }
 
@@ -98,7 +107,7 @@ Let's get you started! What would you like to do first?`,
               },
             ],
           },
-          context?.toolCallId || "unknown"
+          options?.toolCallId ?? "unknown"
         );
       } else {
         // Returning user guidance
@@ -149,7 +158,7 @@ What would you like to work on today?`,
               },
             ],
           },
-          context?.toolCallId || "unknown"
+          options?.toolCallId ?? "unknown"
         );
       }
     } catch (error) {
@@ -158,7 +167,7 @@ What would you like to work on today?`,
         "Failed to generate welcome guidance",
         error instanceof Error ? error.message : "Unknown error",
         500,
-        context?.toolCallId || "unknown"
+        options?.toolCallId ?? "unknown"
       );
     }
   },
@@ -167,12 +176,18 @@ What would you like to work on today?`,
 /**
  * Tool: Suggest next actions based on user state
  */
+const suggestNextActionsParameters = z.object({
+  jwt: commonSchemas.jwt,
+});
+
 export const suggestNextActionsTool = tool({
   description: "Suggest next actions based on user state",
-  parameters: z.object({
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async ({ jwt }, context?: any): Promise<ToolResult> => {
+  inputSchema: suggestNextActionsParameters,
+  execute: async (
+    input: z.infer<typeof suggestNextActionsParameters>,
+    options: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { jwt } = input;
     try {
       // Extract username from JWT
       if (!jwt) {
@@ -180,7 +195,7 @@ export const suggestNextActionsTool = tool({
           "No JWT provided",
           "Authentication token is required",
           400,
-          context?.toolCallId || "unknown"
+          options?.toolCallId ?? "unknown"
         );
       }
 
@@ -192,17 +207,17 @@ export const suggestNextActionsTool = tool({
           "No username found in JWT",
           "Unable to extract username from authentication token",
           400,
-          context?.toolCallId || "unknown"
+          options?.toolCallId ?? "unknown"
         );
       }
 
-      const env = context?.env;
+      const env = options?.env;
       if (!env) {
         return createToolError(
           "Environment not available",
           "Database connection not available",
           500,
-          context?.toolCallId || "unknown"
+          options?.toolCallId ?? "unknown"
         );
       }
 
@@ -249,7 +264,7 @@ export const suggestNextActionsTool = tool({
           actions,
           explanation: `Based on your current state, here are the recommended next steps to enhance your GM experience.`,
         },
-        context?.toolCallId || "unknown"
+        options?.toolCallId ?? "unknown"
       );
     } catch (error) {
       console.error("Failed to suggest next actions:", error);
@@ -257,7 +272,7 @@ export const suggestNextActionsTool = tool({
         "Failed to suggest next actions",
         error instanceof Error ? error.message : "Unknown error",
         500,
-        context?.toolCallId || "unknown"
+        options?.toolCallId ?? "unknown"
       );
     }
   },
@@ -266,24 +281,27 @@ export const suggestNextActionsTool = tool({
 /**
  * Tool: Provide campaign-specific guidance
  */
+const provideCampaignGuidanceParameters = z.object({
+  campaignId: z.string().describe("The campaign ID to provide guidance for"),
+  jwt: commonSchemas.jwt,
+});
+
 export const provideCampaignGuidanceTool = tool({
   description: "Provide campaign-specific guidance based on campaign readiness",
-  parameters: z.object({
-    campaignId: z.string().describe("The campaign ID to provide guidance for"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: provideCampaignGuidanceParameters,
   execute: async (
-    { campaignId, jwt: _jwt },
-    context?: any
+    input: z.infer<typeof provideCampaignGuidanceParameters>,
+    options: ToolExecuteOptions
   ): Promise<ToolResult> => {
+    const { campaignId } = input;
     try {
-      const env = context?.env;
+      const env = options?.env;
       if (!env) {
         return createToolError(
           "Environment not available",
           "Database connection not available",
           500,
-          context?.toolCallId || "unknown"
+          options?.toolCallId ?? "unknown"
         );
       }
 
@@ -325,7 +343,7 @@ export const provideCampaignGuidanceTool = tool({
           ],
           explanation: `Your campaign readiness assessment shows areas for improvement. Focus on the priority areas to enhance your campaign experience.`,
         },
-        context?.toolCallId || "unknown"
+        options?.toolCallId ?? "unknown"
       );
     } catch (error) {
       console.error("Failed to provide campaign guidance:", error);
@@ -333,7 +351,7 @@ export const provideCampaignGuidanceTool = tool({
         "Failed to provide campaign guidance",
         error instanceof Error ? error.message : "Unknown error",
         500,
-        context?.toolCallId || "unknown"
+        options?.toolCallId ?? "unknown"
       );
     }
   },

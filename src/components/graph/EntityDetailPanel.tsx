@@ -49,7 +49,7 @@ export function EntityDetailPanel({
 
   useEffect(() => {
     fetchEntityRef.current();
-  }, [entityId]);
+  }, []);
 
   const renderValue = (value: unknown): React.ReactNode => {
     if (value === null || value === undefined) {
@@ -71,8 +71,10 @@ export function EntityDetailPanel({
     if (Array.isArray(value)) {
       return (
         <ul className="list-disc list-inside space-y-1">
-          {value.map((item, index) => (
-            <li key={index}>{renderValue(item) as React.ReactNode}</li>
+          {value.map((item) => (
+            <li key={JSON.stringify(item)}>
+              {renderValue(item) as React.ReactNode}
+            </li>
           ))}
         </ul>
       );

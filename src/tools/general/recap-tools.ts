@@ -7,8 +7,20 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  type ToolExecuteOptions,
 } from "../utils";
 import { RecapService } from "../../services/core/recap-service";
+
+const generateContextRecapSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  jwt: commonSchemas.jwt,
+  sinceTimestamp: z
+    .string()
+    .optional()
+    .describe(
+      "ISO timestamp string to get data since (defaults to 1 hour ago)"
+    ),
+});
 
 /**
  * Tool to generate context recap data for a campaign
@@ -17,21 +29,13 @@ import { RecapService } from "../../services/core/recap-service";
 export const generateContextRecapTool = tool({
   description:
     "Generate a context recap for a campaign summarizing recent activity, world state changes, session digests, and in-progress goals. Use this when a user returns to the app after being away or when they switch campaigns.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    jwt: commonSchemas.jwt,
-    sinceTimestamp: z
-      .string()
-      .optional()
-      .describe(
-        "ISO timestamp string to get data since (defaults to 1 hour ago)"
-      ),
-  }),
+  inputSchema: generateContextRecapSchema,
   execute: async (
-    { campaignId, jwt, sinceTimestamp },
-    context?: any
+    input: z.infer<typeof generateContextRecapSchema>,
+    options: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || crypto.randomUUID();
+    const { campaignId, jwt, sinceTimestamp } = input;
+    const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 
     try {
       if (!jwt) {
@@ -43,7 +47,7 @@ export const generateContextRecapTool = tool({
         );
       }
 
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       if (!env) {
         return createToolError(
           "Environment not available",

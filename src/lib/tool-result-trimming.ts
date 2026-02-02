@@ -92,7 +92,7 @@ export async function trimToolResultsByRelevancy(
       ? (raw.result as Record<string, unknown>)
       : null;
   const payloadToTrim =
-    inner && inner.data && typeof inner.data === "object"
+    inner?.data && typeof inner.data === "object"
       ? (inner.data as ToolResultData)
       : (raw as ToolResultData);
 

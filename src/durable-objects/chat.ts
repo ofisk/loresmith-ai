@@ -40,7 +40,7 @@ interface Env extends AuthEnv {
 /**
  * Chat Agent implementation that routes to specialized agents based on user intent
  */
-export class Chat extends AIChatAgent<Env> {
+export class Chat extends AIChatAgent<any> {
   private agents: Map<string, any> = new Map();
   private userOpenAIKey: string | null = null;
 
