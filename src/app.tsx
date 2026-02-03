@@ -671,6 +671,7 @@ export default function Chat() {
                   Resource library: source materials you link to a campaign
                   (notes, documents, references).
                 </p>
+                <br />
                 <p>
                   LoreSmith extracts shards from them (discrete pieces of lore
                   like characters, places, and items), which you'll review
