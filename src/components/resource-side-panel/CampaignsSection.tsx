@@ -24,14 +24,14 @@ export function CampaignsSection({
   onCampaignClick,
 }: CampaignsSectionProps) {
   return (
-    <Card className="p-0">
+    <Card className="tour-campaigns-section p-0">
       <button
         type="button"
         onClick={onToggle}
-        className="w-full p-3 flex items-center justify-between text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+        className="w-full p-2 flex items-center justify-between text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <img src={campaignIcon} alt="Campaign" className="w-12 h-12" />
+          <img src={campaignIcon} alt="Campaign" className="w-8 h-8" />
           <span className="font-medium text-sm">Your campaigns</span>
         </div>
         {isOpen ? <CaretDown size={16} /> : <CaretRight size={16} />}
@@ -39,11 +39,11 @@ export function CampaignsSection({
 
       {isOpen && (
         <div className="border-t border-neutral-200 dark:border-neutral-700">
-          <div className="p-3">
+          <div className="p-2">
             <button
               type="button"
               onClick={onCreateCampaign}
-              className="w-full px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+              className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
             >
               <Plus size={14} />
               Create campaign

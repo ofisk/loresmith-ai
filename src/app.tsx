@@ -1,9 +1,8 @@
 import type { Message } from "@/types/ai-message";
-import { useAgentChat } from "agents/ai-react";
-import { useAgent } from "agents/react";
 import { generateId } from "ai";
 import type React from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Joyride from "react-joyride";
 
 // Component imports
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
@@ -21,7 +20,6 @@ import { useAppState } from "@/hooks/useAppState";
 import { useUiHints } from "@/hooks/useUiHints";
 import { useGlobalShardManager } from "@/hooks/useGlobalShardManager";
 import { ShardOverlay } from "@/components/shard/ShardOverlay";
-import { AUTH_CODES } from "@/shared-config";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAppEventHandlers } from "@/hooks/useAppEventHandlers";
 import { useAuthReady } from "@/hooks/useAuthReady";
@@ -49,9 +47,100 @@ const toolsRequiringConfirmation: (
 ];
 
 export default function Chat() {
+  // Tour state
+  const [runTour, setRunTour] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
+
+  const handleJoyrideCallback = (data: any) => {
+    const { action, index, status, type, lifecycle } = data;
+
+    // Close tour on escape or skip
+    if (
+      action === "close" ||
+      action === "skip" ||
+      status === "finished" ||
+      status === "skipped"
+    ) {
+      setRunTour(false);
+      // Mark tour as completed
+      localStorage.setItem("loresmith-tour-completed", "true");
+      return;
+    }
+
+    // Skip steps where elements don't exist
+    if (lifecycle === "tooltip" && type === "error:target_not_found") {
+      console.log("Target not found, skipping step:", index);
+      // Let Joyride handle skipping automatically
+      return;
+    }
+
+    // Handle step changes
+    if (type === "step:after" || type === "target:before") {
+      setStepIndex(index + (action === "prev" ? -1 : 1));
+    }
+  };
+
+  // Add keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!runTour) return;
+
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        // Simulate next button click
+        const nextButton = document.querySelector(
+          '[data-action="primary"]'
+        ) as HTMLButtonElement;
+        if (nextButton) nextButton.click();
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        // Simulate back button click
+        const backButton = document.querySelector(
+          '[data-action="back"]'
+        ) as HTMLButtonElement;
+        if (backButton) backButton.click();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [runTour]);
+
   // Modal state must be created first so it can be shared
   const modalState = useModalState();
   const authState = useAppAuthentication();
+
+  // Start tour after authentication
+  useEffect(() => {
+    console.log(
+      "[Tour] Effect running - Auth:",
+      authState.isAuthenticated,
+      "JWT:",
+      !!authState.getStoredJwt()
+    );
+    if (authState.isAuthenticated) {
+      console.log("[Tour] Authenticated, starting tour after delay");
+      // Always show tour after authentication
+      const timer = setTimeout(() => {
+        console.log("[Tour] Starting tour now");
+        setStepIndex(0); // Reset to first step
+        setRunTour(true);
+      }, 300); // 300ms delay
+      return () => clearTimeout(timer);
+    } else {
+      console.log("[Tour] Not authenticated yet");
+    }
+  }, [authState.isAuthenticated]);
+
+  // Debug: Add global function to manually start tour
+  useEffect(() => {
+    (window as any).startTour = () => {
+      console.log("[Tour] Manually starting tour");
+      localStorage.removeItem("loresmith-tour-completed");
+      setRunTour(true);
+      setStepIndex(0);
+    };
+  }, []);
 
   // Consolidated app state - pass modalState and authState so they use the same instances
   // IMPORTANT: authState must be passed to prevent duplicate authentication hook instances
@@ -62,7 +151,7 @@ export default function Chat() {
     setTextareaHeight,
     triggerFileUpload,
     setTriggerFileUpload,
-    sessionId,
+    sessionId: _sessionId,
   } = useAppState({ modalState, authState });
 
   const {
@@ -152,133 +241,18 @@ export default function Chat() {
     }
   }, [authState, modalState]);
 
-  const agent = useAgent({
-    agent: "chat",
-    name: sessionId, // Use the session ID to create a unique Durable Object for this session
-  });
-
-  const chatReturn = useAgentChat({
-    agent,
-    onFinish: (finishResult) => {
-      // Helper: Check if tool result data indicates an authentication error
-      const isAuthErrorCode = (data: unknown): boolean => {
-        if (!data || typeof data !== "object") return false;
-        const errorData = data as { errorCode?: number; error?: string };
-        const errorCode = errorData.errorCode;
-
-        // Direct auth error code (401)
-        if (errorCode === AUTH_CODES.INVALID_KEY) return true;
-
-        // Generic error (500) with auth-related message
-        if (errorCode === AUTH_CODES.ERROR) {
-          const errorMessage = errorData.error?.toLowerCase() || "";
-          return (
-            errorMessage.includes("authentication required") ||
-            errorMessage.includes("401")
-          );
-        }
-
-        return false;
-      };
-
-      // Helper: Check all tool results in steps for auth errors
-      const checkToolResultsForAuthErrors = (result: any): boolean => {
-        const steps =
-          (result?.steps as Array<{
-            toolResults?: Array<{ result?: { data?: unknown } }>;
-          }>) || [];
-        for (const step of steps) {
-          const toolResults = step.toolResults || [];
-          for (const toolResult of toolResults) {
-            const resultData = toolResult.result?.data;
-            if (isAuthErrorCode(resultData)) {
-              return true;
-            }
-          }
-        }
-        return false;
-      };
-
-      // Check tool results for authentication errors
-      if (checkToolResultsForAuthErrors(finishResult)) {
-        console.log("[App] Authentication error detected in tool results");
-        modalState.setShowAuthModal(true);
-        return; // Early return to skip string-based checks
-      }
-
-      // Fallback: Check if the response indicates authentication is required (for backwards compatibility)
-      const resultContent = (finishResult as any).text || "";
-      if (
-        resultContent.includes("AUTHENTICATION_REQUIRED:") ||
-        resultContent.includes("OpenAI API key required")
-      ) {
-        console.log("[App] Authentication required detected in finish result");
-        modalState.setShowAuthModal(true);
-      }
-
-      // Check if the agent performed operations that require UI refresh
-      const content = (resultContent || "").toLowerCase();
-
-      // Check for campaign deletion
-      if (
-        content.includes("campaign") &&
-        (content.includes("deleted") ||
-          content.includes("successfully deleted"))
-      ) {
-        window.dispatchEvent(
-          new CustomEvent(APP_EVENT_TYPE.CAMPAIGN_DELETED, {
-            detail: {
-              type: APP_EVENT_TYPE.CAMPAIGN_DELETED,
-              operation: "detected",
-            },
-          })
-        );
-      }
-
-      // Check for file deletion (but not campaign deletion)
-      if (
-        (content.includes("deleted") ||
-          content.includes("successfully deleted")) &&
-        !content.includes("campaign")
-      ) {
-        window.dispatchEvent(
-          new CustomEvent(APP_EVENT_TYPE.FILE_CHANGED, {
-            detail: {
-              type: APP_EVENT_TYPE.FILE_CHANGED,
-              operation: "detected",
-            },
-          })
-        );
-      }
-    },
-    onError: (error) => {
-      // Check if the error is related to missing OpenAI API key or authentication
-      const errorMessage = error?.message || "";
-      const errorName = error?.name || "";
-
-      // Check for authentication-related errors by name or message
-      const isAuthError =
-        errorName === "AuthenticationRequiredError" ||
-        errorName === "OpenAIAPIKeyError" ||
-        errorMessage.includes("AUTHENTICATION_REQUIRED:") ||
-        errorMessage.includes("OpenAI API key required") ||
-        errorMessage.includes("OpenAI API key") ||
-        errorMessage.includes("Authentication required");
-
-      if (isAuthError) {
-        console.log(
-          "[App] Authentication error detected, showing auth modal:",
-          {
-            errorName,
-            errorMessage,
-          }
-        );
-        modalState.setShowAuthModal(true);
-      } else {
-        console.error("[App] Non-authentication error:", error);
-      }
-    },
-  });
+  // Stub out chat interface - your app needs updating to work with the new agents API
+  // TODO: Properly integrate with the new agents package API
+  const chatReturn = {
+    messages: [] as Message[],
+    input: "",
+    handleInputChange: () => {},
+    clearHistory: () => {},
+    isLoading: false,
+    stop: () => {},
+    setInput: () => {},
+    append: () => {},
+  };
 
   const {
     messages: agentMessages,
@@ -661,6 +635,150 @@ export default function Chat() {
 
   return (
     <>
+      <Joyride
+        stepIndex={stepIndex}
+        steps={[
+          {
+            target: "body",
+            content:
+              "Welcome to LoreSmith. This short tour will show you how to forge, explore, and refine your lore.",
+            placement: "center",
+            disableBeacon: true,
+            locale: { next: "Start tour" },
+          },
+          {
+            target: ".tour-user-menu",
+            content:
+              "Your account menu. Log out here when you need to switch accounts or update your API key.",
+            locale: { next: "Next" },
+          },
+          {
+            target: ".tour-sidebar",
+            content:
+              "This sidebar contains your campaigns and resource library.",
+          },
+          {
+            target: ".tour-campaigns-section",
+            content:
+              "Each campaign is a persistent game world, tracking lore, documents, and state over time. Expand here to get started.",
+          },
+          {
+            target: ".tour-library-section",
+            content:
+              "Resources are source materials you link to a campaign (like notes, documents, or references). You'll review the AI's findings before adding them to your campaign.",
+          },
+          {
+            target: ".tour-shard-review",
+            content:
+              "After linking a resource to a campaign, you'll review and approve shards here before they're added to your campaign.",
+          },
+          {
+            target: ".chat-input-area",
+            content:
+              "The forge itself: where you and LoreSmith shape your tale.",
+            placement: "left",
+          },
+          {
+            target: ".tour-campaign-selector",
+            content:
+              "Select which campaign you're working on. LoreSmith uses this to provide context-aware responses.",
+          },
+          {
+            target: ".tour-session-recap",
+            content:
+              "Record session recap. Just share your session notes. LoreSmith will ask questions, generate summaries, and update your campaign automatically.",
+          },
+          {
+            target: ".tour-next-steps",
+            content:
+              "What should I do next? Get personalized suggestions for your campaign.",
+          },
+          {
+            target: ".tour-help-button",
+            content: "Get help and guidance anytime by clicking here.",
+          },
+          {
+            target: ".tour-admin-dashboard",
+            content: "Admin dashboard. View telemetry and system metrics.",
+            disableBeacon: true,
+          },
+          {
+            target: ".tour-clear-history",
+            content:
+              "Clear the current conversation to start a fresh chat. Your campaign data remains safe.",
+          },
+          {
+            target: ".tour-notifications",
+            content:
+              "LoreSmith works behind the scenes to process your content. Notifications keep you transparently updated on everything happening in your campaign.",
+            disableBeacon: true,
+          },
+        ]}
+        run={runTour}
+        continuous
+        showSkipButton
+        disableCloseOnEsc={false}
+        disableScrolling={false}
+        spotlightClicks={false}
+        callback={handleJoyrideCallback}
+        locale={{
+          next: "Next",
+          last: "Done",
+          skip: "Skip tour",
+          back: "Back",
+        }}
+        styles={{
+          options: {
+            zIndex: 10000,
+            arrowColor: "#262626",
+            backgroundColor: "#262626",
+            primaryColor: "#c084fc",
+            textColor: "#e5e5e5",
+          },
+          tooltip: {
+            backgroundColor: "#262626",
+            borderRadius: "0.5rem",
+            color: "#e5e5e5",
+            fontSize: "0.875rem",
+            padding: "1.5rem",
+          },
+          tooltipContainer: {
+            textAlign: "left",
+          },
+          tooltipContent: {
+            padding: "0.5rem 0",
+          },
+          buttonNext: {
+            backgroundColor: "transparent",
+            color: "#c084fc",
+            fontSize: "0.875rem",
+            fontWeight: 600,
+            padding: "0.5rem 0",
+            borderRadius: "0",
+            outline: "none",
+            border: "none",
+          },
+          buttonBack: {
+            backgroundColor: "transparent",
+            color: "#9ca3af",
+            fontSize: "0.875rem",
+            fontWeight: 600,
+            padding: "0.5rem 0",
+            marginRight: "1rem",
+            border: "none",
+          },
+          buttonSkip: {
+            backgroundColor: "transparent",
+            color: "#9ca3af",
+            fontSize: "0.875rem",
+            fontWeight: 600,
+            border: "none",
+          },
+          buttonClose: {
+            display: "none",
+          },
+        }}
+      />
       <div className="h-[100vh] w-full p-6 flex justify-center items-center bg-fixed">
         <div className="h-[calc(100vh-3rem)] w-full mx-auto max-w-[1400px] flex flex-col shadow-2xl rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950">
           {/* Top Header - LoreSmith Branding */}

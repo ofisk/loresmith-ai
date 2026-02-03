@@ -48,7 +48,7 @@ export function AppHeader({
   const isAdmin = payload?.isAdmin === true;
 
   return (
-    <div className="px-4 py-2 border-b border-neutral-200/50 dark:border-neutral-700/50 flex items-center gap-3 bg-white/60 dark:bg-neutral-950/60 backdrop-blur-sm rounded-t-2xl">
+    <div className="app-header px-4 py-2 border-b border-neutral-200/50 dark:border-neutral-700/50 flex items-center gap-3 bg-white/60 dark:bg-neutral-950/60 backdrop-blur-sm rounded-t-2xl">
       <div
         className="flex items-center justify-center"
         style={{ width: 32, height: 32 }}
@@ -73,7 +73,7 @@ export function AppHeader({
           variant="ghost"
           size="md"
           shape="square"
-          className="!h-8 !w-8 rounded-full flex items-center justify-center"
+          className="tour-session-recap !h-8 !w-8 rounded-full flex items-center justify-center"
           onClick={onSessionRecapRequest}
           disabled={!selectedCampaignId}
           tooltip={
@@ -91,7 +91,7 @@ export function AppHeader({
           variant="ghost"
           size="md"
           shape="square"
-          className="!h-8 !w-8 rounded-full flex items-center justify-center"
+          className="tour-next-steps !h-8 !w-8 rounded-full flex items-center justify-center"
           onClick={onNextStepsRequest}
           disabled={!selectedCampaignId}
           tooltip={
@@ -114,7 +114,7 @@ export function AppHeader({
           variant="ghost"
           size="md"
           shape="square"
-          className="!h-8 !w-8 rounded-full flex items-center justify-center"
+          className="tour-admin-dashboard !h-8 !w-8 rounded-full flex items-center justify-center"
           onClick={onAdminDashboardOpen}
           tooltip="Admin dashboard - view telemetry and metrics"
         >
@@ -126,7 +126,7 @@ export function AppHeader({
         variant="ghost"
         size="md"
         shape="square"
-        className="!h-8 !w-8 rounded-full flex items-center justify-center"
+        className="tour-clear-history !h-8 !w-8 rounded-full flex items-center justify-center"
         onClick={onClearHistory}
       >
         <Trash size={18} />

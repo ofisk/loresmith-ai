@@ -19,7 +19,7 @@ export function HelpButton({
       variant="ghost"
       size="md"
       shape="square"
-      className="!h-9 !w-9 rounded-full flex items-center justify-center"
+      className="tour-help-button !h-9 !w-9 rounded-full flex items-center justify-center"
       onClick={handleHelpClick}
       tooltip="Get help and guidance"
     >

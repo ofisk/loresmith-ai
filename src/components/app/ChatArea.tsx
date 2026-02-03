@@ -78,7 +78,7 @@ export function ChatArea({
       <div className="px-8 py-3 flex-shrink-0">
         <select
           id="campaign-select"
-          className="rounded-md border border-neutral-300 bg-purple-600/10 px-3 py-1.5 text-sm text-neutral-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-600 dark:border-neutral-700 dark:bg-purple-400/10 dark:text-neutral-100 dark:focus:ring-purple-400"
+          className="tour-campaign-selector rounded-md border border-neutral-300 bg-purple-600/10 px-3 py-1.5 text-sm text-neutral-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-600 dark:border-neutral-700 dark:bg-purple-400/10 dark:text-neutral-100 dark:focus:ring-purple-400"
           value={selectedCampaignId ?? ""}
           onChange={handleCampaignChange}
         >
@@ -120,7 +120,7 @@ export function ChatArea({
       {/* Input Area */}
       <form
         onSubmit={onFormSubmit}
-        className="px-4 pt-3 pb-8 bg-neutral-50/50 dark:bg-neutral-900/50 backdrop-blur-sm rounded-br-2xl"
+        className="chat-input-area px-4 pt-3 pb-8 bg-neutral-50/50 dark:bg-neutral-900/50 backdrop-blur-sm rounded-br-2xl"
       >
         <div className="flex items-center gap-2">
           <div className="flex-1 relative">
