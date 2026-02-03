@@ -682,8 +682,19 @@ export default function Chat() {
           },
           {
             target: ".tour-shard-review",
-            content:
-              "Shard review: this is where you approve or reject those shards. LoreSmith respects your decisions on which shards should be allowed to shape your campaign and which should be avoided.",
+            content: (
+              <>
+                <p>
+                  Shard review: this is where you approve or reject those
+                  shards.
+                </p>
+                <br />
+                <p>
+                  LoreSmith respects your decisions on which shards should be
+                  allowed to shape your campaign and which should be avoided.
+                </p>
+              </>
+            ),
           },
           {
             target: ".chat-input-area",
