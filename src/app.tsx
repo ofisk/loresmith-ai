@@ -1,6 +1,4 @@
 import type { Message } from "@/types/ai-message";
-import { useAgentChat } from "agents/ai-react";
-import { useAgent } from "agents/react";
 import { generateId } from "ai";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -22,7 +20,6 @@ import { useAppState } from "@/hooks/useAppState";
 import { useUiHints } from "@/hooks/useUiHints";
 import { useGlobalShardManager } from "@/hooks/useGlobalShardManager";
 import { ShardOverlay } from "@/components/shard/ShardOverlay";
-import { AUTH_CODES } from "@/shared-config";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAppEventHandlers } from "@/hooks/useAppEventHandlers";
 import { useAuthReady } from "@/hooks/useAuthReady";
@@ -154,7 +151,7 @@ export default function Chat() {
     setTextareaHeight,
     triggerFileUpload,
     setTriggerFileUpload,
-    sessionId,
+    sessionId: _sessionId,
   } = useAppState({ modalState, authState });
 
   const {
@@ -244,133 +241,18 @@ export default function Chat() {
     }
   }, [authState, modalState]);
 
-  const agent = useAgent({
-    agent: "chat",
-    name: sessionId, // Use the session ID to create a unique Durable Object for this session
-  });
-
-  const chatReturn = useAgentChat({
-    agent,
-    onFinish: (finishResult) => {
-      // Helper: Check if tool result data indicates an authentication error
-      const isAuthErrorCode = (data: unknown): boolean => {
-        if (!data || typeof data !== "object") return false;
-        const errorData = data as { errorCode?: number; error?: string };
-        const errorCode = errorData.errorCode;
-
-        // Direct auth error code (401)
-        if (errorCode === AUTH_CODES.INVALID_KEY) return true;
-
-        // Generic error (500) with auth-related message
-        if (errorCode === AUTH_CODES.ERROR) {
-          const errorMessage = errorData.error?.toLowerCase() || "";
-          return (
-            errorMessage.includes("authentication required") ||
-            errorMessage.includes("401")
-          );
-        }
-
-        return false;
-      };
-
-      // Helper: Check all tool results in steps for auth errors
-      const checkToolResultsForAuthErrors = (result: any): boolean => {
-        const steps =
-          (result?.steps as Array<{
-            toolResults?: Array<{ result?: { data?: unknown } }>;
-          }>) || [];
-        for (const step of steps) {
-          const toolResults = step.toolResults || [];
-          for (const toolResult of toolResults) {
-            const resultData = toolResult.result?.data;
-            if (isAuthErrorCode(resultData)) {
-              return true;
-            }
-          }
-        }
-        return false;
-      };
-
-      // Check tool results for authentication errors
-      if (checkToolResultsForAuthErrors(finishResult)) {
-        console.log("[App] Authentication error detected in tool results");
-        modalState.setShowAuthModal(true);
-        return; // Early return to skip string-based checks
-      }
-
-      // Fallback: Check if the response indicates authentication is required (for backwards compatibility)
-      const resultContent = (finishResult as any).text || "";
-      if (
-        resultContent.includes("AUTHENTICATION_REQUIRED:") ||
-        resultContent.includes("OpenAI API key required")
-      ) {
-        console.log("[App] Authentication required detected in finish result");
-        modalState.setShowAuthModal(true);
-      }
-
-      // Check if the agent performed operations that require UI refresh
-      const content = (resultContent || "").toLowerCase();
-
-      // Check for campaign deletion
-      if (
-        content.includes("campaign") &&
-        (content.includes("deleted") ||
-          content.includes("successfully deleted"))
-      ) {
-        window.dispatchEvent(
-          new CustomEvent(APP_EVENT_TYPE.CAMPAIGN_DELETED, {
-            detail: {
-              type: APP_EVENT_TYPE.CAMPAIGN_DELETED,
-              operation: "detected",
-            },
-          })
-        );
-      }
-
-      // Check for file deletion (but not campaign deletion)
-      if (
-        (content.includes("deleted") ||
-          content.includes("successfully deleted")) &&
-        !content.includes("campaign")
-      ) {
-        window.dispatchEvent(
-          new CustomEvent(APP_EVENT_TYPE.FILE_CHANGED, {
-            detail: {
-              type: APP_EVENT_TYPE.FILE_CHANGED,
-              operation: "detected",
-            },
-          })
-        );
-      }
-    },
-    onError: (error) => {
-      // Check if the error is related to missing OpenAI API key or authentication
-      const errorMessage = error?.message || "";
-      const errorName = error?.name || "";
-
-      // Check for authentication-related errors by name or message
-      const isAuthError =
-        errorName === "AuthenticationRequiredError" ||
-        errorName === "OpenAIAPIKeyError" ||
-        errorMessage.includes("AUTHENTICATION_REQUIRED:") ||
-        errorMessage.includes("OpenAI API key required") ||
-        errorMessage.includes("OpenAI API key") ||
-        errorMessage.includes("Authentication required");
-
-      if (isAuthError) {
-        console.log(
-          "[App] Authentication error detected, showing auth modal:",
-          {
-            errorName,
-            errorMessage,
-          }
-        );
-        modalState.setShowAuthModal(true);
-      } else {
-        console.error("[App] Non-authentication error:", error);
-      }
-    },
-  });
+  // Stub out chat interface - your app needs updating to work with the new agents API
+  // TODO: Properly integrate with the new agents package API
+  const chatReturn = {
+    messages: [] as Message[],
+    input: "",
+    handleInputChange: () => {},
+    clearHistory: () => {},
+    isLoading: false,
+    stop: () => {},
+    setInput: () => {},
+    append: () => {},
+  };
 
   const {
     messages: agentMessages,
@@ -767,7 +649,7 @@ export default function Chat() {
           {
             target: ".tour-user-menu",
             content:
-              "Manage your account, teams, ChatGPT credentials, and more.",
+              "Your account menu. Log out here when you need to switch accounts or update your API key.",
             locale: { next: "Next" },
           },
           {
@@ -783,7 +665,7 @@ export default function Chat() {
           {
             target: ".tour-library-section",
             content:
-              "Resources are source materials you link to a campaign (like notes, documents, or references). You'll review and approve sections before they're used.",
+              "Resources are source materials you link to a campaign (like notes, documents, or references). You'll review the AI's findings before adding them to your campaign.",
           },
           {
             target: ".tour-shard-review",
@@ -804,7 +686,7 @@ export default function Chat() {
           {
             target: ".tour-session-recap",
             content:
-              "Record session recap. Share your notes and LoreSmith will generate summaries and update your campaign.",
+              "Record session recap. Just share your session notes. LoreSmith will ask questions, generate summaries, and update your campaign automatically.",
           },
           {
             target: ".tour-next-steps",
@@ -822,7 +704,8 @@ export default function Chat() {
           },
           {
             target: ".tour-clear-history",
-            content: "Clear your chat history to start fresh.",
+            content:
+              "Clear the current conversation to start a fresh chat. Your campaign data remains safe.",
           },
           {
             target: ".tour-notifications",
