@@ -51,7 +51,7 @@ function ciHtmlEntryPlugin(): Plugin {
       );
       if (cssHref) {
         const linkTag = `    <link rel="stylesheet" href="${cssHref}" />`;
-        html = html.replace("</head>", `${linkTag}\n  </head>`);
+        html = html.replace("</head>", `\n${linkTag}\n  </head>`);
       }
       this.emitFile({ type: "asset", fileName: "index.html", source: html });
     },
