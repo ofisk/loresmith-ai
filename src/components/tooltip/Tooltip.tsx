@@ -79,13 +79,13 @@ export const Tooltip = ({ children, className, content, id }: TooltipProps) => {
           <span
             aria-hidden={!isVisible}
             className={cn(
-              "bg-neutral-800 dark:bg-neutral-700 text-white border border-neutral-600 dark:border-neutral-500 absolute w-max rounded-md px-3 py-2 text-xs shadow-lg z-[99999]",
+              "bg-ob-base-1000 text-ob-inverted absolute w-max rounded-md px-2 py-1 text-sm shadow before:absolute before:top-0 before:left-0 before:size-full before:scale-[1.5] before:bg-transparent z-[99999]",
               {
                 "left-0 translate-x-0": positionX === "left",
                 "right-0 translate-x-0": positionX === "right",
                 "left-1/2 -translate-x-1/2": positionX === "center",
-                "top-full mt-2": positionY === "bottom",
-                "bottom-full mb-2": positionY === "top",
+                "-bottom-7": positionY === "bottom",
+                "-top-7": positionY === "top",
               }
             )}
             id={tooltipId}
@@ -133,13 +133,13 @@ export const Tooltip = ({ children, className, content, id }: TooltipProps) => {
         <span
           aria-hidden={!isVisible}
           className={cn(
-            "bg-neutral-800 dark:bg-neutral-700 text-white border border-neutral-600 dark:border-neutral-500 absolute w-max rounded-md px-3 py-2 text-xs shadow-lg z-[99999]",
+            "bg-ob-base-1000 text-ob-inverted absolute w-max rounded-md px-2 py-1 text-sm shadow before:absolute before:top-0 before:left-0 before:size-full before:scale-[1.5] before:bg-transparent z-[99999]",
             {
               "left-0 translate-x-0": positionX === "left",
               "right-0 translate-x-0": positionX === "right",
               "left-1/2 -translate-x-1/2": positionX === "center",
-              "top-full mt-2": positionY === "bottom",
-              "bottom-full mb-2": positionY === "top",
+              "-bottom-7": positionY === "bottom",
+              "-top-7": positionY === "top",
             }
           )}
           id={tooltipId}
