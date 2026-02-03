@@ -649,69 +649,70 @@ export default function Chat() {
           {
             target: ".tour-user-menu",
             content:
-              "Your account menu. Log out here when you need to switch accounts or update your API key.",
+              "Your account menu: switch accounts or update your API key from here.",
             locale: { next: "Next" },
           },
           {
             target: ".tour-sidebar",
             content:
-              "This sidebar contains your campaigns and resource library.",
+              "Sidebar: This contains your campaigns and resource library.",
             placement: "right",
           },
           {
             target: ".tour-campaigns-section",
             content:
-              "Each campaign is a persistent game world, tracking lore, documents, and state over time. Expand here to get started.",
+              "Campaigns: Your campaigns live here. Each campaign is a persistent game world, tracking lore, documents, and state over time.",
           },
           {
             target: ".tour-library-section",
             content:
-              "Resources are source materials you link to a campaign (like notes, documents, or references). You'll review the AI's findings before adding them to your campaign.",
+              "Resource library: Source materials you link to a campaign (notes, documents, references). LoreSmith extracts shards from them (discrete pieces of lore like characters, places, and items), which you'll review before they're added to your campaign.",
           },
           {
             target: ".tour-shard-review",
             content:
-              "After linking a resource to a campaign, you'll review and approve shards here before they're added to your campaign.",
+              "Shard review: This is where you review and approve those shards before they're added to your campaign.",
           },
           {
             target: ".chat-input-area",
-            content:
-              "The forge itself: where you and LoreSmith shape your tale.",
+            content: "Chat: Where you and LoreSmith shape your tale.",
             placement: "left",
           },
           {
             target: ".tour-campaign-selector",
             content:
-              "Select which campaign you're working on. LoreSmith uses this to provide context-aware responses.",
+              "Campaign selector: This shows which campaign you're working on. LoreSmith uses it to provide context-aware responses.",
           },
           {
             target: ".tour-session-recap",
             content:
-              "Record session recap. Just share your session notes. LoreSmith will ask questions, generate summaries, and update your campaign automatically.",
+              "Session recap: Share your session notes here and LoreSmith will ask questions, generate summaries, and update your campaign automatically.",
           },
           {
             target: ".tour-next-steps",
             content:
-              "What should I do next? Get personalized suggestions for your campaign.",
+              "Next steps: This opens personalized suggestions for what to do in your campaign.",
           },
           {
             target: ".tour-help-button",
-            content: "Get help and guidance anytime by clicking here.",
+            content:
+              "Help: Guidance is available here whenever you need it.",
           },
           {
             target: ".tour-admin-dashboard",
-            content: "Admin dashboard. View telemetry and system metrics.",
+            content:
+              "Admin dashboard: Shows telemetry and system metrics.",
             disableBeacon: true,
           },
           {
             target: ".tour-clear-history",
             content:
-              "Clear the current conversation to start a fresh chat. Your campaign data remains safe.",
+              "Clear history: Clears the current conversation to start fresh; your campaign data remains safe.",
           },
           {
             target: ".tour-notifications",
             content:
-              "LoreSmith works behind the scenes to process your content. Notifications keep you transparently updated on everything happening in your campaign.",
+              "Notifications: Keep you updated on everything happening in your campaign as LoreSmith processes your content.",
             disableBeacon: true,
           },
         ]}
