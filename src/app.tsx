@@ -655,64 +655,62 @@ export default function Chat() {
           {
             target: ".tour-sidebar",
             content:
-              "Sidebar: This contains your campaigns and resource library.",
+              "Sidebar: this contains your campaigns and resource library.",
             placement: "right",
           },
           {
             target: ".tour-campaigns-section",
             content:
-              "Campaigns: Your campaigns live here. Each campaign is a persistent game world, tracking lore, documents, and state over time.",
+              "Campaigns: your campaigns live here. Each campaign is a persistent game world, tracking lore, documents, and state over time.",
           },
           {
             target: ".tour-library-section",
             content:
-              "Resource library: Source materials you link to a campaign (notes, documents, references). LoreSmith extracts shards from them (discrete pieces of lore like characters, places, and items), which you'll review before they're added to your campaign.",
+              "Resource library: source materials you link to a campaign (notes, documents, references). LoreSmith extracts shards from them (discrete pieces of lore like characters, places, and items), which you'll review before they're added to your campaign.",
           },
           {
             target: ".tour-shard-review",
             content:
-              "Shard review: This is where you review and approve those shards before they're added to your campaign.",
+              "Shard review: this is where you review and approve those shards before they're added to your campaign.",
           },
           {
             target: ".chat-input-area",
-            content: "Chat: Where you and LoreSmith shape your tale.",
+            content: "Chat: where you and LoreSmith shape your tale.",
             placement: "left",
           },
           {
             target: ".tour-campaign-selector",
             content:
-              "Campaign selector: This shows which campaign you're working on. LoreSmith uses it to provide context-aware responses.",
+              "Campaign selector: this shows which campaign you're working on. LoreSmith uses it to provide context-aware responses.",
           },
           {
             target: ".tour-session-recap",
             content:
-              "Session recap: Share your session notes here and LoreSmith will ask questions, generate summaries, and update your campaign automatically.",
+              "Session recap: share your session notes here and LoreSmith will ask questions, generate summaries, and update your campaign automatically.",
           },
           {
             target: ".tour-next-steps",
             content:
-              "Next steps: This opens personalized suggestions for what to do in your campaign.",
+              "Next steps: this opens personalized suggestions for what to do in your campaign.",
           },
           {
             target: ".tour-help-button",
-            content:
-              "Help: Guidance is available here whenever you need it.",
+            content: "Help: guidance is available here whenever you need it.",
           },
           {
             target: ".tour-admin-dashboard",
-            content:
-              "Admin dashboard: Shows telemetry and system metrics.",
+            content: "Admin dashboard: shows telemetry and system metrics.",
             disableBeacon: true,
           },
           {
             target: ".tour-clear-history",
             content:
-              "Clear history: Clears the current conversation to start fresh; your campaign data remains safe.",
+              "Clear history: starts a new chat in this campaign; your campaign data and library are unchanged.",
           },
           {
             target: ".tour-notifications",
             content:
-              "Notifications: Keep you updated on everything happening in your campaign as LoreSmith processes your content.",
+              "Notifications: shows real-time updates on file processing, shards, and other activity in your campaign.",
             disableBeacon: true,
           },
         ]}
