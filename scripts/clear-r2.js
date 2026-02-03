@@ -16,9 +16,8 @@
  * Or use Wrangler authentication (automatically detected)
  */
 
-import { execSync } from "child_process";
-import { existsSync, readFileSync } from "fs";
-import { join } from "path";
+import { execSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const BUCKET_NAME = process.argv.includes("--bucket-name")
@@ -38,7 +37,7 @@ if (DRY_RUN) {
 console.log("");
 
 // Check if we can use Wrangler (preferred method)
-function checkWranglerAuth() {
+function _checkWranglerAuth() {
   try {
     execSync("wrangler whoami", { stdio: "pipe" });
     return true;
@@ -48,19 +47,17 @@ function checkWranglerAuth() {
 }
 
 // Method 1: Use Wrangler R2 commands (if available)
-async function clearR2WithWrangler() {
+async function _clearR2WithWrangler() {
   console.log("🔄 Attempting to use Wrangler for R2 operations...");
 
   try {
     // List all objects first to see what we have
     console.log("📋 Listing objects in bucket...");
-    let allObjects = [];
-    let cursor = "";
 
     // Note: Wrangler doesn't have a direct "list all objects" command,
     // so we'll use the Cloudflare API method instead
     return false; // Fallback to API method
-  } catch (error) {
+  } catch (_error) {
     console.log("⚠️  Wrangler method not available, using API method");
     return false;
   }
@@ -78,7 +75,7 @@ function getWranglerApiToken() {
           const match = content.match(
             /CLOUDFLARE_API_TOKEN\s*=\s*["']?([^"'\n\r]+)/
           );
-          if (match && match[1]) {
+          if (match?.[1]) {
             return match[1].trim();
           }
         } catch {
@@ -94,7 +91,7 @@ function getWranglerApiToken() {
 
 // Method 2: Use Cloudflare API directly
 async function clearR2WithAPI() {
-  let API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || getWranglerApiToken();
+  const API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || getWranglerApiToken();
 
   if (!API_TOKEN) {
     console.error("❌ Missing CLOUDFLARE_API_TOKEN environment variable");
