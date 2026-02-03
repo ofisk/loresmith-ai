@@ -107,7 +107,7 @@ export const ShardOverlay = ({
             type="button"
             onClick={toggleExpanded}
             className={`
-              flex items-center justify-center px-8 py-1.5 rounded-l-lg shadow-lg border border-r-0 transition-all duration-300 ease-in-out
+              tour-shard-review flex items-center justify-center px-8 py-1.5 rounded-l-lg shadow-lg border border-r-0 transition-all duration-300 ease-in-out
               bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700
               ${hasNewShards ? "animate-pulse" : ""}
             `}
