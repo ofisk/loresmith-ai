@@ -9,35 +9,37 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  type ToolExecuteOptions,
 } from "../utils";
 import type { Env } from "@/middleware/auth";
 import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
 
-// Tool to create a character sheet
+const createCharacterSheetSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  characterName: z.string().describe("The name of the character"),
+  characterClass: z.string().describe("The character's class"),
+  characterLevel: z.number().describe("The character's level"),
+  characterRace: z.string().describe("The character's race"),
+  jwt: commonSchemas.jwt,
+});
+
 export const createCharacterSheet = tool({
   description:
     "Create a new character sheet for a campaign with basic character information",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    characterName: z.string().describe("The name of the character"),
-    characterClass: z.string().describe("The character's class"),
-    characterLevel: z.number().describe("The character's level"),
-    characterRace: z.string().describe("The character's race"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: createCharacterSheetSchema,
   execute: async (
-    {
+    input: z.infer<typeof createCharacterSheetSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const {
       campaignId,
       characterName,
       characterClass,
       characterLevel,
       characterRace,
       jwt,
-    },
-    context?: any
-  ): Promise<ToolResult> => {
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[createCharacterSheet] Using toolCallId:", toolCallId);
 
     console.log("[Tool] createCharacterSheet received:", {
@@ -49,8 +51,7 @@ export const createCharacterSheet = tool({
     });
 
     try {
-      // Try to get environment from context or global scope
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       console.log("[Tool] createCharacterSheet - Environment found:", !!env);
       console.log("[Tool] createCharacterSheet - JWT provided:", !!jwt);
 

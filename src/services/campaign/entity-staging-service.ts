@@ -603,7 +603,7 @@ export async function stageEntitiesFromResource(
         const mergedMetaBase = {
           ...existingMetadata,
           ...entityMetadata,
-          isStub: isStubContent(mergedContent, entityType) ? true : false,
+          isStub: !!isStubContent(mergedContent, entityType),
         };
         const mergedMeta =
           existingMetadata.shardStatus === "approved"

@@ -4,6 +4,7 @@ import {
   createToolError,
   createToolSuccess,
   extractUsernameFromJwt,
+  type ToolExecuteOptions,
 } from "@/tools/utils";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { ToolResult } from "@/app-constants";
@@ -44,12 +45,14 @@ const generateDigestSchema = z.object({
 export const generateDigestFromNotesTool = tool({
   description:
     "Generate a structured session digest from unstructured session notes. This uses AI to extract key events, state changes, planning information, and other digest fields from raw text. Returns a draft digest ready for review before saving.",
-  parameters: generateDigestSchema,
+  inputSchema: generateDigestSchema,
   execute: async (
-    { campaignId, sessionNumber, sessionDate, notes, templateId, jwt },
-    context?: any
+    input: z.infer<typeof generateDigestSchema>,
+    options: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || crypto.randomUUID();
+    const { campaignId, sessionNumber, sessionDate, notes, templateId, jwt } =
+      input;
+    const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 
     try {
       if (!jwt) {
@@ -71,7 +74,7 @@ export const generateDigestFromNotesTool = tool({
         );
       }
 
-      const env = context?.env;
+      const env = options?.env;
       if (!env) {
         return createToolError(
           "Environment not available",
@@ -126,7 +129,8 @@ export const generateDigestFromNotesTool = tool({
 
       // Get OpenAI API key
       const openaiApiKey =
-        env.OPENAI_API_KEY || (await daoFactory.getOpenAIKey(userId));
+        (env as { OPENAI_API_KEY?: string }).OPENAI_API_KEY ||
+        (await daoFactory.getOpenAIKey(userId));
 
       if (!openaiApiKey) {
         return createToolError(

@@ -120,15 +120,12 @@ describe("Character Sheet Tools", () => {
     vi.clearAllMocks();
 
     // Set up default mock implementations
-    const { uploadCharacterSheet, processCharacterSheet } = await import(
-      "../../src/tools/character-sheet/upload-tools"
-    );
-    const { listCharacterSheets } = await import(
-      "../../src/tools/character-sheet/list-tools"
-    );
-    const { createCharacterSheet } = await import(
-      "../../src/tools/character-sheet/creation-tools"
-    );
+    const { uploadCharacterSheet, processCharacterSheet } =
+      await import("../../src/tools/character-sheet/upload-tools");
+    const { listCharacterSheets } =
+      await import("../../src/tools/character-sheet/list-tools");
+    const { createCharacterSheet } =
+      await import("../../src/tools/character-sheet/creation-tools");
 
     (uploadCharacterSheet as any).execute.mockResolvedValue(undefined);
     (processCharacterSheet as any).execute.mockResolvedValue(undefined);
@@ -138,9 +135,8 @@ describe("Character Sheet Tools", () => {
 
   describe("uploadCharacterSheet tool", () => {
     it("should validate tool structure", async () => {
-      const { uploadCharacterSheet } = await import(
-        "../../src/tools/character-sheet/upload-tools"
-      );
+      const { uploadCharacterSheet } =
+        await import("../../src/tools/character-sheet/upload-tools");
 
       expect(uploadCharacterSheet).toBeDefined();
 
@@ -148,25 +144,25 @@ describe("Character Sheet Tools", () => {
       expect(toolDefinition.description).toContain(
         "Upload a character sheet file"
       );
-      expect(toolDefinition.parameters).toBeDefined();
+      expect(
+        toolDefinition.inputSchema ?? toolDefinition.parameters
+      ).toBeDefined();
     });
 
     it("should require correct parameters", async () => {
-      const { uploadCharacterSheet } = await import(
-        "../../src/tools/character-sheet/upload-tools"
-      );
+      const { uploadCharacterSheet } =
+        await import("../../src/tools/character-sheet/upload-tools");
 
       const toolDefinition = uploadCharacterSheet as any;
-      const parameters = toolDefinition.parameters;
+      const schema = toolDefinition.inputSchema ?? toolDefinition.parameters;
 
-      expect(parameters).toBeDefined();
+      expect(schema).toBeDefined();
       expect(typeof toolDefinition.description).toBe("string");
     });
 
     it("should handle successful upload with direct database access", async () => {
-      const { uploadCharacterSheet } = await import(
-        "../../src/tools/character-sheet/upload-tools"
-      );
+      const { uploadCharacterSheet } =
+        await import("../../src/tools/character-sheet/upload-tools");
 
       const mockCharacterSheet = createMockCharacterSheet();
       const expectedResult = {
@@ -201,9 +197,8 @@ describe("Character Sheet Tools", () => {
     });
 
     it("should handle authentication failure", async () => {
-      const { uploadCharacterSheet } = await import(
-        "../../src/tools/character-sheet/upload-tools"
-      );
+      const { uploadCharacterSheet } =
+        await import("../../src/tools/character-sheet/upload-tools");
 
       const expectedResult = {
         toolCallId: "test-call-123",
@@ -230,9 +225,8 @@ describe("Character Sheet Tools", () => {
     });
 
     it("should handle HTTP API fallback", async () => {
-      const { uploadCharacterSheet } = await import(
-        "../../src/tools/character-sheet/upload-tools"
-      );
+      const { uploadCharacterSheet } =
+        await import("../../src/tools/character-sheet/upload-tools");
       const { authenticatedFetch } = await import("../../src/lib/toolAuth");
 
       const expectedResult = {
@@ -275,9 +269,8 @@ describe("Character Sheet Tools", () => {
 
   describe("processCharacterSheet tool", () => {
     it("should validate tool structure", async () => {
-      const { processCharacterSheet } = await import(
-        "../../src/tools/character-sheet/upload-tools"
-      );
+      const { processCharacterSheet } =
+        await import("../../src/tools/character-sheet/upload-tools");
 
       expect(processCharacterSheet).toBeDefined();
 
@@ -285,13 +278,14 @@ describe("Character Sheet Tools", () => {
       expect(toolDefinition.description).toContain(
         "Process and extract information"
       );
-      expect(toolDefinition.parameters).toBeDefined();
+      expect(
+        toolDefinition.inputSchema ?? toolDefinition.parameters
+      ).toBeDefined();
     });
 
     it("should handle successful processing with direct database access", async () => {
-      const { processCharacterSheet } = await import(
-        "../../src/tools/character-sheet/upload-tools"
-      );
+      const { processCharacterSheet } =
+        await import("../../src/tools/character-sheet/upload-tools");
 
       const mockCharacterSheet = createMockCharacterSheet({
         processedData: {
@@ -332,9 +326,8 @@ describe("Character Sheet Tools", () => {
     });
 
     it("should handle character sheet not found", async () => {
-      const { processCharacterSheet } = await import(
-        "../../src/tools/character-sheet/upload-tools"
-      );
+      const { processCharacterSheet } =
+        await import("../../src/tools/character-sheet/upload-tools");
 
       const expectedResult = {
         toolCallId: "test-call-123",
@@ -359,9 +352,8 @@ describe("Character Sheet Tools", () => {
     });
 
     it("should handle HTTP API fallback for processing", async () => {
-      const { processCharacterSheet } = await import(
-        "../../src/tools/character-sheet/upload-tools"
-      );
+      const { processCharacterSheet } =
+        await import("../../src/tools/character-sheet/upload-tools");
 
       const expectedResult = {
         toolCallId: "test-call-123",
@@ -396,21 +388,21 @@ describe("Character Sheet Tools", () => {
 
   describe("listCharacterSheets tool", () => {
     it("should validate tool structure", async () => {
-      const { listCharacterSheets } = await import(
-        "../../src/tools/character-sheet/list-tools"
-      );
+      const { listCharacterSheets } =
+        await import("../../src/tools/character-sheet/list-tools");
 
       expect(listCharacterSheets).toBeDefined();
 
       const toolDefinition = listCharacterSheets as any;
       expect(toolDefinition.description).toContain("List all character sheets");
-      expect(toolDefinition.parameters).toBeDefined();
+      expect(
+        toolDefinition.inputSchema ?? toolDefinition.parameters
+      ).toBeDefined();
     });
 
     it("should handle successful listing with direct database access", async () => {
-      const { listCharacterSheets } = await import(
-        "../../src/tools/character-sheet/list-tools"
-      );
+      const { listCharacterSheets } =
+        await import("../../src/tools/character-sheet/list-tools");
 
       const mockCharacterSheets = [
         createMockCharacterSheet({
@@ -451,9 +443,8 @@ describe("Character Sheet Tools", () => {
 
   describe("createCharacterSheet tool", () => {
     it("should validate tool structure", async () => {
-      const { createCharacterSheet } = await import(
-        "../../src/tools/character-sheet/creation-tools"
-      );
+      const { createCharacterSheet } =
+        await import("../../src/tools/character-sheet/creation-tools");
 
       expect(createCharacterSheet).toBeDefined();
 
@@ -461,13 +452,14 @@ describe("Character Sheet Tools", () => {
       expect(toolDefinition.description).toContain(
         "Create a new character sheet"
       );
-      expect(toolDefinition.parameters).toBeDefined();
+      expect(
+        toolDefinition.inputSchema ?? toolDefinition.parameters
+      ).toBeDefined();
     });
 
     it("should handle successful creation with direct database access", async () => {
-      const { createCharacterSheet } = await import(
-        "../../src/tools/character-sheet/creation-tools"
-      );
+      const { createCharacterSheet } =
+        await import("../../src/tools/character-sheet/creation-tools");
 
       const mockCharacterSheet = createMockCharacterSheet({
         characterName: "New Character",
@@ -512,9 +504,8 @@ describe("Character Sheet Tools", () => {
 
   describe("ToolResult format validation", () => {
     it("should ensure all tools return proper ToolResult format", async () => {
-      const { createToolSuccess, createToolError } = await import(
-        "../../src/tools/utils"
-      );
+      const { createToolSuccess, createToolError } =
+        await import("../../src/tools/utils");
 
       // Reset mocks to ensure clean state
       vi.clearAllMocks();

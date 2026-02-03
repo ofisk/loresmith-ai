@@ -7,6 +7,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  type ToolExecuteOptions,
 } from "../utils";
 import type { Env } from "@/middleware/auth";
 import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
@@ -14,10 +15,36 @@ import { getDAOFactory } from "../../dao/dao-factory";
 import { notifyShardGeneration } from "../../lib/notifications";
 import { ALL_CONTEXT_TYPES } from "../../constants/context-types";
 
-/**
- * Tool for capturing campaign context from conversations
- * Creates staging shards that require user approval (same flow as file uploads)
- */
+const captureConversationalContextSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  contextType: z
+    .enum(ALL_CONTEXT_TYPES)
+    .describe("The type of context being captured"),
+  title: z
+    .string()
+    .describe(
+      "A short, descriptive title for this context (e.g., 'Main Plot Selected', 'Campaign Themes')"
+    ),
+  content: z
+    .string()
+    .describe("The full context to save - be specific and detailed"),
+  confidence: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe("How confident you are this should be saved (0-1, default 0.8)"),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe("Optional tags for categorization"),
+  sourceMessageId: z
+    .string()
+    .optional()
+    .describe("ID of the message this context was extracted from"),
+  jwt: commonSchemas.jwt,
+});
+
 export const captureConversationalContext = tool({
   description: `Capture important campaign information from the conversation that should be saved for future reference.
   
@@ -36,52 +63,22 @@ export const captureConversationalContext = tool({
   
   The captured context will be saved as a pending shard for user review and approval.`,
 
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    contextType: z
-      .enum(ALL_CONTEXT_TYPES)
-      .describe("The type of context being captured"),
-    title: z
-      .string()
-      .describe(
-        "A short, descriptive title for this context (e.g., 'Main Plot Selected', 'Campaign Themes')"
-      ),
-    content: z
-      .string()
-      .describe("The full context to save - be specific and detailed"),
-    confidence: z
-      .number()
-      .min(0)
-      .max(1)
-      .optional()
-      .describe(
-        "How confident you are this should be saved (0-1, default 0.8)"
-      ),
-    tags: z
-      .array(z.string())
-      .optional()
-      .describe("Optional tags for categorization"),
-    sourceMessageId: z
-      .string()
-      .optional()
-      .describe("ID of the message this context was extracted from"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: captureConversationalContextSchema,
 
   execute: async (
-    {
+    input: z.infer<typeof captureConversationalContextSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const {
       campaignId,
       contextType,
       title,
       content,
       confidence = 0.8,
-      tags: _tags,
       sourceMessageId,
       jwt,
-    },
-    context?: any
-  ): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || "unknown";
+    } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
 
     console.log("[captureConversationalContext] Called with:", {
       campaignId,
@@ -92,7 +89,7 @@ export const captureConversationalContext = tool({
     });
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
 
       if (!env) {
         return createToolError(
@@ -220,10 +217,16 @@ export const captureConversationalContext = tool({
   },
 });
 
-/**
- * Tool for the user to explicitly request context to be saved
- * Creates a staging shard with high confidence for user review
- */
+const saveContextExplicitlySchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  contextType: z
+    .enum(ALL_CONTEXT_TYPES)
+    .describe("The type of context being saved"),
+  title: z.string().describe("A short, descriptive title"),
+  content: z.string().describe("The content to save"),
+  jwt: commonSchemas.jwt,
+});
+
 export const saveContextExplicitly = tool({
   description: `Save campaign context when the user explicitly asks to remember or save something.
   
@@ -235,21 +238,14 @@ export const saveContextExplicitly = tool({
   
   This creates a staging shard for user review (allows them to verify content was captured correctly).`,
 
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    contextType: z
-      .enum(ALL_CONTEXT_TYPES)
-      .describe("The type of context being saved"),
-    title: z.string().describe("A short, descriptive title"),
-    content: z.string().describe("The content to save"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: saveContextExplicitlySchema,
 
   execute: async (
-    { campaignId, contextType, title, content, jwt },
-    context?: any
+    input: z.infer<typeof saveContextExplicitlySchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || "unknown";
+    const { campaignId, contextType, title, content, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
 
     console.log("[saveContextExplicitly] Called with:", {
       campaignId,
@@ -258,7 +254,7 @@ export const saveContextExplicitly = tool({
     });
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
 
       if (!env) {
         return createToolError(

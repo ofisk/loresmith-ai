@@ -27,7 +27,6 @@ export function CommunityEntityView({
   loading,
   error,
   layout,
-  onLayoutChange,
   onBack,
   className = "",
 }: CommunityEntityViewProps) {

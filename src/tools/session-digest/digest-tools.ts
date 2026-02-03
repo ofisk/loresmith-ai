@@ -1,15 +1,18 @@
 import { tool } from "ai";
+import type { ToolExecuteOptions } from "../utils";
 import { z } from "zod";
 import { generateId } from "ai";
 import {
   createToolError,
   createToolSuccess,
   extractUsernameFromJwt,
+  type ToolEnv,
 } from "@/tools/utils";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { validateSessionDigestData } from "@/types/session-digest";
 import type { UpdateSessionDigestInput } from "@/types/session-digest";
 import type { ToolResult } from "@/app-constants";
+import type { VectorizeIndex } from "@cloudflare/workers-types";
 import { PlanningContextService } from "@/services/rag/planning-context-service";
 
 const commonSchemas = {
@@ -69,21 +72,24 @@ IMPORTANT: All arrays contain STRINGS only, not objects. For state_changes.npcs,
     ),
 };
 
+const createSessionDigestParameters = z.object({
+  campaignId: commonSchemas.campaignId,
+  sessionNumber: commonSchemas.sessionNumber,
+  sessionDate: commonSchemas.sessionDate,
+  digestData: commonSchemas.digestData,
+  jwt: commonSchemas.jwt,
+});
+
 export const createSessionDigestTool = tool({
   description:
     "Create a new session digest for a campaign. Session digests capture high-level recaps and planning information for game sessions.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    sessionNumber: commonSchemas.sessionNumber,
-    sessionDate: commonSchemas.sessionDate,
-    digestData: commonSchemas.digestData,
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: createSessionDigestParameters,
   execute: async (
-    { campaignId, sessionNumber, sessionDate, digestData, jwt },
-    context?: any
+    input: z.infer<typeof createSessionDigestParameters>,
+    options: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || crypto.randomUUID();
+    const { campaignId, sessionNumber, sessionDate, digestData, jwt } = input;
+    const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 
     try {
       if (!jwt) {
@@ -158,7 +164,7 @@ export const createSessionDigestTool = tool({
         );
       }
 
-      const env = context?.env;
+      const env = options?.env as ToolEnv | undefined;
       if (!env) {
         return createToolError(
           "Environment not available",
@@ -222,7 +228,7 @@ export const createSessionDigestTool = tool({
       // Validation happens automatically in PlanningContextService constructor
       const planningService = new PlanningContextService(
         env.DB!,
-        env.VECTORIZE!,
+        env.VECTORIZE as VectorizeIndex,
         env.OPENAI_API_KEY as string,
         env
       );
@@ -261,19 +267,22 @@ export const createSessionDigestTool = tool({
   },
 });
 
+const getSessionDigestParameters = z.object({
+  campaignId: commonSchemas.campaignId,
+  sessionNumber: commonSchemas.sessionNumber,
+  jwt: commonSchemas.jwt,
+});
+
 export const getSessionDigestTool = tool({
   description:
     "Get a session digest by campaign ID and session number. Returns the full digest data including recap and planning information.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    sessionNumber: commonSchemas.sessionNumber,
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: getSessionDigestParameters,
   execute: async (
-    { campaignId, sessionNumber, jwt },
-    context?: any
+    input: z.infer<typeof getSessionDigestParameters>,
+    options: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || crypto.randomUUID();
+    const { campaignId, sessionNumber, jwt } = input;
+    const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 
     try {
       if (!jwt) {
@@ -295,7 +304,7 @@ export const getSessionDigestTool = tool({
         );
       }
 
-      const env = context?.env;
+      const env = options?.env as ToolEnv | undefined;
       if (!env) {
         return createToolError(
           "Environment not available",
@@ -352,15 +361,21 @@ export const getSessionDigestTool = tool({
   },
 });
 
+const listSessionDigestsParameters = z.object({
+  campaignId: commonSchemas.campaignId,
+  jwt: commonSchemas.jwt,
+});
+
 export const listSessionDigestsTool = tool({
   description:
     "List all session digests for a campaign. Returns digests ordered by session number (newest first).",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async ({ campaignId, jwt }, context?: any): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || crypto.randomUUID();
+  inputSchema: listSessionDigestsParameters,
+  execute: async (
+    input: z.infer<typeof listSessionDigestsParameters>,
+    options: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { campaignId, jwt } = input;
+    const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 
     try {
       if (!jwt) {
@@ -382,7 +397,7 @@ export const listSessionDigestsTool = tool({
         );
       }
 
-      const env = context?.env;
+      const env = options?.env as ToolEnv | undefined;
       if (!env) {
         return createToolError(
           "Environment not available",
@@ -429,21 +444,24 @@ export const listSessionDigestsTool = tool({
   },
 });
 
+const updateSessionDigestParameters = z.object({
+  campaignId: commonSchemas.campaignId,
+  sessionNumber: commonSchemas.sessionNumber,
+  sessionDate: commonSchemas.sessionDate.optional(),
+  digestData: commonSchemas.digestData.optional(),
+  jwt: commonSchemas.jwt,
+});
+
 export const updateSessionDigestTool = tool({
   description:
     "Update an existing session digest for a campaign. Use campaignId and sessionNumber to identify which digest to update. Typically, the agent should first fetch the existing digest, merge in any new recap details, then call this tool with the updated digest data.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    sessionNumber: commonSchemas.sessionNumber,
-    sessionDate: commonSchemas.sessionDate.optional(),
-    digestData: commonSchemas.digestData.optional(),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: updateSessionDigestParameters,
   execute: async (
-    { campaignId, sessionNumber, sessionDate, digestData, jwt },
-    context?: any
+    input: z.infer<typeof updateSessionDigestParameters>,
+    options: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || crypto.randomUUID();
+    const { campaignId, sessionNumber, sessionDate, digestData, jwt } = input;
+    const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 
     try {
       if (!jwt) {
@@ -465,7 +483,7 @@ export const updateSessionDigestTool = tool({
         );
       }
 
-      const env = context?.env;
+      const env = options?.env as ToolEnv | undefined;
       if (!env) {
         return createToolError(
           "Environment not available",
@@ -553,10 +571,9 @@ export const updateSessionDigestTool = tool({
         );
       }
 
-      // Validation happens automatically in PlanningContextService constructor
       const planningService = new PlanningContextService(
         env.DB!,
-        env.VECTORIZE!,
+        env.VECTORIZE as VectorizeIndex,
         env.OPENAI_API_KEY as string,
         env
       );

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Trash } from "@phosphor-icons/react";
 import { Button } from "@/components/button/Button";
 import { FormButton } from "@/components/button/FormButton";
@@ -29,16 +29,16 @@ export function ConfirmDeleteButton({
   const [isDeleting, setIsDeleting] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const clearTimers = () => {
+  const clearTimers = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-  };
+  }, []);
 
   useEffect(() => {
     return () => clearTimers();
-  }, []);
+  }, [clearTimers]);
 
   const handleStartConfirm = () => {
     setShowConfirm(true);

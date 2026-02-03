@@ -99,9 +99,12 @@ export function estimateToolsTokens(tools: Record<string, any>): number {
       tokens += estimateTokenCount(tool.description);
     }
 
-    // Tool parameters schema (rough estimate)
-    if (tool.parameters) {
-      const schemaStr = JSON.stringify(tool.parameters);
+    // Tool parameters/schema (v5: parameters, v6: inputSchema)
+    const schema =
+      (tool as { inputSchema?: unknown; parameters?: unknown }).inputSchema ??
+      tool.parameters;
+    if (schema) {
+      const schemaStr = JSON.stringify(schema);
       tokens += estimateTokenCount(schemaStr);
     }
   }

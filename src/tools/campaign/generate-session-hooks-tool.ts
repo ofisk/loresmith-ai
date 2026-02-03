@@ -9,30 +9,39 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  type ToolExecuteOptions,
 } from "../utils";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { generateHooks } from "./planning-tools-utils";
 
+const generateSessionHooksSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  hookType: z
+    .enum(["opening", "transition", "cliffhanger", "resolution"])
+    .optional()
+    .describe("Type of hook to generate (default: opening)"),
+  context: z
+    .string()
+    .optional()
+    .describe("Additional context for hook generation"),
+  jwt: commonSchemas.jwt,
+});
+
 export const generateSessionHooks = tool({
   description:
     "Generate engaging session hooks and story beats to start or continue a session",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    hookType: z
-      .enum(["opening", "transition", "cliffhanger", "resolution"])
-      .optional()
-      .describe("Type of hook to generate (default: opening)"),
-    context: z
-      .string()
-      .optional()
-      .describe("Additional context for hook generation"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: generateSessionHooksSchema,
   execute: async (
-    { campaignId, hookType = "opening", context: contextParam, jwt },
-    context?: { env?: unknown; toolCallId?: string }
+    input: z.infer<typeof generateSessionHooksSchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || "unknown";
+    const {
+      campaignId,
+      hookType = "opening",
+      context: contextParam,
+      jwt,
+    } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[generateSessionHooks] Using toolCallId:", toolCallId);
 
     console.log("[Tool] generateSessionHooks received:", {
@@ -42,7 +51,7 @@ export const generateSessionHooks = tool({
     });
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       console.log("[Tool] generateSessionHooks - Environment found:", !!env);
       console.log("[Tool] generateSessionHooks - JWT provided:", !!jwt);
 

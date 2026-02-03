@@ -8,6 +8,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  type ToolExecuteOptions,
 } from "../utils";
 import { getDAOFactory } from "../../dao/dao-factory";
 import { WorldStateChangelogService } from "../../services/graph/world-state-changelog-service";
@@ -84,7 +85,72 @@ function calculateNameSimilarity(query: string, entityName: string): number {
   return 0.0;
 }
 
-// Tool to search campaign context
+const searchCampaignContextSchema = z.object({
+  campaignId: commonSchemas.campaignId.describe(
+    "The campaign ID (UUID format). CRITICAL: This must be a UUID, never an entity name. The campaignId is automatically provided from the user's selected campaign - do NOT use entity names or location names as campaignId."
+  ),
+  query: z
+    .string()
+    .describe(
+      `The search query - can include entity names, plot points, topics, or entity types. Available entity types: ${ENTITY_TYPES_LIST}. The tool automatically infers the entity type from your query. CRITICAL: When users specify entity types in their request (e.g., "monsters", "beasts", "creatures", "NPCs"), you MUST: (1) Map any synonyms to the correct entity type name (e.g., "beasts"/"creatures" → "monsters", "people"/"characters" → "npcs"), (2) Include that entity type keyword in this query parameter. Examples: "monsters" lists all monsters, "fire monsters" searches for monsters matching "fire", "all monsters" lists all monsters. Empty query lists all entities (only use when user doesn't specify entity types). Use "context:" prefix to search session digests (optional - note that session digests are temporary and get parsed into entities).`
+    ),
+  searchOriginalFiles: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      "When true, searches the original source files (PDFs, text files) uploaded to the campaign for text content matching the query. Use this when users explicitly ask to 'search back through the original text', 'search the source files', 'find in the original documents', or similar phrases. This performs lexical (text) search through file chunks, not entity search."
+    ),
+  traverseFromEntityIds: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Entity IDs to start graph traversal from. When provided, the tool will traverse the entity graph starting from these entities, following relationships to find connected entities. Use this after an initial semantic search to explore entities connected to the found entities."
+    ),
+  traverseDepth: z
+    .number()
+    .int()
+    .min(1)
+    .max(3)
+    .optional()
+    .describe(
+      "Maximum depth to traverse from starting entities (default: 1). Depth 1 returns direct neighbors, depth 2 returns neighbors of neighbors, etc. Use depth 1 first, then increase if more context is needed."
+    ),
+  traverseRelationshipTypes: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Optional filter for specific relationship types to traverse (e.g., ['resides_in', 'located_in']). If not provided, traverses all relationship types. Use this to focus traversal on specific relationship types relevant to the query."
+    ),
+  includeTraversedEntities: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe(
+      "Whether to include traversed entities in results (default: true). Set to false if you only want to see relationships without the full entity details."
+    ),
+  offset: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .default(0)
+    .describe(
+      "Offset for pagination (default: 0). Use this to page through results. If the response indicates there are more results, increment the offset by the limit to get the next page."
+    ),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .optional()
+    .default(15)
+    .describe(
+      "Maximum number of results to return (default: 15, max: 50). Use pagination (offset) to retrieve additional results if needed. Start with the default limit to avoid token limit issues, then page through if more results are needed."
+    ),
+  jwt: commonSchemas.jwt,
+});
+
 export const searchCampaignContext = tool({
   description: `Search campaign context via semantic search and graph traversal. Use FIRST for entities "from my campaign" or "in my world" - retrieves APPROVED entities. Never use searchExternalResources for campaign entities.
 
@@ -101,73 +167,12 @@ Graph traversal: Start with traverseDepth=1, use traverseRelationshipTypes filte
 "X within Y" queries: Search for parent entity first to get ID, then use traverseFromEntityIds with appropriate relationship types.
 
 Use ONLY explicit relationships shown in results. Do NOT infer from content text.`,
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId.describe(
-      "The campaign ID (UUID format). CRITICAL: This must be a UUID, never an entity name. The campaignId is automatically provided from the user's selected campaign - do NOT use entity names or location names as campaignId."
-    ),
-    query: z
-      .string()
-      .describe(
-        `The search query - can include entity names, plot points, topics, or entity types. Available entity types: ${ENTITY_TYPES_LIST}. The tool automatically infers the entity type from your query. CRITICAL: When users specify entity types in their request (e.g., "monsters", "beasts", "creatures", "NPCs"), you MUST: (1) Map any synonyms to the correct entity type name (e.g., "beasts"/"creatures" → "monsters", "people"/"characters" → "npcs"), (2) Include that entity type keyword in this query parameter. Examples: "monsters" lists all monsters, "fire monsters" searches for monsters matching "fire", "all monsters" lists all monsters. Empty query lists all entities (only use when user doesn't specify entity types). Use "context:" prefix to search session digests (optional - note that session digests are temporary and get parsed into entities).`
-      ),
-    searchOriginalFiles: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        "When true, searches the original source files (PDFs, text files) uploaded to the campaign for text content matching the query. Use this when users explicitly ask to 'search back through the original text', 'search the source files', 'find in the original documents', or similar phrases. This performs lexical (text) search through file chunks, not entity search."
-      ),
-    traverseFromEntityIds: z
-      .array(z.string())
-      .optional()
-      .describe(
-        "Entity IDs to start graph traversal from. When provided, the tool will traverse the entity graph starting from these entities, following relationships to find connected entities. Use this after an initial semantic search to explore entities connected to the found entities."
-      ),
-    traverseDepth: z
-      .number()
-      .int()
-      .min(1)
-      .max(3)
-      .optional()
-      .describe(
-        "Maximum depth to traverse from starting entities (default: 1). Depth 1 returns direct neighbors, depth 2 returns neighbors of neighbors, etc. Use depth 1 first, then increase if more context is needed."
-      ),
-    traverseRelationshipTypes: z
-      .array(z.string())
-      .optional()
-      .describe(
-        "Optional filter for specific relationship types to traverse (e.g., ['resides_in', 'located_in']). If not provided, traverses all relationship types. Use this to focus traversal on specific relationship types relevant to the query."
-      ),
-    includeTraversedEntities: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe(
-        "Whether to include traversed entities in results (default: true). Set to false if you only want to see relationships without the full entity details."
-      ),
-    offset: z
-      .number()
-      .int()
-      .min(0)
-      .optional()
-      .default(0)
-      .describe(
-        "Offset for pagination (default: 0). Use this to page through results. If the response indicates there are more results, increment the offset by the limit to get the next page."
-      ),
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(50)
-      .optional()
-      .default(15)
-      .describe(
-        "Maximum number of results to return (default: 15, max: 50). Use pagination (offset) to retrieve additional results if needed. Start with the default limit to avoid token limit issues, then page through if more results are needed."
-      ),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: searchCampaignContextSchema,
   execute: async (
-    {
+    input: z.infer<typeof searchCampaignContextSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const {
       campaignId,
       query,
       traverseFromEntityIds,
@@ -178,14 +183,10 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
       limit = 15,
       searchOriginalFiles = false,
       jwt,
-    },
-    context?: any
-  ): Promise<ToolResult> => {
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[searchCampaignContext] Using toolCallId:", toolCallId);
 
-    // Parse query intent
     const queryIntent = parseQueryIntent(query);
 
     console.log("[Tool] searchCampaignContext received:", {
@@ -207,8 +208,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
     );
 
     try {
-      // Try to get environment from context or global scope
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       console.log("[Tool] searchCampaignContext - Environment found:", !!env);
       console.log("[Tool] searchCampaignContext - JWT provided:", !!jwt);
 
@@ -1164,7 +1164,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 
             // Normalize relationship types if provided
             const normalizedRelationshipTypes = traverseRelationshipTypes?.map(
-              (type) => type.toLowerCase().replace(/\s+/g, "_")
+              (type: string) => type.toLowerCase().replace(/\s+/g, "_")
             );
 
             // Collect all traversed neighbors from all starting entities

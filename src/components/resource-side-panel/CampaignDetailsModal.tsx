@@ -95,12 +95,12 @@ export function CampaignDetailsModal({
   const processingResourcesRef = useRef<Set<string>>(new Set());
 
   // Fetch library files when campaign details modal opens (so they're ready when user clicks Add resource)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only refetch when modal opens or campaign changes; omit fetchLibraryFiles to avoid refetch on every render
   useEffect(() => {
     if (isOpen && campaign) {
       fetchLibraryFiles();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, campaign?.campaignId]);
+  }, [isOpen, campaign]);
 
   const {
     digests,

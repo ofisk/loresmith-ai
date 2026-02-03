@@ -771,7 +771,18 @@ export async function handleUpdateShard(c: ContextWithAuth) {
     }
 
     // Update entity content and metadata
-    const updatedContent = text ? JSON.parse(text) : entity.content;
+    let updatedContent: unknown = entity.content;
+    if (text) {
+      try {
+        updatedContent = JSON.parse(text);
+      } catch (parseErr) {
+        console.error(
+          "[Server] Failed to parse entity content as JSON:",
+          parseErr
+        );
+        return c.json({ error: "Invalid JSON in entity content" }, 400);
+      }
+    }
     const updatedMetadata = metadata
       ? { ...(entity.metadata as Record<string, unknown>), ...metadata }
       : entity.metadata;

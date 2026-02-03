@@ -217,9 +217,8 @@ export class ChunkedProcessingService {
       }
 
       // Store embeddings for this chunk
-      const { FileEmbeddingService } = await import(
-        "@/services/embedding/file-embedding-service"
-      );
+      const { FileEmbeddingService } =
+        await import("@/services/embedding/file-embedding-service");
       const embeddingService = new FileEmbeddingService(
         this.env.VECTORIZE,
         this.env.OPENAI_API_KEY || ""

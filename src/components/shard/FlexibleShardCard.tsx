@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -252,7 +252,7 @@ export function FlexibleShardCard({
     handleDescriptionCancel();
   };
 
-  const getShardTitle = () => {
+  const getShardTitle = useCallback(() => {
     // First, check metadata.title (used by conversational context shards)
     const metadata = shard.metadata as any;
     if (metadata?.title && typeof metadata.title === "string") {
@@ -354,14 +354,9 @@ export function FlexibleShardCard({
     // Use contentId if available (for structured shards), otherwise fall back to ID suffix
     const displayId = (shard as any).contentId || shard.id.slice(-8);
     return `${displayName} #${displayId}`;
-  };
+  }, [shard, displayName]);
 
-  const getShardDescription = () => {
-    const descInfo = getShardDescriptionInfo();
-    return descInfo?.displayText || null;
-  };
-
-  const getShardDescriptionInfo = () => {
+  const getShardDescriptionInfo = useCallback(() => {
     // Try to find a good description from common property names
     const descFields = ["description", "text", "content", "summary"];
     for (const field of descFields) {
@@ -398,7 +393,12 @@ export function FlexibleShardCard({
       }
     }
     return null;
-  };
+  }, [shard]);
+
+  const getShardDescription = useCallback(() => {
+    const descInfo = getShardDescriptionInfo();
+    return descInfo?.displayText || null;
+  }, [getShardDescriptionInfo]);
 
   // State for editing title and description
   const [titleValue, setTitleValue] = useState(getShardTitle());
@@ -411,6 +411,7 @@ export function FlexibleShardCard({
   const isEditingTitleRef = useRef(false);
 
   // Sync title and description values when shard changes externally (but not while editing)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: shard is intentional — we must re-run when the prop reference changes
   useEffect(() => {
     if (!isEditingTitleRef.current) {
       setTitleValue(getShardTitle());
@@ -419,10 +420,7 @@ export function FlexibleShardCard({
       const newDescription = getShardDescription();
       setDescriptionValue(newDescription || "");
     }
-    // getShardTitle and getShardDescription are recreated on each render but depend on shard
-    // We only want to update when shard changes, not when the functions change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shard]);
+  }, [shard, getShardTitle, getShardDescription]);
 
   const getQuickProperties = () => {
     // Get 2-3 key properties to show in the collapsed view

@@ -7,7 +7,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
-  type ToolContext,
+  type ToolExecuteOptions,
 } from "../utils";
 import { getDAOFactory } from "../../dao/dao-factory";
 import { STRUCTURED_ENTITY_TYPES } from "../../lib/entity-types";
@@ -16,10 +16,50 @@ import { isEntityStub } from "@/lib/entity-content-merge";
 const ENTITY_TYPES_LIST = STRUCTURED_ENTITY_TYPES.join(", ");
 const LIST_ALL_ENTITIES_PAGE_SIZE = 100;
 
-/**
- * Tool to list entities from a campaign one page at a time.
- * Agent must call again with page=2, 3, ... when totalPages > 1.
- */
+const listAllEntitiesSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  entityType: z
+    .preprocess(
+      (val) => (val === "" ? undefined : val),
+      z
+        .enum([...STRUCTURED_ENTITY_TYPES, "character", "resource"] as [
+          string,
+          ...string[],
+        ])
+        .optional()
+    )
+    .describe(
+      `Optional entity type to filter by. Available types: ${ENTITY_TYPES_LIST}. If not provided or empty string, returns all entity types.`
+    ),
+  includeStubs: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      "If true, include stub entities (minimal/incomplete). Use when the agent needs to surface incomplete entities and prompt the user to fill in gaps. Default false: stubs are excluded from list results."
+    ),
+  page: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .default(1)
+    .describe(
+      "Page number (1-based). Use 1 for first page; if totalPages > 1, call again with page=2, 3, ... to get all entities."
+    ),
+  pageSize: z
+    .number()
+    .int()
+    .min(1)
+    .max(200)
+    .optional()
+    .default(LIST_ALL_ENTITIES_PAGE_SIZE)
+    .describe(
+      "Number of entities per page. Default 100. Keep default to avoid context overflow; request next page with page parameter."
+    ),
+  jwt: commonSchemas.jwt,
+});
+
 export const listAllEntities = tool({
   description: `List entities from a campaign ONE PAGE AT A TIME. Returns a single page of results; totalCount and totalPages tell you if more pages exist.
 
@@ -30,58 +70,17 @@ Use for "list all" or counting by type. For a specific search (e.g. "entries for
 Entity types: ${ENTITY_TYPES_LIST}. Map synonyms: "beasts"/"creatures" → "monsters", "people"/"characters" (NPCs) → "npcs", "player characters"/"PCs" → "pcs", "places" → "locations".
 
 Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characters", determine context.`,
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    entityType: z
-      .preprocess(
-        (val) => (val === "" ? undefined : val),
-        z
-          .enum([...STRUCTURED_ENTITY_TYPES, "character", "resource"] as [
-            string,
-            ...string[],
-          ])
-          .optional()
-      )
-      .describe(
-        `Optional entity type to filter by. Available types: ${ENTITY_TYPES_LIST}. If not provided or empty string, returns all entity types.`
-      ),
-    includeStubs: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        "If true, include stub entities (minimal/incomplete). Use when the agent needs to surface incomplete entities and prompt the user to fill in gaps. Default false: stubs are excluded from list results."
-      ),
-    page: z
-      .number()
-      .int()
-      .min(1)
-      .optional()
-      .default(1)
-      .describe(
-        "Page number (1-based). Use 1 for first page; if totalPages > 1, call again with page=2, 3, ... to get all entities."
-      ),
-    pageSize: z
-      .number()
-      .int()
-      .min(1)
-      .max(200)
-      .optional()
-      .default(LIST_ALL_ENTITIES_PAGE_SIZE)
-      .describe(
-        "Number of entities per page. Default 100. Keep default to avoid context overflow; request next page with page parameter."
-      ),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: listAllEntitiesSchema,
   execute: async (
-    { campaignId, entityType, includeStubs, page, pageSize, jwt },
-    context?: ToolContext
+    input: z.infer<typeof listAllEntitiesSchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || "unknown";
+    const { campaignId, entityType, includeStubs, page, pageSize, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[listAllEntities] Using toolCallId:", toolCallId);
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       if (!env) {
         return createToolError(
           "Environment not available",

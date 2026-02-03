@@ -224,12 +224,11 @@ Example format: "agent_type|confidence|reason"`;
         return "campaign|50|No model available for routing, using default agent";
       }
 
-      // Use streamText for the routing decision
+      // Use streamText for the routing decision (single turn, no tools)
       const result = await streamText({
         model: modelToUse,
         system: systemPrompt,
         messages: [{ role: "user", content: userMessage }],
-        maxSteps: 1,
         temperature: 0,
       });
 

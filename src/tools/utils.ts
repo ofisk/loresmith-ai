@@ -1,7 +1,16 @@
 import type { D1Database } from "@cloudflare/workers-types";
+import type { ToolExecutionOptions } from "ai";
 import { z } from "zod";
 import type { ToolResult } from "../app-constants";
 import { getDAOFactory } from "../dao/dao-factory";
+
+/** Re-export for v6 tool execute signature. */
+export type { ToolExecutionOptions };
+
+/**
+ * Options passed to tool execute (v6). Base agent extends with env when running in Worker/DO.
+ */
+export type ToolExecuteOptions = ToolExecutionOptions & { env?: unknown };
 
 /**
  * Minimal context passed to tool execute functions (e.g. from Durable Object).

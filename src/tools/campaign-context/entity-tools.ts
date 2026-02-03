@@ -5,6 +5,7 @@ import {
   createToolError,
   createToolSuccess,
   getEnvFromContext,
+  type ToolExecuteOptions,
 } from "../utils";
 import type { ToolResult } from "@/app-constants";
 import { API_CONFIG } from "@/shared-config";
@@ -18,11 +19,39 @@ import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import { STRUCTURED_ENTITY_TYPES } from "@/lib/entity-types";
 
-/**
- * Tool: Extract entities from text content
- * Uses AI to extract structured entities (NPCs, locations, items, etc.) from text
- * and creates them in the entity graph for the campaign.
- */
+const extractEntitiesFromContentSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  content: z
+    .string()
+    .describe(
+      "The text content to extract entities from. Can be from uploaded files, user messages, or any text containing game content."
+    ),
+  sourceName: z
+    .string()
+    .optional()
+    .describe(
+      "Optional name/identifier for the source of this content (e.g., filename, document title). Used for tracking."
+    ),
+  sourceId: z
+    .string()
+    .optional()
+    .describe(
+      "Optional ID for the source document/resource. Used for tracking where entities came from."
+    ),
+  sourceType: z
+    .string()
+    .optional()
+    .default("user_input")
+    .describe(
+      "Type of source (e.g., 'user_input', 'file_upload', 'document'). Default: 'user_input'"
+    ),
+  metadata: z
+    .record(z.unknown())
+    .optional()
+    .describe("Optional additional metadata to attach to extracted entities"),
+  jwt: commonSchemas.jwt,
+});
+
 export const extractEntitiesFromContentTool = tool({
   description:
     "Extract structured entities (NPCs, locations, items, monsters, etc.) from text content " +
@@ -30,46 +59,24 @@ export const extractEntitiesFromContentTool = tool({
     "(from uploaded files or chat messages) that contains information about entities like characters, " +
     "locations, items, or other game content. The tool will automatically identify and extract " +
     "entities and their relationships from the text.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    content: z
-      .string()
-      .describe(
-        "The text content to extract entities from. Can be from uploaded files, user messages, or any text containing game content."
-      ),
-    sourceName: z
-      .string()
-      .optional()
-      .describe(
-        "Optional name/identifier for the source of this content (e.g., filename, document title). Used for tracking."
-      ),
-    sourceId: z
-      .string()
-      .optional()
-      .describe(
-        "Optional ID for the source document/resource. Used for tracking where entities came from."
-      ),
-    sourceType: z
-      .string()
-      .optional()
-      .default("user_input")
-      .describe(
-        "Type of source (e.g., 'user_input', 'file_upload', 'document'). Default: 'user_input'"
-      ),
-    metadata: z
-      .record(z.unknown())
-      .optional()
-      .describe("Optional additional metadata to attach to extracted entities"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: extractEntitiesFromContentSchema,
   execute: async (
-    { campaignId, content, sourceName, sourceId, sourceType, metadata, jwt },
-    context?: any
+    input: z.infer<typeof extractEntitiesFromContentSchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = crypto.randomUUID();
+    const {
+      campaignId,
+      content,
+      sourceName,
+      sourceId,
+      sourceType,
+      metadata,
+      jwt,
+    } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       if (!env) {
         // Fallback to API call
         const response = await authenticatedFetch(
@@ -204,54 +211,55 @@ export const extractEntitiesFromContentTool = tool({
   },
 });
 
-/**
- * Tool: Create a relationship between two entities
- * Creates a directed relationship in the entity graph between two existing entities.
- */
+const createEntityRelationshipSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  fromEntityId: z
+    .string()
+    .describe(
+      "The ID of the source entity (the entity that has the relationship)"
+    ),
+  toEntityId: z
+    .string()
+    .describe("The ID of the target entity (the entity that is related to)"),
+  relationshipType: z
+    .enum(RELATIONSHIP_TYPES as unknown as [string, ...string[]])
+    .describe(
+      "The type of relationship (e.g., 'located_in', 'allied_with', 'owns', 'member_of')"
+    ),
+  strength: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe(
+      "Optional relationship strength/confidence (0.0 to 1.0). Higher values indicate stronger relationships."
+    ),
+  metadata: z
+    .record(z.unknown())
+    .optional()
+    .describe("Optional additional metadata about the relationship"),
+  allowSelfRelation: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      "Allow self-referential relationships (entity related to itself). Default: false"
+    ),
+  jwt: commonSchemas.jwt,
+});
+
 export const createEntityRelationshipTool = tool({
   description:
     "Create a relationship between two entities in the campaign's entity graph. " +
     "Use this when the user mentions a relationship between entities (e.g., 'NPC X lives in Location Y', " +
     "'Character A is allied with Character B', 'Item belongs to NPC'). " +
     "The entities must already exist in the graph (create them first using extractEntitiesFromContentTool if needed).",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    fromEntityId: z
-      .string()
-      .describe(
-        "The ID of the source entity (the entity that has the relationship)"
-      ),
-    toEntityId: z
-      .string()
-      .describe("The ID of the target entity (the entity that is related to)"),
-    relationshipType: z
-      .enum(RELATIONSHIP_TYPES as unknown as [string, ...string[]])
-      .describe(
-        "The type of relationship (e.g., 'located_in', 'allied_with', 'owns', 'member_of')"
-      ),
-    strength: z
-      .number()
-      .min(0)
-      .max(1)
-      .optional()
-      .describe(
-        "Optional relationship strength/confidence (0.0 to 1.0). Higher values indicate stronger relationships."
-      ),
-    metadata: z
-      .record(z.unknown())
-      .optional()
-      .describe("Optional additional metadata about the relationship"),
-    allowSelfRelation: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        "Allow self-referential relationships (entity related to itself). Default: false"
-      ),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: createEntityRelationshipSchema,
   execute: async (
-    {
+    input: z.infer<typeof createEntityRelationshipSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const {
       campaignId,
       fromEntityId,
       toEntityId,
@@ -260,13 +268,11 @@ export const createEntityRelationshipTool = tool({
       metadata,
       allowSelfRelation,
       jwt,
-    },
-    context?: any
-  ): Promise<ToolResult> => {
-    const toolCallId = crypto.randomUUID();
+    } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       if (!env) {
         // Fallback to API call
         const response = await authenticatedFetch(
@@ -440,31 +446,34 @@ export const createEntityRelationshipTool = tool({
  * Use this when users suggest updates to entity properties like faction alignment
  * (protagonistic/neutral/antagonistic), status, or other metadata.
  */
+const updateEntityMetadataSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  entityId: z
+    .string()
+    .describe(
+      "The ID of the entity to update. Must be a real entity ID from the database, not a placeholder."
+    ),
+  metadata: z
+    .record(z.unknown())
+    .describe(
+      "REQUIRED: Metadata to update. This will be merged with existing metadata. Must be an object (e.g., {alignment: 'protagonistic'|'neutral'|'antagonistic'}). For faction alignment, use {alignment: 'protagonistic'|'neutral'|'antagonistic'}."
+    ),
+  jwt: commonSchemas.jwt,
+});
+
 export const updateEntityMetadataTool = tool({
   description:
     "Update metadata for EXISTING entities (e.g., faction alignment: protagonistic/neutral/antagonistic). REQUIRED: metadata must be an object (e.g., {alignment: 'protagonistic'}). entityId must be a real database ID from searchCampaignContext/listAllEntities, not a name or placeholder. Do NOT use for: consolidation (use searchCampaignContext), creating entities (use recordWorldEventTool with newEntities), or entity information provision (use recordWorldEventTool). Search first if unsure entity exists.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    entityId: z
-      .string()
-      .describe(
-        "The ID of the entity to update. Must be a real entity ID from the database, not a placeholder."
-      ),
-    metadata: z
-      .record(z.unknown())
-      .describe(
-        "REQUIRED: Metadata to update. This will be merged with existing metadata. Must be an object (e.g., {alignment: 'protagonistic'|'neutral'|'antagonistic'}). For faction alignment, use {alignment: 'protagonistic'|'neutral'|'antagonistic'}."
-      ),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: updateEntityMetadataSchema,
   execute: async (
-    { campaignId, entityId, metadata, jwt },
-    context?: any
+    input: z.infer<typeof updateEntityMetadataSchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = crypto.randomUUID();
+    const { campaignId, entityId, metadata, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       if (!env) {
         // Fallback to API call
         const response = await authenticatedFetch(
@@ -608,31 +617,34 @@ export const updateEntityMetadataTool = tool({
  * Updates an entity's type in the database (e.g., from "pcs" to "npcs" or vice versa).
  * Use this when users correct an entity's type classification.
  */
+const updateEntityTypeSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  entityId: z
+    .string()
+    .describe("The ID of the entity whose type should be updated."),
+  entityType: z
+    .enum([...STRUCTURED_ENTITY_TYPES] as [string, ...string[]])
+    .describe(
+      `The new entity type. Must be one of: ${STRUCTURED_ENTITY_TYPES.join(", ")}. Common types: "pcs" (player characters), "npcs" (non-player characters), "locations", "factions", "monsters", "items".`
+    ),
+  jwt: commonSchemas.jwt,
+});
+
 export const updateEntityTypeTool = tool({
   description:
     "Update an entity's type classification in the database. Use this when users correct an entity's type (e.g., '[entity name] is an NPC' means change entity type from 'pcs' to 'npcs', or 'this is a player character' means change from 'npcs' to 'pcs'). This is a structural change that affects how the entity is categorized and retrieved. The tool automatically updates ALL entities with the same name to ensure consistency and prevent duplicates with different types. Available entity types: " +
     STRUCTURED_ENTITY_TYPES.join(", ") +
     ". Most common corrections: changing between 'pcs' (player characters) and 'npcs' (non-player characters).",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    entityId: z
-      .string()
-      .describe("The ID of the entity whose type should be updated."),
-    entityType: z
-      .enum([...STRUCTURED_ENTITY_TYPES] as [string, ...string[]])
-      .describe(
-        `The new entity type. Must be one of: ${STRUCTURED_ENTITY_TYPES.join(", ")}. Common types: "pcs" (player characters), "npcs" (non-player characters), "locations", "factions", "monsters", "items".`
-      ),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: updateEntityTypeSchema,
   execute: async (
-    { campaignId, entityId, entityType, jwt },
-    context?: any
+    input: z.infer<typeof updateEntityTypeSchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = crypto.randomUUID();
+    const { campaignId, entityId, entityType, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       if (!env) {
         // Fallback to API call - but we need to check if there's an endpoint for this
         // For now, we'll use direct database access only
@@ -750,22 +762,25 @@ export const updateEntityTypeTool = tool({
  * Tool: Delete entity
  * Deletes an entity from the database. Use this when users explicitly request to delete duplicate entities or remove entities they no longer need.
  */
+const deleteEntitySchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  entityId: z.string().describe("The ID of the entity to delete."),
+  jwt: commonSchemas.jwt,
+});
+
 export const deleteEntityTool = tool({
   description:
     "Delete an entity from the database. Use this when users explicitly request to delete duplicate entities or remove entities they no longer need. This permanently removes the entity and all its relationships. Only use this when the user explicitly asks to delete an entity.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    entityId: z.string().describe("The ID of the entity to delete."),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: deleteEntitySchema,
   execute: async (
-    { campaignId, entityId, jwt },
-    context?: any
+    input: z.infer<typeof deleteEntitySchema>,
+    options?: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = crypto.randomUUID();
+    const { campaignId, entityId, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
 
     try {
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       if (!env) {
         return createToolError(
           "Environment not available",

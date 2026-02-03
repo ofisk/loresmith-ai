@@ -74,11 +74,10 @@ const InternalInput = forwardRef<
 );
 InternalInput.displayName = "InternalInput";
 
-interface FormFieldProps
-  extends Omit<
-    InternalInputProps,
-    "id" | "value" | "onValueChange" | "className"
-  > {
+interface FormFieldProps extends Omit<
+  InternalInputProps,
+  "id" | "value" | "onValueChange" | "className"
+> {
   id: string;
   label: string;
   placeholder?: string;

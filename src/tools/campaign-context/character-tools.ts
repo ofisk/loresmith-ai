@@ -8,6 +8,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  type ToolExecuteOptions,
 } from "../utils";
 import { generateCharacterWithAI } from "./ai-helpers";
 import { getDAOFactory } from "../../dao/dao-factory";
@@ -15,43 +16,47 @@ import type { Env } from "../../middleware/auth";
 import { ENTITY_TYPE_PCS } from "../../lib/entity-type-constants";
 import { SemanticDuplicateDetectionService } from "../../services/vectorize/semantic-duplicate-detection-service";
 
-// Tool to store character information
+const storeCharacterInfoSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  characterName: z.string().describe("The name of the character"),
+  characterClass: z
+    .string()
+    .optional()
+    .describe("The character's class (e.g., Fighter, Wizard, etc.)"),
+  characterLevel: z.number().optional().describe("The character's level"),
+  characterRace: z.string().optional().describe("The character's race"),
+  backstory: z
+    .string()
+    .optional()
+    .describe("The character's backstory and history"),
+  personalityTraits: z
+    .string()
+    .optional()
+    .describe("The character's personality traits and quirks"),
+  goals: z
+    .string()
+    .optional()
+    .describe("The character's goals and motivations"),
+  relationships: z
+    .array(z.string())
+    .optional()
+    .describe("Array of relationships with other characters/NPCs"),
+  metadata: z
+    .record(z.any())
+    .optional()
+    .describe("Additional character metadata"),
+  jwt: commonSchemas.jwt,
+});
+
 export const storeCharacterInfo = tool({
   description:
     "Store detailed character information including backstory, personality, goals, and relationships for intelligent campaign suggestions",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    characterName: z.string().describe("The name of the character"),
-    characterClass: z
-      .string()
-      .optional()
-      .describe("The character's class (e.g., Fighter, Wizard, etc.)"),
-    characterLevel: z.number().optional().describe("The character's level"),
-    characterRace: z.string().optional().describe("The character's race"),
-    backstory: z
-      .string()
-      .optional()
-      .describe("The character's backstory and history"),
-    personalityTraits: z
-      .string()
-      .optional()
-      .describe("The character's personality traits and quirks"),
-    goals: z
-      .string()
-      .optional()
-      .describe("The character's goals and motivations"),
-    relationships: z
-      .array(z.string())
-      .optional()
-      .describe("Array of relationships with other characters/NPCs"),
-    metadata: z
-      .record(z.any())
-      .optional()
-      .describe("Additional character metadata"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: storeCharacterInfoSchema,
   execute: async (
-    {
+    input: z.infer<typeof storeCharacterInfoSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const {
       campaignId,
       characterName,
       characterClass,
@@ -63,11 +68,8 @@ export const storeCharacterInfo = tool({
       relationships,
       metadata,
       jwt,
-    },
-    context?: any
-  ): Promise<ToolResult> => {
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[storeCharacterInfo] Using toolCallId:", toolCallId);
 
     console.log("[Tool] storeCharacterInfo received:", {
@@ -79,8 +81,7 @@ export const storeCharacterInfo = tool({
     });
 
     try {
-      // Try to get environment from context or global scope
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       console.log("[Tool] storeCharacterInfo - Environment found:", !!env);
       console.log("[Tool] storeCharacterInfo - JWT provided:", !!jwt);
 
@@ -266,35 +267,39 @@ export const storeCharacterInfo = tool({
   },
 });
 
-// Tool to generate character using AI
+const generateCharacterWithAISchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  characterName: z.string().describe("The name of the character to generate"),
+  characterClass: z
+    .string()
+    .optional()
+    .describe("The character's class (e.g., Fighter, Wizard, etc.)"),
+  characterLevel: z.number().optional().describe("The character's level"),
+  characterRace: z.string().optional().describe("The character's race"),
+  campaignSetting: z
+    .string()
+    .optional()
+    .describe("The campaign setting or world"),
+  playerPreferences: z
+    .string()
+    .optional()
+    .describe("Player preferences for character generation"),
+  partyComposition: z
+    .array(z.string())
+    .optional()
+    .describe("Array of existing party members for relationship generation"),
+  jwt: commonSchemas.jwt,
+});
+
 export const generateCharacterWithAITool = tool({
   description:
     "Generate a complete character using AI based on provided parameters and campaign context",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    characterName: z.string().describe("The name of the character to generate"),
-    characterClass: z
-      .string()
-      .optional()
-      .describe("The character's class (e.g., Fighter, Wizard, etc.)"),
-    characterLevel: z.number().optional().describe("The character's level"),
-    characterRace: z.string().optional().describe("The character's race"),
-    campaignSetting: z
-      .string()
-      .optional()
-      .describe("The campaign setting or world"),
-    playerPreferences: z
-      .string()
-      .optional()
-      .describe("Player preferences for character generation"),
-    partyComposition: z
-      .array(z.string())
-      .optional()
-      .describe("Array of existing party members for relationship generation"),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: generateCharacterWithAISchema,
   execute: async (
-    {
+    input: z.infer<typeof generateCharacterWithAISchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const {
       campaignId,
       characterName,
       characterClass,
@@ -304,11 +309,8 @@ export const generateCharacterWithAITool = tool({
       playerPreferences,
       partyComposition,
       jwt,
-    },
-    context?: any
-  ): Promise<ToolResult> => {
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[generateCharacterWithAITool] Using toolCallId:", toolCallId);
 
     console.log("[Tool] generateCharacterWithAI received:", {
@@ -320,8 +322,7 @@ export const generateCharacterWithAITool = tool({
     });
 
     try {
-      // Try to get environment from context or global scope
-      const env = getEnvFromContext(context);
+      const env = getEnvFromContext(options);
       console.log("[Tool] generateCharacterWithAI - Environment found:", !!env);
       console.log("[Tool] generateCharacterWithAI - JWT provided:", !!jwt);
 

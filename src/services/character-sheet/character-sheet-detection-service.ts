@@ -3,6 +3,7 @@
 
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import { z } from "zod";
+import { parseOrThrow } from "@/lib/zod-utils";
 import { chunkTextByCharacterCount } from "@/lib/text-chunking-utils";
 import { formatCharacterSheetDetectionPrompt } from "@/lib/prompts/character-sheet-prompts";
 
@@ -147,8 +148,11 @@ export class CharacterSheetDetectionService {
         }
       );
 
-    // Validate against schema
-    return CharacterSheetDetectionSchema.parse(result);
+    // Validate against schema (LLM output may be malformed)
+    return parseOrThrow(CharacterSheetDetectionSchema, result, {
+      logPrefix: "[CharacterSheetDetection]",
+      messagePrefix: "Invalid detection result",
+    });
   }
 
   /**

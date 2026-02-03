@@ -77,9 +77,8 @@ export async function processFile(
     await markFileAsSyncing(env, fileKey, userId, filename, fileDAO, scopedLog);
 
     // Send completion notifications (imported function only takes 4 params)
-    const { sendUploadCompleteNotifications: sendNotifications } = await import(
-      "./upload-notifications"
-    );
+    const { sendUploadCompleteNotifications: sendNotifications } =
+      await import("./upload-notifications");
     await sendNotifications(env, userId, fileKey, filename);
   });
 }
@@ -239,9 +238,8 @@ async function handleProcessingError(
   scopedLog.debug("File status updated to ERROR");
 
   // Send error notifications (fire-and-forget)
-  const { notifyFileStatusUpdated, notifyIndexingFailed } = await import(
-    "@/lib/notifications"
-  );
+  const { notifyFileStatusUpdated, notifyIndexingFailed } =
+    await import("@/lib/notifications");
 
   notifyFileStatusUpdated(
     env,

@@ -114,9 +114,9 @@ export function GraphControls({
 
         {/* Entity type filter */}
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-neutral-600 dark:text-neutral-400">
+          <span className="text-xs text-neutral-600 dark:text-neutral-400">
             Entity types
-          </label>
+          </span>
           <MultiSelect
             options={entityTypeOptions}
             selectedValues={filters.entityTypes?.map(String) || []}
@@ -128,9 +128,9 @@ export function GraphControls({
 
         {/* Relationship type filter */}
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-neutral-600 dark:text-neutral-400">
+          <span className="text-xs text-neutral-600 dark:text-neutral-400">
             Relationship types
-          </label>
+          </span>
           <MultiSelect
             options={relationshipTypeOptions}
             selectedValues={filters.relationshipTypes?.map(String) || []}
@@ -143,9 +143,9 @@ export function GraphControls({
         {/* Approval status filter (community view only) */}
         {isCommunityView && (
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-neutral-600 dark:text-neutral-400">
+            <span className="text-xs text-neutral-600 dark:text-neutral-400">
               Approval status
-            </label>
+            </span>
             <MultiSelect
               options={APPROVAL_STATUS_OPTIONS}
               selectedValues={

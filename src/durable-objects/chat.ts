@@ -1,6 +1,6 @@
 import type { Schedule } from "agents";
 import { AIChatAgent } from "agents/ai-chat-agent";
-import { generateId, type StreamTextOnFinishCallback, type ToolSet } from "ai";
+import { generateId } from "ai";
 import { JWT_STORAGE_KEY } from "@/app-constants";
 import type { AgentType } from "@/lib/agent-router";
 import { AgentRouter } from "@/lib/agent-router";
@@ -26,12 +26,21 @@ interface Env extends AuthEnv {
   ASSETS: Fetcher;
   FILE_PROCESSING_QUEUE: Queue;
   FILE_PROCESSING_DLQ: Queue;
+  // Additional fields required by AIChatAgent's Cloudflare.Env constraint
+  MAX_INDEX_FILE_BYTES?: number;
+  STAGING_PREFIX?: string;
+  READINESS_TIMEOUT_SEC?: number;
+  READINESS_BACKOFF_MS?: number;
+  READINESS_MAX_ATTEMPTS?: number;
+  MAX_CAMPAIGN_ROWS?: number;
+  MAX_WORLD_STATE_ROWS?: number;
+  MAX_ENTITY_ROWS?: number;
 }
 
 /**
  * Chat Agent implementation that routes to specialized agents based on user intent
  */
-export class Chat extends AIChatAgent<Env> {
+export class Chat extends AIChatAgent<any> {
   private agents: Map<string, any> = new Map();
   private userOpenAIKey: string | null = null;
 
@@ -262,7 +271,7 @@ export class Chat extends AIChatAgent<Env> {
       userMessage,
       this.messages
         .slice(-6)
-        .map((msg) => msg.content)
+        .map((msg) => (msg as { content?: string }).content ?? "")
         .join(" "),
       null,
       model
@@ -276,11 +285,15 @@ export class Chat extends AIChatAgent<Env> {
    * @param onFinish - Callback function executed when streaming completes
    */
   async onChatMessage(
-    onFinish: StreamTextOnFinishCallback<ToolSet>,
+    onFinish: (message: any) => void | Promise<void>,
     _options?: { abortSignal?: AbortSignal }
   ) {
     try {
-      const lastUserMessage = this.messages
+      const messages = this.messages as Array<{
+        role: string;
+        content?: string;
+      }>;
+      const lastUserMessage = messages
         .slice()
         .reverse()
         .find((msg) => msg.role === "user");
@@ -377,7 +390,7 @@ export class Chat extends AIChatAgent<Env> {
         }
 
         const targetAgentInstance = this.getAgentInstance("campaign-context");
-        targetAgentInstance.messages = [...this.messages];
+        targetAgentInstance.messages = [...messages];
         return targetAgentInstance.onChatMessage(onFinish, {
           abortSignal: _options?.abortSignal,
         });
@@ -424,28 +437,45 @@ export class Chat extends AIChatAgent<Env> {
             targetAgentInstance.messages = [...this.messages];
 
             // Call the recap tool to get the recap data
-            const { generateContextRecapTool } = await import(
-              "@/tools/general/recap-tools"
-            );
-            const recapResult = await generateContextRecapTool.execute(
-              { campaignId, jwt: currentJwt },
-              { env: this.env, toolCallId: "recap-request" } as any
-            );
+            const { generateContextRecapTool } =
+              await import("@/tools/general/recap-tools");
+            const execute = generateContextRecapTool.execute;
+            if (!execute) {
+              console.error("[Chat] generateContextRecapTool has no execute");
+              throw new Error("Recap tool not executable");
+            }
+            const recapResult = await execute({ campaignId, jwt: currentJwt }, {
+              env: this.env,
+              toolCallId: "recap-request",
+            } as any);
+
+            const result =
+              recapResult &&
+              typeof recapResult === "object" &&
+              "result" in recapResult
+                ? (
+                    recapResult as {
+                      result: {
+                        success?: boolean;
+                        data?: unknown;
+                        message?: string;
+                      };
+                    }
+                  ).result
+                : null;
 
             if (
-              recapResult.result.success &&
-              recapResult.result.data &&
-              typeof recapResult.result.data === "object" &&
-              recapResult.result.data !== null &&
-              "recap" in recapResult.result.data
+              result?.success &&
+              result?.data &&
+              typeof result.data === "object" &&
+              result.data !== null &&
+              "recap" in result.data
             ) {
-              // Format the recap data into a user-friendly message request
-              const recap = (recapResult.result.data as { recap: any }).recap;
+              const recap = (result.data as { recap: any }).recap;
 
               // Generate the recap prompt using the prompts library
-              const { formatContextRecapPrompt } = await import(
-                "@/lib/prompts/recap-prompts"
-              );
+              const { formatContextRecapPrompt } =
+                await import("@/lib/prompts/recap-prompts");
               const recapPrompt = formatContextRecapPrompt(recap);
 
               // Add the recap request as a new user message
@@ -462,7 +492,7 @@ export class Chat extends AIChatAgent<Env> {
             } else {
               console.error(
                 "[Chat] Failed to generate recap data:",
-                recapResult.result.message
+                result?.message ?? "Unknown"
               );
               // Fall through to normal message handling
             }
@@ -473,13 +503,15 @@ export class Chat extends AIChatAgent<Env> {
         }
       }
 
-      const targetAgent = await this.determineAgent(lastUserMessage.content);
+      const targetAgent = await this.determineAgent(
+        (lastUserMessage as { content?: string })?.content ?? ""
+      );
       console.log(
-        `[Chat] Routing to ${targetAgent} agent for message: "${lastUserMessage.content}"`
+        `[Chat] Routing to ${targetAgent} agent for message: "${(lastUserMessage as any).content}"`
       );
 
       const targetAgentInstance = this.getAgentInstance(targetAgent);
-      targetAgentInstance.messages = [...this.messages];
+      targetAgentInstance.messages = [...messages];
 
       return targetAgentInstance.onChatMessage(onFinish, {
         abortSignal: _options?.abortSignal,
@@ -497,7 +529,7 @@ export class Chat extends AIChatAgent<Env> {
         // Send structured notification via notification stream
         try {
           // Try to get JWT token from storage or message data
-          const lastUserMessage = this.messages
+          const lastUserMessage = (this.messages as any[])
             .slice()
             .reverse()
             .find((msg) => msg.role === "user");
@@ -589,7 +621,7 @@ export class Chat extends AIChatAgent<Env> {
         role: "user",
         content: `Running scheduled task: ${description}`,
         createdAt: new Date(),
-      },
+      } as any,
     ]);
   }
 }

@@ -1,4 +1,4 @@
-import type { Message } from "@ai-sdk/react";
+import type { Message } from "@/types/ai-message";
 import { Card } from "@/components/card/Card";
 import { MemoizedMarkdown } from "@/components/MemoizedMarkdown";
 
@@ -47,7 +47,10 @@ export function ChatMessageList({
                           if (part.type === "text" && hasTopLevelRender) {
                             return null;
                           }
-                          if (part.type === "text") {
+                          if (
+                            part.type === "text" &&
+                            typeof part.text === "string"
+                          ) {
                             const isLastTextPart = i === lastTextPartIndex;
 
                             return (

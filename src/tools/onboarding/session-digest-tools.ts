@@ -5,33 +5,34 @@ import {
   createToolError,
   createToolSuccess,
   extractUsernameFromJwt,
+  type ToolExecuteOptions,
 } from "../utils";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { ToolResult } from "../../app-constants";
 
-/**
- * Tool: Get recent session digests for a campaign
- */
+const getRecentSessionDigestsParameters = z.object({
+  campaignId: commonSchemas.campaignId,
+  jwt: commonSchemas.jwt,
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(10)
+    .optional()
+    .default(3)
+    .describe("Maximum number of recent digests to retrieve"),
+});
+
 export const getRecentSessionDigestsTool = tool({
   description:
     "Get recent session digests for a campaign. Use this to understand what happened in recent sessions and provide context-aware next-step suggestions.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    jwt: commonSchemas.jwt,
-    limit: z
-      .number()
-      .int()
-      .positive()
-      .max(10)
-      .optional()
-      .default(3)
-      .describe("Maximum number of recent digests to retrieve"),
-  }),
+  inputSchema: getRecentSessionDigestsParameters,
   execute: async (
-    { campaignId, jwt, limit },
-    context?: any
+    input: z.infer<typeof getRecentSessionDigestsParameters>,
+    options: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || crypto.randomUUID();
+    const { campaignId, jwt, limit } = input;
+    const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 
     try {
       if (!jwt) {
@@ -53,7 +54,7 @@ export const getRecentSessionDigestsTool = tool({
         );
       }
 
-      const env = context?.env;
+      const env = options?.env;
       if (!env) {
         return createToolError(
           "Environment not available",

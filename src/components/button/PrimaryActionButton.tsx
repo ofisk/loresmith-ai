@@ -1,8 +1,10 @@
 import { cn } from "../../lib/utils";
 import { Button, type ButtonProps } from "./Button";
 
-interface PrimaryActionButtonProps
-  extends Omit<ButtonProps, "variant" | "size"> {
+interface PrimaryActionButtonProps extends Omit<
+  ButtonProps,
+  "variant" | "size"
+> {
   children: React.ReactNode;
   className?: string;
 }

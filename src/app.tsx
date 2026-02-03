@@ -1,4 +1,4 @@
-import type { Message } from "@ai-sdk/react";
+import type { Message } from "@/types/ai-message";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import { generateId } from "ai";
@@ -157,19 +157,9 @@ export default function Chat() {
     name: sessionId, // Use the session ID to create a unique Durable Object for this session
   });
 
-  const {
-    messages: agentMessages,
-    input: agentInput,
-    handleInputChange: handleAgentInputChange,
-    clearHistory,
-    isLoading,
-    stop,
-    setInput,
-    append,
-  } = useAgentChat({
+  const chatReturn = useAgentChat({
     agent,
-    maxSteps: 5,
-    onFinish: (result) => {
+    onFinish: (finishResult) => {
       // Helper: Check if tool result data indicates an authentication error
       const isAuthErrorCode = (data: unknown): boolean => {
         if (!data || typeof data !== "object") return false;
@@ -192,15 +182,11 @@ export default function Chat() {
       };
 
       // Helper: Check all tool results in steps for auth errors
-      const checkToolResultsForAuthErrors = (result: Message): boolean => {
-        // The result includes steps from streamText onFinish callback (via ...args in base-agent)
-        const resultWithSteps = result as {
-          steps?: Array<{
+      const checkToolResultsForAuthErrors = (result: any): boolean => {
+        const steps =
+          (result?.steps as Array<{
             toolResults?: Array<{ result?: { data?: unknown } }>;
-          }>;
-        };
-
-        const steps = resultWithSteps.steps || [];
+          }>) || [];
         for (const step of steps) {
           const toolResults = step.toolResults || [];
           for (const toolResult of toolResults) {
@@ -214,14 +200,14 @@ export default function Chat() {
       };
 
       // Check tool results for authentication errors
-      if (checkToolResultsForAuthErrors(result)) {
+      if (checkToolResultsForAuthErrors(finishResult)) {
         console.log("[App] Authentication error detected in tool results");
         modalState.setShowAuthModal(true);
         return; // Early return to skip string-based checks
       }
 
       // Fallback: Check if the response indicates authentication is required (for backwards compatibility)
-      const resultContent = result.content || "";
+      const resultContent = (finishResult as any).text || "";
       if (
         resultContent.includes("AUTHENTICATION_REQUIRED:") ||
         resultContent.includes("OpenAI API key required")
@@ -231,7 +217,7 @@ export default function Chat() {
       }
 
       // Check if the agent performed operations that require UI refresh
-      const content = result.content?.toLowerCase() || "";
+      const content = (resultContent || "").toLowerCase();
 
       // Check for campaign deletion
       if (
@@ -293,6 +279,31 @@ export default function Chat() {
       }
     },
   });
+
+  const {
+    messages: agentMessages,
+    input: agentInput,
+    handleInputChange: handleAgentInputChange,
+    clearHistory,
+    isLoading,
+    stop,
+    setInput,
+    append,
+  } = chatReturn as typeof chatReturn & {
+    input: string;
+    handleInputChange: (
+      e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    ) => void;
+    isLoading: boolean;
+    setInput: (v: string) => void;
+    append: (message: {
+      id?: string;
+      role: string;
+      content: string;
+      data?: unknown;
+    }) => void;
+  };
+
   const authReady = useAuthReady();
 
   useEffect(() => {
@@ -490,9 +501,9 @@ export default function Chat() {
     m.parts?.some(
       (part) =>
         part.type === "tool-invocation" &&
-        part.toolInvocation.state === "call" &&
+        part.toolInvocation?.state === "call" &&
         toolsRequiringConfirmation.includes(
-          part.toolInvocation.toolName as
+          (part.toolInvocation?.toolName ?? "") as
             | keyof typeof generalTools
             | keyof typeof campaignTools
             | keyof typeof fileTools

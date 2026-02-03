@@ -1,21 +1,28 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { commonSchemas } from "../utils";
-import { createToolError, createToolSuccess } from "../utils";
+import {
+  commonSchemas,
+  createToolError,
+  createToolSuccess,
+  type ToolExecuteOptions,
+} from "../utils";
 import type { ToolRecommendation } from "./state-analysis-tools";
 
-/**
- * Tool: Recommend external tools based on user needs
- */
+const recommendExternalToolsSchema = z.object({
+  userNeeds: z
+    .array(z.string())
+    .describe("Array of user needs to recommend tools for"),
+  jwt: commonSchemas.jwt,
+});
+
 export const recommendExternalToolsTool = tool({
   description: "Recommend external tools based on user needs",
-  parameters: z.object({
-    userNeeds: z
-      .array(z.string())
-      .describe("Array of user needs to recommend tools for"),
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async ({ userNeeds, jwt: _jwt }, context?: any) => {
+  inputSchema: recommendExternalToolsSchema,
+  execute: async (
+    input: z.infer<typeof recommendExternalToolsSchema>,
+    options: ToolExecuteOptions
+  ) => {
+    const { userNeeds } = input;
     try {
       const tools: ToolRecommendation[] = [];
 
@@ -124,7 +131,7 @@ export const recommendExternalToolsTool = tool({
       return createToolSuccess(
         `External tools recommended successfully for needs: ${userNeeds.join(", ")}`,
         tools,
-        context?.toolCallId || "unknown"
+        options?.toolCallId ?? "unknown"
       );
     } catch (error) {
       console.error("Failed to recommend external tools:", error);
@@ -132,25 +139,28 @@ export const recommendExternalToolsTool = tool({
         "Failed to recommend external tools",
         error instanceof Error ? error.message : "Unknown error",
         500,
-        context?.toolCallId || "unknown"
+        options?.toolCallId ?? "unknown"
       );
     }
   },
 });
 
-/**
- * Tool: Suggest inspiration sources based on campaign type
- */
+const suggestInspirationSourcesSchema = z.object({
+  campaignType: z
+    .string()
+    .optional()
+    .describe("The type of campaign to suggest sources for"),
+  jwt: commonSchemas.jwt,
+});
+
 export const suggestInspirationSourcesTool = tool({
   description: "Suggest inspiration sources based on campaign type",
-  parameters: z.object({
-    campaignType: z
-      .string()
-      .optional()
-      .describe("The type of campaign to suggest sources for"),
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async ({ campaignType, jwt: _jwt }, context?: any) => {
+  inputSchema: suggestInspirationSourcesSchema,
+  execute: async (
+    input: z.infer<typeof suggestInspirationSourcesSchema>,
+    options: ToolExecuteOptions
+  ) => {
+    const { campaignType } = input;
     try {
       const sources: ToolRecommendation[] = [];
 
@@ -219,7 +229,7 @@ export const suggestInspirationSourcesTool = tool({
       return createToolSuccess(
         `Inspiration sources suggested successfully for campaign type: ${campaignType || "general"}`,
         sources,
-        context?.toolCallId || "unknown"
+        options?.toolCallId ?? "unknown"
       );
     } catch (error) {
       console.error("Failed to suggest inspiration sources:", error);
@@ -227,24 +237,27 @@ export const suggestInspirationSourcesTool = tool({
         "Failed to suggest inspiration sources",
         error instanceof Error ? error.message : "Unknown error",
         500,
-        context?.toolCallId || "unknown"
+        options?.toolCallId ?? "unknown"
       );
     }
   },
 });
 
-/**
- * Tool: Recommend GM resources based on experience level
- */
+const recommendGMResourcesSchema = z.object({
+  experienceLevel: z
+    .enum(["beginner", "intermediate", "advanced"])
+    .describe("The GM's experience level"),
+  jwt: commonSchemas.jwt,
+});
+
 export const recommendGMResourcesTool = tool({
   description: "Recommend GM resources based on experience level",
-  parameters: z.object({
-    experienceLevel: z
-      .enum(["beginner", "intermediate", "advanced"])
-      .describe("The GM's experience level"),
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async ({ experienceLevel, jwt: _jwt }, context?: any) => {
+  inputSchema: recommendGMResourcesSchema,
+  execute: async (
+    input: z.infer<typeof recommendGMResourcesSchema>,
+    options: ToolExecuteOptions
+  ) => {
+    const { experienceLevel } = input;
     try {
       const resources: ToolRecommendation[] = [];
 
@@ -326,7 +339,7 @@ export const recommendGMResourcesTool = tool({
       return createToolSuccess(
         `GM resources recommended successfully for experience level: ${experienceLevel}`,
         resources,
-        context?.toolCallId || "unknown"
+        options?.toolCallId ?? "unknown"
       );
     } catch (error) {
       console.error("Failed to recommend GM resources:", error);
@@ -334,7 +347,7 @@ export const recommendGMResourcesTool = tool({
         "Failed to recommend GM resources",
         error instanceof Error ? error.message : "Unknown error",
         500,
-        context?.toolCallId || "unknown"
+        options?.toolCallId ?? "unknown"
       );
     }
   },

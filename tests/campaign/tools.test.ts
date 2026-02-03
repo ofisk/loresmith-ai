@@ -62,12 +62,14 @@ describe("Campaign Tools", () => {
         toolDefinition.description
       );
       console.log(
-        "DEBUG toolDefinition.parameters:",
-        toolDefinition.parameters
+        "DEBUG toolDefinition.inputSchema:",
+        toolDefinition.inputSchema
       );
 
       expect(toolDefinition.description).toContain("Create a new campaign");
-      expect(toolDefinition.parameters).toBeDefined();
+      expect(
+        toolDefinition.inputSchema ?? toolDefinition.parameters
+      ).toBeDefined();
     });
 
     it("should require campaign name", async () => {
@@ -75,8 +77,8 @@ describe("Campaign Tools", () => {
       const toolDefinition = tools.createCampaign as any;
 
       // The parameters should include a name field
-      const parameters = toolDefinition.parameters;
-      expect(parameters).toBeDefined();
+      const schema = toolDefinition.inputSchema ?? toolDefinition.parameters;
+      expect(schema).toBeDefined();
 
       // In a real implementation, this would validate the schema
       // For now, we just check that the tool structure is correct
@@ -92,7 +94,9 @@ describe("Campaign Tools", () => {
 
       const toolDefinition = tools.listCampaignResources as any;
       expect(toolDefinition.description).toContain("List all resources");
-      expect(toolDefinition.parameters).toBeDefined();
+      expect(
+        toolDefinition.inputSchema ?? toolDefinition.parameters
+      ).toBeDefined();
     });
 
     it("should describe resource listing functionality", async () => {
@@ -112,7 +116,9 @@ describe("Campaign Tools", () => {
 
       const toolDefinition = tools.addResourceToCampaign as any;
       expect(toolDefinition.description).toContain("Add a resource");
-      expect(toolDefinition.parameters).toBeDefined();
+      expect(
+        toolDefinition.inputSchema ?? toolDefinition.parameters
+      ).toBeDefined();
     });
 
     it("should support different resource types", async () => {
@@ -141,7 +147,9 @@ describe("Campaign Tools", () => {
 
       const toolDefinition = tools.showCampaignDetails as any;
       expect(toolDefinition.description).toContain("Show detailed information");
-      expect(toolDefinition.parameters).toBeDefined();
+      expect(
+        toolDefinition.inputSchema ?? toolDefinition.parameters
+      ).toBeDefined();
     });
 
     it("should describe campaign details functionality", async () => {

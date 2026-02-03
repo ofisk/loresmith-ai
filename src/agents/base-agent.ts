@@ -1,5 +1,5 @@
 import { formatDataStreamPart } from "@ai-sdk/ui-utils";
-import { createDataStreamResponse, streamText } from "ai";
+import { streamText } from "ai";
 import { SimpleChatAgent, type ChatMessage } from "./simple-chat-agent";
 import {
   estimateRequestTokens,
@@ -18,6 +18,36 @@ interface Env {
 
 interface MessageData {
   jwt?: string;
+}
+
+function createDataStreamResponse(options: {
+  execute: (dataStream: { write: (chunk: unknown) => void }) => Promise<void>;
+}): Response {
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const dataStream = {
+        write(chunk: unknown) {
+          const text =
+            typeof chunk === "string" ? chunk : JSON.stringify(chunk);
+          controller.enqueue(encoder.encode(text));
+        },
+      };
+
+      try {
+        await options.execute(dataStream);
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+    },
+  });
 }
 
 /**
@@ -363,13 +393,14 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
         // Log when tools require campaignId but no explicit selection is available
         // This is a valid use case (e.g., user asks to delete a campaign by name without selecting it)
         const toolsRequiringCampaignId = Object.entries(this.tools).filter(
-          ([_, tool]) => {
-            return (
-              tool.parameters &&
-              typeof tool.parameters === "object" &&
-              (tool.parameters as any).shape &&
-              "campaignId" in (tool.parameters as any).shape
-            );
+          ([_, t]) => {
+            const schema = (t as any).inputSchema ?? (t as any).parameters;
+            const shape =
+              schema &&
+              typeof schema === "object" &&
+              "shape" in schema &&
+              (schema as any).shape;
+            return !!shape && "campaignId" in shape;
           }
         );
 
@@ -448,7 +479,6 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           toolCount: Object.keys(enhancedTools).length,
           toolNames: Object.keys(enhancedTools),
           toolChoice,
-          maxSteps: 15,
           estimatedTokens,
           contextLimit,
           lastUserMessage: processedMessages
@@ -468,7 +498,6 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             toolCount: requestDetails.toolCount,
             toolNames: requestDetails.toolNames,
             toolChoice: requestDetails.toolChoice,
-            maxSteps: requestDetails.maxSteps,
             lastUserMessage: requestDetails.lastUserMessage,
           })
         );
@@ -480,7 +509,6 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             toolChoice, // Use the variable instead of hardcoded value
             messages: processedMessages,
             tools: enhancedTools,
-            maxSteps: 15, // Allow multiple tool calls plus final response
             onFinish: async (args) => {
               console.log(
                 `[${this.constructor.name}] onFinish called with finishReason: ${args.finishReason}`
@@ -503,7 +531,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                   if (searchCalls.length > 0) {
                     searchCalls.forEach((call, idx) => {
                       console.log(
-                        `[${this.constructor.name}] searchCampaignContext call ${idx + 1}: query="${call.args?.query || "MISSING"}"`
+                        `[${this.constructor.name}] searchCampaignContext call ${
+                          idx + 1
+                        }: query="${(call as any).args?.query || "MISSING"}"`
                       );
                     });
                   }
@@ -515,13 +545,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 }
               }
               // Convert the finish args to ChatMessage format
-              const message: any = {
-                role: "assistant" as const,
-                content: args.text || "",
-                ...args,
-              };
-
-              await (onFinish ?? (() => {}))(message);
+              await (onFinish ?? (() => {}))(args);
             },
             onError: (errorObj) => {
               // Extract all error details
@@ -710,14 +734,16 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               // Ensure JWT is always included for operations that require it
               const enhancedArgs = { ...args };
 
-              // Check if the tool requires a JWT parameter and inject it if not provided
-              // For Zod schemas, we need to check the shape property
-              const hasJwtParam =
-                tool.parameters &&
-                typeof tool.parameters === "object" &&
-                (tool.parameters as any).shape &&
-                "jwt" in (tool.parameters as any).shape;
+              // Resolve schema for param checks: AI SDK v5 uses .parameters, v6 uses .inputSchema (Zod has .shape)
+              const schema =
+                (tool as any).inputSchema ?? (tool as any).parameters;
+              const shape =
+                schema &&
+                typeof schema === "object" &&
+                "shape" in schema &&
+                (schema as any).shape;
 
+              const hasJwtParam = !!shape && "jwt" in shape;
               if (hasJwtParam && !enhancedArgs.jwt) {
                 enhancedArgs.jwt = clientJwt;
                 console.log(
@@ -725,16 +751,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 );
               }
 
-              // Check if the tool requires a campaignId parameter and inject/override it with the current campaign
-              const hasCampaignIdParam =
-                tool.parameters &&
-                typeof tool.parameters === "object" &&
-                (tool.parameters as any).shape &&
-                "campaignId" in (tool.parameters as any).shape;
-
+              const hasCampaignIdParam = !!shape && "campaignId" in shape;
               if (hasCampaignIdParam && selectedCampaignId) {
                 // Always use the selectedCampaignId from the current message, overriding any LLM-provided value
-                // This ensures we use the campaign the user has explicitly selected in the dropdown
                 const previousCampaignId = enhancedArgs.campaignId;
                 enhancedArgs.campaignId = selectedCampaignId;
                 if (
@@ -747,12 +766,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 }
               }
 
-              // Check if the tool requires a sessionId parameter and inject it from durable object ID
-              const hasSessionIdParam =
-                tool.parameters &&
-                typeof tool.parameters === "object" &&
-                (tool.parameters as any).shape &&
-                "sessionId" in (tool.parameters as any).shape;
+              const hasSessionIdParam = !!shape && "sessionId" in shape;
 
               if (hasSessionIdParam && !enhancedArgs.sessionId) {
                 // Inject sessionId from durable object ID

@@ -146,9 +146,8 @@ export class RebuildPipelineService {
       // Archive changelog entries that were applied
       if (unappliedEntryIds.length > 0 && this.env?.R2) {
         try {
-          const { ChangelogArchiveService } = await import(
-            "@/services/graph/changelog-archive-service"
-          );
+          const { ChangelogArchiveService } =
+            await import("@/services/graph/changelog-archive-service");
           const archiveService = new ChangelogArchiveService({
             db: this.env.DB!,
             r2: this.env.R2,

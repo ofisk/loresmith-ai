@@ -90,9 +90,8 @@ export class AssessmentService {
       // Sync character_backstory entries to entities before assessment
       // This ensures player characters are available in the entity graph
       try {
-        const { CharacterEntitySyncService } = await import(
-          "@/services/campaign/character-entity-sync-service"
-        );
+        const { CharacterEntitySyncService } =
+          await import("@/services/campaign/character-entity-sync-service");
         const syncService = new CharacterEntitySyncService(this.env);
         await syncService.syncAllCharacterBackstories(campaignId);
       } catch (syncError) {

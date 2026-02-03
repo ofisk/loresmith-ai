@@ -9,23 +9,31 @@ import { getDAOFactory } from "../../dao/dao-factory";
 import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
 import type { Env } from "../../middleware/auth";
 import { AUTH_CODES } from "../../shared-config";
-import { commonSchemas } from "../utils";
-import { createToolError, createToolSuccess } from "../utils";
+import {
+  commonSchemas,
+  createToolError,
+  createToolSuccess,
+  type ToolExecuteOptions,
+} from "../utils";
 import { EnvironmentRequiredError } from "@/lib/errors";
+
+const listCampaignsSchema = z.object({
+  jwt: commonSchemas.jwt,
+});
 
 // Core campaign operations
 
 export const listCampaigns = tool({
   description: "List all campaigns for the current user",
-  parameters: z.object({
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async ({ jwt }, context?: any): Promise<ToolResult> => {
+  inputSchema: listCampaignsSchema,
+  execute: async (
+    input: z.infer<typeof listCampaignsSchema>,
+    options: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[Tool] listCampaigns received JWT:", jwt);
-    console.log("[Tool] listCampaigns context:", context);
-
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[Tool] listCampaigns context:", options);
     console.log("[listCampaigns] Using toolCallId:", toolCallId);
 
     try {
@@ -94,27 +102,28 @@ export const listCampaigns = tool({
   },
 });
 
+const createCampaignSchema = z.object({
+  name: z.string(),
+  description: z
+    .string()
+    .describe(
+      "Campaign description provided by the user or created through conversation"
+    ),
+  jwt: commonSchemas.jwt,
+});
+
 export const createCampaign = tool({
   description:
     "Create a new campaign. The agent should ask the user for a description or help them create one through conversation.",
-  parameters: z.object({
-    name: z.string(),
-    description: z
-      .string()
-      .describe(
-        "Campaign description provided by the user or created through conversation"
-      ),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: createCampaignSchema,
   execute: async (
-    { name, description, jwt },
-    context?: any
+    input: z.infer<typeof createCampaignSchema>,
+    options: ToolExecuteOptions
   ): Promise<ToolResult> => {
+    const { name, description, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[Tool] createCampaign received:", { name, description, jwt });
-    console.log("[Tool] createCampaign context:", context);
-
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[Tool] createCampaign context:", options);
     console.log("[createCampaign] Using toolCallId:", toolCallId);
 
     try {
@@ -181,19 +190,23 @@ Your campaign is now ready and waiting for you to add resources, plan sessions, 
   },
 });
 
+const showCampaignDetailsSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  jwt: commonSchemas.jwt,
+});
+
 export const showCampaignDetails = tool({
   description:
     "Show detailed information about a specific campaign, including the campaign name, description, creation date, and other metadata. Use this tool FIRST when users mention 'campaign description', 'use the campaign's description', or ask for suggestions based on the campaign description. This tool retrieves the campaign's description and basic metadata from the database.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async ({ campaignId, jwt }, context?: any): Promise<ToolResult> => {
+  inputSchema: showCampaignDetailsSchema,
+  execute: async (
+    input: z.infer<typeof showCampaignDetailsSchema>,
+    options: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { campaignId, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[Tool] showCampaignDetails received:", { campaignId, jwt });
-    console.log("[Tool] showCampaignDetails context:", context);
-
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[Tool] showCampaignDetails context:", options);
     console.log("[showCampaignDetails] Using toolCallId:", toolCallId);
 
     try {
@@ -287,26 +300,29 @@ export const showCampaignDetails = tool({
   },
 });
 
+const updateCampaignSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  name: z.string().optional().describe("Campaign name"),
+  description: z.string().optional().describe("Campaign description"),
+  metadata: z
+    .record(z.unknown())
+    .optional()
+    .describe(
+      "Campaign metadata as a JSON object. Extract from user messages: world name ('world is named X' or 'world name is X') → worldName, starting location ('starting location is X' or 'starting location will be X') → startingLocation. Other campaign-specific information can also be included. This will be merged with existing metadata."
+    ),
+  jwt: commonSchemas.jwt,
+});
+
 export const updateCampaign = tool({
   description:
     "Update campaign information including name, description, and metadata. Use this tool when users provide campaign details like world name, starting location, or other metadata that should be saved to the campaign. Extract information from user messages (e.g., 'the campaign's world is named [name]' → metadata: {worldName: '[name]'}, 'starting location will be [location]' → metadata: {startingLocation: '[location]'}). The metadata parameter accepts a JSON object that will be merged with existing metadata.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    name: z.string().optional().describe("Campaign name"),
-    description: z.string().optional().describe("Campaign description"),
-    metadata: z
-      .record(z.unknown())
-      .optional()
-      .describe(
-        "Campaign metadata as a JSON object. Extract from user messages: world name ('world is named X' or 'world name is X') → worldName, starting location ('starting location is X' or 'starting location will be X') → startingLocation. Other campaign-specific information can also be included. This will be merged with existing metadata."
-      ),
-    jwt: commonSchemas.jwt,
-  }),
+  inputSchema: updateCampaignSchema,
   execute: async (
-    { campaignId, name, description, metadata, jwt },
-    context?: any
+    input: z.infer<typeof updateCampaignSchema>,
+    options: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const toolCallId = context?.toolCallId || "unknown";
+    const { campaignId, name, description, metadata, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[updateCampaign] Using toolCallId:", toolCallId);
 
     console.log("[Tool] updateCampaign received:", {
@@ -402,19 +418,23 @@ export const updateCampaign = tool({
   },
 });
 
+const deleteCampaignSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  jwt: commonSchemas.jwt,
+});
+
 export const deleteCampaign = tool({
   description:
     "Delete a specific campaign. IMPORTANT: Before calling this tool, you MUST ask the user for confirmation. Explain which campaign you're proposing to delete and why (e.g., 'I see that [Campaign Name] is currently selected in the dropdown menu, so I'm proposing to delete that campaign. Is that correct?'). Only call this tool after the user explicitly confirms they want to delete the campaign.",
-  parameters: z.object({
-    campaignId: commonSchemas.campaignId,
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async ({ campaignId, jwt }, context?: any): Promise<ToolResult> => {
+  inputSchema: deleteCampaignSchema,
+  execute: async (
+    input: z.infer<typeof deleteCampaignSchema>,
+    options: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { campaignId, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[Tool] deleteCampaign received:", { campaignId, jwt });
-    console.log("[Tool] deleteCampaign context:", context);
-
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
+    console.log("[Tool] deleteCampaign context:", options);
     console.log("[deleteCampaign] Using toolCallId:", toolCallId);
 
     try {
@@ -463,18 +483,22 @@ export const deleteCampaign = tool({
   },
 });
 
+const deleteCampaignsSchema = z.object({
+  jwt: commonSchemas.jwt,
+});
+
 export const deleteCampaigns = tool({
   description: "Delete all campaigns for the current user",
-  parameters: z.object({
-    jwt: commonSchemas.jwt,
-  }),
-  execute: async ({ jwt }, context?: any): Promise<ToolResult> => {
+  inputSchema: deleteCampaignsSchema,
+  execute: async (
+    input: z.infer<typeof deleteCampaignsSchema>,
+    options: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
     console.log("[Tool] deleteCampaigns received JWT:", jwt);
-    console.log("[Tool] deleteCampaigns context:", context);
+    console.log("[Tool] deleteCampaigns context:", options);
     console.log("[deleteCampaigns] Using JWT:", jwt);
-
-    // Extract toolCallId from context
-    const toolCallId = context?.toolCallId || "unknown";
     console.log("[deleteCampaigns] Using toolCallId:", toolCallId);
 
     try {
@@ -523,15 +547,21 @@ export const deleteCampaigns = tool({
   },
 });
 
+const resolveCampaignIdentifierSchema = z.object({
+  campaignName: z.string().describe("Campaign name as seen in UI"),
+});
+
 // Lightweight resolver for campaign identifiers (name -> UUID)
 export const resolveCampaignIdentifier = tool({
   description: "Resolve a campaign name/descriptor to its UUID",
-  parameters: z.object({
-    campaignName: z.string().describe("Campaign name as seen in UI"),
-  }),
-  execute: async ({ campaignName }, context?: any) => {
+  inputSchema: resolveCampaignIdentifierSchema,
+  execute: async (
+    input: z.infer<typeof resolveCampaignIdentifierSchema>,
+    options: ToolExecuteOptions
+  ) => {
+    const { campaignName } = input;
     try {
-      const env = context?.env as Env | undefined;
+      const env = (options as ToolExecuteOptions).env as Env | undefined;
       if (!env) {
         throw new EnvironmentRequiredError();
       }

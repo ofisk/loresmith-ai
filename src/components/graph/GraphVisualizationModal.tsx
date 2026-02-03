@@ -72,17 +72,7 @@ export function GraphVisualizationModal({
   }, [filters]);
 
   // Serialize filters to prevent unnecessary re-renders
-  const filtersKey = useMemo(
-    () => JSON.stringify(filters),
-    [
-      filters.entityTypes?.join(","),
-      filters.relationshipTypes?.join(","),
-      filters.approvalStatuses?.join(","),
-      filters.communityLevel,
-      filters.communitySizeMin,
-      filters.communitySizeMax,
-    ]
-  );
+  const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
 
   // Fetch community graph data when modal opens or filters change
   useEffect(() => {
@@ -265,59 +255,57 @@ export function GraphVisualizationModal({
           {/* Graph view */}
           <div className="flex-1 min-w-0 flex flex-col">
             {viewMode === "community" ? (
-              <>
-                {loadingCommunityGraph ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-neutral-600 dark:text-neutral-400">
-                      Loading graph...
-                    </div>
+              loadingCommunityGraph ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-neutral-600 dark:text-neutral-400">
+                    Loading graph...
                   </div>
-                ) : errorCommunityGraph ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-red-600 dark:text-red-400">
-                      {errorCommunityGraph}
-                    </div>
+                </div>
+              ) : errorCommunityGraph ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-red-600 dark:text-red-400">
+                    {errorCommunityGraph}
                   </div>
-                ) : filteredCommunityGraphData ? (
+                </div>
+              ) : filteredCommunityGraphData ? (
+                <div
+                  className={cn(
+                    "flex-1 min-h-0 flex",
+                    selectedEntityId && "gap-0"
+                  )}
+                >
                   <div
                     className={cn(
-                      "flex-1 min-h-0 flex",
-                      selectedEntityId && "gap-0"
+                      "min-w-0 flex-1",
+                      selectedEntityId && "w-2/3"
                     )}
                   >
-                    <div
-                      className={cn(
-                        "min-w-0 flex-1",
-                        selectedEntityId && "w-2/3"
-                      )}
-                    >
-                      <CytoscapeGraph
-                        data={filteredCommunityGraphData}
-                        layout={layout}
-                        onNodeClick={handleCommunityNodeClick}
-                        highlightedNodes={highlightedNodes}
+                    <CytoscapeGraph
+                      data={filteredCommunityGraphData}
+                      layout={layout}
+                      onNodeClick={handleCommunityNodeClick}
+                      highlightedNodes={highlightedNodes}
+                      className="h-full"
+                    />
+                  </div>
+                  {selectedEntityId && (
+                    <div className="w-1/3 min-w-0 border-l border-neutral-200 dark:border-neutral-700 flex-shrink-0">
+                      <EntityDetailPanel
+                        campaignId={campaignId}
+                        entityId={selectedEntityId}
+                        onClose={handleCloseEntityDetail}
                         className="h-full"
                       />
                     </div>
-                    {selectedEntityId && (
-                      <div className="w-1/3 min-w-0 border-l border-neutral-200 dark:border-neutral-700 flex-shrink-0">
-                        <EntityDetailPanel
-                          campaignId={campaignId}
-                          entityId={selectedEntityId}
-                          onClose={handleCloseEntityDetail}
-                          className="h-full"
-                        />
-                      </div>
-                    )}
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-neutral-600 dark:text-neutral-400">
+                    No graph data available
                   </div>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-neutral-600 dark:text-neutral-400">
-                      No graph data available
-                    </div>
-                  </div>
-                )}
-              </>
+                </div>
+              )
             ) : (
               <CommunityEntityView
                 campaignId={campaignId}

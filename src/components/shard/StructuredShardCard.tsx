@@ -515,9 +515,7 @@ export function StructuredShardCard({
                       title="Generate with AI"
                     >
                       {generatingField === fieldKey ? (
-                        <>
-                          <span className="animate-pulse">Generating…</span>
-                        </>
+                        <span className="animate-pulse">Generating…</span>
                       ) : (
                         <>
                           <Sparkles size={14} />
