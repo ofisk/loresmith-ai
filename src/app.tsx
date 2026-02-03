@@ -665,13 +665,24 @@ export default function Chat() {
           },
           {
             target: ".tour-library-section",
-            content:
-              "Resource library: source materials you link to a campaign (notes, documents, references). LoreSmith extracts shards from them (discrete pieces of lore like characters, places, and items), which you'll review before they're added to your campaign.",
+            content: (
+              <>
+                <p>
+                  Resource library: source materials you link to a campaign
+                  (notes, documents, references).
+                </p>
+                <p>
+                  LoreSmith extracts shards from them (discrete pieces of lore
+                  like characters, places, and items), which you'll review
+                  before they're added to your campaign.
+                </p>
+              </>
+            ),
           },
           {
             target: ".tour-shard-review",
             content:
-              "Shard review: this is where you approve or reject those shards. Only approved shards are used in campaign AI queries.",
+              "Shard review: this is where you approve or reject those shards. LoreSmith respects your decisions on which shards should be allowed to shape your campaign and which should be avoided.",
           },
           {
             target: ".chat-input-area",
@@ -691,7 +702,7 @@ export default function Chat() {
           {
             target: ".tour-next-steps",
             content:
-              "Next steps: this opens an assessment of your campaign and prioritized suggestions for what to do next.",
+              "Next steps: this prompts LoreSmith to provide an assessment of your campaign and prioritized suggestions for what to do next.",
           },
           {
             target: ".tour-help-button",
