@@ -518,7 +518,7 @@ export default function Chat() {
   // Enhanced form submission handler that includes JWT
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!agentInput.trim()) return;
+    if (!(agentInput ?? "").trim()) return;
 
     // Update activity timestamp on message send
     updateActivity();
@@ -529,7 +529,7 @@ export default function Chat() {
     // The agent will detect missing keys and trigger the auth modal via onFinish callback
     append({
       role: "user",
-      content: agentInput,
+      content: agentInput ?? "",
       data: jwt
         ? { jwt, campaignId: selectedCampaignId ?? null }
         : { campaignId: selectedCampaignId ?? null },
@@ -566,7 +566,7 @@ export default function Chat() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
-      if (!agentInput.trim()) return;
+      if (!(agentInput ?? "").trim()) return;
 
       const jwt = authState.getStoredJwt();
 
@@ -574,7 +574,7 @@ export default function Chat() {
       // The agent will detect missing keys and trigger the auth modal via onFinish callback
       append({
         role: "user",
-        content: agentInput,
+        content: agentInput ?? "",
         data: jwt
           ? { jwt, campaignId: selectedCampaignId ?? null }
           : { campaignId: selectedCampaignId ?? null },
@@ -702,7 +702,7 @@ export default function Chat() {
             <ChatArea
               chatContainerId={chatContainerId}
               messages={agentMessages as Message[]}
-              input={agentInput}
+              input={agentInput ?? ""}
               onInputChange={(e) => {
                 handleAgentInputChange(e);
                 // Auto-resize the textarea

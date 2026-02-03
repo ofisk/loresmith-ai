@@ -155,7 +155,9 @@ export function ChatArea({
                 <button
                   type="submit"
                   className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-2 h-fit border border-neutral-200/50 dark:border-neutral-700/50 shadow-sm backdrop-blur-sm"
-                  disabled={pendingToolCallConfirmation || !input.trim()}
+                  disabled={
+                    pendingToolCallConfirmation || !(input ?? "").trim()
+                  }
                   aria-label="Send message"
                 >
                   <PaperPlaneRight size={16} />
