@@ -1,6 +1,20 @@
 import type { Context } from "hono";
 
 /**
+ * Sanitize an OpenAI API key by removing invisible/format Unicode characters
+ * that can be pasted from some UIs (e.g. U+2068, U+2069) and cause 400 Bad Request.
+ */
+export function sanitizeOpenAIApiKey(key: string): string {
+  if (typeof key !== "string") return "";
+  return key
+    .replace(
+      /[\u2066-\u2069\u200B-\u200D\uFEFF\u00AD]/g,
+      ""
+    ) /* remove format/dir isolates, zero-width, BOM, soft hyphen */
+    .trim();
+}
+
+/**
  * Extract JWT token from Authorization header
  * Handles both Hono Context and standard Request headers
  *

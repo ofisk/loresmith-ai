@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.1.2/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
   "vcs": {
     "enabled": false,
     "clientKind": "git",
@@ -7,15 +7,17 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json"],
-    "experimentalScannerIgnores": [
-      "worker-configuration.d.ts",
-      "dist/**/*",
-      "build/**/*",
-      "node_modules/**/*",
-      ".wrangler/**/*",
-      "dist/",
-      ".wrangler/"
+    "includes": [
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.json",
+      "!!dist",
+      "!!node_modules",
+      "!!.wrangler",
+      "!!build",
+      "!!**/worker-configuration.d.ts"
     ]
   },
   "formatter": {

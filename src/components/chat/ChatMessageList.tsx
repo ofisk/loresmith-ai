@@ -80,17 +80,29 @@ export function ChatMessageList({
                                     )}
                                   />
                                 </Card>
-                                {isLastTextPart && (
-                                  <p
-                                    className={`text-xs text-muted-foreground mt-2 px-1 ${
-                                      isUser ? "text-right" : "text-left"
-                                    }`}
-                                  >
-                                    {formatTime(
-                                      new Date(m.createdAt as unknown as string)
-                                    )}
-                                  </p>
-                                )}
+                                {isLastTextPart &&
+                                  (() => {
+                                    const createdAt = m.createdAt as
+                                      | string
+                                      | Date
+                                      | undefined;
+                                    const date =
+                                      createdAt != null
+                                        ? new Date(createdAt)
+                                        : null;
+                                    const isValid =
+                                      date != null &&
+                                      !Number.isNaN(date.getTime());
+                                    return isValid ? (
+                                      <p
+                                        className={`text-xs text-muted-foreground mt-2 px-1 ${
+                                          isUser ? "text-right" : "text-left"
+                                        }`}
+                                      >
+                                        {formatTime(date)}
+                                      </p>
+                                    ) : null;
+                                  })()}
                               </div>
                             );
                           }

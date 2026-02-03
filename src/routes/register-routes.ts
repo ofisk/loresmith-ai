@@ -1,4 +1,4 @@
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 import {
   handleGetAssessmentRecommendations,
   handleGetUserActivity,
@@ -938,7 +938,7 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     return new Response("Favicon not found", { status: 404 });
   });
 
-  app.get("/agents/*", async (c) => {
+  const handleAgentsRoute = async (c: Context<{ Bindings: Env }>) => {
     const authHeader = c.req.header("Authorization");
     const authPayload = await AuthService.extractAuthFromHeader(
       authHeader,
@@ -955,7 +955,11 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
         cors: true,
       })) || new Response("Agent route not found", { status: 404 })
     );
-  });
+  };
+
+  app.get("/agents/*", handleAgentsRoute);
+  app.post("/agents/*", handleAgentsRoute);
+  app.options("/agents/*", handleAgentsRoute);
 
   app.get("*", async (_c) => {
     return new Response("Route not found", { status: 404 });
