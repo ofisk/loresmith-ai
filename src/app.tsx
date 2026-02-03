@@ -656,6 +656,7 @@ export default function Chat() {
             target: ".tour-sidebar",
             content:
               "This sidebar contains your campaigns and resource library.",
+            placement: "right",
           },
           {
             target: ".tour-campaigns-section",
