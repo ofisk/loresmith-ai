@@ -32,12 +32,27 @@ function ciHtmlEntryPlugin(): Plugin {
       );
       if (!entryChunk) return;
       const scriptHref = `/${entryChunk.fileName}`;
+      // Find the main stylesheet so we can inject it into HTML (ensures CSS loads in production)
+      const cssEntry = Object.entries(bundle).find(
+        ([_, o]) =>
+          o.type === "asset" &&
+          "fileName" in o &&
+          typeof (o as { fileName: string }).fileName === "string" &&
+          (o as { fileName: string }).fileName.endsWith(".css")
+      );
+      const cssHref = cssEntry
+        ? `/${(cssEntry[1] as { fileName: string }).fileName}`
+        : null;
       const indexPath = path.join(process.cwd(), "index.html");
       let html = fs.readFileSync(indexPath, "utf8");
       html = html.replace(
         /(\bsrc=)(["'])(?:\/src\/client\.tsx|\.\/src\/client\.tsx)\2/,
         `$1$2${scriptHref}$2`
       );
+      if (cssHref) {
+        const linkTag = `    <link rel="stylesheet" href="${cssHref}" />`;
+        html = html.replace("</head>", `\n${linkTag}\n  </head>`);
+      }
       this.emitFile({ type: "asset", fileName: "index.html", source: html });
     },
   };

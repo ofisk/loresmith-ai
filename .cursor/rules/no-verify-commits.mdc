@@ -1,0 +1,37 @@
+---
+description: Never use --no-verify on git commits; fix errors instead
+alwaysApply: true
+---
+
+# No --no-verify on Commits
+
+## Rule
+
+The agent must **never** use `--no-verify` (or `-n`) to bypass git hooks when committing. If a commit fails due to pre-commit hooks, lint errors, tests, or other checks, the agent must **fix the underlying issues** and then commit again.
+
+## What to Do When a Commit Fails
+
+1. **Read the error output** – Identify what check failed (lint, tests, formatting, etc.)
+2. **Fix the issues** – Make the necessary code or configuration changes to resolve the failures
+3. **Re-run checks** – Verify fixes locally (e.g., `npm run lint`, `npm test`) before committing again
+4. **Commit without --no-verify** – Only commit once all checks pass
+
+## Examples
+
+❌ **Never do this:**
+```bash
+git commit -m "Fix bug" --no-verify
+git commit -n -m "Fix bug"
+```
+
+✅ **Correct approach:**
+```bash
+# Commit failed due to lint errors
+# 1. Fix the lint errors in the affected files
+# 2. Run: npm run lint
+# 3. Stage and commit: git commit -m "Fix bug"
+```
+
+## Rationale
+
+Using `--no-verify` bypasses important quality gates (linting, tests, formatting). Fixing the underlying issues keeps the codebase consistent and catches problems before they land.
