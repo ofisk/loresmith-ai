@@ -1,8 +1,11 @@
 import type { Message } from "@/types/ai-message";
 import { generateId } from "ai";
 import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Joyride from "react-joyride";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import { API_CONFIG } from "@/shared-config";
 
 // Component imports
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
@@ -67,10 +70,16 @@ export default function Chat() {
       return;
     }
 
-    // Skip steps where elements don't exist
+    // When a step's target isn't in the DOM, skip to the next step so the overlay doesn't block the page
     if (lifecycle === "tooltip" && type === "error:target_not_found") {
       console.log("Target not found, skipping step:", index);
-      // Let Joyride handle skipping automatically
+      const stepsCount = 12;
+      if (index + 1 >= stepsCount) {
+        setRunTour(false);
+        localStorage.setItem("loresmith-tour-completed", "true");
+      } else {
+        setStepIndex(index + 1);
+      }
       return;
     }
 
@@ -110,26 +119,15 @@ export default function Chat() {
   const modalState = useModalState();
   const authState = useAppAuthentication();
 
-  // Start tour after authentication
+  // Start tour after authentication, only if user hasn't completed or skipped it before
   useEffect(() => {
-    console.log(
-      "[Tour] Effect running - Auth:",
-      authState.isAuthenticated,
-      "JWT:",
-      !!authState.getStoredJwt()
-    );
-    if (authState.isAuthenticated) {
-      console.log("[Tour] Authenticated, starting tour after delay");
-      // Always show tour after authentication
-      const timer = setTimeout(() => {
-        console.log("[Tour] Starting tour now");
-        setStepIndex(0); // Reset to first step
-        setRunTour(true);
-      }, 300); // 300ms delay
-      return () => clearTimeout(timer);
-    } else {
-      console.log("[Tour] Not authenticated yet");
-    }
+    if (!authState.isAuthenticated) return;
+    if (localStorage.getItem("loresmith-tour-completed") === "true") return;
+    const timer = setTimeout(() => {
+      setStepIndex(0);
+      setRunTour(true);
+    }, 500);
+    return () => clearTimeout(timer);
   }, [authState.isAuthenticated]);
 
   // Debug: Add global function to manually start tour
@@ -151,7 +149,7 @@ export default function Chat() {
     setTextareaHeight,
     triggerFileUpload,
     setTriggerFileUpload,
-    sessionId: _sessionId,
+    sessionId,
   } = useAppState({ modalState, authState });
 
   const {
@@ -241,42 +239,119 @@ export default function Chat() {
     }
   }, [authState, modalState]);
 
-  // Stub out chat interface - your app needs updating to work with the new agents API
-  // TODO: Properly integrate with the new agents package API
-  const chatReturn = {
-    messages: [] as Message[],
-    input: "",
-    handleInputChange: () => {},
-    clearHistory: () => {},
-    isLoading: false,
-    stop: () => {},
-    setInput: () => {},
-    append: () => {},
+  // Ref to supply fresh jwt/campaignId to the chat transport on each request
+  const chatAuthRef = useRef<{
+    jwt: string | null;
+    campaignId: string | null;
+  }>({ jwt: null, campaignId: null });
+  chatAuthRef.current = {
+    jwt: authState.getStoredJwt() ?? null,
+    campaignId: selectedCampaignId ?? null,
   };
 
+  const chatTransport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: `${API_CONFIG.getApiBaseUrl()}/agents/chat/${sessionId}`,
+        headers: () => ({
+          Authorization: `Bearer ${chatAuthRef.current.jwt ?? ""}`,
+        }),
+        body: () => ({
+          data: {
+            jwt: chatAuthRef.current.jwt ?? undefined,
+            campaignId: chatAuthRef.current.campaignId ?? null,
+          },
+        }),
+        prepareSendMessagesRequest: async (options) => {
+          const messages = options.messages ?? [];
+          const lastUser = [...messages]
+            .reverse()
+            .find((m) => m.role === "user");
+          const lastId =
+            lastUser && "id" in lastUser && typeof lastUser.id === "string"
+              ? lastUser.id
+              : undefined;
+          const finalMessages =
+            lastId && options.trigger === "submit-message"
+              ? [
+                  ...messages,
+                  {
+                    role: "system",
+                    content: "",
+                    data: {
+                      type: "client_marker",
+                      processedMessageId: lastId,
+                      campaignId: chatAuthRef.current.campaignId ?? null,
+                    },
+                  },
+                ]
+              : messages;
+          return {
+            body: {
+              ...options.body,
+              id: options.id,
+              messages: finalMessages,
+              trigger: options.trigger,
+              messageId: options.messageId,
+            },
+          };
+        },
+      }),
+    [sessionId]
+  );
+
   const {
-    messages: agentMessages,
-    input: agentInput,
-    handleInputChange: handleAgentInputChange,
-    clearHistory,
-    isLoading,
+    messages: chatMessages,
+    sendMessage,
+    setMessages: setChatMessages,
+    status: chatStatus,
     stop,
-    setInput,
-    append,
-  } = chatReturn as typeof chatReturn & {
-    input: string;
-    handleInputChange: (
-      e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-    ) => void;
-    isLoading: boolean;
-    setInput: (v: string) => void;
-    append: (message: {
+  } = useChat({
+    id: sessionId,
+    transport: chatTransport,
+  });
+
+  const [agentInput, setInput] = useState("");
+  const handleAgentInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setInput((e?.target?.value ?? "").trimStart());
+    },
+    []
+  );
+
+  const agentMessages = chatMessages as Message[];
+  const isLoading = chatStatus === "submitted" || chatStatus === "streaming";
+
+  const append = useCallback(
+    (message: {
       id?: string;
       role: string;
       content: string;
       data?: unknown;
-    }) => void;
-  };
+    }) => {
+      const text = (message.content ?? "").trim();
+      if (message.role === "user") {
+        void sendMessage({
+          text: text || " ",
+          metadata: message.data,
+        });
+      } else {
+        const newMsg = {
+          id: message.id ?? generateId(),
+          role: message.role as "user" | "assistant" | "system",
+          content: text,
+          parts: [],
+          ...(message.data != null && { data: message.data }),
+        };
+        setChatMessages((prev) => [...prev, newMsg] as typeof prev);
+      }
+    },
+    [sendMessage, setChatMessages]
+  );
+
+  const clearHistory = useCallback(() => {
+    setChatMessages([]);
+  }, [setChatMessages]);
 
   const authReady = useAuthReady();
 
@@ -508,20 +583,6 @@ export default function Chat() {
         ? { jwt, campaignId: selectedCampaignId ?? null }
         : { campaignId: selectedCampaignId ?? null },
     });
-    // Immediately send a hidden system marker referencing the last user message
-    setTimeout(() => {
-      const last = agentMessages[agentMessages.length - 1];
-      const processedMessageId = last?.id;
-      append({
-        role: "system",
-        content: "",
-        data: {
-          type: "client_marker",
-          processedMessageId,
-          campaignId: selectedCampaignId ?? null,
-        },
-      });
-    }, 0);
     setInput("");
     setTextareaHeight("auto"); // Reset height after submission
     // Scroll to bottom after user sends a message

@@ -250,6 +250,38 @@ export class Chat extends SimpleChatAgent<Env> {
       console.log("[Chat] Stored JWT token from Authorization header");
     }
 
+    // Handle POST chat message (e.g. from AI SDK useChat)
+    if (request.method === "POST") {
+      try {
+        const body = (await request.json()) as {
+          messages?: Array<{
+            role?: string;
+            content?: string;
+            [key: string]: unknown;
+          }>;
+          data?: unknown;
+        };
+        const rawMessages = body?.messages;
+        if (Array.isArray(rawMessages)) {
+          this.messages = rawMessages.map((m) => ({
+            role: (m.role as "user" | "assistant" | "system") || "user",
+            content: typeof m.content === "string" ? m.content : "",
+            ...(m.data != null && { data: m.data }),
+          }));
+        }
+        const response = await this.onChatMessage(() => {});
+        return response;
+      } catch (err) {
+        console.error("[Chat] Error handling POST:", err);
+        return new Response(
+          JSON.stringify({
+            error: err instanceof Error ? err.message : String(err),
+          }),
+          { status: 500, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     return super.fetch(request);
   }
 
