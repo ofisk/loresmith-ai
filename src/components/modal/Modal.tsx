@@ -91,14 +91,26 @@ export const Modal = ({
   useEffect(() => {
     if (!isOpen || !modalRef.current) return;
 
-    const focusableElements = modalRef.current.querySelectorAll(
+    const modalElement = modalRef.current;
+    const focusableElements = modalElement.querySelectorAll(
       'a, button, input, textarea, select, details, [tabindex]:not([tabindex="-1"])'
     ) as NodeListOf<HTMLElement>;
 
     const firstElement = focusableElements[0];
     const lastElement = focusableElements[focusableElements.length - 1];
 
-    if (firstElement) firstElement.focus();
+    // Only focus the first element when modal initially opens
+    // Don't refocus if user is already interacting with an input
+    const activeElement = document.activeElement as HTMLElement;
+    const isInputActive =
+      activeElement &&
+      (activeElement.tagName === "INPUT" ||
+        activeElement.tagName === "TEXTAREA" ||
+        activeElement.isContentEditable);
+
+    if (firstElement && !isInputActive) {
+      firstElement.focus();
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Tab") {
@@ -125,7 +137,7 @@ export const Modal = ({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose, modalRef.current, allowEscape]);
+  }, [isOpen, onClose, allowEscape]);
 
   if (!isOpen) return null;
 
