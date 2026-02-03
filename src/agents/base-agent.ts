@@ -1,4 +1,3 @@
-import { formatDataStreamPart } from "@ai-sdk/ui-utils";
 import { streamText } from "ai";
 import { SimpleChatAgent, type ChatMessage } from "./simple-chat-agent";
 import {
@@ -20,24 +19,40 @@ interface MessageData {
   jwt?: string;
 }
 
+const TEXT_PART_ID = "text-1";
+
+/** Write a single text message as UI stream chunks (text-start, text-delta, text-end). */
+function writeTextChunks(
+  write: (chunk: object) => void,
+  text: string,
+  id: string = TEXT_PART_ID
+) {
+  write({ type: "text-start", id });
+  if (text.length > 0) {
+    write({ type: "text-delta", id, delta: text });
+  }
+  write({ type: "text-end", id });
+}
+
 function createDataStreamResponse(options: {
-  execute: (dataStream: { write: (chunk: unknown) => void }) => Promise<void>;
+  execute: (dataStream: { write: (chunk: object) => void }) => Promise<void>;
 }): Response {
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const dataStream = {
-        write(chunk: unknown) {
-          const text =
-            typeof chunk === "string" ? chunk : JSON.stringify(chunk);
-          controller.enqueue(encoder.encode(text));
+        write(chunk: object) {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`)
+          );
         },
       };
 
       try {
         await options.execute(dataStream);
       } finally {
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
       }
     },
@@ -597,25 +612,19 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 
               // Send appropriate error message to user
               if (isQuotaError) {
-                dataStream.write(
-                  formatDataStreamPart(
-                    "text",
-                    "I'm unable to process your request because your OpenAI API quota has been exceeded. If you've recently updated your billing, it may take a few minutes for the changes to take effect. Please wait 2-3 minutes and try again, or check your OpenAI billing settings at https://platform.openai.com/account/billing"
-                  )
+                writeTextChunks(
+                  dataStream.write,
+                  "I'm unable to process your request because your OpenAI API quota has been exceeded. If you've recently updated your billing, it may take a few minutes for the changes to take effect. Please wait 2-3 minutes and try again, or check your OpenAI billing settings at https://platform.openai.com/account/billing"
                 );
               } else if (isContextLengthError) {
-                dataStream.write(
-                  formatDataStreamPart(
-                    "text",
-                    "I encountered an issue: the context retrieved from your campaign is too large for me to process. I've automatically trimmed the least relevant information, but the request still exceeds my capacity. Please try a more specific query to narrow down the results."
-                  )
+                writeTextChunks(
+                  dataStream.write,
+                  "I encountered an issue: the context retrieved from your campaign is too large for me to process. I've automatically trimmed the least relevant information, but the request still exceeds my capacity. Please try a more specific query to narrow down the results."
                 );
               } else {
-                dataStream.write(
-                  formatDataStreamPart(
-                    "text",
-                    "I apologize, but I encountered an error while processing your request. Please try again."
-                  )
+                writeTextChunks(
+                  dataStream.write,
+                  "I apologize, but I encountered an error while processing your request. Please try again."
                 );
               }
             },
@@ -626,18 +635,23 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             typeof result
           );
 
-          // Handle the result using textStream
+          // Handle the result using textStream (emit SSE + UIMessageChunk format for useChat)
           if (result?.textStream) {
             console.log(
               `[${this.constructor.name}] Using textStream for response`
             );
 
+            dataStream.write({ type: "text-start", id: TEXT_PART_ID });
             let fullText = "";
             for await (const chunk of result.textStream) {
               fullText += chunk;
-              // Write each chunk to the data stream
-              dataStream.write(formatDataStreamPart("text", chunk));
+              dataStream.write({
+                type: "text-delta",
+                id: TEXT_PART_ID,
+                delta: chunk,
+              });
             }
+            dataStream.write({ type: "text-end", id: TEXT_PART_ID });
 
             console.log(
               `[${this.constructor.name}] Completed streaming response:`,
@@ -647,12 +661,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             console.log(
               `[${this.constructor.name}] No textStream available, using fallback`
             );
-            // Fallback response
-            dataStream.write(
-              formatDataStreamPart(
-                "text",
-                "I'm here to help! What would you like to know about LoreSmith AI?"
-              )
+            writeTextChunks(
+              dataStream.write,
+              "I'm here to help! What would you like to know about LoreSmith AI?"
             );
           }
         } catch (error) {
@@ -672,18 +683,14 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 
           // Write appropriate error message to dataStream
           if (isContextLengthError) {
-            dataStream.write(
-              formatDataStreamPart(
-                "text",
-                "I encountered an issue: the context retrieved from your campaign is too large for me to process. I've automatically trimmed the least relevant information, but the request still exceeds my capacity. Please try a more specific query to narrow down the results."
-              )
+            writeTextChunks(
+              dataStream.write,
+              "I encountered an issue: the context retrieved from your campaign is too large for me to process. I've automatically trimmed the least relevant information, but the request still exceeds my capacity. Please try a more specific query to narrow down the results."
             );
           } else {
-            dataStream.write(
-              formatDataStreamPart(
-                "text",
-                "I apologize, but I encountered an error while processing your request. Please try again."
-              )
+            writeTextChunks(
+              dataStream.write,
+              "I apologize, but I encountered an error while processing your request. Please try again."
             );
           }
           throw error;
