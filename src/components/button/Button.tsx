@@ -91,25 +91,6 @@ const ButtonComponent = ({
 };
 
 export const Button = ({ ...props }: ButtonProps) => {
-  // For disabled buttons with tooltips, wrap in a div to enable tooltip hover
-  if (props.tooltip && props.disabled) {
-    return (
-      <Tooltip
-        content={props.tooltip}
-        className={props.className}
-        id={props.id}
-      >
-        <span className="inline-flex">
-          <ButtonComponent
-            {...props}
-            className={props.className}
-            style={{ pointerEvents: "none" }}
-          />
-        </span>
-      </Tooltip>
-    );
-  }
-
   return props.tooltip ? (
     <Tooltip content={props.tooltip} className={props.className} id={props.id}>
       <ButtonComponent {...props} className={undefined} />

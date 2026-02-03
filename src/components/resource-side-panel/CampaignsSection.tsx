@@ -24,7 +24,7 @@ export function CampaignsSection({
   onCampaignClick,
 }: CampaignsSectionProps) {
   return (
-    <Card className="tour-campaigns-section p-0">
+    <Card className="p-0">
       <button
         type="button"
         onClick={onToggle}

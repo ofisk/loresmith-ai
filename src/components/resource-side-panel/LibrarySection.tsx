@@ -28,7 +28,7 @@ export function LibrarySection({
   isAddingToCampaigns = false,
 }: LibrarySectionProps) {
   return (
-    <Card className="tour-library-section p-0 border-t border-neutral-200 dark:border-neutral-700">
+    <Card className="p-0 border-t border-neutral-200 dark:border-neutral-700">
       <button
         type="button"
         onClick={onToggle}
