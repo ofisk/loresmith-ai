@@ -671,7 +671,7 @@ export default function Chat() {
           {
             target: ".tour-shard-review",
             content:
-              "Shard review: this is where you review and approve those shards before they're added to your campaign.",
+              "Shard review: this is where you approve or reject those shards. Only approved shards are used in campaign AI queries.",
           },
           {
             target: ".chat-input-area",
@@ -681,21 +681,22 @@ export default function Chat() {
           {
             target: ".tour-campaign-selector",
             content:
-              "Campaign selector: this shows which campaign you're working on. LoreSmith uses it to provide context-aware responses.",
+              "Campaign selector: this sets which campaign you're working on. LoreSmith uses it to choose which resources, sessions, and world state to use in replies.",
           },
           {
             target: ".tour-session-recap",
             content:
-              "Session recap: share your session notes here and LoreSmith will ask questions, generate summaries, and update your campaign automatically.",
+              "Session recap: record what happened in a session. LoreSmith turns your notes into a digest and updates your campaign world state.",
           },
           {
             target: ".tour-next-steps",
             content:
-              "Next steps: this opens personalized suggestions for what to do in your campaign.",
+              "Next steps: this opens an assessment of your campaign and prioritized suggestions for what to do next.",
           },
           {
             target: ".tour-help-button",
-            content: "Help: guidance is available here whenever you need it.",
+            content:
+              "Help: guidance personalized to your current setup (e.g. first upload, creating a campaign, planning sessions).",
           },
           {
             target: ".tour-admin-dashboard",
@@ -710,7 +711,7 @@ export default function Chat() {
           {
             target: ".tour-notifications",
             content:
-              "Notifications: shows real-time updates on file processing, shards, and other activity in your campaign.",
+              "Notifications: shows real-time updates (e.g. when shards are ready to review) on file processing and other campaign activity.",
             disableBeacon: true,
           },
         ]}
