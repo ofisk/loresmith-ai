@@ -1,4 +1,4 @@
-import { streamText } from "ai";
+import { streamText, stepCountIs } from "ai";
 import { SimpleChatAgent, type ChatMessage } from "./simple-chat-agent";
 import {
   estimateRequestTokens,
@@ -20,6 +20,9 @@ interface MessageData {
 }
 
 const TEXT_PART_ID = "text-1";
+
+/** Max steps per turn so the agent can use tools as needed until it sends a final text response. */
+const MAX_AGENT_STEPS = 20;
 
 /** Write a single text message as UI stream chunks (text-start, text-delta, text-end). */
 function writeTextChunks(
@@ -357,7 +360,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           );
         }
         console.log(
-          `[${this.constructor.name}] About to call streamText with maxSteps: 2...`
+          `[${this.constructor.name}] About to call streamText with stopWhen: stepCountIs(${MAX_AGENT_STEPS})...`
         );
 
         // Determine whether the most recent user command is stale
@@ -524,6 +527,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             toolChoice, // Use the variable instead of hardcoded value
             messages: processedMessages,
             tools: enhancedTools,
+            stopWhen: stepCountIs(MAX_AGENT_STEPS), // Allow multiple tool-call rounds until final text response
             onFinish: async (args) => {
               console.log(
                 `[${this.constructor.name}] onFinish called with finishReason: ${args.finishReason}`
