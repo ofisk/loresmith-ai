@@ -23,7 +23,6 @@ import { useAppState } from "@/hooks/useAppState";
 import { useUiHints } from "@/hooks/useUiHints";
 import { useGlobalShardManager } from "@/hooks/useGlobalShardManager";
 import { ShardOverlay } from "@/components/shard/ShardOverlay";
-import { PlanningTasksPanel } from "@/components/campaign/PlanningTasksPanel";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAppEventHandlers } from "@/hooks/useAppEventHandlers";
 import { useAuthReady } from "@/hooks/useAuthReady";
@@ -947,9 +946,6 @@ export default function Chat() {
             />
 
             <div className="flex-1 flex flex-col min-h-0">
-              {/* Planning tasks / next steps panel */}
-              <PlanningTasksPanel campaignId={selectedCampaignId} />
-
               {/* Chat Area */}
               <ChatArea
                 chatContainerId={chatContainerId}

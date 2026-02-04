@@ -1,12 +1,13 @@
 import { FloppyDisk, PencilSimple } from "@phosphor-icons/react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { CampaignDetailsTab } from "./CampaignDetailsTab";
 import { CampaignDigestsTab } from "./CampaignDigestsTab";
 import { CampaignResourcesTab } from "./CampaignResourcesTab";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { FormButton } from "@/components/button/FormButton";
 import { GraphVisualizationModal } from "@/components/graph/GraphVisualizationModal";
 import { Modal } from "@/components/modal/Modal";
+import { PlanningTasksPanel } from "@/components/campaign/PlanningTasksPanel";
 import { SessionDigestBulkImport } from "@/components/session/SessionDigestBulkImport";
 import { SessionDigestModal } from "@/components/session/SessionDigestModal";
 import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
@@ -54,7 +55,7 @@ export function CampaignDetailsModal({
   );
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    "details" | "digests" | "resources"
+    "details" | "digests" | "nextSteps" | "resources"
   >("details");
   const [isDigestModalOpen, setIsDigestModalOpen] = useState(false);
   const [editingDigest, setEditingDigest] =
@@ -401,7 +402,7 @@ export function CampaignDetailsModal({
     }
   }, [campaign, isOpen, activeTab, fetchSessionDigests.execute]);
 
-  // Fetch resources when switching to documents tab
+  // Fetch resources when switching to resources tab
   useEffect(() => {
     if (campaign && isOpen && activeTab === "resources") {
       fetchCampaignResources.execute(campaign.campaignId);
@@ -533,6 +534,17 @@ export function CampaignDetailsModal({
               </button>
               <button
                 type="button"
+                onClick={() => setActiveTab("nextSteps")}
+                className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === "nextSteps"
+                    ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                    : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                }`}
+              >
+                Next steps
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveTab("resources")}
                 className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === "resources"
@@ -568,6 +580,12 @@ export function CampaignDetailsModal({
               onCreate={handleCreateDigest}
               onBulkImport={() => setIsBulkImportOpen(true)}
             />
+          )}
+
+          {activeTab === "nextSteps" && (
+            <div className="mt-2">
+              <PlanningTasksPanel campaignId={campaign.campaignId} />
+            </div>
           )}
 
           {activeTab === "resources" && (
