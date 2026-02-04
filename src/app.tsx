@@ -113,26 +113,20 @@ export default function Chat() {
   const modalState = useModalState();
   const authState = useAppAuthentication();
 
-  // Start tour after authentication
+  // Start tour after authentication (only if not already completed or skipped)
   useEffect(() => {
-    console.log(
-      "[Tour] Effect running - Auth:",
-      authState.isAuthenticated,
-      "JWT:",
-      !!authState.getStoredJwt()
-    );
-    if (authState.isAuthenticated) {
-      console.log("[Tour] Authenticated, starting tour after delay");
-      // Always show tour after authentication
-      const timer = setTimeout(() => {
-        console.log("[Tour] Starting tour now");
-        setStepIndex(0); // Reset to first step
-        setRunTour(true);
-      }, 300); // 300ms delay
-      return () => clearTimeout(timer);
-    } else {
-      console.log("[Tour] Not authenticated yet");
+    if (!authState.isAuthenticated) return;
+
+    if (localStorage.getItem("loresmith-tour-completed") === "true") {
+      return; // User already completed or skipped the tour
     }
+
+    const timer = setTimeout(() => {
+      setStepIndex(0);
+      setRunTour(true);
+    }, 300);
+
+    return () => clearTimeout(timer);
   }, [authState.isAuthenticated]);
 
   // Debug: Add global function to manually start tour

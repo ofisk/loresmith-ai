@@ -234,6 +234,8 @@ export class Chat extends SimpleChatAgent<Env> {
 
   /**
    * Normalize UI/API message shape to ChatMessage (role, content, data).
+   * Accepts both `data` and `metadata` so messages from the AI SDK (which
+   * sends custom payload as metadata) are preserved for context recap and JWT.
    */
   private normalizeMessages(raw: unknown): ChatMessage[] {
     if (!Array.isArray(raw)) return [];
@@ -254,10 +256,16 @@ export class Chat extends SimpleChatAgent<Env> {
           )
           .join("");
       }
+      const data =
+        m.data && typeof m.data === "object"
+          ? m.data
+          : m.metadata && typeof m.metadata === "object"
+            ? m.metadata
+            : undefined;
       return {
         role,
         content: content || "",
-        ...(m.data && typeof m.data === "object" ? { data: m.data } : {}),
+        ...(data ? { data } : {}),
       } as ChatMessage;
     });
   }
