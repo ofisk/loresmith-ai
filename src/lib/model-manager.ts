@@ -1,6 +1,7 @@
 import { openai } from "@ai-sdk/openai";
 import { MODEL_CONFIG } from "../app-constants";
 import { OpenAIAPIKeyError } from "./errors";
+import { sanitizeOpenAIApiKey } from "./auth-utils";
 
 export class ModelManager {
   private static instance: ModelManager;
@@ -24,7 +25,7 @@ export class ModelManager {
       throw new OpenAIAPIKeyError("API key must be a non-empty string");
     }
 
-    const trimmedKey = apiKey.trim();
+    const trimmedKey = sanitizeOpenAIApiKey(apiKey);
 
     // Validate that the API key is not a placeholder
     if (trimmedKey === "your-openai-api-key-here") {

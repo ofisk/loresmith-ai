@@ -7,7 +7,7 @@ import { getAuthService } from "@/lib/service-factory";
 import type { Env } from "@/middleware/auth";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { logger } from "@/lib/logger";
-import { extractJwtFromHeader } from "@/lib/auth-utils";
+import { extractJwtFromHeader, sanitizeOpenAIApiKey } from "@/lib/auth-utils";
 
 export interface AuthPayload extends JWTPayload {
   type: "user-auth";
@@ -132,7 +132,9 @@ export class AuthService {
       const token = await new SignJWT({
         type: "user-auth",
         username,
-        openaiApiKey,
+        openaiApiKey: openaiApiKey
+          ? sanitizeOpenAIApiKey(openaiApiKey)
+          : undefined,
         isAdmin, // Include admin status in JWT
       })
         .setProtectedHeader({ alg: "HS256" })
@@ -703,7 +705,7 @@ export class AuthService {
       try {
         const payload = AuthService.extractPayloadFromJWT(jwtToken);
         if (payload?.openaiApiKey) {
-          openAIAPIKey = payload.openaiApiKey;
+          openAIAPIKey = sanitizeOpenAIApiKey(payload.openaiApiKey);
           console.log("[AuthService] Extracted OpenAI API key from JWT token");
         } else {
           console.log(

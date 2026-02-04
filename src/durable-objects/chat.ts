@@ -9,7 +9,7 @@ import type { AuthEnv } from "@/services/core/auth-service";
 import { AuthService } from "@/services/core/auth-service";
 import { AuthenticationRequiredError, OpenAIAPIKeyError } from "@/lib/errors";
 import { notifyAuthenticationRequired } from "@/lib/notifications";
-import { extractJwtFromHeader } from "@/lib/auth-utils";
+import { extractJwtFromHeader, sanitizeOpenAIApiKey } from "@/lib/auth-utils";
 import type { Env as MiddlewareEnv } from "@/middleware/auth";
 
 interface Env extends AuthEnv {
@@ -94,8 +94,9 @@ export class Chat extends SimpleChatAgent<Env> {
         console.log(
           "[Chat] Loaded user OpenAI API key from durable object storage"
         );
-        this.userOpenAIKey = storedKey;
-        await this.initializeAgents(storedKey);
+        const cleanKey = sanitizeOpenAIApiKey(storedKey);
+        this.userOpenAIKey = cleanKey;
+        await this.initializeAgents(cleanKey);
         return;
       }
 
@@ -118,10 +119,11 @@ export class Chat extends SimpleChatAgent<Env> {
             console.log(
               "[Chat] Loaded user OpenAI API key from database, storing in durable object"
             );
-            storedKey = dbKey;
-            this.userOpenAIKey = dbKey;
-            await this.ctx.storage.put("userOpenAIKey", dbKey);
-            await this.initializeAgents(dbKey);
+            const cleanKey = sanitizeOpenAIApiKey(dbKey);
+            storedKey = cleanKey;
+            this.userOpenAIKey = cleanKey;
+            await this.ctx.storage.put("userOpenAIKey", cleanKey);
+            await this.initializeAgents(cleanKey);
             return;
           }
         }
@@ -308,6 +310,61 @@ export class Chat extends SimpleChatAgent<Env> {
       console.log("[Chat] Stored JWT token from Authorization header");
     }
 
+    // Handle POST chat message (e.g. from AI SDK useChat)
+    if (request.method === "POST") {
+      try {
+        const body = (await request.json()) as {
+          messages?: Array<{
+            role?: string;
+            content?: string;
+            parts?: Array<{ type?: string; text?: string }>;
+            data?: unknown;
+            metadata?: unknown;
+            [key: string]: unknown;
+          }>;
+          data?: unknown;
+        };
+        const rawMessages = body?.messages;
+        if (Array.isArray(rawMessages)) {
+          this.messages = rawMessages.map((m) => {
+            let content: string;
+            if (typeof m.content === "string" && m.content.length > 0) {
+              content = m.content;
+            } else if (
+              Array.isArray(m.parts) &&
+              m.parts.some((p) => p?.type === "text")
+            ) {
+              content = m.parts
+                .filter(
+                  (p): p is { type: string; text: string } =>
+                    p?.type === "text" && typeof p.text === "string"
+                )
+                .map((p) => p.text)
+                .join("\n");
+            } else {
+              content = "";
+            }
+            const data = m.data ?? m.metadata;
+            return {
+              role: (m.role as "user" | "assistant" | "system") || "user",
+              content,
+              ...(data != null && { data }),
+            };
+          });
+        }
+        const response = await this.onChatMessage(() => {});
+        return response;
+      } catch (err) {
+        console.error("[Chat] Error handling POST:", err);
+        return new Response(
+          JSON.stringify({
+            error: err instanceof Error ? err.message : String(err),
+          }),
+          { status: 500, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     return super.fetch(request);
   }
 
@@ -426,10 +483,11 @@ export class Chat extends SimpleChatAgent<Env> {
 
         if (authResult.openAIAPIKey) {
           console.log("[Chat] Initializing agents with user OpenAI API key");
+          const cleanKey = sanitizeOpenAIApiKey(authResult.openAIAPIKey);
           // Store the key in durable object storage for persistence
-          this.userOpenAIKey = authResult.openAIAPIKey;
-          await this.ctx.storage.put("userOpenAIKey", authResult.openAIAPIKey);
-          await this.initializeAgents(authResult.openAIAPIKey);
+          this.userOpenAIKey = cleanKey;
+          await this.ctx.storage.put("userOpenAIKey", cleanKey);
+          await this.initializeAgents(cleanKey);
         } else {
           console.log(
             "[Chat] No user OpenAI API key found, requiring authentication"

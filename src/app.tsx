@@ -4,6 +4,9 @@ import { DefaultChatTransport, generateId } from "ai";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Joyride from "react-joyride";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import { API_CONFIG } from "@/shared-config";
 
 import { API_CONFIG } from "@/shared-config";
 
@@ -70,10 +73,16 @@ export default function Chat() {
       return;
     }
 
-    // Skip steps where elements don't exist
+    // When a step's target isn't in the DOM, skip to the next step so the overlay doesn't block the page
     if (lifecycle === "tooltip" && type === "error:target_not_found") {
       console.log("Target not found, skipping step:", index);
-      // Let Joyride handle skipping automatically
+      const stepsCount = 12;
+      if (index + 1 >= stepsCount) {
+        setRunTour(false);
+        localStorage.setItem("loresmith-tour-completed", "true");
+      } else {
+        setStepIndex(index + 1);
+      }
       return;
     }
 
@@ -125,7 +134,6 @@ export default function Chat() {
       setStepIndex(0);
       setRunTour(true);
     }, 300);
-
     return () => clearTimeout(timer);
   }, [authState.isAuthenticated]);
 
@@ -250,6 +258,57 @@ export default function Chat() {
         body: { campaignId: selectedCampaignId ?? undefined },
       }),
     [chatApiUrl, jwt, selectedCampaignId]
+  );
+
+  const chatTransport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: `${API_CONFIG.getApiBaseUrl()}/agents/chat/${sessionId}`,
+        headers: () => ({
+          Authorization: `Bearer ${chatAuthRef.current.jwt ?? ""}`,
+        }),
+        body: () => ({
+          data: {
+            jwt: chatAuthRef.current.jwt ?? undefined,
+            campaignId: chatAuthRef.current.campaignId ?? null,
+          },
+        }),
+        prepareSendMessagesRequest: async (options) => {
+          const messages = options.messages ?? [];
+          const lastUser = [...messages]
+            .reverse()
+            .find((m) => m.role === "user");
+          const lastId =
+            lastUser && "id" in lastUser && typeof lastUser.id === "string"
+              ? lastUser.id
+              : undefined;
+          const finalMessages =
+            lastId && options.trigger === "submit-message"
+              ? [
+                  ...messages,
+                  {
+                    role: "system",
+                    content: "",
+                    data: {
+                      type: "client_marker",
+                      processedMessageId: lastId,
+                      campaignId: chatAuthRef.current.campaignId ?? null,
+                    },
+                  },
+                ]
+              : messages;
+          return {
+            body: {
+              ...options.body,
+              id: options.id,
+              messages: finalMessages,
+              trigger: options.trigger,
+              messageId: options.messageId,
+            },
+          };
+        },
+      }),
+    [sessionId]
   );
 
   const {
@@ -663,20 +722,6 @@ export default function Chat() {
         ? { jwt, campaignId: selectedCampaignId ?? null }
         : { campaignId: selectedCampaignId ?? null },
     });
-    // Immediately send a hidden system marker referencing the last user message
-    setTimeout(() => {
-      const last = agentMessages[agentMessages.length - 1];
-      const processedMessageId = last?.id;
-      append({
-        role: "system",
-        content: "",
-        data: {
-          type: "client_marker",
-          processedMessageId,
-          campaignId: selectedCampaignId ?? null,
-        },
-      });
-    }, 0);
     setInput("");
     setTextareaHeight("auto"); // Reset height after submission
     // Scroll to bottom after user sends a message
