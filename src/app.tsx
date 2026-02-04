@@ -703,13 +703,31 @@ export default function Chat() {
           },
           {
             target: ".tour-campaign-selector",
-            content:
-              "Campaign selector: this sets which campaign you're working on. LoreSmith uses it to choose which resources, sessions, and world state to use in replies.",
+            content: (
+              <>
+                <p>
+                  Campaign selector: this sets which campaign you're working on.
+                </p>
+                <br />
+                <p>
+                  LoreSmith uses it to choose which resources, sessions, and
+                  world state to use in replies.
+                </p>
+              </>
+            ),
           },
           {
             target: ".tour-session-recap",
-            content:
-              "Session recap: record what happened in a session. LoreSmith turns your notes into a digest and updates your campaign world state.",
+            content: (
+              <>
+                <p>Session recap: record what happened in a session.</p>
+                <br />
+                <p>
+                  LoreSmith turns your notes into a digest and updates your
+                  campaign world state.
+                </p>
+              </>
+            ),
           },
           {
             target: ".tour-next-steps",
