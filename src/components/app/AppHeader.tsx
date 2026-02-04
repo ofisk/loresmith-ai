@@ -9,7 +9,6 @@ import { AuthService } from "@/services/core/auth-service";
 interface AppHeaderProps {
   onClearHistory: () => void;
   onHelpAction: (action: string) => void;
-  onGuidanceRequest: () => void;
   onSessionRecapRequest?: () => void;
   onNextStepsRequest?: () => void;
   notifications: (
@@ -34,7 +33,6 @@ interface AppHeaderProps {
 export function AppHeader({
   onClearHistory,
   onHelpAction,
-  onGuidanceRequest,
   onSessionRecapRequest,
   onNextStepsRequest,
   notifications,
@@ -104,10 +102,7 @@ export function AppHeader({
         </Button>
       )}
 
-      <HelpButton
-        onActionClick={onHelpAction}
-        onGuidanceRequest={onGuidanceRequest}
-      />
+      <HelpButton onActionClick={onHelpAction} />
 
       {isAdmin && onAdminDashboardOpen && (
         <Button

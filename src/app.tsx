@@ -353,6 +353,19 @@ export default function Chat() {
   const agentMessages = chatMessages as Message[];
   const isLoading = chatStatus === "submitted" || chatStatus === "streaming";
 
+  // Tracks user message contents to hide in the UI (button-triggered prompts)
+  const invisibleUserContentsRef = useRef<Set<string>>(new Set());
+
+  // Clear invisible set after the agent responds so the same content isn’t hidden if sent again
+  useEffect(() => {
+    if (
+      agentMessages.length > 0 &&
+      agentMessages[agentMessages.length - 1]?.role === "assistant"
+    ) {
+      invisibleUserContentsRef.current.clear();
+    }
+  }, [agentMessages]);
+
   const append = useCallback(
     (message: {
       id?: string;
@@ -371,7 +384,7 @@ export default function Chat() {
           id: message.id ?? generateId(),
           role: message.role as "user" | "assistant" | "system",
           content: text,
-          parts: [],
+          parts: text ? [{ type: "text" as const, text }] : [],
           ...(message.data != null && { data: message.data }),
         };
         setChatMessages((prev) => [...prev, newMsg] as typeof prev);
@@ -416,9 +429,10 @@ export default function Chat() {
   // Debug modal state changes
   useEffect(() => {}, []);
 
-  // Function to handle suggested prompts
+  // Function to handle suggested prompts (chip click → invisible user message)
   const handleSuggestionSubmit = (suggestion: string) => {
     const jwt = authState.getStoredJwt();
+    invisibleUserContentsRef.current.add(suggestion);
 
     // Always send the message to the agent - let the agent handle auth requirements
     append({
@@ -453,49 +467,38 @@ export default function Chat() {
     window.location.reload();
   };
 
-  // Handle help button actions
-  const handleHelpAction = (action: string) => {
-    const jwt = authState.getStoredJwt();
-    const response = getHelpContent(action);
-    append({
-      role: "assistant",
-      content: response,
-      data: jwt
-        ? { jwt, campaignId: selectedCampaignId ?? null }
-        : { campaignId: selectedCampaignId ?? null },
-    });
-    setInput("");
-  };
-
-  // Handle guidance request from help button
-  const handleGuidanceRequest = useCallback(async () => {
-    console.log("[App] Guidance request triggered");
-
-    try {
-      const jwt = authState.getStoredJwt();
-      if (!jwt) {
-        console.error("No JWT available for guidance request");
+  // Handle help button: invoke the chat agent for intelligent, docs-aware help (no static content)
+  const handleHelpAction = useCallback(
+    (action: string) => {
+      if (action === "open_help") {
+        const jwt = authState.getStoredJwt();
+        const helpPrompt =
+          "I need help with LoreSmith. Please act as a help agent: explain what you can help me with, give example questions I can ask, and share guidance on app functionality and best practices. Base your response on the product documentation and how the app is designed to be used.";
+        invisibleUserContentsRef.current.add(helpPrompt);
+        append({
+          role: "user",
+          content: helpPrompt,
+          data: jwt
+            ? { jwt, campaignId: selectedCampaignId ?? null }
+            : { campaignId: selectedCampaignId ?? null },
+        });
+        setInput("");
         return;
       }
-
-      // Send a message to request personalized guidance
-      const guidanceMessage =
-        "I need help with what to do next. Can you analyze my current state and provide personalized guidance on next steps?";
-
-      // Use the existing append function to send the message with JWT data
-      await append({
-        id: generateId(),
-        role: "user",
-        content: guidanceMessage,
-        data: {
-          jwt: jwt,
-          campaignId: selectedCampaignId ?? null,
-        },
+      // Legacy: specific topic from elsewhere (e.g. future dropdown) → static content
+      const jwt = authState.getStoredJwt();
+      const response = getHelpContent(action);
+      append({
+        role: "assistant",
+        content: response,
+        data: jwt
+          ? { jwt, campaignId: selectedCampaignId ?? null }
+          : { campaignId: selectedCampaignId ?? null },
       });
-    } catch (error) {
-      console.error("Error requesting guidance:", error);
-    }
-  }, [append, authState.getStoredJwt, selectedCampaignId]);
+      setInput("");
+    },
+    [append, authState.getStoredJwt, selectedCampaignId]
+  );
 
   // Handle session recap request
   const handleSessionRecapRequest = useCallback(async () => {
@@ -516,6 +519,7 @@ export default function Chat() {
       // Send a message to trigger session digest agent
       const recapMessage =
         "I want to record a session recap. Can you guide me through creating a session digest?";
+      invisibleUserContentsRef.current.add(recapMessage);
 
       await append({
         id: generateId(),
@@ -550,6 +554,7 @@ export default function Chat() {
       // Send a message to trigger onboarding agent with campaign context
       const nextStepsMessage =
         "What should I do next for this campaign? Can you analyze my current state and provide personalized suggestions based on my campaign?";
+      invisibleUserContentsRef.current.add(nextStepsMessage);
 
       await append({
         id: generateId(),
@@ -920,7 +925,6 @@ export default function Chat() {
           <AppHeader
             onClearHistory={handleClearHistory}
             onHelpAction={handleHelpAction}
-            onGuidanceRequest={handleGuidanceRequest}
             onSessionRecapRequest={handleSessionRecapRequest}
             onNextStepsRequest={handleNextStepsRequest}
             notifications={allNotifications}
@@ -976,6 +980,7 @@ export default function Chat() {
               campaigns={campaigns}
               selectedCampaignId={selectedCampaignId}
               onSelectedCampaignChange={setSelectedCampaignId}
+              invisibleUserContents={invisibleUserContentsRef.current}
             />
           </div>
         </div>

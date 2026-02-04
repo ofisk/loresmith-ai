@@ -5,6 +5,19 @@ import { MemoizedMarkdown } from "@/components/MemoizedMarkdown";
 interface ChatMessageListProps {
   messages: Message[];
   formatTime: (date: Date) => string;
+  /** User message contents to hide (e.g. button-triggered prompts). */
+  invisibleUserContents?: Set<string>;
+}
+
+function getMessageText(m: Message): string {
+  const parts = m.parts ?? [];
+  if (parts.length > 0) {
+    const textPart = parts.find(
+      (p) => p.type === "text" && typeof p.text === "string"
+    );
+    if (textPart && "text" in textPart) return (textPart.text ?? "").trim();
+  }
+  return (m.content ?? "").trim();
 }
 
 function hasVisibleContent(m: Message): boolean {
@@ -20,12 +33,18 @@ function hasVisibleContent(m: Message): boolean {
 export function ChatMessageList({
   messages,
   formatTime,
+  invisibleUserContents,
 }: ChatMessageListProps) {
   return (
     <>
       {messages
         .filter((m: Message) => {
           if (m.role === "user" && m.content === "Get started") return false;
+          if (
+            m.role === "user" &&
+            invisibleUserContents?.has(getMessageText(m))
+          )
+            return false;
           if (!hasVisibleContent(m)) return false;
           return true;
         })

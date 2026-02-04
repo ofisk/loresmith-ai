@@ -36,6 +36,8 @@ interface ChatAreaProps {
   campaigns: Campaign[];
   selectedCampaignId: string | null;
   onSelectedCampaignChange: (campaignId: string | null) => void;
+  /** User message contents to hide (e.g. button-triggered prompts). */
+  invisibleUserContents?: Set<string>;
 }
 
 /**
@@ -58,6 +60,7 @@ export function ChatArea({
   campaigns,
   selectedCampaignId,
   onSelectedCampaignChange,
+  invisibleUserContents,
 }: ChatAreaProps) {
   const [placeholder] = useState(() => getRandomPrompt());
 
@@ -103,7 +106,11 @@ export function ChatArea({
           />
         )}
 
-        <ChatMessageList messages={messages} formatTime={formatTime} />
+        <ChatMessageList
+          messages={messages}
+          formatTime={formatTime}
+          invisibleUserContents={invisibleUserContents}
+        />
 
         {/* Thinking Spinner - shown when agent is processing */}
         {isLoading && (
