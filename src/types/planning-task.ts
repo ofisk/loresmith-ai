@@ -15,3 +15,9 @@ export interface PlanningTask {
   createdAt: string;
   updatedAt: string;
 }
+
+// Shared status group used by UI and tools for "open" planning tasks
+export const OPEN_PLANNING_TASK_STATUSES: PlanningTaskStatus[] = [
+  "pending",
+  "in_progress",
+];

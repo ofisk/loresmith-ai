@@ -20,6 +20,7 @@ import { CharacterEntitySyncService } from "../../services/campaign/character-en
 import { PlanningContextService } from "../../services/rag/planning-context-service";
 import type { Env } from "../../middleware/auth";
 import { getDAOFactory } from "../../dao/dao-factory";
+import type { PlanningTaskStatus } from "../../dao/planning-task-dao";
 import { EntityGraphService } from "../../services/graph/entity-graph-service";
 import {
   CAMPAIGN_READINESS_ENTITY_TYPES,
@@ -91,20 +92,36 @@ export const getCampaignSuggestions = tool({
           );
         }
 
-        // Verify campaign exists and belongs to user
-        const campaignResult = await env
-          .DB!.prepare("SELECT id FROM campaigns WHERE id = ? AND username = ?")
-          .bind(campaignId, userId)
-          .first();
-
-        if (!campaignResult) {
+        // Verify campaign exists and belongs to user using DAO
+        const daoFactory = getDAOFactory(env as Env);
+        const campaign =
+          await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+            campaignId,
+            userId
+          );
+        if (!campaign) {
           return createToolError(
             "Campaign not found",
-            "Campaign not found",
+            "Campaign not found or access denied",
             404,
             toolCallId
           );
         }
+
+        const planningTaskDAO = daoFactory.planningTaskDAO;
+
+        // Load existing open planning tasks so we do not re-suggest them.
+        const existingOpenTasks = await planningTaskDAO.listByCampaign(
+          campaignId,
+          {
+            status: ["pending", "in_progress"] as PlanningTaskStatus[],
+          }
+        );
+        const existingTitleSet = new Set(
+          existingOpenTasks
+            .map((t: any) => t.title?.trim().toLowerCase())
+            .filter(Boolean) as string[]
+        );
 
         // Sync character_backstory entries to entities before getting characters
         try {
@@ -136,8 +153,9 @@ export const getCampaignSuggestions = tool({
           ).length,
         });
 
-        // Generate suggestions for all requested types
-        const allSuggestions: any[] = [];
+        // Generate suggestions for all requested types,
+        // filtering out any that already exist as open planning tasks.
+        const newSuggestions: any[] = [];
         const suggestionsByType: Record<string, any[]> = {};
 
         for (const type of suggestionTypes) {
@@ -147,13 +165,25 @@ export const getCampaignSuggestions = tool({
             allResources,
             _contextParam
           );
-          suggestionsByType[type] = typeSuggestions;
-          allSuggestions.push(...typeSuggestions);
+
+          const filtered = typeSuggestions.filter((s: any) => {
+            const rawTitle = typeof s.title === "string" ? s.title : "";
+            const key = rawTitle.trim().toLowerCase();
+            if (!key) return false;
+            if (existingTitleSet.has(key)) {
+              return false;
+            }
+            existingTitleSet.add(key);
+            return true;
+          });
+
+          suggestionsByType[type] = filtered;
+          newSuggestions.push(...filtered);
         }
 
         console.log(
-          "[Tool] Generated suggestions:",
-          allSuggestions.length,
+          "[Tool] Generated new suggestions (after filtering existing tasks):",
+          newSuggestions.length,
           `across ${suggestionTypes.length} type(s)`
         );
         console.log(
@@ -161,10 +191,29 @@ export const getCampaignSuggestions = tool({
           allCharacters.length
         );
 
+        // Persist new suggestions as planning tasks ("next steps") so they appear
+        // in the app's Next steps UI and can be tracked over time.
+        let createdPlanningTasks: any[] = [];
+        if (newSuggestions.length > 0) {
+          console.log(
+            "[Tool] getCampaignSuggestions - Recording planning tasks for campaign:",
+            campaignId
+          );
+          createdPlanningTasks = await planningTaskDAO.bulkCreatePlanningTasks(
+            campaignId,
+            newSuggestions.map((s: any) => ({
+              title: s.title as string,
+              description:
+                typeof s.description === "string" ? s.description : null,
+            })),
+            toolCallId
+          );
+        }
+
         const responseMessage =
           suggestionTypes.length === 1
-            ? `Generated ${allSuggestions.length} ${suggestionTypes[0]} suggestions`
-            : `Generated ${allSuggestions.length} suggestions across ${suggestionTypes.length} types`;
+            ? `Generated ${newSuggestions.length} ${suggestionTypes[0]} suggestions`
+            : `Generated ${newSuggestions.length} suggestions across ${suggestionTypes.length} types`;
 
         return createToolSuccess(
           responseMessage,
@@ -173,9 +222,9 @@ export const getCampaignSuggestions = tool({
               suggestionTypes.length === 1
                 ? suggestionTypes[0]
                 : suggestionTypes,
-            suggestions: allSuggestions,
+            suggestions: newSuggestions,
             suggestionsByType,
-            totalCount: allSuggestions.length,
+            totalCount: newSuggestions.length,
             context: {
               characters: allCharacters.length,
               resources: allResources.length,
@@ -183,6 +232,8 @@ export const getCampaignSuggestions = tool({
             details: {
               characterCount: allCharacters.length,
               resourceCount: allResources.length,
+              planningTasksCreated: createdPlanningTasks.length,
+              planningTasks: createdPlanningTasks,
             },
           },
           toolCallId

@@ -11,6 +11,7 @@ import {
 import type { ToolResult } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { PlanningTaskStatus } from "@/dao/planning-task-dao";
+import { OPEN_PLANNING_TASK_STATUSES } from "@/types/planning-task";
 
 const planningTaskSchema = z.object({
   title: z
@@ -195,9 +196,9 @@ export const getPlanningTaskProgress = tool({
 
       const planningTaskDAO = daoFactory.planningTaskDAO;
 
-      const statusesToInclude: PlanningTaskStatus[] = (includeStatuses as
-        | PlanningTaskStatus[]
-        | undefined) ?? ["pending", "in_progress"];
+      const statusesToInclude: PlanningTaskStatus[] =
+        (includeStatuses as PlanningTaskStatus[] | undefined) ??
+        OPEN_PLANNING_TASK_STATUSES;
 
       const tasks = await planningTaskDAO.listByCampaign(campaignId, {
         status: statusesToInclude,

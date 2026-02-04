@@ -12,6 +12,7 @@ import {
 import type { Env } from "@/middleware/auth";
 import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
 import { getDAOFactory } from "../../dao/dao-factory";
+import type { PlanningTaskStatus } from "../../dao/planning-task-dao";
 import { notifyShardGeneration } from "../../lib/notifications";
 import { ALL_CONTEXT_TYPES } from "../../constants/context-types";
 
@@ -192,7 +193,7 @@ export const captureConversationalContext = tool({
         // If no explicit planning task id was provided, attempt a simple match
         if (!planningTaskIdToUpdate) {
           const openTasks = await planningTaskDAO.listByCampaign(campaignId, {
-            status: ["pending", "in_progress"],
+            status: ["pending", "in_progress"] as PlanningTaskStatus[],
           });
 
           const contentLower = content.toLowerCase();
