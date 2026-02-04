@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useCallback } from "react";
 import cytoscape, { type Core, type ElementDefinition } from "cytoscape";
 import type {
   CommunityGraphData,
@@ -6,6 +6,7 @@ import type {
   EntityGraphData,
   CytoscapeLayout,
 } from "@/types/graph-visualization";
+import { GraphNavigationControls } from "./GraphNavigationControls";
 
 interface CytoscapeGraphProps {
   data: CommunityGraphData | EntityGraphData;
@@ -241,28 +242,28 @@ export function CytoscapeGraph({
               {
                 selector: "node",
                 style: {
-                  "background-color": "#666",
+                  "background-color": "#a78bfa",
                   label: "data(label)",
                   "text-valign": "center",
                   "text-halign": "center",
-                  "font-size": "11px",
-                  color: "#fff",
-                  "text-outline-color": "#333",
-                  "text-outline-width": "1px",
+                  "font-size": "10px",
+                  color: "#4b5563",
                   width: 120,
                   height: 60,
                   "text-wrap": "wrap",
                   "text-max-width": "110px",
                   padding: "8px",
                   shape: "round-rectangle",
+                  "border-width": "1px",
+                  "border-color": "#9ca3af",
                 },
               },
               {
                 selector: "edge",
                 style: {
                   width: 2,
-                  "line-color": "#ccc",
-                  "target-arrow-color": "#ccc",
+                  "line-color": "#9ca3af",
+                  "target-arrow-color": "#9ca3af",
                   "target-arrow-shape": "triangle",
                   "curve-style": "bezier",
                   label: "data(relationshipType)",
@@ -298,9 +299,10 @@ export function CytoscapeGraph({
                 selector: "node[isOrphan], node[isEntityNode]",
                 style: {
                   shape: "ellipse",
-                  "background-color": "#555",
-                  "border-style": "dashed",
-                  "border-width": "2px",
+                  "background-color": "#8b5cf6",
+                  "border-width": "1px",
+                  "border-color": "#9ca3af",
+                  color: "#374151",
                 },
               },
             ],
@@ -509,17 +511,75 @@ export function CytoscapeGraph({
     }
   }, [highlightedNodes]);
 
+  // Navigation handlers
+  const handleZoomIn = useCallback(() => {
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
+    const currentZoom = cy.zoom();
+    cy.zoom({
+      level: currentZoom * 1.2,
+      renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+    });
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
+    const currentZoom = cy.zoom();
+    cy.zoom({
+      level: currentZoom * 0.8,
+      renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+    });
+  }, []);
+
+  const handlePanUp = useCallback(() => {
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
+    const pan = cy.pan();
+    cy.pan({ x: pan.x, y: pan.y + 50 });
+  }, []);
+
+  const handlePanDown = useCallback(() => {
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
+    const pan = cy.pan();
+    cy.pan({ x: pan.x, y: pan.y - 50 });
+  }, []);
+
+  const handlePanLeft = useCallback(() => {
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
+    const pan = cy.pan();
+    cy.pan({ x: pan.x + 50, y: pan.y });
+  }, []);
+
+  const handlePanRight = useCallback(() => {
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
+    const pan = cy.pan();
+    cy.pan({ x: pan.x - 50, y: pan.y });
+  }, []);
+
   return (
-    <div
-      ref={containerRef}
-      data-cytoscape-container
-      className={className}
-      style={{
-        width: "100%",
-        height: "100%",
-        minHeight: "400px",
-        ...style,
-      }}
-    />
+    <div className="relative w-full h-full" style={{ minHeight: "400px" }}>
+      <div
+        ref={containerRef}
+        data-cytoscape-container
+        className={className}
+        style={{
+          width: "100%",
+          height: "100%",
+          ...style,
+        }}
+      />
+      <GraphNavigationControls
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onPanUp={handlePanUp}
+        onPanDown={handlePanDown}
+        onPanLeft={handlePanLeft}
+        onPanRight={handlePanRight}
+      />
+    </div>
   );
 }

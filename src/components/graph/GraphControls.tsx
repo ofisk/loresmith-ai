@@ -193,7 +193,7 @@ export function GraphControls({
       {(onExportPNG || onExportSVG) && (
         <div className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold">Export</h3>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-row gap-2">
             {onExportPNG && (
               <Button variant="secondary" size="sm" onClick={onExportPNG}>
                 Export PNG
