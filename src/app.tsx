@@ -315,7 +315,10 @@ export default function Chat() {
   );
 
   const sendHiddenUserMessage = useCallback(
-    async (content: string, data: { jwt: string; campaignId: string | null }) => {
+    async (
+      content: string,
+      data: { jwt: string; campaignId: string | null }
+    ) => {
       setHiddenRequestInProgress(true);
       try {
         const messagesForRequest = [
@@ -325,7 +328,12 @@ export default function Chat() {
             parts:
               m.parts && m.parts.length > 0
                 ? m.parts
-                : [{ type: "text" as const, text: (m as { content?: string }).content ?? "" }],
+                : [
+                    {
+                      type: "text" as const,
+                      text: (m as { content?: string }).content ?? "",
+                    },
+                  ],
             data: (m as { data?: unknown }).data,
           })),
           {
@@ -365,11 +373,24 @@ export default function Chat() {
           }
           try {
             if (payload.startsWith("0:")) {
-              text += JSON.parse(payload.slice(2)) as string;
+              const v = JSON.parse(payload.slice(2)) as unknown;
+              text +=
+                typeof v === "string"
+                  ? v
+                  : String(
+                      (v as { value?: string; delta?: string })?.value ??
+                        (v as { value?: string; delta?: string })?.delta ??
+                        ""
+                    );
             } else {
-              const obj = JSON.parse(payload) as { type?: string; delta?: string };
+              const obj = JSON.parse(payload) as {
+                type?: string;
+                delta?: string;
+                value?: string;
+              };
               if (obj.type === "text-delta" && typeof obj.delta === "string")
                 text += obj.delta;
+              else if (typeof obj.value === "string") text += obj.value;
             }
           } catch {
             // skip unparseable lines
@@ -377,11 +398,11 @@ export default function Chat() {
         };
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
+          buffer += decoder.decode(value, { stream: !done });
+          const lines = buffer.split(/\r?\n/);
           buffer = lines.pop() ?? "";
           for (const line of lines) parseLine(line);
+          if (done) break;
         }
         if (buffer.trim()) parseLine(buffer);
         const displayText =
@@ -395,8 +416,7 @@ export default function Chat() {
         };
         setChatMessages((prev) => [...prev, assistantMsg]);
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Request failed";
+        const message = err instanceof Error ? err.message : "Request failed";
         addLocalNotification(
           NOTIFICATION_TYPES.ERROR,
           "Next steps request failed",
