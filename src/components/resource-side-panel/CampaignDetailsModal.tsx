@@ -493,10 +493,17 @@ export function CampaignDetailsModal({
       >
         <div className="p-6">
           {/* Header */}
-          <div className="mb-6">
+          <div className="mb-6 flex items-start justify-between">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
               Campaign details
             </h2>
+            <button
+              type="button"
+              onClick={() => setIsGraphModalOpen(true)}
+              className="min-w-[180px] px-6 py-2 text-sm font-medium rounded-lg bg-neutral-700 dark:bg-neutral-800 text-blue-500 dark:text-blue-400 border border-neutral-600 dark:border-neutral-700 hover:bg-neutral-600 dark:hover:bg-neutral-700 transition-colors"
+            >
+              View graph
+            </button>
           </div>
 
           {/* Tabs */}
@@ -600,20 +607,12 @@ export function CampaignDetailsModal({
                     </FormButton>
                   </>
                 ) : (
-                  <>
-                    <FormButton
-                      onClick={() => setIsEditing(true)}
-                      icon={<PencilSimple size={16} />}
-                    >
-                      Edit campaign
-                    </FormButton>
-                    <FormButton
-                      onClick={() => setIsGraphModalOpen(true)}
-                      variant="secondary"
-                    >
-                      View graph
-                    </FormButton>
-                  </>
+                  <FormButton
+                    onClick={() => setIsEditing(true)}
+                    icon={<PencilSimple size={16} />}
+                  >
+                    Edit campaign
+                  </FormButton>
                 )}
               </div>
 
