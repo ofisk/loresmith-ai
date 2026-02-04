@@ -80,17 +80,24 @@ export function ChatMessageList({
                                     )}
                                   />
                                 </Card>
-                                {isLastTextPart && (
-                                  <p
-                                    className={`text-xs text-muted-foreground mt-2 px-1 ${
-                                      isUser ? "text-right" : "text-left"
-                                    }`}
-                                  >
-                                    {formatTime(
-                                      new Date(m.createdAt as unknown as string)
-                                    )}
-                                  </p>
-                                )}
+                                {isLastTextPart && (() => {
+                                  const createdAt = m.createdAt
+                                    ? new Date(m.createdAt as unknown as string)
+                                    : null;
+                                  const isValid =
+                                    createdAt &&
+                                    !Number.isNaN(createdAt.getTime());
+                                  if (!isValid) return null;
+                                  return (
+                                    <p
+                                      className={`text-xs text-muted-foreground mt-2 px-1 ${
+                                        isUser ? "text-right" : "text-left"
+                                      }`}
+                                    >
+                                      {formatTime(createdAt)}
+                                    </p>
+                                  );
+                                })()}
                               </div>
                             );
                           }

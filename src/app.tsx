@@ -271,6 +271,7 @@ export default function Chat() {
   });
 
   const [agentInput, setInput] = useState("");
+  const [hiddenRequestInProgress, setHiddenRequestInProgress] = useState(false);
   const handleAgentInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       setInput(e.target.value);
@@ -278,7 +279,8 @@ export default function Chat() {
     []
   );
 
-  const isLoading = status === "streaming" || status === "submitted";
+  const isLoading =
+    status === "streaming" || status === "submitted" || hiddenRequestInProgress;
 
   const clearHistory = useCallback(() => {
     setChatMessages([]);
@@ -310,6 +312,108 @@ export default function Chat() {
       }
     },
     [sendMessage, setChatMessages]
+  );
+
+  const sendHiddenUserMessage = useCallback(
+    async (content: string, data: { jwt: string; campaignId: string | null }) => {
+      setHiddenRequestInProgress(true);
+      try {
+        const messagesForRequest = [
+          ...chatMessages.map((m) => ({
+            id: m.id ?? generateId(),
+            role: m.role,
+            parts:
+              m.parts && m.parts.length > 0
+                ? m.parts
+                : [{ type: "text" as const, text: (m as { content?: string }).content ?? "" }],
+            data: (m as { data?: unknown }).data,
+          })),
+          {
+            role: "user" as const,
+            parts: [{ type: "text" as const, text: content }],
+            data,
+          },
+        ];
+        const res = await fetch(chatApiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          },
+          body: JSON.stringify({
+            id: sessionId,
+            messages: messagesForRequest,
+            campaignId: data.campaignId ?? undefined,
+          }),
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(errText || `Request failed: ${res.status}`);
+        }
+        if (!res.body) throw new Error("Empty response body");
+        let text = "";
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        const parseLine = (raw: string): void => {
+          const trimmed = raw.trim();
+          if (!trimmed) return;
+          let payload = trimmed;
+          if (payload.startsWith("data:")) {
+            payload = payload.slice(5).trim();
+            if (payload === "[DONE]") return;
+          }
+          try {
+            if (payload.startsWith("0:")) {
+              text += JSON.parse(payload.slice(2)) as string;
+            } else {
+              const obj = JSON.parse(payload) as { type?: string; delta?: string };
+              if (obj.type === "text-delta" && typeof obj.delta === "string")
+                text += obj.delta;
+            }
+          } catch {
+            // skip unparseable lines
+          }
+        };
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) parseLine(line);
+        }
+        if (buffer.trim()) parseLine(buffer);
+        const displayText =
+          text.trim() ||
+          "I couldn’t generate a response. Please try again or rephrase.";
+        const assistantMsg = {
+          id: generateId(),
+          role: "assistant" as const,
+          parts: [{ type: "text" as const, text: displayText }],
+          createdAt: new Date().toISOString(),
+        };
+        setChatMessages((prev) => [...prev, assistantMsg]);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Request failed";
+        addLocalNotification(
+          NOTIFICATION_TYPES.ERROR,
+          "Next steps request failed",
+          message
+        );
+      } finally {
+        setHiddenRequestInProgress(false);
+      }
+    },
+    [
+      chatApiUrl,
+      jwt,
+      sessionId,
+      chatMessages,
+      setChatMessages,
+      addLocalNotification,
+    ]
   );
 
   const agentMessages = chatMessages as Message[];
@@ -397,103 +501,90 @@ export default function Chat() {
     setInput("");
   };
 
-  // Handle guidance request from help button
+  // Handle guidance request from help button (hidden message, LoreSmith app usage)
   const handleGuidanceRequest = useCallback(async () => {
-    console.log("[App] Guidance request triggered");
-
+    const jwt = authState.getStoredJwt();
+    if (!jwt) {
+      console.error("No JWT available for guidance request");
+      return;
+    }
+    const guidanceMessage =
+      "I'd like help getting the most out of LoreSmith. Can you guide me on how to use the app—like the resource library, campaigns, session planning, and what order to do things in—so I can get the best value from it?";
     try {
-      const jwt = authState.getStoredJwt();
-      if (!jwt) {
-        console.error("No JWT available for guidance request");
-        return;
-      }
-
-      // Send a message to request personalized guidance
-      const guidanceMessage =
-        "I need help with what to do next. Can you analyze my current state and provide personalized guidance on next steps?";
-
-      // Use the existing append function to send the message with JWT data
-      await append({
-        id: generateId(),
-        role: "user",
-        content: guidanceMessage,
-        data: {
-          jwt: jwt,
-          campaignId: selectedCampaignId ?? null,
-        },
+      await sendHiddenUserMessage(guidanceMessage, {
+        jwt,
+        campaignId: selectedCampaignId ?? null,
       });
     } catch (error) {
       console.error("Error requesting guidance:", error);
+      addLocalNotification(
+        NOTIFICATION_TYPES.ERROR,
+        "Guidance request failed",
+        error instanceof Error ? error.message : "Request failed"
+      );
     }
-  }, [append, authState.getStoredJwt, selectedCampaignId]);
+  }, [
+    authState.getStoredJwt,
+    selectedCampaignId,
+    sendHiddenUserMessage,
+    addLocalNotification,
+  ]);
 
-  // Handle session recap request
+  // Handle session recap request (hidden message)
   const handleSessionRecapRequest = useCallback(async () => {
-    console.log("[App] Session recap request triggered");
-
     if (!selectedCampaignId) {
       console.error("No campaign selected for session recap");
       return;
     }
-
+    const jwt = authState.getStoredJwt();
+    if (!jwt) {
+      console.error("No JWT available for session recap request");
+      return;
+    }
+    const recapMessage =
+      "I want to record a session recap. Can you guide me through creating a session digest?";
     try {
-      const jwt = authState.getStoredJwt();
-      if (!jwt) {
-        console.error("No JWT available for session recap request");
-        return;
-      }
-
-      // Send a message to trigger session digest agent
-      const recapMessage =
-        "I want to record a session recap. Can you guide me through creating a session digest?";
-
-      await append({
-        id: generateId(),
-        role: "user",
-        content: recapMessage,
-        data: {
-          jwt: jwt,
-          campaignId: selectedCampaignId,
-        },
+      await sendHiddenUserMessage(recapMessage, {
+        jwt,
+        campaignId: selectedCampaignId,
       });
     } catch (error) {
       console.error("Error requesting session recap:", error);
+      addLocalNotification(
+        NOTIFICATION_TYPES.ERROR,
+        "Session recap request failed",
+        error instanceof Error ? error.message : "Request failed"
+      );
     }
-  }, [append, authState.getStoredJwt, selectedCampaignId]);
+  }, [
+    authState.getStoredJwt,
+    selectedCampaignId,
+    sendHiddenUserMessage,
+    addLocalNotification,
+  ]);
 
-  // Handle next steps request
+  // Handle next steps request (sends prompt without showing it in the chat)
   const handleNextStepsRequest = useCallback(async () => {
-    console.log("[App] Next steps request triggered");
-
     if (!selectedCampaignId) {
       console.error("No campaign selected for next steps");
       return;
     }
-
+    const jwt = authState.getStoredJwt();
+    if (!jwt) {
+      console.error("No JWT available for next steps request");
+      return;
+    }
+    const nextStepsMessage =
+      "What should I do next for this campaign? Can you analyze my current state and provide personalized suggestions based on my campaign?";
     try {
-      const jwt = authState.getStoredJwt();
-      if (!jwt) {
-        console.error("No JWT available for next steps request");
-        return;
-      }
-
-      // Send a message to trigger onboarding agent with campaign context
-      const nextStepsMessage =
-        "What should I do next for this campaign? Can you analyze my current state and provide personalized suggestions based on my campaign?";
-
-      await append({
-        id: generateId(),
-        role: "user",
-        content: nextStepsMessage,
-        data: {
-          jwt: jwt,
-          campaignId: selectedCampaignId,
-        },
+      await sendHiddenUserMessage(nextStepsMessage, {
+        jwt,
+        campaignId: selectedCampaignId,
       });
     } catch (error) {
       console.error("Error requesting next steps:", error);
     }
-  }, [append, authState.getStoredJwt, selectedCampaignId]);
+  }, [authState.getStoredJwt, selectedCampaignId, sendHiddenUserMessage]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -768,12 +859,12 @@ export default function Chat() {
           {
             target: ".tour-next-steps",
             content:
-              "Next steps: this prompts LoreSmith to provide an assessment of your campaign and prioritized suggestions for what to do next.",
+              "Next steps: get a campaign assessment and targeted, campaign-specific suggestions for what to do next (requires a campaign to be selected).",
           },
           {
             target: ".tour-help-button",
             content:
-              "Help: guidance personalized to your current setup (e.g. first upload, creating a campaign, planning sessions).",
+              "Help: get guidance on using LoreSmith (resource library, campaigns, session planning, and how to get the most value from the app).",
           },
           {
             target: ".tour-admin-dashboard",
