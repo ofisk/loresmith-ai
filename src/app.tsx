@@ -353,18 +353,8 @@ export default function Chat() {
   const agentMessages = chatMessages as Message[];
   const isLoading = chatStatus === "submitted" || chatStatus === "streaming";
 
-  // Tracks user message contents to hide in the UI (button-triggered prompts)
+  // Tracks user message contents to hide in the UI (button-triggered prompts); never cleared so they stay hidden
   const invisibleUserContentsRef = useRef<Set<string>>(new Set());
-
-  // Clear invisible set after the agent responds so the same content isn’t hidden if sent again
-  useEffect(() => {
-    if (
-      agentMessages.length > 0 &&
-      agentMessages[agentMessages.length - 1]?.role === "assistant"
-    ) {
-      invisibleUserContentsRef.current.clear();
-    }
-  }, [agentMessages]);
 
   const append = useCallback(
     (message: {
@@ -752,7 +742,7 @@ export default function Chat() {
           {
             target: ".tour-sidebar",
             content:
-              "This sidebar contains your campaigns and resource library.",
+              "Sidebar: this contains your campaigns and resource library.",
             placement: "right",
           },
           {
