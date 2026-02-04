@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { usePlanningTasks } from "@/hooks/usePlanningTasks";
-import type { PlanningTask } from "../../types/planning-task";
-import { OPEN_PLANNING_TASK_STATUSES } from "../../types/planning-task";
+import type {
+  PlanningTask,
+  PlanningTaskStatus,
+} from "../../types/planning-task";
 
 interface PlanningTasksPanelProps {
   campaignId: string | null;
@@ -22,7 +24,7 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
   useEffect(() => {
     if (!campaignId) return;
     void fetchPlanningTasks.execute(campaignId, {
-      statuses: OPEN_PLANNING_TASK_STATUSES,
+      statuses: ["pending", "in_progress"] as PlanningTaskStatus[],
     });
   }, [campaignId, fetchPlanningTasks]);
 

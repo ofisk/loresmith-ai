@@ -10,8 +10,10 @@ import { ArrayInput } from "@/components/input/ArrayInput";
 import { FormButton } from "@/components/button/FormButton";
 import { useSessionDigests } from "@/hooks/useSessionDigests";
 import { usePlanningTasks } from "@/hooks/usePlanningTasks";
-import type { PlanningTask } from "../../types/planning-task";
-import { OPEN_PLANNING_TASK_STATUSES } from "../../types/planning-task";
+import type {
+  PlanningTask,
+  PlanningTaskStatus,
+} from "../../types/planning-task";
 
 interface SessionDigestFormProps {
   campaignId: string;
@@ -95,7 +97,7 @@ export function SessionDigestForm({
   useEffect(() => {
     if (!digest && typeof window !== "undefined") {
       void fetchPlanningTasks.execute(campaignId, {
-        statuses: OPEN_PLANNING_TASK_STATUSES,
+        statuses: ["pending", "in_progress"] as PlanningTaskStatus[],
       });
     }
   }, [campaignId, digest, fetchPlanningTasks]);
