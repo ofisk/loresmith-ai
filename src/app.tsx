@@ -311,7 +311,8 @@ export default function Chat() {
   const sendHiddenUserMessage = useCallback(
     async (
       content: string,
-      data: { jwt: string; campaignId: string | null }
+      data: { jwt: string; campaignId: string | null },
+      errorNotificationTitle: string
     ) => {
       setHiddenRequestInProgress(true);
       try {
@@ -413,7 +414,7 @@ export default function Chat() {
         const message = err instanceof Error ? err.message : "Request failed";
         addLocalNotification(
           NOTIFICATION_TYPES.ERROR,
-          "Next steps request failed",
+          errorNotificationTitle,
           message
         );
       } finally {
@@ -525,10 +526,11 @@ export default function Chat() {
     const guidanceMessage =
       "I'd like help getting the most out of LoreSmith. Can you guide me on how to use the app—like the resource library, campaigns, session planning, and what order to do things in—so I can get the best value from it?";
     try {
-      await sendHiddenUserMessage(guidanceMessage, {
-        jwt,
-        campaignId: selectedCampaignId ?? null,
-      });
+      await sendHiddenUserMessage(
+        guidanceMessage,
+        { jwt, campaignId: selectedCampaignId ?? null },
+        "Guidance request failed"
+      );
     } catch (error) {
       console.error("Error requesting guidance:", error);
       addLocalNotification(
@@ -558,10 +560,11 @@ export default function Chat() {
     const recapMessage =
       "I want to record a session recap. Can you guide me through creating a session digest?";
     try {
-      await sendHiddenUserMessage(recapMessage, {
-        jwt,
-        campaignId: selectedCampaignId,
-      });
+      await sendHiddenUserMessage(
+        recapMessage,
+        { jwt, campaignId: selectedCampaignId },
+        "Session recap request failed"
+      );
     } catch (error) {
       console.error("Error requesting session recap:", error);
       addLocalNotification(
@@ -591,14 +594,25 @@ export default function Chat() {
     const nextStepsMessage =
       "What should I do next for this campaign? Can you analyze my current state and provide personalized suggestions based on my campaign?";
     try {
-      await sendHiddenUserMessage(nextStepsMessage, {
-        jwt,
-        campaignId: selectedCampaignId,
-      });
+      await sendHiddenUserMessage(
+        nextStepsMessage,
+        { jwt, campaignId: selectedCampaignId },
+        "Next steps request failed"
+      );
     } catch (error) {
       console.error("Error requesting next steps:", error);
+      addLocalNotification(
+        NOTIFICATION_TYPES.ERROR,
+        "Next steps request failed",
+        error instanceof Error ? error.message : "Request failed"
+      );
     }
-  }, [authState.getStoredJwt, selectedCampaignId, sendHiddenUserMessage]);
+  }, [
+    authState.getStoredJwt,
+    selectedCampaignId,
+    sendHiddenUserMessage,
+    addLocalNotification,
+  ]);
 
   // Scroll to bottom when messages change
   useEffect(() => {

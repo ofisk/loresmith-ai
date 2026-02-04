@@ -1,3 +1,8 @@
 # Format, lint, and typecheck staged files; then run tests for immediate feedback on failure.
+# When stdin is not a TTY (e.g. Cursor IDE or CI), redirect from /dev/null so subprocesses
+# (e.g. Vitest) don't hang waiting for input.
+if [ ! -t 0 ]; then
+  exec < /dev/null
+fi
 npx lint-staged
-npm test -- --run --testTimeout=30000
+npm test -- --run --testTimeout=30000 || exit 1
