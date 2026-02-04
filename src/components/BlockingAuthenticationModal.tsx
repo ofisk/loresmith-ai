@@ -53,7 +53,23 @@ export function BlockingAuthenticationModal({
     setIsLoading(true);
 
     try {
-      await onSubmit(currentUsername, adminKey, openaiApiKey);
+      // Add timeout to prevent hanging forever if backend is down
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                "Connection timeout. Please check if the server is running."
+              )
+            ),
+          30000
+        );
+      });
+
+      await Promise.race([
+        onSubmit(currentUsername, adminKey, openaiApiKey),
+        timeoutPromise,
+      ]);
       // Only clear form on success - preserve values on error
       setError(null);
     } catch (err) {
