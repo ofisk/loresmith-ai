@@ -23,6 +23,7 @@ import { useAppState } from "@/hooks/useAppState";
 import { useUiHints } from "@/hooks/useUiHints";
 import { useGlobalShardManager } from "@/hooks/useGlobalShardManager";
 import { ShardOverlay } from "@/components/shard/ShardOverlay";
+import { PlanningTasksPanel } from "@/components/campaign/PlanningTasksPanel";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAppEventHandlers } from "@/hooks/useAppEventHandlers";
 import { useAuthReady } from "@/hooks/useAuthReady";
@@ -945,33 +946,38 @@ export default function Chat() {
               isAddingToCampaigns={isAddingToCampaigns}
             />
 
-            {/* Chat Area */}
-            <ChatArea
-              chatContainerId={chatContainerId}
-              messages={agentMessages as Message[]}
-              input={agentInput ?? ""}
-              onInputChange={(e) => {
-                handleAgentInputChange(e);
-                // Auto-resize the textarea
-                e.target.style.height = "auto";
-                const newHeight = Math.max(40, e.target.scrollHeight); // Minimum 40px height
-                e.target.style.height = `${newHeight}px`;
-                setTextareaHeight(`${newHeight}px`);
-              }}
-              onFormSubmit={handleFormSubmit}
-              onKeyDown={handleKeyDown}
-              isLoading={isLoading}
-              onStop={stop}
-              formatTime={formatTime}
-              onSuggestionSubmit={handleSuggestionSubmit}
-              onUploadFiles={() => setTriggerFileUpload(true)}
-              textareaHeight={textareaHeight}
-              pendingToolCallConfirmation={pendingToolCallConfirmation}
-              campaigns={campaigns}
-              selectedCampaignId={selectedCampaignId}
-              onSelectedCampaignChange={setSelectedCampaignId}
-              invisibleUserContents={invisibleUserContentsRef.current}
-            />
+            <div className="flex-1 flex flex-col min-h-0">
+              {/* Planning tasks / next steps panel */}
+              <PlanningTasksPanel campaignId={selectedCampaignId} />
+
+              {/* Chat Area */}
+              <ChatArea
+                chatContainerId={chatContainerId}
+                messages={agentMessages as Message[]}
+                input={agentInput ?? ""}
+                onInputChange={(e) => {
+                  handleAgentInputChange(e);
+                  // Auto-resize the textarea
+                  e.target.style.height = "auto";
+                  const newHeight = Math.max(40, e.target.scrollHeight); // Minimum 40px height
+                  e.target.style.height = `${newHeight}px`;
+                  setTextareaHeight(`${newHeight}px`);
+                }}
+                onFormSubmit={handleFormSubmit}
+                onKeyDown={handleKeyDown}
+                isLoading={isLoading}
+                onStop={stop}
+                formatTime={formatTime}
+                onSuggestionSubmit={handleSuggestionSubmit}
+                onUploadFiles={() => setTriggerFileUpload(true)}
+                textareaHeight={textareaHeight}
+                pendingToolCallConfirmation={pendingToolCallConfirmation}
+                campaigns={campaigns}
+                selectedCampaignId={selectedCampaignId}
+                onSelectedCampaignChange={setSelectedCampaignId}
+                invisibleUserContents={invisibleUserContentsRef.current}
+              />
+            </div>
           </div>
         </div>
 

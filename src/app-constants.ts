@@ -149,6 +149,10 @@ export const USER_MESSAGES = {
   HOOK_FAILED_TO_CREATE_SESSION_DIGEST: "Failed to create session digest",
   HOOK_FAILED_TO_UPDATE_SESSION_DIGEST: "Failed to update session digest",
   HOOK_FAILED_TO_DELETE_SESSION_DIGEST: "Failed to delete session digest",
+  HOOK_FAILED_TO_FETCH_PLANNING_TASKS: "Failed to fetch planning tasks",
+  HOOK_FAILED_TO_CREATE_PLANNING_TASK: "Failed to create planning task",
+  HOOK_FAILED_TO_UPDATE_PLANNING_TASK: "Failed to update planning task",
+  HOOK_FAILED_TO_DELETE_PLANNING_TASK: "Failed to delete planning task",
 } as const;
 
 // Success messages

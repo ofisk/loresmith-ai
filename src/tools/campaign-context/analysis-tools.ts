@@ -6,6 +6,10 @@ import {
 import { searchExternalResources, searchCampaignContext } from "./search-tools";
 import { showCampaignDetails, updateCampaign } from "../campaign/core-tools";
 import { captureConversationalContext } from "./context-capture-tools";
+import {
+  getPlanningTaskProgress,
+  recordPlanningTasks,
+} from "./planning-task-tools";
 
 export const campaignAnalysisTools = {
   assessCampaignReadiness,
@@ -15,4 +19,6 @@ export const campaignAnalysisTools = {
   showCampaignDetails,
   updateCampaign,
   captureConversationalContext,
+  recordPlanningTasks,
+  getPlanningTaskProgress,
 };

@@ -24,6 +24,10 @@ import {
   saveContextExplicitly,
 } from "../campaign-context/context-capture-tools";
 import {
+  recordPlanningTasks,
+  getPlanningTaskProgress,
+} from "../campaign-context/planning-task-tools";
+import {
   searchCampaignContext,
   listAllEntities,
 } from "../campaign-context/search-tools";
@@ -68,6 +72,8 @@ export {
   // Campaign context capture tools
   captureConversationalContext,
   saveContextExplicitly,
+  recordPlanningTasks,
+  getPlanningTaskProgress,
   searchCampaignContext,
   listAllEntities,
   recordWorldEventTool,
@@ -101,6 +107,8 @@ export const campaignTools = {
   resolveCampaignIdentifier,
   captureConversationalContext,
   saveContextExplicitly,
+  recordPlanningTasks,
+  getPlanningTaskProgress,
   searchCampaignContext,
   listAllEntities,
   recordWorldEventTool,

@@ -172,6 +172,37 @@ export const checkPlanningReadiness = tool({
       const criticalGaps = gaps.filter((g) => g.severity === "critical");
       const isReady = criticalGaps.length === 0;
 
+      // Pull planning task progress for this campaign so agents can reference it
+      const planningTasks =
+        await daoFactory.planningTaskDAO.listByCampaign(campaignId);
+
+      const planningTaskCounts = {
+        pending: planningTasks.filter((t) => t.status === "pending").length,
+        in_progress: planningTasks.filter((t) => t.status === "in_progress")
+          .length,
+        completed: planningTasks.filter((t) => t.status === "completed").length,
+        superseded: planningTasks.filter((t) => t.status === "superseded")
+          .length,
+      } as const;
+
+      const openPlanningTasksCount =
+        planningTaskCounts.pending + planningTaskCounts.in_progress;
+
+      let planningTasksAssessment: string;
+      if (planningTasks.length === 0) {
+        planningTasksAssessment =
+          "No planning tasks have been recorded yet. It may help to ask for next steps or add your own planning tasks.";
+      } else if (planningTaskCounts.completed >= 3) {
+        planningTasksAssessment =
+          "You have completed several planning tasks. You likely have a healthy amount of prep, but you can always refine further.";
+      } else if (openPlanningTasksCount === 0) {
+        planningTasksAssessment =
+          "All recorded planning tasks are completed. You may be ready to run or to ask for new next-step suggestions.";
+      } else {
+        planningTasksAssessment =
+          "There are still open planning tasks. Completing a few more items may improve your readiness for the next session.";
+      }
+
       return createToolSuccess(
         isReady
           ? "Campaign is ready for session planning"
@@ -192,6 +223,12 @@ export const checkPlanningReadiness = tool({
             locations: locationsCount,
             characters: playerCharactersCount,
             totalEntities: totalEntitiesCount,
+          },
+          planningTasks: {
+            tasks: planningTasks,
+            counts: planningTaskCounts,
+            openTaskCount: openPlanningTasksCount,
+            assessment: planningTasksAssessment,
           },
         },
         toolCallId

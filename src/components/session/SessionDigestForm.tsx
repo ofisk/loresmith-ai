@@ -9,6 +9,8 @@ import { FormField } from "@/components/input/FormField";
 import { ArrayInput } from "@/components/input/ArrayInput";
 import { FormButton } from "@/components/button/FormButton";
 import { useSessionDigests } from "@/hooks/useSessionDigests";
+import { usePlanningTasks } from "@/hooks/usePlanningTasks";
+import type { PlanningTask } from "@/types/planning-task";
 
 interface SessionDigestFormProps {
   campaignId: string;
@@ -63,6 +65,12 @@ export function SessionDigestForm({
   const [error, setError] = useState<string | null>(null);
 
   const { createSessionDigest, updateSessionDigest } = useSessionDigests();
+  const {
+    tasks: planningTasks,
+    fetchPlanningTasks,
+    bulkCompletePlanningTasks,
+  } = usePlanningTasks();
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
 
   const sessionNumberId = useId();
   const sessionDateId = useId();
@@ -81,6 +89,15 @@ export function SessionDigestForm({
       setSessionNumber(suggestedSessionNumber);
     }
   }, [digest, suggestedSessionNumber, initialDigestData]);
+
+  // When creating a new digest in the browser, load open planning tasks so the user can clear them in bulk
+  useEffect(() => {
+    if (!digest && typeof window !== "undefined") {
+      void fetchPlanningTasks.execute(campaignId, {
+        statuses: ["pending", "in_progress"],
+      });
+    }
+  }, [campaignId, digest, fetchPlanningTasks]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,6 +120,9 @@ export function SessionDigestForm({
           sessionDate: sessionDate || null,
           digestData,
         });
+        if (selectedTaskIds.length > 0) {
+          await bulkCompletePlanningTasks.execute(campaignId, selectedTaskIds);
+        }
       }
       onSave?.();
     } catch (err) {
@@ -286,6 +306,62 @@ export function SessionDigestForm({
           placeholder="Add if-then branch..."
         />
       </div>
+
+      {/* Existing planning tasks (for bulk completion when creating a new digest) */}
+      {!digest && (
+        <div className="space-y-3 border-b border-gray-200 dark:border-gray-700 pb-4">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            Existing planning tasks
+          </h3>
+          {planningTasks.length === 0 ? (
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              There are no open planning tasks for this campaign. You can still
+              use the checklist below to note what you want to do next.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Select any completed tasks to mark them done along with this
+                session digest.
+              </p>
+              <div className="space-y-2 max-h-48 overflow-y-auto rounded-md border border-neutral-200 dark:border-neutral-700 bg-neutral-50/60 dark:bg-neutral-900/60 p-2">
+                {planningTasks.map((task: PlanningTask) => {
+                  const checked = selectedTaskIds.includes(task.id);
+                  return (
+                    <label
+                      key={task.id}
+                      className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-3.5 w-3.5 rounded border-neutral-300 text-purple-600 focus:ring-purple-500 dark:border-neutral-600"
+                        checked={checked}
+                        onChange={(e) => {
+                          setSelectedTaskIds((prev) =>
+                            e.target.checked
+                              ? [...prev, task.id]
+                              : prev.filter((id) => id !== task.id)
+                          );
+                        }}
+                      />
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-neutral-800 dark:text-neutral-100">
+                          {task.title}
+                        </p>
+                        {task.description && (
+                          <p className="text-[11px] text-neutral-600 dark:text-neutral-400">
+                            {task.description}
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Additional Planning */}
       <div className="space-y-4 border-b border-gray-200 dark:border-gray-700 pb-4">

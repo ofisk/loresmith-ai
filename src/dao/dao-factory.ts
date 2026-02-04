@@ -15,6 +15,7 @@ import { RebuildStatusDAO } from "./rebuild-status-dao";
 import { MessageHistoryDAO } from "./message-history-dao";
 import { CharacterSheetDAO } from "./character-sheet-dao";
 import { ChecklistStatusDAO } from "./checklist-status-dao";
+import { PlanningTaskDAO } from "./planning-task-dao";
 
 // Cache for DAO factory instances
 const daoFactoryCache = new Map<string, DAOFactory>();
@@ -39,6 +40,7 @@ export interface DAOFactory {
   messageHistoryDAO: MessageHistoryDAO;
   checklistStatusDAO: ChecklistStatusDAO;
   characterSheetDAO: CharacterSheetDAO;
+  planningTaskDAO: PlanningTaskDAO;
 
   // Convenience methods for common operations
   storeOpenAIKey(username: string, apiKey: string): Promise<void>;
@@ -63,6 +65,7 @@ export class DAOFactoryImpl implements DAOFactory {
   public readonly messageHistoryDAO: MessageHistoryDAO;
   public readonly checklistStatusDAO: ChecklistStatusDAO;
   public readonly characterSheetDAO: CharacterSheetDAO;
+  public readonly planningTaskDAO: PlanningTaskDAO;
 
   constructor(db: D1Database) {
     this.userDAO = new UserDAO(db);
@@ -79,6 +82,7 @@ export class DAOFactoryImpl implements DAOFactory {
     this.messageHistoryDAO = new MessageHistoryDAO(db);
     this.checklistStatusDAO = new ChecklistStatusDAO(db);
     this.characterSheetDAO = new CharacterSheetDAO(db);
+    this.planningTaskDAO = new PlanningTaskDAO(db);
   }
 
   // Convenience methods for common operations
