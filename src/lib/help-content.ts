@@ -1,5 +1,18 @@
 export function getHelpContent(action: string): string {
   switch (action) {
+    case "open_help":
+      return (
+        "What do you need help with? Here are some example questions based on what LoreSmith can do:\n\n" +
+        "**Using the app:**\n" +
+        "- How do I upload resources to my library?\n" +
+        "- How do I create a campaign?\n" +
+        "- How do I add resources to a campaign?\n\n" +
+        "**Using the AI assistant:**\n" +
+        "- What can the AI help me with for my campaign?\n" +
+        "- How do I plan a session or get story ideas?\n" +
+        "- How do I record a session recap?\n\n" +
+        "Type your question in the chat below and I’ll walk you through it."
+      );
     case "upload_resource":
       return (
         "## 📚 Uploading Resources\n\n" +
