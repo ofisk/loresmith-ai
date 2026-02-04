@@ -742,7 +742,6 @@ export default function Chat() {
           {
             target: ".tour-admin-dashboard",
             content: "Admin dashboard: shows telemetry and system metrics.",
-            disableBeacon: true,
           },
           {
             target: ".tour-clear-history",
