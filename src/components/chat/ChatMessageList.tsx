@@ -7,6 +7,16 @@ interface ChatMessageListProps {
   formatTime: (date: Date) => string;
 }
 
+function hasVisibleContent(m: Message): boolean {
+  const parts = m.parts ?? [];
+  if (parts.length === 0) return false;
+  const hasText = parts.some(
+    (p) =>
+      p.type === "text" && typeof p.text === "string" && p.text.trim() !== ""
+  );
+  return hasText;
+}
+
 export function ChatMessageList({
   messages,
   formatTime,
@@ -16,6 +26,7 @@ export function ChatMessageList({
       {messages
         .filter((m: Message) => {
           if (m.role === "user" && m.content === "Get started") return false;
+          if (!hasVisibleContent(m)) return false;
           return true;
         })
         .map((m: Message, _index) => {
@@ -49,7 +60,8 @@ export function ChatMessageList({
                           }
                           if (
                             part.type === "text" &&
-                            typeof part.text === "string"
+                            typeof part.text === "string" &&
+                            part.text.trim() !== ""
                           ) {
                             const isLastTextPart = i === lastTextPartIndex;
 
