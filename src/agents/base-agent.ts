@@ -202,6 +202,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
   ): Promise<Response> {
     const dataStreamResponse = createDataStreamResponse({
       execute: async (dataStream) => {
+        // Send an immediate heartbeat so the client/worker don't time out during long tool runs
+        dataStream.write(formatDataStreamPart("text", ""));
+
         // Extract JWT from the last user message if available
         const lastUserMessage = this.messages
           .slice()
