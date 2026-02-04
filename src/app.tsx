@@ -54,8 +54,17 @@ export default function Chat() {
   const [runTour, setRunTour] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
 
+  // Check if tour was completed on mount
+  const tourCompleted =
+    localStorage.getItem("loresmith-tour-completed") === "true";
+
   const handleJoyrideCallback = (data: any) => {
     const { action, index, status, type, lifecycle } = data;
+
+    // Save current step to local storage
+    if (type === "step:after" || type === "step:before") {
+      localStorage.setItem("loresmith-tour-step", String(index));
+    }
 
     // Close tour on escape or skip
     if (
@@ -67,6 +76,7 @@ export default function Chat() {
       setRunTour(false);
       // Mark tour as completed
       localStorage.setItem("loresmith-tour-completed", "true");
+      localStorage.removeItem("loresmith-tour-step"); // Clear saved step
       return;
     }
 
@@ -119,24 +129,45 @@ export default function Chat() {
   const modalState = useModalState();
   const authState = useAppAuthentication();
 
-  // Start tour after authentication, only if user hasn't completed or skipped it before
+  // Start tour after authentication (only if not completed)
   useEffect(() => {
-    if (!authState.isAuthenticated) return;
-    if (localStorage.getItem("loresmith-tour-completed") === "true") return;
-    const timer = setTimeout(() => {
-      setStepIndex(0);
-      setRunTour(true);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [authState.isAuthenticated]);
+    console.log(
+      "[Tour] Effect running - Auth:",
+      authState.isAuthenticated,
+      "JWT:",
+      !!authState.getStoredJwt(),
+      "Completed:",
+      tourCompleted
+    );
+
+    if (authState.isAuthenticated && !tourCompleted) {
+      console.log("[Tour] Authenticated, starting tour after delay");
+
+      // Check if there's a saved step to resume from
+      const savedStep = localStorage.getItem("loresmith-tour-step");
+      const resumeStep = savedStep ? parseInt(savedStep, 10) : 0;
+
+      const timer = setTimeout(() => {
+        console.log("[Tour] Starting tour now at step:", resumeStep);
+        setStepIndex(resumeStep);
+        setRunTour(true);
+      }, 300); // 300ms delay
+      return () => clearTimeout(timer);
+    } else if (tourCompleted) {
+      console.log("[Tour] Tour already completed, skipping");
+    } else {
+      console.log("[Tour] Not authenticated yet");
+    }
+  }, [authState.isAuthenticated, tourCompleted]);
 
   // Debug: Add global function to manually start tour
   useEffect(() => {
     (window as any).startTour = () => {
       console.log("[Tour] Manually starting tour");
       localStorage.removeItem("loresmith-tour-completed");
-      setRunTour(true);
+      localStorage.removeItem("loresmith-tour-step");
       setStepIndex(0);
+      setRunTour(true);
     };
   }, []);
 
@@ -744,17 +775,19 @@ export default function Chat() {
           {
             target: ".tour-shard-review",
             content: (
-              <>
+              <div>
                 <p>
-                  Shard review: this is where you approve or reject those
-                  shards.
+                  After linking a resource to a campaign, you'll review and
+                  approve shards here before they're added to your campaign.
                 </p>
-                <br />
-                <p>
-                  LoreSmith respects your decisions on which shards should be
-                  allowed to shape your campaign and which should be avoided.
+                <p className="mt-3 font-bold">What are shards?</p>
+                <p className="mt-2">
+                  Shards are fragments of lore you approve into your campaign.
+                  LoreSmith links related shards so it can internalize your
+                  world and help you plan and grow your campaign more
+                  accurately.
                 </p>
-              </>
+              </div>
             ),
           },
           {
