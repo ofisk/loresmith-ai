@@ -1,5 +1,5 @@
 import { formatDataStreamPart } from "@ai-sdk/ui-utils";
-import { streamText } from "ai";
+import { stepCountIs, streamText } from "ai";
 import { SimpleChatAgent, type ChatMessage } from "./simple-chat-agent";
 import {
   estimateRequestTokens,
@@ -345,7 +345,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           );
         }
         console.log(
-          `[${this.constructor.name}] About to call streamText with maxSteps: 2...`
+          `[${this.constructor.name}] About to call streamText with stopWhen: stepCountIs(10)...`
         );
 
         // Determine whether the most recent user command is stale
@@ -512,6 +512,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             toolChoice, // Use the variable instead of hardcoded value
             messages: processedMessages,
             tools: enhancedTools,
+            stopWhen: stepCountIs(10), // Allow several tool rounds for complex queries; per-tool loop guard prevents runaway repetition
             onFinish: async (args) => {
               console.log(
                 `[${this.constructor.name}] onFinish called with finishReason: ${args.finishReason}`
