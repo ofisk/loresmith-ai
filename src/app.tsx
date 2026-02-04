@@ -710,68 +710,109 @@ export default function Chat() {
           {
             target: ".tour-user-menu",
             content:
-              "Your account menu. Log out here when you need to switch accounts or update your API key.",
+              "Your account menu: switch accounts or update your API key from here.",
             locale: { next: "Next" },
           },
           {
             target: ".tour-sidebar",
             content:
-              "This sidebar contains your campaigns and resource library.",
+              "Sidebar: this contains your campaigns and resource library.",
+            placement: "right",
           },
           {
             target: ".tour-campaigns-section",
             content:
-              "Each campaign is a persistent game world, tracking lore, documents, and state over time. Expand here to get started.",
+              "Campaigns: your campaigns live here. Each campaign is a persistent game world, tracking lore, documents, and state over time.",
           },
           {
             target: ".tour-library-section",
-            content:
-              "Resources are source materials you link to a campaign (like notes, documents, or references). You'll review the AI's findings before adding them to your campaign.",
+            content: (
+              <>
+                <p>
+                  Resource library: source materials you link to a campaign
+                  (notes, documents, references).
+                </p>
+                <br />
+                <p>
+                  LoreSmith extracts shards from them (discrete pieces of lore
+                  like characters, places, and items), which you'll review
+                  before they're added to your campaign.
+                </p>
+              </>
+            ),
           },
           {
             target: ".tour-shard-review",
-            content:
-              "After linking a resource to a campaign, you'll review and approve shards here before they're added to your campaign.",
+            content: (
+              <>
+                <p>
+                  Shard review: this is where you approve or reject those
+                  shards.
+                </p>
+                <br />
+                <p>
+                  LoreSmith respects your decisions on which shards should be
+                  allowed to shape your campaign and which should be avoided.
+                </p>
+              </>
+            ),
           },
           {
             target: ".chat-input-area",
-            content:
-              "The forge itself: where you and LoreSmith shape your tale.",
+            content: "Chat: where you and LoreSmith shape your tale.",
             placement: "left",
           },
           {
             target: ".tour-campaign-selector",
-            content:
-              "Select which campaign you're working on. LoreSmith uses this to provide context-aware responses.",
+            content: (
+              <>
+                <p>
+                  Campaign selector: this sets which campaign you're working on.
+                </p>
+                <br />
+                <p>
+                  LoreSmith uses it to choose which resources, sessions, and
+                  world state to use in replies.
+                </p>
+              </>
+            ),
           },
           {
             target: ".tour-session-recap",
-            content:
-              "Record session recap. Just share your session notes. LoreSmith will ask questions, generate summaries, and update your campaign automatically.",
+            content: (
+              <>
+                <p>Session recap: record what happened in a session.</p>
+                <br />
+                <p>
+                  LoreSmith turns your notes into a digest and updates your
+                  campaign world state.
+                </p>
+              </>
+            ),
           },
           {
             target: ".tour-next-steps",
             content:
-              "What should I do next? Get personalized suggestions for your campaign.",
+              "Next steps: this prompts LoreSmith to provide an assessment of your campaign and prioritized suggestions for what to do next.",
           },
           {
             target: ".tour-help-button",
-            content: "Get help and guidance anytime by clicking here.",
+            content:
+              "Help: guidance personalized to your current setup (e.g. first upload, creating a campaign, planning sessions).",
           },
           {
             target: ".tour-admin-dashboard",
-            content: "Admin dashboard. View telemetry and system metrics.",
-            disableBeacon: true,
+            content: "Admin dashboard: shows telemetry and system metrics.",
           },
           {
             target: ".tour-clear-history",
             content:
-              "Clear the current conversation to start a fresh chat. Your campaign data remains safe.",
+              "Clear history: starts a new chat in this campaign; your campaign data and library are unchanged.",
           },
           {
             target: ".tour-notifications",
             content:
-              "LoreSmith works behind the scenes to process your content. Notifications keep you transparently updated on everything happening in your campaign.",
+              "Notifications: shows real-time updates (e.g. when shards are ready to review) on file processing and other campaign activity.",
             disableBeacon: true,
           },
         ]}
