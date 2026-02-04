@@ -752,7 +752,7 @@ export default function Chat() {
           {
             target: ".tour-sidebar",
             content:
-              "Sidebar: this contains your campaigns and resource library.",
+              "This sidebar contains your campaigns and resource library.",
             placement: "right",
           },
           {
@@ -836,7 +836,7 @@ export default function Chat() {
           {
             target: ".tour-help-button",
             content:
-              "Help: guidance personalized to your current setup (e.g. first upload, creating a campaign, planning sessions).",
+              "Help: starts a chat with LoreSmith about app functionality—what it can help with, example questions you can ask, and best practices based on the docs.",
           },
           {
             target: ".tour-admin-dashboard",
@@ -845,7 +845,7 @@ export default function Chat() {
           {
             target: ".tour-clear-history",
             content:
-              "Clear history: starts a new chat in this campaign; your campaign data and library are unchanged.",
+              "Clear history: clears the current conversation to start fresh; your campaign data remains safe.",
           },
           {
             target: ".tour-notifications",
