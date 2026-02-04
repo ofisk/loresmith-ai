@@ -257,6 +257,7 @@ export const API_CONFIG = {
     },
     CHAT: {
       SET_OPENAI_KEY: "/chat/set-openai-key",
+      SEND: "/api/chat",
     },
     OPENAI: {
       CHECK_KEY: "/check-open-ai-key",

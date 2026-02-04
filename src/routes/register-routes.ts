@@ -16,6 +16,7 @@ import {
   handleStoreOpenAIKey,
   requireUserJwt,
 } from "@/routes/auth";
+import { handleChatSend } from "@/routes/chat";
 import {
   handleApproveShards,
   handleGetStagedShards,
@@ -188,6 +189,7 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
   app.get(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY, handleCheckOpenAIKey);
   app.get(API_CONFIG.ENDPOINTS.OPENAI.CHECK_USER_KEY, handleCheckUserOpenAIKey);
   app.post(API_CONFIG.ENDPOINTS.CHAT.SET_OPENAI_KEY, handleSetOpenAIApiKey);
+  app.post(API_CONFIG.ENDPOINTS.CHAT.SEND, requireUserJwt, handleChatSend);
 
   app.post(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE, handleAuthenticate);
   app.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT, handleLogout);

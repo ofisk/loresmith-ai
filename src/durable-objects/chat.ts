@@ -1,5 +1,5 @@
 import type { Schedule } from "agents";
-import { SimpleChatAgent } from "@/agents/simple-chat-agent";
+import { SimpleChatAgent, type ChatMessage } from "@/agents/simple-chat-agent";
 import { JWT_STORAGE_KEY } from "@/app-constants";
 import type { AgentType } from "@/lib/agent-router";
 import { AgentRouter } from "@/lib/agent-router";
@@ -233,6 +233,36 @@ export class Chat extends SimpleChatAgent<Env> {
   }
 
   /**
+   * Normalize UI/API message shape to ChatMessage (role, content, data).
+   */
+  private normalizeMessages(raw: unknown): ChatMessage[] {
+    if (!Array.isArray(raw)) return [];
+    return raw.map((m: any) => {
+      const role =
+        m.role === "user" || m.role === "assistant" || m.role === "system"
+          ? m.role
+          : "user";
+      let content = typeof m.content === "string" ? m.content : "";
+      if (!content && Array.isArray(m.parts)) {
+        content = m.parts
+          .map((p: any) =>
+            p.type === "text" && typeof p.text === "string"
+              ? p.text
+              : p.type === "text-delta" && typeof p.delta === "string"
+                ? p.delta
+                : ""
+          )
+          .join("");
+      }
+      return {
+        role,
+        content: content || "",
+        ...(m.data && typeof m.data === "object" ? { data: m.data } : {}),
+      } as ChatMessage;
+    });
+  }
+
+  /**
    * Handle HTTP requests to the Chat durable object
    */
   async fetch(request: Request): Promise<Response> {
@@ -241,6 +271,26 @@ export class Chat extends SimpleChatAgent<Env> {
 
     if (path === "/set-user-openai-key") {
       return this.handleSetUserOpenAIKeyRequest(request);
+    }
+
+    if (path === "/message" && request.method === "POST") {
+      const authHeader = request.headers.get("Authorization");
+      const jwtToken = extractJwtFromHeader(authHeader);
+      if (jwtToken) {
+        await this.ctx.storage.put(JWT_STORAGE_KEY, jwtToken);
+      }
+      let body: { messages?: unknown[] };
+      try {
+        body = (await request.json()) as { messages?: unknown[] };
+      } catch {
+        return new Response("Invalid JSON body", { status: 400 });
+      }
+      const messages = this.normalizeMessages(body.messages ?? []);
+      if (messages.length === 0) {
+        return new Response("Missing or empty messages", { status: 400 });
+      }
+      this.messages = messages;
+      return this.onChatMessage(() => {});
     }
 
     const authHeader = request.headers.get("Authorization");

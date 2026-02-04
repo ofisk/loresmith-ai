@@ -1,8 +1,11 @@
 import type { Message } from "@/types/ai-message";
-import { generateId } from "ai";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport, generateId } from "ai";
 import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Joyride from "react-joyride";
+
+import { API_CONFIG } from "@/shared-config";
 
 // Component imports
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
@@ -151,7 +154,7 @@ export default function Chat() {
     setTextareaHeight,
     triggerFileUpload,
     setTriggerFileUpload,
-    sessionId: _sessionId,
+    sessionId,
   } = useAppState({ modalState, authState });
 
   const {
@@ -241,42 +244,75 @@ export default function Chat() {
     }
   }, [authState, modalState]);
 
-  // Stub out chat interface - your app needs updating to work with the new agents API
-  // TODO: Properly integrate with the new agents package API
-  const chatReturn = {
-    messages: [] as Message[],
-    input: "",
-    handleInputChange: () => {},
-    clearHistory: () => {},
-    isLoading: false,
-    stop: () => {},
-    setInput: () => {},
-    append: () => {},
-  };
+  const chatApiUrl =
+    API_CONFIG.getApiBaseUrl() + API_CONFIG.ENDPOINTS.CHAT.SEND;
+  const jwt = authState.getStoredJwt();
+
+  const chatTransport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: chatApiUrl,
+        headers: jwt ? { Authorization: `Bearer ${jwt}` } : {},
+        body: { campaignId: selectedCampaignId ?? undefined },
+      }),
+    [chatApiUrl, jwt, selectedCampaignId]
+  );
 
   const {
-    messages: agentMessages,
-    input: agentInput,
-    handleInputChange: handleAgentInputChange,
-    clearHistory,
-    isLoading,
+    messages: chatMessages,
+    setMessages: setChatMessages,
+    sendMessage,
+    clearError,
     stop,
-    setInput,
-    append,
-  } = chatReturn as typeof chatReturn & {
-    input: string;
-    handleInputChange: (
-      e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-    ) => void;
-    isLoading: boolean;
-    setInput: (v: string) => void;
-    append: (message: {
+    status,
+  } = useChat({
+    id: sessionId,
+    transport: chatTransport,
+  });
+
+  const [agentInput, setInput] = useState("");
+  const handleAgentInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setInput(e.target.value);
+    },
+    []
+  );
+
+  const isLoading = status === "streaming" || status === "submitted";
+
+  const clearHistory = useCallback(() => {
+    setChatMessages([]);
+    clearError();
+  }, [setChatMessages, clearError]);
+
+  const append = useCallback(
+    (message: {
       id?: string;
       role: string;
       content: string;
       data?: unknown;
-    }) => void;
-  };
+    }) => {
+      if (message.role === "user") {
+        sendMessage({
+          role: "user",
+          parts: [{ type: "text", text: message.content ?? "" }],
+          id: message.id,
+          metadata: message.data,
+        });
+      } else if (message.role === "assistant") {
+        const newMsg = {
+          id: message.id ?? generateId(),
+          role: "assistant" as const,
+          parts: [{ type: "text" as const, text: message.content ?? "" }],
+          metadata: message.data,
+        };
+        setChatMessages((prev) => [...prev, newMsg]);
+      }
+    },
+    [sendMessage, setChatMessages]
+  );
+
+  const agentMessages = chatMessages as Message[];
 
   const authReady = useAuthReady();
 
