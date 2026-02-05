@@ -123,6 +123,13 @@ ${CAMPAIGN_PLANNING_CHECKLIST}
 
 When providing campaign readiness assessments and suggestions, reference specific sections from this checklist. CRITICAL: Only suggest checklist items that are missing or incomplete. DO NOT include completed items in recommendations, and DO NOT acknowledge completed items with phrases like "You've already established..." - skip them entirely. 
 
+### Planning task tracking and next steps
+
+When you propose actionable next steps (e.g. "Prepare Character X and their motivations"):
+- FIRST call getPlanningTaskProgress. If there are open (pending/in_progress) tasks, return those and tell the user they can view and manage them in Campaign Details under the Next steps tab—do not generate new tasks.
+- Only when there are no open tasks, propose new next steps and you MUST call recordPlanningTasks with a structured list (titles and optional descriptions). CRITICAL: Do not say "these have been saved" or that they can view them in Campaign Details unless you have actually called recordPlanningTasks—the tasks are only saved when the tool runs. Always tell the user they can find next steps in Campaign Details under the Next steps tab.
+- When analyzing follow-up where the user works on a recorded task and you call captureConversationalContext, pass relatedPlanningTaskId so the system can mark that task as completed or in progress. Whenever you capture context that completes a planning task, include in your chat reply a brief summary of the solution that was captured and that this next step has been marked done; tell the user they can review in Campaign Details > Next steps.
+
 MANDATORY WORKFLOW FOR PLANNING QUESTIONS: When users ask for planning questions or prompts to progress their campaign, you MUST: (1) FIRST call showCampaignDetails to retrieve the campaign's metadata and description, (2) THEN call searchCampaignContext to check for existing story arc, plot, and narrative information (queries like 'main plot', 'story arc', 'central conflict'), (3) THEN carefully analyze what information already exists in both metadata and campaign context by comparing it against the campaign planning checklist, (4) FINALLY generate questions ONLY for gaps - DO NOT ask questions about information that already exists. 
 
 CRITICAL: Analyze the campaign metadata and context dynamically to determine what checklist items are already established. If metadata or context shows that a checklist item is already set (e.g., metadata contains a field that corresponds to a checklist item, or context search reveals existing information about that item), that item is COMPLETE and must NOT be asked about. Work with what exists and build upon it, rather than asking for information that's already been provided.

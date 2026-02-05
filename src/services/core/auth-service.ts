@@ -453,11 +453,16 @@ export class AuthService {
   };
 
   /**
-   * Utility function to parse JWT and extract username
+   * Utility function to parse JWT and extract username.
+   * JWTs use base64url encoding; decode before atob.
    */
   static parseJwtForUsername(jwt: string): string | null {
     try {
-      const payload = JSON.parse(atob(jwt.split(".")[1]));
+      const part = jwt.split(".")[1] || "";
+      let base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+      const pad = base64.length % 4;
+      if (pad) base64 += "=".repeat(4 - pad);
+      const payload = JSON.parse(atob(base64));
       return payload.username || null;
     } catch (error) {
       console.error("Error parsing JWT for username:", error);

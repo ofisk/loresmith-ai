@@ -41,8 +41,30 @@ vi.mock("../../src/agents/campaign-agent", () => ({
   CampaignAgent: MockCampaignAgent,
 }));
 
+const MockRecapAgent = {
+  agentMetadata: {
+    type: "recap",
+    description: "Recap and next steps agent",
+    systemPrompt: "You are a recap agent",
+    tools: { generateContextRecap: {}, getPlanningTaskProgress: {} },
+  },
+};
+
+const MockCampaignContextAgent = {
+  agentMetadata: {
+    type: "campaign-context",
+    description: "Campaign context agent",
+    systemPrompt: "You are a campaign context agent",
+    tools: { searchCampaignContext: {}, listAllEntities: {} },
+  },
+};
+
+vi.mock("../../src/agents/recap-agent", () => ({
+  RecapAgent: MockRecapAgent,
+}));
+
 vi.mock("../../src/agents/campaign-context-agent", () => ({
-  CampaignContextAgent: MockCampaignAgent,
+  CampaignContextAgent: MockCampaignContextAgent,
 }));
 
 vi.mock("../../src/agents/character-sheet-agent", () => ({

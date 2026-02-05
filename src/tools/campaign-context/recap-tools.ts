@@ -23,12 +23,15 @@ const generateContextRecapSchema = z.object({
 });
 
 /**
- * Tool to generate context recap data for a campaign
- * Returns recent activity, world state changes, session digests, and in-progress goals
+ * Single tool for campaign context recap. Uses RecapService (session digests,
+ * world state changes, in-progress goals), builds the recap prompt with
+ * next-steps preflight, and returns recapPrompt for the agent. Used both when
+ * the user returns to the app (automatic recap) and when the agent needs
+ * context recap (e.g. "give me a recap").
  */
 export const generateContextRecapTool = tool({
   description:
-    "Generate a context recap for a campaign summarizing recent activity, world state changes, session digests, and in-progress goals. Use this when a user returns to the app after being away or when they switch campaigns.",
+    "Generate a context recap for a campaign summarizing recent activity, world state changes, session digests, and in-progress goals. Use this when a user returns to the app after being away, when they switch campaigns, or when they ask for a recap.",
   inputSchema: generateContextRecapSchema,
   execute: async (
     input: z.infer<typeof generateContextRecapSchema>,
@@ -67,7 +70,6 @@ export const generateContextRecapTool = tool({
         );
       }
 
-      // Verify campaign exists and belongs to user
       const { getDAOFactory } = await import("../../dao/dao-factory");
       const daoFactory = getDAOFactory(env);
       const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
@@ -84,7 +86,6 @@ export const generateContextRecapTool = tool({
         );
       }
 
-      // Get recap data
       const recapService = new RecapService(
         env as import("@/middleware/auth").Env
       );
@@ -94,12 +95,42 @@ export const generateContextRecapTool = tool({
         sinceTimestamp
       );
 
+      const { formatContextRecapPrompt } =
+        await import("../../lib/prompts/recap-prompts");
+      let recapPrompt = formatContextRecapPrompt(recapData);
+      const { getPlanningTaskProgress } = await import("./planning-task-tools");
+      const progressRes = (await (getPlanningTaskProgress.execute?.(
+        {
+          campaignId,
+          jwt,
+          includeStatuses: ["pending", "in_progress"],
+        },
+        {
+          env,
+          toolCallId: `${toolCallId}-preflight`,
+        } as ToolExecuteOptions
+      ) ?? Promise.resolve(null))) as
+        | { result: { success: boolean; data?: unknown } }
+        | null
+        | undefined;
+      const progressData =
+        progressRes?.result?.success && progressRes?.result?.data
+          ? (progressRes.result.data as { openTaskCount?: number })
+          : null;
+      const openTaskCount = progressData?.openTaskCount ?? 0;
+      if (openTaskCount > 0) {
+        recapPrompt += `\n\n[Server preflight: This campaign already has ${openTaskCount} open next step(s). Call getPlanningTaskProgress to retrieve them, then present those to the user. Do NOT call recordPlanningTasks.]`;
+      } else {
+        recapPrompt += `\n\n[Server preflight: There are no open next steps. You MUST generate 2-3 high-quality, campaign-relevant next steps (using the checklist and campaign context), then call recordPlanningTasks with them. Only after the tool succeeds may you say they have been saved and direct the user to Campaign Details > Next steps.]`;
+      }
+
       return createToolSuccess(
         `Generated context recap for campaign "${campaign.name}"`,
         {
           campaignId,
           campaignName: campaign.name,
           recap: recapData,
+          recapPrompt,
         },
         toolCallId
       );

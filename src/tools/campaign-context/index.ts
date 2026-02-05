@@ -26,6 +26,7 @@ import {
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
 } from "./world-state-tools";
+import { generateContextRecapTool } from "./recap-tools";
 
 export {
   // Character tools
@@ -49,6 +50,8 @@ export {
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
+  // Recap (context recap for returning users / campaign switch)
+  generateContextRecapTool,
 };
 
 // Export the tools object for backward compatibility
@@ -68,4 +71,5 @@ export const campaignContextTools = {
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
+  generateContextRecapTool,
 };

@@ -6,6 +6,7 @@ import { AGENT_ROUTING_PROMPTS } from "./prompts/agent-routing-prompts";
 export type AgentType =
   | "campaign"
   | "campaign-context"
+  | "recap"
   | "campaign-analysis"
   | "character"
   | "character-sheets"

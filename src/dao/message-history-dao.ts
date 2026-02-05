@@ -35,9 +35,10 @@ export interface GetMessagesOptions {
 export class MessageHistoryDAO extends BaseDAOClass {
   /**
    * Maximum number of messages to keep per session (to limit storage costs)
-   * Only the most recent N messages are retained
+   * Only the most recent N messages are retained. Kept high so chat history
+   * is preserved across page refreshes.
    */
-  private readonly MAX_MESSAGES_PER_SESSION = 5;
+  private readonly MAX_MESSAGES_PER_SESSION = 100;
 
   /**
    * Store a chat message in the database

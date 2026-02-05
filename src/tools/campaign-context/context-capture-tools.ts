@@ -12,6 +12,7 @@ import {
 import type { Env } from "@/middleware/auth";
 import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
 import { getDAOFactory } from "../../dao/dao-factory";
+import type { PlanningTaskStatus } from "../../dao/planning-task-dao";
 import { notifyShardGeneration } from "../../lib/notifications";
 import { ALL_CONTEXT_TYPES } from "../../constants/context-types";
 
@@ -42,6 +43,12 @@ const captureConversationalContextSchema = z.object({
     .string()
     .optional()
     .describe("ID of the message this context was extracted from"),
+  relatedPlanningTaskId: z
+    .string()
+    .optional()
+    .describe(
+      "Optional planning task id that this captured context fulfills or advances."
+    ),
   jwt: commonSchemas.jwt,
 });
 
@@ -76,6 +83,7 @@ export const captureConversationalContext = tool({
       content,
       confidence = 0.8,
       sourceMessageId,
+      relatedPlanningTaskId,
       jwt,
     } = input;
     const toolCallId = options?.toolCallId ?? "unknown";
@@ -111,7 +119,8 @@ export const captureConversationalContext = tool({
       }
 
       // Verify campaign exists and belongs to user
-      const campaignDAO = getDAOFactory(env).campaignDAO;
+      const daoFactory = getDAOFactory(env);
+      const campaignDAO = daoFactory.campaignDAO;
       const campaign = await campaignDAO.getCampaignByIdWithMapping(
         campaignId,
         userId
@@ -174,6 +183,72 @@ export const captureConversationalContext = tool({
         noteId,
         title,
       });
+
+      // Optionally link this captured context to a planning task
+      try {
+        const planningTaskDAO = daoFactory.planningTaskDAO;
+        let planningTaskIdToUpdate: string | null =
+          relatedPlanningTaskId ?? null;
+
+        // If no explicit planning task id was provided, attempt a simple match
+        if (!planningTaskIdToUpdate) {
+          const openTasks = await planningTaskDAO.listByCampaign(campaignId, {
+            status: ["pending", "in_progress"] as PlanningTaskStatus[],
+          });
+
+          const contentLower = content.toLowerCase();
+
+          let bestTaskId: string | null = null;
+          let bestScore = 0;
+
+          for (const task of openTasks) {
+            const titleLower = task.title.toLowerCase();
+            let score = 0;
+
+            if (contentLower.includes(titleLower)) {
+              score += 3;
+            }
+
+            const words = titleLower.split(/\s+/).filter((w) => w.length > 3);
+            for (const word of words) {
+              if (contentLower.includes(word)) {
+                score += 1;
+              }
+            }
+
+            if (score > bestScore) {
+              bestScore = score;
+              bestTaskId = task.id;
+            }
+          }
+
+          // Require a modest score to avoid accidental matches
+          if (bestTaskId && bestScore >= 2) {
+            planningTaskIdToUpdate = bestTaskId;
+          }
+        }
+
+        if (planningTaskIdToUpdate) {
+          await planningTaskDAO.updateStatus(
+            planningTaskIdToUpdate,
+            "completed",
+            noteId
+          );
+          console.log(
+            "[captureConversationalContext] Linked planning task to captured context",
+            {
+              planningTaskId: planningTaskIdToUpdate,
+              noteId,
+            }
+          );
+        }
+      } catch (planningTaskError) {
+        console.error(
+          "[captureConversationalContext] Failed to update planning task status:",
+          planningTaskError
+        );
+        // Do not fail the capture operation if planning task linkage fails
+      }
 
       // Send notification to user about new pending shard
       try {

@@ -322,7 +322,7 @@ export class Chat extends SimpleChatAgent<Env> {
       console.log(
         "[Chat] No model available for agent routing, using default agent"
       );
-      return "campaign-context";
+      return "recap";
     }
 
     const intent = await AgentRouter.routeMessage(
@@ -448,7 +448,7 @@ export class Chat extends SimpleChatAgent<Env> {
           return;
         }
 
-        const targetAgentInstance = this.getAgentInstance("campaign-context");
+        const targetAgentInstance = this.getAgentInstance("recap");
         targetAgentInstance.messages = [...messages];
         return targetAgentInstance.onChatMessage(onFinish, {
           abortSignal: _options?.abortSignal,
@@ -464,107 +464,9 @@ export class Chat extends SimpleChatAgent<Env> {
         );
       }
 
-      // Check for context recap request
-      if (
-        lastUserMessage &&
-        "data" in lastUserMessage &&
-        lastUserMessage.data &&
-        typeof lastUserMessage.data === "object" &&
-        "type" in lastUserMessage.data &&
-        (lastUserMessage.data as { type?: string }).type ===
-          "context_recap_request"
-      ) {
-        const messageData = lastUserMessage.data as {
-          type: string;
-          campaignId?: string;
-          jwt?: string;
-        };
-        const campaignId = messageData.campaignId;
-        // Use JWT from the current message data, not from stored jwtToken
-        // This ensures we use the fresh JWT that was sent with this request
-        const currentJwt = messageData.jwt || jwtToken;
-
-        if (campaignId && currentJwt) {
-          console.log(
-            `[Chat] Context recap request detected for campaign: ${campaignId}`
-          );
-
-          try {
-            // Get the campaign-context agent which has access to recap tools
-            const targetAgentInstance =
-              this.getAgentInstance("campaign-context");
-            targetAgentInstance.messages = [...this.messages];
-
-            // Call the recap tool to get the recap data
-            const { generateContextRecapTool } =
-              await import("@/tools/general/recap-tools");
-            const execute = generateContextRecapTool.execute;
-            if (!execute) {
-              console.error("[Chat] generateContextRecapTool has no execute");
-              throw new Error("Recap tool not executable");
-            }
-            const recapResult = await execute({ campaignId, jwt: currentJwt }, {
-              env: this.env,
-              toolCallId: "recap-request",
-            } as any);
-
-            const result =
-              recapResult &&
-              typeof recapResult === "object" &&
-              "result" in recapResult
-                ? (
-                    recapResult as {
-                      result: {
-                        success?: boolean;
-                        data?: unknown;
-                        message?: string;
-                      };
-                    }
-                  ).result
-                : null;
-
-            if (
-              result?.success &&
-              result?.data &&
-              typeof result.data === "object" &&
-              result.data !== null &&
-              "recap" in result.data
-            ) {
-              const recap = (result.data as { recap: any }).recap;
-
-              // Generate the recap prompt using the prompts library
-              const { formatContextRecapPrompt } =
-                await import("@/lib/prompts/recap-prompts");
-              const recapPrompt = formatContextRecapPrompt(recap);
-
-              // Add the recap request as a new user message
-              targetAgentInstance.messages.push({
-                role: "user",
-                content: recapPrompt,
-                data: { campaignId, jwt: currentJwt },
-              });
-
-              // Generate the recap using the agent
-              return targetAgentInstance.onChatMessage(onFinish, {
-                abortSignal: _options?.abortSignal,
-              });
-            } else {
-              console.error(
-                "[Chat] Failed to generate recap data:",
-                result?.message ?? "Unknown"
-              );
-              // Fall through to normal message handling
-            }
-          } catch (error) {
-            console.error("[Chat] Error generating context recap:", error);
-            // Fall through to normal message handling
-          }
-        }
-      }
-
-      const targetAgent = await this.determineAgent(
-        (lastUserMessage as { content?: string })?.content ?? ""
-      );
+      const userContent =
+        (lastUserMessage as { content?: string })?.content ?? "";
+      const targetAgent = await this.determineAgent(userContent);
       console.log(
         `[Chat] Routing to ${targetAgent} agent for message: "${(lastUserMessage as any).content}"`
       );

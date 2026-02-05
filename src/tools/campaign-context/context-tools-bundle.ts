@@ -17,6 +17,11 @@ import {
 import { showCampaignDetails } from "../campaign/core-tools";
 import { getMessageHistory } from "../message-history-tools";
 import { getChecklistStatusTool } from "./checklist-tools";
+import {
+  recordPlanningTasks,
+  getPlanningTaskProgress,
+} from "./planning-task-tools";
+import { generateContextRecapTool } from "./recap-tools";
 
 export const campaignContextToolsBundle = {
   searchCampaignContext,
@@ -31,4 +36,7 @@ export const campaignContextToolsBundle = {
   deleteEntityTool,
   getMessageHistory,
   getChecklistStatusTool,
+  recordPlanningTasks,
+  getPlanningTaskProgress,
+  generateContextRecapTool,
 };

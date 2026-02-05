@@ -87,13 +87,18 @@ MANDATORY WORKFLOW: Before suggesting ANY checklist items, you MUST follow this 
 
 CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. Dynamically determine what's already set by analyzing the metadata and context, then skip those items entirely.
 
+SAVING NEXT STEPS: When you suggest next steps, they must be saved so they appear in Campaign Details. (1) FIRST call getPlanningTaskProgress (campaignId and JWT are supplied automatically). If there are open (pending/in_progress) tasks, present those and tell the user they can view them in Campaign Details under the Next steps tab—do NOT call recordPlanningTasks. (2) If there are NO open tasks, after suggesting 3-5 next steps you MUST call recordPlanningTasks with those tasks (each with "title" and optional "description"). Campaign ID and JWT are injected automatically—you only need to pass the tasks array. Do not say "these have been saved" in your reply without having called recordPlanningTasks; after the tool succeeds, tell the user: "These have been saved to your campaign. You can view and manage them in Campaign Details under the Next steps tab."
+
 Analyze what appears to be missing or incomplete based on the search results, and suggest 3-5 prioritized next steps from the checklist that would be most valuable to tackle. Focus on foundational elements first (Campaign Foundation, World & Setting Basics, Starting Location) before moving to later stages.
 
 Be encouraging and helpful, framing these as exciting opportunities to build their campaign world. Prioritize based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).`;
   }
 
-  return `Please provide a friendly context recap for this campaign. Here's what happened:
+  return `CONTEXT RECAP MODE: You must write the recap narrative using ONLY the data in this message. Do NOT call searchCampaignContext or listAllEntities for the recap. If you already called a tool and got something like "608 entries" or "no specific details", ignore that for the narrative—the recap comes from the data blocks below, not from tool output. Only after you have written the full "Since you were away..." recap and the Open Threads may you call any tools (getPlanningTaskProgress, getChecklistStatus, showCampaignDetails, recordPlanningTasks) for the Next Steps section.
 
+Please provide a friendly context recap for this campaign.
+
+DATA PROVIDED FOR THE RECAP (use this as the source for your narrative—do not replace it with tool output):
 ${recap.recentActivity && recap.recentActivity.length > 0 ? `Recent Activity (${recap.recentActivity.length} items):\n${recap.recentActivity.map((a) => `- ${a.type}: ${a.details || "N/A"}`).join("\n")}\n` : ""}
 
 ${sessionDigestsDetails ? `Recent Session Digests:\n${sessionDigestsDetails}\n\n` : ""}
@@ -104,9 +109,13 @@ ${recap.inProgressGoals?.todoChecklist && recap.inProgressGoals.todoChecklist.le
 
 ${recap.inProgressGoals?.openThreads && recap.inProgressGoals.openThreads.length > 0 ? `Open Story Threads:\n${recap.inProgressGoals.openThreads.map((thread) => `- ${thread}`).join("\n")}\n` : ""}
 
-Please generate a friendly recap message starting directly with "Since you were away..." and summarizing the key highlights from the recent session digests, world state changes, and ongoing story threads. Do not include any introductory text or headings before the recap message - just provide the recap content itself.
+RECAP NARRATIVE (do this first, using only the data above):
+Write a friendly recap that starts with "Since you were away..." and then:
+- If Recent Session Digests or Open Story Threads are present above: summarize each session using Key Events and Open Threads, and present open threads as questions or hooks (e.g. "Will the villain's plan succeed? What is the key NPC's connection to the prophecy?").
+- If there are no session digests and no open threads above: say briefly that no recent session recap was found and suggest recording a session digest for better recaps next time; then move on to Next Steps. Do NOT say "608 entries" or "would you like me to search?"—that is not a recap.
+- Do NOT call searchCampaignContext or listAllEntities for the recap. Do NOT mention "entity count" or "no specific details retrieved". Start directly with the recap content (no extra heading).
 
-After the recap, please also assess what would be most valuable to plan next using this comprehensive campaign planning checklist:
+After the recap narrative, add a "Next Steps for Planning" section. To choose those next steps, follow this workflow:
 
 ${CAMPAIGN_PLANNING_CHECKLIST}
 
@@ -125,7 +134,9 @@ MANDATORY WORKFLOW: Before suggesting ANY checklist items, you MUST follow this 
 
 CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. Dynamically determine what's already set by analyzing the metadata and context, then skip those items entirely.
 
-Based on the search results and current campaign state, suggest 2-3 prioritized next steps from the checklist that would be most valuable to tackle. Focus on what logically follows from where the campaign currently stands, and prioritize based on dependencies (e.g., setting basics before factions, starting location before first arc, etc.). Make sure your recommendations are informed by what actually exists in the campaign data, not assumptions.`;
+SAVING NEXT STEPS: When you suggest next steps, they must be saved so they appear in Campaign Details. (1) FIRST call getPlanningTaskProgress (campaignId and JWT are supplied automatically). If there are open (pending/in_progress) tasks, present those and tell the user they can view them in Campaign Details under the Next steps tab—do NOT call recordPlanningTasks. (2) If there are NO open tasks, after suggesting 2-3 next steps you MUST call recordPlanningTasks with those tasks (each with "title" and optional "description"). Campaign ID and JWT are injected automatically—you only need to pass the tasks array. Do not say "these have been saved" in your reply without having called recordPlanningTasks; after the tool succeeds, tell the user: "These have been saved to your campaign. You can view and manage them in Campaign Details under the Next steps tab."
+
+Based on the search results and current campaign state, suggest 2-3 prioritized next steps. Prefer concrete, story-relevant items (e.g. "Key NPC's character and motivations", "Political factions in the main hub") that tie to the recap narrative; use the checklist for ideas but phrase steps so they are specific to this campaign. Focus on what logically follows from where the campaign currently stands. Make sure your recommendations are informed by what actually exists in the campaign data, not assumptions. Then save the suggested next steps using the recordPlanningTasks tool (see SAVING NEXT STEPS above) so they appear in Campaign Details and the user is notified.`;
 }
 
 export const RECAP_PROMPTS = {

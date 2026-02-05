@@ -140,6 +140,14 @@ import {
   handleGetStateAnalysis,
   handleGetWelcomeGuidance,
 } from "@/routes/onboarding";
+import { handleGetChatHistory } from "@/routes/chat-history";
+import {
+  handleBulkCompletePlanningTasks,
+  handleCreatePlanningTask,
+  handleDeletePlanningTask,
+  handleGetPlanningTasks,
+  handleUpdatePlanningTask,
+} from "@/routes/planning-tasks";
 import { handleProgressWebSocket } from "@/routes/progress";
 import {
   handleDeleteFileForRag,
@@ -259,6 +267,37 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.CAMPAIGNS.CHECKLIST_STATUS(":campaignId"),
     requireUserJwt,
     handleGetChecklistStatus
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.BASE(":campaignId"),
+    requireUserJwt,
+    handleGetPlanningTasks
+  );
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.BASE(":campaignId"),
+    requireUserJwt,
+    handleCreatePlanningTask
+  );
+  app.patch(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.DETAILS(
+      ":campaignId",
+      ":taskId"
+    ),
+    requireUserJwt,
+    handleUpdatePlanningTask
+  );
+  app.delete(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.DETAILS(
+      ":campaignId",
+      ":taskId"
+    ),
+    requireUserJwt,
+    handleDeletePlanningTask
+  );
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.COMPLETE_BULK(":campaignId"),
+    requireUserJwt,
+    handleBulkCompletePlanningTasks
   );
   app.get(
     API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(":campaignId"),
@@ -956,6 +995,8 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
       })) || new Response("Agent route not found", { status: 404 })
     );
   };
+
+  app.get("/chat-history/:sessionId", requireUserJwt, handleGetChatHistory);
 
   app.get("/agents/*", handleAgentsRoute);
   app.post("/agents/*", handleAgentsRoute);

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { SessionDigestForm } from "@/components/session/SessionDigestForm";
 
-// Mock the hook
+// Mock hooks used by the form to avoid real network calls
 vi.mock("@/hooks/useSessionDigests", () => ({
   useSessionDigests: vi.fn(() => ({
     createSessionDigest: {
@@ -10,6 +10,33 @@ vi.mock("@/hooks/useSessionDigests", () => ({
       loading: false,
     },
     updateSessionDigest: {
+      execute: vi.fn(),
+      loading: false,
+    },
+  })),
+}));
+
+vi.mock("@/hooks/usePlanningTasks", () => ({
+  usePlanningTasks: vi.fn(() => ({
+    tasks: [],
+    error: null,
+    fetchPlanningTasks: {
+      execute: vi.fn(),
+      loading: false,
+    },
+    createPlanningTask: {
+      execute: vi.fn(),
+      loading: false,
+    },
+    updatePlanningTask: {
+      execute: vi.fn(),
+      loading: false,
+    },
+    deletePlanningTask: {
+      execute: vi.fn(),
+      loading: false,
+    },
+    bulkCompletePlanningTasks: {
       execute: vi.fn(),
       loading: false,
     },
