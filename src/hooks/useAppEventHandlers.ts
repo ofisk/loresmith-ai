@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { CONTEXT_RECAP_PLACEHOLDER } from "@/app-constants";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 
 export interface UseAppEventHandlersArgs {
@@ -130,7 +131,7 @@ export function useAppEventHandlers({
       onContextRecapRequest?.();
       append({
         role: "user",
-        content: "",
+        content: CONTEXT_RECAP_PLACEHOLDER,
         data: {
           type: "context_recap_request",
           campaignId: selectedCampaignId,
@@ -174,7 +175,7 @@ export function useAppEventHandlers({
       onContextRecapRequest?.();
       append({
         role: "user",
-        content: "",
+        content: CONTEXT_RECAP_PLACEHOLDER,
         data: {
           type: "context_recap_request",
           campaignId: selectedCampaignId,
