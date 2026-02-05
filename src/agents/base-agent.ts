@@ -169,10 +169,12 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
     let username: string | null = null;
     if (messageData?.jwt) {
       try {
-        // Try to extract username from JWT
-        const jwtPayload = JSON.parse(
-          atob(messageData.jwt.split(".")[1] || "")
-        );
+        // Try to extract username from JWT (JWT payload is base64url-encoded)
+        const part = messageData.jwt.split(".")[1] || "";
+        let base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+        const pad = base64.length % 4;
+        if (pad) base64 += "=".repeat(4 - pad);
+        const jwtPayload = JSON.parse(atob(base64));
         username = jwtPayload.username || null;
       } catch (error) {
         console.warn(
