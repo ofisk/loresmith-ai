@@ -217,6 +217,34 @@ export async function notifyFileUploadFailed(
 }
 
 /**
+ * Notify when next steps (planning tasks) are created by the application
+ */
+export async function notifyNextStepsCreated(
+  env: Env,
+  userId: string,
+  campaignName: string,
+  count: number
+): Promise<void> {
+  try {
+    await notifyUser(env, userId, {
+      type: NOTIFICATION_TYPES.NEXT_STEPS_CREATED,
+      title: "Next steps added",
+      message:
+        count === 1
+          ? `A next step was added for "${campaignName}". View it in Campaign Details > Next steps.`
+          : `${count} next steps were added for "${campaignName}". View them in Campaign Details > Next steps.`,
+      data: { campaignName, count },
+    });
+  } catch (error) {
+    console.error(
+      "[notifyNextStepsCreated] Failed to send notification:",
+      error
+    );
+    // Don't throw - notifications are non-critical
+  }
+}
+
+/**
  * Publish indexing lifecycle notifications
  */
 export async function notifyIndexingStarted(

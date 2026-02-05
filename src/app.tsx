@@ -342,6 +342,8 @@ export default function Chat() {
     transport: chatTransport,
   });
 
+  const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
+
   const [agentInput, setInput] = useState("");
   const handleAgentInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -388,6 +390,38 @@ export default function Chat() {
   }, [setChatMessages]);
 
   const authReady = useAuthReady();
+
+  // Restore chat history from API on load so it persists across refreshes
+  useEffect(() => {
+    if (!authReady || !sessionId) return;
+    const jwt = authState.getStoredJwt();
+    if (!jwt) {
+      setChatHistoryLoaded(true);
+      return;
+    }
+    let cancelled = false;
+    const url = API_CONFIG.buildUrl(
+      API_CONFIG.ENDPOINTS.CHAT.HISTORY(sessionId)
+    );
+    fetch(url, {
+      headers: { Authorization: `Bearer ${jwt}` },
+    })
+      .then((res) => (res.ok ? res.json() : Promise.resolve({ messages: [] })))
+      .then((data: unknown) => {
+        if (cancelled) return;
+        const parsed = data as { messages?: Message[] };
+        const messages = parsed.messages ?? [];
+        setChatMessages((prev) =>
+          prev.length === 0 ? (messages as typeof prev) : prev
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setChatHistoryLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authReady, sessionId, setChatMessages]);
 
   useEffect(() => {
     void agentMessages;
@@ -950,6 +984,7 @@ export default function Chat() {
               <ChatArea
                 chatContainerId={chatContainerId}
                 messages={agentMessages as Message[]}
+                chatHistoryLoading={!chatHistoryLoaded}
                 input={agentInput ?? ""}
                 onInputChange={(e) => {
                   handleAgentInputChange(e);

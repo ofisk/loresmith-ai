@@ -87,9 +87,12 @@ MANDATORY WORKFLOW: Before suggesting ANY checklist items, you MUST follow this 
 
 CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. Dynamically determine what's already set by analyzing the metadata and context, then skip those items entirely.
 
-Analyze what appears to be missing or incomplete based on the search results, and suggest 3-5 prioritized next steps from the checklist that would be most valuable to tackle. Focus on foundational elements first (Campaign Foundation, World & Setting Basics, Starting Location) before moving to later stages.
+PLANNING TASKS (NEXT STEPS) - MANDATORY WORKFLOW:
+1. FIRST call getPlanningTaskProgress with the campaignId from this message. This returns any existing open (pending/in_progress) next steps for the campaign.
+2. If there are open tasks (tasks array has one or more items), present those tasks to the user with a brief message. Tell them: "You can view and manage these in Campaign Details under the Next steps tab." Do NOT generate new next steps or call recordPlanningTasks when open tasks already exist. This keeps the experience fast.
+3. If there are NO open tasks (empty tasks array), then suggest 3-5 prioritized next steps from the checklist that would be most valuable to tackle. Focus on foundational elements first (Campaign Foundation, World & Setting Basics, Starting Location). Call recordPlanningTasks with those tasks (title and optional description for each). Then tell the user: "These have been saved to your campaign. You can view and manage them in Campaign Details under the Next steps tab."
 
-Be encouraging and helpful, framing these as exciting opportunities to build their campaign world. Prioritize based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).`;
+Be encouraging and helpful. Prioritize based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).`;
   }
 
   return `Please provide a friendly context recap for this campaign. Here's what happened:
@@ -125,7 +128,12 @@ MANDATORY WORKFLOW: Before suggesting ANY checklist items, you MUST follow this 
 
 CRITICAL: DO NOT include any checklist items that are already completed in your recommendations. DO NOT acknowledge completed items with phrases like "You've already established..." or "You've already selected...". Only list items that are missing or incomplete. Dynamically determine what's already set by analyzing the metadata and context, then skip those items entirely.
 
-Based on the search results and current campaign state, suggest 2-3 prioritized next steps from the checklist that would be most valuable to tackle. Focus on what logically follows from where the campaign currently stands, and prioritize based on dependencies (e.g., setting basics before factions, starting location before first arc, etc.). Make sure your recommendations are informed by what actually exists in the campaign data, not assumptions.`;
+PLANNING TASKS (NEXT STEPS) - MANDATORY WORKFLOW:
+1. FIRST call getPlanningTaskProgress with the campaignId from this message. This returns any existing open (pending/in_progress) next steps for the campaign.
+2. If there are open tasks (tasks array has one or more items), present those tasks to the user with a brief message. Tell them: "You can view and manage these in Campaign Details under the Next steps tab." Do NOT generate new next steps or call recordPlanningTasks when open tasks already exist. This keeps the experience fast.
+3. If there are NO open tasks (empty tasks array), then suggest 2-3 prioritized next steps from the checklist that would be most valuable to tackle. Focus on what logically follows from where the campaign currently stands. Call recordPlanningTasks with those tasks (title and optional description for each). Then tell the user: "These have been saved to your campaign. You can view and manage them in Campaign Details under the Next steps tab."
+
+Make sure any new recommendations are informed by what actually exists in the campaign data, not assumptions.`;
 }
 
 export const RECAP_PROMPTS = {

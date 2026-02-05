@@ -22,6 +22,8 @@ const getRandomPrompt = () =>
 interface ChatAreaProps {
   chatContainerId: string;
   messages: Message[];
+  /** True while persisted chat history is being loaded (e.g. on page load). */
+  chatHistoryLoading?: boolean;
   input: string;
   onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onFormSubmit: (e: React.FormEvent) => void;
@@ -46,6 +48,7 @@ interface ChatAreaProps {
 export function ChatArea({
   chatContainerId,
   messages,
+  chatHistoryLoading = false,
   input,
   onInputChange,
   onFormSubmit,
@@ -99,11 +102,16 @@ export function ChatArea({
         id={chatContainerId}
         className="flex-1 overflow-y-auto px-8 py-6 space-y-6 pb-12 min-h-0"
       >
-        {messages.length === 0 && (
+        {messages.length === 0 && !chatHistoryLoading && (
           <WelcomeMessage
             onSuggestionSubmit={onSuggestionSubmit}
             onUploadFiles={onUploadFiles}
           />
+        )}
+        {messages.length === 0 && chatHistoryLoading && (
+          <div className="flex items-center justify-center py-12 text-neutral-500 dark:text-neutral-400">
+            Loading conversation...
+          </div>
         )}
 
         <ChatMessageList

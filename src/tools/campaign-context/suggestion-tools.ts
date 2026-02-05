@@ -208,6 +208,20 @@ export const getCampaignSuggestions = tool({
             })),
             toolCallId
           );
+          if (
+            createdPlanningTasks.length > 0 &&
+            env &&
+            "NOTIFICATIONS" in env
+          ) {
+            const { notifyNextStepsCreated } =
+              await import("@/lib/notifications");
+            await notifyNextStepsCreated(
+              env as Env,
+              userId,
+              campaign.name,
+              createdPlanningTasks.length
+            );
+          }
         }
 
         const responseMessage =

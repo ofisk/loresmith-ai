@@ -140,6 +140,7 @@ import {
   handleGetStateAnalysis,
   handleGetWelcomeGuidance,
 } from "@/routes/onboarding";
+import { handleGetChatHistory } from "@/routes/chat-history";
 import {
   handleBulkCompletePlanningTasks,
   handleCreatePlanningTask,
@@ -994,6 +995,8 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
       })) || new Response("Agent route not found", { status: 404 })
     );
   };
+
+  app.get("/chat-history/:sessionId", requireUserJwt, handleGetChatHistory);
 
   app.get("/agents/*", handleAgentsRoute);
   app.post("/agents/*", handleAgentsRoute);

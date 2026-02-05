@@ -11,14 +11,15 @@ import {
 import type { ToolResult } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { PlanningTaskStatus } from "@/dao/planning-task-dao";
-import { OPEN_PLANNING_TASK_STATUSES } from "@/types/planning-task";
+import { notifyNextStepsCreated } from "@/lib/notifications";
+import type { Env } from "@/middleware/auth";
 
 const planningTaskSchema = z.object({
   title: z
     .string()
     .min(1, "Title is required")
     .describe(
-      "Short, actionable task title (e.g. 'Prepare Baba Lysaga's motivations')"
+      "Short, actionable task title (e.g. 'Prepare a key NPC's motivations')"
     ),
   description: z
     .string()
@@ -48,7 +49,7 @@ const recordPlanningTasksSchema = z.object({
 
 export const recordPlanningTasks = tool({
   description:
-    "Record planning tasks (\"next steps\") for a campaign so they can be tracked over time. Use this when you provide concrete, actionable next steps such as 'Prepare Baba Lysaga's character and motivations' or 'Sketch the starting town map'.",
+    "Record planning tasks (\"next steps\") for a campaign so they can be tracked over time. Use this when you provide concrete, actionable next steps such as 'Prepare a key NPC's character and motivations' or 'Sketch the starting location map'.",
   inputSchema: recordPlanningTasksSchema,
   execute: async (
     input: z.infer<typeof recordPlanningTasksSchema>,
@@ -106,6 +107,15 @@ export const recordPlanningTasks = tool({
         })),
         sourceMessageId
       );
+
+      if (created.length > 0 && env && "NOTIFICATIONS" in env) {
+        await notifyNextStepsCreated(
+          env as Env,
+          userId,
+          campaign.name,
+          created.length
+        );
+      }
 
       return createToolSuccess(
         `Recorded ${created.length} planning task(s) for campaign "${campaign.name}".`,
@@ -196,9 +206,9 @@ export const getPlanningTaskProgress = tool({
 
       const planningTaskDAO = daoFactory.planningTaskDAO;
 
-      const statusesToInclude: PlanningTaskStatus[] =
-        (includeStatuses as PlanningTaskStatus[] | undefined) ??
-        OPEN_PLANNING_TASK_STATUSES;
+      const statusesToInclude: PlanningTaskStatus[] = (includeStatuses as
+        | PlanningTaskStatus[]
+        | undefined) ?? ["pending", "in_progress"];
 
       const tasks = await planningTaskDAO.listByCampaign(campaignId, {
         status: statusesToInclude,
@@ -213,12 +223,14 @@ export const getPlanningTaskProgress = tool({
       for (const task of tasks) {
         counts[task.status] += 1;
       }
+      const openTaskCount = counts.pending + counts.in_progress;
 
       return createToolSuccess(
         `Retrieved planning task progress for campaign "${campaign.name}".`,
         {
           tasks,
           counts,
+          openTaskCount,
         },
         toolCallId
       );
