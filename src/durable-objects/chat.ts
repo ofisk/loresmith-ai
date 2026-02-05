@@ -472,6 +472,24 @@ export class Chat extends SimpleChatAgent<Env> {
       );
 
       const targetAgentInstance = this.getAgentInstance(targetAgent);
+      // Persist the latest user message to message history using the agent's
+      // persistence pipeline. This writes exactly one user row per turn,
+      // keyed by (sessionId, username, campaignId) without duplicating DB logic.
+      try {
+        if (lastUserMessage) {
+          targetAgentInstance.addMessage(
+            lastUserMessage as {
+              role: "user" | "assistant" | "system";
+              content: string;
+            }
+          );
+        }
+      } catch (persistError) {
+        console.error(
+          "[Chat] Failed to persist latest user message to history:",
+          persistError
+        );
+      }
       targetAgentInstance.messages = [...messages];
 
       return targetAgentInstance.onChatMessage(onFinish, {

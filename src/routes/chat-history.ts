@@ -8,6 +8,10 @@ const CHAT_HISTORY_LIMIT = 500;
  * GET /chat-history/:sessionId
  * Returns persisted chat messages for the given session for the authenticated user.
  * Used to restore chat history on page load.
+ *
+ * SECURITY: This route always filters by BOTH sessionId and username so users
+ * can only see their own messages for a given chat session. There are no
+ * cross-user or global fallbacks here.
  */
 export async function handleGetChatHistory(
   c: ContextWithAuth
@@ -45,6 +49,12 @@ export async function handleGetChatHistory(
         ...(data != null && { data }),
         createdAt: msg.createdAt,
       };
+    });
+
+    console.log("[ChatHistory] Returning messages", {
+      sessionId,
+      username: auth.username,
+      count: mapped.length,
     });
 
     return c.json({ messages: mapped });

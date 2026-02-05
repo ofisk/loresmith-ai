@@ -146,8 +146,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 
   /**
    * Store a message to the database asynchronously
+   * Made protected so subclasses or this base class can persist messages
+   * without mutating the in-memory message array (e.g. for streamed replies).
    */
-  private async storeMessageToDatabase(message: ChatMessage): Promise<void> {
+  protected async storeMessageToDatabase(message: ChatMessage): Promise<void> {
     const content =
       typeof message.content === "string"
         ? message.content
@@ -157,22 +159,26 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
       return; // Skip empty messages
     }
 
-    // Get session ID from durable object ID
-    // Handle test environments where ctx.id might not exist
-    const sessionId = this.ctx?.id?.toString() || `session-${Date.now()}`;
-
-    // Extract username and campaignId from message data if available
+    // Extract sessionId, username and campaignId from message data if available
     const messageData = (message as any).data as
-      | { jwt?: string; campaignId?: string | null }
+      | { jwt?: string; campaignId?: string | null; sessionId?: string }
       | undefined;
+
+    // Prefer an explicit sessionId from the client; fall back to durable object ID
+    const sessionId =
+      (messageData?.sessionId as string | undefined) ||
+      this.ctx?.id?.toString() ||
+      `session-${Date.now()}`;
 
     let username: string | null = null;
     if (messageData?.jwt) {
       try {
-        // Try to extract username from JWT
-        const jwtPayload = JSON.parse(
-          atob(messageData.jwt.split(".")[1] || "")
-        );
+        // Try to extract username from JWT (JWT payload is base64url-encoded)
+        const part = messageData.jwt.split(".")[1] || "";
+        let base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+        const pad = base64.length % 4;
+        if (pad) base64 += "=".repeat(4 - pad);
+        const jwtPayload = JSON.parse(atob(base64));
         username = jwtPayload.username || null;
       } catch (error) {
         console.warn(
@@ -661,6 +667,51 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               `[${this.constructor.name}] Completed streaming response:`,
               `${fullText.substring(0, 100)}...`
             );
+
+            // Persist the assistant's final message to message history.
+            try {
+              const assistantData: {
+                jwt?: string | null;
+                campaignId?: string | null;
+                sessionId?: string;
+              } = {};
+              if (clientJwt) {
+                assistantData.jwt = clientJwt;
+              }
+              if (selectedCampaignId) {
+                assistantData.campaignId = selectedCampaignId;
+              }
+              // Prefer client-provided sessionId when available; fall back to DO id.
+              const sessionIdFromUser = (lastUserMessage as any)?.data
+                ?.sessionId;
+              assistantData.sessionId =
+                (typeof sessionIdFromUser === "string" &&
+                  sessionIdFromUser.length > 0 &&
+                  sessionIdFromUser) ||
+                this.ctx?.id?.toString() ||
+                `session-${Date.now()}`;
+
+              const assistantMessage: ChatMessage = {
+                role: "assistant",
+                content: fullText,
+                data: assistantData,
+              };
+
+              // Fire-and-forget persistence; do not modify in-memory message array.
+              if (this.env && "DB" in this.env && this.env.DB) {
+                this.storeMessageToDatabase(assistantMessage).catch((error) => {
+                  console.error(
+                    `[${this.constructor.name}] Failed to store assistant message to database:`,
+                    error
+                  );
+                });
+              }
+            } catch (persistError) {
+              console.error(
+                `[${this.constructor.name}] Error while persisting assistant message:`,
+                persistError
+              );
+            }
           } else {
             console.log(
               `[${this.constructor.name}] No textStream available, using fallback`
@@ -755,11 +806,33 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 (schema as any).shape;
 
               const hasJwtParam = !!shape && "jwt" in shape;
-              if (hasJwtParam && !enhancedArgs.jwt) {
-                enhancedArgs.jwt = clientJwt;
-                console.log(
-                  `[${this.constructor.name}] Injected JWT into tool ${toolName} parameters`
-                );
+              if (hasJwtParam) {
+                const previousJwt = enhancedArgs.jwt;
+                const shouldOverrideWithClientJwt =
+                  clientJwt &&
+                  (!previousJwt ||
+                    previousJwt === "YOUR_JWT_TOKEN" ||
+                    previousJwt === "jwt");
+
+                if (shouldOverrideWithClientJwt) {
+                  // Prefer the client JWT over missing/placeholder values
+                  enhancedArgs.jwt = clientJwt;
+                  if (previousJwt && previousJwt !== clientJwt) {
+                    console.log(
+                      `[${this.constructor.name}] Overriding placeholder/missing jwt with client JWT for tool ${toolName}`
+                    );
+                  } else {
+                    console.log(
+                      `[${this.constructor.name}] Injected JWT into tool ${toolName} parameters`
+                    );
+                  }
+                } else if (!clientJwt && !("jwt" in enhancedArgs)) {
+                  // Ensure tools that expect jwt still receive an explicit null when no client JWT is available
+                  enhancedArgs.jwt = null;
+                  console.log(
+                    `[${this.constructor.name}] No client JWT available; passing jwt: null to tool ${toolName}`
+                  );
+                }
               }
 
               const hasCampaignIdParam = !!shape && "campaignId" in shape;
