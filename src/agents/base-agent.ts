@@ -157,14 +157,16 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
       return; // Skip empty messages
     }
 
-    // Get session ID from durable object ID
-    // Handle test environments where ctx.id might not exist
-    const sessionId = this.ctx?.id?.toString() || `session-${Date.now()}`;
-
-    // Extract username and campaignId from message data if available
+    // Extract sessionId, username and campaignId from message data if available
     const messageData = (message as any).data as
-      | { jwt?: string; campaignId?: string | null }
+      | { jwt?: string; campaignId?: string | null; sessionId?: string }
       | undefined;
+
+    // Prefer an explicit sessionId from the client; fall back to durable object ID
+    const sessionId =
+      (messageData?.sessionId as string | undefined) ||
+      this.ctx?.id?.toString() ||
+      `session-${Date.now()}`;
 
     let username: string | null = null;
     if (messageData?.jwt) {

@@ -367,13 +367,16 @@ export default function Chat() {
       id?: string;
       role: string;
       content: string;
-      data?: unknown;
+      data?: { [key: string]: unknown };
     }) => {
       const text = (message.content ?? "").trim();
+      const baseData = message.data ?? {};
+      const enrichedData = { ...baseData, sessionId };
+
       if (message.role === "user") {
         void sendMessage({
           text: text || " ",
-          metadata: message.data,
+          metadata: enrichedData,
         });
       } else {
         const newMsg = {
@@ -381,12 +384,12 @@ export default function Chat() {
           role: message.role as "user" | "assistant" | "system",
           content: text,
           parts: text ? [{ type: "text" as const, text }] : [],
-          ...(message.data != null && { data: message.data }),
+          data: enrichedData,
         };
         setChatMessages((prev) => [...prev, newMsg] as typeof prev);
       }
     },
-    [sendMessage, setChatMessages]
+    [sendMessage, setChatMessages, sessionId]
   );
 
   const clearHistory = useCallback(() => {
