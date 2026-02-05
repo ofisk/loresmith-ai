@@ -51,13 +51,24 @@ export const commonSchemas = {
 };
 
 /**
+ * Decode base64url (JWT payload/signature) to string. atob() expects standard base64;
+ * base64url uses -/_ and may omit padding.
+ */
+function decodeBase64Url(str: string): string {
+  let base64 = str.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = base64.length % 4;
+  if (pad) base64 += "=".repeat(4 - pad);
+  return atob(base64);
+}
+
+/**
  * Extract username from JWT token
  */
 export function extractUsernameFromJwt(jwt: string | null | undefined): string {
   if (!jwt) return "default";
 
   try {
-    const payload = JSON.parse(atob(jwt.split(".")[1]));
+    const payload = JSON.parse(decodeBase64Url(jwt.split(".")[1] || ""));
     return payload.username || "default";
   } catch (error) {
     console.error("Error parsing JWT:", error);
