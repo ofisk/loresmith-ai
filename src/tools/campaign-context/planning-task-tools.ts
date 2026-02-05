@@ -245,3 +245,89 @@ export const getPlanningTaskProgress = tool({
     }
   },
 });
+
+const completePlanningTaskSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  planningTaskId: z
+    .string()
+    .uuid()
+    .describe("The id of the planning task to mark as completed"),
+  jwt: commonSchemas.jwt,
+  linkedShardId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe(
+      "Optional id of a note/shard that was created from captured context for this task"
+    ),
+});
+
+export const completePlanningTask = tool({
+  description:
+    "Mark a planning task (next step) as completed. Use this only after the user has confirmed they want to mark the step done. Call this when the user explicitly confirms (e.g. 'yes', 'mark it done', 'that's right').",
+  inputSchema: completePlanningTaskSchema,
+  execute: async (
+    input: z.infer<typeof completePlanningTaskSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { campaignId, planningTaskId, jwt, linkedShardId } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
+
+    try {
+      const env = getEnvFromContext(options);
+      if (!env) {
+        return createToolError(
+          "Environment not available",
+          "Server environment is required",
+          500,
+          toolCallId
+        );
+      }
+
+      const userId = extractUsernameFromJwt(jwt);
+      if (!userId) {
+        return createToolError(
+          "Invalid authentication token",
+          "Authentication failed",
+          401,
+          toolCallId
+        );
+      }
+
+      const daoFactory = getDAOFactory(env);
+      const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+        campaignId,
+        userId
+      );
+      if (!campaign) {
+        return createToolError(
+          "Campaign not found",
+          "Campaign not found or access denied",
+          404,
+          toolCallId
+        );
+      }
+
+      const planningTaskDAO = daoFactory.planningTaskDAO;
+      await planningTaskDAO.updateStatus(
+        planningTaskId,
+        "completed",
+        linkedShardId ?? null
+      );
+
+      return createToolSuccess(
+        "Planning step marked as complete. The user can review in Campaign details > Next steps.",
+        { planningTaskId, status: "completed" },
+        toolCallId
+      );
+    } catch (error) {
+      console.error("[completePlanningTask] Error:", error);
+      return createToolError(
+        "Failed to complete planning task",
+        error,
+        500,
+        toolCallId
+      );
+    }
+  },
+});

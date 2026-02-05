@@ -20,8 +20,10 @@ import { getChecklistStatusTool } from "./checklist-tools";
 import {
   recordPlanningTasks,
   getPlanningTaskProgress,
+  completePlanningTask,
 } from "./planning-task-tools";
 import { generateContextRecapTool } from "./recap-tools";
+import { captureConversationalContext } from "./context-capture-tools";
 
 export const campaignContextToolsBundle = {
   searchCampaignContext,
@@ -38,5 +40,7 @@ export const campaignContextToolsBundle = {
   getChecklistStatusTool,
   recordPlanningTasks,
   getPlanningTaskProgress,
+  completePlanningTask,
   generateContextRecapTool,
+  captureConversationalContext,
 };
