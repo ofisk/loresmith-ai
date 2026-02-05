@@ -146,8 +146,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 
   /**
    * Store a message to the database asynchronously
+   * Made protected so subclasses or this base class can persist messages
+   * without mutating the in-memory message array (e.g. for streamed replies).
    */
-  private async storeMessageToDatabase(message: ChatMessage): Promise<void> {
+  protected async storeMessageToDatabase(message: ChatMessage): Promise<void> {
     const content =
       typeof message.content === "string"
         ? message.content
@@ -665,6 +667,51 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               `[${this.constructor.name}] Completed streaming response:`,
               `${fullText.substring(0, 100)}...`
             );
+
+            // Persist the assistant's final message to message history.
+            try {
+              const assistantData: {
+                jwt?: string | null;
+                campaignId?: string | null;
+                sessionId?: string;
+              } = {};
+              if (clientJwt) {
+                assistantData.jwt = clientJwt;
+              }
+              if (selectedCampaignId) {
+                assistantData.campaignId = selectedCampaignId;
+              }
+              // Prefer client-provided sessionId when available; fall back to DO id.
+              const sessionIdFromUser = (lastUserMessage as any)?.data
+                ?.sessionId;
+              assistantData.sessionId =
+                (typeof sessionIdFromUser === "string" &&
+                  sessionIdFromUser.length > 0 &&
+                  sessionIdFromUser) ||
+                this.ctx?.id?.toString() ||
+                `session-${Date.now()}`;
+
+              const assistantMessage: ChatMessage = {
+                role: "assistant",
+                content: fullText,
+                data: assistantData,
+              };
+
+              // Fire-and-forget persistence; do not modify in-memory message array.
+              if (this.env && "DB" in this.env && this.env.DB) {
+                this.storeMessageToDatabase(assistantMessage).catch((error) => {
+                  console.error(
+                    `[${this.constructor.name}] Failed to store assistant message to database:`,
+                    error
+                  );
+                });
+              }
+            } catch (persistError) {
+              console.error(
+                `[${this.constructor.name}] Error while persisting assistant message:`,
+                persistError
+              );
+            }
           } else {
             console.log(
               `[${this.constructor.name}] No textStream available, using fallback`
