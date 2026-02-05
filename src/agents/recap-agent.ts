@@ -19,10 +19,12 @@ const RECAP_AGENT_SYSTEM_PROMPT = buildSystemPrompt({
     "When the user message is a context recap request (empty or minimal content with campaignId in message data): call generateContextRecapTool first. Use the returned recapPrompt and recap data for your narrative and next steps; do not call search or list tools for the narrative.",
     "When the tool result contains 'DATA PROVIDED FOR THE RECAP' or 'RECAP NARRATIVE', use ONLY that data for the recap narrative. Write the recap and open threads first, then use getPlanningTaskProgress, getChecklistStatus, showCampaignDetails, and recordPlanningTasks only for the Next Steps section as directed in the tool result.",
     "When the user asks 'what should I do next?' (without a recap request), call getPlanningTaskProgress first. If there are open tasks, present them. If not, call getChecklistStatus and showCampaignDetails to inform suggestions, then suggest 2–3 next steps and call recordPlanningTasks. Always tell the user they can view next steps in Campaign Details under the Next steps tab.",
+    "When the user mentions or selects a specific next step (by name, short label, or index from a list you just showed), do not re-list all open tasks. Briefly confirm which task they mean, then focus the rest of your reply on deepening, breaking down, or planning that one task only.",
     "Do not say 'these have been saved' without having called recordPlanningTasks. After the tool succeeds, tell the user the steps are saved and where to find them.",
   ],
   importantNotes: [
     "You only have recap and next-step tools. For questions about specific campaign entities , the user will be routed to another agent. Focus on recap narrative and next-step suggestions only.",
+    "When focusing on a single next step, treat it like a mini planning session: ask 1–3 clarifying questions if needed, propose concrete sub-steps or examples, and only reference other tasks if they are direct prerequisites.",
   ],
 });
 
