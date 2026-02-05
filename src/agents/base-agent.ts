@@ -757,11 +757,31 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 (schema as any).shape;
 
               const hasJwtParam = !!shape && "jwt" in shape;
-              if (hasJwtParam && !enhancedArgs.jwt) {
-                enhancedArgs.jwt = clientJwt;
-                console.log(
-                  `[${this.constructor.name}] Injected JWT into tool ${toolName} parameters`
-                );
+              if (hasJwtParam) {
+                const previousJwt = enhancedArgs.jwt;
+                const shouldOverrideWithClientJwt =
+                  clientJwt &&
+                  (!previousJwt || previousJwt === "YOUR_JWT_TOKEN");
+
+                if (shouldOverrideWithClientJwt) {
+                  // Prefer the client JWT over missing/placeholder values
+                  enhancedArgs.jwt = clientJwt;
+                  if (previousJwt && previousJwt !== clientJwt) {
+                    console.log(
+                      `[${this.constructor.name}] Overriding placeholder/missing jwt with client JWT for tool ${toolName}`
+                    );
+                  } else {
+                    console.log(
+                      `[${this.constructor.name}] Injected JWT into tool ${toolName} parameters`
+                    );
+                  }
+                } else if (!clientJwt && !("jwt" in enhancedArgs)) {
+                  // Ensure tools that expect jwt still receive an explicit null when no client JWT is available
+                  enhancedArgs.jwt = null;
+                  console.log(
+                    `[${this.constructor.name}] No client JWT available; passing jwt: null to tool ${toolName}`
+                  );
+                }
               }
 
               const hasCampaignIdParam = !!shape && "campaignId" in shape;
