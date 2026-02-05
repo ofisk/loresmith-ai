@@ -528,19 +528,23 @@ export class Chat extends SimpleChatAgent<Env> {
               result?.data &&
               typeof result.data === "object" &&
               result.data !== null &&
-              "recap" in result.data
+              "recapPrompt" in result.data
             ) {
-              const recap = (result.data as { recap: any }).recap;
+              const recapPrompt = (result.data as { recapPrompt: string })
+                .recapPrompt;
 
-              // Generate the recap prompt using the prompts library
-              const { formatContextRecapPrompt } =
-                await import("@/lib/prompts/recap-prompts");
-              const recapPrompt = formatContextRecapPrompt(recap);
-
-              // Add the recap request as a new user message
+              // Prompt is built inside the recap tool (including preflight). Keep it in a system message
+              // so it is not visible in the UI; use a short placeholder as user message so the client can hide it.
+              const { CONTEXT_RECAP_PLACEHOLDER } =
+                await import("@/app-constants");
+              targetAgentInstance.messages.push({
+                role: "system",
+                content: recapPrompt,
+                data: { campaignId, jwt: currentJwt },
+              });
               targetAgentInstance.messages.push({
                 role: "user",
-                content: recapPrompt,
+                content: CONTEXT_RECAP_PLACEHOLDER,
                 data: { campaignId, jwt: currentJwt },
               });
 

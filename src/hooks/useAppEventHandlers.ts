@@ -17,6 +17,8 @@ export interface UseAppEventHandlersArgs {
     data: { type: string; campaignId: string | null; jwt: string | null };
   }) => void;
   authState: { getStoredJwt: () => string | null };
+  /** Called before sending a context recap request so the app can hide the placeholder user message from the UI */
+  onContextRecapRequest?: () => void;
 }
 
 /**
@@ -36,6 +38,7 @@ export function useAppEventHandlers({
   markRecapShown,
   append,
   authState,
+  onContextRecapRequest,
 }: UseAppEventHandlersArgs): void {
   const recapTriggeredRef = useRef<Set<string>>(new Set());
   const shardsGeneratedTimeoutRef = useRef<ReturnType<
@@ -124,6 +127,7 @@ export function useAppEventHandlers({
 
       console.log("[App] Triggering context recap after inactivity");
 
+      onContextRecapRequest?.();
       append({
         role: "user",
         content: "",
@@ -145,6 +149,7 @@ export function useAppEventHandlers({
     markRecapShown,
     append,
     authState,
+    onContextRecapRequest,
   ]);
 
   // Trigger recap on campaign change
@@ -166,6 +171,7 @@ export function useAppEventHandlers({
         `[App] Triggering context recap for campaign change: ${selectedCampaignId}`
       );
 
+      onContextRecapRequest?.();
       append({
         role: "user",
         content: "",
@@ -186,6 +192,7 @@ export function useAppEventHandlers({
     markRecapShown,
     append,
     authState,
+    onContextRecapRequest,
   ]);
 
   // Listen for shards-generated events to refresh shards overlay

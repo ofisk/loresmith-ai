@@ -39,6 +39,7 @@ export function ChatMessageList({
     <>
       {messages
         .filter((m: Message) => {
+          if (m.role === "system") return false;
           if (m.role === "user" && m.content === "Get started") return false;
           if (
             m.role === "user" &&

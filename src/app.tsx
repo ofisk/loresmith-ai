@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Joyride from "react-joyride";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { CONTEXT_RECAP_PLACEHOLDER } from "@/app-constants";
 import { API_CONFIG } from "@/shared-config";
 
 // Component imports
@@ -357,6 +358,9 @@ export default function Chat() {
 
   // Tracks user message contents to hide in the UI (button-triggered prompts); never cleared so they stay hidden
   const invisibleUserContentsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    invisibleUserContentsRef.current.add(CONTEXT_RECAP_PLACEHOLDER);
+  }, []);
 
   const append = useCallback(
     (message: {
@@ -710,6 +714,8 @@ export default function Chat() {
     markRecapShown,
     append,
     authState,
+    onContextRecapRequest: () =>
+      invisibleUserContentsRef.current.add(CONTEXT_RECAP_PLACEHOLDER),
   });
 
   const shardsReadyRefetchTimeoutRef = useRef<ReturnType<

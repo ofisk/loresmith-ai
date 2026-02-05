@@ -30,6 +30,9 @@ export const UPLOAD_CONFIG = {
   MAX_FILES_PER_USER: 100,
 } as const;
 
+// Context recap: placeholder user message content so the real prompt stays in a system message (hidden from UI)
+export const CONTEXT_RECAP_PLACEHOLDER = "[Context recap requested]" as const;
+
 // Library path constants - centralized for consistency across upload and search
 export const LIBRARY_CONFIG = {
   // Always use "library" as the base path for file storage
