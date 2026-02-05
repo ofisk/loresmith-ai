@@ -761,7 +761,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                 const previousJwt = enhancedArgs.jwt;
                 const shouldOverrideWithClientJwt =
                   clientJwt &&
-                  (!previousJwt || previousJwt === "YOUR_JWT_TOKEN");
+                  (!previousJwt ||
+                    previousJwt === "YOUR_JWT_TOKEN" ||
+                    previousJwt === "jwt");
 
                 if (shouldOverrideWithClientJwt) {
                   // Prefer the client JWT over missing/placeholder values
