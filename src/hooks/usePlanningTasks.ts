@@ -142,17 +142,13 @@ export function usePlanningTasks() {
             method: "DELETE",
           }
         );
+        return taskId;
       },
       [makeRequestWithData]
     ),
     useMemo(
       () => ({
-        onSuccess(this: unknown, _result: void) {
-          const args = (arguments as IArguments)[1] as
-            | [string, string]
-            | undefined;
-          if (!args || args.length < 2) return;
-          const taskId = args[1];
+        onSuccess: (taskId: string) => {
           setTasks((prev) => prev.filter((t) => t.id !== taskId));
         },
         onError: (err: string) => setError(err),
@@ -179,17 +175,13 @@ export function usePlanningTasks() {
             body: JSON.stringify({ taskIds }),
           }
         );
+        return taskIds;
       },
       [makeRequestWithData]
     ),
     useMemo(
       () => ({
-        onSuccess(this: unknown, _result: void) {
-          const args = (arguments as IArguments)[1] as
-            | [string, string[]]
-            | undefined;
-          if (!args || args.length < 2) return;
-          const taskIds = args[1];
+        onSuccess: (taskIds: string[]) => {
           setTasks((prev) =>
             prev.map((t) =>
               taskIds.includes(t.id) ? { ...t, status: "completed" } : t
