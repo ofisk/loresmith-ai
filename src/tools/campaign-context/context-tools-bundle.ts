@@ -21,6 +21,7 @@ import {
   recordPlanningTasks,
   getPlanningTaskProgress,
 } from "./planning-task-tools";
+import { generateContextRecapTool } from "./recap-tools";
 
 export const campaignContextToolsBundle = {
   searchCampaignContext,
@@ -37,4 +38,5 @@ export const campaignContextToolsBundle = {
   getChecklistStatusTool,
   recordPlanningTasks,
   getPlanningTaskProgress,
+  generateContextRecapTool,
 };

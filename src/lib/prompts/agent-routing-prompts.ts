@@ -29,6 +29,7 @@ Routing rules:
 - File operations (upload, processing, indexing, file key, metadata, ingestion) → "resources"
 - Campaign management (create, list, update, delete campaigns) → "campaign"
 - Campaign analysis (assess campaign, campaign readiness, campaign suggestions, how ready is my campaign) → "campaign-analysis"
+- Next steps / what should I do next (personalized suggestions, what to plan next for this campaign) → "recap"
 - Campaign entity questions (what/who/tell me about [Entity Name], questions about locations/NPCs/items in the campaign) → "campaign-context"
 - Character creation/management (create character, generate character backstory, store character info) → "character"
 - Character sheet operations (upload character sheet, import character sheet, character sheet file) → "character-sheets"
@@ -43,6 +44,7 @@ Examples:
 - "I uploaded a PDF" → resources|90|File upload
 - "show me campaigns" → campaign|85|Campaign listing
 - "assess my campaign readiness" → campaign-analysis|90|Campaign analysis
+- "what should I do next?" / "what should I do next for this campaign?" → recap|90|Next steps / recap
 - "what is [Location Name]?" → campaign-context|90|Campaign entity question
 - "create a character" → character|90|Character creation
 - "upload character sheet" → character-sheets|90|Character sheet upload

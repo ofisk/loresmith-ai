@@ -38,7 +38,7 @@ import type { AgentType } from "./agent-router";
  *    ```typescript
  *    export type AgentType =
  *      | "campaign"
- *      | "campaign-context"
+ *      | "recap"
  *      | "character-sheets"
  *      | "resources"
  *      | "my-new-agent"; // Add your new agent type
@@ -68,6 +68,7 @@ export class AgentRegistryService {
     try {
       // Lazy load agents to avoid module loading issues
       const { CampaignAgent } = await import("../agents/campaign-agent");
+      const { RecapAgent } = await import("../agents/recap-agent");
       const { CampaignContextAgent } =
         await import("../agents/campaign-context-agent");
       const { CampaignAnalysisAgent } =
@@ -92,7 +93,16 @@ export class AgentRegistryService {
         CampaignAgent.agentMetadata.description
       );
 
-      // Register Campaign Context Agent
+      // Register Recap Agent (context recap + next steps)
+      AgentRouter.registerAgent(
+        RecapAgent.agentMetadata.type as AgentType,
+        RecapAgent,
+        RecapAgent.agentMetadata.tools,
+        RecapAgent.agentMetadata.systemPrompt,
+        RecapAgent.agentMetadata.description
+      );
+
+      // Register Campaign Context Agent (entity questions, search, world state)
       AgentRouter.registerAgent(
         CampaignContextAgent.agentMetadata.type as AgentType,
         CampaignContextAgent,

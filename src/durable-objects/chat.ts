@@ -322,7 +322,7 @@ export class Chat extends SimpleChatAgent<Env> {
       console.log(
         "[Chat] No model available for agent routing, using default agent"
       );
-      return "campaign-context";
+      return "recap";
     }
 
     const intent = await AgentRouter.routeMessage(
@@ -448,7 +448,7 @@ export class Chat extends SimpleChatAgent<Env> {
           return;
         }
 
-        const targetAgentInstance = this.getAgentInstance("campaign-context");
+        const targetAgentInstance = this.getAgentInstance("recap");
         targetAgentInstance.messages = [...messages];
         return targetAgentInstance.onChatMessage(onFinish, {
           abortSignal: _options?.abortSignal,
@@ -490,14 +490,13 @@ export class Chat extends SimpleChatAgent<Env> {
           );
 
           try {
-            // Get the campaign-context agent which has access to recap tools
-            const targetAgentInstance =
-              this.getAgentInstance("campaign-context");
+            // Get the recap agent which has access to recap tools
+            const targetAgentInstance = this.getAgentInstance("recap");
             targetAgentInstance.messages = [...this.messages];
 
             // Call the recap tool to get the recap data
             const { generateContextRecapTool } =
-              await import("@/tools/general/recap-tools");
+              await import("@/tools/campaign-context/recap-tools");
             const execute = generateContextRecapTool.execute;
             if (!execute) {
               console.error("[Chat] generateContextRecapTool has no execute");
@@ -566,9 +565,15 @@ export class Chat extends SimpleChatAgent<Env> {
         }
       }
 
-      const targetAgent = await this.determineAgent(
-        (lastUserMessage as { content?: string })?.content ?? ""
+      const userContent =
+        (lastUserMessage as { content?: string })?.content ?? "";
+      // "What should I do next?" button: always use recap agent
+      const isNextStepsRequest = /what should I do next/i.test(
+        userContent.trim()
       );
+      const targetAgent = isNextStepsRequest
+        ? "recap"
+        : await this.determineAgent(userContent);
       console.log(
         `[Chat] Routing to ${targetAgent} agent for message: "${(lastUserMessage as any).content}"`
       );

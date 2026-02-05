@@ -127,7 +127,7 @@ When teaching about long-running campaigns, emphasize how the checklist items su
  *
  * The agent does NOT handle:
  * - Campaign management (routed to CampaignAgent)
- * - World state updates (routed to CampaignContextAgent)
+ * - World state updates and recaps (routed to session-digest / recap; entity questions to campaign-context)
  * - Direct campaign operations (suggests prompts instead)
  *
  * @extends BaseAgent - Inherits common agent functionality

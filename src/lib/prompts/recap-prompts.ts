@@ -94,7 +94,9 @@ Analyze what appears to be missing or incomplete based on the search results, an
 Be encouraging and helpful, framing these as exciting opportunities to build their campaign world. Prioritize based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).`;
   }
 
-  return `Please provide a friendly context recap for this campaign.
+  return `CONTEXT RECAP MODE: You must write the recap narrative using ONLY the data in this message. Do NOT call searchCampaignContext or listAllEntities for the recap. If you already called a tool and got something like "608 entries" or "no specific details", ignore that for the narrative—the recap comes from the data blocks below, not from tool output. Only after you have written the full "Since you were away..." recap and the Open Threads may you call any tools (getPlanningTaskProgress, getChecklistStatus, showCampaignDetails, recordPlanningTasks) for the Next Steps section.
+
+Please provide a friendly context recap for this campaign.
 
 DATA PROVIDED FOR THE RECAP (use this as the source for your narrative—do not replace it with tool output):
 ${recap.recentActivity && recap.recentActivity.length > 0 ? `Recent Activity (${recap.recentActivity.length} items):\n${recap.recentActivity.map((a) => `- ${a.type}: ${a.details || "N/A"}`).join("\n")}\n` : ""}
@@ -109,8 +111,9 @@ ${recap.inProgressGoals?.openThreads && recap.inProgressGoals.openThreads.length
 
 RECAP NARRATIVE (do this first, using only the data above):
 Write a friendly recap that starts with "Since you were away..." and then:
-- Summarize what happened in each recent session using the Key Events and Open Threads from the session digests above. Weave this into a short narrative (e.g. "In Session 2, ... Meanwhile, ... In Session 1, ...").
-- If Open Story Threads are listed above, present them as questions or hooks (e.g. "Will the villain's plan succeed? What is the key NPC's connection to the prophecy?").
+- If Recent Session Digests or Open Story Threads are present above: summarize each session using Key Events and Open Threads, and present open threads as questions or hooks (e.g. "Will the villain's plan succeed? What is the key NPC's connection to the prophecy?").
+- If there are no session digests and no open threads above: say briefly that no recent session recap was found and suggest recording a session digest for better recaps next time; then move on to Next Steps. Do NOT say "608 entries" or "would you like me to search?"—that is not a recap.
+- Do NOT call searchCampaignContext or listAllEntities for the recap. Do NOT mention "entity count" or "no specific details retrieved". Start directly with the recap content (no extra heading).
 
 After the recap narrative, add a "Next Steps for Planning" section. To choose those next steps, follow this workflow:
 

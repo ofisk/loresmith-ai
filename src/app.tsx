@@ -579,7 +579,7 @@ export default function Chat() {
         return;
       }
 
-      // Send a message to trigger onboarding agent with campaign context
+      // Send a message to trigger recap (next steps) agent
       const nextStepsMessage =
         "What should I do next for this campaign? Can you analyze my current state and provide personalized suggestions based on my campaign?";
       invisibleUserContentsRef.current.add(nextStepsMessage);
