@@ -10,9 +10,10 @@ type UpdatePlanningTaskBody = {
   title?: string;
   description?: string | null;
   status?: PlanningTaskStatus;
+  targetSessionNumber?: number | null;
 };
 
-// List planning tasks for a campaign
+// List planning tasks for a campaign (returns nextSessionNumber for tagging new tasks)
 export async function handleGetPlanningTasks(c: ContextWithAuth) {
   try {
     const auth = getUserAuth(c);
@@ -25,6 +26,7 @@ export async function handleGetPlanningTasks(c: ContextWithAuth) {
 
     const daoFactory = getDAOFactory(c.env);
     const planningTaskDAO = daoFactory.planningTaskDAO;
+    const sessionDigestDAO = daoFactory.sessionDigestDAO;
 
     const statusParam = c.req.query("status");
     const statuses: PlanningTaskStatus[] | undefined = statusParam
@@ -35,7 +37,10 @@ export async function handleGetPlanningTasks(c: ContextWithAuth) {
       status: statuses,
     });
 
-    return c.json({ tasks });
+    const nextSessionNumber =
+      await sessionDigestDAO.getNextSessionNumber(campaignId);
+
+    return c.json({ tasks, nextSessionNumber });
   } catch (error) {
     console.error("[PlanningTasks] Failed to list tasks:", error);
     return c.json({ error: "Failed to list planning tasks" }, 500);
@@ -56,6 +61,7 @@ export async function handleCreatePlanningTask(c: ContextWithAuth) {
     const body = (await c.req.json()) as {
       title?: unknown;
       description?: unknown;
+      targetSessionNumber?: unknown;
     };
 
     if (typeof body.title !== "string" || body.title.trim().length === 0) {
@@ -64,6 +70,12 @@ export async function handleCreatePlanningTask(c: ContextWithAuth) {
 
     const description =
       typeof body.description === "string" ? body.description : null;
+    const targetSessionNumber =
+      typeof body.targetSessionNumber === "number" &&
+      Number.isInteger(body.targetSessionNumber) &&
+      body.targetSessionNumber >= 1
+        ? body.targetSessionNumber
+        : null;
 
     const daoFactory = getDAOFactory(c.env);
     const planningTaskDAO = daoFactory.planningTaskDAO;
@@ -71,6 +83,7 @@ export async function handleCreatePlanningTask(c: ContextWithAuth) {
     const task = await planningTaskDAO.createPlanningTask(campaignId, {
       title: body.title.trim(),
       description,
+      targetSessionNumber,
     });
 
     return c.json({ task }, 201);
@@ -123,15 +136,25 @@ export async function handleUpdatePlanningTask(c: ContextWithAuth) {
       updates.status = body.status;
     }
 
+    if (body.targetSessionNumber !== undefined) {
+      updates.targetSessionNumber =
+        typeof body.targetSessionNumber === "number" &&
+        Number.isInteger(body.targetSessionNumber) &&
+        body.targetSessionNumber >= 1
+          ? body.targetSessionNumber
+          : null;
+    }
+
     if (Object.keys(updates).length === 0) {
       return c.json({ error: "No fields to update" }, 400);
     }
 
-    // If only status/linkedShardId is changing, use updateStatus; otherwise update via SQL
+    // If only status is changing (no title/description/targetSessionNumber), use updateStatus; otherwise updateTask
     if (
-      updates.status &&
+      updates.status !== undefined &&
       updates.title === undefined &&
-      updates.description === undefined
+      updates.description === undefined &&
+      updates.targetSessionNumber === undefined
     ) {
       await planningTaskDAO.updateStatus(taskId, updates.status);
     } else {
@@ -197,7 +220,10 @@ export async function handleBulkCompletePlanningTasks(c: ContextWithAuth) {
       return c.json({ error: "Campaign not found" }, 404);
     }
 
-    const body = (await c.req.json()) as { taskIds?: unknown };
+    const body = (await c.req.json()) as {
+      taskIds?: unknown;
+      completionNotes?: unknown;
+    };
     if (!Array.isArray(body.taskIds) || body.taskIds.length === 0) {
       return c.json({ error: "taskIds must be a non-empty array" }, 400);
     }
@@ -210,13 +236,23 @@ export async function handleBulkCompletePlanningTasks(c: ContextWithAuth) {
       return c.json({ error: "taskIds must contain string ids" }, 400);
     }
 
+    const completionNotes =
+      typeof body.completionNotes === "string"
+        ? body.completionNotes.trim() || null
+        : null;
+
     const daoFactory = getDAOFactory(c.env);
     const planningTaskDAO = daoFactory.planningTaskDAO;
 
     for (const id of taskIds) {
       const task = await planningTaskDAO.getById(id);
       if (task.campaignId === campaignId) {
-        await planningTaskDAO.updateStatus(id, "completed");
+        await planningTaskDAO.updateStatus(
+          id,
+          "completed",
+          undefined,
+          completionNotes
+        );
       }
     }
 

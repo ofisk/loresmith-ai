@@ -56,10 +56,27 @@ export function useNotificationStream(
     // Can be bypassed when authentication completes (reconnectTrigger)
     if (!bypassCircuitBreaker) {
       const now = Date.now();
-      if (now - lastFailureTime.current < circuitBreakerTimeout) {
+      const elapsed = now - lastFailureTime.current;
+      if (elapsed < circuitBreakerTimeout) {
+        const retryIn = circuitBreakerTimeout - elapsed;
         console.log(
-          "[useNotificationStream] Circuit breaker active, skipping connection attempt"
+          "[useNotificationStream] Circuit breaker active, scheduling retry in",
+          retryIn,
+          "ms"
         );
+        if (reconnectTimeoutRef.current)
+          clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = setTimeout(() => {
+          reconnectTimeoutRef.current = null;
+          if (isMountedRef.current && !isConnectingRef.current) {
+            connect(false).catch((err) => {
+              console.error(
+                "[useNotificationStream] Retry after circuit breaker failed:",
+                err
+              );
+            });
+          }
+        }, retryIn);
         return;
       }
     }

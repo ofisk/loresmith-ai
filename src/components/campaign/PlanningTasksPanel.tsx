@@ -12,6 +12,7 @@ interface PlanningTasksPanelProps {
 export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
   const {
     tasks,
+    nextSessionNumber,
     error,
     fetchPlanningTasks,
     createPlanningTask,
@@ -20,6 +21,9 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
   } = usePlanningTasks();
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [editingSession, setEditingSession] = useState<Record<string, string>>(
+    {}
+  );
 
   useEffect(() => {
     if (!campaignId) return;
@@ -35,6 +39,7 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
       await createPlanningTask.execute(campaignId, {
         title,
         description: newDescription.trim() || null,
+        targetSessionNumber: nextSessionNumber,
       });
       setNewTitle("");
       setNewDescription("");
@@ -61,10 +66,30 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
           nextDescription !== null
             ? nextDescription.trim() || null
             : task.description,
+        targetSessionNumber: task.targetSessionNumber ?? nextSessionNumber,
       });
     } catch {
       // Error handled by hook
     }
+  };
+
+  const handleSessionNumberBlur = (
+    campaignId: string,
+    task: PlanningTask,
+    value: string
+  ) => {
+    setEditingSession((prev) => {
+      const next = { ...prev };
+      delete next[task.id];
+      return next;
+    });
+    const num = value.trim() === "" ? null : parseInt(value, 10);
+    const resolved =
+      num != null && Number.isInteger(num) && num >= 1 ? num : null;
+    if (resolved === (task.targetSessionNumber ?? null)) return;
+    void updatePlanningTask.execute(campaignId, task.id, {
+      targetSessionNumber: resolved,
+    });
   };
 
   const handleMarkComplete = async (campaignId: string, taskId: string) => {
@@ -139,7 +164,7 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
               key={task.id}
               className="flex items-start justify-between gap-2 rounded-md bg-neutral-50/60 px-2 py-1.5 text-xs dark:bg-neutral-900/70"
             >
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="font-medium text-neutral-800 dark:text-neutral-100">
                   {task.title}
                 </p>
@@ -148,8 +173,36 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
                     {task.description}
                   </p>
                 )}
+                <div className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+                  <span>Session</span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    className="w-12 rounded border border-neutral-200/60 bg-white px-1 py-0.5 text-right text-neutral-700 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200"
+                    value={
+                      task.id in editingSession
+                        ? editingSession[task.id]
+                        : task.targetSessionNumber != null
+                          ? String(task.targetSessionNumber)
+                          : ""
+                    }
+                    placeholder={String(nextSessionNumber)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "" || /^\d+$/.test(v))
+                        setEditingSession((prev) => ({
+                          ...prev,
+                          [task.id]: v,
+                        }));
+                    }}
+                    onBlur={(e) =>
+                      handleSessionNumberBlur(campaignId, task, e.target.value)
+                    }
+                  />
+                </div>
               </div>
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex flex-col items-end gap-1 shrink-0">
                 <button
                   type="button"
                   onClick={() => handleMarkComplete(campaignId, task.id)}

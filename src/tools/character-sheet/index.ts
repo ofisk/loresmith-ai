@@ -1,5 +1,6 @@
 // Import all character sheet tools
 
+import { getDocumentContent } from "@/tools/campaign-context/get-document-content-tool";
 import { createCharacterSheet } from "./creation-tools";
 import { listCharacterSheets } from "./list-tools";
 import { processCharacterSheet, uploadCharacterSheet } from "./upload-tools";
@@ -14,4 +15,5 @@ export const characterSheetTools = {
   processCharacterSheet,
   createCharacterSheet,
   listCharacterSheets,
+  getDocumentContent,
 };

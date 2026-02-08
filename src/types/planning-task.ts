@@ -12,6 +12,10 @@ export interface PlanningTask {
   status: PlanningTaskStatus;
   sourceMessageId?: string | null;
   linkedShardId?: string | null;
+  /** Summary of how the user completed this step (saved when marked complete). */
+  completionNotes?: string | null;
+  /** Next upcoming session this step is for (e.g. 3 if session 2 was played). */
+  targetSessionNumber?: number | null;
   createdAt: string;
   updatedAt: string;
 }

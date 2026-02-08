@@ -25,27 +25,25 @@ export async function handleCreateSessionDigest(c: ContextWithAuth) {
     }
 
     const body = (await c.req.json()) as {
-      sessionNumber: number;
+      sessionNumber?: number;
       sessionDate?: string | null;
       digestData: SessionDigestData;
     };
-
-    if (!body.sessionNumber || typeof body.sessionNumber !== "number") {
-      return c.json(
-        { error: "sessionNumber is required and must be a number" },
-        400
-      );
-    }
 
     if (!body.digestData || !validateSessionDigestData(body.digestData)) {
       return c.json({ error: "Invalid digestData structure" }, 400);
     }
 
     const daoFactory = getDAOFactory(c.env);
+    const sessionNumber =
+      typeof body.sessionNumber === "number" && body.sessionNumber >= 0
+        ? body.sessionNumber
+        : await daoFactory.sessionDigestDAO.getNextSessionNumber(campaignId);
+
     const existing =
       await daoFactory.sessionDigestDAO.getSessionDigestByCampaignAndSession(
         campaignId,
-        body.sessionNumber
+        sessionNumber
       );
 
     if (existing) {
@@ -61,7 +59,7 @@ export async function handleCreateSessionDigest(c: ContextWithAuth) {
     const digestId = generateId();
     const input: CreateSessionDigestInput = {
       campaignId,
-      sessionNumber: body.sessionNumber,
+      sessionNumber,
       sessionDate: body.sessionDate || null,
       digestData: body.digestData,
     };
@@ -135,8 +133,10 @@ export async function handleGetSessionDigests(c: ContextWithAuth) {
     const daoFactory = getDAOFactory(c.env);
     const digests =
       await daoFactory.sessionDigestDAO.getSessionDigestsByCampaign(campaignId);
+    const nextSessionNumber =
+      await daoFactory.sessionDigestDAO.getNextSessionNumber(campaignId);
 
-    return c.json({ digests });
+    return c.json({ digests, nextSessionNumber });
   } catch (error) {
     console.error("[SessionDigest] Failed to list digests:", error);
     return c.json({ error: "Failed to list session digests" }, 500);

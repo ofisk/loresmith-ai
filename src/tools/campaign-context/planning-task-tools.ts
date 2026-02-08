@@ -94,16 +94,21 @@ export const recordPlanningTasks = tool({
       }
 
       const planningTaskDAO = daoFactory.planningTaskDAO;
+      const sessionDigestDAO = daoFactory.sessionDigestDAO;
 
       if (replaceExisting) {
         await planningTaskDAO.markSupersededForCampaign(campaignId);
       }
+
+      const nextSessionNumber =
+        await sessionDigestDAO.getNextSessionNumber(campaignId);
 
       const created = await planningTaskDAO.bulkCreatePlanningTasks(
         campaignId,
         tasks.map((t) => ({
           title: t.title,
           description: t.description ?? null,
+          targetSessionNumber: nextSessionNumber,
         })),
         sourceMessageId
       );
@@ -160,7 +165,7 @@ const getPlanningTaskProgressSchema = z.object({
 
 export const getPlanningTaskProgress = tool({
   description:
-    'Get planning task ("next steps") progress for a campaign, including counts by status and the list of tasks. Use this before suggesting new next steps so you can reference what the user has already completed or is working on.',
+    'Get planning task ("next steps") progress for a campaign, including counts by status and the list of tasks. Completed tasks include completionNotes (how the user completed the step). For "summarize my completed steps" or "what was my solution?", call with includeStatuses including "completed" to get completionNotes.',
   inputSchema: getPlanningTaskProgressSchema,
   execute: async (
     input: z.infer<typeof getPlanningTaskProgressSchema>,
@@ -210,9 +215,7 @@ export const getPlanningTaskProgress = tool({
         | PlanningTaskStatus[]
         | undefined) ?? ["pending", "in_progress"];
 
-      const tasks = await planningTaskDAO.listByCampaign(campaignId, {
-        status: statusesToInclude,
-      });
+      const allTasks = await planningTaskDAO.listByCampaign(campaignId, {});
 
       const counts: Record<PlanningTaskStatus, number> = {
         pending: 0,
@@ -220,10 +223,14 @@ export const getPlanningTaskProgress = tool({
         completed: 0,
         superseded: 0,
       };
-      for (const task of tasks) {
+      for (const task of allTasks) {
         counts[task.status] += 1;
       }
       const openTaskCount = counts.pending + counts.in_progress;
+
+      const tasks = allTasks.filter((t) =>
+        statusesToInclude.includes(t.status)
+      );
 
       return createToolSuccess(
         `Retrieved planning task progress for campaign "${campaign.name}".`,
@@ -238,6 +245,104 @@ export const getPlanningTaskProgress = tool({
       console.error("[getPlanningTaskProgress] Error:", error);
       return createToolError(
         "Failed to get planning task progress",
+        error,
+        500,
+        toolCallId
+      );
+    }
+  },
+});
+
+const completePlanningTaskSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  planningTaskId: z
+    .string()
+    .uuid()
+    .describe("The id of the planning task to mark as completed"),
+  jwt: commonSchemas.jwt,
+  linkedShardId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe(
+      "Optional id of a note/shard that was created from captured context for this task"
+    ),
+  completionNotes: z
+    .string()
+    .optional()
+    .describe(
+      "Brief summary of how the user completed this step (from their messages). Saved so the user can recap completed steps and combine them into a session plan later."
+    ),
+});
+
+export const completePlanningTask = tool({
+  description:
+    "Mark a planning task (next step) as completed. Use this only after the user has confirmed they want to mark the step done. Always pass completionNotes: a brief summary of how the user completed this step (from their messages) so they can recap later. Call when the user explicitly confirms (e.g. 'yes', 'mark it done').",
+  inputSchema: completePlanningTaskSchema,
+  execute: async (
+    input: z.infer<typeof completePlanningTaskSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { campaignId, planningTaskId, jwt, linkedShardId, completionNotes } =
+      input;
+    const toolCallId = options?.toolCallId ?? "unknown";
+
+    try {
+      const env = getEnvFromContext(options);
+      if (!env) {
+        return createToolError(
+          "Environment not available",
+          "Server environment is required",
+          500,
+          toolCallId
+        );
+      }
+
+      const userId = extractUsernameFromJwt(jwt);
+      if (!userId) {
+        return createToolError(
+          "Invalid authentication token",
+          "Authentication failed",
+          401,
+          toolCallId
+        );
+      }
+
+      const daoFactory = getDAOFactory(env);
+      const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+        campaignId,
+        userId
+      );
+      if (!campaign) {
+        return createToolError(
+          "Campaign not found",
+          "Campaign not found or access denied",
+          404,
+          toolCallId
+        );
+      }
+
+      const planningTaskDAO = daoFactory.planningTaskDAO;
+      await planningTaskDAO.updateStatus(
+        planningTaskId,
+        "completed",
+        linkedShardId ?? null,
+        completionNotes ?? null
+      );
+
+      return createToolSuccess(
+        "Planning step marked as complete. The user can review in Campaign details > Next steps.",
+        {
+          planningTaskId,
+          status: "completed",
+          completionNotes: completionNotes ?? undefined,
+        },
+        toolCallId
+      );
+    } catch (error) {
+      console.error("[completePlanningTask] Error:", error);
+      return createToolError(
+        "Failed to complete planning task",
         error,
         500,
         toolCallId

@@ -18,7 +18,10 @@ const generateDigestSchema = z.object({
     .number()
     .int()
     .nonnegative()
-    .describe("The session number (e.g., 0, 1, 2, 3)"),
+    .optional()
+    .describe(
+      "Session number for this recap. Omit to use the next session (max + 1) automatically."
+    ),
   sessionDate: z
     .string()
     .optional()
@@ -44,14 +47,13 @@ const generateDigestSchema = z.object({
 
 export const generateDigestFromNotesTool = tool({
   description:
-    "Generate a structured session digest from unstructured session notes. This uses AI to extract key events, state changes, planning information, and other digest fields from raw text. Returns a draft digest ready for review before saving.",
+    "Generate a structured session digest from unstructured session notes. This uses AI to extract key events, state changes, planning information, and other digest fields from raw text. Omit sessionNumber to use the next session automatically. Returns a draft digest ready for review before saving.",
   inputSchema: generateDigestSchema,
   execute: async (
     input: z.infer<typeof generateDigestSchema>,
     options: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const { campaignId, sessionNumber, sessionDate, notes, templateId, jwt } =
-      input;
+    const { campaignId, sessionDate, notes, templateId, jwt } = input;
     const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 
     try {
@@ -100,6 +102,10 @@ export const generateDigestFromNotesTool = tool({
           toolCallId
         );
       }
+
+      const sessionNumber =
+        input.sessionNumber ??
+        (await daoFactory.sessionDigestDAO.getNextSessionNumber(campaignId));
 
       // Check if digest already exists for this session
       const existing =

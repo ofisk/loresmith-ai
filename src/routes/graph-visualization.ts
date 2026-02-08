@@ -59,6 +59,7 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
     const entityTypesParam = c.req.query("entityTypes");
     const relationshipTypesParam = c.req.query("relationshipTypes");
     const approvalStatusesParam = c.req.query("approvalStatuses");
+    const resourceIdsParam = c.req.query("resourceIds");
 
     const entityTypes = entityTypesParam
       ? entityTypesParam.split(",").map((t) => t.trim())
@@ -68,6 +69,12 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
       : undefined;
     const approvalStatuses = approvalStatusesParam
       ? approvalStatusesParam.split(",").map((s) => s.trim())
+      : undefined;
+    const resourceIds = resourceIdsParam
+      ? resourceIdsParam
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean)
       : undefined;
 
     // Load all communities
@@ -106,6 +113,7 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
       entityTypes,
       approvalStatuses: approvalStatuses as ShardStatus[] | undefined,
       relationshipTypes,
+      resourceIds,
     };
 
     // Filter communities using pre-built relationship map
@@ -367,7 +375,7 @@ export async function handleGetCommunityEntityGraph(c: ContextWithAuth) {
 
 const SEMANTIC_SIMILARITY_THRESHOLD = 0.3;
 const SEMANTIC_TOP_K = 15;
-const LEXICAL_LIMIT = 10000;
+const LEXICAL_NAME_MATCH_LIMIT = 50;
 
 /**
  * Build one EntitySearchResult from an entity and its communities.
@@ -414,6 +422,7 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
 
     const entityName = c.req.query("entityName");
     const entityId = c.req.query("entityId");
+    const searchInParam = c.req.query("searchIn");
 
     if (!entityName && !entityId) {
       return c.json(
@@ -433,6 +442,8 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
       }
       primaryEntities.push(entity);
     } else if (entityName) {
+      const primaryIds = new Set<string>();
+
       const openaiApiKey =
         userAuth.openaiApiKey || (c.env.OPENAI_API_KEY as string | undefined);
       if (c.env.VECTORIZE && openaiApiKey) {
@@ -461,23 +472,37 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
             !isEntityStub(entity)
           ) {
             primaryEntities.push(entity);
+            primaryIds.add(entity.id);
           }
         }
       }
 
-      if (primaryEntities.length === 0) {
-        const allEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
+      // Lexical search: name and/or content (optional searchIn=name|content|name,content)
+      const nameTrimmed = entityName.trim();
+      const allowedFields = ["name", "content"] as const;
+      const parsedSearchIn = searchInParam
+        ?.split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter((s): s is "name" | "content" =>
+          allowedFields.includes(s as (typeof allowedFields)[number])
+        );
+      const searchIn = parsedSearchIn?.length
+        ? parsedSearchIn
+        : [...allowedFields];
+      if (nameTrimmed) {
+        const lexicalMatches = await daoFactory.entityDAO.searchEntitiesByText(
           campaignId,
+          nameTrimmed,
           {
-            limit: LEXICAL_LIMIT,
+            fields: [...searchIn],
+            limit: LEXICAL_NAME_MATCH_LIMIT,
           }
         );
-        const match = allEntities.find(
-          (e) =>
-            e.name.toLowerCase().includes(entityName.toLowerCase()) &&
-            !isEntityStub(e)
-        );
-        if (match) primaryEntities.push(match);
+        for (const e of lexicalMatches) {
+          if (isEntityStub(e) || primaryIds.has(e.id)) continue;
+          primaryEntities.push(e);
+          primaryIds.add(e.id);
+        }
       }
     }
 

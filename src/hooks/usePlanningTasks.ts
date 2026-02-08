@@ -7,6 +7,7 @@ import { useBaseAsync } from "@/hooks/useBaseAsync";
 
 export function usePlanningTasks() {
   const [tasks, setTasks] = useState<PlanningTask[]>([]);
+  const [nextSessionNumber, setNextSessionNumber] = useState<number>(1);
   const [error, setError] = useState<string | null>(null);
 
   const { makeRequestWithData } = useAuthenticatedRequest();
@@ -25,6 +26,7 @@ export function usePlanningTasks() {
 
           const data = await makeRequestWithData<{
             tasks: PlanningTask[];
+            nextSessionNumber?: number;
           }>(
             API_CONFIG.buildUrl(
               `${API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.BASE(
@@ -32,14 +34,25 @@ export function usePlanningTasks() {
               )}${query}`
             )
           );
-          return data.tasks || [];
+          return {
+            tasks: data.tasks || [],
+            nextSessionNumber:
+              typeof data.nextSessionNumber === "number" &&
+              data.nextSessionNumber >= 1
+                ? data.nextSessionNumber
+                : 1,
+          };
         },
       [makeRequestWithData]
     ),
     useMemo(
       () => ({
-        onSuccess: (nextTasks: PlanningTask[]) => {
-          setTasks(nextTasks);
+        onSuccess: (result: {
+          tasks: PlanningTask[];
+          nextSessionNumber: number;
+        }) => {
+          setTasks(result.tasks);
+          setNextSessionNumber(result.nextSessionNumber);
         },
         onError: (err: string) => setError(err),
         errorMessage: USER_MESSAGES.HOOK_FAILED_TO_FETCH_PLANNING_TASKS,
@@ -53,7 +66,11 @@ export function usePlanningTasks() {
       () =>
         async (
           campaignId: string,
-          input: { title: string; description?: string | null }
+          input: {
+            title: string;
+            description?: string | null;
+            targetSessionNumber?: number | null;
+          }
         ) => {
           const data = await makeRequestWithData<{ task: PlanningTask }>(
             API_CONFIG.buildUrl(
@@ -93,6 +110,7 @@ export function usePlanningTasks() {
             title: string;
             description: string | null;
             status: PlanningTaskStatus;
+            targetSessionNumber: number | null;
           }>
         ) => {
           const data = await makeRequestWithData<{ task: PlanningTask }>(
@@ -197,6 +215,7 @@ export function usePlanningTasks() {
 
   return {
     tasks,
+    nextSessionNumber,
     error,
     fetchPlanningTasks,
     createPlanningTask,

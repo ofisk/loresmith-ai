@@ -299,6 +299,15 @@ export class SessionDigestDAO extends BaseDAOClass {
   }
 
   /**
+   * Get the next session number for a campaign (max + 1, or 1 if none).
+   * Use this when creating new session recaps or tagging planning tasks.
+   */
+  async getNextSessionNumber(campaignId: string): Promise<number> {
+    const max = await this.getMaxSessionNumber(campaignId);
+    return (max ?? 0) + 1;
+  }
+
+  /**
    * Update a session digest
    */
   async updateSessionDigest(

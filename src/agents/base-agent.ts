@@ -808,26 +808,20 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               const hasJwtParam = !!shape && "jwt" in shape;
               if (hasJwtParam) {
                 const previousJwt = enhancedArgs.jwt;
-                const shouldOverrideWithClientJwt =
-                  clientJwt &&
-                  (!previousJwt ||
-                    previousJwt === "YOUR_JWT_TOKEN" ||
-                    previousJwt === "jwt");
-
-                if (shouldOverrideWithClientJwt) {
-                  // Prefer the client JWT over missing/placeholder values
+                // Always use client JWT when available; never trust LLM-provided jwt (often invalid/placeholder)
+                if (clientJwt) {
                   enhancedArgs.jwt = clientJwt;
-                  if (previousJwt && previousJwt !== clientJwt) {
+                  if (
+                    previousJwt &&
+                    previousJwt !== clientJwt &&
+                    typeof previousJwt === "string" &&
+                    !previousJwt.includes(".")
+                  ) {
                     console.log(
-                      `[${this.constructor.name}] Overriding placeholder/missing jwt with client JWT for tool ${toolName}`
-                    );
-                  } else {
-                    console.log(
-                      `[${this.constructor.name}] Injected JWT into tool ${toolName} parameters`
+                      `[${this.constructor.name}] Overriding invalid/LLM jwt with client JWT for tool ${toolName}`
                     );
                   }
-                } else if (!clientJwt && !("jwt" in enhancedArgs)) {
-                  // Ensure tools that expect jwt still receive an explicit null when no client JWT is available
+                } else if (!("jwt" in enhancedArgs)) {
                   enhancedArgs.jwt = null;
                   console.log(
                     `[${this.constructor.name}] No client JWT available; passing jwt: null to tool ${toolName}`

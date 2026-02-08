@@ -623,6 +623,44 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
               }
             }
 
+            // Merge lexical name matches so specific names (e.g. "Baron La Croix") are always
+            // included when the user asks for them, even if semantic search returned a different
+            // entity (e.g. "Baron Vargas Vallakovich") in top-K
+            const searchQueryTrimmed = queryIntent.searchQuery?.trim();
+            if (
+              searchQueryTrimmed &&
+              searchQueryTrimmed.length > 0 &&
+              !queryIntent.isListAll
+            ) {
+              try {
+                const lexicalMatches =
+                  await daoFactory.entityDAO.searchEntitiesByText(
+                    campaignId,
+                    searchQueryTrimmed,
+                    { fields: ["name"], limit: 30 }
+                  );
+                const existingIds = new Set(entities.map((e) => e.id));
+                let added = 0;
+                for (const e of lexicalMatches) {
+                  if (!existingIds.has(e.id)) {
+                    entities.push(e);
+                    existingIds.add(e.id);
+                    added++;
+                  }
+                }
+                if (added > 0) {
+                  console.log(
+                    `[Tool] searchCampaignContext - Lexical name match added ${added} entities for query "${searchQueryTrimmed.slice(0, 40)}${searchQueryTrimmed.length > 40 ? "…" : ""}"`
+                  );
+                }
+              } catch (lexErr) {
+                console.warn(
+                  "[Tool] searchCampaignContext - Lexical name merge failed (non-fatal):",
+                  lexErr
+                );
+              }
+            }
+
             // Filter out rejected/ignored/stub entities
             const approvedEntities = entities.filter((entity) => {
               try {
@@ -693,6 +731,16 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
                   `[Tool] searchCampaignContext - Found ${entityNameSimilarityScores.size} entities with name matches (${Array.from(entityNameSimilarityScores.values()).filter((s) => s >= nameMatchThreshold).length} strong matches)`
                 );
               }
+
+              // Sort so exact/strong name matches come first; then by semantic score
+              approvedEntities.sort((a, b) => {
+                const nameA = entityNameSimilarityScores.get(a.id) ?? 0;
+                const nameB = entityNameSimilarityScores.get(b.id) ?? 0;
+                if (nameB !== nameA) return nameB - nameA;
+                const semA = entitySimilarityScores.get(a.id) ?? 0;
+                const semB = entitySimilarityScores.get(b.id) ?? 0;
+                return semB - semA;
+              });
             }
 
             // Community-based expansion: Use communities as a shortcut to find related entities

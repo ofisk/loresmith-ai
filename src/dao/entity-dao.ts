@@ -415,6 +415,52 @@ export class EntityDAO extends BaseDAOClass {
   }
 
   /**
+   * Search entities by a single text term across one or more fields (name, content).
+   * Case-insensitive partial match. Use for graph search and flexible lookup.
+   */
+  async searchEntitiesByText(
+    campaignId: string,
+    searchTerm: string,
+    options: {
+      fields?: Array<"name" | "content">;
+      limit?: number;
+    } = {}
+  ): Promise<Entity[]> {
+    const fields = options.fields?.length
+      ? options.fields
+      : (["name", "content"] as const);
+    const term = `%${searchTerm.trim().toLowerCase()}%`;
+    const conditions = ["campaign_id = ?"];
+    const params: (string | number)[] = [campaignId];
+
+    const orParts: string[] = [];
+    if (fields.includes("name")) {
+      orParts.push("LOWER(name) LIKE ?");
+      params.push(term);
+    }
+    if (fields.includes("content")) {
+      orParts.push("(content IS NOT NULL AND LOWER(content) LIKE ?)");
+      params.push(term);
+    }
+    if (orParts.length > 0) {
+      conditions.push(`(${orParts.join(" OR ")})`);
+    }
+
+    let sql = `
+      SELECT * FROM entities
+      WHERE ${conditions.join(" AND ")}
+      ORDER BY updated_at DESC
+    `;
+    if (typeof options.limit === "number") {
+      sql += " LIMIT ?";
+      params.push(options.limit);
+    }
+
+    const records = await this.queryAll<EntityRecord>(sql, params);
+    return records.map((record) => this.mapEntityRecord(record));
+  }
+
+  /**
    * Find entity by exact name and type (case-insensitive for name and type).
    * Used to detect if an extracted entity candidate already exists.
    */

@@ -74,7 +74,11 @@ IMPORTANT: All arrays contain STRINGS only, not objects. For state_changes.npcs,
 
 const createSessionDigestParameters = z.object({
   campaignId: commonSchemas.campaignId,
-  sessionNumber: commonSchemas.sessionNumber,
+  sessionNumber: commonSchemas.sessionNumber
+    .optional()
+    .describe(
+      "Session number for this recap. Omit to use the next session (max + 1) automatically."
+    ),
   sessionDate: commonSchemas.sessionDate,
   digestData: commonSchemas.digestData,
   jwt: commonSchemas.jwt,
@@ -82,13 +86,13 @@ const createSessionDigestParameters = z.object({
 
 export const createSessionDigestTool = tool({
   description:
-    "Create a new session digest for a campaign. Session digests capture high-level recaps and planning information for game sessions.",
+    "Create a new session digest for a campaign. Session digests capture high-level recaps and planning information for game sessions. Omit sessionNumber to assign the next session automatically (recommended for new recaps).",
   inputSchema: createSessionDigestParameters,
   execute: async (
     input: z.infer<typeof createSessionDigestParameters>,
     options: ToolExecuteOptions
   ): Promise<ToolResult> => {
-    const { campaignId, sessionNumber, sessionDate, digestData, jwt } = input;
+    const { campaignId, sessionDate, digestData, jwt } = input;
     const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 
     try {
@@ -189,6 +193,10 @@ export const createSessionDigestTool = tool({
         );
       }
 
+      const sessionNumber =
+        input.sessionNumber ??
+        (await daoFactory.sessionDigestDAO.getNextSessionNumber(campaignId));
+
       // Check if digest already exists for this session number
       const existing =
         await daoFactory.sessionDigestDAO.getSessionDigestByCampaignAndSession(
@@ -247,7 +255,7 @@ export const createSessionDigestTool = tool({
         errorName: error instanceof Error ? error.name : typeof error,
         errorStack: error instanceof Error ? error.stack : undefined,
         campaignId,
-        sessionNumber,
+        sessionNumber: input.sessionNumber ?? "(auto)",
         sessionDate,
         hasDigestData: !!digestData,
       };

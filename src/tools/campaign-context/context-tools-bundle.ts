@@ -16,18 +16,22 @@ import {
 } from "./entity-tools";
 import { showCampaignDetails } from "../campaign/core-tools";
 import { getMessageHistory } from "../message-history-tools";
+import { getDocumentContent } from "./get-document-content-tool";
 import { getChecklistStatusTool } from "./checklist-tools";
 import {
   recordPlanningTasks,
   getPlanningTaskProgress,
+  completePlanningTask,
 } from "./planning-task-tools";
 import { generateContextRecapTool } from "./recap-tools";
+import { captureConversationalContext } from "./context-capture-tools";
 
 export const campaignContextToolsBundle = {
   searchCampaignContext,
   searchExternalResources,
   listAllEntities,
   showCampaignDetails,
+  getDocumentContent,
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
@@ -38,5 +42,7 @@ export const campaignContextToolsBundle = {
   getChecklistStatusTool,
   recordPlanningTasks,
   getPlanningTaskProgress,
+  completePlanningTask,
   generateContextRecapTool,
+  captureConversationalContext,
 };
