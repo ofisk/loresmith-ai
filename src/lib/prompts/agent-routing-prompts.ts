@@ -31,11 +31,12 @@ Routing rules:
 - Campaign analysis (assess campaign, campaign readiness, campaign suggestions, how ready is my campaign) → "campaign-analysis"
 - Next steps / what should I do next (personalized suggestions, what to plan next for this campaign) → "recap"
 - Context recap requested (e.g. "[Context recap requested]" when user returns or switches campaign) → "recap"
+- Session plan readout (e.g. "let's do a readout", "construct the readout", "give me the session plan", "ready-to-run plan", "DM script" after completing next steps) → "recap" (recap agent builds the plan from completed next-step notes; do NOT route to session-digest)
 - Campaign entity questions (what/who/tell me about [Entity Name], questions about locations/NPCs/items in the campaign) → "campaign-context"
 - Character creation/management (create character, generate character backstory, store character info) → "character"
 - Character sheet operations (upload character sheet, import character sheet, character sheet file) → "character-sheets"
 - Entity graph operations (extract entities from text, create relationship, detect communities, entity graph) → "entity-graph"
-- Session recaps (record session, session digest, what happened last session) → "session-digest"
+- Session recaps (record session, session digest, what happened last session, create a new digest for a session that just happened) → "session-digest"
 - General help/how-to questions about using the application → "onboarding"
 
 Respond with: agent_name|confidence|reason
@@ -52,6 +53,7 @@ Examples:
 - "upload character sheet" → character-sheets|90|Character sheet upload
 - "extract entities from this text" → entity-graph|90|Entity extraction
 - "record session recap" → session-digest|95|Session recap
+- "let's do a readout" / "construct the readout" / "give me the session plan" / "I'm ready for the readout" → recap|95|Session plan readout (from completed next steps)
 - "how do I upload files?" → onboarding|85|General help`;
 }
 
