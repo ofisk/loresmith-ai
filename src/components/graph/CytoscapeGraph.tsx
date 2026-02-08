@@ -32,11 +32,15 @@ export function CytoscapeGraph({
   const isDestroyingRef = useRef<boolean>(false);
   const previousDataKeyRef = useRef<string>("");
   const onNodeClickRef = useRef(onNodeClick);
+  const highlightedNodesRef = useRef<string[]>(highlightedNodes);
 
-  // Keep ref in sync with prop
+  // Keep refs in sync with props
   useEffect(() => {
     onNodeClickRef.current = onNodeClick;
   }, [onNodeClick]);
+  useEffect(() => {
+    highlightedNodesRef.current = highlightedNodes;
+  }, [highlightedNodes]);
 
   // Create a stable key from the data to prevent unnecessary re-renders
   const dataKey = useMemo(() => {
@@ -403,6 +407,16 @@ export function CytoscapeGraph({
                     fallbackError
                   );
                 }
+              }
+
+              // Re-apply highlights when graph is ready (in case search ran before/during re-init)
+              const ids = highlightedNodesRef.current;
+              if (ids.length > 0) {
+                cy.elements().removeClass("highlighted");
+                const toHighlight = cy
+                  .elements()
+                  .filter((ele) => ids.includes(ele.id()));
+                toHighlight.addClass("highlighted");
               }
             }, 100);
           });

@@ -107,6 +107,8 @@ export interface CommunityFilterState {
   entityTypes?: StructuredEntityType[];
   relationshipTypes?: RelationshipType[];
   approvalStatuses?: ShardStatus[];
+  /** Campaign resource IDs: show only entities from these resources and communities that contain them. */
+  resourceIds?: string[];
   communityLevel?: number;
   communitySizeMin?: number;
   communitySizeMax?: number;

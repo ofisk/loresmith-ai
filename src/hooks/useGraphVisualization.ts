@@ -90,6 +90,9 @@ export function useGraphVisualization({
           activeFilters.approvalStatuses.join(",")
         );
       }
+      if (activeFilters.resourceIds && activeFilters.resourceIds.length > 0) {
+        params.append("resourceIds", activeFilters.resourceIds.join(","));
+      }
 
       const url =
         API_CONFIG.buildUrl(

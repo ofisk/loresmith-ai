@@ -9,6 +9,8 @@ export interface GraphFilters {
   entityTypes?: string[];
   approvalStatuses?: ShardStatus[];
   relationshipTypes?: string[];
+  /** Campaign resource IDs: only entities with sourceId in this set (and communities containing them). */
+  resourceIds?: string[];
 }
 
 /** Map: entityId -> list of { toId, type } for that entity's relationships */
@@ -50,6 +52,11 @@ function entityHasRelationshipTypes(
   return rels.some((r) => relationshipTypes.includes(r.type));
 }
 
+function entityMatchesResource(entity: Entity, resourceIds: string[]): boolean {
+  if (!entity.sourceId) return false;
+  return resourceIds.includes(entity.sourceId);
+}
+
 /**
  * Filter communities to those that have at least one entity matching type, approval, and relationship filters.
  */
@@ -59,7 +66,8 @@ export function applyGraphFilters(
   filters: GraphFilters,
   relationshipMap: RelationshipMap
 ): Community[] {
-  const { entityTypes, approvalStatuses, relationshipTypes } = filters;
+  const { entityTypes, approvalStatuses, relationshipTypes, resourceIds } =
+    filters;
   const filtered: Community[] = [];
 
   for (const community of communities) {
@@ -69,7 +77,11 @@ export function applyGraphFilters(
     if (communityEntities.length === 0) continue;
 
     let passes = true;
-    if (entityTypes?.length) {
+    if (resourceIds?.length) {
+      if (!communityEntities.some((e) => entityMatchesResource(e, resourceIds)))
+        passes = false;
+    }
+    if (passes && entityTypes?.length) {
       if (!communityEntities.some((e) => matchesEntityType(e, entityTypes)))
         passes = false;
     }
@@ -102,14 +114,21 @@ export function computeOrphanNodes(
   filters: GraphFilters,
   relationshipMap: RelationshipMap
 ): CommunityGraphData["nodes"] {
-  const { entityTypes, approvalStatuses, relationshipTypes } = filters;
+  const { entityTypes, approvalStatuses, relationshipTypes, resourceIds } =
+    filters;
   const nodes: CommunityGraphData["nodes"] = [];
 
   for (const entity of nonStubEntities) {
     if (entityIdsInCommunities.has(entity.id)) continue;
 
     let passes = true;
-    if (entityTypes?.length && !matchesEntityType(entity, entityTypes))
+    if (resourceIds?.length && !entityMatchesResource(entity, resourceIds))
+      passes = false;
+    if (
+      passes &&
+      entityTypes?.length &&
+      !matchesEntityType(entity, entityTypes)
+    )
       passes = false;
     if (
       passes &&

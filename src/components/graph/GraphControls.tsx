@@ -9,6 +9,8 @@ import type {
   CytoscapeLayout,
 } from "@/types/graph-visualization";
 import type { ShardStatus } from "@/types/shard";
+import type { CampaignResource } from "@/types/campaign";
+import { getDisplayName } from "@/lib/display-name-utils";
 import { cn } from "@/lib/utils";
 
 interface GraphControlsProps {
@@ -16,6 +18,8 @@ interface GraphControlsProps {
   filters: CommunityFilterState | EntityFilterState;
   onFiltersChange: (filters: CommunityFilterState | EntityFilterState) => void;
   onResetFilters: () => void;
+  /** Campaign resources for the resource filter (community view only). */
+  campaignResources?: CampaignResource[];
 
   // Layout
   layout: CytoscapeLayout;
@@ -51,6 +55,7 @@ export function GraphControls({
   filters,
   onFiltersChange,
   onResetFilters,
+  campaignResources = [],
   layout,
   onLayoutChange,
   onResetView,
@@ -99,6 +104,24 @@ export function GraphControls({
       });
     }
   };
+
+  const handleResourceChange = (values: string[]) => {
+    if (viewMode === "community") {
+      onFiltersChange({
+        ...filters,
+        resourceIds: values,
+      });
+    }
+  };
+
+  const resourceOptions = useMemo(
+    () =>
+      campaignResources.map((r) => ({
+        value: r.id,
+        label: getDisplayName(r),
+      })),
+    [campaignResources]
+  );
 
   const isCommunityView = viewMode === "community";
 
@@ -155,6 +178,24 @@ export function GraphControls({
               }
               onSelectionChange={handleApprovalStatusChange}
               placeholder="All statuses"
+              size="sm"
+            />
+          </div>
+        )}
+
+        {/* Resource filter (community view only): entities from selected resources + communities containing them */}
+        {isCommunityView && resourceOptions.length > 0 && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-neutral-600 dark:text-neutral-400">
+              Resource
+            </span>
+            <MultiSelect
+              options={resourceOptions}
+              selectedValues={
+                (filters as CommunityFilterState).resourceIds ?? []
+              }
+              onSelectionChange={handleResourceChange}
+              placeholder="All resources"
               size="sm"
             />
           </div>

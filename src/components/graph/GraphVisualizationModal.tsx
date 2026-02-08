@@ -5,6 +5,9 @@ import { EntityDetailPanel } from "./EntityDetailPanel";
 import { GraphControls } from "./GraphControls";
 import { CommunityEntityView } from "./CommunityEntityView";
 import { useGraphVisualization } from "@/hooks/useGraphVisualization";
+import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
+import { API_CONFIG } from "@/shared-config";
+import type { CampaignResource } from "@/types/campaign";
 import { cn } from "@/lib/utils";
 import type {
   CytoscapeLayout,
@@ -32,6 +35,11 @@ export function GraphVisualizationModal({
   const [layout, setLayout] = useState<CytoscapeLayout>("cose");
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedNodes, setHighlightedNodes] = useState<string[]>([]);
+  const [campaignResources, setCampaignResources] = useState<
+    CampaignResource[]
+  >([]);
+
+  const { makeRequestWithData } = useAuthenticatedRequest();
 
   const {
     communityGraphData,
@@ -70,6 +78,34 @@ export function GraphVisualizationModal({
   useEffect(() => {
     filtersRef.current = filters;
   }, [filters]);
+
+  // Fetch campaign resources when modal opens (for resource filter)
+  useEffect(() => {
+    if (!isOpen || !campaignId) {
+      setCampaignResources([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await makeRequestWithData<{
+          resources: CampaignResource[];
+        }>(
+          API_CONFIG.buildUrl(
+            API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(campaignId)
+          )
+        );
+        if (!cancelled && data?.resources) {
+          setCampaignResources(data.resources);
+        }
+      } catch {
+        if (!cancelled) setCampaignResources([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, campaignId, makeRequestWithData]);
 
   // Serialize filters to prevent unnecessary re-renders
   const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
@@ -243,6 +279,7 @@ export function GraphVisualizationModal({
               filters={filters}
               onFiltersChange={setFilters}
               onResetFilters={resetFilters}
+              campaignResources={campaignResources}
               layout={layout}
               onLayoutChange={setLayout}
               onResetView={handleResetView}
