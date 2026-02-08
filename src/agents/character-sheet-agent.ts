@@ -26,7 +26,8 @@ const CHARACTER_SHEET_SYSTEM_PROMPT = buildSystemPrompt({
   ],
   importantNotes: [
     "Help users upload character sheet files with uploadCharacterSheet tool",
-    "Process uploaded files with processCharacterSheet tool",
+    "Process uploaded files with processCharacterSheet (use the id from listCharacterSheets, not the filename)",
+    "When users ask what a document or PDF says, use getDocumentContent with the file name to retrieve indexed text and answer from it",
     "Create characters from chat information with createCharacterFromChat tool",
     "List and organize character sheets with listCharacterSheets tool",
     "Accept various file formats (PDF, DOCX, DOC, TXT, JSON)",

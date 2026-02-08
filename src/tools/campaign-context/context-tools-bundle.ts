@@ -16,6 +16,7 @@ import {
 } from "./entity-tools";
 import { showCampaignDetails } from "../campaign/core-tools";
 import { getMessageHistory } from "../message-history-tools";
+import { getDocumentContent } from "./get-document-content-tool";
 import { getChecklistStatusTool } from "./checklist-tools";
 import {
   recordPlanningTasks,
@@ -30,6 +31,7 @@ export const campaignContextToolsBundle = {
   searchExternalResources,
   listAllEntities,
   showCampaignDetails,
+  getDocumentContent,
   recordWorldEventTool,
   updateEntityWorldStateTool,
   updateRelationshipWorldStateTool,
