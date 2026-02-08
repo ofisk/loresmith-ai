@@ -14,6 +14,9 @@ export interface PlanningTaskRecord {
   status: PlanningTaskStatus;
   sourceMessageId: string | null;
   linkedShardId: string | null;
+  completionNotes: string | null;
+  /** Next upcoming session this step is for (e.g. 3 if session 2 was played). */
+  targetSessionNumber: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -23,6 +26,7 @@ export interface CreatePlanningTaskInput {
   description?: string | null;
   status?: PlanningTaskStatus;
   sourceMessageId?: string | null;
+  targetSessionNumber?: number | null;
 }
 
 export class PlanningTaskDAO extends BaseDAOClass {
@@ -41,6 +45,8 @@ export class PlanningTaskDAO extends BaseDAOClass {
         status,
         source_message_id as sourceMessageId,
         linked_shard_id as linkedShardId,
+        completion_notes as completionNotes,
+        target_session_number as targetSessionNumber,
         created_at as createdAt,
         updated_at as updatedAt
       FROM planning_tasks
@@ -70,6 +76,7 @@ export class PlanningTaskDAO extends BaseDAOClass {
       description = null,
       status = "pending",
       sourceMessageId = null,
+      targetSessionNumber = null,
     } = input;
 
     const sql = `
@@ -80,9 +87,10 @@ export class PlanningTaskDAO extends BaseDAOClass {
         description,
         status,
         source_message_id,
+        target_session_number,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `;
 
     await this.execute(sql, [
@@ -92,6 +100,7 @@ export class PlanningTaskDAO extends BaseDAOClass {
       description,
       status,
       sourceMessageId,
+      targetSessionNumber,
     ]);
 
     const [record] = await this.listByCampaign(campaignId, {
@@ -128,15 +137,21 @@ export class PlanningTaskDAO extends BaseDAOClass {
   async updateStatus(
     id: string,
     status: PlanningTaskStatus,
-    linkedShardId?: string | null
+    linkedShardId?: string | null,
+    completionNotes?: string | null
   ): Promise<void> {
     const sql = `
       UPDATE planning_tasks
-      SET status = ?, linked_shard_id = COALESCE(?, linked_shard_id), updated_at = CURRENT_TIMESTAMP
+      SET status = ?, linked_shard_id = COALESCE(?, linked_shard_id), completion_notes = COALESCE(?, completion_notes), updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `;
 
-    await this.execute(sql, [status, linkedShardId ?? null, id]);
+    await this.execute(sql, [
+      status,
+      linkedShardId ?? null,
+      completionNotes ?? null,
+      id,
+    ]);
   }
 
   async updateTask(
@@ -146,6 +161,7 @@ export class PlanningTaskDAO extends BaseDAOClass {
       title?: string;
       description?: string | null;
       status?: PlanningTaskStatus;
+      targetSessionNumber?: number | null;
     }
   ): Promise<void> {
     const fields: string[] = [];
@@ -164,6 +180,11 @@ export class PlanningTaskDAO extends BaseDAOClass {
     if (updates.status !== undefined) {
       fields.push("status = ?");
       params.push(updates.status);
+    }
+
+    if (updates.targetSessionNumber !== undefined) {
+      fields.push("target_session_number = ?");
+      params.push(updates.targetSessionNumber);
     }
 
     if (fields.length === 0) {
@@ -204,6 +225,8 @@ export class PlanningTaskDAO extends BaseDAOClass {
         status,
         source_message_id as sourceMessageId,
         linked_shard_id as linkedShardId,
+        completion_notes as completionNotes,
+        target_session_number as targetSessionNumber,
         created_at as createdAt,
         updated_at as updatedAt
       FROM planning_tasks

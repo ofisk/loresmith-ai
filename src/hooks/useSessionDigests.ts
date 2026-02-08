@@ -37,31 +37,44 @@ import { useBaseAsync } from "@/hooks/useBaseAsync";
  */
 export function useSessionDigests() {
   const [digests, setDigests] = useState<SessionDigestWithData[]>([]);
+  const [nextSessionNumber, setNextSessionNumber] = useState<number>(1);
   const [currentDigest, setCurrentDigest] =
     useState<SessionDigestWithData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { makeRequestWithData } = useAuthenticatedRequest();
 
-  // Fetch all session digests for a campaign
+  // Fetch all session digests for a campaign (includes nextSessionNumber from server)
   const fetchSessionDigests = useBaseAsync(
     useMemo(
       () => async (campaignId: string) => {
         const data = await makeRequestWithData<{
           digests: SessionDigestWithData[];
+          nextSessionNumber?: number;
         }>(
           API_CONFIG.buildUrl(
             API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.BASE(campaignId)
           )
         );
-        return data.digests || [];
+        return {
+          digests: data.digests || [],
+          nextSessionNumber:
+            typeof data.nextSessionNumber === "number" &&
+            data.nextSessionNumber >= 1
+              ? data.nextSessionNumber
+              : 1,
+        };
       },
       [makeRequestWithData]
     ),
     useMemo(
       () => ({
-        onSuccess: (digests: SessionDigestWithData[]) => {
-          setDigests(digests);
+        onSuccess: (result: {
+          digests: SessionDigestWithData[];
+          nextSessionNumber: number;
+        }) => {
+          setDigests(result.digests);
+          setNextSessionNumber(result.nextSessionNumber);
         },
         onError: (error: string) => setError(error),
         errorMessage: USER_MESSAGES.HOOK_FAILED_TO_FETCH_SESSION_DIGESTS,
@@ -246,6 +259,7 @@ export function useSessionDigests() {
   return {
     // State
     digests,
+    nextSessionNumber,
     currentDigest,
     loading:
       fetchSessionDigests.loading ||
@@ -289,6 +303,7 @@ export function useSessionDigests() {
     },
     reset: () => {
       setDigests([]);
+      setNextSessionNumber(1);
       setCurrentDigest(null);
       setError(null);
     },

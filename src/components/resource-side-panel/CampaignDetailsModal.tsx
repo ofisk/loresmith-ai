@@ -105,6 +105,7 @@ export function CampaignDetailsModal({
 
   const {
     digests,
+    nextSessionNumber: suggestedSessionNumberFromServer,
     loading: digestsLoading,
     error: digestsError,
     fetchSessionDigests,
@@ -477,11 +478,8 @@ export function CampaignDetailsModal({
     }
   };
 
-  const getSuggestedSessionNumber = (): number => {
-    if (digests.length === 0) return 1;
-    const maxSession = Math.max(...digests.map((d) => d.sessionNumber));
-    return maxSession + 1;
-  };
+  const getSuggestedSessionNumber = (): number =>
+    suggestedSessionNumberFromServer;
 
   if (!campaign) return null;
 
