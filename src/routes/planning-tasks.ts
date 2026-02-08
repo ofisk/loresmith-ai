@@ -220,7 +220,10 @@ export async function handleBulkCompletePlanningTasks(c: ContextWithAuth) {
       return c.json({ error: "Campaign not found" }, 404);
     }
 
-    const body = (await c.req.json()) as { taskIds?: unknown };
+    const body = (await c.req.json()) as {
+      taskIds?: unknown;
+      completionNotes?: unknown;
+    };
     if (!Array.isArray(body.taskIds) || body.taskIds.length === 0) {
       return c.json({ error: "taskIds must be a non-empty array" }, 400);
     }
@@ -233,13 +236,23 @@ export async function handleBulkCompletePlanningTasks(c: ContextWithAuth) {
       return c.json({ error: "taskIds must contain string ids" }, 400);
     }
 
+    const completionNotes =
+      typeof body.completionNotes === "string"
+        ? body.completionNotes.trim() || null
+        : null;
+
     const daoFactory = getDAOFactory(c.env);
     const planningTaskDAO = daoFactory.planningTaskDAO;
 
     for (const id of taskIds) {
       const task = await planningTaskDAO.getById(id);
       if (task.campaignId === campaignId) {
-        await planningTaskDAO.updateStatus(id, "completed");
+        await planningTaskDAO.updateStatus(
+          id,
+          "completed",
+          undefined,
+          completionNotes
+        );
       }
     }
 

@@ -66,7 +66,7 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
           nextDescription !== null
             ? nextDescription.trim() || null
             : task.description,
-        targetSessionNumber: nextSessionNumber,
+        targetSessionNumber: task.targetSessionNumber ?? nextSessionNumber,
       });
     } catch {
       // Error handled by hook

@@ -27,7 +27,7 @@ const RECAP_AGENT_SYSTEM_PROMPT = buildSystemPrompt({
     "Do not say 'these have been saved' without having called recordPlanningTasks. After the tool succeeds, tell the user the steps are saved and where to find them.",
   ],
   importantNotes: [
-    "You only have recap and next-step tools. For questions about specific campaign entities , the user will be routed to another agent. Focus on recap narrative and next-step suggestions only.",
+    "You only have recap and next-step tools. For questions about specific campaign entities, the user will be routed to another agent. Focus on recap narrative and next-step suggestions only.",
     "When focusing on a single next step, treat it like a mini planning session: ask 1–3 clarifying questions if needed, propose concrete sub-steps or examples, and only reference other tasks if they are direct prerequisites.",
   ],
 });
