@@ -115,11 +115,17 @@ export const generateContextRecapTool = tool({
         | undefined;
       const progressData =
         progressRes?.result?.success && progressRes?.result?.data
-          ? (progressRes.result.data as { openTaskCount?: number })
+          ? (progressRes.result.data as {
+              openTaskCount?: number;
+              counts?: { completed?: number };
+            })
           : null;
       const openTaskCount = progressData?.openTaskCount ?? 0;
+      const completedCount = progressData?.counts?.completed ?? 0;
       if (openTaskCount > 0) {
         recapPrompt += `\n\n[Server preflight: This campaign already has ${openTaskCount} open next step(s). Call getPlanningTaskProgress to retrieve them, then present those to the user. Do NOT call recordPlanningTasks.]`;
+      } else if (completedCount > 0) {
+        recapPrompt += `\n\n[Server preflight: All next steps for this campaign are complete (${completedCount} completed). Your first response MUST be to ask: "Would you like me to construct a readout for your next session's plan? I'll stitch together your completion notes into a ready-to-run plan you can follow at the table—or is there something else you'd like to add first?" Do NOT suggest new next steps, World Expansion, Session Prep, or Player Engagement until the user answers. Do NOT call recordPlanningTasks.]`;
       } else {
         recapPrompt += `\n\n[Server preflight: There are no open next steps. You MUST generate 2-3 high-quality, campaign-relevant next steps (using the checklist and campaign context), then call recordPlanningTasks with them. Only after the tool succeeds may you say they have been saved and direct the user to Campaign Details > Next steps.]`;
       }
