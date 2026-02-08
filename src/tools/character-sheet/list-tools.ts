@@ -6,6 +6,7 @@ import {
   getEnvFromContext,
   createToolError,
   createToolSuccess,
+  extractUsernameFromJwt,
   type ToolExecuteOptions,
 } from "../utils";
 import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
@@ -47,33 +48,27 @@ export const listCharacterSheets = tool({
           "[listCharacterSheets] Running in Durable Object context, calling database directly"
         );
 
-        let username = "default";
-        if (jwt) {
-          try {
-            const payload = JSON.parse(atob(jwt.split(".")[1]));
-            username = payload.username || "default";
-            console.log(
-              "[listCharacterSheets] Extracted username from JWT:",
-              username
-            );
-          } catch (error) {
-            console.error("Error parsing JWT:", error);
-          }
+        const userId = extractUsernameFromJwt(jwt);
+        if (!userId) {
+          return createToolError(
+            "Invalid authentication token",
+            "Authentication failed",
+            401,
+            toolCallId
+          );
         }
 
         const daoFactory = getDAOFactory(env);
         const campaign =
           await daoFactory.campaignDAO.getCampaignByIdWithMapping(
             campaignId,
-            username
+            userId
           );
         if (!campaign) {
           return createToolError(
             "Campaign not found",
-            {
-              error: "Campaign not found",
-            },
-            AUTH_CODES.ERROR,
+            "Campaign not found",
+            404,
             toolCallId
           );
         }

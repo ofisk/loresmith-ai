@@ -288,6 +288,17 @@ export function CytoscapeGraph({
                 },
               },
               {
+                selector: "node[isOrphan], node[isEntityNode]",
+                style: {
+                  shape: "ellipse",
+                  "background-color": "#8b5cf6",
+                  "border-width": "1px",
+                  "border-color": "#9ca3af",
+                  color: "#374151",
+                },
+              },
+              // Highlighted style must come after orphan/entity so it overrides (Cytoscape uses last match)
+              {
                 selector: "node.highlighted",
                 style: {
                   "background-color": "#FFD700",
@@ -296,13 +307,12 @@ export function CytoscapeGraph({
                 },
               },
               {
-                selector: "node[isOrphan], node[isEntityNode]",
+                selector:
+                  "node.highlighted[isOrphan], node.highlighted[isEntityNode]",
                 style: {
-                  shape: "ellipse",
-                  "background-color": "#8b5cf6",
-                  "border-width": "1px",
-                  "border-color": "#9ca3af",
-                  color: "#374151",
+                  "background-color": "#FFD700",
+                  "border-width": 3,
+                  "border-color": "#FFA500",
                 },
               },
             ],
