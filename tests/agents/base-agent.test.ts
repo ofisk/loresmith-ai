@@ -227,20 +227,20 @@ describe("BaseAgent", () => {
       );
     });
 
-    it("should not inject JWT when tool already has JWT parameter", async () => {
+    it("should always inject client JWT when available (override LLM-provided jwt)", async () => {
       const enhancedTools = (agent as any).createEnhancedTools(testJwt, null);
       const mockContext = { toolCallId: "test-call-id" };
-      const existingJwt = "existing-jwt-token";
+      const llmProvidedJwt = "existing-jwt-token";
 
-      // Execute the authenticated tool with existing JWT
+      // Execute the authenticated tool with LLM-provided JWT (e.g. invalid/placeholder)
       await enhancedTools.authenticatedTool.execute(
-        { action: "test-action", jwt: existingJwt },
+        { action: "test-action", jwt: llmProvidedJwt },
         mockContext
       );
 
-      // Verify the tool was called with the existing JWT, not the injected one
+      // Verify the tool was called with client JWT, not the LLM-provided one (we never trust LLM jwt)
       expect(mockTools.authenticatedTool.execute).toHaveBeenCalledWith(
-        { action: "test-action", jwt: existingJwt },
+        { action: "test-action", jwt: testJwt },
         expect.objectContaining({ toolCallId: "test-call-id", env: mockEnv })
       );
     });
