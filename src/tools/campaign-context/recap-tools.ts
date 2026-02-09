@@ -162,15 +162,30 @@ const getSessionReadoutContextSchema = z.object({
 
 type SearchResultItem = { entityId?: string; text?: string; title?: string };
 
+const ENTITY_CONTENT_MARKER =
+  "ENTITY CONTENT (may contain unverified mentions):";
+
+/**
+ * Strip graph-RAG metadata (relationship headers, MEMBER_OF lines, etc.) from
+ * entity text so the readout contains only narrative/content for the DM.
+ */
+function entityContentOnly(rawText: string): string {
+  const idx = rawText.indexOf(ENTITY_CONTENT_MARKER);
+  if (idx < 0) return rawText;
+  const after = rawText.slice(idx + ENTITY_CONTENT_MARKER.length);
+  return after.replace(/^[\s\n═-]+/, "").trim();
+}
+
 /**
  * Builds readout context per completed next step: for each task, finds relevant
  * entities (search by title + completion notes), pulls full graph context
  * (traversal from those entities), and returns one blob per step so the agent
- * can synthesize a submessage per step then stitch a single cohesive plan.
+ * can transform it into a session plan. Graph-structure headers are stripped
+ * so the agent receives only entity content, not "EXPLICIT ENTITY RELATIONSHIPS".
  */
 export const getSessionReadoutContext = tool({
   description:
-    "Get full entity-graph context for each completed next step, for building the session plan readout. Call this when the user wants the readout (e.g. 'give me the readout', 'create the plan'). Returns one block per completed task with task info, a readoutBlock (preformatted step title + full entity text), and entityResults. You MUST include each step's readoutBlock in your reply IN FULL—do not summarize, shorten, or rewrite it. You may add a one-sentence intro and brief bridges between steps.",
+    "Get full entity-graph context for each completed next step for building the session plan readout. Call when the user wants the readout (e.g. 'give me the readout', 'create the plan'). Returns one block per task with task info, readoutBlock (step title + entity content only; graph metadata is stripped), and entityResults. Transform this into a session plan for the DM: scene-based outline with Description, Helpful DM Info, Dialogue, mechanics. Do not expose graph structure; output should read as a usable session plan, not a graph walk.",
   inputSchema: getSessionReadoutContextSchema,
   execute: async (
     input: z.infer<typeof getSessionReadoutContextSchema>,
@@ -349,7 +364,7 @@ export const getSessionReadoutContext = tool({
           if (r.entityId && r.text != null) {
             byId.set(r.entityId, {
               title: r.title ?? r.entityId,
-              text: r.text,
+              text: entityContentOnly(r.text),
             });
           }
         }
@@ -357,7 +372,7 @@ export const getSessionReadoutContext = tool({
           if (r.entityId && r.text != null && !byId.has(r.entityId)) {
             byId.set(r.entityId, {
               title: r.title ?? r.entityId,
-              text: r.text,
+              text: entityContentOnly(r.text),
             });
           }
         }
@@ -384,14 +399,14 @@ export const getSessionReadoutContext = tool({
             createdAt: task.createdAt,
           },
           instruction:
-            "CRITICAL: Include the readoutBlock below in your reply IN FULL. Do not summarize, paraphrase, shorten, or rewrite it. Paste the readoutBlock content into your readout so the DM gets the exact entity detail (Background, Character Traits, Emotional Stakes, NPC Reactions, etc.) at the table. You may add one short intro sentence before it or a one-sentence bridge after it to the next step.",
+            "Transform the readoutBlock below into part of a session plan for the DM. Use the full entity content (Background, Character Traits, Emotional Stakes, NPC Reactions, mechanics, etc.) but present it as a scene or encounter in the plan: Description, Helpful DM Info, Dialogue, player options. Do not expose graph structure or relationship metadata. Output should read like a session script outline the DM can run at the table—not a raw dump of entity data. Include all substantive detail from the readoutBlock.",
           readoutBlock,
           entityResults,
         });
       }
 
       return createToolSuccess(
-        `Readout context for ${steps.length} completed step(s). For each step, include that step's readoutBlock in your reply IN FULL—do not summarize, edit, or shorten it. The readoutBlock is preformatted with the step title and full entity text. You may add a brief intro before step 1 and one-sentence bridges between steps; do not omit or condense any readoutBlock content.`,
+        `Readout context for ${steps.length} completed step(s). For each step, transform the readoutBlock into part of a session plan: scene-based outline with Description, Helpful DM Info, Dialogue, mechanics. Use the full entity detail but present it as a usable session plan for the DM—no graph structure or relationship metadata. Structure like a session script (e.g. numbered scenes, read-aloud optional, rollable tables if relevant). Do not omit substantive detail.`,
         { steps },
         toolCallId
       );
