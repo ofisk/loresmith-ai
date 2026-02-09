@@ -230,6 +230,7 @@ export const getSessionReadoutContext = tool({
       }
 
       const planningTaskDAO = daoFactory.planningTaskDAO;
+      const communityDAO = daoFactory.communityDAO;
       const allTasks = await planningTaskDAO.listByCampaign(campaignId, {
         status: ["completed"] as PlanningTaskStatus[],
       });
@@ -384,6 +385,48 @@ export const getSessionReadoutContext = tool({
             text: v.text,
           })
         );
+
+        // Debug logging: which entities and communities are feeding this step's readout.
+        // This helps inspect which data points are actually being used when
+        // constructing the session plan.
+        const communitiesByEntity: Record<
+          string,
+          { id: string; level: number; entityCount: number }[]
+        > = {};
+
+        for (const entity of entityResults) {
+          try {
+            const communities =
+              await communityDAO.findCommunitiesContainingEntity(
+                campaignId,
+                entity.entityId
+              );
+            if (communities.length > 0) {
+              communitiesByEntity[entity.entityId] = communities.map((c) => ({
+                id: c.id,
+                level: c.level,
+                entityCount: c.entityIds.length,
+              }));
+            }
+          } catch (communityError) {
+            console.warn(
+              "[getSessionReadoutContext] Failed to load communities for entity",
+              entity.entityId,
+              communityError
+            );
+          }
+        }
+
+        console.log("[getSessionReadoutContext] Step context summary", {
+          campaignId,
+          taskId: task.id,
+          taskTitle: task.title,
+          entityResults: entityResults.map((e) => ({
+            entityId: e.entityId,
+            title: e.title,
+          })),
+          communitiesByEntity,
+        });
 
         const readoutBlock = [
           `## ${task.title}`,
