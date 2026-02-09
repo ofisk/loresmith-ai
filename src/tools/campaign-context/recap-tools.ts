@@ -1,6 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { ToolResult } from "../../app-constants";
+import { getDAOFactory } from "../../dao/dao-factory";
+import type { PlanningTaskStatus } from "../../dao/planning-task-dao";
 import {
   commonSchemas,
   createToolError,
@@ -10,6 +12,7 @@ import {
   type ToolExecuteOptions,
 } from "../utils";
 import { RecapService } from "../../services/core/recap-service";
+import { searchCampaignContext } from "./search-tools";
 
 const generateContextRecapSchema = z.object({
   campaignId: commonSchemas.campaignId,
@@ -144,6 +147,243 @@ export const generateContextRecapTool = tool({
       console.error("[generateContextRecapTool] Error:", error);
       return createToolError(
         "Failed to generate context recap",
+        error instanceof Error ? error.message : String(error),
+        500,
+        toolCallId
+      );
+    }
+  },
+});
+
+const getSessionReadoutContextSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  jwt: commonSchemas.jwt,
+});
+
+type SearchResultItem = { entityId?: string; text?: string; title?: string };
+
+/**
+ * Builds readout context per completed next step: for each task, finds relevant
+ * entities (search by title + completion notes), pulls full graph context
+ * (traversal from those entities), and returns one blob per step so the agent
+ * can synthesize a submessage per step then stitch a single cohesive plan.
+ */
+export const getSessionReadoutContext = tool({
+  description:
+    "Get full entity-graph context for each completed next step, for building the session plan readout. Call this when the user wants the readout (e.g. 'give me the readout', 'create the plan'). Returns one block per completed task with all relevant entities and connected entities (relationships, communities) so you can write a synthesized submessage per step, then stitch them into one cohesive plan. Use the returned context as the sole source for each step; include full entity 'text' in your reply—do not summarize.",
+  inputSchema: getSessionReadoutContextSchema,
+  execute: async (
+    input: z.infer<typeof getSessionReadoutContextSchema>,
+    options: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { campaignId, jwt } = input;
+    const toolCallId = options?.toolCallId ?? crypto.randomUUID();
+
+    try {
+      const env = getEnvFromContext(options);
+      if (!env) {
+        return createToolError(
+          "Environment not available",
+          "Server environment is required",
+          500,
+          toolCallId
+        );
+      }
+
+      const userId = extractUsernameFromJwt(jwt);
+      if (!userId) {
+        return createToolError(
+          "Invalid authentication token",
+          "Authentication failed",
+          401,
+          toolCallId
+        );
+      }
+
+      const daoFactory = getDAOFactory(env);
+      const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+        campaignId,
+        userId
+      );
+      if (!campaign) {
+        return createToolError(
+          "Campaign not found",
+          "Campaign not found or access denied",
+          404,
+          toolCallId
+        );
+      }
+
+      const planningTaskDAO = daoFactory.planningTaskDAO;
+      const allTasks = await planningTaskDAO.listByCampaign(campaignId, {
+        status: ["completed"] as PlanningTaskStatus[],
+      });
+      const completedTasks = [...allTasks].sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+
+      if (completedTasks.length === 0) {
+        return createToolSuccess(
+          "No completed next steps for this campaign; nothing to build readout from.",
+          { steps: [] },
+          toolCallId
+        );
+      }
+
+      const steps: Array<{
+        task: {
+          id: string;
+          title: string;
+          completionNotes: string | null;
+          createdAt: string;
+        };
+        entityResults: Array<{ entityId: string; title: string; text: string }>;
+      }> = [];
+
+      const opts = {
+        env,
+        toolCallId: `${toolCallId}-step`,
+      } as ToolExecuteOptions;
+
+      for (const task of completedTasks) {
+        const notesSlice = (task.completionNotes ?? "").slice(0, 400).trim();
+        const queryFromTask = [task.title, notesSlice]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        const searchQuery = queryFromTask || task.title;
+
+        const searchArgs = {
+          campaignId,
+          jwt,
+          searchOriginalFiles: false,
+          includeTraversedEntities: true,
+          offset: 0,
+          limit: 50,
+          forSessionReadout: true,
+        };
+
+        const searchRes = (await searchCampaignContext.execute?.(
+          { ...searchArgs, query: searchQuery },
+          opts
+        )) as
+          | {
+              result: {
+                success: boolean;
+                data?: { results?: SearchResultItem[] };
+              };
+            }
+          | undefined;
+
+        const initialResults: SearchResultItem[] =
+          searchRes?.result?.success && searchRes?.result?.data?.results
+            ? searchRes.result.data.results
+            : [];
+
+        if (notesSlice && notesSlice.length > 80) {
+          const notesOnlyRes = (await searchCampaignContext.execute?.(
+            { ...searchArgs, query: notesSlice },
+            opts
+          )) as
+            | {
+                result: {
+                  success: boolean;
+                  data?: { results?: SearchResultItem[] };
+                };
+              }
+            | undefined;
+          const notesResults =
+            notesOnlyRes?.result?.success && notesOnlyRes?.result?.data?.results
+              ? notesOnlyRes.result.data.results
+              : [];
+          const seenIds = new Set(
+            initialResults.map((r) => r.entityId).filter(Boolean)
+          );
+          for (const r of notesResults) {
+            if (r.entityId && !seenIds.has(r.entityId)) {
+              seenIds.add(r.entityId);
+              initialResults.push(r);
+            }
+          }
+        }
+
+        const entityIds = initialResults
+          .map((r) => r.entityId)
+          .filter((id): id is string => Boolean(id));
+
+        let traversedResults: SearchResultItem[] = [];
+        if (entityIds.length > 0) {
+          const traverseRes = (await searchCampaignContext.execute?.(
+            {
+              campaignId,
+              jwt,
+              query: task.title,
+              searchOriginalFiles: false,
+              traverseFromEntityIds: entityIds,
+              traverseDepth: 2,
+              includeTraversedEntities: true,
+              offset: 0,
+              limit: 50,
+              forSessionReadout: true,
+            },
+            opts
+          )) as
+            | {
+                result: {
+                  success: boolean;
+                  data?: { results?: SearchResultItem[] };
+                };
+              }
+            | undefined;
+          traversedResults =
+            traverseRes?.result?.success && traverseRes?.result?.data?.results
+              ? traverseRes.result.data.results
+              : [];
+        }
+
+        const byId = new Map<string, { title: string; text: string }>();
+        for (const r of initialResults) {
+          if (r.entityId && r.text != null) {
+            byId.set(r.entityId, {
+              title: r.title ?? r.entityId,
+              text: r.text,
+            });
+          }
+        }
+        for (const r of traversedResults) {
+          if (r.entityId && r.text != null && !byId.has(r.entityId)) {
+            byId.set(r.entityId, {
+              title: r.title ?? r.entityId,
+              text: r.text,
+            });
+          }
+        }
+
+        steps.push({
+          task: {
+            id: task.id,
+            title: task.title,
+            completionNotes: task.completionNotes,
+            createdAt: task.createdAt,
+          },
+          entityResults: Array.from(byId.entries()).map(([entityId, v]) => ({
+            entityId,
+            title: v.title,
+            text: v.text,
+          })),
+        });
+      }
+
+      return createToolSuccess(
+        `Readout context for ${steps.length} completed step(s). For each step, write a synthesized submessage using the full entity content; then stitch all submessages into one cohesive session plan. Include the full 'text' of each entity—do not summarize.`,
+        { steps },
+        toolCallId
+      );
+    } catch (error) {
+      console.error("[getSessionReadoutContext] Error:", error);
+      return createToolError(
+        "Failed to get session readout context",
         error instanceof Error ? error.message : String(error),
         500,
         toolCallId

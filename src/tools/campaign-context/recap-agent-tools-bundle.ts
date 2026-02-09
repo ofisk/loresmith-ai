@@ -5,7 +5,10 @@ import {
   getPlanningTaskProgress,
   recordPlanningTasks,
 } from "./planning-task-tools";
-import { generateContextRecapTool } from "./recap-tools";
+import {
+  generateContextRecapTool,
+  getSessionReadoutContext,
+} from "./recap-tools";
 import { searchCampaignContext } from "./search-tools";
 
 export const recapAgentToolsBundle = {
@@ -15,4 +18,5 @@ export const recapAgentToolsBundle = {
   getChecklistStatusTool,
   showCampaignDetails,
   searchCampaignContext,
+  getSessionReadoutContext,
 };
