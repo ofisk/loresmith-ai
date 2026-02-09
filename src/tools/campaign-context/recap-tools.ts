@@ -170,7 +170,7 @@ type SearchResultItem = { entityId?: string; text?: string; title?: string };
  */
 export const getSessionReadoutContext = tool({
   description:
-    "Get full entity-graph context for each completed next step, for building the session plan readout. Call this when the user wants the readout (e.g. 'give me the readout', 'create the plan'). Returns one block per completed task with all relevant entities and connected entities (relationships, communities) so you can write a synthesized submessage per step, then stitch them into one cohesive plan. Use the returned context as the sole source for each step; include full entity 'text' in your reply—do not summarize.",
+    "Get full entity-graph context for each completed next step, for building the session plan readout. Call this when the user wants the readout (e.g. 'give me the readout', 'create the plan'). Returns one block per completed task with task info, an instruction, and entityResults (full text per entity). You MUST include the complete text of every entity in your readout—verbatim, not summarized. You may add headings and weave steps into a cohesive story arc, but the full entity content must appear.",
   inputSchema: getSessionReadoutContextSchema,
   execute: async (
     input: z.infer<typeof getSessionReadoutContextSchema>,
@@ -238,6 +238,7 @@ export const getSessionReadoutContext = tool({
           completionNotes: string | null;
           createdAt: string;
         };
+        instruction: string;
         entityResults: Array<{ entityId: string; title: string; text: string }>;
       }> = [];
 
@@ -360,6 +361,14 @@ export const getSessionReadoutContext = tool({
           }
         }
 
+        const entityResults = Array.from(byId.entries()).map(
+          ([entityId, v]) => ({
+            entityId,
+            title: v.title,
+            text: v.text,
+          })
+        );
+
         steps.push({
           task: {
             id: task.id,
@@ -367,16 +376,14 @@ export const getSessionReadoutContext = tool({
             completionNotes: task.completionNotes,
             createdAt: task.createdAt,
           },
-          entityResults: Array.from(byId.entries()).map(([entityId, v]) => ({
-            entityId,
-            title: v.title,
-            text: v.text,
-          })),
+          instruction:
+            "CRITICAL: In your readout for this step you MUST include the complete text of every entity in entityResults below. Do not summarize, paraphrase, or shorten. Reproduce the full content (Background, Character Traits, Emotional Stakes, NPC Reactions, mechanics, etc.) so the DM has the exact detail at the table. You may add a brief heading or bridge but the full entity text must appear.",
+          entityResults,
         });
       }
 
       return createToolSuccess(
-        `Readout context for ${steps.length} completed step(s). For each step, write a synthesized submessage using the full entity content; then stitch all submessages into one cohesive session plan. Include the full 'text' of each entity—do not summarize.`,
+        `Readout context for ${steps.length} completed step(s). For each step, follow the step's instruction: include the complete text of every entity in entityResults—verbatim, not summarized. You may add headings and weave steps into a cohesive story arc, but the full entity content must appear in the readout.`,
         { steps },
         toolCallId
       );
