@@ -170,7 +170,7 @@ type SearchResultItem = { entityId?: string; text?: string; title?: string };
  */
 export const getSessionReadoutContext = tool({
   description:
-    "Get full entity-graph context for each completed next step, for building the session plan readout. Call this when the user wants the readout (e.g. 'give me the readout', 'create the plan'). Returns one block per completed task with task info, an instruction, and entityResults (full text per entity). You MUST include the complete text of every entity in your readout—verbatim, not summarized. You may add headings and weave steps into a cohesive story arc, but the full entity content must appear.",
+    "Get full entity-graph context for each completed next step, for building the session plan readout. Call this when the user wants the readout (e.g. 'give me the readout', 'create the plan'). Returns one block per completed task with task info, a readoutBlock (preformatted step title + full entity text), and entityResults. You MUST include each step's readoutBlock in your reply IN FULL—do not summarize, shorten, or rewrite it. You may add a one-sentence intro and brief bridges between steps.",
   inputSchema: getSessionReadoutContextSchema,
   execute: async (
     input: z.infer<typeof getSessionReadoutContextSchema>,
@@ -239,6 +239,7 @@ export const getSessionReadoutContext = tool({
           createdAt: string;
         };
         instruction: string;
+        readoutBlock: string;
         entityResults: Array<{ entityId: string; title: string; text: string }>;
       }> = [];
 
@@ -369,6 +370,12 @@ export const getSessionReadoutContext = tool({
           })
         );
 
+        const readoutBlock = [
+          `## ${task.title}`,
+          "",
+          ...entityResults.flatMap((e) => [`### ${e.title}`, "", e.text, ""]),
+        ].join("\n");
+
         steps.push({
           task: {
             id: task.id,
@@ -377,13 +384,14 @@ export const getSessionReadoutContext = tool({
             createdAt: task.createdAt,
           },
           instruction:
-            "CRITICAL: In your readout for this step you MUST include the complete text of every entity in entityResults below. Do not summarize, paraphrase, or shorten. Reproduce the full content (Background, Character Traits, Emotional Stakes, NPC Reactions, mechanics, etc.) so the DM has the exact detail at the table. You may add a brief heading or bridge but the full entity text must appear.",
+            "CRITICAL: Include the readoutBlock below in your reply IN FULL. Do not summarize, paraphrase, shorten, or rewrite it. Paste the readoutBlock content into your readout so the DM gets the exact entity detail (Background, Character Traits, Emotional Stakes, NPC Reactions, etc.) at the table. You may add one short intro sentence before it or a one-sentence bridge after it to the next step.",
+          readoutBlock,
           entityResults,
         });
       }
 
       return createToolSuccess(
-        `Readout context for ${steps.length} completed step(s). For each step, follow the step's instruction: include the complete text of every entity in entityResults—verbatim, not summarized. You may add headings and weave steps into a cohesive story arc, but the full entity content must appear in the readout.`,
+        `Readout context for ${steps.length} completed step(s). For each step, include that step's readoutBlock in your reply IN FULL—do not summarize, edit, or shorten it. The readoutBlock is preformatted with the step title and full entity text. You may add a brief intro before step 1 and one-sentence bridges between steps; do not omit or condense any readoutBlock content.`,
         { steps },
         toolCallId
       );
