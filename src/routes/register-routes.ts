@@ -11,9 +11,15 @@ import {
   handleCheckUserOpenAIKey,
   handleDeleteOpenAIKey,
   handleGetOpenAIKey,
+  handleGoogleAuth,
+  handleGoogleCallback,
+  handleLogin,
   handleLogout,
+  handleRegister,
+  handleResendVerification,
   handleSetOpenAIApiKey,
   handleStoreOpenAIKey,
+  handleVerifyEmail,
   requireUserJwt,
 } from "@/routes/auth";
 import {
@@ -199,6 +205,15 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
 
   app.post(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE, handleAuthenticate);
   app.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT, handleLogout);
+  app.get(API_CONFIG.ENDPOINTS.AUTH.GOOGLE, handleGoogleAuth);
+  app.get(API_CONFIG.ENDPOINTS.AUTH.GOOGLE_CALLBACK, handleGoogleCallback);
+  app.post(API_CONFIG.ENDPOINTS.AUTH.REGISTER, handleRegister);
+  app.post(API_CONFIG.ENDPOINTS.AUTH.LOGIN, handleLogin);
+  app.get(API_CONFIG.ENDPOINTS.AUTH.VERIFY_EMAIL, handleVerifyEmail);
+  app.post(
+    API_CONFIG.ENDPOINTS.AUTH.RESEND_VERIFICATION,
+    handleResendVerification
+  );
   app.get(API_CONFIG.ENDPOINTS.AUTH.GET_OPENAI_KEY, handleGetOpenAIKey);
   app.post(API_CONFIG.ENDPOINTS.AUTH.STORE_OPENAI_KEY, handleStoreOpenAIKey);
   app.delete(

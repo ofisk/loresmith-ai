@@ -246,6 +246,10 @@ export function AppModals({
         username={authState.username}
         storedOpenAIKey={authState.storedOpenAIKey}
         onSubmit={handleAuthenticationSubmit}
+        onLoginSuccess={async (token) => {
+          await authState.acceptToken(token);
+          modalState.setShowAuthModal(false);
+        }}
       />
 
       {/* Create Campaign Modal */}

@@ -130,6 +130,24 @@ export default function Chat() {
   const modalState = useModalState();
   const authState = useAppAuthentication();
 
+  // On load, if URL hash contains #token=... (e.g. after Google OAuth or email verification redirect), store it and clear hash
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash?.replace(/^#/, "") || "";
+    const params = new URLSearchParams(hash);
+    const token = params.get("token");
+    if (token && authState.acceptToken) {
+      authState.acceptToken(token).then(() => {
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + window.location.search
+        );
+        modalState.setShowAuthModal(false);
+      });
+    }
+  }, []);
+
   // Start tour after authentication (only if not completed)
   useEffect(() => {
     console.log(

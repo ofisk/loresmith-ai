@@ -20,6 +20,11 @@ export interface AuthEnv {
   OPENAI_API_KEY?: string;
   ADMIN_SECRET?: string | { get(): Promise<string> };
   Chat: DurableObjectNamespace;
+  GOOGLE_OAUTH_CLIENT_ID?: string | { get(): Promise<string> };
+  GOOGLE_OAUTH_CLIENT_SECRET?: string | { get(): Promise<string> };
+  RESEND_API_KEY?: string | { get(): Promise<string> };
+  APP_ORIGIN?: string;
+  VERIFICATION_EMAIL_FROM?: string;
 }
 
 export interface AuthRequest {

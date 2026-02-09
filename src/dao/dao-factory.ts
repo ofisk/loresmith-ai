@@ -1,5 +1,6 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import { DAOFactoryError } from "@/lib/errors";
+import { AuthUserDAO } from "./auth-user-dao";
 import { CampaignDAO } from "./campaign-dao";
 import { FileDAO } from "./file/file-dao";
 import { ShardDAO } from "./shard-dao";
@@ -26,6 +27,7 @@ interface DatabaseWithKey extends D1Database {
 }
 
 export interface DAOFactory {
+  authUserDAO: AuthUserDAO;
   userDAO: UserDAO;
   campaignDAO: CampaignDAO;
   fileDAO: FileDAO;
@@ -51,6 +53,7 @@ export interface DAOFactory {
 }
 
 export class DAOFactoryImpl implements DAOFactory {
+  public readonly authUserDAO: AuthUserDAO;
   public readonly userDAO: UserDAO;
   public readonly campaignDAO: CampaignDAO;
   public readonly fileDAO: FileDAO;
@@ -68,6 +71,7 @@ export class DAOFactoryImpl implements DAOFactory {
   public readonly planningTaskDAO: PlanningTaskDAO;
 
   constructor(db: D1Database) {
+    this.authUserDAO = new AuthUserDAO(db);
     this.userDAO = new UserDAO(db);
     this.campaignDAO = new CampaignDAO(db);
     this.fileDAO = new FileDAO(db);
