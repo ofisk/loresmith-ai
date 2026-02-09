@@ -271,13 +271,13 @@ const completePlanningTaskSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Brief summary of how the user completed this step (from their messages). Saved so the user can recap completed steps and combine them into a session plan later."
+      "Comprehensive notes for how the user completed this step: include all planning detail from the conversation (NPCs, locations, beats, dialogue, consequences, etc.). Saved for the session plan readout—do not summarize; capture as much as the user provided so the DM has full detail later."
     ),
 });
 
 export const completePlanningTask = tool({
   description:
-    "Mark a planning task (next step) as completed. Use this only after the user has confirmed they want to mark the step done. Always pass completionNotes: a brief summary of how the user completed this step (from their messages) so they can recap later. Call when the user explicitly confirms (e.g. 'yes', 'mark it done').",
+    "Mark a planning task (next step) as completed. Use this only after the user has confirmed they want to mark the step done. Always pass completionNotes: comprehensive notes capturing how the user completed this step—include all planning detail from their messages (not a short summary) so the session plan readout can be highly detailed. Call when the user explicitly confirms (e.g. 'yes', 'mark it done').",
   inputSchema: completePlanningTaskSchema,
   execute: async (
     input: z.infer<typeof completePlanningTaskSchema>,

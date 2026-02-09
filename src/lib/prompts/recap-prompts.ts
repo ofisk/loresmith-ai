@@ -94,7 +94,7 @@ Analyze what appears to be missing or incomplete based on the search results, an
 Be encouraging and helpful, framing these as exciting opportunities to build their campaign world. Prioritize based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).`;
   }
 
-  return `CONTEXT RECAP MODE: You must write the recap narrative using ONLY the data in this message. Do NOT call searchCampaignContext or listAllEntities for the recap. If you already called a tool and got something like "608 entries" or "no specific details", ignore that for the narrative—the recap comes from the data blocks below, not from tool output. Only after you have written the full "Since you were away..." recap and the Open Threads may you call any tools (getPlanningTaskProgress, getChecklistStatus, showCampaignDetails, recordPlanningTasks) for the Next Steps section.
+  return `CONTEXT RECAP MODE: You must write the recap narrative using ONLY the data in this message. Do NOT call searchCampaignContext or listAllEntities for the recap. Only after you have written the full "Since you were away..." recap and the Open Threads may you call any tools (getPlanningTaskProgress, getChecklistStatus, showCampaignDetails, recordPlanningTasks) for the Next Steps section.
 
 Please provide a friendly context recap for this campaign.
 

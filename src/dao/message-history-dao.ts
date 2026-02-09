@@ -104,40 +104,27 @@ export class MessageHistoryDAO extends BaseDAOClass {
       return; // No trimming needed
     }
 
-    // Get the IDs of the most recent N messages for this session
-    const sql = `
-      SELECT id
-      FROM message_history
-      WHERE session_id = ?
-      ORDER BY created_at DESC
-      LIMIT ?
-    `;
-
-    const keepIds = await this.queryAll<{ id: string }>(sql, [
-      sessionId,
-      keepCount,
-    ]);
-
-    if (keepIds.length === 0) {
-      return; // No messages to keep
-    }
-
-    const keepIdList = keepIds.map((r) => r.id);
-
-    // Delete all messages for this session that are NOT in the keep list
-    // Use parameterized query with placeholders
-    const placeholders = keepIdList.map(() => "?").join(",");
+    // Delete all messages for this session except the most recent keepCount.
+    // Use a subquery to avoid exceeding D1's 100-parameter limit (session_id + N keep IDs would exceed it).
     const deleteSql = `
       DELETE FROM message_history
-      WHERE session_id = ? AND id NOT IN (${placeholders})
+      WHERE session_id = ?
+      AND id NOT IN (
+        SELECT id FROM (
+          SELECT id FROM message_history
+          WHERE session_id = ?
+          ORDER BY created_at DESC
+          LIMIT ?
+        )
+      )
     `;
 
-    await this.execute(deleteSql, [sessionId, ...keepIdList]);
+    await this.execute(deleteSql, [sessionId, sessionId, keepCount]);
 
-    const deletedCount = totalCount - keepIds.length;
+    const deletedCount = totalCount - keepCount;
     if (deletedCount > 0) {
       console.log(
-        `[MessageHistoryDAO] Trimmed ${deletedCount} old message(s) for session ${sessionId} (kept ${keepIds.length} most recent)`
+        `[MessageHistoryDAO] Trimmed ${deletedCount} old message(s) for session ${sessionId} (kept ${keepCount} most recent)`
       );
     }
   }

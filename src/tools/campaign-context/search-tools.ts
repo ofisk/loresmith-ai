@@ -148,6 +148,13 @@ const searchCampaignContextSchema = z.object({
     .describe(
       "Maximum number of results to return (default: 15, max: 50). Use pagination (offset) to retrieve additional results if needed. Start with the default limit to avoid token limit issues, then page through if more results are needed."
     ),
+  forSessionReadout: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      "When true, used for session plan readout: return all relevant entities (do not filter to strong name matches only) and remind to include full entity text in the readout. Set to true when building the session plan readout."
+    ),
   jwt: commonSchemas.jwt,
 });
 
@@ -182,6 +189,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
       offset = 0,
       limit = 15,
       searchOriginalFiles = false,
+      forSessionReadout = false,
       jwt,
     } = input;
     const toolCallId = options?.toolCallId ?? "unknown";
@@ -1505,9 +1513,14 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 
         // Filter results to prioritize strong name matches when they exist
         // This ensures queries like "tell me about [entity name]" focus on that specific entity
+        // For session readout we keep all results so encounter-detail entities (e.g. Ambush Mistake Encounter) are not dropped
         // Note: entityNameSimilarityScores and hasStrongNameMatches are declared at function scope (line ~340)
         let finalResults = results;
-        if (hasStrongNameMatches && entityNameSimilarityScores.size > 0) {
+        if (
+          !forSessionReadout &&
+          hasStrongNameMatches &&
+          entityNameSimilarityScores.size > 0
+        ) {
           const nameMatchedResults = results.filter((result) => {
             const nameScore = entityNameSimilarityScores.get(
               result.entityId || ""
@@ -1597,8 +1610,11 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
           }
         }
 
+        const readoutReminder = forSessionReadout
+          ? " For session readout: include the full 'text' of each result in your reply; do not summarize."
+          : "";
         return createToolSuccess(
-          `Found ${totalCount !== undefined ? totalCount : actualResults.length} results for "${query}"${entityTypeLabel}.${sortInfo}${paginationInfo}`,
+          `Found ${totalCount !== undefined ? totalCount : actualResults.length} results for "${query}"${entityTypeLabel}.${sortInfo}${paginationInfo}${readoutReminder}`,
           {
             query,
             queryIntent,

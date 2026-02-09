@@ -10,6 +10,10 @@ import {
   updateRelationshipWorldStateTool,
   recordWorldEventTool,
 } from "../tools/campaign-context/world-state-tools";
+import {
+  getPlanningTaskProgress,
+  recordPlanningTasks,
+} from "../tools/campaign-context/planning-task-tools";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { extractUsernameFromJwt } from "@/tools/utils";
 
@@ -30,12 +34,15 @@ const SESSION_DIGEST_SYSTEM_PROMPT = buildSystemPrompt({
     "Planning Context: Help users plan for upcoming sessions with focus on PC goal advancement",
     "Incremental Building: Build session digests incrementally through conversation",
     "Review Workflow: Guide users through the review process (draft → pending → approved/rejected)",
+    "Next steps from recaps: After a new session recap is saved, read through session recaps and suggest 2–5 new next step tasks (via recordPlanningTasks) so the user can pick them up in Campaign Details.",
   ],
   tools: createToolMappingFromObjects({
     ...sessionDigestTools,
     updateEntityWorldStateTool,
     updateRelationshipWorldStateTool,
     recordWorldEventTool,
+    getPlanningTaskProgress,
+    recordPlanningTasks,
   }),
   workflowGuidelines: [
     "Conversation Style: Be friendly and conversational - guide users naturally through the recap process",
@@ -52,6 +59,7 @@ const SESSION_DIGEST_SYSTEM_PROMPT = buildSystemPrompt({
     "Ask Follow-ups: If information is unclear, ask clarifying questions before asking for confirmation to save",
     "Review Workflow: After creating a digest, explain that it's saved as 'draft' status. Users can submit it for review later, or if they're satisfied, they can use updateSessionDigestTool to mark it as ready.",
     "Template Support: Mention that users can save digests as templates for future use, or use existing templates as a guide when generating new digests.",
+    "After recap saved — suggest next steps: When createSessionDigestTool succeeds, you MUST read through session recaps and suggest 2–5 new next step tasks for the user to pick up. Call listSessionDigestsTool to load recent digests (including the one just created), use the recap content (key events, open threads, next_session_plan, todo_checklist, etc.) to derive concrete, actionable next steps, then call recordPlanningTasks with 2–5 tasks (title and optional description). Tell the user the next steps have been saved and they can view and manage them in Campaign Details under the Next steps tab. CampaignId and jwt are injected from context.",
   ],
   importantNotes: [
     "CRITICAL - Campaign Context: The campaignId is automatically provided from the user's selected campaign. Always use the campaignId parameter when calling createSessionDigestTool - do NOT infer or guess the campaign ID from the user's message text. The campaignId is already available in the tool context.",
@@ -81,6 +89,7 @@ const SESSION_DIGEST_SYSTEM_PROMPT = buildSystemPrompt({
     "Automated Generation Notes: When using generateDigestFromNotesTool, the generated digest will have status 'draft' and generatedByAi=true. The tool automatically extracts state changes from the provided notes/key events. After generation, review the results with the user and offer to make changes before saving. DO NOT ask for state changes again after using generateDigestFromNotesTool - the tool has already extracted them.",
     "Quality Validation: Generated digests may have quality scores calculated. Mention this to users so they understand the system can help validate digest quality.",
     "Campaign Planning Checklist: Reference the Campaign Planning Checklist (especially section 7: Session-by-Session Prep and section 13: Post-Session Review) when helping users plan for upcoming sessions and create session recaps. Use the checklist to ensure comprehensive coverage of session planning elements.",
+    "Next steps after save: When you call recordPlanningTasks after saving a digest, campaignId and jwt are injected from the user's message context—you only need to pass the tasks array. Do not say the next steps have been saved until recordPlanningTasks has succeeded.",
   ],
   specialization: `## Campaign Planning Checklist Reference - Session Planning:
 
@@ -125,6 +134,8 @@ export class SessionDigestAgent extends BaseAgent {
       updateEntityWorldStateTool,
       updateRelationshipWorldStateTool,
       recordWorldEventTool,
+      getPlanningTaskProgress,
+      recordPlanningTasks,
     },
   };
 
@@ -141,6 +152,8 @@ export class SessionDigestAgent extends BaseAgent {
       updateEntityWorldStateTool,
       updateRelationshipWorldStateTool,
       recordWorldEventTool,
+      getPlanningTaskProgress,
+      recordPlanningTasks,
     });
   }
 
