@@ -6,6 +6,16 @@
 ADMIN_SECRET=your_admin_secret_here
 OPENAI_API_KEY=sk-your-openai-api-key-here
 
+# Resend (optional - for verification emails)
+# Get your API key at https://resend.com/api-keys
+# RESEND_API_KEY=re_your_resend_api_key_here
+# VERIFICATION_EMAIL_FROM=LoreSmith <noreply@yourdomain.com>
+
+# Google OAuth (optional - for Google Sign-In)
+# Get these from Google Cloud Console: https://console.cloud.google.com/
+# GOOGLE_OAUTH_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+# GOOGLE_OAUTH_CLIENT_SECRET=your-google-client-secret
+
 # CORS allowed origins (comma-separated list)
 # Development origins for local servers
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
