@@ -149,7 +149,7 @@ const CharacterDataSchema = z.object({
 
 export type CharacterData = z.infer<typeof CharacterDataSchema>;
 
-const MAX_CHUNK_SIZE = 200000; // Characters per chunk for parsing (GPT-4o can handle ~500k, but we use 200k to be safe)
+const MAX_CHUNK_SIZE = 200000; // Characters per chunk for parsing (GPT-5 models can handle large contexts; 200k remains a safe default)
 
 /**
  * Service to extract structured character data from character sheet text.
@@ -226,7 +226,8 @@ export class CharacterSheetParserService {
     const llmProvider = createLLMProvider({
       provider: "openai",
       apiKey: this.openaiApiKey,
-      defaultModel: "gpt-4o",
+      // Use latest frontier model for rich, structured character data
+      defaultModel: "gpt-5.2",
       defaultTemperature: 0.1,
       defaultMaxTokens: 8000, // Allow larger response for comprehensive character data
     });
@@ -234,7 +235,7 @@ export class CharacterSheetParserService {
     const result = await llmProvider.generateStructuredOutput<CharacterData>(
       prompt,
       {
-        model: "gpt-4o",
+        model: "gpt-5.2",
         temperature: 0.1,
         maxTokens: 8000,
       }

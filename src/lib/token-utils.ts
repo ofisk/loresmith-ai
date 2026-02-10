@@ -10,6 +10,10 @@ const CHARS_PER_TOKEN = 4;
 
 // Model context limits (in tokens)
 export const MODEL_CONTEXT_LIMITS = {
+  // Frontier GPT-5 family
+  "gpt-5.2": 400000,
+  "gpt-5-mini": 400000,
+  // Legacy GPT-4 family (kept for backward compatibility / existing data)
   "gpt-4o": 128000,
   "gpt-4o-mini": 128000,
   "gpt-4": 8192,
@@ -117,8 +121,8 @@ export function estimateToolsTokens(tools: Record<string, any>): number {
  */
 export function getModelContextLimit(modelId: string | undefined): number {
   if (!modelId) {
-    // Default to gpt-4o limit if unknown
-    return MODEL_CONTEXT_LIMITS["gpt-4o"];
+    // Default to GPT-5.2 limit if unknown
+    return MODEL_CONTEXT_LIMITS["gpt-5.2"];
   }
 
   // Check for exact match
@@ -126,7 +130,14 @@ export function getModelContextLimit(modelId: string | undefined): number {
     return MODEL_CONTEXT_LIMITS[modelId as keyof typeof MODEL_CONTEXT_LIMITS];
   }
 
-  // Check for model prefix matches
+  // Check for model prefix matches (newer models first)
+  if (modelId.startsWith("gpt-5.2")) {
+    return MODEL_CONTEXT_LIMITS["gpt-5.2"];
+  }
+  if (modelId.startsWith("gpt-5-mini")) {
+    return MODEL_CONTEXT_LIMITS["gpt-5-mini"];
+  }
+  // Check for model prefix matches (legacy)
   if (modelId.startsWith("gpt-4o")) {
     return MODEL_CONTEXT_LIMITS["gpt-4o"];
   }
@@ -140,8 +151,8 @@ export function getModelContextLimit(modelId: string | undefined): number {
     return MODEL_CONTEXT_LIMITS["gpt-3.5-turbo"];
   }
 
-  // Default to gpt-4o limit
-  return MODEL_CONTEXT_LIMITS["gpt-4o"];
+  // Default to GPT-5.2 limit
+  return MODEL_CONTEXT_LIMITS["gpt-5.2"];
 }
 
 /**

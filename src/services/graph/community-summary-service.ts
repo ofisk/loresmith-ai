@@ -13,7 +13,7 @@ import { OpenAIAPIKeyError } from "@/lib/errors";
  */
 const SUMMARY_CONFIG = {
   // LLM Configuration
-  DEFAULT_MODEL: "gpt-4o-mini",
+  DEFAULT_MODEL: "gpt-5-mini",
   DEFAULT_TEMPERATURE: 0.3,
   DEFAULT_MAX_TOKENS: 2000,
   LLM_PROVIDER: "openai" as const,

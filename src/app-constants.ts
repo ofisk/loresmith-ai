@@ -179,13 +179,13 @@ export const MODEL_CONFIG = {
   // OpenAI Models
   OPENAI: {
     // Primary model for chat and general tasks
-    PRIMARY: "gpt-4o-mini",
+    PRIMARY: "gpt-5-mini",
     // Model for metadata generation and analysis
-    ANALYSIS: "gpt-3.5-turbo",
+    ANALYSIS: "gpt-5-mini",
     // Model for metadata analysis (checklist coverage, campaign readiness)
-    METADATA_ANALYSIS: "gpt-4o-mini",
+    METADATA_ANALYSIS: "gpt-5-mini",
     // Model for session planning and script generation
-    SESSION_PLANNING: "gpt-4o",
+    SESSION_PLANNING: "gpt-5.2",
     // Model for embeddings (if using OpenAI embeddings)
     EMBEDDINGS: "text-embedding-3-small",
   },

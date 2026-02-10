@@ -133,7 +133,8 @@ export class CharacterSheetDetectionService {
     const llmProvider = createLLMProvider({
       provider: "openai",
       apiKey: this.openaiApiKey,
-      defaultModel: "gpt-4o-mini", // Use cheaper model for detection
+      // Use GPT-5 mini for efficient detection
+      defaultModel: "gpt-5-mini", // Use cheaper model for detection
       defaultTemperature: 0.1,
       defaultMaxTokens: 500,
     });
@@ -142,7 +143,7 @@ export class CharacterSheetDetectionService {
       await llmProvider.generateStructuredOutput<CharacterSheetDetectionResult>(
         prompt,
         {
-          model: "gpt-4o-mini",
+          model: "gpt-5-mini",
           temperature: 0.1,
           maxTokens: 500,
         }

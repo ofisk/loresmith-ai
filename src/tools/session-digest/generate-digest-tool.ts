@@ -160,7 +160,8 @@ export const generateDigestFromNotesTool = tool({
       const llmProvider = createLLMProvider({
         provider: "openai",
         apiKey: openaiApiKey,
-        defaultModel: "gpt-4o",
+        // Use GPT-5.2 for high-quality structured digest generation
+        defaultModel: "gpt-5.2",
         defaultTemperature: 0.3,
         defaultMaxTokens: 4000,
       });
@@ -171,7 +172,7 @@ export const generateDigestFromNotesTool = tool({
 
       const generatedDigest =
         await llmProvider.generateStructuredOutput<SessionDigestData>(prompt, {
-          model: "gpt-4o",
+          model: "gpt-5.2",
           temperature: 0.3,
           maxTokens: 4000,
         });

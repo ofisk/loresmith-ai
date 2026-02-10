@@ -215,7 +215,7 @@ export class DigestQualityService {
       const llmProvider = createLLMProvider({
         provider: "openai",
         apiKey: this.openaiApiKey,
-        defaultModel: "gpt-4o-mini",
+        defaultModel: "gpt-5-mini",
         defaultTemperature: 0.1,
         defaultMaxTokens: 2000,
       });
@@ -226,7 +226,7 @@ export class DigestQualityService {
         score: number;
         issues: string[];
       }>(prompt, {
-        model: "gpt-4o-mini",
+        model: "gpt-5-mini",
         temperature: 0.1,
         maxTokens: 2000,
       });
@@ -485,7 +485,7 @@ export class DigestQualityService {
     const llmProvider = createLLMProvider({
       provider: "openai",
       apiKey: this.openaiApiKey,
-      defaultModel: "gpt-4o-mini",
+      defaultModel: "gpt-5-mini",
       defaultTemperature: 0.1,
       defaultMaxTokens: 1500,
     });
@@ -494,7 +494,7 @@ export class DigestQualityService {
       const result = await llmProvider.generateStructuredOutput<{
         issues: string[];
       }>(consistencyPrompt, {
-        model: "gpt-4o-mini",
+        model: "gpt-5-mini",
         temperature: 0.1,
         maxTokens: 1500,
       });
@@ -524,7 +524,7 @@ export class DigestQualityService {
       const llmProvider = createLLMProvider({
         provider: "openai",
         apiKey: this.openaiApiKey,
-        defaultModel: "gpt-4o-mini",
+        defaultModel: "gpt-5-mini",
         defaultTemperature: 0.1,
         defaultMaxTokens: 500,
       });
@@ -535,7 +535,7 @@ export class DigestQualityService {
         score: number;
         issues: string[];
       }>(prompt, {
-        model: "gpt-4o-mini",
+        model: "gpt-5-mini",
         temperature: 0.1,
         maxTokens: 500,
       });

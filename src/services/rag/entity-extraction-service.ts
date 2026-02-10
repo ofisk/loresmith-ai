@@ -293,7 +293,8 @@ CONTENT END`;
       const llmProvider = createLLMProvider({
         provider: "openai",
         apiKey,
-        defaultModel: "gpt-4o",
+        // Use latest frontier model for heavy structured extraction
+        defaultModel: "gpt-5.2",
         defaultTemperature: 0.1,
         defaultMaxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
       });
@@ -302,7 +303,7 @@ CONTENT END`;
       const result = await llmProvider.generateStructuredOutput<
         z.infer<typeof EntityExtractionSchema>
       >(prompt, {
-        model: "gpt-4o",
+        model: "gpt-5.2",
         temperature: 0.1,
         maxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
       });

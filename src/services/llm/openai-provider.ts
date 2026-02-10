@@ -27,7 +27,8 @@ export class OpenAIProvider implements LLMProvider {
     }
 
     this.apiKey = apiKey;
-    this.defaultModel = options.defaultModel || "gpt-4o-mini";
+    // Default to GPT-5 mini for general-purpose calls; callers can override per-use.
+    this.defaultModel = options.defaultModel || "gpt-5-mini";
     this.defaultTemperature = options.defaultTemperature ?? 0.3;
     this.defaultMaxTokens = options.defaultMaxTokens ?? 2000;
   }
@@ -127,6 +128,18 @@ export class OpenAIProvider implements LLMProvider {
         requestBody.messages[0].content = `${prompt}\n\nPlease respond with valid JSON only.`;
       }
 
+      // Log high-level request metadata (but NOT the full prompt) to help debug 4xxs
+      try {
+        console.log("[OpenAIProvider] Structured output request", {
+          model,
+          temperature,
+          maxTokens,
+          promptLength: prompt.length,
+        });
+      } catch {
+        // best-effort logging only
+      }
+
       const response = await fetch(
         "https://api.openai.com/v1/chat/completions",
         {
@@ -141,6 +154,36 @@ export class OpenAIProvider implements LLMProvider {
 
       if (!response.ok) {
         const errorText = await response.text();
+
+        // Try to parse standard OpenAI error envelope for richer logging
+        try {
+          const parsed = JSON.parse(errorText) as {
+            error?: {
+              message?: string;
+              type?: string;
+              code?: string | null;
+              param?: string | null;
+            };
+          };
+          console.error("[OpenAIProvider] Structured output HTTP error", {
+            status: response.status,
+            statusText: response.statusText,
+            message: parsed?.error?.message,
+            type: parsed?.error?.type,
+            code: parsed?.error?.code,
+            param: parsed?.error?.param,
+          });
+        } catch {
+          console.error(
+            "[OpenAIProvider] Structured output HTTP error (unparsed body)",
+            {
+              status: response.status,
+              statusText: response.statusText,
+              bodyPreview: errorText.slice(0, 500),
+            }
+          );
+        }
+
         throw new Error(
           `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`
         );

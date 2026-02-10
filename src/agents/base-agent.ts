@@ -913,7 +913,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               // This prevents token overflow by keeping highest priority items
               let trimmedResult = toolResult;
               try {
-                const modelId = this.model?.modelId || "gpt-4o";
+                const modelId = this.model?.modelId || "gpt-5.2";
                 const contextLimit = getSafeContextLimit(modelId);
 
                 // Use a conservative limit for tool results: 30% of context limit

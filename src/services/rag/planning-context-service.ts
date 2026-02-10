@@ -356,7 +356,8 @@ export class PlanningContextService extends BaseRAGService {
       const llmProvider = createLLMProvider({
         provider: "openai",
         apiKey: this.env.OPENAI_API_KEY,
-        defaultModel: "gpt-4o-mini", // Use cheaper model for lightweight extraction
+        // Use GPT-5 mini for lightweight structured extraction
+        defaultModel: "gpt-5-mini", // Use cheaper model for lightweight extraction
         defaultTemperature: 0.1,
         defaultMaxTokens: 500, // Small response for simple extraction
       });
@@ -364,7 +365,7 @@ export class PlanningContextService extends BaseRAGService {
       const result = await llmProvider.generateStructuredOutput<
         z.infer<typeof extractionSchema>
       >(prompt, {
-        model: "gpt-4o-mini",
+        model: "gpt-5-mini",
         temperature: 0.1,
         maxTokens: 500,
       });
