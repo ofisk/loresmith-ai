@@ -565,6 +565,24 @@ export async function handleGoogleCallback(c: Context<{ Bindings: Env }>) {
       );
     }
 
+    // Existing Google user who already chose a username: log in directly
+    if (googleEmail) {
+      const existingUser = await dao.authUserDAO.getUserByEmail(googleEmail);
+      if (existingUser && existingUser.auth_provider === "google") {
+        const authService = getAuthService(c.env);
+        const result = await authService.authenticateUser({
+          username: existingUser.username,
+          openaiApiKey: undefined,
+          adminSecret: undefined,
+        });
+        if (result.success && result.token) {
+          return c.redirect(
+            `${returnUrl}#token=${encodeURIComponent(result.token)}`
+          );
+        }
+      }
+    }
+
     if (!googleEmail) {
       return c.redirect(`${returnUrl}#error=email_required`);
     }
