@@ -6,6 +6,9 @@ import { logger } from "@/lib/logger";
 export function useModalState() {
   // Modal state
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [googlePendingToken, setGooglePendingToken] = useState<string | null>(
+    null
+  );
 
   // Log auth modal state changes for debugging
   useEffect(() => {
@@ -98,6 +101,8 @@ export function useModalState() {
     // Modal state
     showAuthModal,
     setShowAuthModal,
+    googlePendingToken,
+    setGooglePendingToken,
     isCreateCampaignModalOpen,
     setIsCreateCampaignModalOpen,
     isCampaignDetailsModalOpen,

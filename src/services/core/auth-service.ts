@@ -20,13 +20,20 @@ export interface AuthEnv {
   OPENAI_API_KEY?: string;
   ADMIN_SECRET?: string | { get(): Promise<string> };
   Chat: DurableObjectNamespace;
+  GOOGLE_OAUTH_CLIENT_ID?: string | { get(): Promise<string> };
+  GOOGLE_OAUTH_CLIENT_SECRET?: string | { get(): Promise<string> };
+  RESEND_API_KEY?: string | { get(): Promise<string> };
+  APP_ORIGIN?: string;
+  VERIFICATION_EMAIL_FROM?: string;
 }
 
 export interface AuthRequest {
   username: string;
   openaiApiKey?: string;
-  adminSecret?: string; // Made optional
+  adminSecret?: string; // Made optional; ignored when isAdmin is provided
   sessionId?: string;
+  /** When set, used as JWT isAdmin; otherwise adminSecret is checked. */
+  isAdmin?: boolean;
 }
 
 export interface AuthResponse {
@@ -77,7 +84,12 @@ export class AuthService {
    * Authenticate a user and create a JWT token
    */
   async authenticateUser(request: AuthRequest): Promise<AuthResponse> {
-    const { username, openaiApiKey, adminSecret } = request;
+    const {
+      username,
+      openaiApiKey,
+      adminSecret,
+      isAdmin: requestIsAdmin,
+    } = request;
 
     // Validate required fields
     if (!username || typeof username !== "string" || username.trim() === "") {
@@ -87,33 +99,21 @@ export class AuthService {
       };
     }
 
-    // Check if admin key is valid (if provided)
+    // Admin: use DB flag when provided, otherwise fall back to admin key check
     let isAdmin = false;
-    if (adminSecret && adminSecret.trim() !== "") {
+    if (requestIsAdmin !== undefined) {
+      isAdmin = requestIsAdmin;
+    } else if (adminSecret && adminSecret.trim() !== "") {
       let validAdminKey: string | null = null;
-
       try {
-        // Use the same utility function for consistency
         validAdminKey = await getEnvVar(this.env, "ADMIN_SECRET");
       } catch (_error) {
         console.warn(
           "[AuthService] ADMIN_SECRET not available - admin access disabled"
         );
-        // Continue with validAdminKey as null - user will not get admin access
       }
-
-      // Only validate admin status if we have a valid admin key configured
       if (validAdminKey && validAdminKey.trim() !== "") {
         isAdmin = adminSecret.trim() === validAdminKey;
-      } else {
-        console.log(
-          "[AuthService] ADMIN_SECRET not configured - admin access disabled"
-        );
-        console.log(
-          "[AuthService] Users will be treated as non-admin regardless of provided admin key"
-        );
-        // validAdminKey is null/empty, so isAdmin remains false
-        // User will be treated as non-admin regardless of what they provide
       }
     }
 
@@ -192,6 +192,45 @@ export class AuthService {
   ): Promise<AuthPayload | null> {
     const authService = getAuthService(env);
     return authService.extractAuthFromHeader(authHeader);
+  }
+
+  /** Create a short-lived JWT for "choose username" after Google sign-in (no claim). */
+  static async createGooglePendingToken(
+    env: Env,
+    payload: { email: string; sub: string }
+  ): Promise<string> {
+    const authService = getAuthService(env);
+    const secret = await authService.getJwtSecret();
+    return new SignJWT({
+      type: "google-pending",
+      email: payload.email,
+      sub: payload.sub,
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("10m")
+      .sign(secret);
+  }
+
+  /** Verify a Google pending token; returns payload or null. */
+  static async verifyGooglePendingToken(
+    env: Env,
+    token: string
+  ): Promise<{ email: string; sub: string } | null> {
+    try {
+      const authService = getAuthService(env);
+      const secret = await authService.getJwtSecret();
+      const { payload } = await jwtVerify(token, secret);
+      if (payload.type !== "google-pending" || !payload.email || !payload.sub) {
+        return null;
+      }
+      return {
+        email: String(payload.email),
+        sub: String(payload.sub),
+      };
+    } catch {
+      return null;
+    }
   }
 
   /**

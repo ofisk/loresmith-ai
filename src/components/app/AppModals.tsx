@@ -245,7 +245,13 @@ export function AppModals({
         isOpen={modalState.showAuthModal}
         username={authState.username}
         storedOpenAIKey={authState.storedOpenAIKey}
+        googlePendingToken={modalState.googlePendingToken}
         onSubmit={handleAuthenticationSubmit}
+        onLoginSuccess={async (token) => {
+          await authState.acceptToken(token);
+          modalState.setGooglePendingToken(null);
+          modalState.setShowAuthModal(false);
+        }}
       />
 
       {/* Create Campaign Modal */}

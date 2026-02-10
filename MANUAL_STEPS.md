@@ -19,6 +19,13 @@ This document outlines the steps you need to complete manually after running the
 - [ ] **Copy `.dev.vars.template` to `.dev.vars`**
 - [ ] **Set `ADMIN_SECRET`** - Generate a secure random string
 - [ ] **Set `OPENAI_API_KEY`** - Your OpenAI API key
+- [ ] **Google OAuth (optional)** – For "Sign in with Google":
+  - Set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` from [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
+  - Add the callback URL to the OAuth client’s **Authorized redirect URIs**: `http://localhost:8787/auth/google/callback` (and your production Worker URL in production). Do not expose the client secret to the frontend.
+- [ ] **Username/password and email verification (optional)** – For registration and verification emails:
+  - Set `RESEND_API_KEY` (from [Resend](https://resend.com)) to send verification emails.
+  - Set `APP_ORIGIN` (e.g. `http://localhost:5173`) for redirects after verification.
+  - Set `VERIFICATION_EMAIL_FROM` to a verified sender (e.g. `noreply@yourdomain.com`).
 
 ### 3. Cloudflare Secrets Setup
 

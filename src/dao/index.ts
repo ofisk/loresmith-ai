@@ -18,6 +18,12 @@ export type {
   CreateCharacterSheetFormParams,
 } from "./character-sheet-dao";
 export { CharacterSheetDAO } from "./character-sheet-dao";
+export type {
+  AuthUserRow,
+  CreateAuthUserInput,
+  EmailVerificationTokenRow,
+} from "./auth-user-dao";
+export { AuthUserDAO } from "./auth-user-dao";
 export type { DAOFactory } from "./dao-factory";
 // DAO Factory
 export { createDAOFactory, DAOFactoryImpl, getDAOFactory } from "./dao-factory";

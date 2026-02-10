@@ -13,3 +13,16 @@ OPENAI_API_KEY=your-openai-api-key-here
 # Development origins for local servers
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
 
+# Google OAuth (required for "Sign in with Google")
+# Get client ID and secret from Google Cloud Console. Do not expose client secret to the frontend.
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+
+# Username/password auth: email verification (optional; leave empty to disable registration emails)
+# Resend (https://resend.com) API key for sending verification emails
+RESEND_API_KEY=
+# Base URL for verification links (e.g. http://localhost:5173 or https://yourapp.com)
+APP_ORIGIN=http://localhost:5173
+# From address for verification emails (must be verified in Resend)
+VERIFICATION_EMAIL_FROM=noreply@yourdomain.com
+

@@ -192,6 +192,21 @@ export function useAppAuthentication() {
     [checkAuthenticationStatus]
   );
 
+  const acceptToken = useCallback(
+    async (token: string) => {
+      AuthService.storeJwt(token);
+      const payload = AuthService.getJwtPayload();
+      if (payload?.username) {
+        setUsername(payload.username);
+      }
+      clearOpenAIKeyCache();
+      setIsAuthenticated(true);
+      await checkAuthenticationStatus();
+      return true;
+    },
+    [checkAuthenticationStatus]
+  );
+
   const handleLogout = useCallback(async () => {
     try {
       // Call the logout endpoint
@@ -259,6 +274,7 @@ export function useAppAuthentication() {
     getStoredJwt,
     checkAuthenticationStatus,
     handleAuthenticationSubmit,
+    acceptToken,
     handleLogout,
   };
 }

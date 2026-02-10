@@ -57,6 +57,16 @@ CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
 
 # API URL for local development
 VITE_API_URL=http://localhost:8787
+
+# Optional: Google OAuth (Sign in with Google)
+# Get client ID and secret from Google Cloud Console. Add redirect URI: http://localhost:8787/auth/google/callback
+# GOOGLE_OAUTH_CLIENT_ID=
+# GOOGLE_OAUTH_CLIENT_SECRET=
+
+# Optional: Username/password and email verification (Resend)
+# APP_ORIGIN=http://localhost:5173
+# RESEND_API_KEY=
+# VERIFICATION_EMAIL_FROM=noreply@yourdomain.com
 ```
 
 #### B. Update Database ID

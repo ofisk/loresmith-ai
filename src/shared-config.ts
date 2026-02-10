@@ -12,6 +12,25 @@ export const AUTH_CODES = {
   ERROR: 500,
 } as const;
 
+/** Default app origin when APP_ORIGIN env is not set (e.g. local dev) */
+export const DEFAULT_APP_ORIGIN = "http://localhost:5173";
+
+/** Origins allowed as OAuth return_url / redirect targets (Google sign-in, etc.) */
+export const ALLOWED_RETURN_ORIGINS: readonly string[] = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:3000",
+  "http://localhost:8787",
+  "https://loresmith.ai",
+];
+
+/** Google OAuth endpoints */
+export const GOOGLE_OAUTH_URLS = {
+  AUTH: "https://accounts.google.com/o/oauth2/v2/auth",
+  TOKEN: "https://oauth2.googleapis.com/token",
+  USERINFO: "https://www.googleapis.com/oauth2/v2/userinfo",
+} as const;
+
 // Helper function to get API URL from environment variables
 function getApiUrl(env?: any): string {
   // For internal API calls (tools calling the same Worker), use the environment variable
@@ -261,6 +280,13 @@ export const API_CONFIG = {
       GET_OPENAI_KEY: "/get-openai-key",
       STORE_OPENAI_KEY: "/store-openai-key",
       DELETE_OPENAI_KEY: "/delete-openai-key",
+      GOOGLE: "/auth/google",
+      GOOGLE_CALLBACK: "/auth/google/callback",
+      GOOGLE_COMPLETE_SIGNUP: "/auth/google/complete-signup",
+      REGISTER: "/auth/register",
+      LOGIN: "/auth/login",
+      VERIFY_EMAIL: "/auth/verify-email",
+      RESEND_VERIFICATION: "/auth/resend-verification",
     },
     CHAT: {
       SET_OPENAI_KEY: "/chat/set-openai-key",

@@ -15,6 +15,9 @@ describe("BlockingAuthenticationModal", () => {
     );
 
     expect(screen.getByText("Authentication required")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /use api key instead/i })
+    );
     expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/admin key/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/openai api key/i)).toBeInTheDocument();
@@ -43,6 +46,9 @@ describe("BlockingAuthenticationModal", () => {
       />
     );
 
+    fireEvent.click(
+      screen.getByRole("button", { name: /use api key instead/i })
+    );
     const openaiInput = screen.getByLabelText(/openai api key/i);
     await waitFor(() => {
       expect(openaiInput).toHaveValue(
@@ -57,6 +63,9 @@ describe("BlockingAuthenticationModal", () => {
       <BlockingAuthenticationModal isOpen={true} onSubmit={mockOnSubmit} />
     );
 
+    fireEvent.click(
+      screen.getByRole("button", { name: /use api key instead/i })
+    );
     const submitButton = screen.getByRole("button", { name: /sign in/i });
     expect(submitButton).toBeDisabled();
   });
@@ -66,6 +75,9 @@ describe("BlockingAuthenticationModal", () => {
       <BlockingAuthenticationModal isOpen={true} onSubmit={mockOnSubmit} />
     );
 
+    fireEvent.click(
+      screen.getByRole("button", { name: /use api key instead/i })
+    );
     const usernameInput = screen.getByLabelText(/username/i);
     fireEvent.change(usernameInput, { target: { value: "testuser" } });
 
@@ -78,6 +90,9 @@ describe("BlockingAuthenticationModal", () => {
       <BlockingAuthenticationModal isOpen={true} onSubmit={mockOnSubmit} />
     );
 
+    fireEvent.click(
+      screen.getByRole("button", { name: /use api key instead/i })
+    );
     const usernameInput = screen.getByLabelText(/username/i);
     const openaiInput = screen.getByLabelText(/openai api key/i);
 
@@ -97,6 +112,9 @@ describe("BlockingAuthenticationModal", () => {
       <BlockingAuthenticationModal isOpen={true} onSubmit={mockOnSubmit} />
     );
 
+    fireEvent.click(
+      screen.getByRole("button", { name: /use api key instead/i })
+    );
     const usernameInput = screen.getByLabelText(/username/i);
     const adminKeyInput = screen.getByLabelText(/admin key/i);
     const openaiInput = screen.getByLabelText(/openai api key/i);
@@ -129,6 +147,9 @@ describe("BlockingAuthenticationModal", () => {
       <BlockingAuthenticationModal isOpen={true} onSubmit={mockOnSubmit} />
     );
 
+    fireEvent.click(
+      screen.getByRole("button", { name: /use api key instead/i })
+    );
     const usernameInput = screen.getByLabelText(/username/i);
     const openaiInput = screen.getByLabelText(/openai api key/i);
     const submitButton = screen.getByRole("button", { name: /sign in/i });
@@ -156,6 +177,9 @@ describe("BlockingAuthenticationModal", () => {
       <BlockingAuthenticationModal isOpen={true} onSubmit={mockOnSubmit} />
     );
 
+    fireEvent.click(
+      screen.getByRole("button", { name: /use api key instead/i })
+    );
     const usernameInput = screen.getByLabelText(/username/i);
     const openaiInput = screen.getByLabelText(/openai api key/i);
     const submitButton = screen.getByRole("button", { name: /sign in/i });
@@ -169,12 +193,11 @@ describe("BlockingAuthenticationModal", () => {
 
     fireEvent.click(submitButton);
 
-    expect(screen.getByText("Authenticating...")).toBeInTheDocument();
     expect(submitButton).toBeDisabled();
 
     await waitFor(
       () => {
-        expect(screen.queryByText("Authenticating...")).not.toBeInTheDocument();
+        expect(submitButton).not.toBeDisabled();
       },
       { timeout: 200 }
     );

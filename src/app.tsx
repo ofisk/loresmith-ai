@@ -130,6 +130,33 @@ export default function Chat() {
   const modalState = useModalState();
   const authState = useAppAuthentication();
 
+  // On load, if URL hash contains #token=... or #google_pending=... (e.g. after Google OAuth redirect), handle it and clear hash
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash?.replace(/^#/, "") || "";
+    const params = new URLSearchParams(hash);
+    const token = params.get("token");
+    const googlePending = params.get("google_pending");
+    if (token && authState.acceptToken) {
+      authState.acceptToken(token).then(() => {
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + window.location.search
+        );
+        modalState.setShowAuthModal(false);
+      });
+    } else if (googlePending) {
+      modalState.setGooglePendingToken(googlePending);
+      modalState.setShowAuthModal(true);
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + window.location.search
+      );
+    }
+  }, []);
+
   // Start tour after authentication (only if not completed)
   useEffect(() => {
     console.log(
