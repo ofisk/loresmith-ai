@@ -88,4 +88,15 @@ export class AuthUserDAO extends BaseDAOClass {
     const sql = "DELETE FROM email_verification_tokens WHERE username = ?";
     await this.execute(sql, [username]);
   }
+
+  /** Returns the pre-claimed username for a Google email, or null. */
+  async getClaimedUsernameByGoogleEmail(
+    googleEmail: string
+  ): Promise<string | null> {
+    const row = await this.queryFirst<{ username: string }>(
+      "SELECT username FROM oauth_username_claims WHERE google_email = ?",
+      [googleEmail]
+    );
+    return row?.username ?? null;
+  }
 }

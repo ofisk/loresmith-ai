@@ -6,13 +6,20 @@ import { Modal } from "./modal/Modal";
 import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 import { API_CONFIG } from "@/shared-config";
 
-/** Which view the auth modal is showing: method picker, create-account form, sign-in form, or legacy API-key form */
-type AuthModalView = "choice" | "create" | "signin" | "legacy";
+/** Which view the auth modal is showing: method picker, create-account form, sign-in form, legacy API-key form, or Google choose-username */
+type AuthModalView =
+  | "choice"
+  | "create"
+  | "signin"
+  | "legacy"
+  | "google_username";
 
 interface BlockingAuthenticationModalProps {
   isOpen: boolean;
   username?: string;
   storedOpenAIKey?: string;
+  /** When set, show "Choose your username" form to complete Google sign-in */
+  googlePendingToken?: string | null;
   onSubmit: (
     username: string,
     adminKey: string,
@@ -25,6 +32,7 @@ interface BlockingAuthenticationModalProps {
 export function BlockingAuthenticationModal({
   isOpen,
   storedOpenAIKey,
+  googlePendingToken,
   onSubmit,
   onLoginSuccess,
 }: BlockingAuthenticationModalProps) {
@@ -61,7 +69,48 @@ export function BlockingAuthenticationModal({
     }
   }, [isOpen]);
 
+  // When we have a Google pending token, show the choose-username view
+  useEffect(() => {
+    if (isOpen && googlePendingToken) {
+      setView("google_username");
+      setCurrentUsername("");
+      setError(null);
+    }
+  }, [isOpen, googlePendingToken]);
+
   const googleAuthUrl = `${API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.GOOGLE)}?return_url=${encodeURIComponent(typeof window !== "undefined" ? window.location.origin : "")}`;
+
+  const handleGoogleCompleteSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!googlePendingToken || !onLoginSuccess) return;
+    setError(null);
+    setIsLoading(true);
+    try {
+      const res = await fetch(
+        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.GOOGLE_COMPLETE_SIGNUP),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pendingToken: googlePendingToken,
+            username: currentUsername.trim(),
+          }),
+        }
+      );
+      const data = (await res.json()) as { token?: string; error?: string };
+      if (!res.ok) {
+        setError(data.error ?? "Sign-up failed");
+        return;
+      }
+      if (data.token) {
+        await onLoginSuccess(data.token);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmitLegacy = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -238,6 +287,35 @@ export function BlockingAuthenticationModal({
     >
       <div className="p-6 max-w-md mx-auto">
         <h2 className="text-xl font-semibold mb-4">Authentication required</h2>
+
+        {view === "google_username" && googlePendingToken && (
+          <>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              You signed in with Google. Choose a username to finish.
+            </p>
+            <form onSubmit={handleGoogleCompleteSignup} className="space-y-4">
+              <FormField
+                id={usernameId}
+                label="Username"
+                placeholder="2–64 characters, letters, numbers, _ or -"
+                value={currentUsername}
+                onValueChange={(v, _) => setCurrentUsername(v)}
+                disabled={false}
+              />
+              {error && <div className="text-red-500 text-sm">{error}</div>}
+              <PrimaryActionButton
+                type="submit"
+                disabled={
+                  isLoading ||
+                  !currentUsername.trim() ||
+                  currentUsername.trim().length < 2
+                }
+              >
+                {isLoading ? "Continuing…" : "Continue"}
+              </PrimaryActionButton>
+            </form>
+          </>
+        )}
 
         {view === "choice" && (
           <>

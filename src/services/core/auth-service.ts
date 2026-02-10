@@ -199,6 +199,45 @@ export class AuthService {
     return authService.extractAuthFromHeader(authHeader);
   }
 
+  /** Create a short-lived JWT for "choose username" after Google sign-in (no claim). */
+  static async createGooglePendingToken(
+    env: Env,
+    payload: { email: string; sub: string }
+  ): Promise<string> {
+    const authService = getAuthService(env);
+    const secret = await authService.getJwtSecret();
+    return new SignJWT({
+      type: "google-pending",
+      email: payload.email,
+      sub: payload.sub,
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("10m")
+      .sign(secret);
+  }
+
+  /** Verify a Google pending token; returns payload or null. */
+  static async verifyGooglePendingToken(
+    env: Env,
+    token: string
+  ): Promise<{ email: string; sub: string } | null> {
+    try {
+      const authService = getAuthService(env);
+      const secret = await authService.getJwtSecret();
+      const { payload } = await jwtVerify(token, secret);
+      if (payload.type !== "google-pending" || !payload.email || !payload.sub) {
+        return null;
+      }
+      return {
+        email: String(payload.email),
+        sub: String(payload.sub),
+      };
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Get username from Authorization header
    */

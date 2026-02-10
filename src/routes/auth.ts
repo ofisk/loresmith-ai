@@ -541,18 +541,40 @@ export async function handleGoogleCallback(c: Context<{ Bindings: Env }>) {
       email?: string;
       name?: string;
     };
-    // Use stable Google subject id with reserved prefix so it cannot collide with password usernames
-    const username = `google_${userInfo.id ?? crypto.randomUUID()}`;
-    const authService = getAuthService(c.env);
-    const result = await authService.authenticateUser({
-      username,
-      openaiApiKey: undefined,
-      adminSecret: undefined,
-    });
-    if (!result.success || !result.token) {
-      return c.redirect(`${returnUrl}#error=auth_failed`);
+    const googleEmail = userInfo.email?.trim();
+    const googleSub = userInfo.id ?? crypto.randomUUID();
+
+    const dao = getDAOFactory(c.env);
+    const claimedUsername =
+      googleEmail != null
+        ? await dao.authUserDAO.getClaimedUsernameByGoogleEmail(googleEmail)
+        : null;
+
+    if (claimedUsername) {
+      const authService = getAuthService(c.env);
+      const result = await authService.authenticateUser({
+        username: claimedUsername,
+        openaiApiKey: undefined,
+        adminSecret: undefined,
+      });
+      if (!result.success || !result.token) {
+        return c.redirect(`${returnUrl}#error=auth_failed`);
+      }
+      return c.redirect(
+        `${returnUrl}#token=${encodeURIComponent(result.token)}`
+      );
     }
-    return c.redirect(`${returnUrl}#token=${encodeURIComponent(result.token)}`);
+
+    if (!googleEmail) {
+      return c.redirect(`${returnUrl}#error=email_required`);
+    }
+    const pendingToken = await AuthService.createGooglePendingToken(c.env, {
+      email: googleEmail,
+      sub: googleSub,
+    });
+    return c.redirect(
+      `${returnUrl}#google_pending=${encodeURIComponent(pendingToken)}`
+    );
   } catch (error) {
     console.error("Google callback error:", error);
     const returnUrl = (c.env.APP_ORIGIN ?? DEFAULT_APP_ORIGIN) as string;
@@ -567,6 +589,82 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
 /** Reserved prefix for OAuth-derived usernames; password users cannot register usernames starting with this */
 const OAUTH_USERNAME_PREFIX = "google_";
+
+export async function handleGoogleCompleteSignup(
+  c: Context<{ Bindings: Env }>
+) {
+  try {
+    const body = (await c.req.json()) as {
+      pendingToken?: string;
+      username?: string;
+    };
+    const { pendingToken, username } = body;
+    const trimmedUsername = username?.trim() ?? "";
+    if (!pendingToken || !trimmedUsername) {
+      return c.json({ error: "Pending token and username are required." }, 400);
+    }
+    const payload = await AuthService.verifyGooglePendingToken(
+      c.env,
+      pendingToken
+    );
+    if (!payload) {
+      return c.json(
+        {
+          error:
+            "Invalid or expired sign-in link. Please sign in with Google again.",
+        },
+        400
+      );
+    }
+    if (
+      !USERNAME_REGEX.test(trimmedUsername) ||
+      trimmedUsername.toLowerCase().startsWith(OAUTH_USERNAME_PREFIX)
+    ) {
+      return c.json(
+        {
+          error:
+            "Username must be 2–64 characters (letters, numbers, _ or -) and cannot start with the reserved prefix.",
+        },
+        400
+      );
+    }
+    const dao = getDAOFactory(c.env);
+    const existingByUsername =
+      await dao.authUserDAO.getUserByUsername(trimmedUsername);
+    const existingByEmail = await dao.authUserDAO.getUserByEmail(payload.email);
+    if (existingByUsername) {
+      return c.json({ error: "Username is already taken." }, 409);
+    }
+    if (existingByEmail) {
+      return c.json(
+        { error: "An account with this email already exists." },
+        409
+      );
+    }
+    const id = crypto.randomUUID();
+    await dao.authUserDAO.createUser({
+      id,
+      username: trimmedUsername,
+      email: payload.email,
+      passwordHash: null,
+      authProvider: "google",
+    });
+    await dao.authUserDAO.setEmailVerified(trimmedUsername);
+    const authService = getAuthService(c.env);
+    const result = await authService.authenticateUser({
+      username: trimmedUsername,
+      openaiApiKey: undefined,
+      adminSecret: undefined,
+    });
+    if (!result.success || !result.token) {
+      return c.json({ error: "Authentication failed." }, 500);
+    }
+    return c.json({ token: result.token });
+  } catch (error) {
+    console.error("Google complete signup error:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+}
 
 export async function handleRegister(c: Context<{ Bindings: Env }>) {
   try {

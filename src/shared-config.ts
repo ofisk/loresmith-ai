@@ -282,6 +282,7 @@ export const API_CONFIG = {
       DELETE_OPENAI_KEY: "/delete-openai-key",
       GOOGLE: "/auth/google",
       GOOGLE_CALLBACK: "/auth/google/callback",
+      GOOGLE_COMPLETE_SIGNUP: "/auth/google/complete-signup",
       REGISTER: "/auth/register",
       LOGIN: "/auth/login",
       VERIFY_EMAIL: "/auth/verify-email",

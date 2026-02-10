@@ -13,6 +13,7 @@ import {
   handleGetOpenAIKey,
   handleGoogleAuth,
   handleGoogleCallback,
+  handleGoogleCompleteSignup,
   handleLogin,
   handleLogout,
   handleRegister,
@@ -207,6 +208,10 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
   app.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT, handleLogout);
   app.get(API_CONFIG.ENDPOINTS.AUTH.GOOGLE, handleGoogleAuth);
   app.get(API_CONFIG.ENDPOINTS.AUTH.GOOGLE_CALLBACK, handleGoogleCallback);
+  app.post(
+    API_CONFIG.ENDPOINTS.AUTH.GOOGLE_COMPLETE_SIGNUP,
+    handleGoogleCompleteSignup
+  );
   app.post(API_CONFIG.ENDPOINTS.AUTH.REGISTER, handleRegister);
   app.post(API_CONFIG.ENDPOINTS.AUTH.LOGIN, handleLogin);
   app.get(API_CONFIG.ENDPOINTS.AUTH.VERIFY_EMAIL, handleVerifyEmail);
