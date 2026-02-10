@@ -9,6 +9,7 @@ export interface AuthUserRow {
   password_hash: string | null;
   email_verified_at: string | null;
   auth_provider: string;
+  is_admin: number;
   created_at: string;
   updated_at: string;
 }
@@ -19,6 +20,7 @@ export interface CreateAuthUserInput {
   email: string;
   passwordHash: string | null;
   authProvider: AuthProvider;
+  isAdmin?: boolean;
 }
 
 export interface EmailVerificationTokenRow {
@@ -31,8 +33,8 @@ export interface EmailVerificationTokenRow {
 export class AuthUserDAO extends BaseDAOClass {
   async createUser(input: CreateAuthUserInput): Promise<void> {
     const sql = `
-      INSERT INTO users (id, username, email, password_hash, auth_provider, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, current_timestamp, current_timestamp)
+      INSERT INTO users (id, username, email, password_hash, auth_provider, is_admin, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
     `;
     await this.execute(sql, [
       input.id,
@@ -40,6 +42,7 @@ export class AuthUserDAO extends BaseDAOClass {
       input.email,
       input.passwordHash,
       input.authProvider,
+      input.isAdmin ? 1 : 0,
     ]);
   }
 

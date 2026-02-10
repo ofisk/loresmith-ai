@@ -30,8 +30,10 @@ export interface AuthEnv {
 export interface AuthRequest {
   username: string;
   openaiApiKey?: string;
-  adminSecret?: string; // Made optional
+  adminSecret?: string; // Made optional; ignored when isAdmin is provided
   sessionId?: string;
+  /** When set, used as JWT isAdmin; otherwise adminSecret is checked. */
+  isAdmin?: boolean;
 }
 
 export interface AuthResponse {
@@ -82,7 +84,12 @@ export class AuthService {
    * Authenticate a user and create a JWT token
    */
   async authenticateUser(request: AuthRequest): Promise<AuthResponse> {
-    const { username, openaiApiKey, adminSecret } = request;
+    const {
+      username,
+      openaiApiKey,
+      adminSecret,
+      isAdmin: requestIsAdmin,
+    } = request;
 
     // Validate required fields
     if (!username || typeof username !== "string" || username.trim() === "") {
@@ -92,33 +99,21 @@ export class AuthService {
       };
     }
 
-    // Check if admin key is valid (if provided)
+    // Admin: use DB flag when provided, otherwise fall back to admin key check
     let isAdmin = false;
-    if (adminSecret && adminSecret.trim() !== "") {
+    if (requestIsAdmin !== undefined) {
+      isAdmin = requestIsAdmin;
+    } else if (adminSecret && adminSecret.trim() !== "") {
       let validAdminKey: string | null = null;
-
       try {
-        // Use the same utility function for consistency
         validAdminKey = await getEnvVar(this.env, "ADMIN_SECRET");
       } catch (_error) {
         console.warn(
           "[AuthService] ADMIN_SECRET not available - admin access disabled"
         );
-        // Continue with validAdminKey as null - user will not get admin access
       }
-
-      // Only validate admin status if we have a valid admin key configured
       if (validAdminKey && validAdminKey.trim() !== "") {
         isAdmin = adminSecret.trim() === validAdminKey;
-      } else {
-        console.log(
-          "[AuthService] ADMIN_SECRET not configured - admin access disabled"
-        );
-        console.log(
-          "[AuthService] Users will be treated as non-admin regardless of provided admin key"
-        );
-        // validAdminKey is null/empty, so isAdmin remains false
-        // User will be treated as non-admin regardless of what they provide
       }
     }
 

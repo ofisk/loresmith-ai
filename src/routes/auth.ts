@@ -551,11 +551,14 @@ export async function handleGoogleCallback(c: Context<{ Bindings: Env }>) {
         : null;
 
     if (claimedUsername) {
+      const claimedUser =
+        await dao.authUserDAO.getUserByUsername(claimedUsername);
       const authService = getAuthService(c.env);
       const result = await authService.authenticateUser({
         username: claimedUsername,
         openaiApiKey: undefined,
         adminSecret: undefined,
+        isAdmin: !!claimedUser?.is_admin,
       });
       if (!result.success || !result.token) {
         return c.redirect(`${returnUrl}#error=auth_failed`);
@@ -574,6 +577,7 @@ export async function handleGoogleCallback(c: Context<{ Bindings: Env }>) {
           username: existingUser.username,
           openaiApiKey: undefined,
           adminSecret: undefined,
+          isAdmin: !!existingUser.is_admin,
         });
         if (result.success && result.token) {
           return c.redirect(
@@ -666,6 +670,7 @@ export async function handleGoogleCompleteSignup(
       email: payload.email,
       passwordHash: null,
       authProvider: "google",
+      isAdmin: false,
     });
     await dao.authUserDAO.setEmailVerified(trimmedUsername);
     const authService = getAuthService(c.env);
@@ -673,6 +678,7 @@ export async function handleGoogleCompleteSignup(
       username: trimmedUsername,
       openaiApiKey: undefined,
       adminSecret: undefined,
+      isAdmin: false,
     });
     if (!result.success || !result.token) {
       return c.json({ error: "Authentication failed." }, 500);
@@ -741,6 +747,7 @@ export async function handleRegister(c: Context<{ Bindings: Env }>) {
       email: email.trim().toLowerCase(),
       passwordHash,
       authProvider: "password",
+      isAdmin: false,
     });
     const token = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -822,6 +829,7 @@ export async function handleLogin(c: Context<{ Bindings: Env }>) {
       username: user.username,
       openaiApiKey: undefined,
       adminSecret: undefined,
+      isAdmin: !!user.is_admin,
     });
     if (!result.success || !result.token) {
       return c.json({ error: "Authentication failed." }, 500);
@@ -849,11 +857,13 @@ export async function handleVerifyEmail(c: Context<{ Bindings: Env }>) {
     }
     await dao.authUserDAO.setEmailVerified(row.username);
     await dao.authUserDAO.deleteVerificationToken(token);
+    const verifiedUser = await dao.authUserDAO.getUserByUsername(row.username);
     const authService = getAuthService(c.env);
     const result = await authService.authenticateUser({
       username: row.username,
       openaiApiKey: undefined,
       adminSecret: undefined,
+      isAdmin: !!verifiedUser?.is_admin,
     });
     if (result.success && result.token) {
       return c.redirect(
