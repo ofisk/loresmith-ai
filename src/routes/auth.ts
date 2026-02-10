@@ -545,28 +545,6 @@ export async function handleGoogleCallback(c: Context<{ Bindings: Env }>) {
     const googleSub = userInfo.id ?? crypto.randomUUID();
 
     const dao = getDAOFactory(c.env);
-    const claimedUsername =
-      googleEmail != null
-        ? await dao.authUserDAO.getClaimedUsernameByGoogleEmail(googleEmail)
-        : null;
-
-    if (claimedUsername) {
-      const claimedUser =
-        await dao.authUserDAO.getUserByUsername(claimedUsername);
-      const authService = getAuthService(c.env);
-      const result = await authService.authenticateUser({
-        username: claimedUsername,
-        openaiApiKey: undefined,
-        adminSecret: undefined,
-        isAdmin: !!claimedUser?.is_admin,
-      });
-      if (!result.success || !result.token) {
-        return c.redirect(`${returnUrl}#error=auth_failed`);
-      }
-      return c.redirect(
-        `${returnUrl}#token=${encodeURIComponent(result.token)}`
-      );
-    }
 
     // Existing Google user who already chose a username: log in directly
     if (googleEmail) {
