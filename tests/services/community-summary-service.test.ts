@@ -4,6 +4,11 @@ import type { EntityDAO, Entity } from "@/dao/entity-dao";
 import type { CommunitySummaryDAO } from "@/dao/community-summary-dao";
 import type { Community } from "@/dao/community-dao";
 import { OpenAIAPIKeyError } from "@/lib/errors";
+import { createLLMProvider } from "@/services/llm/llm-provider-factory";
+
+vi.mock("@/services/llm/llm-provider-factory", () => ({
+  createLLMProvider: vi.fn(),
+}));
 
 describe("CommunitySummaryService", () => {
   let mockEntityDAO: Partial<EntityDAO>;
@@ -12,6 +17,13 @@ describe("CommunitySummaryService", () => {
   const mockOpenAIKey = "test-openai-key";
 
   beforeEach(() => {
+    vi.mocked(createLLMProvider).mockReturnValue({
+      generateStructuredOutput: vi.fn().mockResolvedValue({
+        name: "Default Community",
+        summary: "Default summary",
+      }),
+    } as any);
+
     mockEntityDAO = {
       getEntityById: vi.fn(),
       getRelationshipsForEntity: vi.fn(),
@@ -133,25 +145,15 @@ describe("CommunitySummaryService", () => {
       (mockSummaryDAO.getSummaryByCommunityId as any).mockResolvedValue(null);
       (mockSummaryDAO.createSummary as any).mockResolvedValue(undefined);
 
-      // Mock OpenAI API response
       const generatedName = "Test Community";
       const generatedSummaryText =
         "This community contains Test Location and Test Character.";
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  name: generatedName,
-                  summary: generatedSummaryText,
-                }),
-              },
-            },
-          ],
+      vi.mocked(createLLMProvider).mockReturnValue({
+        generateStructuredOutput: vi.fn().mockResolvedValue({
+          name: generatedName,
+          summary: generatedSummaryText,
         }),
-      });
+      } as any);
 
       // Mock getSummaryById to return the generated summary
       (mockSummaryDAO.getSummaryById as any).mockResolvedValue({
@@ -221,22 +223,12 @@ describe("CommunitySummaryService", () => {
         updatedAt: new Date().toISOString(),
       });
 
-      // Mock OpenAI API response for structured output
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  name: updatedName,
-                  summary: updatedSummaryText,
-                }),
-              },
-            },
-          ],
+      vi.mocked(createLLMProvider).mockReturnValue({
+        generateStructuredOutput: vi.fn().mockResolvedValue({
+          name: updatedName,
+          summary: updatedSummaryText,
         }),
-      });
+      } as any);
 
       const result = await service.updateSummaryForCommunity(community, {
         openaiApiKey: mockOpenAIKey,
@@ -296,22 +288,12 @@ describe("CommunitySummaryService", () => {
         });
       });
 
-      // Mock OpenAI API response for structured output
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  name: "Test Community",
-                  summary: "Test summary",
-                }),
-              },
-            },
-          ],
+      vi.mocked(createLLMProvider).mockReturnValue({
+        generateStructuredOutput: vi.fn().mockResolvedValue({
+          name: "Test Community",
+          summary: "Test summary",
         }),
-      });
+      } as any);
 
       const results = await service.generateSummariesForCommunities(
         communities,
@@ -375,22 +357,12 @@ describe("CommunitySummaryService", () => {
         updatedAt: new Date().toISOString(),
       });
 
-      // Mock OpenAI API response for structured output
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  name: "Community 2",
-                  summary: "Test summary",
-                }),
-              },
-            },
-          ],
+      vi.mocked(createLLMProvider).mockReturnValue({
+        generateStructuredOutput: vi.fn().mockResolvedValue({
+          name: "Community 2",
+          summary: "Test summary",
         }),
-      });
+      } as any);
 
       const results = await service.generateSummariesForCommunities(
         communities,
