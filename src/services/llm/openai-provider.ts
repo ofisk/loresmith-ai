@@ -41,8 +41,26 @@ export class OpenAIProvider implements LLMProvider {
     const model = options.model || this.defaultModel;
     const temperature = options.temperature ?? this.defaultTemperature;
     const maxTokens = options.maxTokens ?? this.defaultMaxTokens;
+    const usesCompletionTokensParam = model.startsWith("gpt-5");
 
     try {
+      const requestBody: any = {
+        model,
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature,
+      };
+
+      if (usesCompletionTokensParam) {
+        requestBody.max_completion_tokens = maxTokens;
+      } else {
+        requestBody.max_tokens = maxTokens;
+      }
+
       const response = await fetch(
         "https://api.openai.com/v1/chat/completions",
         {
@@ -51,17 +69,7 @@ export class OpenAIProvider implements LLMProvider {
             "Content-Type": "application/json",
             Authorization: `Bearer ${this.apiKey}`,
           },
-          body: JSON.stringify({
-            model,
-            messages: [
-              {
-                role: "user",
-                content: prompt,
-              },
-            ],
-            temperature,
-            max_tokens: maxTokens,
-          }),
+          body: JSON.stringify(requestBody),
         }
       );
 
@@ -98,6 +106,7 @@ export class OpenAIProvider implements LLMProvider {
     const model = options.model || this.defaultModel;
     const temperature = options.temperature ?? this.defaultTemperature;
     const maxTokens = options.maxTokens ?? this.defaultMaxTokens;
+    const usesCompletionTokensParam = model.startsWith("gpt-5");
 
     try {
       // For structured output, use JSON mode via response_format
@@ -110,8 +119,13 @@ export class OpenAIProvider implements LLMProvider {
           },
         ],
         temperature,
-        max_tokens: maxTokens,
       };
+
+      if (usesCompletionTokensParam) {
+        requestBody.max_completion_tokens = maxTokens;
+      } else {
+        requestBody.max_tokens = maxTokens;
+      }
 
       // Use JSON mode for structured output (supported by GPT-4o and newer models)
       // OpenAI's JSON mode requires the prompt to explicitly request JSON format
@@ -144,64 +158,105 @@ export class OpenAIProvider implements LLMProvider {
         // best-effort logging only
       }
 
-      const response = await fetch(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${this.apiKey}`,
-          },
-          body: JSON.stringify(requestBody),
-        }
-      );
+      const doRequest = async (body: any, context: { isFallback: boolean }) => {
+        const response = await fetch(
+          "https://api.openai.com/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${this.apiKey}`,
+            },
+            body: JSON.stringify(body),
+          }
+        );
 
-      if (!response.ok) {
-        // Capture request ID for correlation with OpenAI logs/support
-        const requestId =
-          response.headers.get("x-request-id") ||
-          response.headers.get("openai-request-id") ||
-          null;
+        if (!response.ok) {
+          // Capture request ID for correlation with OpenAI logs/support
+          const requestId =
+            response.headers.get("x-request-id") ||
+            response.headers.get("openai-request-id") ||
+            null;
 
-        const errorText = await response.text();
+          const errorText = await response.text();
 
-        // Try to parse standard OpenAI error envelope for richer logging
-        try {
-          const parsed = JSON.parse(errorText) as {
+          // Try to parse standard OpenAI error envelope for richer logging
+          let parsedError: {
             error?: {
               message?: string;
               type?: string;
               code?: string | null;
               param?: string | null;
             };
-          };
-          console.error("[OpenAIProvider] Structured output HTTP error", {
-            status: response.status,
-            statusText: response.statusText,
-            message: parsed?.error?.message,
-            type: parsed?.error?.type,
-            code: parsed?.error?.code,
-            param: parsed?.error?.param,
-            requestId,
-          });
-        } catch {
-          console.error(
-            "[OpenAIProvider] Structured output HTTP error (unparsed body)",
-            {
+          } | null = null;
+
+          try {
+            parsedError = JSON.parse(errorText) as {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string | null;
+                param?: string | null;
+              };
+            };
+            console.error("[OpenAIProvider] Structured output HTTP error", {
               status: response.status,
               statusText: response.statusText,
+              message: parsedError?.error?.message,
+              type: parsedError?.error?.type,
+              code: parsedError?.error?.code,
+              param: parsedError?.error?.param,
               requestId,
-              bodyPreview: errorText.slice(0, 500),
-            }
+              isFallback: context.isFallback,
+            });
+          } catch {
+            console.error(
+              "[OpenAIProvider] Structured output HTTP error (unparsed body)",
+              {
+                status: response.status,
+                statusText: response.statusText,
+                requestId,
+                isFallback: context.isFallback,
+                bodyPreview: errorText.slice(0, 500),
+              }
+            );
+          }
+
+          const isGeneric400 =
+            response.status === 400 &&
+            (!parsedError?.error?.message ||
+              parsedError.error.message === "Bad Request") &&
+            !parsedError?.error?.type &&
+            !parsedError?.error?.code;
+
+          // If JSON mode appears to be triggering a generic 400, retry once without response_format
+          if (
+            !context.isFallback &&
+            isGeneric400 &&
+            body.response_format !== undefined
+          ) {
+            console.warn(
+              "[OpenAIProvider] Structured output generic 400 in JSON mode, retrying without response_format",
+              {
+                model,
+                maxTokens,
+                requestId,
+              }
+            );
+            const fallbackBody: any = { ...body };
+            delete fallbackBody.response_format;
+            return doRequest(fallbackBody, { isFallback: true });
+          }
+
+          throw new Error(
+            `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`
           );
         }
 
-        throw new Error(
-          `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`
-        );
-      }
+        return (await response.json()) as any;
+      };
 
-      const result = (await response.json()) as any;
+      const result = await doRequest(requestBody, { isFallback: false });
       const content = result.choices?.[0]?.message?.content;
 
       if (!content) {
