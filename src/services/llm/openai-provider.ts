@@ -4,6 +4,7 @@ import type {
   StructuredOutputOptions,
 } from "./llm-provider";
 import { OpenAIAPIKeyError } from "@/lib/errors";
+import { MODEL_CONFIG } from "@/app-constants";
 
 /**
  * OpenAI provider implementation for LLM generation
@@ -27,8 +28,8 @@ export class OpenAIProvider implements LLMProvider {
     }
 
     this.apiKey = apiKey;
-    // Default to GPT-5 mini for general-purpose calls; callers can override per-use.
-    this.defaultModel = options.defaultModel || "gpt-5-mini";
+    // Default to centralized primary model for general-purpose calls; callers can override per-use.
+    this.defaultModel = options.defaultModel || MODEL_CONFIG.OPENAI.PRIMARY;
     this.defaultTemperature = options.defaultTemperature ?? 0.3;
     this.defaultMaxTokens = options.defaultMaxTokens ?? 2000;
   }

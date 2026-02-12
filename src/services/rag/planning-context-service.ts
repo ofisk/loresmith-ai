@@ -5,6 +5,7 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
+import { MODEL_CONFIG } from "@/app-constants";
 import { PLANNING_CONTEXT_PROMPTS } from "@/lib/prompts/planning-context-prompts";
 import type { EntityNeighbor, Entity } from "@/dao/entity-dao";
 import { z } from "zod";
@@ -356,8 +357,8 @@ export class PlanningContextService extends BaseRAGService {
       const llmProvider = createLLMProvider({
         provider: "openai",
         apiKey: this.env.OPENAI_API_KEY,
-        // Use GPT-5 mini for lightweight structured extraction
-        defaultModel: "gpt-5-mini", // Use cheaper model for lightweight extraction
+        // Use centralized analysis model for lightweight structured extraction
+        defaultModel: MODEL_CONFIG.OPENAI.ANALYSIS,
         defaultTemperature: 0.1,
         defaultMaxTokens: 500, // Small response for simple extraction
       });
@@ -365,7 +366,7 @@ export class PlanningContextService extends BaseRAGService {
       const result = await llmProvider.generateStructuredOutput<
         z.infer<typeof extractionSchema>
       >(prompt, {
-        model: "gpt-5-mini",
+        model: MODEL_CONFIG.OPENAI.ANALYSIS,
         temperature: 0.1,
         maxTokens: 500,
       });

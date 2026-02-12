@@ -2,6 +2,7 @@
 // Detects if extracted text content is a character sheet (filetype & game-system agnostic)
 
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
+import { MODEL_CONFIG } from "@/app-constants";
 import { z } from "zod";
 import { parseOrThrow } from "@/lib/zod-utils";
 import { chunkTextByCharacterCount } from "@/lib/text-chunking-utils";
@@ -133,8 +134,8 @@ export class CharacterSheetDetectionService {
     const llmProvider = createLLMProvider({
       provider: "openai",
       apiKey: this.openaiApiKey,
-      // Use GPT-5 mini for efficient detection
-      defaultModel: "gpt-5-mini", // Use cheaper model for detection
+      // Use centralized analysis model for efficient detection
+      defaultModel: MODEL_CONFIG.OPENAI.ANALYSIS,
       defaultTemperature: 0.1,
       defaultMaxTokens: 500,
     });
@@ -143,7 +144,7 @@ export class CharacterSheetDetectionService {
       await llmProvider.generateStructuredOutput<CharacterSheetDetectionResult>(
         prompt,
         {
-          model: "gpt-5-mini",
+          model: MODEL_CONFIG.OPENAI.ANALYSIS,
           temperature: 0.1,
           maxTokens: 500,
         }
