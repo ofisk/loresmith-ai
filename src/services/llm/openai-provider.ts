@@ -229,6 +229,31 @@ export class OpenAIProvider implements LLMProvider {
             !parsedError?.error?.type &&
             !parsedError?.error?.code;
 
+          // Log exact request body for reproduction (curl / OpenAI support) when we see generic 400.
+          // Cap logged payload size to avoid exceeding Cloudflare Workers 256KB log limit.
+          const REPRODUCTION_PAYLOAD_MAX_LOG_BYTES = 100 * 1024; // 100KB
+          if (isGeneric400) {
+            const payloadJson = JSON.stringify(body);
+            const payloadBytes = new TextEncoder().encode(payloadJson).length;
+            const label = context.isFallback
+              ? "no JSON mode (fallback)"
+              : "JSON mode";
+            console.warn(
+              `[OpenAIProvider] Reproduction payload (requestId: ${requestId}, ${label}). Save the JSON below to a file (e.g. payload.json) and run: curl -X POST https://api.openai.com/v1/chat/completions -H "Authorization: Bearer \\$OPENAI_API_KEY" -H "Content-Type: application/json" -d @payload.json`
+            );
+            if (payloadBytes <= REPRODUCTION_PAYLOAD_MAX_LOG_BYTES) {
+              console.warn(
+                "[OpenAIProvider] --- BEGIN REPRODUCTION PAYLOAD ---"
+              );
+              console.warn(payloadJson);
+              console.warn("[OpenAIProvider] --- END REPRODUCTION PAYLOAD ---");
+            } else {
+              console.warn(
+                `[OpenAIProvider] Payload too large to log (${payloadBytes} bytes > ${REPRODUCTION_PAYLOAD_MAX_LOG_BYTES}). Use requestId ${requestId} to correlate; attach request body from application code if needed.`
+              );
+            }
+          }
+
           // If JSON mode appears to be triggering a generic 400, retry once without response_format
           if (
             !context.isFallback &&
