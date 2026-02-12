@@ -100,7 +100,7 @@ export class OpenAIProvider implements LLMProvider {
     const maxTokens = options.maxTokens ?? this.defaultMaxTokens;
 
     try {
-      // For structured output, use response_format with JSON schema
+      // For structured output, use JSON mode via response_format
       const requestBody: any = {
         model,
         messages: [
@@ -113,7 +113,7 @@ export class OpenAIProvider implements LLMProvider {
         max_tokens: maxTokens,
       };
 
-      // Use JSON mode for structured output (GPT-4o and newer models support this)
+      // Use JSON mode for structured output (supported by GPT-4o and newer models)
       // OpenAI's JSON mode requires the prompt to explicitly request JSON format
       requestBody.response_format = { type: "json_object" };
 
@@ -136,6 +136,9 @@ export class OpenAIProvider implements LLMProvider {
           temperature,
           maxTokens,
           promptLength: prompt.length,
+          hasJsonInstruction,
+          messageCount: requestBody.messages.length,
+          requestBodySize: JSON.stringify(requestBody).length,
         });
       } catch {
         // best-effort logging only
@@ -154,6 +157,12 @@ export class OpenAIProvider implements LLMProvider {
       );
 
       if (!response.ok) {
+        // Capture request ID for correlation with OpenAI logs/support
+        const requestId =
+          response.headers.get("x-request-id") ||
+          response.headers.get("openai-request-id") ||
+          null;
+
         const errorText = await response.text();
 
         // Try to parse standard OpenAI error envelope for richer logging
@@ -173,6 +182,7 @@ export class OpenAIProvider implements LLMProvider {
             type: parsed?.error?.type,
             code: parsed?.error?.code,
             param: parsed?.error?.param,
+            requestId,
           });
         } catch {
           console.error(
@@ -180,6 +190,7 @@ export class OpenAIProvider implements LLMProvider {
             {
               status: response.status,
               statusText: response.statusText,
+              requestId,
               bodyPreview: errorText.slice(0, 500),
             }
           );
