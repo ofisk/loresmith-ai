@@ -14,7 +14,7 @@ describe("BlockingAuthenticationModal", () => {
       <BlockingAuthenticationModal isOpen={true} onSubmit={mockOnSubmit} />
     );
 
-    expect(screen.getByText("Authentication required")).toBeInTheDocument();
+    expect(screen.getByText("Welcome to LoreSmith")).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: /use api key instead/i })
     );
@@ -31,9 +31,7 @@ describe("BlockingAuthenticationModal", () => {
       <BlockingAuthenticationModal isOpen={false} onSubmit={mockOnSubmit} />
     );
 
-    expect(
-      screen.queryByText("Authentication required")
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Welcome to LoreSmith")).not.toBeInTheDocument();
   });
 
   it("should prefill OpenAI key when storedOpenAIKey is provided", async () => {

@@ -3,8 +3,8 @@ import { useEffect, useId, useState } from "react";
 import { PrimaryActionButton } from "./button";
 import { FormField } from "./input/FormField";
 import { Modal } from "./modal/Modal";
-import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 import { API_CONFIG } from "@/shared-config";
+import loresmith from "@/assets/loresmith.png";
 
 /** Which view the auth modal is showing: method picker, create-account form, sign-in form, legacy API-key form, or Google choose-username */
 type AuthModalView =
@@ -275,6 +275,12 @@ export function BlockingAuthenticationModal({
     ? `${storedOpenAIKey.substring(0, 8)}...${storedOpenAIKey.substring(storedOpenAIKey.length - 4)}`
     : "";
 
+  // Dynamic modal size based on view - legacy view needs more height
+  const modalSize =
+    view === "legacy"
+      ? { width: 600, height: 750 }
+      : { width: 600, height: 600 };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -283,11 +289,9 @@ export function BlockingAuthenticationModal({
       showCloseButton={false}
       allowEscape={false}
       animatedBackground={true}
-      cardStyle={STANDARD_MODAL_SIZE_OBJECT}
+      cardStyle={modalSize}
     >
-      <div className="p-6 max-w-md mx-auto">
-        <h2 className="text-xl font-semibold mb-4">Authentication required</h2>
-
+      <div className="p-6 max-w-md mx-auto flex flex-col justify-center min-h-full">
         {view === "google_username" && googlePendingToken && (
           <>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -319,6 +323,24 @@ export function BlockingAuthenticationModal({
 
         {view === "choice" && (
           <>
+            <div className="mb-6">
+              <div className="flex items-center gap-3 mb-4">
+                <img
+                  src={loresmith}
+                  alt="LoreSmith"
+                  width={48}
+                  height={48}
+                  className="object-contain"
+                />
+                <h3 className="text-3xl font-bold tracking-tight bg-gradient-to-br from-purple-600 to-blue-600 dark:from-purple-400 dark:to-blue-400 bg-clip-text text-transparent">
+                  Welcome to LoreSmith
+                </h3>
+              </div>
+              <p className="text-base text-gray-600 dark:text-gray-400 leading-relaxed">
+                Create rich campaign worlds, collaborate with AI, and bring your
+                stories to life
+              </p>
+            </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Sign in with Google or use a username and password.
             </p>
@@ -622,25 +644,25 @@ export function BlockingAuthenticationModal({
                 </button>
               </div>
             </form>
+
+            <div className="text-xs text-gray-500 mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+              <p className="font-medium mb-1">
+                🔮 What awaits you beyond these gates?
+              </p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>
+                  Your OpenAI API key can be stored in the vaults of LoreSmith
+                </li>
+                <li>Converse with wise AI agents about your grand campaigns</li>
+                <li>Upload and manage documents for your adventures</li>
+                <li>
+                  <strong>Storage Limits:</strong> 20MB for regular users,
+                  unlimited for admin users
+                </li>
+              </ul>
+            </div>
           </>
         )}
-
-        <div className="text-xs text-gray-500 mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
-          <p className="font-medium mb-1">
-            🔮 What awaits you beyond these gates?
-          </p>
-          <ul className="list-disc list-inside space-y-1">
-            <li>
-              Your OpenAI API key can be stored in the vaults of LoreSmith
-            </li>
-            <li>Converse with wise AI agents about your grand campaigns</li>
-            <li>Upload and manage documents for your adventures</li>
-            <li>
-              <strong>Storage Limits:</strong> 20MB for regular users, unlimited
-              for admin users
-            </li>
-          </ul>
-        </div>
       </div>
     </Modal>
   );

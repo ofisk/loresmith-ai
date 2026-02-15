@@ -17,6 +17,8 @@ export interface UseNotificationStreamOptions {
   onError?: (error: string) => void;
   /** Trigger to restart the connection (e.g., when authentication completes) */
   reconnectTrigger?: any;
+  /** Whether the stream should be enabled (default: true) */
+  enabled?: boolean;
 }
 
 /**
@@ -442,6 +444,15 @@ export function useNotificationStream(
   useEffect(() => {
     isMountedRef.current = true;
 
+    // Skip connection if explicitly disabled
+    const enabled = optsRef.current.enabled !== false;
+    if (!enabled) {
+      console.log(
+        "[useNotificationStream] Stream disabled, skipping connection"
+      );
+      return;
+    }
+
     const initConnection = async () => {
       try {
         await connect();
@@ -465,7 +476,7 @@ export function useNotificationStream(
       isMountedRef.current = false;
       disconnect();
     };
-  }, [connect, disconnect]);
+  }, [connect, disconnect, options.enabled]);
 
   return {
     ...state,
