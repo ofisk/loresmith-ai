@@ -1,9 +1,10 @@
 import type React from "react";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 import type { NotificationPayload } from "../../durable-objects/notification-hub";
 import { NOTIFICATION_TYPES } from "../../constants/notification-types";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
+import { JWT_STORAGE_KEY } from "@/app-constants";
 
 interface NotificationContextType {
   notifications: NotificationPayload[];
@@ -31,6 +32,21 @@ export function NotificationProvider({
   const [activeNotifications, setActiveNotifications] = useState<
     NotificationPayload[]
   >([]);
+
+  // Check if user has a token (fallback if isAuthenticated not provided)
+  const [hasToken, setHasToken] = useState(() => {
+    if (typeof isAuthenticated === "boolean") return isAuthenticated;
+    return !!localStorage.getItem(JWT_STORAGE_KEY);
+  });
+
+  // Update hasToken when isAuthenticated changes
+  useEffect(() => {
+    if (typeof isAuthenticated === "boolean") {
+      setHasToken(isAuthenticated);
+    }
+  }, [isAuthenticated]);
+
+  const shouldConnect = hasToken;
 
   const { notifications, isConnected, error, clearNotifications } =
     useNotificationStream({
@@ -194,7 +210,8 @@ export function NotificationProvider({
           setActiveNotifications((prev) => [notification, ...prev]);
         }
       },
-      reconnectTrigger: isAuthenticated, // Trigger reconnection when auth state changes
+      reconnectTrigger: shouldConnect, // Trigger reconnection when auth state changes
+      enabled: shouldConnect, // Only connect if authenticated
     });
 
   const dismissNotification = (timestamp: number) => {
@@ -221,8 +238,8 @@ export function NotificationProvider({
 
       {/* Bell is rendered by the top bar consumer to avoid overlap */}
 
-      {/* Connection status indicator */}
-      {!isConnected && (
+      {/* Connection status indicator - only show if authenticated */}
+      {!isConnected && shouldConnect && (
         <div className="fixed bottom-4 right-4 z-[99998]">
           <div className="bg-yellow-900/20 border border-yellow-700/30 text-yellow-300 px-3 py-2 rounded shadow">
             <div className="flex items-center space-x-2">
