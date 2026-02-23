@@ -21,6 +21,7 @@ import { useModalState } from "@/hooks/useModalState";
 import { useAppAuthentication } from "@/hooks/useAppAuthentication";
 import { useCampaignAddition } from "@/hooks/useCampaignAddition";
 import { useAppState } from "@/hooks/useAppState";
+import { useChatSessions } from "@/hooks/useChatSessions";
 import { useUiHints } from "@/hooks/useUiHints";
 import { useGlobalShardManager } from "@/hooks/useGlobalShardManager";
 import { ShardOverlay } from "@/components/shard/ShardOverlay";
@@ -218,6 +219,14 @@ export default function Chat() {
     setSelectedCampaignId,
     refetch: refetchCampaigns,
   } = useCampaigns();
+  const {
+    sessions: chatSessions,
+    loading: chatSessionsLoading,
+    error: chatSessionsError,
+  } = useChatSessions({
+    isAuthenticated: authState.isAuthenticated,
+    getJwt: authState.getStoredJwt,
+  });
   const {
     allNotifications,
     addLocalNotification,
@@ -515,14 +524,23 @@ export default function Chat() {
     }, 100);
   };
 
+  // Switch to a different chat session (reload so DO and history load for that session)
+  const handleSelectChatSession = useCallback((sessionId: string) => {
+    localStorage.setItem("chat-session-id", sessionId);
+    window.location.reload();
+  }, []);
+
+  // Start a new chat session (same as clear + new session)
+  const handleNewChat = useCallback(() => {
+    const freshSessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    localStorage.setItem("chat-session-id", freshSessionId);
+    window.location.reload();
+  }, []);
+
   // Enhanced clear history function that creates a new session
   const handleClearHistory = () => {
     clearHistory();
-    // Create a completely fresh chat session
-    const freshSessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-    localStorage.setItem("chat-session-id", freshSessionId);
-    // Reload the page to reinitialize with the new session ID
-    window.location.reload();
+    handleNewChat();
   };
 
   // Handle help button: invoke the chat agent for intelligent, docs-aware help (no static content)
@@ -811,8 +829,7 @@ export default function Chat() {
           },
           {
             target: ".tour-sidebar",
-            content:
-              "Sidebar: this contains your campaigns and resource library.",
+            content: "Sidebar: this contains campaigns and resource library.",
             placement: "right",
           },
           {
@@ -1013,6 +1030,12 @@ export default function Chat() {
               onEditFile={modalState.handleEditFile}
               campaignAdditionProgress={campaignAdditionProgress}
               isAddingToCampaigns={isAddingToCampaigns}
+              chatSessions={chatSessions}
+              chatSessionsLoading={chatSessionsLoading}
+              chatSessionsError={chatSessionsError}
+              currentChatSessionId={sessionId}
+              onSelectChatSession={handleSelectChatSession}
+              onNewChat={handleNewChat}
             />
 
             <div className="flex-1 flex flex-col min-h-0">

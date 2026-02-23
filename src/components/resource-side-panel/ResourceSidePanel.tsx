@@ -4,7 +4,9 @@ import { useCampaignManagement } from "@/hooks/useCampaignManagement";
 import { AuthService } from "@/services/core/auth-service";
 import type { Campaign } from "@/types/campaign";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
+import type { ChatSessionSummary } from "@/hooks/useChatSessions";
 import { CampaignsSection } from "./CampaignsSection";
+import { ChatsSection } from "./ChatsSection";
 import { LibrarySection } from "./LibrarySection";
 
 interface ResourceSidePanelProps {
@@ -24,6 +26,13 @@ interface ResourceSidePanelProps {
   onEditFile?: (file: ResourceFileWithCampaigns) => void;
   campaignAdditionProgress?: Record<string, number>;
   isAddingToCampaigns?: boolean;
+  /** Chat sessions for sidebar (past chats). When provided, Chats section is shown. */
+  chatSessions?: ChatSessionSummary[];
+  chatSessionsLoading?: boolean;
+  chatSessionsError?: string | null;
+  currentChatSessionId?: string | null;
+  onSelectChatSession?: (sessionId: string) => void;
+  onNewChat?: () => void;
 }
 
 export function ResourceSidePanel({
@@ -43,9 +52,16 @@ export function ResourceSidePanel({
   onEditFile,
   campaignAdditionProgress = {},
   isAddingToCampaigns = false,
+  chatSessions = [],
+  chatSessionsLoading = false,
+  chatSessionsError = null,
+  currentChatSessionId = null,
+  onSelectChatSession,
+  onNewChat,
 }: ResourceSidePanelProps) {
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isCampaignsOpen, setIsCampaignsOpen] = useState(false);
+  const [isChatsOpen, setIsChatsOpen] = useState(true);
 
   const {
     campaigns: managedCampaigns,
@@ -78,6 +94,22 @@ export function ResourceSidePanel({
     >
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+        {/* Chats Section - past chats / new chat */}
+        {isAuthenticated && (
+          <ChatsSection
+            sessions={chatSessions}
+            loading={chatSessionsLoading}
+            error={chatSessionsError}
+            currentSessionId={currentChatSessionId}
+            onToggle={() => setIsChatsOpen(!isChatsOpen)}
+            isOpen={isChatsOpen}
+            onSelectSession={(id) => {
+              onSelectChatSession?.(id);
+            }}
+            onNewChat={() => onNewChat?.()}
+          />
+        )}
+
         {/* Campaigns Section */}
         <CampaignsSection
           campaigns={managedCampaigns}
@@ -87,6 +119,7 @@ export function ResourceSidePanel({
           isOpen={isCampaignsOpen}
           onCreateCampaign={onCreateCampaign || (() => {})}
           onCampaignClick={onCampaignClick || (() => {})}
+          showTopDivider={isAuthenticated}
         />
 
         {/* Library Section */}

@@ -12,6 +12,7 @@ interface CampaignsSectionProps {
   isOpen: boolean;
   onCreateCampaign: () => void;
   onCampaignClick?: (campaign: Campaign) => void;
+  showTopDivider?: boolean;
 }
 
 export function CampaignsSection({
@@ -22,9 +23,12 @@ export function CampaignsSection({
   isOpen,
   onCreateCampaign,
   onCampaignClick,
+  showTopDivider = false,
 }: CampaignsSectionProps) {
   return (
-    <Card className="tour-campaigns-section p-0">
+    <Card
+      className={`tour-campaigns-section p-0 ${showTopDivider ? "border-t border-neutral-200 dark:border-neutral-700" : ""}`}
+    >
       <button
         type="button"
         onClick={onToggle}
@@ -32,7 +36,7 @@ export function CampaignsSection({
       >
         <div className="flex items-center gap-2">
           <img src={campaignIcon} alt="Campaign" className="w-8 h-8" />
-          <span className="font-medium text-sm">Your campaigns</span>
+          <span className="font-medium text-sm">Campaigns</span>
         </div>
         {isOpen ? <CaretDown size={16} /> : <CaretRight size={16} />}
       </button>

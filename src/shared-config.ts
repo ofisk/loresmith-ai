@@ -290,6 +290,7 @@ export const API_CONFIG = {
     },
     CHAT: {
       SET_OPENAI_KEY: "/chat/set-openai-key",
+      SESSIONS: "/chat-sessions",
       HISTORY: (sessionId: string) => `/chat-history/${sessionId}`,
     },
     OPENAI: {

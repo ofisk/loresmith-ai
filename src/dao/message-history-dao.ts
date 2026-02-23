@@ -32,6 +32,13 @@ export interface GetMessagesOptions {
   searchQuery?: string; // Search in content
 }
 
+/** Summary of a chat session for listing (e.g. sidebar) */
+export interface ChatSessionSummary {
+  sessionId: string;
+  lastMessageAt: string;
+  description: string;
+}
+
 export class MessageHistoryDAO extends BaseDAOClass {
   /**
    * Maximum number of messages to keep per session (to limit storage costs)
@@ -213,6 +220,69 @@ export class MessageHistoryDAO extends BaseDAOClass {
     limit: number = 10
   ): Promise<ChatMessageRecord[]> {
     return this.getMessages({ sessionId, limit });
+  }
+
+  /**
+   * List chat sessions for a user, ordered by most recent activity.
+   * Used for "past chats" / ChatGPT-style history list.
+   */
+  async getSessionsForUser(
+    username: string,
+    limit: number = 50
+  ): Promise<ChatSessionSummary[]> {
+    const sql = `
+      SELECT
+        s.sessionId,
+        s.lastMessageAt,
+        COALESCE(
+          (
+            SELECT m.content
+            FROM message_history m
+            WHERE m.session_id = s.sessionId
+              AND m.username = ?
+              AND m.role = 'user'
+              AND TRIM(m.content) != ''
+              AND LOWER(TRIM(m.content)) NOT LIKE 'get started%'
+              AND LOWER(TRIM(m.content)) NOT LIKE '[context%requested]%'
+              AND LOWER(TRIM(m.content)) NOT LIKE 'i need help with loresmith.%'
+              AND LOWER(TRIM(m.content)) NOT LIKE 'i want to record a session recap.%'
+              AND LOWER(TRIM(m.content)) NOT LIKE 'what should i do next for this campaign?%'
+            ORDER BY m.created_at ASC
+            LIMIT 1
+          ),
+          (
+            SELECT m.content
+            FROM message_history m
+            WHERE m.session_id = s.sessionId
+              AND m.username = ?
+              AND m.role = 'user'
+              AND TRIM(m.content) != ''
+              AND LOWER(TRIM(m.content)) NOT LIKE 'get started%'
+              AND LOWER(TRIM(m.content)) NOT LIKE '[context%requested]%'
+            ORDER BY m.created_at ASC
+            LIMIT 1
+          ),
+          'New session'
+        ) as description
+      FROM (
+        SELECT
+          session_id as sessionId,
+          MAX(created_at) as lastMessageAt
+        FROM message_history
+        WHERE username = ?
+        GROUP BY session_id
+        ORDER BY lastMessageAt DESC
+        LIMIT ?
+      ) s
+      ORDER BY s.lastMessageAt DESC
+    `;
+    const rows = await this.queryAll<ChatSessionSummary>(sql, [
+      username,
+      username,
+      username,
+      limit,
+    ]);
+    return rows;
   }
 
   /**

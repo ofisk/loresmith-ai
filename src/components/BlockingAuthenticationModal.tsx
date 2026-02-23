@@ -347,7 +347,7 @@ export function BlockingAuthenticationModal({
             <div className="space-y-3">
               <a
                 href={googleAuthUrl}
-                className="flex items-center justify-center gap-2 w-full py-2.5 px-4 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                className="flex items-center justify-center gap-2 w-full py-2.5 px-4 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 transition text-sm"
               >
                 Sign in with Google
               </a>

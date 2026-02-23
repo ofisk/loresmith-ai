@@ -3,6 +3,29 @@ import type { ContextWithAuth } from "@/lib/route-utils";
 import { getUserAuth } from "@/lib/route-utils";
 
 const CHAT_HISTORY_LIMIT = 500;
+const CHAT_SESSIONS_LIMIT = 50;
+
+/**
+ * GET /chat-sessions
+ * Returns list of chat sessions for the authenticated user (for sidebar / past chats).
+ * Sessions are ordered by most recent activity.
+ */
+export async function handleGetChatSessions(
+  c: ContextWithAuth
+): Promise<Response> {
+  const auth = getUserAuth(c);
+  try {
+    const daoFactory = getDAOFactory(c.env);
+    const sessions = await daoFactory.messageHistoryDAO.getSessionsForUser(
+      auth.username,
+      CHAT_SESSIONS_LIMIT
+    );
+    return c.json({ sessions });
+  } catch (error) {
+    console.error("[ChatSessions] Failed to fetch sessions:", error);
+    return c.json({ error: "Failed to load chat sessions" }, 500);
+  }
+}
 
 /**
  * GET /chat-history/:sessionId

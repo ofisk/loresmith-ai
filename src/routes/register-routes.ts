@@ -147,7 +147,10 @@ import {
   handleGetStateAnalysis,
   handleGetWelcomeGuidance,
 } from "@/routes/onboarding";
-import { handleGetChatHistory } from "@/routes/chat-history";
+import {
+  handleGetChatHistory,
+  handleGetChatSessions,
+} from "@/routes/chat-history";
 import {
   handleBulkCompletePlanningTasks,
   handleCreatePlanningTask,
@@ -1016,6 +1019,7 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     );
   };
 
+  app.get("/chat-sessions", requireUserJwt, handleGetChatSessions);
   app.get("/chat-history/:sessionId", requireUserJwt, handleGetChatHistory);
 
   app.get("/agents/*", handleAgentsRoute);

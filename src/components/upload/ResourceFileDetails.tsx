@@ -116,7 +116,7 @@ export function ResourceFileDetails({
             {file.campaigns.map((campaign) => (
               <span
                 key={campaign.campaignId}
-                className="px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded"
+                className="px-2 py-1 text-xs bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 rounded"
               >
                 {campaign.name}
               </span>

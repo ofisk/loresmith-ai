@@ -84,7 +84,7 @@ export function ChatArea({
       <div className="px-8 py-3 flex-shrink-0">
         <select
           id="campaign-select"
-          className="tour-campaign-selector rounded-md border border-neutral-300 bg-purple-600/10 px-3 py-1.5 text-sm text-neutral-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-600 dark:border-neutral-700 dark:bg-purple-400/10 dark:text-neutral-100 dark:focus:ring-purple-400"
+          className="tour-campaign-selector rounded-md border border-neutral-300 bg-neutral-100 px-3 py-1.5 text-sm text-neutral-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:focus:ring-neutral-500"
           value={selectedCampaignId ?? ""}
           onChange={handleCampaignChange}
         >
