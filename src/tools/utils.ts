@@ -200,8 +200,8 @@ export async function requireGMRole(
   const role = await daoFactory.campaignDAO.getCampaignRole(campaignId, userId);
   if (role && PLAYER_ROLES.has(role)) {
     return createToolError(
-      "This action is not available.",
-      "This action is limited to GM tools.",
+      "This action is for the game master.",
+      "This action is for the game master.",
       403,
       toolCallId
     );

@@ -83,7 +83,7 @@ export async function handleCreateWorldStateChangelog(c: ContextWithAuth) {
     }
     const role = await getCampaignRole(c, campaignId, auth.username);
     if (role && PLAYER_ROLES.has(role)) {
-      return c.json({ error: "This action is not available." }, 403);
+      return c.json({ error: "This action is for the game master." }, 403);
     }
 
     const body = (await c.req.json()) as IncomingChangelogPayload;
