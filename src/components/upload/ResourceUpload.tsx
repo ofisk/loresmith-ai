@@ -219,9 +219,9 @@ export const ResourceUpload = ({
     !currentFile || loading || (uploadSuccess && !hasChanges);
 
   return (
-    <div className={cn("p-6 h-full flex flex-col", className)}>
+    <div className={cn("p-4 md:p-6 h-full flex flex-col min-h-0", className)}>
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-4 md:mb-6">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
           Add resource
         </h2>
@@ -231,15 +231,15 @@ export const ResourceUpload = ({
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto flex flex-col justify-between py-8">
+      <div className="flex-1 overflow-y-auto flex flex-col justify-between py-3 md:py-6 min-h-0 pr-1">
         {/* Details Section */}
-        <div className="space-y-12">
+        <div className="space-y-6 md:space-y-10">
           {/* File Upload Area */}
           <div className="flex justify-center">
             <button
               type="button"
               className={cn(
-                "w-full max-w-md border-2 border-dashed border-gray-300/80 dark:border-gray-600/80 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-gray-400 dark:hover:border-gray-500 focus:border-gray-400 dark:focus:border-gray-500 outline-none bg-gray-50/20 dark:bg-gray-800/10",
+                "w-full max-w-md border-2 border-dashed border-gray-300/80 dark:border-gray-600/80 rounded-lg p-3 md:p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-gray-400 dark:hover:border-gray-500 focus:border-gray-400 dark:focus:border-gray-500 outline-none bg-gray-50/20 dark:bg-gray-800/10",
                 loading && "opacity-50 pointer-events-none"
               )}
               aria-label="Upload resource file"
@@ -388,8 +388,8 @@ export const ResourceUpload = ({
         </div>
 
         {/* Campaign Selection Section */}
-        <div className="mt-8">
-          <div className="border-t border-ob-base-600 pt-12">
+        <div className="mt-5 md:mt-8">
+          <div className="border-t border-ob-base-600 pt-5 md:pt-8">
             {showCampaignSelection && (
               <>
                 <h3 className="text-sm font-medium text-ob-base-200 mb-3">
@@ -490,7 +490,7 @@ export const ResourceUpload = ({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between mt-4 md:mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
         <div className="flex gap-2">
           {currentFile ? (
             <FormButton

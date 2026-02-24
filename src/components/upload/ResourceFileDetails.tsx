@@ -42,22 +42,22 @@ export function ResourceFileDetails({
     >
       <div className="mt-4 text-xs space-y-1">
         {file.display_name && (
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
             <span className="text-gray-600 dark:text-gray-400">
               Display name:
             </span>
-            <span className="font-medium text-gray-900 dark:text-gray-100">
+            <span className="font-medium text-gray-900 dark:text-gray-100 break-words">
               {file.display_name}
             </span>
           </div>
         )}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
           <span className="text-gray-600 dark:text-gray-400">Filename:</span>
-          <span className="font-medium text-gray-900 dark:text-gray-100">
+          <span className="font-medium text-gray-900 dark:text-gray-100 break-all">
             {file.file_name}
           </span>
         </div>
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
           <span className="text-gray-600 dark:text-gray-400">Uploaded:</span>
           <span className="font-medium text-gray-900 dark:text-gray-100">
             {new Date(file.created_at || file.updated_at)
@@ -74,7 +74,7 @@ export function ResourceFileDetails({
               .replace(" AM", "a")}
           </span>
         </div>
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
           <span className="text-gray-600 dark:text-gray-400">Size:</span>
           <span className="font-medium text-gray-900 dark:text-gray-100">
             {file.file_size

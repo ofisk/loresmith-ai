@@ -9,7 +9,6 @@ import { ERROR_MESSAGES } from "@/app-constants";
 import { Modal } from "@/components/modal/Modal";
 import { FormField } from "@/components/input/FormField";
 import { FormButton } from "@/components/button/FormButton";
-import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 
 interface EditFileModalProps {
   isOpen: boolean;
@@ -302,18 +301,18 @@ export function EditFileModal({
     <Modal
       isOpen={isOpen}
       onClose={handleCancel}
-      cardStyle={STANDARD_MODAL_SIZE_OBJECT}
+      className="w-[96vw] max-w-[720px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
     >
-      <div className="p-6">
+      <div className="p-4 md:p-6 h-full flex flex-col min-h-0">
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-4 md:mb-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
             Edit file details
           </h2>
         </div>
 
         {/* File Info */}
-        <div className="space-y-4">
+        <div className="space-y-4 flex-1 min-h-0 overflow-y-auto pr-1">
           {/* File Name */}
           <div>
             <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -363,7 +362,7 @@ export function EditFileModal({
         )}
 
         {/* Actions */}
-        <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between mt-4 md:mt-8 pt-4 md:pt-6 border-t border-gray-200 dark:border-gray-700">
           <div className="flex gap-2">
             <FormButton
               onClick={handleSave}

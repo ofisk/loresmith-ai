@@ -500,26 +500,26 @@ export function CampaignDetailsModal({
       <Modal
         isOpen={isOpen}
         onClose={onClose}
-        cardStyle={STANDARD_MODAL_SIZE_OBJECT}
+        className="w-[96vw] max-w-[960px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
       >
-        <div className="p-6">
+        <div className="p-4 md:p-6 h-full flex flex-col">
           {/* Header */}
-          <div className="mb-6 flex items-start justify-between">
+          <div className="mb-4 md:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
               Campaign details
             </h2>
             <button
               type="button"
               onClick={() => setIsGraphModalOpen(true)}
-              className="min-w-[180px] px-6 py-2 text-sm font-medium rounded-lg bg-neutral-700 dark:bg-neutral-800 text-blue-500 dark:text-blue-400 border border-neutral-600 dark:border-neutral-700 hover:bg-neutral-600 dark:hover:bg-neutral-700 transition-colors"
+              className="w-full sm:w-auto min-w-0 sm:min-w-[180px] px-4 md:px-6 py-2 text-sm font-medium rounded-lg bg-neutral-700 dark:bg-neutral-800 text-blue-500 dark:text-blue-400 border border-neutral-600 dark:border-neutral-700 hover:bg-neutral-600 dark:hover:bg-neutral-700 transition-colors"
             >
               View graph
             </button>
           </div>
 
           {/* Tabs */}
-          <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex gap-4">
+          <div className="mb-4 md:mb-6 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+            <div className="flex gap-4 min-w-max">
               <button
                 type="button"
                 onClick={() => setActiveTab("details")}
@@ -567,65 +567,67 @@ export function CampaignDetailsModal({
             </div>
           </div>
 
-          {activeTab === "details" && (
-            <CampaignDetailsTab
-              campaign={campaign}
-              isEditing={isEditing}
-              editedName={editedName}
-              editedDescription={editedDescription}
-              nameId={nameId}
-              descriptionId={descriptionId}
-              onNameChange={setEditedName}
-              onDescriptionChange={setEditedDescription}
-            />
-          )}
-
-          {activeTab === "digests" && (
-            <CampaignDigestsTab
-              digests={digests}
-              loading={digestsLoading}
-              error={digestsError}
-              onEdit={handleEditDigest}
-              onDelete={handleDeleteDigest}
-              onCreate={handleCreateDigest}
-              onBulkImport={() => setIsBulkImportOpen(true)}
-            />
-          )}
-
-          {activeTab === "nextSteps" && (
-            <div className="mt-2">
-              <PlanningTasksPanel campaignId={campaign.campaignId} />
-            </div>
-          )}
-
-          {activeTab === "resources" && (
-            <div className="space-y-4">
-              {canApproveProposals && campaign && (
-                <PendingProposalsSection
-                  campaignId={campaign.campaignId}
-                  onProposalProcessed={() =>
-                    fetchCampaignResources.execute(campaign.campaignId)
-                  }
-                />
-              )}
-              <CampaignResourcesTab
-                resources={resources}
-                loading={resourcesLoading}
-                error={resourcesError}
-                expandedResources={expandedResources}
-                onExpandedChange={setExpandedResources}
-                processingResources={processingResources}
-                retryingResourceId={retryingResourceId}
-                onRetry={handleRetryEntityExtraction}
-                onAddResource={() => setIsAddResourceModalOpen(true)}
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+            {activeTab === "details" && (
+              <CampaignDetailsTab
+                campaign={campaign}
+                isEditing={isEditing}
+                editedName={editedName}
+                editedDescription={editedDescription}
+                nameId={nameId}
+                descriptionId={descriptionId}
+                onNameChange={setEditedName}
+                onDescriptionChange={setEditedDescription}
               />
-            </div>
-          )}
+            )}
+
+            {activeTab === "digests" && (
+              <CampaignDigestsTab
+                digests={digests}
+                loading={digestsLoading}
+                error={digestsError}
+                onEdit={handleEditDigest}
+                onDelete={handleDeleteDigest}
+                onCreate={handleCreateDigest}
+                onBulkImport={() => setIsBulkImportOpen(true)}
+              />
+            )}
+
+            {activeTab === "nextSteps" && (
+              <div className="mt-2">
+                <PlanningTasksPanel campaignId={campaign.campaignId} />
+              </div>
+            )}
+
+            {activeTab === "resources" && (
+              <div className="space-y-4">
+                {canApproveProposals && campaign && (
+                  <PendingProposalsSection
+                    campaignId={campaign.campaignId}
+                    onProposalProcessed={() =>
+                      fetchCampaignResources.execute(campaign.campaignId)
+                    }
+                  />
+                )}
+                <CampaignResourcesTab
+                  resources={resources}
+                  loading={resourcesLoading}
+                  error={resourcesError}
+                  expandedResources={expandedResources}
+                  onExpandedChange={setExpandedResources}
+                  processingResources={processingResources}
+                  retryingResourceId={retryingResourceId}
+                  onRetry={handleRetryEntityExtraction}
+                  onAddResource={() => setIsAddResourceModalOpen(true)}
+                />
+              </div>
+            )}
+          </div>
 
           {/* Actions */}
           {activeTab === "details" && (
-            <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex gap-2">
+            <div className="flex items-center justify-between gap-2 mt-4 md:mt-6 pt-4 md:pt-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2">
                 {isEditing ? (
                   <>
                     <FormButton
@@ -650,7 +652,7 @@ export function CampaignDetailsModal({
                       onClick={() => setIsEditing(true)}
                       icon={<PencilSimple size={16} />}
                     >
-                      Edit campaign
+                      Edit
                     </FormButton>
                     {canShare && (
                       <FormButton
@@ -666,12 +668,14 @@ export function CampaignDetailsModal({
               </div>
 
               {!isEditing && (
-                <ConfirmDeleteButton
-                  label="Delete campaign"
-                  confirmLabel="Confirm delete"
-                  onConfirm={handleDeleteCampaign}
-                  disabled={isUpdating}
-                />
+                <div>
+                  <ConfirmDeleteButton
+                    label="Delete"
+                    confirmLabel="Confirm delete"
+                    onConfirm={handleDeleteCampaign}
+                    disabled={isUpdating}
+                  />
+                </div>
               )}
             </div>
           )}
@@ -717,11 +721,11 @@ export function CampaignDetailsModal({
           setIsAddResourceModalOpen(false);
           setSelectedResourceKeys(new Set());
         }}
-        cardStyle={STANDARD_MODAL_SIZE_OBJECT}
+        className="w-[96vw] max-w-[720px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
         showCloseButton={true}
       >
-        <div className="p-6 flex flex-col h-full">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+        <div className="p-4 md:p-6 flex flex-col h-full">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 md:mb-4">
             Add resources to campaign
           </h3>
 
@@ -731,7 +735,7 @@ export function CampaignDetailsModal({
             </div>
           ) : (
             <>
-              <div className="flex-1 space-y-2 max-h-96 overflow-y-auto mb-6">
+              <div className="flex-1 space-y-2 overflow-y-auto mb-4 md:mb-6">
                 {libraryFiles
                   .filter((file: any) => {
                     // Filter out files already in this campaign
@@ -786,12 +790,12 @@ export function CampaignDetailsModal({
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-4 md:pt-6 border-t border-gray-200 dark:border-gray-700">
                 <div className="text-sm text-gray-500 dark:text-gray-400">
                   {selectedResourceKeys.size > 0 &&
                     `${selectedResourceKeys.size} resource${selectedResourceKeys.size === 1 ? "" : "s"} selected`}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                   <FormButton
                     onClick={async () => {
                       if (
@@ -838,6 +842,7 @@ export function CampaignDetailsModal({
                     }
                     loading={isAddingResources}
                     icon={<FloppyDisk size={16} />}
+                    className="w-full sm:w-auto"
                   >
                     {isAddingResources ? "Adding..." : "Add resources"}
                   </FormButton>
@@ -848,6 +853,7 @@ export function CampaignDetailsModal({
                     }}
                     disabled={isAddingResources}
                     variant="secondary"
+                    className="w-full sm:w-auto"
                   >
                     Cancel
                   </FormButton>

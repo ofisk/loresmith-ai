@@ -36,7 +36,7 @@ export function CampaignResourcesTab({
 }: CampaignResourcesTabProps) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
           Linked resources
         </h3>
@@ -44,7 +44,7 @@ export function CampaignResourcesTab({
           variant="secondary"
           size="sm"
           onClick={onAddResource}
-          className="!text-purple-600 dark:!text-purple-400"
+          className="w-full sm:w-auto !text-purple-600 dark:!text-purple-400"
         >
           <Plus size={16} weight="bold" />
           Add resource
@@ -86,7 +86,7 @@ export function CampaignResourcesTab({
                 <div className="flex flex-col h-full">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 flex-1 mr-3 min-w-0">
-                      <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[200px]">
+                      <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[165px] sm:max-w-[200px]">
                         {getDisplayName(resource)}
                       </h4>
                     </div>

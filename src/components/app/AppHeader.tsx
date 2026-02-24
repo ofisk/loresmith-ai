@@ -1,4 +1,4 @@
-import { NotePencil, Lightbulb, ChartBar } from "@phosphor-icons/react";
+import { NotePencil, Lightbulb, ChartBar, List } from "@phosphor-icons/react";
 import { Button } from "@/components/button/Button";
 import { HelpButton } from "@/components/help/HelpButton";
 import { TopBarNotifications } from "@/components/notifications/TopBarNotifications";
@@ -7,6 +7,9 @@ import type { NotificationPayload } from "@/durable-objects/notification-hub";
 import { AuthService } from "@/services/core/auth-service";
 
 interface AppHeaderProps {
+  onToggleSidebar?: () => void;
+  isSidebarOpen?: boolean;
+  onClearHistory?: () => void;
   onHelpAction: (action: string) => void;
   onSessionRecapRequest?: () => void;
   onNextStepsRequest?: () => void;
@@ -30,6 +33,8 @@ interface AppHeaderProps {
  * AppHeader component - Top navigation bar with logo, controls, and notifications
  */
 export function AppHeader({
+  onToggleSidebar,
+  isSidebarOpen = false,
   onHelpAction,
   onSessionRecapRequest,
   onNextStepsRequest,
@@ -45,6 +50,20 @@ export function AppHeader({
 
   return (
     <div className="app-header px-4 py-2 border-b border-neutral-200/50 dark:border-neutral-700/50 flex items-center gap-3 bg-white/60 dark:bg-neutral-950/60 backdrop-blur-sm rounded-t-2xl">
+      {onToggleSidebar && (
+        <Button
+          variant="ghost"
+          size="md"
+          shape="square"
+          className="md:hidden !h-8 !w-8 rounded-full flex items-center justify-center"
+          onClick={onToggleSidebar}
+          tooltip={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+          aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+        >
+          <List size={18} />
+        </Button>
+      )}
+
       <div
         className="flex items-center justify-center"
         style={{ width: 32, height: 32 }}

@@ -14,6 +14,7 @@ type ModalProps = {
   showCloseButton?: boolean;
   allowEscape?: boolean;
   animatedBackground?: boolean; // New prop for animated background
+  fullScreenOnMobile?: boolean;
 };
 
 // Generate random particles
@@ -51,6 +52,7 @@ export const Modal = ({
   showCloseButton = true,
   allowEscape = true,
   animatedBackground = false,
+  fullScreenOnMobile = false,
 }: ModalProps) => {
   const clickOutsideRef = useClickOutside(onClose);
   const defaultRef = useRef<HTMLDivElement>(null);
@@ -142,7 +144,14 @@ export const Modal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed top-0 left-0 z-50 flex h-screen w-full items-center justify-center bg-transparent p-6 overflow-y-auto">
+    <div
+      className={cn(
+        "fixed top-0 left-0 z-50 flex h-dvh w-full justify-center bg-transparent overflow-y-auto",
+        fullScreenOnMobile
+          ? "items-stretch md:items-center p-0 md:p-6"
+          : "items-start md:items-center p-2 md:p-6"
+      )}
+    >
       {/* Modal overlay - clickable background */}
       {animatedBackground ? (
         <div
@@ -222,7 +231,12 @@ export const Modal = ({
 
       {/* Modal content container */}
       <div
-        className="relative z-10 bg-white dark:bg-neutral-900 rounded-lg shadow-lg max-h-[90vh] overflow-y-auto"
+        className={cn(
+          "relative z-10 bg-white dark:bg-neutral-900 shadow-lg overflow-y-auto",
+          fullScreenOnMobile
+            ? "w-full h-dvh max-h-dvh rounded-none md:w-auto md:h-auto md:max-h-[90vh] md:rounded-lg"
+            : "rounded-lg max-h-[calc(100dvh-1rem)] md:max-h-[90vh]"
+        )}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
         role="dialog"

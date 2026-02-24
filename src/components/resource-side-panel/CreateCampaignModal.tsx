@@ -94,9 +94,9 @@ export function CreateCampaignModal({
   const campaignDescriptionId = "campaign-description";
 
   return (
-    <div className="p-6 h-full flex flex-col">
+    <div className="p-4 md:p-6 h-full flex flex-col min-h-0">
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-4 md:mb-6">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
           Create new campaign
         </h2>
@@ -106,7 +106,7 @@ export function CreateCampaignModal({
       </div>
 
       {/* Campaign Info */}
-      <div className="space-y-4 flex-1">
+      <div className="space-y-4 flex-1 min-h-0 overflow-y-auto pr-1">
         <FormField
           id={campaignNameId}
           label="Campaign name"
@@ -126,8 +126,8 @@ export function CreateCampaignModal({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-        <div className="flex gap-2">
+      <div className="flex items-center justify-between mt-4 md:mt-8 pt-4 md:pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-2">
           <FormButton
             variant="primary"
             onClick={handleCreate}
