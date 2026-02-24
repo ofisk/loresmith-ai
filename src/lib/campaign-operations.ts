@@ -1,9 +1,7 @@
 // Common campaign operations and utilities
+import { NOTIFICATION_TYPES } from "../constants/notification-types";
 import { getDAOFactory } from "../dao/dao-factory";
-import {
-  notifyCampaignCreated,
-  notifyCampaignFileAdded,
-} from "./notifications";
+import { notifyCampaignCreated, notifyCampaignMembers } from "./notifications";
 
 export interface CreateCampaignOptions {
   env: any;
@@ -75,7 +73,14 @@ export async function createCampaign(options: CreateCampaignOptions) {
 
 // Add a resource to a campaign
 export async function addResourceToCampaign(options: AddResourceOptions) {
-  const { env, username, campaignId, resourceId, fileKey, fileName } = options;
+  const {
+    env,
+    username: _username,
+    campaignId,
+    resourceId,
+    fileKey,
+    fileName,
+  } = options;
 
   const campaignDAO = getDAOFactory(env).campaignDAO;
 
@@ -93,11 +98,26 @@ export async function addResourceToCampaign(options: AddResourceOptions) {
     `[CampaignOps] Added resource ${fileKey} to campaign ${campaignId}`
   );
 
-  // Get campaign for notification
+  // Notify all campaign members that a file was added
   const campaign = await campaignDAO.getCampaignById(campaignId);
   if (campaign) {
     try {
-      await notifyCampaignFileAdded(env, username, campaign.name, fileName);
+      await notifyCampaignMembers(
+        env,
+        campaignId,
+        campaign.name,
+        () => ({
+          type: NOTIFICATION_TYPES.CAMPAIGN_FILE_ADDED,
+          title: "File added to campaign",
+          message: `📄 "${fileName}" was added to "${campaign.name}".`,
+          data: {
+            campaignId,
+            campaignName: campaign.name,
+            fileName,
+          },
+        }),
+        []
+      );
     } catch (_e) {}
   }
 

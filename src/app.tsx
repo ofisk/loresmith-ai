@@ -24,6 +24,7 @@ import { useAppState } from "@/hooks/useAppState";
 import { useUiHints } from "@/hooks/useUiHints";
 import { useGlobalShardManager } from "@/hooks/useGlobalShardManager";
 import { ShardOverlay } from "@/components/shard/ShardOverlay";
+import { JoinCampaignPage } from "@/components/join/JoinCampaignPage";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAppEventHandlers } from "@/hooks/useAppEventHandlers";
 import { useAuthReady } from "@/hooks/useAuthReady";
@@ -218,14 +219,55 @@ export default function Chat() {
     setSelectedCampaignId,
     refetch: refetchCampaigns,
   } = useCampaigns();
+
+  // Join page: /join?token=xxx
+  const [joinComplete, setJoinComplete] = useState(false);
+  const joinToken =
+    typeof window !== "undefined" &&
+    window.location.pathname === "/join" &&
+    !joinComplete
+      ? new URLSearchParams(window.location.search).get("token")
+      : null;
+
+  const handleJoinSuccess = useCallback(
+    (campaignId: string) => {
+      window.history.replaceState(null, "", "/");
+      setSelectedCampaignId(campaignId);
+      refetchCampaigns();
+      setJoinComplete(true);
+    },
+    [setSelectedCampaignId, refetchCampaigns]
+  );
   const {
     allNotifications,
     addLocalNotification,
     dismissNotification,
     clearAllNotifications,
   } = useLocalNotifications();
+  const proposalConfirmResolveRef = useRef<((value: boolean) => void) | null>(
+    null
+  );
+  const getProposalConfirmation = useCallback(
+    (legalNotice: string) => {
+      modalState.showProposalConfirmModal(legalNotice);
+      return new Promise<boolean>((resolve) => {
+        proposalConfirmResolveRef.current = resolve;
+      });
+    },
+    [modalState]
+  );
+  const onProposalConfirm = useCallback(() => {
+    proposalConfirmResolveRef.current?.(true);
+    proposalConfirmResolveRef.current = null;
+    modalState.hideProposalConfirmModal();
+  }, [modalState]);
+  const onProposalCancel = useCallback(() => {
+    proposalConfirmResolveRef.current?.(false);
+    proposalConfirmResolveRef.current = null;
+    modalState.hideProposalConfirmModal();
+  }, [modalState]);
   const { campaignAdditionProgress, isAddingToCampaigns, addFileToCampaigns } =
-    useCampaignAddition();
+    useCampaignAddition(getProposalConfirmation);
 
   // Activity tracking for recap triggers
   const {
@@ -790,6 +832,32 @@ export default function Chat() {
     }
   }, [authState.isAuthenticated, fetchAllStagedShards]);
 
+  if (joinToken) {
+    return (
+      <>
+        <JoinCampaignPage
+          token={joinToken}
+          jwt={authState.getStoredJwt()}
+          onOpenAuthModal={() => modalState.setShowAuthModal(true)}
+          onJoinSuccess={handleJoinSuccess}
+        />
+        <AppModals
+          modalState={modalState}
+          authState={authState}
+          campaigns={campaigns}
+          refetchCampaigns={refetchCampaigns}
+          createCampaign={createCampaign}
+          handleUpload={handleUpload}
+          handleFileUpdate={handleFileUpdate}
+          addFileToCampaigns={addFileToCampaigns}
+          addLocalNotification={addLocalNotification}
+          onProposalConfirm={onProposalConfirm}
+          onProposalCancel={onProposalCancel}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <Joyride
@@ -1072,6 +1140,8 @@ export default function Chat() {
         handleFileUpdate={handleFileUpdate}
         addFileToCampaigns={addFileToCampaigns}
         addLocalNotification={addLocalNotification}
+        onProposalConfirm={onProposalConfirm}
+        onProposalCancel={onProposalCancel}
       />
     </>
   );

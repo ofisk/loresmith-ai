@@ -11,6 +11,7 @@ import {
 } from "../utils";
 import type { Env } from "@/middleware/auth";
 import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
+import { READONLY_ROLES } from "@/constants/campaign-roles";
 import { getDAOFactory } from "../../dao/dao-factory";
 import type { PlanningTaskStatus } from "../../dao/planning-task-dao";
 import { notifyShardGeneration } from "../../lib/notifications";
@@ -131,6 +132,16 @@ export const captureConversationalContext = tool({
           "Campaign not found",
           "Campaign not found",
           404,
+          toolCallId
+        );
+      }
+
+      const role = await campaignDAO.getCampaignRole(campaignId, userId);
+      if (role && READONLY_ROLES.has(role)) {
+        return createToolError(
+          "You do not have permission to capture context in this campaign",
+          "Read-only members cannot save context",
+          403,
           toolCallId
         );
       }
@@ -362,6 +373,16 @@ export const saveContextExplicitly = tool({
           "Campaign not found",
           "Campaign not found",
           404,
+          toolCallId
+        );
+      }
+
+      const role = await campaignDAO.getCampaignRole(campaignId, userId);
+      if (role && READONLY_ROLES.has(role)) {
+        return createToolError(
+          "You do not have permission to capture context in this campaign",
+          "Read-only members cannot save context",
+          403,
           toolCallId
         );
       }

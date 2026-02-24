@@ -205,6 +205,7 @@ CREATE TABLE IF NOT EXISTS community_summaries (
   level integer not null,
   summary_text text not null,
   key_entities text, -- JSON array of key entity IDs
+  name text, -- Short AI-generated name (0004)
   metadata text, -- JSON for additional context
   generated_at datetime default current_timestamp,
   updated_at datetime default current_timestamp,
@@ -214,6 +215,20 @@ CREATE TABLE IF NOT EXISTS community_summaries (
 -- Create indexes for fast retrieval
 CREATE INDEX IF NOT EXISTS idx_summaries_community ON community_summaries(community_id);
 CREATE INDEX IF NOT EXISTS idx_summaries_level ON community_summaries(level);
+CREATE INDEX IF NOT EXISTS idx_summaries_name ON community_summaries(name);
+
+-- Join table for community-entity relationships (0006)
+CREATE TABLE IF NOT EXISTS community_entities (
+  community_id text not null,
+  entity_id text not null,
+  created_at datetime default current_timestamp,
+  primary key (community_id, entity_id),
+  foreign key (community_id) references communities(id) on delete cascade,
+  foreign key (entity_id) references entities(id) on delete cascade
+);
+
+CREATE INDEX IF NOT EXISTS idx_community_entities_community_id ON community_entities(community_id);
+CREATE INDEX IF NOT EXISTS idx_community_entities_entity_id ON community_entities(entity_id);
 
 -- World state changelog table for tracking structural changes to entities,
 -- relationships, and locations over time.
@@ -234,14 +249,41 @@ CREATE INDEX IF NOT EXISTS idx_changelog_campaign_session ON world_state_changel
 CREATE INDEX IF NOT EXISTS idx_changelog_timestamp ON world_state_changelog(timestamp);
 CREATE INDEX IF NOT EXISTS idx_changelog_applied ON world_state_changelog(applied_to_graph);
 
+-- Changelog archive metadata for tracking archived changelog entries in R2 (0001)
+CREATE TABLE IF NOT EXISTS changelog_archive_metadata (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT NOT NULL,
+  rebuild_id TEXT NOT NULL,
+  archive_key TEXT NOT NULL UNIQUE,
+  session_range_min INTEGER,
+  session_range_max INTEGER,
+  timestamp_range_from DATETIME NOT NULL,
+  timestamp_range_to DATETIME NOT NULL,
+  entry_count INTEGER NOT NULL,
+  archived_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_archive_campaign ON changelog_archive_metadata(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_archive_rebuild ON changelog_archive_metadata(rebuild_id);
+CREATE INDEX IF NOT EXISTS idx_archive_session_range ON changelog_archive_metadata(campaign_id, session_range_min, session_range_max);
+CREATE INDEX IF NOT EXISTS idx_archive_timestamp_range ON changelog_archive_metadata(campaign_id, timestamp_range_from, timestamp_range_to);
+
 -- Session digests table for storing high-level session recaps and planning information.
 -- This table stores session digests that capture key events, state changes, and planning context.
+-- 0002: status, quality_score, review_notes, generated_by_ai, template_id, source_type
 CREATE TABLE IF NOT EXISTS session_digests (
   id TEXT PRIMARY KEY,
   campaign_id TEXT NOT NULL,
   session_number INTEGER NOT NULL,
   session_date DATE,
   digest_data TEXT NOT NULL, -- JSON
+  status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'pending', 'approved', 'rejected')),
+  quality_score REAL,
+  review_notes TEXT,
+  generated_by_ai INTEGER DEFAULT 0,
+  template_id TEXT,
+  source_type TEXT DEFAULT 'manual' CHECK(source_type IN ('manual', 'ai_generated')),
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
@@ -251,6 +293,23 @@ CREATE TABLE IF NOT EXISTS session_digests (
 CREATE INDEX IF NOT EXISTS idx_digests_campaign ON session_digests(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_digests_session ON session_digests(campaign_id, session_number);
 CREATE INDEX IF NOT EXISTS idx_digests_date ON session_digests(session_date);
+CREATE INDEX IF NOT EXISTS idx_digests_status ON session_digests(campaign_id, status);
+CREATE INDEX IF NOT EXISTS idx_digests_template ON session_digests(template_id);
+CREATE INDEX IF NOT EXISTS idx_digests_source_type ON session_digests(source_type);
+
+-- Session digest templates for reusable digest templates (0002)
+CREATE TABLE IF NOT EXISTS session_digest_templates (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  template_data TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_digest_templates_campaign ON session_digest_templates(campaign_id);
 
 -- Rebuild status table for tracking graph rebuild operations.
 -- This table stores rebuild status, progress, and metadata for full and partial rebuilds.
@@ -342,6 +401,111 @@ CREATE TABLE IF NOT EXISTS character_sheets (
   updated_at datetime default current_timestamp,
   foreign key (campaign_id) references campaigns(id) on delete cascade
 );
+
+-- Campaign checklist status (0007)
+CREATE TABLE IF NOT EXISTS campaign_checklist_status (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT NOT NULL,
+  checklist_item_key TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('complete', 'incomplete', 'partial')),
+  summary TEXT,
+  last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  UNIQUE(campaign_id, checklist_item_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_checklist_status_campaign ON campaign_checklist_status(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_checklist_status_key ON campaign_checklist_status(checklist_item_key);
+CREATE INDEX IF NOT EXISTS idx_checklist_status_status ON campaign_checklist_status(status);
+
+-- Planning tasks (0008-0010)
+CREATE TABLE IF NOT EXISTS planning_tasks (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'in_progress', 'completed', 'superseded')),
+  completion_notes TEXT,
+  target_session_number INTEGER,
+  source_message_id TEXT,
+  linked_shard_id TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_planning_tasks_campaign ON planning_tasks(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_planning_tasks_status ON planning_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_planning_tasks_created_at ON planning_tasks(created_at);
+
+-- Entity extraction queue (0003)
+CREATE TABLE IF NOT EXISTS entity_extraction_queue (
+  id integer primary key autoincrement,
+  username text not null,
+  campaign_id text not null,
+  resource_id text not null,
+  resource_name text not null,
+  file_key text,
+  status text not null default 'pending',
+  retry_count integer not null default 0,
+  last_error text,
+  error_code text,
+  next_retry_at datetime,
+  created_at datetime default current_timestamp,
+  processed_at datetime,
+  updated_at datetime,
+  UNIQUE(campaign_id, resource_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_entity_extraction_queue_status ON entity_extraction_queue(status);
+CREATE INDEX IF NOT EXISTS idx_entity_extraction_queue_next_retry ON entity_extraction_queue(next_retry_at);
+CREATE INDEX IF NOT EXISTS idx_entity_extraction_queue_campaign ON entity_extraction_queue(campaign_id);
+
+-- Message history (0005)
+CREATE TABLE IF NOT EXISTS message_history (
+  id text primary key,
+  session_id text not null,
+  username text,
+  campaign_id text,
+  role text not null check (role in ('user', 'assistant', 'system')),
+  content text not null,
+  message_data text,
+  created_at datetime default current_timestamp
+);
+
+CREATE INDEX IF NOT EXISTS idx_message_history_session_id ON message_history(session_id);
+CREATE INDEX IF NOT EXISTS idx_message_history_username ON message_history(username);
+CREATE INDEX IF NOT EXISTS idx_message_history_campaign_id ON message_history(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_message_history_created_at ON message_history(created_at);
+CREATE INDEX IF NOT EXISTS idx_message_history_role ON message_history(role);
+CREATE INDEX IF NOT EXISTS idx_message_history_session_created ON message_history(session_id, created_at);
+
+-- Users and email verification (0011, 0012)
+CREATE TABLE IF NOT EXISTS users (
+  id text primary key,
+  username text not null unique,
+  email text not null unique,
+  password_hash text,
+  email_verified_at datetime,
+  auth_provider text not null default 'password',
+  is_admin integer not null default 0,
+  created_at datetime default current_timestamp,
+  updated_at datetime default current_timestamp
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+  token text primary key,
+  username text not null,
+  expires_at datetime not null,
+  created_at datetime default current_timestamp
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_username ON email_verification_tokens(username);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expires_at ON email_verification_tokens(expires_at);
 
 -- Create user OpenAI keys table
 CREATE TABLE IF NOT EXISTS user_openai_keys (

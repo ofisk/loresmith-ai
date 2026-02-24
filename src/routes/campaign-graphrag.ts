@@ -1,5 +1,6 @@
+import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { getDAOFactory } from "@/dao/dao-factory";
-import { notifyShardApproval, notifyShardRejection } from "@/lib/notifications";
+import { notifyCampaignMembers } from "@/lib/notifications";
 import {
   isStubContentSufficient,
   getRequiredFieldsForEntityType,
@@ -239,6 +240,12 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
               entityType: entity.entityType,
               chunkId: "",
               score: 0,
+              ...(metadata.proposedBy && metadata.approvedBy
+                ? {
+                    proposedBy: metadata.proposedBy,
+                    approvedBy: metadata.approvedBy,
+                  }
+                : {}),
             },
           },
           shards: [], // UI uses "shards" terminology
@@ -550,13 +557,19 @@ export async function handleApproveShards(c: ContextWithAuth) {
       userAuth.username
     );
 
-    // Send notification about entity approval (UI uses "shard" terminology)
+    // Notify all campaign members about entity approval (UI uses "shard" terminology)
     try {
-      await notifyShardApproval(
-        c.env,
-        userAuth.username,
+      await notifyCampaignMembers(
+        c.env as any,
+        campaignId,
         campaign.name,
-        approvedCount
+        () => ({
+          type: NOTIFICATION_TYPES.SHARD_APPROVED,
+          title: "Shards approved",
+          message: `✅ ${approvedCount} shard${approvedCount === 1 ? "" : "s"} approved for "${campaign.name}".`,
+          data: { campaignName: campaign.name, shardCount: approvedCount },
+        }),
+        []
       );
     } catch (error) {
       console.error(
@@ -708,14 +721,23 @@ export async function handleRejectShards(c: ContextWithAuth) {
       userAuth.username
     );
 
-    // Send notification about entity rejection (UI uses "shard" terminology)
+    // Notify all campaign members about entity rejection (UI uses "shard" terminology)
     try {
-      await notifyShardRejection(
-        c.env,
-        userAuth.username,
+      await notifyCampaignMembers(
+        c.env as any,
+        campaignId,
         campaign.name,
-        rejectedCount,
-        reason
+        () => ({
+          type: NOTIFICATION_TYPES.SHARD_REJECTED,
+          title: "Shards rejected",
+          message: `❌ ${rejectedCount} shard${rejectedCount === 1 ? "" : "s"} rejected for "${campaign.name}"${reason ? ` (${reason})` : ""}`,
+          data: {
+            campaignName: campaign.name,
+            shardCount: rejectedCount,
+            reason,
+          },
+        }),
+        []
       );
     } catch (error) {
       console.error(

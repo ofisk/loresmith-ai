@@ -1,4 +1,5 @@
 import { NOTIFICATION_TYPES } from "../constants/notification-types";
+import { getDAOFactory } from "../dao/dao-factory";
 import type { NotificationPayload } from "../durable-objects/notification-hub";
 import type { Env } from "../middleware/auth";
 
@@ -397,6 +398,71 @@ export async function notifyShardApproval(
       shardCount,
     },
   });
+}
+
+/**
+ * Publish a proposal approved notification (to proposal creator)
+ */
+export async function notifyProposalApproved(
+  env: Env,
+  proposedByUsername: string,
+  campaignName: string,
+  fileName: string
+): Promise<void> {
+  try {
+    await notifyUser(env, proposedByUsername, {
+      type: NOTIFICATION_TYPES.PROPOSAL_APPROVED,
+      title: "Proposal accepted",
+      message: `✅ Your proposed file "${fileName}" was accepted and added to "${campaignName}".`,
+      data: { campaignName, fileName },
+    });
+  } catch (e) {
+    console.error("[notifyProposalApproved] Failed:", e);
+  }
+}
+
+/**
+ * Publish a proposal rejected notification (to proposal creator)
+ */
+export async function notifyProposalRejected(
+  env: Env,
+  proposedByUsername: string,
+  campaignName: string,
+  fileName: string
+): Promise<void> {
+  try {
+    await notifyUser(env, proposedByUsername, {
+      type: NOTIFICATION_TYPES.PROPOSAL_REJECTED,
+      title: "Proposal declined",
+      message: `❌ Your proposed file "${fileName}" was declined for "${campaignName}".`,
+      data: { campaignName, fileName },
+    });
+  } catch (e) {
+    console.error("[notifyProposalRejected] Failed:", e);
+  }
+}
+
+/**
+ * Notify all campaign members (owner + invited members).
+ * Skips usernames in excludeUsernames (e.g. the actor who triggered the action).
+ */
+export async function notifyCampaignMembers(
+  env: Env,
+  campaignId: string,
+  campaignName: string,
+  buildPayload: (username: string) => Omit<NotificationPayload, "timestamp">,
+  excludeUsernames: string[] = []
+): Promise<void> {
+  const daoFactory = getDAOFactory(env);
+  const usernames =
+    await daoFactory.campaignDAO.getCampaignMemberUsernames(campaignId);
+  const exclude = new Set(excludeUsernames);
+  const toNotify = usernames.filter((u) => !exclude.has(u));
+  await Promise.allSettled(
+    toNotify.map((username) =>
+      notifyUser(env, username, buildPayload(username))
+    )
+  );
 }
 
 /**

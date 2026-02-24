@@ -1,7 +1,11 @@
 import { DotsThreeVertical } from "@phosphor-icons/react";
 import type { Campaign } from "@/types/campaign";
-import { useRebuildStatus } from "@/hooks/useRebuildStatus";
 import { RebuildStatusIndicator } from "@/components/graph/RebuildStatusIndicator";
+import {
+  CAMPAIGN_ROLES,
+  CAMPAIGN_ROLE_LABELS,
+} from "@/constants/campaign-roles";
+import { useRebuildStatus } from "@/hooks/useRebuildStatus";
 
 interface CampaignItemProps {
   campaign: Campaign;
@@ -22,10 +26,21 @@ export function CampaignItem({ campaign, onCampaignClick }: CampaignItemProps) {
     >
       <div className="flex items-center justify-between">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
               {campaign.name}
             </div>
+            {campaign.role && (
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${
+                  campaign.role === CAMPAIGN_ROLES.OWNER
+                    ? "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300"
+                    : "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400"
+                }`}
+              >
+                {CAMPAIGN_ROLE_LABELS[campaign.role] ?? campaign.role}
+              </span>
+            )}
             {activeRebuild && (
               <RebuildStatusIndicator
                 rebuildStatus={activeRebuild}

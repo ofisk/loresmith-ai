@@ -2,7 +2,8 @@
 // Extracts entities from file content and stages them for user approval/rejection
 import { getDAOFactory } from "@/dao/dao-factory";
 import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
-import { notifyShardGeneration } from "@/lib/notifications";
+import { NOTIFICATION_TYPES } from "@/constants/notification-types";
+import { notifyCampaignMembers } from "@/lib/notifications";
 import type { Env } from "@/middleware/auth";
 import {
   normalizeResourceForShardGeneration,
@@ -64,6 +65,11 @@ export interface EntityStagingOptions {
    * If not provided, defaults to DirectFileContentExtractionProvider.
    */
   contentExtractionProvider?: ContentExtractionProvider;
+  /**
+   * When from an approved resource proposal: proposedBy = player who proposed the file,
+   * approvedBy = GM who approved. Stored in entity metadata for "co-authored by X and Y" display.
+   */
+  attribution?: { proposedBy: string; approvedBy: string };
 }
 
 /**
@@ -85,6 +91,7 @@ export async function stageEntitiesFromResource(
     campaignRagBasePath,
     openaiApiKey,
     contentExtractionProvider,
+    attribution,
   } = options;
 
   try {
@@ -190,6 +197,10 @@ export async function stageEntitiesFromResource(
             fileKey: normalizedResource.file_key || normalizedResource.id,
             isCharacterSheet: true,
             detectedGameSystem: detectionResult.detectedGameSystem,
+            ...(attribution && {
+              proposedBy: attribution.proposedBy,
+              approvedBy: attribution.approvedBy,
+            }),
           };
           // Update existing PC entity with new character data
           await daoFactory.entityDAO.updateEntity(existingPC.id, {
@@ -209,6 +220,10 @@ export async function stageEntitiesFromResource(
             fileKey: normalizedResource.file_key || normalizedResource.id,
             isCharacterSheet: true,
             detectedGameSystem: detectionResult.detectedGameSystem,
+            ...(attribution && {
+              proposedBy: attribution.proposedBy,
+              approvedBy: attribution.approvedBy,
+            }),
           };
           await daoFactory.entityDAO.createEntity({
             id: pcEntityId,
@@ -588,6 +603,10 @@ export async function stageEntitiesFromResource(
           strength: rel.strength,
           metadata: rel.metadata,
         })),
+        ...(attribution && {
+          proposedBy: attribution.proposedBy,
+          approvedBy: attribution.approvedBy,
+        }),
       };
 
       const existing = await daoFactory.entityDAO.getEntityById(entityId);
@@ -844,32 +863,55 @@ export async function stageEntitiesFromResource(
       `[EntityStaging] Staged ${stagedEntities.length} entities for resource: ${normalizedResource.id} (${createdCount} created, ${updatedCount} updated, ${skippedCount} skipped - already approved, ${duplicateCount} skipped - semantic duplicates)`
     );
 
-    // Send notification about staged entities
+    // Notify all campaign members about staged entities
     try {
       let notificationMessage = "";
       if (failedChunks.length > 0 && stagedEntities.length > 0) {
-        // Partial success: some chunks failed but we still got entities
-        // Calculate percentage for user-friendly message
         const successRate = Math.round(
           (successfulChunks / chunks.length) * 100
         );
-        notificationMessage = `⚠️ We extracted ${stagedEntities.length} shards, but couldn't process some parts of the file (${successRate}% processed successfully). This usually happens when processing very large files. You can retry to process the remaining content.`;
+        notificationMessage = ` ⚠️ We extracted ${stagedEntities.length} shards, but couldn't process some parts of the file (${successRate}% processed successfully). This usually happens when processing very large files. You can retry to process the remaining content.`;
       } else if (failedChunks.length > 0 && stagedEntities.length === 0) {
-        // All chunks failed
-        notificationMessage = `❌ We couldn't extract any shards from this file. This may be due to the file being too large or temporary processing issues. Please try again later.`;
+        notificationMessage = ` ❌ We couldn't extract any shards from this file. This may be due to the file being too large or temporary processing issues. Please try again later.`;
       }
 
-      await notifyShardGeneration(
+      const shardCount = stagedEntities.length;
+      const fileName = normalizedResource.file_name || normalizedResource.id;
+      let title: string;
+      let message: string;
+      if (!shardCount || shardCount === 0) {
+        title = "No shards found";
+        message = `🔎 No shards were discovered from "${fileName}" in "${campaignName}".${notificationMessage}`;
+      } else {
+        title = "New shards ready";
+        message = `🎉 ${shardCount} new shard${shardCount === 1 ? "" : "s"} generated from "${fileName}" in "${campaignName}"!${notificationMessage}`;
+      }
+
+      await notifyCampaignMembers(
         env,
-        username,
+        campaignId,
         campaignName,
-        normalizedResource.file_name || normalizedResource.id,
-        stagedEntities.length,
-        {
-          campaignId,
-          resourceId: normalizedResource.id,
-          ...(notificationMessage ? { errorMessage: notificationMessage } : {}),
-        }
+        () => ({
+          type: NOTIFICATION_TYPES.SHARDS_GENERATED,
+          title,
+          message,
+          data: {
+            campaignName,
+            fileName,
+            shardCount,
+            campaignId,
+            resourceId: normalizedResource.id,
+            ui_hint: {
+              type: "shards_ready",
+              data: {
+                campaignId,
+                resourceId: normalizedResource.id,
+                groups: undefined,
+              },
+            },
+          },
+        }),
+        []
       );
     } catch (notifyError) {
       console.error(

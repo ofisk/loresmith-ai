@@ -1,4 +1,4 @@
-import { FloppyDisk, PencilSimple } from "@phosphor-icons/react";
+import { FloppyDisk, PencilSimple, ShareNetwork } from "@phosphor-icons/react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { CampaignDetailsTab } from "./CampaignDetailsTab";
 import { CampaignDigestsTab } from "./CampaignDigestsTab";
@@ -10,6 +10,9 @@ import { Modal } from "@/components/modal/Modal";
 import { PlanningTasksPanel } from "@/components/campaign/PlanningTasksPanel";
 import { SessionDigestBulkImport } from "@/components/session/SessionDigestBulkImport";
 import { SessionDigestModal } from "@/components/session/SessionDigestModal";
+import { ShareCampaignModal } from "@/components/campaign/ShareCampaignModal";
+import { PendingProposalsSection } from "@/components/campaign/PendingProposalsSection";
+import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
 import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
 import { useBaseAsync } from "@/hooks/useBaseAsync";
@@ -88,6 +91,12 @@ export function CampaignDetailsModal({
   const [isAddingResources, setIsAddingResources] = useState(false);
   // Track graph visualization modal
   const [isGraphModalOpen, setIsGraphModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
+  const canShare =
+    campaign?.role === CAMPAIGN_ROLES.OWNER ||
+    campaign?.role === CAMPAIGN_ROLES.EDITOR_GM;
+  const canApproveProposals = canShare;
 
   // Fetch available library files
   const { files: libraryFiles, fetchResources: fetchLibraryFiles } =
@@ -590,17 +599,27 @@ export function CampaignDetailsModal({
           )}
 
           {activeTab === "resources" && (
-            <CampaignResourcesTab
-              resources={resources}
-              loading={resourcesLoading}
-              error={resourcesError}
-              expandedResources={expandedResources}
-              onExpandedChange={setExpandedResources}
-              processingResources={processingResources}
-              retryingResourceId={retryingResourceId}
-              onRetry={handleRetryEntityExtraction}
-              onAddResource={() => setIsAddResourceModalOpen(true)}
-            />
+            <div className="space-y-4">
+              {canApproveProposals && campaign && (
+                <PendingProposalsSection
+                  campaignId={campaign.campaignId}
+                  onProposalProcessed={() =>
+                    fetchCampaignResources.execute(campaign.campaignId)
+                  }
+                />
+              )}
+              <CampaignResourcesTab
+                resources={resources}
+                loading={resourcesLoading}
+                error={resourcesError}
+                expandedResources={expandedResources}
+                onExpandedChange={setExpandedResources}
+                processingResources={processingResources}
+                retryingResourceId={retryingResourceId}
+                onRetry={handleRetryEntityExtraction}
+                onAddResource={() => setIsAddResourceModalOpen(true)}
+              />
+            </div>
           )}
 
           {/* Actions */}
@@ -626,12 +645,23 @@ export function CampaignDetailsModal({
                     </FormButton>
                   </>
                 ) : (
-                  <FormButton
-                    onClick={() => setIsEditing(true)}
-                    icon={<PencilSimple size={16} />}
-                  >
-                    Edit campaign
-                  </FormButton>
+                  <>
+                    <FormButton
+                      onClick={() => setIsEditing(true)}
+                      icon={<PencilSimple size={16} />}
+                    >
+                      Edit campaign
+                    </FormButton>
+                    {canShare && (
+                      <FormButton
+                        onClick={() => setIsShareModalOpen(true)}
+                        icon={<ShareNetwork size={16} />}
+                        variant="secondary"
+                      >
+                        Share
+                      </FormButton>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -837,6 +867,11 @@ export function CampaignDetailsModal({
           onClose={() => setIsGraphModalOpen(false)}
         />
       )}
+      <ShareCampaignModal
+        campaign={campaign}
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+      />
     </>
   );
 }

@@ -17,6 +17,8 @@ import { MessageHistoryDAO } from "./message-history-dao";
 import { CharacterSheetDAO } from "./character-sheet-dao";
 import { ChecklistStatusDAO } from "./checklist-status-dao";
 import { PlanningTaskDAO } from "./planning-task-dao";
+import { CampaignShareLinkDAO } from "./campaign-share-link-dao";
+import { CampaignResourceProposalDAO } from "./campaign-resource-proposal-dao";
 
 // Cache for DAO factory instances
 const daoFactoryCache = new Map<string, DAOFactory>();
@@ -43,6 +45,8 @@ export interface DAOFactory {
   checklistStatusDAO: ChecklistStatusDAO;
   characterSheetDAO: CharacterSheetDAO;
   planningTaskDAO: PlanningTaskDAO;
+  campaignShareLinkDAO: CampaignShareLinkDAO;
+  campaignResourceProposalDAO: CampaignResourceProposalDAO;
 
   // Convenience methods for common operations
   storeOpenAIKey(username: string, apiKey: string): Promise<void>;
@@ -69,6 +73,8 @@ export class DAOFactoryImpl implements DAOFactory {
   public readonly checklistStatusDAO: ChecklistStatusDAO;
   public readonly characterSheetDAO: CharacterSheetDAO;
   public readonly planningTaskDAO: PlanningTaskDAO;
+  public readonly campaignShareLinkDAO: CampaignShareLinkDAO;
+  public readonly campaignResourceProposalDAO: CampaignResourceProposalDAO;
 
   constructor(db: D1Database) {
     this.authUserDAO = new AuthUserDAO(db);
@@ -87,6 +93,8 @@ export class DAOFactoryImpl implements DAOFactory {
     this.checklistStatusDAO = new ChecklistStatusDAO(db);
     this.characterSheetDAO = new CharacterSheetDAO(db);
     this.planningTaskDAO = new PlanningTaskDAO(db);
+    this.campaignShareLinkDAO = new CampaignShareLinkDAO(db);
+    this.campaignResourceProposalDAO = new CampaignResourceProposalDAO(db);
   }
 
   // Convenience methods for common operations

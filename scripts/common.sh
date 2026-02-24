@@ -120,12 +120,23 @@ execute_migration() {
         fi
     fi
     
-    if wrangler d1 execute "$db_name" --file="$migration_file" $remote_flag; then
+    local output
+    output=$(wrangler d1 execute "$db_name" --file="$migration_file" $remote_flag 2>&1)
+    local result=$?
+    if [ $result -eq 0 ]; then
         echo "✅ Success: $migration_name"
         return 0
     else
-        echo "❌ Failed: $migration_name"
-        return 1
+        # Treat "duplicate column name" as success (migration already applied, idempotent)
+        if echo "$output" | grep -qi "duplicate column name"; then
+            echo "⚠️  Column already exists (idempotent skip)"
+            echo "✅ Success: $migration_name (skipped - already applied)"
+            return 0
+        else
+            echo "❌ Failed: $migration_name"
+            echo "$output" | tail -5
+            return 1
+        fi
     fi
 }
 

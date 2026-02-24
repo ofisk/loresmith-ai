@@ -8,6 +8,10 @@ export const NOTIFICATION_TYPES = {
   SHARD_APPROVED: "shard_approved",
   SHARD_REJECTED: "shard_rejected",
 
+  // Proposal-related notifications (for proposal creator)
+  PROPOSAL_APPROVED: "proposal_approved",
+  PROPOSAL_REJECTED: "proposal_rejected",
+
   // File-related notifications
   FILE_UPLOADED: "file_uploaded",
   FILE_UPLOAD_FAILED: "file_upload_failed",

@@ -7,6 +7,8 @@ export interface EntityExtractionQueueItem {
   resource_id: string;
   resource_name: string;
   file_key: string | null;
+  /** Username who proposed the file (for approved proposals); used for shard attribution. Absent when migration 0002 has not run. */
+  proposed_by?: string | null;
   status: "pending" | "processing" | "completed" | "failed" | "rate_limited";
   retry_count: number;
   last_error: string | null;
@@ -18,37 +20,77 @@ export interface EntityExtractionQueueItem {
 }
 
 export class EntityExtractionQueueDAO extends BaseDAOClass {
+  /** True if entity_extraction_queue has proposed_by column (migration 0002). Checked per-call for correctness across DBs. */
+  private async hasProposedByColumn(): Promise<boolean> {
+    const rows = await this.queryAll<{ name: string }>(
+      "PRAGMA table_info(entity_extraction_queue)",
+      []
+    );
+    return rows.some((r) => r.name === "proposed_by");
+  }
+
   /**
    * Add an entity extraction job to the queue
+   * @param proposedBy - When from an approved proposal, the username who proposed the file (for shard attribution)
+   * Works with or without migration 0002 (proposed_by column); uses it when present.
    */
   async addToQueue(
     username: string,
     campaignId: string,
     resourceId: string,
     resourceName: string,
-    fileKey?: string
+    fileKey?: string,
+    proposedBy?: string | null
   ): Promise<void> {
-    const sql = `
-      INSERT INTO entity_extraction_queue (
-        username, campaign_id, resource_id, resource_name, file_key,
-        status, retry_count, created_at
-      )
-      VALUES (?, ?, ?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)
-      ON CONFLICT(campaign_id, resource_id) DO UPDATE SET
-        status = 'pending',
-        retry_count = 0,
-        last_error = NULL,
-        error_code = NULL,
-        next_retry_at = NULL,
-        updated_at = CURRENT_TIMESTAMP
-    `;
-    await this.execute(sql, [
-      username,
-      campaignId,
-      resourceId,
-      resourceName,
-      fileKey || null,
-    ]);
+    const withProposedBy = await this.hasProposedByColumn();
+
+    if (withProposedBy) {
+      const sql = `
+        INSERT INTO entity_extraction_queue (
+          username, campaign_id, resource_id, resource_name, file_key, proposed_by,
+          status, retry_count, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)
+        ON CONFLICT(campaign_id, resource_id) DO UPDATE SET
+          status = 'pending',
+          retry_count = 0,
+          last_error = NULL,
+          error_code = NULL,
+          next_retry_at = NULL,
+          proposed_by = excluded.proposed_by,
+          updated_at = CURRENT_TIMESTAMP
+      `;
+      await this.execute(sql, [
+        username,
+        campaignId,
+        resourceId,
+        resourceName,
+        fileKey || null,
+        proposedBy ?? null,
+      ]);
+    } else {
+      const sql = `
+        INSERT INTO entity_extraction_queue (
+          username, campaign_id, resource_id, resource_name, file_key,
+          status, retry_count, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)
+        ON CONFLICT(campaign_id, resource_id) DO UPDATE SET
+          status = 'pending',
+          retry_count = 0,
+          last_error = NULL,
+          error_code = NULL,
+          next_retry_at = NULL,
+          updated_at = CURRENT_TIMESTAMP
+      `;
+      await this.execute(sql, [
+        username,
+        campaignId,
+        resourceId,
+        resourceName,
+        fileKey || null,
+      ]);
+    }
   }
 
   /**

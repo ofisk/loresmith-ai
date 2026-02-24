@@ -52,6 +52,10 @@ export function NotificationBell({
         return "❌";
       case NOTIFICATION_TYPES.CAMPAIGN_FILE_ADDED:
         return "📁";
+      case NOTIFICATION_TYPES.PROPOSAL_APPROVED:
+        return "✅";
+      case NOTIFICATION_TYPES.PROPOSAL_REJECTED:
+        return "❌";
       case NOTIFICATION_TYPES.SUCCESS:
         return "✅";
       case NOTIFICATION_TYPES.ERROR:
@@ -75,6 +79,10 @@ export function NotificationBell({
         return "bg-red-900/20 border-red-700/30 text-red-300";
       case NOTIFICATION_TYPES.CAMPAIGN_FILE_ADDED:
         return "bg-blue-900/20 border-blue-700/30 text-blue-300";
+      case NOTIFICATION_TYPES.PROPOSAL_APPROVED:
+        return "bg-green-900/20 border-green-700/30 text-green-300";
+      case NOTIFICATION_TYPES.PROPOSAL_REJECTED:
+        return "bg-red-900/20 border-red-700/30 text-red-300";
       case NOTIFICATION_TYPES.SUCCESS:
         return "bg-green-900/20 border-green-700/30 text-green-300";
       case NOTIFICATION_TYPES.ERROR:
