@@ -14,7 +14,10 @@ The development environment uses separate Cloudflare resources to avoid conflict
 ## Prerequisites
 
 1. **Node.js 22+** installed
-2. **Cloudflare account** with Workers enabled
+2. **Cloudflare account** with:
+   - Workers enabled in your Cloudflare dashboard
+   - Billing configured (even for free tier usage)
+   - API tokens with appropriate permissions: Workers:Edit, Account:Read, Zone:Read (if using custom domains)
 3. **Wrangler CLI** installed: `npm install -g wrangler`
 4. **OpenAI API key** for AI functionality
 
@@ -40,9 +43,9 @@ This script will:
 
 After running the setup script, you need to complete these manual steps:
 
-#### A. Update Environment Variables
+#### A. Update environment variables
 
-Edit `.dev.vars` with your actual values:
+Copy `.dev.vars.template` to `.dev.vars` if the setup script did not create it. Edit `.dev.vars` with your actual values:
 
 ```bash
 # Required values
@@ -59,7 +62,8 @@ CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
 VITE_API_URL=http://localhost:8787
 
 # Optional: Google OAuth (Sign in with Google)
-# Get client ID and secret from Google Cloud Console. Add redirect URI: http://localhost:8787/auth/google/callback
+# Get client ID and secret from Google Cloud Console.
+# Add callback URL to OAuth client's Authorized redirect URIs: http://localhost:8787/auth/google/callback
 # GOOGLE_OAUTH_CLIENT_ID=
 # GOOGLE_OAUTH_CLIENT_SECRET=
 
@@ -69,9 +73,9 @@ VITE_API_URL=http://localhost:8787
 # VERIFICATION_EMAIL_FROM=noreply@yourdomain.com
 ```
 
-#### B. Update Database ID
+#### B. Update database ID
 
-After creating the D1 database, update `wrangler.dev.jsonc` with the actual database ID:
+After creating the D1 database, the setup script prints the database ID (e.g. `Database ID: abc123-def456-ghi789`). Copy that ID and update `wrangler.dev.jsonc`. Or find it with: `wrangler d1 list --config wrangler.dev.jsonc`.
 
 ```json
 "d1_databases": [
@@ -81,6 +85,25 @@ After creating the D1 database, update `wrangler.dev.jsonc` with the actual data
     "database_id": "YOUR_ACTUAL_DATABASE_ID_HERE"
   }
 ]
+```
+
+#### C. Cloudflare secrets
+
+Verify secrets are set:
+
+```bash
+wrangler secret list --config wrangler.dev.jsonc
+```
+
+#### D. Resource verification
+
+Verify all Cloudflare resources exist and are accessible:
+
+```bash
+wrangler r2 bucket list --config wrangler.dev.jsonc
+wrangler d1 list --config wrangler.dev.jsonc
+wrangler vectorize list --config wrangler.dev.jsonc
+wrangler queues list --config wrangler.dev.jsonc
 ```
 
 ## Development Commands
@@ -135,7 +158,7 @@ loresmith-ai/
 │   ├── setup-dev.sh           # Automated setup script
 │   └── validate-dev.sh        # Validation script
 └── docs/
-    └── dev-setup.md           # This file
+    └── DEV_SETUP.md           # This file
 ```
 
 ## Troubleshooting
@@ -147,24 +170,30 @@ loresmith-ai/
 - Make sure you're logged in: `wrangler login`
 - Check your account ID: `wrangler whoami`
 
-#### 2. "Database not found"
+#### 2. "Database ID not found"
+
+- The setup script shows the database ID when creating the D1 database; copy it and update `wrangler.dev.jsonc`
+- Or find it with: `wrangler d1 list --config wrangler.dev.jsonc`
+
+#### 3. "Database not found"
 
 - Run the setup script again: `npm run dev:setup`
 - Check if the database was created: `wrangler d1 list --config wrangler.dev.jsonc`
 
-#### 3. "Authentication errors"
+#### 4. "Authentication errors"
 
 - Ensure `ADMIN_SECRET` is set in `.dev.vars`
 - Clear browser local storage if JWT verification errors occur
 - Check that database migrations ran successfully
 
-#### 4. "CORS errors"
+#### 5. "CORS errors"
 
 - Make sure both servers are running:
   - Backend: `npm run dev:cloudflare` (port 8787)
   - Frontend: `npm run start` (port 5173)
+- Check `.dev.vars` has correct CORS origins
 
-#### 5. "File upload fails"
+#### 6. "File upload fails"
 
 - Check R2 bucket exists: `wrangler r2 bucket list --config wrangler.dev.jsonc`
 - Verify bucket permissions in Cloudflare dashboard
@@ -202,6 +231,33 @@ Development environment costs (monthly):
 2. **Create test data**: Add some sample campaigns and files
 3. **Run tests**: `npm test` to ensure everything works
 4. **Start developing**: Make changes and see them reflected immediately
+
+## Quick reference
+
+### Essential commands
+
+```bash
+# Setup (run once)
+npm run dev:setup
+
+# Development (run daily)
+npm run dev:cloudflare  # Terminal 1
+npm run start          # Terminal 2
+
+# Validation (run when issues occur)
+./scripts/validate-dev.sh
+```
+
+### Key files to edit
+
+- `.dev.vars` - Environment variables
+- `wrangler.dev.jsonc` - Database ID and account ID
+
+### Important URLs
+
+- **Cloudflare Dashboard**: https://dash.cloudflare.com
+- **Workers section**: https://dash.cloudflare.com → Workers & Pages
+- **Local development**: http://localhost:5173 (frontend), http://localhost:8787 (backend)
 
 ## Support
 
