@@ -298,7 +298,11 @@ export function BlockingAuthenticationModal({
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               You signed in with Google. Choose a username to finish.
             </p>
-            <form onSubmit={handleGoogleCompleteSignup} className="space-y-4">
+            <form
+              onSubmit={handleGoogleCompleteSignup}
+              noValidate
+              className="space-y-4"
+            >
               <FormField
                 id={usernameId}
                 label="Username"
@@ -411,7 +415,7 @@ export function BlockingAuthenticationModal({
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleRegister} className="space-y-4">
+              <form onSubmit={handleRegister} noValidate className="space-y-4">
                 <FormField
                   id={usernameId}
                   label="Username"
@@ -484,7 +488,7 @@ export function BlockingAuthenticationModal({
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Sign in with your username and password.
             </p>
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleLogin} noValidate className="space-y-4">
               <FormField
                 id={usernameId}
                 label="Username"
@@ -551,7 +555,11 @@ export function BlockingAuthenticationModal({
               need your own OpenAI API key to unlock these ancient gates.
               Providing the sacred admin key grants unlimited storage access.
             </p>
-            <form onSubmit={handleSubmitLegacy} className="space-y-4">
+            <form
+              onSubmit={handleSubmitLegacy}
+              noValidate
+              className="space-y-4"
+            >
               <FormField
                 id={usernameId}
                 label="Username"
