@@ -5,7 +5,7 @@ import type {
 } from "./llm-provider";
 import { OpenAIAPIKeyError } from "@/lib/errors";
 import { MODEL_CONFIG } from "@/app-constants";
-import { generateText } from "ai";
+import { generateText, APICallError } from "ai";
 import { Output } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 
@@ -125,10 +125,18 @@ export class OpenAIProvider implements LLMProvider {
       }
       return output as T;
     } catch (error) {
-      console.error(
-        "[OpenAIProvider] Error generating structured output:",
-        error
-      );
+      if (APICallError.isInstance(error)) {
+        console.error(
+          "[OpenAIProvider] Structured output API error:",
+          error.statusCode,
+          error.responseBody ?? "(no body)"
+        );
+      } else {
+        console.error(
+          "[OpenAIProvider] Error generating structured output:",
+          error
+        );
+      }
       if (error instanceof OpenAIAPIKeyError) {
         throw error;
       }
