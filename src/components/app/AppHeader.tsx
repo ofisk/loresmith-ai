@@ -1,4 +1,4 @@
-import { Trash, NotePencil, Lightbulb, ChartBar } from "@phosphor-icons/react";
+import { NotePencil, Lightbulb, ChartBar } from "@phosphor-icons/react";
 import { Button } from "@/components/button/Button";
 import { HelpButton } from "@/components/help/HelpButton";
 import { TopBarNotifications } from "@/components/notifications/TopBarNotifications";
@@ -7,7 +7,6 @@ import type { NotificationPayload } from "@/durable-objects/notification-hub";
 import { AuthService } from "@/services/core/auth-service";
 
 interface AppHeaderProps {
-  onClearHistory: () => void;
   onHelpAction: (action: string) => void;
   onSessionRecapRequest?: () => void;
   onNextStepsRequest?: () => void;
@@ -31,7 +30,6 @@ interface AppHeaderProps {
  * AppHeader component - Top navigation bar with logo, controls, and notifications
  */
 export function AppHeader({
-  onClearHistory,
   onHelpAction,
   onSessionRecapRequest,
   onNextStepsRequest,
@@ -116,16 +114,6 @@ export function AppHeader({
           <ChartBar size={18} />
         </Button>
       )}
-
-      <Button
-        variant="ghost"
-        size="md"
-        shape="square"
-        className="tour-clear-history !h-8 !w-8 rounded-full flex items-center justify-center"
-        onClick={onClearHistory}
-      >
-        <Trash size={18} />
-      </Button>
 
       <TopBarNotifications
         notifications={notifications}
