@@ -288,7 +288,7 @@ export async function queue(
 }
 
 export async function scheduled(
-  _event: ScheduledEvent,
+  _event: ScheduledController,
   env: Env
 ): Promise<void> {
   // Clean up old staging files every hour
@@ -491,9 +491,7 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
             );
 
             // Get OpenAI API key from environment
-            const openaiApiKey = (env as any).OPENAI_API_KEY as
-              | string
-              | undefined;
+            const openaiApiKey = env.OPENAI_API_KEY as string | undefined;
 
             if (openaiApiKey) {
               // Create summary service
