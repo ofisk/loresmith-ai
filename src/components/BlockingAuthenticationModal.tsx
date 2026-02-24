@@ -314,6 +314,7 @@ export function BlockingAuthenticationModal({
               {error && <div className="text-red-500 text-sm">{error}</div>}
               <PrimaryActionButton
                 type="submit"
+                formNoValidate
                 disabled={
                   isLoading ||
                   !currentUsername.trim() ||
@@ -460,6 +461,7 @@ export function BlockingAuthenticationModal({
                 <div className="flex gap-2">
                   <PrimaryActionButton
                     type="submit"
+                    formNoValidate
                     disabled={
                       isLoading ||
                       !currentUsername.trim() ||
@@ -532,6 +534,7 @@ export function BlockingAuthenticationModal({
               <div className="flex gap-2">
                 <PrimaryActionButton
                   type="submit"
+                  formNoValidate
                   disabled={isLoading || !currentUsername.trim() || !password}
                 >
                   {isLoading ? "Signing in…" : "Sign in"}
@@ -632,6 +635,7 @@ export function BlockingAuthenticationModal({
               <div className="flex justify-center pt-4 gap-2">
                 <PrimaryActionButton
                   type="submit"
+                  formNoValidate
                   disabled={
                     isLoading ||
                     !currentUsername.trim() ||
