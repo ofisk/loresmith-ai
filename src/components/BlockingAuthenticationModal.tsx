@@ -310,6 +310,7 @@ export function BlockingAuthenticationModal({
                 value={currentUsername}
                 onValueChange={(v, _) => setCurrentUsername(v)}
                 disabled={false}
+                pattern=".*"
               />
               {error && <div className="text-red-500 text-sm">{error}</div>}
               <PrimaryActionButton
@@ -424,6 +425,7 @@ export function BlockingAuthenticationModal({
                   value={currentUsername}
                   onValueChange={(v, _) => setCurrentUsername(v)}
                   disabled={false}
+                  pattern=".*"
                 />
                 <FormField
                   id={emailId}
@@ -498,6 +500,7 @@ export function BlockingAuthenticationModal({
                 value={currentUsername}
                 onValueChange={(v, _) => setCurrentUsername(v)}
                 disabled={false}
+                pattern=".*"
               />
               <FormField
                 id={passwordId}
@@ -570,6 +573,7 @@ export function BlockingAuthenticationModal({
                 value={currentUsername}
                 onValueChange={(value, _isValid) => setCurrentUsername(value)}
                 disabled={false}
+                pattern=".*"
               >
                 <p className="text-xs text-gray-500 mt-1">
                   Forge your identity in the realm of LoreSmith.
