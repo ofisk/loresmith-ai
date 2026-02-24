@@ -461,10 +461,6 @@ export default function Chat() {
     [sendMessage, setChatMessages, sessionId]
   );
 
-  const clearHistory = useCallback(() => {
-    setChatMessages([]);
-  }, [setChatMessages]);
-
   const authReady = useAuthReady();
 
   // Restore chat history from API on load so it persists across refreshes
@@ -555,16 +551,6 @@ export default function Chat() {
         });
       }
     }, 100);
-  };
-
-  // Enhanced clear history function that creates a new session
-  const handleClearHistory = () => {
-    clearHistory();
-    // Create a completely fresh chat session
-    const freshSessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-    localStorage.setItem("chat-session-id", freshSessionId);
-    // Reload the page to reinitialize with the new session ID
-    window.location.reload();
   };
 
   // Handle help button: invoke the chat agent for intelligent, docs-aware help (no static content)
@@ -971,11 +957,6 @@ export default function Chat() {
             content: "Admin dashboard: shows telemetry and system metrics.",
           },
           {
-            target: ".tour-clear-history",
-            content:
-              "Clear history: clears the current conversation to start fresh; your campaign data remains safe.",
-          },
-          {
             target: ".tour-notifications",
             content:
               "Notifications: shows real-time updates (e.g. when shards are ready to review) on file processing and other campaign activity.",
@@ -1051,7 +1032,6 @@ export default function Chat() {
         <div className="h-[calc(100vh-3rem)] w-full mx-auto max-w-[1400px] flex flex-col shadow-2xl rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950">
           {/* Top Header - LoreSmith Branding */}
           <AppHeader
-            onClearHistory={handleClearHistory}
             onHelpAction={handleHelpAction}
             onSessionRecapRequest={handleSessionRecapRequest}
             onNextStepsRequest={handleNextStepsRequest}

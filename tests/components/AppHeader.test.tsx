@@ -2,7 +2,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { AppHeader } from "../../src/components/app/AppHeader";
 import { TooltipProvider } from "../../src/providers/TooltipProvider";
 
@@ -25,7 +25,6 @@ beforeEach(() => {
 
 describe("AppHeader", () => {
   const baseProps = {
-    onClearHistory: vi.fn(),
     onHelpAction: vi.fn(),
     onGuidanceRequest: vi.fn(),
     notifications: [],
@@ -45,36 +44,14 @@ describe("AppHeader", () => {
     expect(screen.getByAltText("LoreSmith logo")).toBeTruthy();
   });
 
-  it("renders buttons for clear history", () => {
+  it("renders header action buttons", () => {
     render(
       <TooltipProvider>
         <AppHeader {...baseProps} />
       </TooltipProvider>
     );
 
-    // Should have clear history button
     const buttons = screen.getAllByRole("button");
     expect(buttons.length).toBeGreaterThan(0);
-  });
-
-  it("calls onClearHistory when clear button is clicked", () => {
-    const handleClear = vi.fn();
-
-    render(
-      <TooltipProvider>
-        <AppHeader {...baseProps} onClearHistory={handleClear} />
-      </TooltipProvider>
-    );
-
-    // Find and click the clear history button (Trash icon button)
-    const buttons = screen.getAllByRole("button");
-    const clearButton = buttons.find((btn) =>
-      btn.querySelector("svg[data-phosphor]")
-    );
-
-    if (clearButton) {
-      fireEvent.click(clearButton);
-      expect(handleClear).toHaveBeenCalled();
-    }
   });
 });
