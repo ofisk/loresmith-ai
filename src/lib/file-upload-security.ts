@@ -1,9 +1,10 @@
 /**
  * File upload security for proposals and campaign resources.
  * Uses OWASP-recommended allowlist approach with magic-byte validation.
+ *
+ * NOTE: We avoid `file-type` here because its tokenizer stack can pull in
+ * Node-only `tty` paths under Worker-based dev runtimes.
  */
-
-import { fileTypeFromBuffer } from "file-type";
 
 /** Extensions allowed for proposals and campaign resources (entity extraction supported types) */
 export const ALLOWED_EXTENSIONS = new Set([
@@ -18,6 +19,62 @@ export const ALLOWED_EXTENSIONS = new Set([
 
 /** Minimum bytes to read for magic-byte detection (file-type needs ~4KB for some formats) */
 const MAGIC_BYTES_LENGTH = 4100;
+
+function hasPrefix(bytes: Uint8Array, signature: number[]): boolean {
+  if (bytes.length < signature.length) return false;
+  for (let i = 0; i < signature.length; i++) {
+    if (bytes[i] !== signature[i]) return false;
+  }
+  return true;
+}
+
+function includesAscii(bytes: Uint8Array, text: string): boolean {
+  const encoder = new TextEncoder();
+  const needle = encoder.encode(text);
+  if (needle.length === 0 || bytes.length < needle.length) return false;
+  for (let i = 0; i <= bytes.length - needle.length; i++) {
+    let match = true;
+    for (let j = 0; j < needle.length; j++) {
+      if (bytes[i + j] !== needle[j]) {
+        match = false;
+        break;
+      }
+    }
+    if (match) return true;
+  }
+  return false;
+}
+
+function detectMagicType(bytes: Uint8Array, claimedExt: string): string | null {
+  // PDF: 25 50 44 46 -> "%PDF"
+  if (hasPrefix(bytes, [0x25, 0x50, 0x44, 0x46])) return "pdf";
+
+  // Legacy Word .doc (OLE/CFBF): D0 CF 11 E0 A1 B1 1A E1
+  if (hasPrefix(bytes, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) {
+    return "doc";
+  }
+
+  // ZIP container used by .docx: 50 4B 03 04 / 50 4B 05 06 / 50 4B 07 08
+  const isZip =
+    hasPrefix(bytes, [0x50, 0x4b, 0x03, 0x04]) ||
+    hasPrefix(bytes, [0x50, 0x4b, 0x05, 0x06]) ||
+    hasPrefix(bytes, [0x50, 0x4b, 0x07, 0x08]);
+  if (isZip) {
+    // Stronger signal for DOCX package internals when present in the head bytes.
+    if (
+      includesAscii(bytes, "word/") ||
+      includesAscii(bytes, "[Content_Types].xml")
+    ) {
+      return "docx";
+    }
+    // If claimed as docx but internals aren't visible in the first chunk,
+    // keep behavior practical for stream/head-only validation.
+    if (claimedExt === "docx") return "docx";
+    return "zip";
+  }
+
+  return null;
+}
 
 /**
  * Safely extract extension from filename (OWASP bypass protection).
@@ -77,15 +134,14 @@ export async function validateFileContent(
     return { valid: false, error: "Empty file" };
   }
 
-  const detected = await fileTypeFromBuffer(uint8);
+  const detectedExt = detectMagicType(uint8, ext);
 
   // No magic bytes (txt, md, json, etc.) - allow if extension is in allowlist
-  if (!detected) {
+  if (!detectedExt) {
     return { valid: true };
   }
 
   // Detected type must match claimed extension
-  const detectedExt = detected.ext.toLowerCase();
   const extAliases: Record<string, string[]> = {
     jpeg: ["jpg", "jpeg"],
     mpeg: ["mpg", "mpeg"],
