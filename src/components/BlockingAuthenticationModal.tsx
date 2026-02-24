@@ -80,33 +80,52 @@ export function BlockingAuthenticationModal({
 
   const googleAuthUrl = `${API_CONFIG.buildAuthUrl(API_CONFIG.ENDPOINTS.AUTH.GOOGLE)}?return_url=${encodeURIComponent(typeof window !== "undefined" ? window.location.origin : "")}`;
 
-  const handleGoogleCompleteSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleCompleteSignup = async (e?: React.SyntheticEvent) => {
+    e?.preventDefault();
     if (!googlePendingToken || !onLoginSuccess) return;
     setError(null);
     setIsLoading(true);
     try {
+      // OAuth auth routes live at origin (not under /api).
       const res = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.GOOGLE_COMPLETE_SIGNUP),
+        API_CONFIG.buildAuthUrl(
+          API_CONFIG.ENDPOINTS.AUTH.GOOGLE_COMPLETE_SIGNUP
+        ),
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
           body: JSON.stringify({
             pendingToken: googlePendingToken,
             username: currentUsername.trim(),
           }),
         }
       );
-      const data = (await res.json()) as { token?: string; error?: string };
+
+      const contentType = res.headers.get("content-type") ?? "";
+      const data = contentType.includes("application/json")
+        ? ((await res.json().catch(() => null)) as null | {
+            token?: string;
+            error?: string;
+          })
+        : null;
       if (!res.ok) {
-        setError(data.error ?? "Sign-up failed");
+        if (data?.error) {
+          setError(data.error);
+          return;
+        }
+
+        // Avoid leaking low-level parse / fetch errors to users.
+        setError("Sign-up failed. Please try again.");
         return;
       }
-      if (data.token) {
+      if (data?.token) {
         await onLoginSuccess(data.token);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError("Sign-up failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -298,11 +317,7 @@ export function BlockingAuthenticationModal({
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               You signed in with Google. Choose a username to finish.
             </p>
-            <form
-              onSubmit={handleGoogleCompleteSignup}
-              noValidate
-              className="space-y-4"
-            >
+            <div className="space-y-4">
               <FormField
                 id={usernameId}
                 label="Username"
@@ -311,11 +326,19 @@ export function BlockingAuthenticationModal({
                 onValueChange={(v, _) => setCurrentUsername(v)}
                 disabled={false}
                 pattern=".*"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleGoogleCompleteSignup(e);
+                  }
+                }}
               />
               {error && <div className="text-red-500 text-sm">{error}</div>}
               <PrimaryActionButton
-                type="submit"
-                formNoValidate
+                type="button"
+                onClick={() => {
+                  handleGoogleCompleteSignup();
+                }}
                 disabled={
                   isLoading ||
                   !currentUsername.trim() ||
@@ -324,7 +347,7 @@ export function BlockingAuthenticationModal({
               >
                 {isLoading ? "Continuing…" : "Continue"}
               </PrimaryActionButton>
-            </form>
+            </div>
           </>
         )}
 
