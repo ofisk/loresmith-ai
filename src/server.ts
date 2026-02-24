@@ -1,7 +1,12 @@
 import { Hono } from "hono";
 import { UploadSessionDO } from "@/durable-objects/upload-session";
-import { queue as queueFn, scheduled as scheduledFn } from "@/queue-consumer";
+import {
+  queue as queueFn,
+  scheduled as scheduledFn,
+  type ProcessingMessage,
+} from "@/queue-consumer";
 import { registerRoutes, type Env } from "@/routes/register-routes";
+import type { RebuildQueueMessage } from "@/types/rebuild-queue";
 
 export { Chat } from "@/durable-objects/chat";
 export { NotificationHub } from "./durable-objects";
@@ -46,10 +51,14 @@ export default {
   fetch: (request: Request, env: Env, ctx: ExecutionContext) => {
     return app.fetch(request, env, ctx);
   },
-  queue: (batch: MessageBatch<unknown>, env: Env, _ctx?: ExecutionContext) => {
-    return queueFn(batch as any, env as any);
+  queue: (
+    batch: MessageBatch<ProcessingMessage | RebuildQueueMessage>,
+    env: Env,
+    ctx: ExecutionContext
+  ) => {
+    return queueFn(batch, env);
   },
-  scheduled: (event: ScheduledEvent, env: Env, _ctx?: ExecutionContext) => {
-    return scheduledFn(event as any, env as any);
+  scheduled: (event: ScheduledController, env: Env, ctx: ExecutionContext) => {
+    return scheduledFn(event, env);
   },
 };

@@ -179,12 +179,13 @@ import {
   handleUploadStatus,
   handleCleanupStuckFiles,
 } from "@/routes/upload";
+import type { EnvWithSecrets } from "@/lib/env-utils";
 import { AuthService } from "@/services/core/auth-service";
 import type { AuthEnv } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
 import { routeAgentRequest } from "agents";
 
-export interface Env extends AuthEnv {
+export interface Env extends AuthEnv, EnvWithSecrets {
   ADMIN_SECRET?: string;
   OPENAI_API_KEY?: string;
   R2: R2Bucket;
@@ -197,6 +198,7 @@ export interface Env extends AuthEnv {
   ASSETS: Fetcher;
   FILE_PROCESSING_QUEUE: Queue;
   FILE_PROCESSING_DLQ: Queue;
+  GRAPH_REBUILD_QUEUE: Queue;
 }
 
 export function registerRoutes(app: Hono<{ Bindings: Env }>) {
