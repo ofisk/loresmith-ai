@@ -432,8 +432,8 @@ export const ResourceUpload = ({
                                   "px-3 py-1.5 text-sm transition-colors rounded border-2",
                                   "focus:outline-none",
                                   isSelected
-                                    ? "font-medium bg-purple-200 dark:bg-purple-800/40 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-purple-300 dark:hover:bg-purple-800/50"
-                                    : "font-normal bg-purple-50/30 dark:bg-purple-900/10 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-purple-50/50 dark:hover:bg-purple-900/15"
+                                    ? "font-medium bg-neutral-200 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600"
+                                    : "font-normal bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-700"
                                 )}
                               >
                                 {campaign.name}
