@@ -215,13 +215,28 @@ export interface Env extends AuthEnv, EnvWithSecrets {
   GRAPH_REBUILD_QUEUE: Queue;
 }
 
-export function registerRoutes(app: Hono<{ Bindings: Env }>) {
-  app.get(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY, handleCheckOpenAIKey);
-  app.get(API_CONFIG.ENDPOINTS.OPENAI.CHECK_USER_KEY, handleCheckUserOpenAIKey);
-  app.post(API_CONFIG.ENDPOINTS.CHAT.SET_OPENAI_KEY, handleSetOpenAIApiKey);
+const toApiRoutePath = (path: string) => API_CONFIG.apiRoute(path);
 
-  app.post(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE, handleAuthenticate);
-  app.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT, handleLogout);
+export function registerRoutes(app: Hono<{ Bindings: Env }>) {
+  app.get(
+    toApiRoutePath(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY),
+    handleCheckOpenAIKey
+  );
+  app.get(
+    toApiRoutePath(API_CONFIG.ENDPOINTS.OPENAI.CHECK_USER_KEY),
+    handleCheckUserOpenAIKey
+  );
+  app.post(
+    toApiRoutePath(API_CONFIG.ENDPOINTS.CHAT.SET_OPENAI_KEY),
+    handleSetOpenAIApiKey
+  );
+
+  app.post(
+    toApiRoutePath(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
+    handleAuthenticate
+  );
+  app.post(toApiRoutePath(API_CONFIG.ENDPOINTS.AUTH.LOGOUT), handleLogout);
+  // Auth OAuth routes at root (not under /api)
   app.get(API_CONFIG.ENDPOINTS.AUTH.GOOGLE, handleGoogleAuth);
   app.get(API_CONFIG.ENDPOINTS.AUTH.GOOGLE_CALLBACK, handleGoogleCallback);
   app.post(
@@ -235,62 +250,79 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.AUTH.RESEND_VERIFICATION,
     handleResendVerification
   );
-  app.get(API_CONFIG.ENDPOINTS.AUTH.GET_OPENAI_KEY, handleGetOpenAIKey);
-  app.post(API_CONFIG.ENDPOINTS.AUTH.STORE_OPENAI_KEY, handleStoreOpenAIKey);
+  app.get(
+    toApiRoutePath(API_CONFIG.ENDPOINTS.AUTH.GET_OPENAI_KEY),
+    handleGetOpenAIKey
+  );
+  app.post(
+    toApiRoutePath(API_CONFIG.ENDPOINTS.AUTH.STORE_OPENAI_KEY),
+    handleStoreOpenAIKey
+  );
   app.delete(
-    API_CONFIG.ENDPOINTS.AUTH.DELETE_OPENAI_KEY,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.AUTH.DELETE_OPENAI_KEY),
     handleDeleteOpenAIKey
   );
 
-  app.post(API_CONFIG.ENDPOINTS.RAG.SEARCH, requireUserJwt, handleRagSearch);
   app.post(
-    API_CONFIG.ENDPOINTS.RAG.PROCESS_FILE,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.RAG.SEARCH),
+    requireUserJwt,
+    handleRagSearch
+  );
+  app.post(
+    toApiRoutePath(API_CONFIG.ENDPOINTS.RAG.PROCESS_FILE),
     requireUserJwt,
     handleProcessFileForRag
   );
   // Use wildcard pattern to match file keys with slashes
   app.put(
-    API_CONFIG.ENDPOINTS.LIBRARY.UPDATE_METADATA_PATTERN,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.UPDATE_METADATA_PATTERN),
     requireUserJwt,
     handleUpdateFileMetadata
   );
-  app.get(API_CONFIG.ENDPOINTS.RAG.FILES, requireUserJwt, handleGetFilesForRag);
+  app.get(
+    toApiRoutePath(API_CONFIG.ENDPOINTS.RAG.FILES),
+    requireUserJwt,
+    handleGetFilesForRag
+  );
   app.delete(
-    API_CONFIG.ENDPOINTS.RAG.DELETE_FILE(":fileKey"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.RAG.DELETE_FILE(":fileKey")),
     requireUserJwt,
     handleDeleteFileForRag
   );
   app.get(
-    API_CONFIG.ENDPOINTS.RAG.FILE_CHUNKS(":fileKey"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.RAG.FILE_CHUNKS(":fileKey")),
     requireUserJwt,
     handleGetFileChunksForRag
   );
   app.post(
-    API_CONFIG.ENDPOINTS.RAG.TRIGGER_INDEXING,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.RAG.TRIGGER_INDEXING),
     requireUserJwt,
     handleTriggerIndexing
   );
-  app.get(API_CONFIG.ENDPOINTS.RAG.STATUS, requireUserJwt);
+  app.get(toApiRoutePath(API_CONFIG.ENDPOINTS.RAG.STATUS), requireUserJwt);
   app.post(
-    API_CONFIG.ENDPOINTS.RAG.CHECK_FILE_INDEXING,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.RAG.CHECK_FILE_INDEXING),
     requireUserJwt,
     handleCheckFileIndexingStatus
   );
   app.post(
-    API_CONFIG.ENDPOINTS.RAG.BULK_CHECK_FILE_INDEXING,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.RAG.BULK_CHECK_FILE_INDEXING),
     requireUserJwt,
     handleBulkCheckFileIndexingStatus
   );
 
-  app.route(API_CONFIG.ENDPOINTS.FILE_ANALYSIS.BASE, fileAnalysisRoutes);
+  app.route(
+    toApiRoutePath(API_CONFIG.ENDPOINTS.FILE_ANALYSIS.BASE),
+    fileAnalysisRoutes
+  );
 
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.LIST,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.LIST),
     requireUserJwt,
     handleGetCampaigns
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.CREATE,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.CREATE),
     requireUserJwt,
     handleCreateCampaign
   );
@@ -299,223 +331,275 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
   // Only authenticated requests can actually join. The app auto-opens sign-in and
   // completes the join after successful auth.
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.JOIN,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.JOIN),
     optionalUserJwt,
     handleCampaignJoin
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.DETAILS(":campaignId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.DETAILS(":campaignId")),
     requireUserJwt,
     handleGetCampaign
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.CHECKLIST_STATUS(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.CHECKLIST_STATUS(":campaignId")
+    ),
     requireUserJwt,
     handleGetChecklistStatus
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.BASE(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.BASE(":campaignId")
+    ),
     requireUserJwt,
     handleGetPlanningTasks
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.BASE(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.BASE(":campaignId")
+    ),
     requireUserJwt,
     handleCreatePlanningTask
   );
   app.patch(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.DETAILS(
-      ":campaignId",
-      ":taskId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.DETAILS(
+        ":campaignId",
+        ":taskId"
+      )
     ),
     requireUserJwt,
     handleUpdatePlanningTask
   );
   app.delete(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.DETAILS(
-      ":campaignId",
-      ":taskId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.DETAILS(
+        ":campaignId",
+        ":taskId"
+      )
     ),
     requireUserJwt,
     handleDeletePlanningTask
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.COMPLETE_BULK(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.COMPLETE_BULK(":campaignId")
+    ),
     requireUserJwt,
     handleBulkCompletePlanningTasks
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(":campaignId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(":campaignId")),
     requireUserJwt,
     handleGetCampaignResources
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(":campaignId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(":campaignId")),
     requireUserJwt,
     handleAddResourceToCampaign
   );
   app.delete(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_DELETE(
-      ":campaignId",
-      ":resourceId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_DELETE(
+        ":campaignId",
+        ":resourceId"
+      )
     ),
     requireUserJwt,
     handleRemoveResourceFromCampaign
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.RETRY_ENTITY_EXTRACTION(
-      ":campaignId",
-      ":resourceId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.RETRY_ENTITY_EXTRACTION(
+        ":campaignId",
+        ":resourceId"
+      )
     ),
     requireUserJwt,
     handleRetryEntityExtraction
   );
 
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITY_EXTRACTION_STATUS(
-      ":campaignId",
-      ":resourceId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITY_EXTRACTION_STATUS(
+        ":campaignId",
+        ":resourceId"
+      )
     ),
     requireUserJwt,
     handleGetEntityExtractionStatus
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.CLEANUP_STUCK_ENTITY_EXTRACTION,
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.CLEANUP_STUCK_ENTITY_EXTRACTION
+    ),
     requireUserJwt,
     handleCleanupStuckEntityExtraction
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.PROCESS_ENTITY_EXTRACTION_QUEUE,
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.PROCESS_ENTITY_EXTRACTION_QUEUE
+    ),
     requireUserJwt,
     handleProcessEntityExtractionQueue
   );
   app.delete(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.DELETE(":campaignId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.DELETE(":campaignId")),
     requireUserJwt,
     handleDeleteCampaign
   );
   app.put(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.DETAILS(":campaignId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.DETAILS(":campaignId")),
     requireUserJwt,
     handleUpdateCampaign
   );
   app.delete(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.DELETE_ALL,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.DELETE_ALL),
     requireUserJwt,
     handleDeleteAllCampaigns
   );
 
   // Share links (owner, editor_gm)
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SHARE_LINKS(":campaignId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.SHARE_LINKS(":campaignId")),
     requireUserJwt,
     handleCreateShareLink
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SHARE_LINKS(":campaignId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.SHARE_LINKS(":campaignId")),
     requireUserJwt,
     handleListShareLinks
   );
   app.delete(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SHARE_LINKS_REVOKE_PATTERN,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.SHARE_LINKS_REVOKE_PATTERN),
     requireUserJwt,
     handleRevokeShareLink
   );
 
   // Resource proposals (editor_player proposes; editor_gm/owner approve)
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSALS(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSALS(":campaignId")
+    ),
     requireUserJwt,
     handleCreateResourceProposal
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSALS(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSALS(":campaignId")
+    ),
     requireUserJwt,
     handleListResourceProposals
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSAL_APPROVE(
-      ":campaignId",
-      ":id"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSAL_APPROVE(
+        ":campaignId",
+        ":id"
+      )
     ),
     requireUserJwt,
     handleApproveResourceProposal
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSAL_REJECT(
-      ":campaignId",
-      ":id"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSAL_REJECT(
+        ":campaignId",
+        ":id"
+      )
     ),
     requireUserJwt,
     handleRejectResourceProposal
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSAL_DOWNLOAD(
-      ":campaignId",
-      ":id"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSAL_DOWNLOAD(
+        ":campaignId",
+        ":id"
+      )
     ),
     requireUserJwt,
     handleDownloadFileFromProposal
   );
 
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.CHANGELOG(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.CHANGELOG(":campaignId")
+    ),
     requireUserJwt,
     handleCreateWorldStateChangelog
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.CHANGELOG(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.CHANGELOG(":campaignId")
+    ),
     requireUserJwt,
     handleListWorldStateChangelog
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.OVERLAY(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.OVERLAY(":campaignId")
+    ),
     requireUserJwt,
     handleGetWorldStateOverlay
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.HISTORICAL_QUERY(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.HISTORICAL_QUERY(":campaignId")
+    ),
     requireUserJwt,
     handleQueryHistoricalState
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.HISTORICAL_OVERLAY(
-      ":campaignId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.HISTORICAL_OVERLAY(
+        ":campaignId"
+      )
     ),
     requireUserJwt,
     handleGetHistoricalOverlay
   );
 
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.BASE(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.BASE(":campaignId")
+    ),
     requireUserJwt,
     handleCreateSessionDigest
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.BASE(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.BASE(":campaignId")
+    ),
     requireUserJwt,
     handleGetSessionDigests
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
-      ":campaignId",
-      ":digestId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
+        ":campaignId",
+        ":digestId"
+      )
     ),
     requireUserJwt,
     handleGetSessionDigest
   );
   app.put(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
-      ":campaignId",
-      ":digestId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
+        ":campaignId",
+        ":digestId"
+      )
     ),
     requireUserJwt,
     handleUpdateSessionDigest
   );
   app.delete(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
-      ":campaignId",
-      ":digestId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
+        ":campaignId",
+        ":digestId"
+      )
     ),
     requireUserJwt,
     handleDeleteSessionDigest
@@ -523,25 +607,31 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
 
   // Session digest review workflow routes
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.SUBMIT(
-      ":campaignId",
-      ":digestId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.SUBMIT(
+        ":campaignId",
+        ":digestId"
+      )
     ),
     requireUserJwt,
     handleSubmitDigestForReview
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.APPROVE(
-      ":campaignId",
-      ":digestId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.APPROVE(
+        ":campaignId",
+        ":digestId"
+      )
     ),
     requireUserJwt,
     handleApproveDigest
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.REJECT(
-      ":campaignId",
-      ":digestId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.REJECT(
+        ":campaignId",
+        ":digestId"
+      )
     ),
     requireUserJwt,
     handleRejectDigest
@@ -549,489 +639,604 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
 
   // Session digest templates routes
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.BASE(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.BASE(
+        ":campaignId"
+      )
+    ),
     requireUserJwt,
     handleCreateSessionDigestTemplate
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.BASE(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.BASE(
+        ":campaignId"
+      )
+    ),
     requireUserJwt,
     handleGetSessionDigestTemplates
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.DETAILS(
-      ":campaignId",
-      ":templateId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.DETAILS(
+        ":campaignId",
+        ":templateId"
+      )
     ),
     requireUserJwt,
     handleGetSessionDigestTemplate
   );
   app.put(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.DETAILS(
-      ":campaignId",
-      ":templateId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.DETAILS(
+        ":campaignId",
+        ":templateId"
+      )
     ),
     requireUserJwt,
     handleUpdateSessionDigestTemplate
   );
   app.delete(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.DETAILS(
-      ":campaignId",
-      ":templateId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.DETAILS(
+        ":campaignId",
+        ":templateId"
+      )
     ),
     requireUserJwt,
     handleDeleteSessionDigestTemplate
   );
 
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_CONTEXT.SEARCH(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_CONTEXT.SEARCH(":campaignId")
+    ),
     requireUserJwt,
     handleSearchPlanningContext
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_CONTEXT.RECENT(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_CONTEXT.RECENT(":campaignId")
+    ),
     requireUserJwt,
     handleGetRecentPlanningContext
   );
 
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.CONTEXT_ASSEMBLY(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.CONTEXT_ASSEMBLY(":campaignId")
+    ),
     requireUserJwt,
     handleAssembleContext
   );
 
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.TRIGGER(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.TRIGGER(":campaignId")
+    ),
     requireUserJwt,
     handleTriggerRebuild
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.STATUS(
-      ":campaignId",
-      ":rebuildId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.STATUS(
+        ":campaignId",
+        ":rebuildId"
+      )
     ),
     requireUserJwt,
     handleGetRebuildStatus
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.HISTORY(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.HISTORY(":campaignId")
+    ),
     requireUserJwt,
     handleGetRebuildHistory
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.ACTIVE(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.ACTIVE(":campaignId")
+    ),
     requireUserJwt,
     handleGetActiveRebuilds
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.CANCEL(
-      ":campaignId",
-      ":rebuildId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.CANCEL(
+        ":campaignId",
+        ":rebuildId"
+      )
     ),
     requireUserJwt,
     handleCancelRebuild
   );
 
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.LIST(":campaignId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.LIST(":campaignId")),
     requireUserJwt,
     handleListEntities
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DETAILS(":campaignId", ":entityId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DETAILS(
+        ":campaignId",
+        ":entityId"
+      )
+    ),
     requireUserJwt,
     handleGetEntity
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIPS(
-      ":campaignId",
-      ":entityId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIPS(
+        ":campaignId",
+        ":entityId"
+      )
     ),
     requireUserJwt,
     handleGetEntityRelationships
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.GRAPH_NEIGHBORS(
-      ":campaignId",
-      ":entityId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.GRAPH_NEIGHBORS(
+        ":campaignId",
+        ":entityId"
+      )
     ),
     requireUserJwt,
     handleGetEntityNeighbors
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIP_TYPES(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIP_TYPES(":campaignId")
+    ),
     requireUserJwt,
     handleListRelationshipTypes
   );
   app.patch(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.IMPORTANCE(
-      ":campaignId",
-      ":entityId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.IMPORTANCE(
+        ":campaignId",
+        ":entityId"
+      )
     ),
     requireUserJwt,
     handleUpdateEntityImportance
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.IMPORTANCE(
-      ":campaignId",
-      ":entityId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.IMPORTANCE(
+        ":campaignId",
+        ":entityId"
+      )
     ),
     requireUserJwt,
     handleGetEntityImportance
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.IMPORTANCE_TOP(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.IMPORTANCE_TOP(":campaignId")
+    ),
     requireUserJwt,
     handleListTopEntitiesByImportance
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIPS(
-      ":campaignId",
-      ":entityId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIPS(
+        ":campaignId",
+        ":entityId"
+      )
     ),
     requireUserJwt,
     handleCreateEntityRelationship
   );
   app.delete(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIP_DETAIL(
-      ":campaignId",
-      ":entityId",
-      ":relationshipId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIP_DETAIL(
+        ":campaignId",
+        ":entityId",
+        ":relationshipId"
+      )
     ),
     requireUserJwt,
     handleDeleteEntityRelationship
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.EXTRACT(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.EXTRACT(":campaignId")
+    ),
     requireUserJwt,
     handleTriggerEntityExtraction
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DEDUPLICATE(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DEDUPLICATE(":campaignId")
+    ),
     requireUserJwt,
     handleTriggerEntityDeduplication
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DEDUP_PENDING(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DEDUP_PENDING(":campaignId")
+    ),
     requireUserJwt,
     handleListPendingDeduplication
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DEDUP_RESOLVE(
-      ":campaignId",
-      ":entryId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DEDUP_RESOLVE(
+        ":campaignId",
+        ":entryId"
+      )
     ),
     requireUserJwt,
     handleResolveDeduplicationEntry
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.TEST_EXTRACT_FROM_R2,
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.TEST_EXTRACT_FROM_R2
+    ),
     requireUserJwt,
     handleTestEntityExtractionFromR2
   );
 
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.DETECT(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.DETECT(":campaignId")
+    ),
     requireUserJwt,
     handleDetectCommunities
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.LIST(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.LIST(":campaignId")
+    ),
     requireUserJwt,
     handleListCommunities
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.DETAILS(
-      ":campaignId",
-      ":communityId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.DETAILS(
+        ":campaignId",
+        ":communityId"
+      )
     ),
     requireUserJwt,
     handleGetCommunity
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.BY_LEVEL(
-      ":campaignId",
-      ":level"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.BY_LEVEL(
+        ":campaignId",
+        ":level"
+      )
     ),
     requireUserJwt,
     handleGetCommunitiesByLevel
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.CHILDREN(
-      ":campaignId",
-      ":communityId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.CHILDREN(
+        ":campaignId",
+        ":communityId"
+      )
     ),
     requireUserJwt,
     handleGetChildCommunities
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.HIERARCHY(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.HIERARCHY(":campaignId")
+    ),
     requireUserJwt,
     handleGetCommunityHierarchy
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_VISUALIZATION.BASE(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_VISUALIZATION.BASE(":campaignId")
+    ),
     requireUserJwt,
     handleGetGraphVisualization
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_VISUALIZATION.COMMUNITY(
-      ":campaignId",
-      ":communityId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_VISUALIZATION.COMMUNITY(
+        ":campaignId",
+        ":communityId"
+      )
     ),
     requireUserJwt,
     handleGetCommunityEntityGraph
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_VISUALIZATION.SEARCH_ENTITY(
-      ":campaignId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_VISUALIZATION.SEARCH_ENTITY(
+        ":campaignId"
+      )
     ),
     requireUserJwt,
     handleSearchEntityInGraph
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.SUMMARY(
-      ":campaignId",
-      ":communityId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.SUMMARY(
+        ":campaignId",
+        ":communityId"
+      )
     ),
     requireUserJwt,
     handleGetCommunitySummary
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.SUMMARIES(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.SUMMARIES(":campaignId")
+    ),
     requireUserJwt,
     handleListCommunitySummaries
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.GENERATE_SUMMARY(
-      ":campaignId",
-      ":communityId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.GENERATE_SUMMARY(
+        ":campaignId",
+        ":communityId"
+      )
     ),
     requireUserJwt,
     handleGenerateCommunitySummary
   );
 
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.APPROVE(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.APPROVE(":campaignId")
+    ),
     requireUserJwt,
     handleApproveShards
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.REJECT(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.REJECT(":campaignId")
+    ),
     requireUserJwt,
     handleRejectShards
   );
   app.get(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.STAGED_SHARDS(
-      ":campaignId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.STAGED_SHARDS(
+        ":campaignId"
+      )
     ),
     requireUserJwt,
     handleGetStagedShards
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.APPROVE_SHARDS(
-      ":campaignId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.APPROVE_SHARDS(
+        ":campaignId"
+      )
     ),
     requireUserJwt,
     handleApproveShards
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.REJECT_SHARDS(
-      ":campaignId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.REJECT_SHARDS(
+        ":campaignId"
+      )
     ),
     requireUserJwt,
     handleRejectShards
   );
   app.put(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.UPDATE_SHARD(
-      ":campaignId",
-      ":shardId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.UPDATE_SHARD(
+        ":campaignId",
+        ":shardId"
+      )
     ),
     requireUserJwt,
     handleUpdateShard
   );
   app.post(
-    API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.GENERATE_FIELD(
-      ":campaignId",
-      ":shardId"
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.GENERATE_FIELD(
+        ":campaignId",
+        ":shardId"
+      )
     ),
     requireUserJwt,
     handleGenerateShardField
   );
 
-  app.get(API_CONFIG.ENDPOINTS.PROGRESS.WEBSOCKET, handleProgressWebSocket);
+  app.get(
+    toApiRoutePath(API_CONFIG.ENDPOINTS.PROGRESS.WEBSOCKET),
+    handleProgressWebSocket
+  );
 
   app.get(
-    API_CONFIG.ENDPOINTS.ASSESSMENT.USER_STATE,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.ASSESSMENT.USER_STATE),
     requireUserJwt,
     handleGetUserState
   );
   app.get(
-    API_CONFIG.ENDPOINTS.ASSESSMENT.CAMPAIGN_READINESS(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.ASSESSMENT.CAMPAIGN_READINESS(":campaignId")
+    ),
     requireUserJwt,
     handleGetAssessmentRecommendations
   );
   app.get(
-    API_CONFIG.ENDPOINTS.ASSESSMENT.USER_ACTIVITY,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.ASSESSMENT.USER_ACTIVITY),
     requireUserJwt,
     handleGetUserActivity
   );
   app.post(
-    API_CONFIG.ENDPOINTS.ASSESSMENT.MODULE_INTEGRATION,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.ASSESSMENT.MODULE_INTEGRATION),
     requireUserJwt,
     handleModuleIntegration
   );
 
   app.get(
-    API_CONFIG.ENDPOINTS.ONBOARDING.WELCOME_GUIDANCE,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.ONBOARDING.WELCOME_GUIDANCE),
     requireUserJwt,
     handleGetWelcomeGuidance
   );
   app.get(
-    API_CONFIG.ENDPOINTS.ONBOARDING.NEXT_ACTIONS,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.ONBOARDING.NEXT_ACTIONS),
     requireUserJwt,
     handleGetNextActions
   );
   app.get(
-    API_CONFIG.ENDPOINTS.ONBOARDING.CAMPAIGN_GUIDANCE(":campaignId"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.ONBOARDING.CAMPAIGN_GUIDANCE(":campaignId")
+    ),
     requireUserJwt,
     handleGetStateAnalysis
   );
 
   app.get(
-    API_CONFIG.ENDPOINTS.EXTERNAL_RESOURCES.RECOMMENDATIONS,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.EXTERNAL_RESOURCES.RECOMMENDATIONS),
     requireUserJwt,
     handleGetExternalResourceRecommendations
   );
   app.get(
-    API_CONFIG.ENDPOINTS.EXTERNAL_RESOURCES.INSPIRATION_SOURCES,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.EXTERNAL_RESOURCES.INSPIRATION_SOURCES),
     requireUserJwt,
     handleGetExternalResourceSearch
   );
   app.get(
-    API_CONFIG.ENDPOINTS.EXTERNAL_RESOURCES.GM_RESOURCES,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.EXTERNAL_RESOURCES.GM_RESOURCES),
     requireUserJwt,
     handleGetGmResources
   );
 
   // Telemetry endpoints
   app.post(
-    API_CONFIG.ENDPOINTS.TELEMETRY.RATINGS,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.TELEMETRY.RATINGS),
     requireUserJwt,
     handleRecordSatisfactionRating
   );
   app.post(
-    API_CONFIG.ENDPOINTS.TELEMETRY.CONTEXT_ACCURACY,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.TELEMETRY.CONTEXT_ACCURACY),
     requireUserJwt,
     handleRecordContextAccuracy
   );
 
   // Admin telemetry endpoints
   app.get(
-    API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.METRICS,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.METRICS),
     requireUserJwt,
     handleGetMetrics
   );
   app.get(
-    API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.DASHBOARD,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.DASHBOARD),
     requireUserJwt,
     handleGetDashboard
   );
   app.get(
-    API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.ALERTS,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.ALERTS),
     requireUserJwt,
     handleGetAlerts
   );
 
-  app.get(API_CONFIG.ENDPOINTS.LIBRARY.FILES, requireUserJwt, handleGetFiles);
   app.get(
-    API_CONFIG.ENDPOINTS.LIBRARY.SEARCH,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.FILES),
+    requireUserJwt,
+    handleGetFiles
+  );
+  app.get(
+    toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.SEARCH),
     requireUserJwt,
     handleSearchFiles
   );
   app.get(
-    API_CONFIG.ENDPOINTS.LIBRARY.STORAGE_USAGE,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.STORAGE_USAGE),
     requireUserJwt,
     handleGetStorageUsage
   );
   app.get(
-    API_CONFIG.ENDPOINTS.LIBRARY.FILE_DETAILS(":fileId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.FILE_DETAILS(":fileId")),
     requireUserJwt,
     handleGetFileDetails
   );
   app.put(
-    API_CONFIG.ENDPOINTS.LIBRARY.FILE_UPDATE(":fileId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.FILE_UPDATE(":fileId")),
     requireUserJwt,
     handleUpdateFile
   );
   app.delete(
-    API_CONFIG.ENDPOINTS.LIBRARY.FILE_DELETE(":fileId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.FILE_DELETE(":fileId")),
     requireUserJwt,
     handleDeleteFile
   );
   app.get(
-    API_CONFIG.ENDPOINTS.LIBRARY.FILE_DOWNLOAD(":fileId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.FILE_DOWNLOAD(":fileId")),
     requireUserJwt,
     handleGetFileDownload
   );
   app.post(
-    API_CONFIG.ENDPOINTS.LIBRARY.FILE_REGENERATE(":fileId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.FILE_REGENERATE(":fileId")),
     requireUserJwt,
     handleRegenerateFileMetadata
   );
   app.get(
-    API_CONFIG.ENDPOINTS.LIBRARY.STATUS,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.STATUS),
     requireUserJwt,
     handleGetFileStatus
   );
 
   app.post(
-    API_CONFIG.ENDPOINTS.NOTIFICATIONS.MINT_STREAM,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.NOTIFICATIONS.MINT_STREAM),
     handleMintStreamToken
   );
-  app.get(API_CONFIG.ENDPOINTS.NOTIFICATIONS.STREAM, handleNotificationStream);
+  app.get(
+    toApiRoutePath(API_CONFIG.ENDPOINTS.NOTIFICATIONS.STREAM),
+    handleNotificationStream
+  );
   app.post(
-    API_CONFIG.ENDPOINTS.NOTIFICATIONS.PUBLISH,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.NOTIFICATIONS.PUBLISH),
     handleNotificationPublish
   );
 
   app.put(
-    API_CONFIG.ENDPOINTS.UPLOAD.DIRECT(":tenant", ":filename"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.UPLOAD.DIRECT(":tenant", ":filename")),
     requireUserJwt,
     handleDirectUpload
   );
   app.get(
-    API_CONFIG.ENDPOINTS.UPLOAD.STATUS(":tenant", ":filename"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.UPLOAD.STATUS(":tenant", ":filename")),
     requireUserJwt,
     handleUploadStatus
   );
   app.post(
-    API_CONFIG.ENDPOINTS.UPLOAD.START_LARGE,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.UPLOAD.START_LARGE),
     requireUserJwt,
     handleStartLargeUpload
   );
   app.post(
-    API_CONFIG.ENDPOINTS.UPLOAD.UPLOAD_PART(":sessionId", ":partNumber"),
+    toApiRoutePath(
+      API_CONFIG.ENDPOINTS.UPLOAD.UPLOAD_PART(":sessionId", ":partNumber")
+    ),
     requireUserJwt,
     handleUploadPart
   );
   app.post(
-    API_CONFIG.ENDPOINTS.UPLOAD.COMPLETE_LARGE(":sessionId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.UPLOAD.COMPLETE_LARGE(":sessionId")),
     requireUserJwt,
     handleCompleteLargeUpload
   );
   app.get(
-    API_CONFIG.ENDPOINTS.UPLOAD.PROGRESS(":sessionId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.UPLOAD.PROGRESS(":sessionId")),
     requireUserJwt,
     handleGetUploadProgress
   );
   app.delete(
-    API_CONFIG.ENDPOINTS.UPLOAD.ABORT_LARGE(":sessionId"),
+    toApiRoutePath(API_CONFIG.ENDPOINTS.UPLOAD.ABORT_LARGE(":sessionId")),
     requireUserJwt,
     handleAbortLargeUpload
   );
   app.post(
-    API_CONFIG.ENDPOINTS.UPLOAD.CLEANUP_STUCK,
+    toApiRoutePath(API_CONFIG.ENDPOINTS.UPLOAD.CLEANUP_STUCK),
     requireUserJwt,
     handleCleanupStuckFiles
   );
@@ -1096,11 +1301,15 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     );
   };
 
-  app.get("/chat-history/:sessionId", requireUserJwt, handleGetChatHistory);
+  app.get(
+    toApiRoutePath(API_CONFIG.ENDPOINTS.CHAT.HISTORY(":sessionId")),
+    requireUserJwt,
+    handleGetChatHistory
+  );
 
-  app.get("/agents/*", handleAgentsRoute);
-  app.post("/agents/*", handleAgentsRoute);
-  app.options("/agents/*", handleAgentsRoute);
+  app.get(toApiRoutePath("/agents/*"), handleAgentsRoute);
+  app.post(toApiRoutePath("/agents/*"), handleAgentsRoute);
+  app.options(toApiRoutePath("/agents/*"), handleAgentsRoute);
 
   app.get("*", async (_c) => {
     return new Response("Route not found", { status: 404 });

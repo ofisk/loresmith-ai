@@ -78,7 +78,7 @@ export function BlockingAuthenticationModal({
     }
   }, [isOpen, googlePendingToken]);
 
-  const googleAuthUrl = `${API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.GOOGLE)}?return_url=${encodeURIComponent(typeof window !== "undefined" ? window.location.origin : "")}`;
+  const googleAuthUrl = `${API_CONFIG.buildAuthUrl(API_CONFIG.ENDPOINTS.AUTH.GOOGLE)}?return_url=${encodeURIComponent(typeof window !== "undefined" ? window.location.origin : "")}`;
 
   const handleGoogleCompleteSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,7 +154,7 @@ export function BlockingAuthenticationModal({
     setIsLoading(true);
     try {
       const res = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.REGISTER),
+        API_CONFIG.buildAuthUrl(API_CONFIG.ENDPOINTS.AUTH.REGISTER),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -187,7 +187,7 @@ export function BlockingAuthenticationModal({
     setIsLoading(true);
     try {
       const res = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.LOGIN),
+        API_CONFIG.buildAuthUrl(API_CONFIG.ENDPOINTS.AUTH.LOGIN),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -245,7 +245,7 @@ export function BlockingAuthenticationModal({
     setError(null);
     try {
       const res = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.RESEND_VERIFICATION),
+        API_CONFIG.buildAuthUrl(API_CONFIG.ENDPOINTS.AUTH.RESEND_VERIFICATION),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

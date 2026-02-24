@@ -79,17 +79,25 @@ function getApiUrl(env?: any): string {
 
 // API Configuration - centralized base URL and endpoints
 export const API_CONFIG = {
-  // Helper function to get the base URL dynamically
+  /** Origin only (e.g. https://loresmith.ai) - for /auth/* OAuth routes that live at root */
+  getOrigin: (env?: any): string => getApiUrl(env),
+
+  /** Base URL for API routes - includes /api (e.g. https://loresmith.ai/api) */
   getApiBaseUrl: (env?: any): string => {
-    return getApiUrl(env);
+    return `${getApiUrl(env)}/api`;
   },
 
-  // Helper function to build full API URLs
+  /** Build full URL for API endpoints (uses getApiBaseUrl, so endpoint paths omit /api) */
   buildUrl: (endpoint: string, env?: any): string => {
     return `${API_CONFIG.getApiBaseUrl(env)}${endpoint}`;
   },
 
-  // Helper function to build campaign-specific URLs
+  /** Build full URL for /auth/* routes (OAuth, verify-email, etc.) - these live at origin, not under /api */
+  buildAuthUrl: (endpoint: string, env?: any): string => {
+    return `${API_CONFIG.getOrigin(env)}${endpoint}`;
+  },
+
+  /** Build campaign-specific API URL */
   buildCampaignUrl: (
     campaignId: string,
     endpoint: string,
@@ -98,7 +106,11 @@ export const API_CONFIG = {
     return API_CONFIG.buildUrl(`/campaigns/${campaignId}${endpoint}`, env);
   },
 
-  // API endpoints without /api/ prefix
+  /** Route path for API endpoints (server uses this for registration; adds /api prefix) */
+  apiRoute: (path: string): string =>
+    `/api${path.startsWith("/") ? path : `/${path}`}`,
+
+  // API endpoints (paths relative to /api - no leading /api; use apiRoute() for server registration)
   ENDPOINTS: {
     CAMPAIGNS: {
       BASE: "/campaigns",
@@ -176,7 +188,7 @@ export const API_CONFIG = {
           `/campaigns/${campaignId}/entities/deduplication-pending`,
         DEDUP_RESOLVE: (campaignId: string, entryId: string) =>
           `/campaigns/${campaignId}/entities/deduplication-pending/${entryId}`,
-        TEST_EXTRACT_FROM_R2: "/api/test/entities/extract-from-r2",
+        TEST_EXTRACT_FROM_R2: "/test/entities/extract-from-r2",
       },
       COMMUNITIES: {
         DETECT: (campaignId: string) =>
@@ -289,8 +301,8 @@ export const API_CONFIG = {
         `/character-sheets/${characterSheetId}`,
     },
     AUTH: {
-      AUTHENTICATE: "/authenticate",
-      LOGOUT: "/logout",
+      AUTHENTICATE: "/auth/authenticate",
+      LOGOUT: "/auth/logout",
       GET_OPENAI_KEY: "/get-openai-key",
       STORE_OPENAI_KEY: "/store-openai-key",
       DELETE_OPENAI_KEY: "/delete-openai-key",
@@ -322,7 +334,7 @@ export const API_CONFIG = {
       BULK_CHECK_FILE_INDEXING: "/rag/bulk-check-file-indexing",
     },
     LIBRARY: {
-      // Library routes (mounted at /library) - these are full paths including the mount point
+      // Library routes under /library
       FILES: "/library/files",
       SEARCH: "/library/search",
       FILE_DETAILS: (fileId: string) => `/library/files/${fileId}`,
@@ -340,7 +352,7 @@ export const API_CONFIG = {
       FILE_DOWNLOAD_PATTERN: "/library/:fileId/download",
       FILE_REGENERATE_PATTERN: "/library/:fileId/regenerate",
 
-      // File management routes (mounted at /library) - consolidated here
+      // File management routes
       PROCESS: "/library/process",
       STATUS: "/library/status",
       AUTO_GENERATE_METADATA: "/library/auto-generate-metadata",
@@ -411,20 +423,20 @@ export const API_CONFIG = {
       ANALYZE_ALL: "/file-analysis/analyze-all",
     },
     NOTIFICATIONS: {
-      STREAM: "/api/notifications/stream",
-      MINT_STREAM: "/api/notifications/mint-stream",
-      PUBLISH: "/api/notifications/publish",
-      STREAM_SUBSCRIBE: "/api/notifications/stream/subscribe",
+      STREAM: "/notifications/stream",
+      MINT_STREAM: "/notifications/mint-stream",
+      PUBLISH: "/notifications/publish",
+      STREAM_SUBSCRIBE: "/notifications/stream/subscribe",
     },
     TELEMETRY: {
-      RATINGS: "/api/telemetry/ratings",
-      CONTEXT_ACCURACY: "/api/telemetry/context-accuracy",
+      RATINGS: "/telemetry/ratings",
+      CONTEXT_ACCURACY: "/telemetry/context-accuracy",
     },
     ADMIN: {
       TELEMETRY: {
-        METRICS: "/api/admin/telemetry/metrics",
-        DASHBOARD: "/api/admin/telemetry/dashboard",
-        ALERTS: "/api/admin/telemetry/alerts",
+        METRICS: "/admin/telemetry/metrics",
+        DASHBOARD: "/admin/telemetry/dashboard",
+        ALERTS: "/admin/telemetry/alerts",
       },
     },
   },
