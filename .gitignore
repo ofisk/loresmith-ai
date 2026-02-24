@@ -138,6 +138,9 @@ dist
 # MacOS
 .DS_Store
 
+# Claude worktrees
+.claude/
+
 # Cloudflare
 .wrangler
 .dev.vars

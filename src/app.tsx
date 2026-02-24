@@ -242,8 +242,8 @@ export default function Chat() {
       updateActivity(); // Update activity timestamp on file upload
       addLocalNotification(
         NOTIFICATION_TYPES.SUCCESS,
-        "File Uploaded Successfully",
-        `"${filename}" has been uploaded and is being processed.`
+        "File uploaded",
+        `"${filename}" has been uploaded and we're preparing it for your campaigns.`
       );
     },
     onUploadStart: () => {

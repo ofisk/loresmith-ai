@@ -93,7 +93,7 @@ describe("Notification Helpers", () => {
       const body = (await request.json()) as Record<string, any>;
 
       expect(body.type).toBe("shards_generated");
-      expect(body.title).toBe("New Shards Ready!");
+      expect(body.title).toBe("New shards ready");
       expect(body.message).toContain(
         '5 new shards generated from "test-file.pdf"'
       );
