@@ -18,6 +18,8 @@
       "/auth/*",
       "/api/*",
       "/agents/*",
+      "/campaigns/*",
+      "/library/*",
       "/logout",
       "/authenticate",
       "/join",
