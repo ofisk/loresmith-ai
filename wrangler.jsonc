@@ -13,6 +13,7 @@
   ],
   "assets": {
     "directory": "dist/client",
+    "not_found_handling": "single-page-application",
   },
   "vars": {
     "MAX_INDEX_FILE_BYTES": "4194304",

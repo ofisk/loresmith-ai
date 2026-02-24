@@ -1038,9 +1038,9 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
 
   const serveIndexHtml = async (c: Context<{ Bindings: Env }>) => {
     try {
-      const indexUrl = new URL(c.req.url);
-      indexUrl.pathname = "/index.html";
-      const assetResponse = await c.env.ASSETS.fetch(new Request(indexUrl));
+      // Pass request through to ASSETS; with not_found_handling: single-page-application,
+      // paths like /join that don't match a file will serve index.html
+      const assetResponse = await c.env.ASSETS.fetch(c.req.raw);
       if (assetResponse.status === 200) {
         return assetResponse;
       }
