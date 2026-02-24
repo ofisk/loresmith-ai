@@ -770,7 +770,7 @@ export async function handleRegister(c: Context<{ Bindings: Env }>) {
     const resendKey = await getEnvVar(c.env, "RESEND_API_KEY", false);
     const fromAddress =
       (await getEnvVar(c.env, "VERIFICATION_EMAIL_FROM", false)) ||
-      "LoreSmith <noreply@example.com>";
+      "LoreSmith <onboarding@resend.dev>"; // Resend verified test sender; set VERIFICATION_EMAIL_FROM for production
     if (resendKey) {
       const emailService = new EmailService(resendKey);
       const sendResult = await emailService.sendVerificationEmail({
@@ -920,7 +920,7 @@ export async function handleResendVerification(c: Context<{ Bindings: Env }>) {
     const resendKey = await getEnvVar(c.env, "RESEND_API_KEY", false);
     const fromAddress =
       (await getEnvVar(c.env, "VERIFICATION_EMAIL_FROM", false)) ||
-      "LoreSmith <noreply@example.com>";
+      "LoreSmith <onboarding@resend.dev>"; // Resend verified test sender; set VERIFICATION_EMAIL_FROM for production
     if (resendKey) {
       const emailService = new EmailService(resendKey);
       await emailService.sendVerificationEmail({
