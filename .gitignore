@@ -141,6 +141,7 @@ dist
 # Cloudflare
 .wrangler
 .dev.vars
+.vars
 
 # Uploaded files
 uploads/
