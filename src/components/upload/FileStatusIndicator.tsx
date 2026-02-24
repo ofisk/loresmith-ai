@@ -67,7 +67,7 @@ export function FileStatusIndicator({
       icon: CheckCircle,
       color: "text-green-500",
       text: "Ready",
-      title: "File is indexed and searchable",
+      title: "Ready for your campaigns",
       spinning: false,
     },
     [FileDAO.STATUS.UPLOADING]: {
@@ -88,7 +88,7 @@ export function FileStatusIndicator({
       icon: Spinner,
       color: "text-blue-500",
       text: "Syncing",
-      title: "Starting indexing job",
+      title: "Preparing file",
       spinning: true,
     },
     [FileDAO.STATUS.PROCESSING]: {
@@ -96,8 +96,8 @@ export function FileStatusIndicator({
       color: "text-blue-500",
       text: timeEstimate ? `Processing (~${timeEstimate})` : "Processing",
       title: timeEstimate
-        ? `File is being processed. Estimated time: ${timeEstimate}`
-        : "File is being processed",
+        ? `File is being prepared. Estimated time: ${timeEstimate}`
+        : "File is being prepared",
       spinning: true,
     },
     [FileDAO.STATUS.INDEXING]: {
@@ -105,15 +105,15 @@ export function FileStatusIndicator({
       color: "text-blue-500",
       text: timeEstimate ? `Indexing (~${timeEstimate})` : "Indexing",
       title: timeEstimate
-        ? `File is being indexed for search. Estimated time: ${timeEstimate}`
-        : "File is being indexed for search",
+        ? `File is being prepared. Estimated time: ${timeEstimate}`
+        : "File is being prepared",
       spinning: true,
     },
     [FileDAO.STATUS.UNINDEXED]: {
       icon: XCircle,
       color: "text-orange-500",
-      text: "Not Indexed",
-      title: "File not indexed - shard generation will fail",
+      text: "Not ready",
+      title: "Needs processing before shards can be extracted",
       spinning: false,
     },
   };

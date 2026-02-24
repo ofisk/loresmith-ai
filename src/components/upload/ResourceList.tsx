@@ -1,14 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { API_CONFIG } from "@/shared-config";
 import {
   authenticatedFetchWithExpiration,
   getStoredJwt,
-  AuthService,
 } from "@/services/core/auth-service";
 import type { Campaign } from "@/types/campaign";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { Button } from "@/components/button/Button";
-import { useResourceFiles } from "@/hooks/useResourceFiles";
 import { useResourceFileEvents } from "@/hooks/useResourceFileEvents";
 import { ResourceFileItem } from "./ResourceFileItem";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
@@ -17,6 +15,13 @@ import { logger } from "@/lib/logger";
 import { FileDAO } from "@/dao";
 
 interface ResourceListProps {
+  files: ResourceFileWithCampaigns[];
+  setFiles: React.Dispatch<React.SetStateAction<ResourceFileWithCampaigns[]>>;
+  loading: boolean;
+  error: string | null;
+  setError: React.Dispatch<React.SetStateAction<string | null>>;
+  setLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  fetchResources: () => Promise<void>;
   onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
   onEditFile?: (file: ResourceFileWithCampaigns) => void;
   campaigns?: Campaign[];
@@ -28,6 +33,13 @@ interface ResourceListProps {
  * ResourceList component - displays a list of uploaded files with their status and details
  */
 export function ResourceList({
+  files,
+  setFiles,
+  loading,
+  error,
+  setError,
+  setLoading,
+  fetchResources,
   onAddToCampaign,
   onEditFile,
   campaigns = [],
@@ -39,17 +51,6 @@ export function ResourceList({
     Record<string, number>
   >({});
   const authReady = useAuthReady();
-
-  // File data management
-  const {
-    files,
-    loading,
-    error,
-    fetchResources,
-    setFiles,
-    setError,
-    setLoading,
-  } = useResourceFiles({ campaigns });
 
   // File event handling - manages progress state internally and via prop setter
   useResourceFileEvents({
@@ -225,106 +226,6 @@ export function ResourceList({
       return newExpandedFiles;
     });
   }, []);
-
-  // Initial load - run when authentication becomes ready
-  useEffect(() => {
-    if (authReady) {
-      // Reset loading state and fetch resources when auth becomes ready
-      const log = logger.scope("[ResourceList]");
-      log.debug("Auth ready, fetching resources");
-      setLoading(true);
-      setError(null);
-      fetchResources();
-    } else {
-      // If auth is not ready (e.g., JWT expired), clear loading state
-      // to prevent infinite "Loading resources..." display
-      const jwt = getStoredJwt();
-      if (jwt) {
-        // JWT exists but is expired - clear loading state
-        // The auth modal will be shown by useAppState
-        setError(null);
-        setLoading(false);
-      } else {
-        // No JWT - clear loading state and set error
-        setError("Please authenticate to view resources.");
-        setLoading(false);
-      }
-    }
-  }, [authReady, fetchResources, setLoading, setError]);
-
-  // Also listen for jwt-changed events to refresh immediately after authentication
-  useEffect(() => {
-    const handleJwtChanged = () => {
-      const log = logger.scope("[ResourceList]");
-      const jwt = getStoredJwt();
-      log.debug("JWT changed event received", { hasJwt: !!jwt, authReady });
-      // Check if JWT exists and is valid (not expired)
-      if (jwt) {
-        const isExpired = AuthService.isJwtExpired(jwt);
-        if (!isExpired) {
-          // JWT is valid - refresh resources immediately
-          // authReady will update shortly via useAuthReady's polling
-          log.info("JWT is valid, refreshing resources after authentication");
-          setLoading(true);
-          setError(null);
-          fetchResources();
-        } else {
-          log.debug("JWT changed but is expired, waiting for authReady");
-        }
-      }
-    };
-
-    window.addEventListener(
-      APP_EVENT_TYPE.JWT_CHANGED,
-      handleJwtChanged as EventListener
-    );
-    return () => {
-      window.removeEventListener(
-        APP_EVENT_TYPE.JWT_CHANGED,
-        handleJwtChanged as EventListener
-      );
-    };
-  }, [fetchResources, setLoading, setError, authReady]);
-
-  // Listen for campaign changes to refresh campaign associations
-  useEffect(() => {
-    const handleCampaignChange = () => {
-      console.log(
-        "[ResourceList] Received campaign change event, refreshing campaign data"
-      );
-      // Re-fetch campaign associations for all files
-      fetchResources();
-    };
-
-    // Listen for campaign-related events
-    window.addEventListener(
-      APP_EVENT_TYPE.CAMPAIGN_CREATED,
-      handleCampaignChange as EventListener
-    );
-    window.addEventListener(
-      APP_EVENT_TYPE.CAMPAIGN_FILE_ADDED,
-      handleCampaignChange as EventListener
-    );
-    window.addEventListener(
-      APP_EVENT_TYPE.CAMPAIGN_FILE_REMOVED,
-      handleCampaignChange as EventListener
-    );
-
-    return () => {
-      window.removeEventListener(
-        APP_EVENT_TYPE.CAMPAIGN_CREATED,
-        handleCampaignChange as EventListener
-      );
-      window.removeEventListener(
-        APP_EVENT_TYPE.CAMPAIGN_FILE_ADDED,
-        handleCampaignChange as EventListener
-      );
-      window.removeEventListener(
-        APP_EVENT_TYPE.CAMPAIGN_FILE_REMOVED,
-        handleCampaignChange as EventListener
-      );
-    };
-  }, [fetchResources]);
 
   if (loading) {
     return (

@@ -34,7 +34,10 @@ interface CampaignDetailsModalProps {
     updates: { name?: string; description?: string }
   ) => Promise<void>;
   _isLoading?: boolean;
-  onAddFileToCampaign?: (fileKey: string, fileName: string) => Promise<void>;
+  onAddFileToCampaign?: (
+    fileKey: string,
+    fileName: string
+  ) => Promise<string | void>;
 }
 
 export function CampaignDetailsModal({
@@ -770,16 +773,21 @@ export function CampaignDetailsModal({
 
                       setIsAddingResources(true);
                       try {
-                        // Add each selected resource
+                        // Add each selected resource (optimistically mark as processing)
                         for (const fileKey of selectedResourceKeys) {
                           const file = libraryFiles.find(
                             (f: any) => f.file_key === fileKey
                           );
-                          if (file) {
-                            await onAddFileToCampaign(
+                          if (file && onAddFileToCampaign) {
+                            const resourceId = await onAddFileToCampaign(
                               file.file_key,
                               file.file_name
                             );
+                            if (resourceId) {
+                              setProcessingResources((prev) =>
+                                new Set(prev).add(resourceId)
+                              );
+                            }
                           }
                         }
 

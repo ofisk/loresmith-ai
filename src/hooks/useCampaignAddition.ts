@@ -61,6 +61,7 @@ export function useCampaignAddition() {
           return;
         }
 
+        let lastResourceId: string | undefined;
         // Add file to each selected campaign with progress updates
         for (let i = 0; i < campaignIds.length; i++) {
           const campaignId = campaignIds[i];
@@ -104,6 +105,13 @@ export function useCampaignAddition() {
             const parsedError = parseErrorResponse(errorText, response.status);
             throw new Error(formatErrorForNotification(parsedError));
           }
+
+          const data = (await response.json()) as {
+            resource?: { id?: string };
+          };
+          if (data?.resource?.id) {
+            lastResourceId = data.resource.id;
+          }
         }
 
         // Complete progress
@@ -143,6 +151,8 @@ export function useCampaignAddition() {
           });
           setIsAddingToCampaigns(false);
         }, 1500);
+
+        return lastResourceId;
       } catch (error) {
         console.error("Error adding file to campaigns:", error);
         const errorMessage =

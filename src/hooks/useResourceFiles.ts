@@ -1,10 +1,11 @@
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useMemo, useState, useRef } from "react";
 import { ERROR_MESSAGES } from "@/app-constants";
 import {
   authenticatedFetchWithExpiration,
   getStoredJwt,
 } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
+import { FileDAO } from "@/dao";
 import type { Campaign } from "@/types/campaign";
 
 export interface ResourceFile {
@@ -29,6 +30,14 @@ interface UseResourceFilesOptions {
   campaigns?: Campaign[];
 }
 
+const PROCESSING_STATUSES: Set<string> = new Set([
+  FileDAO.STATUS.UPLOADING,
+  FileDAO.STATUS.UPLOADED,
+  FileDAO.STATUS.SYNCING,
+  FileDAO.STATUS.PROCESSING,
+  FileDAO.STATUS.INDEXING,
+]);
+
 interface UseResourceFilesReturn {
   files: ResourceFileWithCampaigns[];
   loading: boolean;
@@ -37,6 +46,7 @@ interface UseResourceFilesReturn {
   setFiles: React.Dispatch<React.SetStateAction<ResourceFileWithCampaigns[]>>;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  processingCount: number;
 }
 
 /**
@@ -195,6 +205,11 @@ export function useResourceFiles(
     }
   }, [fetchResourceCampaigns, campaigns]);
 
+  const processingCount = useMemo(
+    () => files.filter((f) => PROCESSING_STATUSES.has(f.status)).length,
+    [files]
+  );
+
   return {
     files,
     loading,
@@ -203,5 +218,6 @@ export function useResourceFiles(
     setFiles,
     setError,
     setLoading,
+    processingCount,
   };
 }

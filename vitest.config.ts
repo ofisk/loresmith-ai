@@ -8,6 +8,7 @@ export default defineConfig({
     },
   },
   test: {
+    exclude: ["**/node_modules/**", "**/.claude/**"],
     testTimeout: 30000, // 30 second timeout per test
     hookTimeout: 30000, // 30 second timeout for hooks
     setupFiles: ["./tests/setup.ts"],

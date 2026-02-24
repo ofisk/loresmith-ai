@@ -108,17 +108,17 @@ export async function notifyShardGeneration(
   let message: string;
 
   if (isNone) {
-    title = "No Shards Found";
+    title = "No shards found";
     message = `🔎 No shards were discovered from "${fileName}" in "${campaignName}".`;
     // Include error message if provided (e.g., all chunks failed)
     if (context?.errorMessage) {
       message += ` ${context.errorMessage}`;
     }
   } else if (isStreaming) {
-    title = "Shards Discovered";
-    message = `📦 ${shardCount} shards found in chunk ${context.chunkNumber} from "${fileName}" in "${campaignName}".`;
+    title = "Shards discovered";
+    message = `📦 ${shardCount} shards found from "${fileName}" in "${campaignName}".`;
   } else {
-    title = "New Shards Ready!";
+    title = "New shards ready";
     message = `🎉 ${shardCount} new shards generated from "${fileName}" in "${campaignName}"!`;
     // Include warning if there were partial failures
     if (context?.errorMessage) {
@@ -266,8 +266,8 @@ export async function notifyIndexingStarted(
   try {
     await notifyUser(env, userId, {
       type: NOTIFICATION_TYPES.INDEXING_STARTED,
-      title: "Indexing Begun",
-      message: `📜 We're scribing "${fileName}" into your library.`,
+      title: "Preparing your lore",
+      message: `📜 We're adding "${fileName}" to your library.`,
       data: {
         fileName,
         ...(fileKey && { fileKey }),
@@ -294,8 +294,8 @@ export async function notifyIndexingCompleted(
 ): Promise<void> {
   await notifyUser(env, userId, {
     type: NOTIFICATION_TYPES.INDEXING_COMPLETED,
-    title: "Indexing Complete",
-    message: `✨ "${fileName}" is now searchable in your tome.`,
+    title: "Ready",
+    message: `✨ "${fileName}" is ready for your campaigns.`,
     data: { fileName },
   });
 }
@@ -310,8 +310,8 @@ export async function notifyIndexingFailed(
 ): Promise<void> {
   await notifyUser(env, userId, {
     type: NOTIFICATION_TYPES.INDEXING_FAILED,
-    title: "Indexing Failed",
-    message: `🛑 Our quill slipped while indexing "${fileName}". Please try again later.`,
+    title: "Couldn't prepare file",
+    message: `🛑 Our quill slipped while preparing "${fileName}". Please try again later.`,
     data: {
       fileName,
       ...(fileKey && { fileKey }),

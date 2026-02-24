@@ -1,9 +1,14 @@
 import { CaretDown, CaretRight, Plus } from "@phosphor-icons/react";
+import { useEffect } from "react";
 import { Card } from "@/components/card/Card";
 import { StorageTracker } from "@/components/storage-tracker";
 import { ResourceList } from "@/components/upload/ResourceList";
+import { useAuthReady } from "@/hooks/useAuthReady";
+import { useResourceFiles } from "@/hooks/useResourceFiles";
 import type { Campaign } from "@/types/campaign";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
+import { AuthService, getStoredJwt } from "@/services/core/auth-service";
+import { APP_EVENT_TYPE } from "@/lib/app-events";
 import libraryIcon from "@/assets/library.png";
 
 interface LibrarySectionProps {
@@ -23,10 +28,92 @@ export function LibrarySection({
   onAddToLibrary,
   onAddToCampaign,
   onEditFile,
-  campaigns,
+  campaigns = [],
   campaignAdditionProgress = {},
   isAddingToCampaigns = false,
 }: LibrarySectionProps) {
+  const authReady = useAuthReady();
+  const {
+    files,
+    loading,
+    error,
+    fetchResources,
+    setFiles,
+    setError,
+    setLoading,
+    processingCount,
+  } = useResourceFiles({ campaigns });
+
+  useEffect(() => {
+    if (authReady) {
+      setLoading(true);
+      setError(null);
+      fetchResources();
+    } else {
+      const jwt = getStoredJwt();
+      if (jwt) {
+        setError(null);
+        setLoading(false);
+      } else {
+        setError("Please authenticate to view resources.");
+        setLoading(false);
+      }
+    }
+  }, [authReady, fetchResources, setLoading, setError]);
+
+  useEffect(() => {
+    const handleJwtChanged = () => {
+      const jwt = getStoredJwt();
+      if (jwt && !AuthService.isJwtExpired(jwt)) {
+        setLoading(true);
+        setError(null);
+        fetchResources();
+      }
+    };
+    window.addEventListener(
+      APP_EVENT_TYPE.JWT_CHANGED,
+      handleJwtChanged as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        APP_EVENT_TYPE.JWT_CHANGED,
+        handleJwtChanged as EventListener
+      );
+    };
+  }, [fetchResources, setLoading, setError]);
+
+  useEffect(() => {
+    const handleCampaignChange = () => {
+      fetchResources();
+    };
+    window.addEventListener(
+      APP_EVENT_TYPE.CAMPAIGN_CREATED,
+      handleCampaignChange as EventListener
+    );
+    window.addEventListener(
+      APP_EVENT_TYPE.CAMPAIGN_FILE_ADDED,
+      handleCampaignChange as EventListener
+    );
+    window.addEventListener(
+      APP_EVENT_TYPE.CAMPAIGN_FILE_REMOVED,
+      handleCampaignChange as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        APP_EVENT_TYPE.CAMPAIGN_CREATED,
+        handleCampaignChange as EventListener
+      );
+      window.removeEventListener(
+        APP_EVENT_TYPE.CAMPAIGN_FILE_ADDED,
+        handleCampaignChange as EventListener
+      );
+      window.removeEventListener(
+        APP_EVENT_TYPE.CAMPAIGN_FILE_REMOVED,
+        handleCampaignChange as EventListener
+      );
+    };
+  }, [fetchResources]);
+
   return (
     <Card className="tour-library-section p-0 border-t border-neutral-200 dark:border-neutral-700">
       <button
@@ -37,6 +124,14 @@ export function LibrarySection({
         <div className="flex items-center gap-2">
           <img src={libraryIcon} alt="Library" className="w-8 h-8" />
           <span className="font-medium text-sm">Your resource library</span>
+          {processingCount > 0 && (
+            <span
+              className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+              title={`${processingCount} file${processingCount === 1 ? "" : "s"} preparing`}
+            >
+              {processingCount} preparing
+            </span>
+          )}
         </div>
         {isOpen ? <CaretDown size={16} /> : <CaretRight size={16} />}
       </button>
@@ -55,6 +150,13 @@ export function LibrarySection({
           </div>
           <div className="border-t border-neutral-200 dark:border-neutral-700">
             <ResourceList
+              files={files}
+              setFiles={setFiles}
+              loading={loading}
+              error={error}
+              setError={setError}
+              setLoading={setLoading}
+              fetchResources={fetchResources}
               onAddToCampaign={onAddToCampaign}
               onEditFile={onEditFile}
               campaigns={campaigns}

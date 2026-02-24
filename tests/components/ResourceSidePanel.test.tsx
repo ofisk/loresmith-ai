@@ -15,7 +15,10 @@ vi.mock("@/hooks/useCampaignManagement", () => ({
 vi.mock("@/services/core/auth-service", () => ({
   AuthService: {
     getUsernameFromStoredJwt: vi.fn(() => "testuser"),
+    isJwtExpired: vi.fn(() => false),
   },
+  getStoredJwt: vi.fn(() => "mock-jwt"),
+  isJwtExpired: vi.fn(() => false),
 }));
 
 describe("ResourceSidePanel", () => {

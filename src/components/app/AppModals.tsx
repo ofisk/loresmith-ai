@@ -290,7 +290,7 @@ export function AppModals({
         onUpdate={handleCampaignUpdate}
         onAddFileToCampaign={async (fileKey: string, fileName: string) => {
           if (modalState.selectedCampaign) {
-            await addFileToCampaigns(
+            return await addFileToCampaigns(
               { file_key: fileKey, file_name: fileName } as any,
               [modalState.selectedCampaign.campaignId],
               authState.getStoredJwt,
