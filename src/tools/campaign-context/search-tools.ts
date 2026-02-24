@@ -386,27 +386,25 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
             query: queryIntent.searchQuery,
             limit: 10,
             applyRecencyWeighting: true,
+            forPlayer: shouldSanitizeForPlayer === true,
           });
 
-          // Omit planning context for player roles (contains GM notes)
-          if (!shouldSanitizeForPlayer) {
-            // Transform planning context results to match expected format
-            for (const result of planningResults) {
-              results.push({
-                type: "planning_context",
-                source: "session_digest",
-                sessionNumber: result.sessionNumber,
-                sessionDate: result.sessionDate,
-                sectionType: result.sectionType,
-                title: `Session ${result.sessionNumber} - ${result.sectionType}`,
-                text: result.sectionContent,
-                score: result.recencyWeightedScore,
-                similarityScore: result.similarityScore,
-                digestId: result.digestId,
-                relatedEntities: result.relatedEntities,
-                filename: `session-${result.sessionNumber}`,
-              });
-            }
+          // For players, forPlayer restricts to player-safe sections only; for GMs include all
+          for (const result of planningResults) {
+            results.push({
+              type: "planning_context",
+              source: "session_digest",
+              sessionNumber: result.sessionNumber,
+              sessionDate: result.sessionDate,
+              sectionType: result.sectionType,
+              title: `Session ${result.sessionNumber} - ${result.sectionType}`,
+              text: result.sectionContent,
+              score: result.recencyWeightedScore,
+              similarityScore: result.similarityScore,
+              digestId: result.digestId,
+              relatedEntities: result.relatedEntities,
+              filename: `session-${result.sessionNumber}`,
+            });
           }
 
           console.log(

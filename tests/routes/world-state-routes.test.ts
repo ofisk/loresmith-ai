@@ -25,6 +25,7 @@ import {
 
 const mockCampaignDAO = {
   getCampaignByIdWithMapping: vi.fn(),
+  getCampaignRole: vi.fn().mockResolvedValue("owner"),
 };
 
 (getDAOFactory as any).mockReturnValue({

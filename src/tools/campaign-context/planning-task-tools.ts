@@ -6,6 +6,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  requireGMRole,
   type ToolExecuteOptions,
 } from "../utils";
 import type { ToolResult } from "@/app-constants";
@@ -92,6 +93,9 @@ export const recordPlanningTasks = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       const planningTaskDAO = daoFactory.planningTaskDAO;
       const sessionDigestDAO = daoFactory.sessionDigestDAO;
@@ -209,6 +213,9 @@ export const getPlanningTaskProgress = tool({
         );
       }
 
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
+
       const planningTaskDAO = daoFactory.planningTaskDAO;
 
       const statusesToInclude: PlanningTaskStatus[] = (includeStatuses as
@@ -321,6 +328,9 @@ export const completePlanningTask = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       const planningTaskDAO = daoFactory.planningTaskDAO;
       await planningTaskDAO.updateStatus(

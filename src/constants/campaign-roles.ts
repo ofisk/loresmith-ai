@@ -25,6 +25,18 @@ export const PLAYER_ROLES = new Set<CampaignRole>([
   CAMPAIGN_ROLES.READONLY_PLAYER,
 ]);
 
+/** GM-level roles (owner, editor_gm, readonly_gm) - for tool guards and role context */
+export const GM_ROLES = new Set<CampaignRole>([
+  CAMPAIGN_ROLES.OWNER,
+  CAMPAIGN_ROLES.EDITOR_GM,
+  CAMPAIGN_ROLES.READONLY_GM,
+]);
+
+/** True if the role is a game master role (owner or any GM). */
+export function isGMRole(role: CampaignRole | null): boolean {
+  return role !== null && GM_ROLES.has(role);
+}
+
 /** Roles that can edit (add resources, approve shards, etc.) */
 export const EDIT_ROLES = new Set<CampaignRole>([
   CAMPAIGN_ROLES.OWNER,

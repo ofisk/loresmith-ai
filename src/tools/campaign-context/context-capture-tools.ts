@@ -7,6 +7,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  requireGMRole,
   type ToolExecuteOptions,
 } from "../utils";
 import type { Env } from "@/middleware/auth";
@@ -146,6 +147,8 @@ export const captureConversationalContext = tool({
           toolCallId
         );
       }
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
       const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
@@ -379,6 +382,8 @@ export const saveContextExplicitly = tool({
           toolCallId
         );
       }
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
       const openaiApiKey = openaiApiKeyRaw.trim() || undefined;

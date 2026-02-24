@@ -29,7 +29,7 @@ Routing rules:
 - File operations (upload, processing, indexing, file key, metadata, ingestion) → "resources"
 - Campaign management (create, list, update, delete campaigns) → "campaign"
 - Campaign analysis (assess campaign, campaign readiness, campaign suggestions, how ready is my campaign) → "campaign-analysis"
-- Next steps / what should I do next (personalized suggestions, what to plan next for this campaign) → "recap"
+- Next steps / what should I do next (personalized suggestions, what to plan next for this campaign) → "recap". For players, "what should I do next?" is about their character and session review, not campaign planning.
 - Context recap requested (e.g. "[Context recap requested]" when user returns or switches campaign) → "recap"
 - Session plan readout (e.g. "let's do a readout", "construct the readout", "give me the session plan", "ready-to-run plan", "DM script" after completing next steps) → "recap" (recap agent builds the plan from completed next-step notes; do NOT route to session-digest)
 - Campaign entity questions (what/who/tell me about [Entity Name], questions about locations/NPCs/items in the campaign) → "campaign-context"

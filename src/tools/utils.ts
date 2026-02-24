@@ -2,6 +2,7 @@ import type { D1Database } from "@cloudflare/workers-types";
 import type { ToolExecutionOptions } from "ai";
 import { z } from "zod";
 import type { ToolResult } from "../app-constants";
+import { PLAYER_ROLES } from "@/constants/campaign-roles";
 import { getDAOFactory } from "../dao/dao-factory";
 
 /** Re-export for v6 tool execute signature. */
@@ -183,6 +184,29 @@ export function createToolSuccess(
       },
     },
   };
+}
+
+/**
+ * Require the user to have a GM role for this campaign. Call at the start of GM-only tools.
+ * Returns a ToolResult error if the user is a player; returns null if allowed (GM or owner).
+ */
+export async function requireGMRole(
+  env: ToolEnv,
+  campaignId: string,
+  userId: string,
+  toolCallId: string
+): Promise<ToolResult | null> {
+  const daoFactory = getDAOFactory(env);
+  const role = await daoFactory.campaignDAO.getCampaignRole(campaignId, userId);
+  if (role && PLAYER_ROLES.has(role)) {
+    return createToolError(
+      "This action is for the game master.",
+      "This action is for the game master.",
+      403,
+      toolCallId
+    );
+  }
+  return null;
 }
 
 /**

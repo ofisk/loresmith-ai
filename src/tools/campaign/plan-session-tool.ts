@@ -9,6 +9,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  requireGMRole,
   type ToolExecuteOptions,
 } from "../utils";
 import { getDAOFactory } from "@/dao/dao-factory";
@@ -158,6 +159,9 @@ export const planSession = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
       const openaiApiKey = openaiApiKeyRaw.trim();

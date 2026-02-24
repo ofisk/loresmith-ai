@@ -4,7 +4,9 @@ import {
   commonSchemas,
   createToolSuccess,
   createToolError,
+  requireGMRole,
   runWithEnvOrApi,
+  type ToolEnv,
   type ToolExecuteOptions,
 } from "../utils";
 import { getDAOFactory } from "../../dao/dao-factory";
@@ -153,6 +155,14 @@ Total tracked items: ${statusRecords.length}`;
               toolCallId
             );
           }
+
+          const gmError = await requireGMRole(
+            env as ToolEnv,
+            campaignId,
+            userId,
+            toolCallId
+          );
+          if (gmError) return gmError;
 
           const statusRecords = await checklistStatusDAO.getChecklistStatus(
             campaignId as string

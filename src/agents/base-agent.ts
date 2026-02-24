@@ -8,6 +8,8 @@ import {
 } from "@/lib/token-utils";
 import { MODEL_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { resolveCampaignRole } from "@/lib/agent-role-utils";
+import { getAgentRoleContext } from "@/lib/prompts/agent-role-context";
 import { trimToolResultsByRelevancy } from "@/lib/tool-result-trimming";
 
 interface Env {
@@ -292,6 +294,24 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           selectedCampaignId
         );
 
+        // Resolve campaign role and build role context for GM vs player tailoring
+        let campaignRole: Awaited<ReturnType<typeof resolveCampaignRole>> =
+          null;
+        if (selectedCampaignId && clientJwt) {
+          campaignRole = await resolveCampaignRole(
+            this.env,
+            selectedCampaignId,
+            clientJwt
+          );
+          console.log(
+            `[${this.constructor.name}] Resolved campaign role:`,
+            campaignRole
+          );
+        }
+        const roleContextMessage = campaignRole
+          ? getAgentRoleContext(campaignRole)
+          : null;
+
         // Build minimal message context: include current user prompt + agent's previous response
         // The agent's previous response is included so it can understand conversational references
         // (e.g., "these", "that", "the name suggestions" referring to what the agent just said)
@@ -327,6 +347,14 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           processedMessages.push(currentUserMessage);
         }
 
+        // Include role context so agents tailor for GM vs player
+        if (roleContextMessage) {
+          processedMessages.push({
+            role: "system",
+            content: roleContextMessage,
+          });
+        }
+
         // Include essential system messages (campaign context, user state) but exclude tool results
         for (let i = 0; i < this.messages.length; i++) {
           const message = this.messages[i];
@@ -336,7 +364,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             // Only include essential system context, not tool results
             if (
               content.includes("Campaign Context:") ||
-              content.includes("User State Analysis:")
+              content.includes("User State Analysis:") ||
+              content.includes("User role in this campaign:")
             ) {
               // Only add if not already in processedMessages
               if (!processedMessages.some((m) => m === message)) {

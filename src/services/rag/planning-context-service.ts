@@ -12,6 +12,14 @@ import { z } from "zod";
 import { TelemetryDAO } from "@/dao/telemetry-dao";
 import { TelemetryService } from "@/services/telemetry/telemetry-service";
 
+/** Section types that are safe to show to players (no GM-only planning spoilers). */
+export const PLAYER_SAFE_PLANNING_SECTION_TYPES = new Set([
+  "key_events",
+  "open_threads",
+  "state_changes",
+  "probable_player_goals",
+]);
+
 export interface PlanningContextSearchOptions {
   campaignId: string;
   query: string;
@@ -21,6 +29,8 @@ export interface PlanningContextSearchOptions {
   sectionTypes?: string[];
   applyRecencyWeighting?: boolean;
   decayRate?: number;
+  /** When true, only return player-safe section types (no GM planning spoilers). */
+  forPlayer?: boolean;
 }
 
 export interface PlanningContextSearchResult {
@@ -628,10 +638,15 @@ export class PlanningContextService extends BaseRAGService {
         limit = 10,
         fromDate,
         toDate,
-        sectionTypes,
+        sectionTypes: sectionTypesOpt,
         applyRecencyWeighting = true,
         decayRate = this.defaultDecayRate,
+        forPlayer = false,
       } = options;
+      const sectionTypes =
+        forPlayer && (!sectionTypesOpt || sectionTypesOpt.length === 0)
+          ? Array.from(PLAYER_SAFE_PLANNING_SECTION_TYPES)
+          : sectionTypesOpt;
 
       console.log("[PlanningContext] Generating query embedding");
       const [queryEmbedding] = await this.generateEmbeddings([query]);
@@ -716,6 +731,10 @@ export class PlanningContextService extends BaseRAGService {
           sectionTypes.length > 0 &&
           !sectionTypes.includes(sectionType)
         ) {
+          continue;
+        }
+
+        if (forPlayer && !PLAYER_SAFE_PLANNING_SECTION_TYPES.has(sectionType)) {
           continue;
         }
 

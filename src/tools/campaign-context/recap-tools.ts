@@ -3,12 +3,14 @@ import { z } from "zod";
 import type { ToolResult } from "../../app-constants";
 import { getDAOFactory } from "../../dao/dao-factory";
 import type { PlanningTaskStatus } from "../../dao/planning-task-dao";
+import { PLAYER_ROLES } from "@/constants/campaign-roles";
 import {
   commonSchemas,
   createToolError,
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  requireGMRole,
   type ToolExecuteOptions,
 } from "../utils";
 import { RecapService } from "../../services/core/recap-service";
@@ -85,6 +87,30 @@ export const generateContextRecapTool = tool({
           "Campaign not found",
           "Campaign not found or access denied",
           404,
+          toolCallId
+        );
+      }
+
+      const role = await daoFactory.campaignDAO.getCampaignRole(
+        campaignId,
+        userId
+      );
+      const isPlayer = role && PLAYER_ROLES.has(role);
+      if (isPlayer) {
+        const playerRecapPrompt =
+          "The user is a player in this campaign. Recap and next steps (planning tasks, session readout) are for the game master. Greet the player and offer to help with: questions about the campaign world from their character's perspective, developing their character, or reviewing session notes while avoiding spoilers. Do not offer planning tasks, session readout, or GM-only features.";
+        return createToolSuccess(
+          "Player recap: offer character-focused help and session notes without spoilers.",
+          {
+            campaignId,
+            campaignName: campaign.name,
+            recapPrompt: playerRecapPrompt,
+            recap: {
+              isPlayerRecap: true,
+              message:
+                "Recap and next steps are for the game master. I can help you with the world, your character, or session notes (no spoilers).",
+            },
+          },
           toolCallId
         );
       }
@@ -228,6 +254,9 @@ export const getSessionReadoutContext = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       const planningTaskDAO = daoFactory.planningTaskDAO;
       const communityDAO = daoFactory.communityDAO;
