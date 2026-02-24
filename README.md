@@ -125,7 +125,7 @@ graph TB
     Worker -->|Vectors| Vectorize[Vectorize Index]
     Worker -->|AI| OpenAI[OpenAI API]
 
-    subgraph "Data Flow"
+    subgraph dataFlow [Data Flow]
         R2 -->|File Content| Worker
         Worker -->|Extract Entities| D1
         Worker -->|Create Embeddings| Vectorize
