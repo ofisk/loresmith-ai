@@ -127,8 +127,10 @@ npm run deploy
 ```
 loresmith-ai/
 ├── wrangler.dev.jsonc          # Dev Cloudflare configuration
-├── .dev.vars                   # Dev environment variables
+├── .dev.vars                   # Dev environment variables (gitignored)
 ├── .dev.vars.template          # Template for .dev.vars
+├── .vars                       # Production env vars (gitignored; copy from .vars.example)
+├── .vars.example               # Reference template for .vars
 ├── scripts/
 │   ├── setup-dev.sh           # Automated setup script
 │   └── validate-dev.sh        # Validation script

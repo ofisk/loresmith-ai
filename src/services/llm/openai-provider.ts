@@ -78,6 +78,11 @@ export class OpenAIProvider implements LLMProvider {
   /**
    * Generate structured JSON output using the same AI SDK (generateText + Output.json())
    * as the chat agent. This ensures the same request path and reliability as chat.
+   *
+   * Uses the Chat API explicitly (openai.chat) so reasoning models like gpt-5-mini and
+   * gpt-5.2 get correct max_completion_tokens mapping. Also ensures the prompt
+   * explicitly contains "json" to satisfy OpenAI's requirement when using
+   * response_format: json_object.
    */
   async generateStructuredOutput<T = unknown>(
     prompt: string,
@@ -88,27 +93,24 @@ export class OpenAIProvider implements LLMProvider {
     const maxTokens = options.maxTokens ?? this.defaultMaxTokens;
 
     try {
-      // Use @ai-sdk/openai with explicit apiKey (same SDK stack as chat agent)
+      // Use Chat API explicitly: reasoning models (gpt-5-mini, gpt-5.2) require
+      // max_completion_tokens instead of max_tokens; the Chat provider handles this.
       const openaiWithKey = createOpenAI({ apiKey: this.apiKey });
-      const model = openaiWithKey(modelId as any);
+      const model = openaiWithKey.chat(modelId as any);
 
+      // OpenAI requires "json" in the message content when using response_format json_object.
+      // Always prepend an explicit instruction so it appears in the user message.
       const lowerPrompt = prompt.toLowerCase();
-      const hasJsonInstruction =
-        lowerPrompt.includes("json") ||
-        lowerPrompt.includes("return a json") ||
-        lowerPrompt.includes("output json") ||
-        lowerPrompt.includes("respond with json");
-
+      const hasJsonInstruction = lowerPrompt.includes("json");
       const finalPrompt = hasJsonInstruction
         ? prompt
-        : `${prompt}\n\nPlease respond with valid JSON only.`;
+        : `Respond with valid JSON only.\n\n${prompt}`;
 
-      console.log("[OpenAIProvider] Structured output request (AI SDK)", {
+      console.log("[OpenAIProvider] Structured output request (AI SDK chat)", {
         model: modelId,
         temperature,
         maxTokens,
         promptLength: finalPrompt.length,
-        hasJsonInstruction,
       });
 
       const result = await generateText({
