@@ -21,6 +21,7 @@
     "READINESS_BACKOFF_MS": "2000",
     "PRODUCTION_URL": "https://loresmith.ai",
     "APP_ORIGIN": "https://loresmith.ai",
+    "VERIFICATION_EMAIL_FROM": "LoreSmith <support@loresmith.ai>",
   },
   "durable_objects": {
     "bindings": [
