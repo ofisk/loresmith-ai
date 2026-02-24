@@ -11,6 +11,7 @@ import type { ToolResult } from "@/app-constants";
 import { validateSessionDigestData } from "@/types/session-digest";
 import type { SessionDigestData } from "@/types/session-digest";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
+import { MODEL_CONFIG } from "@/app-constants";
 
 const generateDigestSchema = z.object({
   campaignId: z.string().describe("The campaign ID"),
@@ -160,7 +161,8 @@ export const generateDigestFromNotesTool = tool({
       const llmProvider = createLLMProvider({
         provider: "openai",
         apiKey: openaiApiKey,
-        defaultModel: "gpt-4o",
+        // Use centralized session-planning model for high-quality structured digest generation
+        defaultModel: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
         defaultTemperature: 0.3,
         defaultMaxTokens: 4000,
       });
@@ -171,7 +173,7 @@ export const generateDigestFromNotesTool = tool({
 
       const generatedDigest =
         await llmProvider.generateStructuredOutput<SessionDigestData>(prompt, {
-          model: "gpt-4o",
+          model: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
           temperature: 0.3,
           maxTokens: 4000,
         });

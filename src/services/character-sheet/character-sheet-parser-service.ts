@@ -2,6 +2,7 @@
 // Extracts structured character data from character sheet text (filetype & game-system agnostic)
 
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
+import { MODEL_CONFIG } from "@/app-constants";
 import { z } from "zod";
 import { parseOrThrow } from "@/lib/zod-utils";
 import { formatCharacterSheetParsingPrompt } from "@/lib/prompts/character-sheet-prompts";
@@ -149,7 +150,7 @@ const CharacterDataSchema = z.object({
 
 export type CharacterData = z.infer<typeof CharacterDataSchema>;
 
-const MAX_CHUNK_SIZE = 200000; // Characters per chunk for parsing (GPT-4o can handle ~500k, but we use 200k to be safe)
+const MAX_CHUNK_SIZE = 200000; // Characters per chunk for parsing (GPT-5 models can handle large contexts; 200k remains a safe default)
 
 /**
  * Service to extract structured character data from character sheet text.
@@ -226,7 +227,8 @@ export class CharacterSheetParserService {
     const llmProvider = createLLMProvider({
       provider: "openai",
       apiKey: this.openaiApiKey,
-      defaultModel: "gpt-4o",
+      // Use centralized heavy structured model (session planning) for rich character data
+      defaultModel: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
       defaultTemperature: 0.1,
       defaultMaxTokens: 8000, // Allow larger response for comprehensive character data
     });
@@ -234,7 +236,7 @@ export class CharacterSheetParserService {
     const result = await llmProvider.generateStructuredOutput<CharacterData>(
       prompt,
       {
-        model: "gpt-4o",
+        model: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
         temperature: 0.1,
         maxTokens: 8000,
       }

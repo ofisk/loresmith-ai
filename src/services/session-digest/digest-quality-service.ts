@@ -1,5 +1,6 @@
 import type { SessionDigestData } from "@/types/session-digest";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
+import { MODEL_CONFIG } from "@/app-constants";
 import type { D1Database, VectorizeIndex } from "@cloudflare/workers-types";
 import { PlanningContextService } from "@/services/rag/planning-context-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
@@ -215,7 +216,7 @@ export class DigestQualityService {
       const llmProvider = createLLMProvider({
         provider: "openai",
         apiKey: this.openaiApiKey,
-        defaultModel: "gpt-4o-mini",
+        defaultModel: MODEL_CONFIG.OPENAI.ANALYSIS,
         defaultTemperature: 0.1,
         defaultMaxTokens: 2000,
       });
@@ -226,7 +227,7 @@ export class DigestQualityService {
         score: number;
         issues: string[];
       }>(prompt, {
-        model: "gpt-4o-mini",
+        model: MODEL_CONFIG.OPENAI.ANALYSIS,
         temperature: 0.1,
         maxTokens: 2000,
       });
@@ -485,7 +486,7 @@ export class DigestQualityService {
     const llmProvider = createLLMProvider({
       provider: "openai",
       apiKey: this.openaiApiKey,
-      defaultModel: "gpt-4o-mini",
+      defaultModel: MODEL_CONFIG.OPENAI.ANALYSIS,
       defaultTemperature: 0.1,
       defaultMaxTokens: 1500,
     });
@@ -494,7 +495,7 @@ export class DigestQualityService {
       const result = await llmProvider.generateStructuredOutput<{
         issues: string[];
       }>(consistencyPrompt, {
-        model: "gpt-4o-mini",
+        model: MODEL_CONFIG.OPENAI.ANALYSIS,
         temperature: 0.1,
         maxTokens: 1500,
       });
@@ -524,7 +525,7 @@ export class DigestQualityService {
       const llmProvider = createLLMProvider({
         provider: "openai",
         apiKey: this.openaiApiKey,
-        defaultModel: "gpt-4o-mini",
+        defaultModel: MODEL_CONFIG.OPENAI.ANALYSIS,
         defaultTemperature: 0.1,
         defaultMaxTokens: 500,
       });
@@ -535,7 +536,7 @@ export class DigestQualityService {
         score: number;
         issues: string[];
       }>(prompt, {
-        model: "gpt-4o-mini",
+        model: MODEL_CONFIG.OPENAI.ANALYSIS,
         temperature: 0.1,
         maxTokens: 500,
       });

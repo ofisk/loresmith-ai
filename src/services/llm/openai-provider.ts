@@ -4,6 +4,10 @@ import type {
   StructuredOutputOptions,
 } from "./llm-provider";
 import { OpenAIAPIKeyError } from "@/lib/errors";
+import { MODEL_CONFIG } from "@/app-constants";
+import { generateText, APICallError } from "ai";
+import { Output } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
 
 /**
  * OpenAI provider implementation for LLM generation
@@ -27,57 +31,39 @@ export class OpenAIProvider implements LLMProvider {
     }
 
     this.apiKey = apiKey;
-    this.defaultModel = options.defaultModel || "gpt-4o-mini";
+    // Default to centralized primary model for general-purpose calls; callers can override per-use.
+    this.defaultModel = options.defaultModel || MODEL_CONFIG.OPENAI.PRIMARY;
     this.defaultTemperature = options.defaultTemperature ?? 0.3;
     this.defaultMaxTokens = options.defaultMaxTokens ?? 2000;
   }
 
+  /**
+   * Generate plain-text summary using the same AI SDK (generateText) as the chat agent.
+   */
   async generateSummary(
     prompt: string,
     options: LLMOptions = {}
   ): Promise<string> {
-    const model = options.model || this.defaultModel;
+    const modelId = options.model || this.defaultModel;
     const temperature = options.temperature ?? this.defaultTemperature;
     const maxTokens = options.maxTokens ?? this.defaultMaxTokens;
 
     try {
-      const response = await fetch(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${this.apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              {
-                role: "user",
-                content: prompt,
-              },
-            ],
-            temperature,
-            max_tokens: maxTokens,
-          }),
-        }
-      );
+      const openaiWithKey = createOpenAI({ apiKey: this.apiKey });
+      const model = openaiWithKey(modelId as any);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`
-        );
-      }
+      const result = await generateText({
+        model,
+        prompt,
+        temperature,
+        maxOutputTokens: maxTokens,
+      });
 
-      const result = (await response.json()) as any;
-      const content = result.choices?.[0]?.message?.content;
-
-      if (!content) {
+      const text = result.text;
+      if (text === undefined || text === null) {
         throw new Error("OpenAI API returned empty response");
       }
-
-      return content;
+      return text;
     } catch (error) {
       console.error("[OpenAIProvider] Error generating summary:", error);
       if (error instanceof OpenAIAPIKeyError) {
@@ -89,33 +75,23 @@ export class OpenAIProvider implements LLMProvider {
     }
   }
 
+  /**
+   * Generate structured JSON output using the same AI SDK (generateText + Output.json())
+   * as the chat agent. This ensures the same request path and reliability as chat.
+   */
   async generateStructuredOutput<T = unknown>(
     prompt: string,
     options: StructuredOutputOptions = {}
   ): Promise<T> {
-    const model = options.model || this.defaultModel;
+    const modelId = options.model || this.defaultModel;
     const temperature = options.temperature ?? this.defaultTemperature;
     const maxTokens = options.maxTokens ?? this.defaultMaxTokens;
 
     try {
-      // For structured output, use response_format with JSON schema
-      const requestBody: any = {
-        model,
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        temperature,
-        max_tokens: maxTokens,
-      };
+      // Use @ai-sdk/openai with explicit apiKey (same SDK stack as chat agent)
+      const openaiWithKey = createOpenAI({ apiKey: this.apiKey });
+      const model = openaiWithKey(modelId as any);
 
-      // Use JSON mode for structured output (GPT-4o and newer models support this)
-      // OpenAI's JSON mode requires the prompt to explicitly request JSON format
-      requestBody.response_format = { type: "json_object" };
-
-      // Ensure prompt includes instruction to return JSON if not already present
       const lowerPrompt = prompt.toLowerCase();
       const hasJsonInstruction =
         lowerPrompt.includes("json") ||
@@ -123,55 +99,44 @@ export class OpenAIProvider implements LLMProvider {
         lowerPrompt.includes("output json") ||
         lowerPrompt.includes("respond with json");
 
-      if (!hasJsonInstruction) {
-        requestBody.messages[0].content = `${prompt}\n\nPlease respond with valid JSON only.`;
+      const finalPrompt = hasJsonInstruction
+        ? prompt
+        : `${prompt}\n\nPlease respond with valid JSON only.`;
+
+      console.log("[OpenAIProvider] Structured output request (AI SDK)", {
+        model: modelId,
+        temperature,
+        maxTokens,
+        promptLength: finalPrompt.length,
+        hasJsonInstruction,
+      });
+
+      const result = await generateText({
+        model,
+        prompt: finalPrompt,
+        temperature,
+        maxOutputTokens: maxTokens,
+        output: Output.json(),
+      });
+
+      const output = result.output;
+      if (output === undefined || output === null) {
+        throw new Error("OpenAI API returned empty structured output");
       }
-
-      const response = await fetch(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${this.apiKey}`,
-          },
-          body: JSON.stringify(requestBody),
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`
-        );
-      }
-
-      const result = (await response.json()) as any;
-      const content = result.choices?.[0]?.message?.content;
-
-      if (!content) {
-        throw new Error("OpenAI API returned empty response");
-      }
-
-      // Parse JSON response
-      try {
-        const parsed = JSON.parse(content);
-        return parsed as T;
-      } catch (parseError) {
-        // Try to extract JSON from markdown code blocks
-        const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
-        if (jsonMatch) {
-          return JSON.parse(jsonMatch[1]) as T;
-        }
-        throw new Error(
-          `Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : "Invalid JSON"}`
-        );
-      }
+      return output as T;
     } catch (error) {
-      console.error(
-        "[OpenAIProvider] Error generating structured output:",
-        error
-      );
+      if (APICallError.isInstance(error)) {
+        console.error(
+          "[OpenAIProvider] Structured output API error:",
+          error.statusCode,
+          error.responseBody ?? "(no body)"
+        );
+      } else {
+        console.error(
+          "[OpenAIProvider] Error generating structured output:",
+          error
+        );
+      }
       if (error instanceof OpenAIAPIKeyError) {
         throw error;
       }

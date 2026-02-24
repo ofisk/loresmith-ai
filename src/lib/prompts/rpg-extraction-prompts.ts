@@ -194,8 +194,9 @@ RETURN ONLY JSON.`,
    * Helper function to format the prompt with resource-specific variables
    */
   formatStructuredContentPrompt: (resourceName: string): string => {
+    // Replace only whole-word "document" so we don't corrupt "documented_by" in the relationship list
     return RPG_EXTRACTION_PROMPTS.STRUCTURED_CONTENT.replace(
-      "document",
+      /\bdocument\b/g,
       resourceName
     );
   },

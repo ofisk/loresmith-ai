@@ -7,13 +7,14 @@ import type {
 import type { Community } from "@/dao/community-dao";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import { OpenAIAPIKeyError } from "@/lib/errors";
+import { MODEL_CONFIG } from "@/app-constants";
 
 /**
  * Configuration constants for community summary generation
  */
 const SUMMARY_CONFIG = {
   // LLM Configuration
-  DEFAULT_MODEL: "gpt-4o-mini",
+  DEFAULT_MODEL: MODEL_CONFIG.OPENAI.ANALYSIS,
   DEFAULT_TEMPERATURE: 0.3,
   DEFAULT_MAX_TOKENS: 2000,
   LLM_PROVIDER: "openai" as const,

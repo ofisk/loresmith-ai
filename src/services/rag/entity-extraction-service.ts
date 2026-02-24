@@ -12,6 +12,7 @@ import { z } from "zod";
 import { OpenAIAPIKeyError, EntityExtractionError } from "@/lib/errors";
 import { parseOrThrow } from "@/lib/zod-utils";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
+import { MODEL_CONFIG } from "@/app-constants";
 import type { TelemetryService } from "@/services/telemetry/telemetry-service";
 
 /**
@@ -293,7 +294,8 @@ CONTENT END`;
       const llmProvider = createLLMProvider({
         provider: "openai",
         apiKey,
-        defaultModel: "gpt-4o",
+        // Use centralized session planning / heavy-structured model
+        defaultModel: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
         defaultTemperature: 0.1,
         defaultMaxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
       });
@@ -302,7 +304,7 @@ CONTENT END`;
       const result = await llmProvider.generateStructuredOutput<
         z.infer<typeof EntityExtractionSchema>
       >(prompt, {
-        model: "gpt-4o",
+        model: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
         temperature: 0.1,
         maxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
       });
