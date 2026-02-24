@@ -1297,6 +1297,7 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     return (
       (await routeAgentRequest(modifiedRequest, c.env as any, {
         cors: true,
+        prefix: "api/agents",
       })) || new Response("Agent route not found", { status: 404 })
     );
   };
