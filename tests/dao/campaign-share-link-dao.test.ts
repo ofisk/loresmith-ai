@@ -6,7 +6,10 @@ function createMockStmt() {
   return {
     bind: vi.fn().mockReturnThis(),
     run: vi.fn().mockResolvedValue({}),
-    all: vi.fn().mockResolvedValue({ results: [] }),
+    // hasTable uses queryAll; CampaignShareLinkDAO only calls all() for hasTable
+    all: vi
+      .fn()
+      .mockResolvedValue({ results: [{ name: "campaign_share_links" }] }),
     first: vi.fn().mockResolvedValue(null),
   };
 }

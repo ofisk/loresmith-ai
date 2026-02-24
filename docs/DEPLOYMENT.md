@@ -1,5 +1,9 @@
 ## Deployment Notes
 
+### Database migrations
+
+Run migrations before deploying new code. The app is backwards compatible: if migrations 0013 or 0014 have not run, the code will degrade gracefully (e.g. no shared campaigns until 0013, no proposal attribution until 0014) rather than failing.
+
 ### Cloudflare build cache
 
 Cloudflare Pages restores previous `dist/` and `.wrangler` artifacts between builds.  

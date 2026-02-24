@@ -5,7 +5,7 @@ import type { AuthPayload } from "@/services/core/auth-service";
 import { requireCanEdit, getUserAuth } from "@/lib/route-utils";
 import type { CampaignMemberRole } from "@/dao/campaign-share-link-dao";
 import { nanoid } from "@/lib/nanoid";
-import { DEFAULT_APP_ORIGIN } from "@/shared-config";
+import { DEFAULT_APP_ORIGIN, ALLOWED_RETURN_ORIGINS } from "@/shared-config";
 
 type ContextWithAuth = Context<{ Bindings: Env }> & {
   userAuth?: AuthPayload;
@@ -39,8 +39,16 @@ export async function handleCreateShareLink(c: ContextWithAuth) {
       body.maxUses ?? null
     );
 
+    // Prefer request Origin when valid (correct link for current app domain), else env
+    const env = c.env as { APP_ORIGIN?: string; PRODUCTION_URL?: string };
+    const requestOrigin = c.req.header("Origin")?.replace(/\/$/, "");
     const baseUrl =
-      (c.env as { APP_ORIGIN?: string }).APP_ORIGIN ?? DEFAULT_APP_ORIGIN;
+      requestOrigin && ALLOWED_RETURN_ORIGINS.includes(requestOrigin)
+        ? requestOrigin
+        : (env.APP_ORIGIN ?? env.PRODUCTION_URL ?? DEFAULT_APP_ORIGIN).replace(
+            /\/$/,
+            ""
+          );
     const url = `${baseUrl}/join?token=${token}`;
 
     return c.json(

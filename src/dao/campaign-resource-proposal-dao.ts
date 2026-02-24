@@ -22,6 +22,7 @@ export class CampaignResourceProposalDAO extends BaseDAOClass {
     fileName: string,
     proposedBy: string
   ): Promise<void> {
+    if (!(await this.hasTable("campaign_resource_proposals"))) return;
     const sql = `
       insert into campaign_resource_proposals (id, campaign_id, file_key, file_name, proposed_by, status, created_at)
       values (?, ?, ?, ?, ?, 'pending', current_timestamp)
@@ -33,6 +34,7 @@ export class CampaignResourceProposalDAO extends BaseDAOClass {
     id: string,
     campaignId: string
   ): Promise<CampaignResourceProposal | null> {
+    if (!(await this.hasTable("campaign_resource_proposals"))) return null;
     const sql = `
       select * from campaign_resource_proposals
       where id = ? and campaign_id = ?
@@ -43,6 +45,7 @@ export class CampaignResourceProposalDAO extends BaseDAOClass {
   async listPendingProposals(
     campaignId: string
   ): Promise<CampaignResourceProposal[]> {
+    if (!(await this.hasTable("campaign_resource_proposals"))) return [];
     const sql = `
       select * from campaign_resource_proposals
       where campaign_id = ? and status = 'pending'
@@ -56,6 +59,7 @@ export class CampaignResourceProposalDAO extends BaseDAOClass {
     campaignId: string,
     reviewedBy: string
   ): Promise<void> {
+    if (!(await this.hasTable("campaign_resource_proposals"))) return;
     const sql = `
       update campaign_resource_proposals
       set status = 'approved', reviewed_by = ?, reviewed_at = current_timestamp
@@ -69,6 +73,7 @@ export class CampaignResourceProposalDAO extends BaseDAOClass {
     campaignId: string,
     reviewedBy: string
   ): Promise<void> {
+    if (!(await this.hasTable("campaign_resource_proposals"))) return;
     const sql = `
       update campaign_resource_proposals
       set status = 'rejected', reviewed_by = ?, reviewed_at = current_timestamp
@@ -82,6 +87,7 @@ export class CampaignResourceProposalDAO extends BaseDAOClass {
     fileKey: string,
     proposedBy: string
   ): Promise<boolean> {
+    if (!(await this.hasTable("campaign_resource_proposals"))) return false;
     const sql = `
       select 1 from campaign_resource_proposals
       where campaign_id = ? and file_key = ? and proposed_by = ? and status = 'pending'

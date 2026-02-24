@@ -7,6 +7,15 @@ export interface BaseDAO {
 export abstract class BaseDAOClass implements BaseDAO {
   constructor(public db: D1Database) {}
 
+  /** True if the given table exists (for backwards-compatible code when migrations may not have run) */
+  protected async hasTable(tableName: string): Promise<boolean> {
+    const rows = await this.queryAll<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+      [tableName]
+    );
+    return rows.length > 0;
+  }
+
   protected async queryAll<T = any>(
     sql: string,
     params: any[] = []

@@ -20,6 +20,7 @@
     "READINESS_TIMEOUT_SEC": "600",
     "READINESS_BACKOFF_MS": "2000",
     "PRODUCTION_URL": "https://loresmith.ai",
+    "APP_ORIGIN": "https://loresmith.ai",
   },
   "durable_objects": {
     "bindings": [

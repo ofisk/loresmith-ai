@@ -91,6 +91,11 @@ export class CampaignDAO extends BaseDAOClass {
     return await this.queryAll<Campaign>(sql, [username]);
   }
 
+  /** True if campaign_members table exists (migration 0001). Avoids failing when migrations not yet run. */
+  private async hasCampaignMembersTable(): Promise<boolean> {
+    return this.hasTable("campaign_members");
+  }
+
   async getCampaignsByUserWithMapping(username: string): Promise<
     {
       campaignId: string;
@@ -128,23 +133,8 @@ export class CampaignDAO extends BaseDAOClass {
       role: "owner";
     }>(ownedSql, [username]);
 
-    // Member campaigns (exclude those already owned)
-    const memberSql = `
-      select 
-        c.id as campaignId, 
-        c.name, 
-        c.description, 
-        c.username, 
-        c.campaignRagBasePath,
-        c.created_at as createdAt, 
-        c.updated_at as updatedAt,
-        cm.role
-      from campaigns c
-      join campaign_members cm on c.id = cm.campaign_id
-      where cm.username = ?
-      and c.id not in (select id from campaigns where username = ?)
-    `;
-    const member = await this.queryAll<{
+    // Member campaigns (exclude those already owned) - only when campaign_members exists (0001)
+    let member: {
       campaignId: string;
       name: string;
       description: string;
@@ -153,7 +143,34 @@ export class CampaignDAO extends BaseDAOClass {
       createdAt: string;
       updatedAt: string;
       role: CampaignMemberRole;
-    }>(memberSql, [username, username]);
+    }[] = [];
+    if (await this.hasCampaignMembersTable()) {
+      const memberSql = `
+        select 
+          c.id as campaignId, 
+          c.name, 
+          c.description, 
+          c.username, 
+          c.campaignRagBasePath,
+          c.created_at as createdAt, 
+          c.updated_at as updatedAt,
+          cm.role
+        from campaigns c
+        join campaign_members cm on c.id = cm.campaign_id
+        where cm.username = ?
+        and c.id not in (select id from campaigns where username = ?)
+      `;
+      member = await this.queryAll<{
+        campaignId: string;
+        name: string;
+        description: string;
+        username: string;
+        campaignRagBasePath: string;
+        createdAt: string;
+        updatedAt: string;
+        role: CampaignMemberRole;
+      }>(memberSql, [username, username]);
+    }
 
     const combined = [...owned, ...member];
     combined.sort(
@@ -196,7 +213,9 @@ export class CampaignDAO extends BaseDAOClass {
     const asOwner = await this.queryFirst(ownerSql, [campaignId, username]);
     if (asOwner) return asOwner;
 
-    // Check campaign_members
+    // Check campaign_members when table exists (migration 0001)
+    if (!(await this.hasCampaignMembersTable())) return null;
+
     const memberSql = `
       select 
         c.id as campaignId, 
@@ -222,6 +241,8 @@ export class CampaignDAO extends BaseDAOClass {
     if (!campaign) return null;
     if (campaign.username === username) return CAMPAIGN_ROLES.OWNER;
 
+    if (!(await this.hasCampaignMembersTable())) return null;
+
     const sql = `select role from campaign_members where campaign_id = ? and username = ?`;
     const row = await this.queryFirst<{ role: CampaignMemberRole }>(sql, [
       campaignId,
@@ -236,6 +257,7 @@ export class CampaignDAO extends BaseDAOClass {
     role: CampaignMemberRole,
     invitedBy: string
   ): Promise<void> {
+    if (!(await this.hasCampaignMembersTable())) return;
     const sql = `
       insert or replace into campaign_members (campaign_id, username, role, invited_by, created_at)
       values (?, ?, ?, ?, current_timestamp)
@@ -247,6 +269,7 @@ export class CampaignDAO extends BaseDAOClass {
     campaignId: string,
     username: string
   ): Promise<void> {
+    if (!(await this.hasCampaignMembersTable())) return;
     const sql = `delete from campaign_members where campaign_id = ? and username = ?`;
     await this.execute(sql, [campaignId, username]);
   }
@@ -255,6 +278,7 @@ export class CampaignDAO extends BaseDAOClass {
   async getCampaignMemberUsernames(campaignId: string): Promise<string[]> {
     const campaign = await this.getCampaignById(campaignId);
     if (!campaign) return [];
+    if (!(await this.hasCampaignMembersTable())) return [campaign.username];
 
     const members = await this.queryAll<{ username: string }>(
       `select username from campaign_members where campaign_id = ?`,

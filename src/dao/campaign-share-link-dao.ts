@@ -26,6 +26,7 @@ export class CampaignShareLinkDAO extends BaseDAOClass {
     expiresAt?: Date | null,
     maxUses?: number | null
   ): Promise<void> {
+    if (!(await this.hasTable("campaign_share_links"))) return;
     const sql = `
       insert into campaign_share_links (token, campaign_id, role, created_by, expires_at, max_uses, use_count, created_at)
       values (?, ?, ?, ?, ?, ?, 0, current_timestamp)
@@ -41,6 +42,7 @@ export class CampaignShareLinkDAO extends BaseDAOClass {
   }
 
   async getShareLink(token: string): Promise<CampaignShareLink | null> {
+    if (!(await this.hasTable("campaign_share_links"))) return null;
     const sql = `select * from campaign_share_links where token = ?`;
     const row = await this.queryFirst<CampaignShareLink>(sql, [token]);
     return row;
@@ -74,6 +76,7 @@ export class CampaignShareLinkDAO extends BaseDAOClass {
   }
 
   async listShareLinks(campaignId: string): Promise<CampaignShareLink[]> {
+    if (!(await this.hasTable("campaign_share_links"))) return [];
     const sql = `
       select * from campaign_share_links
       where campaign_id = ?
@@ -85,6 +88,7 @@ export class CampaignShareLinkDAO extends BaseDAOClass {
   }
 
   async revokeShareLink(token: string): Promise<void> {
+    if (!(await this.hasTable("campaign_share_links"))) return;
     await this.execute(`delete from campaign_share_links where token = ?`, [
       token,
     ]);
