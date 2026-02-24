@@ -22,9 +22,9 @@ export const ShardActionBar: React.FC<ShardActionBarProps> = ({
   if (selectedCount === 0) return null;
 
   return (
-    <div className="bg-purple-900 dark:bg-purple-900 border border-purple-700 dark:border-purple-700 rounded-lg p-3">
+    <div className="bg-neutral-800 dark:bg-neutral-800 border border-neutral-600 dark:border-neutral-600 rounded-lg p-3">
       <div className="flex items-center justify-between">
-        <p className="text-purple-600 dark:text-purple-400">
+        <p className="text-neutral-200 dark:text-neutral-200">
           {selectedCount} shard{selectedCount !== 1 ? "s" : ""} selected
         </p>
         <div className="flex space-x-2">

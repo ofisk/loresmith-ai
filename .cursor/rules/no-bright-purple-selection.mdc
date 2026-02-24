@@ -1,0 +1,28 @@
+---
+description: Never use bright purple for selected/active state backgrounds
+globs: ["**/*.tsx", "**/*.jsx", "**/*.css"]
+alwaysApply: true
+---
+
+# No bright purple for selection/active state
+
+## Rule
+
+**NEVER** use bright or saturated purple backgrounds for selected, active, or current-item states in the UI.
+
+### Banned (do not use for selection/active background or strong emphasis)
+
+- `bg-purple-50` (light mode selected background)
+- `bg-purple-950` or `bg-purple-950/30` or similar (dark mode selected background)
+- `border-l-purple-500` or any bright purple border for selected state
+- `text-purple-700` / `text-purple-300` for selected item text when combined with purple background
+
+These create a loud, harsh look. Do not use them.
+
+### Use instead (simple, subtle)
+
+- **Selected/active background:** `bg-neutral-100 dark:bg-neutral-800` (lighter gray)
+- **Optional subtle accent:** very muted lavender only if needed, e.g. `bg-neutral-100` with a barely-there tint—never saturated purple
+- **Selected text:** `text-neutral-800 dark:text-neutral-200` or keep default gray
+
+Keep selection and active states **simple**: lighter gray or very subtle lavender only. No bright purple backgrounds, no purple borders for selection.
