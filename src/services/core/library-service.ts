@@ -54,8 +54,8 @@ export class LibraryService {
     try {
       const fileDAO = getDAOFactory(this.env).fileDAO;
 
-      // Get all files for the user
-      const files = await fileDAO.getFilesForRag(username);
+      // Storage usage only needs file_size + status; keep this query minimal and robust.
+      const files = await fileDAO.getUserFilesForStorageUsage(username);
 
       // Calculate total bytes and file count (excluding error status)
       const validFiles = files.filter((file: any) => file.status !== "error");

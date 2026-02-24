@@ -262,7 +262,7 @@ export function AppModals({
       <Modal
         isOpen={modalState.isCreateCampaignModalOpen}
         onClose={modalState.handleCreateCampaignClose}
-        cardStyle={STANDARD_MODAL_SIZE_OBJECT}
+        className="w-[96vw] max-w-[720px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
         showCloseButton={true}
       >
         <CreateCampaignModal
@@ -311,7 +311,7 @@ export function AppModals({
           !modalState.isCreateCampaignModalOpen
         }
         onClose={modalState.handleAddResourceClose}
-        cardStyle={STANDARD_MODAL_SIZE_OBJECT}
+        className="w-[96vw] max-w-[960px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
         showCloseButton={true}
       >
         <ResourceUpload
@@ -354,10 +354,10 @@ export function AppModals({
       <Modal
         isOpen={modalState.isAddToCampaignModalOpen}
         onClose={modalState.handleAddToCampaignClose}
-        cardStyle={STANDARD_MODAL_SIZE_OBJECT}
+        className="w-[96vw] max-w-[720px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
         showCloseButton={true}
       >
-        <div className="p-6">
+        <div className="p-4 md:p-6 h-full flex flex-col min-h-0">
           <h3 className="text-lg font-semibold mb-4">
             "{modalState.selectedFile ? modalState.selectedFile.file_name : ""}"
             - Add to Campaign
@@ -365,7 +365,7 @@ export function AppModals({
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Choose which legendary adventures this tome shall join:
           </p>
-          <div className="space-y-3">
+          <div className="space-y-3 flex-1 min-h-0 overflow-y-auto pr-1">
             {availableCampaigns.length === 0 ? (
               <div className="text-center py-6">
                 <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">

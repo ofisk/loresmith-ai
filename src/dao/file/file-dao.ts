@@ -850,6 +850,16 @@ export class FileDAO extends BaseDAOClass {
     return await this.queryAll(sql, []);
   }
 
+  async getUserFilesForStorageUsage(username: string): Promise<any[]> {
+    const sql = `
+      SELECT file_size, status
+      FROM file_metadata
+      WHERE username = ?
+      ORDER BY created_at DESC
+    `;
+    return await this.queryAll(sql, [username]);
+  }
+
   async deleteFileForUser(fileKey: string, username: string): Promise<void> {
     // Delete all related data in a transaction
     await this.transaction([

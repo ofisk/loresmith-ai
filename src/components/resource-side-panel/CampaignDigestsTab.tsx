@@ -27,15 +27,23 @@ export function CampaignDigestsTab({
 }: CampaignDigestsTabProps) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
           Session digests
         </h3>
-        <div className="flex gap-2">
-          <FormButton onClick={onBulkImport} variant="secondary">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <FormButton
+            onClick={onBulkImport}
+            variant="secondary"
+            className="w-full sm:w-auto"
+          >
             Bulk import
           </FormButton>
-          <FormButton onClick={onCreate} icon={<Plus size={16} />}>
+          <FormButton
+            onClick={onCreate}
+            icon={<Plus size={16} />}
+            className="w-full sm:w-auto"
+          >
             Create digest
           </FormButton>
         </div>

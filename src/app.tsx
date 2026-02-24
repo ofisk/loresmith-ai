@@ -222,6 +222,7 @@ export default function Chat() {
 
   // Join page: /join?token=xxx
   const [joinComplete, setJoinComplete] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const joinToken =
     typeof window !== "undefined" &&
     window.location.pathname === "/join" &&
@@ -238,6 +239,16 @@ export default function Chat() {
     },
     [setSelectedCampaignId, refetchCampaigns]
   );
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setIsMobileSidebarOpen(false);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   const {
     allNotifications,
     addLocalNotification,
@@ -1028,10 +1039,12 @@ export default function Chat() {
           },
         }}
       />
-      <div className="h-[100vh] w-full p-6 flex justify-center items-center bg-fixed">
-        <div className="h-[calc(100vh-3rem)] w-full mx-auto max-w-[1400px] flex flex-col shadow-2xl rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950">
+      <div className="h-dvh w-full p-0 sm:p-4 md:p-6 flex justify-center items-center bg-fixed">
+        <div className="h-full sm:h-[calc(100dvh-2rem)] md:h-[calc(100dvh-3rem)] w-full mx-auto max-w-[1400px] flex flex-col shadow-2xl rounded-none sm:rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950 overflow-hidden">
           {/* Top Header - LoreSmith Branding */}
           <AppHeader
+            onToggleSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
+            isSidebarOpen={isMobileSidebarOpen}
             onHelpAction={handleHelpAction}
             onSessionRecapRequest={handleSessionRecapRequest}
             onNextStepsRequest={handleNextStepsRequest}
@@ -1043,9 +1056,10 @@ export default function Chat() {
           />
 
           {/* Main Content Area */}
-          <div className="flex-1 flex min-h-0 overflow-hidden rounded-bl-2xl rounded-br-2xl">
-            {/* Resource Side Panel */}
+          <div className="flex-1 flex min-h-0 overflow-hidden rounded-bl-2xl rounded-br-2xl relative">
+            {/* Desktop resource side panel */}
             <ResourceSidePanel
+              className="hidden md:flex"
               isAuthenticated={authState.isAuthenticated}
               campaigns={campaigns}
               selectedCampaignId={selectedCampaignId ?? undefined}
@@ -1062,6 +1076,35 @@ export default function Chat() {
               campaignAdditionProgress={campaignAdditionProgress}
               isAddingToCampaigns={isAddingToCampaigns}
             />
+
+            {/* Mobile resource side panel drawer */}
+            {isMobileSidebarOpen && (
+              <>
+                <div
+                  className="absolute inset-0 z-30 md:hidden bg-black/40"
+                  onClick={() => setIsMobileSidebarOpen(false)}
+                  aria-hidden="true"
+                />
+                <ResourceSidePanel
+                  className="absolute inset-0 z-40 md:hidden w-full max-w-none shadow-2xl"
+                  isAuthenticated={authState.isAuthenticated}
+                  campaigns={campaigns}
+                  selectedCampaignId={selectedCampaignId ?? undefined}
+                  onLogout={handleLogout}
+                  showUserMenu={authState.showUserMenu}
+                  setShowUserMenu={authState.setShowUserMenu}
+                  triggerFileUpload={triggerFileUpload}
+                  onFileUploadTriggered={handleFileUploadTriggered}
+                  onCreateCampaign={modalState.handleCreateCampaign}
+                  onCampaignClick={modalState.handleCampaignClick}
+                  onAddResource={modalState.handleAddResource}
+                  onAddToCampaign={modalState.handleAddToCampaign}
+                  onEditFile={modalState.handleEditFile}
+                  campaignAdditionProgress={campaignAdditionProgress}
+                  isAddingToCampaigns={isAddingToCampaigns}
+                />
+              </>
+            )}
 
             <div className="flex-1 flex flex-col min-h-0">
               {/* Chat Area */}

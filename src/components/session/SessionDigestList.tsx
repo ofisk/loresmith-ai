@@ -62,9 +62,9 @@ export function SessionDigestList({
           key={digest.id}
           className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
         >
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 mb-2">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                 <h3 className="font-semibold text-gray-900 dark:text-gray-100">
                   Session {digest.sessionNumber}
                 </h3>
@@ -94,7 +94,7 @@ export function SessionDigestList({
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 self-end sm:self-auto">
               {onView && (
                 <button
                   type="button"

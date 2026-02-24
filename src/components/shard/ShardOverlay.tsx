@@ -81,7 +81,7 @@ export const ShardOverlay = ({
   }, [isExpanded]);
 
   return (
-    <div className="fixed top-0 right-0 h-screen z-50 flex items-start pt-28 pb-28 pointer-events-none">
+    <div className="fixed inset-y-0 right-0 z-50 flex justify-end items-start pt-0 md:pt-28 pb-0 md:pb-28 pointer-events-none">
       {/* Minimized Chevron Button */}
       {!isExpanded && isMinimized && (
         <div className="relative pointer-events-auto">
@@ -127,15 +127,15 @@ export const ShardOverlay = ({
       <div
         className={`
           bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-xl
-          rounded-bl-2xl rounded-tl-2xl
+          rounded-none md:rounded-bl-2xl md:rounded-tl-2xl
           transition-all duration-300 ease-in-out
-          ${isExpanded ? "w-[50vw] opacity-100 pointer-events-auto" : "w-0 opacity-0 overflow-hidden pointer-events-none"}
+          h-dvh md:h-[calc(100vh-14rem)]
+          ${isExpanded ? "w-screen md:w-[50vw] opacity-100 pointer-events-auto" : "w-0 opacity-0 overflow-hidden pointer-events-none"}
         `}
-        style={{ height: "calc(100vh - 14rem)" }}
       >
         <div className="h-full flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 flex-shrink-0">
+          <div className="flex items-center justify-between px-4 py-4 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 flex-shrink-0">
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -188,7 +188,7 @@ export const ShardOverlay = ({
           </div>
 
           {/* Content - Scrollable */}
-          <div className="flex-1 overflow-y-auto min-h-0 pr-2">
+          <div className="flex-1 overflow-y-auto min-h-0 pt-4 md:pt-3 pr-2">
             <div className="h-full">
               <UnifiedShardManager
                 shards={shards}

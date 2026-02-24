@@ -102,7 +102,7 @@ export function ResourceFileItem({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1 mr-3 min-w-0">
             <h4
-              className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[200px]"
+              className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[165px] sm:max-w-[200px]"
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {

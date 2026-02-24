@@ -275,11 +275,11 @@ export function BlockingAuthenticationModal({
     ? `${storedOpenAIKey.substring(0, 8)}...${storedOpenAIKey.substring(storedOpenAIKey.length - 4)}`
     : "";
 
-  // Dynamic modal size based on view - legacy view needs more height
-  const modalSize =
+  // Mobile is full-screen; keep existing fixed desktop dimensions by view.
+  const modalClassName =
     view === "legacy"
-      ? { width: 600, height: 750 }
-      : { width: 600, height: 600 };
+      ? "w-full h-dvh rounded-none md:rounded-lg md:w-[600px] md:h-[750px]"
+      : "w-full h-dvh rounded-none md:rounded-lg md:w-[600px] md:h-[600px]";
 
   return (
     <Modal
@@ -289,9 +289,10 @@ export function BlockingAuthenticationModal({
       showCloseButton={false}
       allowEscape={false}
       animatedBackground={true}
-      cardStyle={modalSize}
+      fullScreenOnMobile={true}
+      className={modalClassName}
     >
-      <div className="p-6 max-w-md mx-auto flex flex-col justify-center min-h-full">
+      <div className="p-4 md:p-6 max-w-md w-full mx-auto h-full overflow-y-auto flex flex-col md:justify-center">
         {view === "google_username" && googlePendingToken && (
           <>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -328,11 +329,11 @@ export function BlockingAuthenticationModal({
                 <img
                   src={loresmith}
                   alt="LoreSmith"
-                  width={48}
-                  height={48}
+                  width={40}
+                  height={40}
                   className="object-contain"
                 />
-                <h3 className="text-3xl font-bold tracking-tight bg-gradient-to-br from-purple-600 to-blue-600 dark:from-purple-400 dark:to-blue-400 bg-clip-text text-transparent">
+                <h3 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-br from-purple-600 to-blue-600 dark:from-purple-400 dark:to-blue-400 bg-clip-text text-transparent">
                   Welcome to LoreSmith
                 </h3>
               </div>
