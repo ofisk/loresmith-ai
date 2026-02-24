@@ -2,6 +2,7 @@ import { NOTIFICATION_TYPES } from "../constants/notification-types";
 import { getDAOFactory } from "../dao/dao-factory";
 import type { NotificationPayload } from "../durable-objects/notification-hub";
 import type { Env } from "../middleware/auth";
+import { createLogger } from "@/lib/logger";
 
 /**
  * Publish a notification to a specific user
@@ -11,34 +12,26 @@ export async function notifyUser(
   userId: string,
   payload: Omit<NotificationPayload, "timestamp">
 ): Promise<void> {
-  console.log(`[notifyUser] Starting notification for user: ${userId}`);
-  console.log(
-    `[notifyUser] NOTIFICATIONS binding available:`,
-    !!env.NOTIFICATIONS
+  const logger = createLogger(
+    env as unknown as Record<string, unknown>,
+    "[notifyUser]"
   );
+  logger.debug(`Sending notification to user: ${userId}`);
 
   try {
     // Get NotificationHub Durable Object for the user
     const notificationHubId = env.NOTIFICATIONS.idFromName(`user-${userId}`);
-    console.log(
-      `[notifyUser] Created notification hub ID: ${notificationHubId.toString()}`
-    );
+    logger.trace(`Notification hub ID: ${notificationHubId.toString()}`);
 
     const notificationHub = env.NOTIFICATIONS.get(notificationHubId);
-    console.log(
-      `[notifyUser] Got notification hub instance:`,
-      !!notificationHub
-    );
+    logger.trace("Notification hub instance acquired:", !!notificationHub);
 
     // Create complete payload with timestamp
     const completePayload: NotificationPayload = {
       ...payload,
       timestamp: Date.now(),
     };
-    console.log(`[notifyUser] Created payload:`, completePayload);
-
-    // Call the Durable Object directly instead of making an HTTP request
-    console.log(`[notifyUser] About to call Durable Object fetch...`);
+    logger.trace("Calling notification hub publish");
 
     // Add a timeout to the fetch call
     // Increased timeout to 10 seconds to handle cases where DO is busy delivering queued notifications
@@ -60,26 +53,21 @@ export async function notifyUser(
       fetchPromise,
       timeoutPromise,
     ])) as Response;
-    console.log(
-      `[notifyUser] Durable Object response:`,
+    logger.trace(
+      "Notification hub response:",
       response.status,
       response.statusText
     );
 
     if (!response.ok) {
-      console.error(
-        `[notifyUser] Failed to send notification to ${userId}:`,
-        response.status,
-        response.statusText
+      logger.warn(
+        `Failed to send notification to ${userId}: ${response.status} ${response.statusText}`
       );
     } else {
-      console.log(`[notifyUser] Notification sent successfully to ${userId}`);
+      logger.debug(`Notification sent successfully to ${userId}`);
     }
   } catch (error) {
-    console.error(
-      `[notifyUser] Error sending notification to ${userId}:`,
-      error
-    );
+    logger.error(`Error sending notification to ${userId}:`, error);
     throw error; // Re-throw to see the error in the calling function
   }
 }
@@ -171,11 +159,12 @@ export async function notifyFileUploadCompleteWithData(
     updated_at: string;
   }
 ): Promise<void> {
-  console.log(
-    "[notifyFileUploadCompleteWithData] Sending notification for:",
-    fileData.file_name,
-    "to user:",
-    userId
+  const logger = createLogger(
+    env as unknown as Record<string, unknown>,
+    "[notifyFileUploadCompleteWithData]"
+  );
+  logger.debug(
+    `Sending upload complete notification: ${fileData.file_name} -> ${userId}`
   );
   await notifyUser(env, userId, {
     type: NOTIFICATION_TYPES.FILE_UPLOADED,
@@ -191,9 +180,7 @@ export async function notifyFileUploadCompleteWithData(
       hidden: true,
     },
   });
-  console.log(
-    "[notifyFileUploadCompleteWithData] Notification sent successfully"
-  );
+  logger.trace("Notification sent successfully");
 }
 
 /**
@@ -256,13 +243,11 @@ export async function notifyIndexingStarted(
   status?: string,
   fileSize?: number
 ): Promise<void> {
-  console.log(
-    `[notifyIndexingStarted] Starting notification for user: ${userId}, file: ${fileName}`
+  const logger = createLogger(
+    env as unknown as Record<string, unknown>,
+    "[notifyIndexingStarted]"
   );
-  console.log(
-    `[notifyIndexingStarted] NOTIFICATIONS binding available:`,
-    !!env.NOTIFICATIONS
-  );
+  logger.debug(`Sending indexing started: ${fileName} -> ${userId}`);
 
   try {
     await notifyUser(env, userId, {
@@ -276,12 +261,10 @@ export async function notifyIndexingStarted(
         ...(fileSize !== undefined && { fileSize }),
       },
     });
-    console.log(
-      `[notifyIndexingStarted] Notification sent successfully for user: ${userId}, file: ${fileName}`
-    );
+    logger.trace("Notification sent successfully");
   } catch (error) {
-    console.error(
-      `[notifyIndexingStarted] Failed to send notification for user: ${userId}, file: ${fileName}:`,
+    logger.warn(
+      `Failed to send indexing started for user: ${userId}, file: ${fileName}`,
       error
     );
     throw error;
