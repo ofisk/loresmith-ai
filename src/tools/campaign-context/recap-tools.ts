@@ -98,7 +98,7 @@ export const generateContextRecapTool = tool({
       const isPlayer = role && PLAYER_ROLES.has(role);
       if (isPlayer) {
         const playerRecapPrompt =
-          "The user is a player in this campaign. Recap and next steps (planning tasks, session readout) are for the game master. Greet the player and offer to help with: questions about the campaign world from their character's perspective, developing their character, or reviewing session notes while avoiding spoilers. Do not offer planning tasks, session readout, or GM-only features.";
+          "The user is a player in this campaign. Tailor everything for a player-facing experience only. Greet the player and offer to help with: questions about the campaign world from their character's perspective, developing their character, or reviewing session notes while avoiding spoilers. Focus on player next steps, character development, and table-ready ideas. Do not talk about hidden GM tools, planning tasks, or internal permissions; simply act as if your capabilities are naturally scoped to the player view of the campaign.";
         return createToolSuccess(
           "Player recap: offer character-focused help and session notes without spoilers.",
           {
@@ -108,7 +108,7 @@ export const generateContextRecapTool = tool({
             recap: {
               isPlayerRecap: true,
               message:
-                "Recap and next steps are for the game master. I can help you with the world, your character, or session notes (no spoilers).",
+                "I can help you with the world from your character's perspective, your character's development, and session notes (no spoilers).",
             },
           },
           toolCallId
