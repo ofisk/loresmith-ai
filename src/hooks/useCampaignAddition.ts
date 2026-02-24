@@ -3,9 +3,18 @@ import { API_CONFIG } from "@/shared-config";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
+import {
+  PROPOSAL_LEGAL_NOTICE,
+  isFileAllowedForProposal,
+  getBlockedExtensionsDescription,
+} from "@/lib/proposal-security";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 
-export function useCampaignAddition() {
+export type ProposalConfirmationFn = (legalNotice: string) => Promise<boolean>;
+
+export function useCampaignAddition(
+  getProposalConfirmation?: ProposalConfirmationFn
+) {
   // Campaign addition progress tracking
   const [campaignAdditionProgress, setCampaignAdditionProgress] = useState<
     Record<string, number>
@@ -22,8 +31,11 @@ export function useCampaignAddition() {
         title: string,
         message: string
       ) => void,
-      onSuccess?: () => void
+      onSuccess?: () => void,
+      getProposalConfirmationOverride?: ProposalConfirmationFn
     ) => {
+      const confirmFn =
+        getProposalConfirmationOverride ?? getProposalConfirmation;
       if (selectedCampaigns.length === 0) {
         addLocalNotification(
           NOTIFICATION_TYPES.ERROR,
@@ -62,6 +74,7 @@ export function useCampaignAddition() {
         }
 
         let lastResourceId: string | undefined;
+        const addedCampaignIds: string[] = [];
         // Add file to each selected campaign with progress updates
         for (let i = 0; i < campaignIds.length; i++) {
           const campaignId = campaignIds[i];
@@ -100,6 +113,61 @@ export function useCampaignAddition() {
 
           if (!response.ok) {
             const errorText = await response.text();
+            if (response.status === 403) {
+              try {
+                const errBody = JSON.parse(errorText) as {
+                  useProposeInstead?: boolean;
+                };
+                if (errBody.useProposeInstead) {
+                  if (!isFileAllowedForProposal(fileName)) {
+                    addLocalNotification(
+                      NOTIFICATION_TYPES.ERROR,
+                      "File type not allowed",
+                      `This file type cannot be proposed. Allowed formats: ${getBlockedExtensionsDescription()}`
+                    );
+                    return;
+                  }
+                  const confirmed = confirmFn
+                    ? await confirmFn(PROPOSAL_LEGAL_NOTICE)
+                    : false;
+                  if (!confirmed) {
+                    addLocalNotification(
+                      NOTIFICATION_TYPES.ERROR,
+                      "Confirmation required",
+                      "You must confirm the legal notice before proposing this file."
+                    );
+                    return;
+                  }
+                  const proposeRes = await authenticatedFetchWithExpiration(
+                    API_CONFIG.buildUrl(
+                      API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSALS(
+                        campaignId
+                      )
+                    ),
+                    {
+                      method: "POST",
+                      jwt: getStoredJwt() ?? undefined,
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        fileKey: selectedFile.file_key,
+                        fileName: selectedFile.file_name,
+                        confirmedLegal: true,
+                      }),
+                    }
+                  );
+                  if (proposeRes.response.ok) {
+                    addLocalNotification(
+                      NOTIFICATION_TYPES.SUCCESS,
+                      "Proposal submitted",
+                      `"${fileName}" has been proposed for campaign approval. The GM will review it.`
+                    );
+                    continue;
+                  }
+                }
+              } catch {
+                // Fall through to throw
+              }
+            }
             const { parseErrorResponse, formatErrorForNotification } =
               await import("@/lib/error-parsing");
             const parsedError = parseErrorResponse(errorText, response.status);
@@ -112,30 +180,32 @@ export function useCampaignAddition() {
           if (data?.resource?.id) {
             lastResourceId = data.resource.id;
           }
+          addedCampaignIds.push(campaignId);
         }
 
         // Complete progress
         setCampaignAdditionProgress({ [fileKey]: 100 });
 
-        console.log(
-          `Successfully added "${fileName}" to ${campaignIds.length} campaign(s)`
-        );
-        addLocalNotification(
-          NOTIFICATION_TYPES.SUCCESS,
-          "File Added to Campaign",
-          `Successfully added "${fileName}" to ${campaignIds.length} campaign(s)`
-        );
+        if (addedCampaignIds.length > 0) {
+          console.log(
+            `Successfully added "${fileName}" to ${addedCampaignIds.length} campaign(s)`
+          );
+          addLocalNotification(
+            NOTIFICATION_TYPES.SUCCESS,
+            "File added to campaign",
+            `Successfully added "${fileName}" to ${addedCampaignIds.length} campaign(s)`
+          );
 
-        // Dispatch event to notify other components that a file was added to campaigns
-        window.dispatchEvent(
-          new CustomEvent(APP_EVENT_TYPE.CAMPAIGN_FILE_ADDED, {
-            detail: {
-              file: selectedFile,
-              campaignIds: campaignIds,
-              campaignCount: campaignIds.length,
-            },
-          })
-        );
+          window.dispatchEvent(
+            new CustomEvent(APP_EVENT_TYPE.CAMPAIGN_FILE_ADDED, {
+              detail: {
+                file: selectedFile,
+                campaignIds: addedCampaignIds,
+                campaignCount: addedCampaignIds.length,
+              },
+            })
+          );
+        }
 
         // Call success callback if provided
         if (onSuccess) {
@@ -172,7 +242,7 @@ export function useCampaignAddition() {
         setIsAddingToCampaigns(false);
       }
     },
-    []
+    [getProposalConfirmation]
   );
 
   return {

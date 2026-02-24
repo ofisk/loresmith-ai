@@ -7,6 +7,8 @@ export interface EntityExtractionQueueItem {
   resource_id: string;
   resource_name: string;
   file_key: string | null;
+  /** Username who proposed the file (for approved proposals); used for shard attribution */
+  proposed_by: string | null;
   status: "pending" | "processing" | "completed" | "failed" | "rate_limited";
   retry_count: number;
   last_error: string | null;
@@ -20,26 +22,29 @@ export interface EntityExtractionQueueItem {
 export class EntityExtractionQueueDAO extends BaseDAOClass {
   /**
    * Add an entity extraction job to the queue
+   * @param proposedBy - When from an approved proposal, the username who proposed the file (for shard attribution)
    */
   async addToQueue(
     username: string,
     campaignId: string,
     resourceId: string,
     resourceName: string,
-    fileKey?: string
+    fileKey?: string,
+    proposedBy?: string | null
   ): Promise<void> {
     const sql = `
       INSERT INTO entity_extraction_queue (
-        username, campaign_id, resource_id, resource_name, file_key,
+        username, campaign_id, resource_id, resource_name, file_key, proposed_by,
         status, retry_count, created_at
       )
-      VALUES (?, ?, ?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)
+      VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)
       ON CONFLICT(campaign_id, resource_id) DO UPDATE SET
         status = 'pending',
         retry_count = 0,
         last_error = NULL,
         error_code = NULL,
         next_retry_at = NULL,
+        proposed_by = excluded.proposed_by,
         updated_at = CURRENT_TIMESTAMP
     `;
     await this.execute(sql, [
@@ -48,6 +53,7 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
       resourceId,
       resourceName,
       fileKey || null,
+      proposedBy ?? null,
     ]);
   }
 

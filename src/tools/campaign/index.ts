@@ -16,6 +16,7 @@ import {
 } from "./planning-tools";
 import {
   addResourceToCampaign,
+  proposeResourceToCampaign,
   listCampaignResources,
   removeResourceFromCampaign,
 } from "./resource-tools";
@@ -61,6 +62,7 @@ export {
   generateSessionHooks,
   // Campaign resource tools
   addResourceToCampaign,
+  proposeResourceToCampaign,
   removeResourceFromCampaign,
   listCampaignResources,
   // Campaign file tools
@@ -95,6 +97,7 @@ export const campaignTools = {
   deleteCampaigns,
   listCampaignResources,
   addResourceToCampaign,
+  proposeResourceToCampaign,
   removeResourceFromCampaign,
   searchFileLibrary,
   getFileLibraryStats,

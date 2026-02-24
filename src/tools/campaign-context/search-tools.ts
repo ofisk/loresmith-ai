@@ -10,6 +10,7 @@ import {
   getEnvFromContext,
   type ToolExecuteOptions,
 } from "../utils";
+import { PLAYER_ROLES } from "@/constants/campaign-roles";
 import { getDAOFactory } from "../../dao/dao-factory";
 import { WorldStateChangelogService } from "../../services/graph/world-state-changelog-service";
 import { PlanningContextService } from "../../services/rag/planning-context-service";
@@ -17,6 +18,7 @@ import { EntityEmbeddingService } from "../../services/vectorize/entity-embeddin
 import { EntityGraphService } from "../../services/graph/entity-graph-service";
 import { STRUCTURED_ENTITY_TYPES } from "../../lib/entity-types";
 import { isEntityStub } from "@/lib/entity-content-merge";
+import { sanitizeEntityContentForPlayer } from "@/lib/entity-content-sanitizer";
 import { parseQueryIntent } from "./search-tools-query-intent";
 
 // Dynamically build entity types list for descriptions
@@ -269,6 +271,9 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
           `[Tool] searchCampaignContext - Verified campaign: ${campaign.name} (ID: ${campaign.campaignId})`
         );
 
+        const role = await campaignDAO.getCampaignRole(campaignId, userId);
+        const shouldSanitizeForPlayer = role && PLAYER_ROLES.has(role);
+
         const results: any[] = [];
         const daoFactory = getDAOFactory(env);
         const requiresPlanningContext = queryIntent.searchPlanningContext;
@@ -369,22 +374,25 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
             applyRecencyWeighting: true,
           });
 
-          // Transform planning context results to match expected format
-          for (const result of planningResults) {
-            results.push({
-              type: "planning_context",
-              source: "session_digest",
-              sessionNumber: result.sessionNumber,
-              sessionDate: result.sessionDate,
-              sectionType: result.sectionType,
-              title: `Session ${result.sessionNumber} - ${result.sectionType}`,
-              text: result.sectionContent,
-              score: result.recencyWeightedScore,
-              similarityScore: result.similarityScore,
-              digestId: result.digestId,
-              relatedEntities: result.relatedEntities,
-              filename: `session-${result.sessionNumber}`,
-            });
+          // Omit planning context for player roles (contains GM notes)
+          if (!shouldSanitizeForPlayer) {
+            // Transform planning context results to match expected format
+            for (const result of planningResults) {
+              results.push({
+                type: "planning_context",
+                source: "session_digest",
+                sessionNumber: result.sessionNumber,
+                sessionDate: result.sessionDate,
+                sectionType: result.sectionType,
+                title: `Session ${result.sessionNumber} - ${result.sectionType}`,
+                text: result.sectionContent,
+                score: result.recencyWeightedScore,
+                similarityScore: result.similarityScore,
+                digestId: result.digestId,
+                relatedEntities: result.relatedEntities,
+                filename: `session-${result.sessionNumber}`,
+              });
+            }
           }
 
           console.log(
@@ -1083,10 +1091,22 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
               const finalScore =
                 semanticScore !== undefined ? semanticScore : 0.8; // Default score for entity matches
 
+              // Sanitize content for player roles (strip spoilers)
+              const contentToSerialize =
+                shouldSanitizeForPlayer &&
+                entity.content &&
+                typeof entity.content === "object" &&
+                !Array.isArray(entity.content)
+                  ? sanitizeEntityContentForPlayer(
+                      entity.content as Record<string, unknown>,
+                      entity.entityType
+                    )
+                  : entity.content;
+
               // Combine relationship header, entity content, and world state info
               const entityText =
                 relationshipHeader +
-                JSON.stringify(entity.content) +
+                JSON.stringify(contentToSerialize) +
                 worldStateInfo;
 
               results.push({
@@ -1474,12 +1494,25 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
                 relationshipHeader +=
                   "═══════════════════════════════════════════════════════\n";
 
+                const traversedContentToSerialize =
+                  shouldSanitizeForPlayer &&
+                  entity.content &&
+                  typeof entity.content === "object" &&
+                  !Array.isArray(entity.content)
+                    ? sanitizeEntityContentForPlayer(
+                        entity.content as Record<string, unknown>,
+                        entity.entityType
+                      )
+                    : entity.content;
+
                 results.push({
                   type: "entity",
                   source: "graph_traversal",
                   entityType: entity.entityType,
                   title: entity.name,
-                  text: relationshipHeader + JSON.stringify(entity.content),
+                  text:
+                    relationshipHeader +
+                    JSON.stringify(traversedContentToSerialize),
                   score: 0.7 - depth * 0.1, // Lower score for deeper traversal
                   entityId: entity.id,
                   filename: entity.name,

@@ -66,6 +66,30 @@ export async function requireUserJwt(
   }
 }
 
+/** Optional JWT - attaches userAuth when valid token present, does not fail when absent */
+export async function optionalUserJwt(
+  c: Context,
+  next: () => Promise<void>
+): Promise<Response | void> {
+  const authHeader = c.req.header("Authorization");
+  const token = extractJwtFromHeader(authHeader);
+  if (!token) {
+    await next();
+    return;
+  }
+  try {
+    const authService = getAuthService(c.env);
+    const jwtSecret = await authService.getJwtSecret();
+    const { payload } = await jwtVerify(token, jwtSecret);
+    if (payload && payload.type === "user-auth") {
+      setUserAuth(c, payload as AuthPayload);
+    }
+  } catch (_err) {
+    // Invalid token - continue without auth
+  }
+  await next();
+}
+
 // Agent routing functionality
 export async function determineAgent(
   userMessage: string,

@@ -159,6 +159,84 @@ export const addResourceToCampaign = tool({
   },
 });
 
+const proposeResourceToCampaignSchema = z.object({
+  campaignId: commonSchemas.campaignId,
+  fileKey: z.string().describe("The file key/ID from the user's library"),
+  fileName: z.string().describe("Display name for the file"),
+  confirmedLegal: z
+    .boolean()
+    .describe(
+      "Must be true. Before calling, you MUST present the legal notice to the user and get explicit confirmation. The notice: By proposing this file, you grant the campaign GM read access to review it. You confirm you have the right to share this content, the file does not contain malicious/illegal content, and the recipient will be able to download and review it."
+    ),
+  jwt: commonSchemas.jwt,
+});
+
+export const proposeResourceToCampaign = tool({
+  description:
+    "Propose a document from your library for a campaign. Use this when you are an editor player and want to suggest a resource for the GM to approve. Before calling, you MUST present the legal notice to the user and get their explicit confirmation. Only call with confirmedLegal: true after they confirm. The GM will review and can approve or reject.",
+  inputSchema: proposeResourceToCampaignSchema,
+  execute: async (
+    input: z.infer<typeof proposeResourceToCampaignSchema>,
+    options?: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { campaignId, fileKey, fileName, confirmedLegal, jwt } = input;
+    const toolCallId = options?.toolCallId ?? "unknown";
+
+    try {
+      const response = await authenticatedFetch(
+        API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSALS(campaignId)
+        ),
+        {
+          method: "POST",
+          jwt,
+          body: JSON.stringify({ fileKey, fileName, confirmedLegal }),
+        }
+      );
+
+      if (!response.ok) {
+        const authError = await handleAuthError(response);
+        if (authError) {
+          return createToolError(
+            authError,
+            null,
+            AUTH_CODES.INVALID_KEY,
+            toolCallId
+          );
+        }
+        const errBody = (await response.json()) as { error?: string };
+        return createToolError(
+          errBody.error ?? "Failed to propose resource",
+          `HTTP ${response.status}`,
+          response.status,
+          toolCallId
+        );
+      }
+
+      const result = (await response.json()) as {
+        id: string;
+        campaignId: string;
+        fileKey: string;
+        fileName: string;
+        status: string;
+      };
+      return createToolSuccess(
+        `"${fileName}" has been proposed for campaign approval. The GM will review and can add it to the campaign.`,
+        result,
+        toolCallId
+      );
+    } catch (error) {
+      console.error("Error proposing resource to campaign:", error);
+      return createToolError(
+        "Failed to propose resource to campaign",
+        error,
+        500,
+        toolCallId
+      );
+    }
+  },
+});
+
 const removeResourceFromCampaignSchema = z.object({
   campaignId: commonSchemas.campaignId,
   resourceId: z.string().describe("The ID of the resource to remove"),

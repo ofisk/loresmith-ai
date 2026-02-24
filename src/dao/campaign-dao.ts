@@ -1,4 +1,16 @@
+import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
 import { BaseDAOClass } from "./base-dao";
+import type { CampaignMemberRole } from "./campaign-share-link-dao";
+
+export type { CampaignMemberRole };
+
+export interface CampaignMember {
+  campaign_id: string;
+  username: string;
+  role: CampaignMemberRole;
+  invited_by: string;
+  created_at: string;
+}
 
 export interface Campaign {
   id: string;
@@ -88,9 +100,11 @@ export class CampaignDAO extends BaseDAOClass {
       campaignRagBasePath: string;
       createdAt: string;
       updatedAt: string;
+      role: "owner" | CampaignMemberRole;
     }[]
   > {
-    const sql = `
+    // Owned campaigns with role 'owner'
+    const ownedSql = `
       select 
         id as campaignId, 
         name, 
@@ -98,12 +112,55 @@ export class CampaignDAO extends BaseDAOClass {
         username, 
         campaignRagBasePath,
         created_at as createdAt, 
-        updated_at as updatedAt 
+        updated_at as updatedAt,
+        '${CAMPAIGN_ROLES.OWNER}' as role
       from campaigns 
       where username = ? 
-      order by created_at desc
     `;
-    return await this.queryAll(sql, [username]);
+    const owned = await this.queryAll<{
+      campaignId: string;
+      name: string;
+      description: string;
+      username: string;
+      campaignRagBasePath: string;
+      createdAt: string;
+      updatedAt: string;
+      role: "owner";
+    }>(ownedSql, [username]);
+
+    // Member campaigns (exclude those already owned)
+    const memberSql = `
+      select 
+        c.id as campaignId, 
+        c.name, 
+        c.description, 
+        c.username, 
+        c.campaignRagBasePath,
+        c.created_at as createdAt, 
+        c.updated_at as updatedAt,
+        cm.role
+      from campaigns c
+      join campaign_members cm on c.id = cm.campaign_id
+      where cm.username = ?
+      and c.id not in (select id from campaigns where username = ?)
+    `;
+    const member = await this.queryAll<{
+      campaignId: string;
+      name: string;
+      description: string;
+      username: string;
+      campaignRagBasePath: string;
+      createdAt: string;
+      updatedAt: string;
+      role: CampaignMemberRole;
+    }>(memberSql, [username, username]);
+
+    const combined = [...owned, ...member];
+    combined.sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+    return combined;
   }
 
   async getCampaignById(campaignId: string): Promise<Campaign | null> {
@@ -123,7 +180,8 @@ export class CampaignDAO extends BaseDAOClass {
     updatedAt: string;
     metadata?: string | null;
   } | null> {
-    const sql = `
+    // Check owner first
+    const ownerSql = `
       select 
         id as campaignId, 
         name, 
@@ -135,7 +193,76 @@ export class CampaignDAO extends BaseDAOClass {
       from campaigns 
       where id = ? and username = ?
     `;
-    return await this.queryFirst(sql, [campaignId, username]);
+    const asOwner = await this.queryFirst(ownerSql, [campaignId, username]);
+    if (asOwner) return asOwner;
+
+    // Check campaign_members
+    const memberSql = `
+      select 
+        c.id as campaignId, 
+        c.name, 
+        c.description, 
+        c.campaignRagBasePath, 
+        c.created_at as createdAt, 
+        c.updated_at as updatedAt,
+        c.metadata
+      from campaigns c
+      join campaign_members cm on c.id = cm.campaign_id
+      where c.id = ? and cm.username = ?
+    `;
+    return await this.queryFirst(memberSql, [campaignId, username]);
+  }
+
+  /** Returns 'owner' | editor_gm | readonly_gm | editor_player | readonly_player | null */
+  async getCampaignRole(
+    campaignId: string,
+    username: string
+  ): Promise<"owner" | CampaignMemberRole | null> {
+    const campaign = await this.getCampaignById(campaignId);
+    if (!campaign) return null;
+    if (campaign.username === username) return CAMPAIGN_ROLES.OWNER;
+
+    const sql = `select role from campaign_members where campaign_id = ? and username = ?`;
+    const row = await this.queryFirst<{ role: CampaignMemberRole }>(sql, [
+      campaignId,
+      username,
+    ]);
+    return row?.role ?? null;
+  }
+
+  async addCampaignMember(
+    campaignId: string,
+    username: string,
+    role: CampaignMemberRole,
+    invitedBy: string
+  ): Promise<void> {
+    const sql = `
+      insert or replace into campaign_members (campaign_id, username, role, invited_by, created_at)
+      values (?, ?, ?, ?, current_timestamp)
+    `;
+    await this.execute(sql, [campaignId, username, role, invitedBy]);
+  }
+
+  async removeCampaignMember(
+    campaignId: string,
+    username: string
+  ): Promise<void> {
+    const sql = `delete from campaign_members where campaign_id = ? and username = ?`;
+    await this.execute(sql, [campaignId, username]);
+  }
+
+  /** Returns all usernames with access: owner + campaign_members (for notifications) */
+  async getCampaignMemberUsernames(campaignId: string): Promise<string[]> {
+    const campaign = await this.getCampaignById(campaignId);
+    if (!campaign) return [];
+
+    const members = await this.queryAll<{ username: string }>(
+      `select username from campaign_members where campaign_id = ?`,
+      [campaignId]
+    );
+    const owner = campaign.username;
+    const memberUsernames = members.map((m) => m.username);
+    return Array.from(new Set([owner, ...memberUsernames]));
   }
 
   async getCampaignWithDetails(
@@ -447,6 +574,15 @@ export class CampaignDAO extends BaseDAOClass {
     const result = await this.queryFirst<{ campaignRagBasePath: string }>(sql, [
       campaignId,
       username,
+    ]);
+    return result?.campaignRagBasePath || null;
+  }
+
+  /** Get RAG base path by campaign ID only (for queue processing when user has member access) */
+  async getCampaignRagBasePathById(campaignId: string): Promise<string | null> {
+    const sql = "select campaignRagBasePath from campaigns where id = ?";
+    const result = await this.queryFirst<{ campaignRagBasePath: string }>(sql, [
+      campaignId,
     ]);
     return result?.campaignRagBasePath || null;
   }

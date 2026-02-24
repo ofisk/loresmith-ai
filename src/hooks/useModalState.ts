@@ -26,6 +26,10 @@ export function useModalState() {
   const [isEditFileModalOpen, setIsEditFileModalOpen] = useState(false);
   const [isAdminDashboardModalOpen, setIsAdminDashboardModalOpen] =
     useState(false);
+  const [isProposalConfirmModalOpen, setIsProposalConfirmModalOpen] =
+    useState(false);
+  const [proposalConfirmLegalNotice, setProposalConfirmLegalNotice] =
+    useState("");
 
   // Modal data state
   const [campaignName, setCampaignName] = useState("");
@@ -97,6 +101,16 @@ export function useModalState() {
     setIsAdminDashboardModalOpen(false);
   }, []);
 
+  const showProposalConfirmModal = useCallback((legalNotice: string) => {
+    setProposalConfirmLegalNotice(legalNotice);
+    setIsProposalConfirmModalOpen(true);
+  }, []);
+
+  const hideProposalConfirmModal = useCallback(() => {
+    setIsProposalConfirmModalOpen(false);
+    setProposalConfirmLegalNotice("");
+  }, []);
+
   return {
     // Modal state
     showAuthModal,
@@ -112,6 +126,10 @@ export function useModalState() {
     isEditFileModalOpen,
     isAdminDashboardModalOpen,
     setIsAdminDashboardModalOpen,
+    isProposalConfirmModalOpen,
+    proposalConfirmLegalNotice,
+    showProposalConfirmModal,
+    hideProposalConfirmModal,
 
     // Modal data state
     campaignName,

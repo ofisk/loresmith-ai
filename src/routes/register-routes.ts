@@ -21,6 +21,7 @@ import {
   handleSetOpenAIApiKey,
   handleStoreOpenAIKey,
   handleVerifyEmail,
+  optionalUserJwt,
   requireUserJwt,
 } from "@/routes/auth";
 import {
@@ -46,6 +47,19 @@ import {
   handleProcessEntityExtractionQueue,
   handleUpdateCampaign,
 } from "@/routes/campaigns";
+import {
+  handleCreateShareLink,
+  handleListShareLinks,
+  handleRevokeShareLink,
+  handleCampaignJoin,
+} from "@/routes/campaign-share";
+import {
+  handleCreateResourceProposal,
+  handleListResourceProposals,
+  handleApproveResourceProposal,
+  handleRejectResourceProposal,
+  handleDownloadFileFromProposal,
+} from "@/routes/campaign-resource-proposals";
 import {
   handleGetEntity,
   handleGetEntityRelationships,
@@ -280,6 +294,15 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     requireUserJwt,
     handleCreateCampaign
   );
+  // Join route: optionalUserJwt allows unauthenticated requests to reach the handler.
+  // The handler returns 401 with redirectToLogin when unauthenticated (no redemption).
+  // Only authenticated requests can actually join. The app auto-opens sign-in and
+  // completes the join after successful auth.
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.JOIN,
+    optionalUserJwt,
+    handleCampaignJoin
+  );
   app.get(
     API_CONFIG.ENDPOINTS.CAMPAIGNS.DETAILS(":campaignId"),
     requireUserJwt,
@@ -380,6 +403,59 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     API_CONFIG.ENDPOINTS.CAMPAIGNS.DELETE_ALL,
     requireUserJwt,
     handleDeleteAllCampaigns
+  );
+
+  // Share links (owner, editor_gm)
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SHARE_LINKS(":campaignId"),
+    requireUserJwt,
+    handleCreateShareLink
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SHARE_LINKS(":campaignId"),
+    requireUserJwt,
+    handleListShareLinks
+  );
+  app.delete(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.SHARE_LINKS_REVOKE_PATTERN,
+    requireUserJwt,
+    handleRevokeShareLink
+  );
+
+  // Resource proposals (editor_player proposes; editor_gm/owner approve)
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSALS(":campaignId"),
+    requireUserJwt,
+    handleCreateResourceProposal
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSALS(":campaignId"),
+    requireUserJwt,
+    handleListResourceProposals
+  );
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSAL_APPROVE(
+      ":campaignId",
+      ":id"
+    ),
+    requireUserJwt,
+    handleApproveResourceProposal
+  );
+  app.post(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSAL_REJECT(
+      ":campaignId",
+      ":id"
+    ),
+    requireUserJwt,
+    handleRejectResourceProposal
+  );
+  app.get(
+    API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSAL_DOWNLOAD(
+      ":campaignId",
+      ":id"
+    ),
+    requireUserJwt,
+    handleDownloadFileFromProposal
   );
 
   app.post(
@@ -960,9 +1036,8 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
     handleCleanupStuckFiles
   );
 
-  app.get("/", async (c) => {
+  const serveIndexHtml = async (c: Context<{ Bindings: Env }>) => {
     try {
-      // Serve index.html from assets
       const indexUrl = new URL(c.req.url);
       indexUrl.pathname = "/index.html";
       const assetResponse = await c.env.ASSETS.fetch(new Request(indexUrl));
@@ -973,7 +1048,10 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
       console.log("Index.html not found in assets");
     }
     return new Response("Index.html not found", { status: 404 });
-  });
+  };
+
+  app.get("/", serveIndexHtml);
+  app.get("/join", serveIndexHtml);
 
   app.get("/assets/*", async (c) => {
     try {

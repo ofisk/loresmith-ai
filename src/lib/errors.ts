@@ -54,6 +54,16 @@ export class UserAuthenticationMissingError extends Error {
   }
 }
 
+export class CampaignAccessDeniedError extends Error {
+  constructor(message?: string) {
+    super(
+      message ||
+        "You do not have permission to perform this action on this campaign."
+    );
+    this.name = "CampaignAccessDeniedError";
+  }
+}
+
 // ============================================================================
 // File & Storage Errors
 // ============================================================================

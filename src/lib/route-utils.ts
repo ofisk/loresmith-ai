@@ -1,8 +1,13 @@
 import type { Context } from "hono";
+import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
-import { UserAuthenticationMissingError } from "@/lib/errors";
+import {
+  UserAuthenticationMissingError,
+  CampaignAccessDeniedError,
+} from "@/lib/errors";
 import { getDAOFactory } from "@/dao/dao-factory";
+import type { CampaignMemberRole } from "@/dao/campaign-dao";
 import { PlanningContextService } from "@/services/rag/planning-context-service";
 import { ContextAssemblyService } from "@/services/context/context-assembly-service";
 import { RebuildQueueService } from "@/services/graph/rebuild-queue-service";
@@ -50,7 +55,7 @@ export async function ensureCampaignAccess(
 }
 
 /**
- * Verify campaign access and return campaign details
+ * Verify campaign access and return campaign details with role
  * Returns null if campaign not found or user doesn't have access
  */
 export async function verifyCampaignAccess(
@@ -61,6 +66,7 @@ export async function verifyCampaignAccess(
   campaignId: string;
   name: string;
   campaignRagBasePath: string;
+  role: "owner" | CampaignMemberRole;
 } | null> {
   const daoFactory = getDAOFactory(c.env);
   const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
@@ -72,12 +78,96 @@ export async function verifyCampaignAccess(
     return null;
   }
 
+  const role = await daoFactory.campaignDAO.getCampaignRole(
+    campaignId,
+    username
+  );
+  if (!role) return null;
+
   return {
     campaignId: campaign.campaignId,
     name: campaign.name,
     campaignRagBasePath:
       campaign.campaignRagBasePath || `campaigns/${campaignId}`,
+    role,
   };
+}
+
+/**
+ * Get the user's role in a campaign, or null if no access
+ */
+export async function getCampaignRole(
+  c: ContextWithAuth,
+  campaignId: string,
+  username: string
+): Promise<"owner" | CampaignMemberRole | null> {
+  const daoFactory = getDAOFactory(c.env);
+  return daoFactory.campaignDAO.getCampaignRole(campaignId, username);
+}
+
+/**
+ * Require the user to have one of the allowed roles. Throws CampaignAccessDeniedError if not.
+ */
+export async function requireCampaignRole(
+  c: ContextWithAuth,
+  campaignId: string,
+  allowedRoles: ("owner" | CampaignMemberRole)[]
+): Promise<"owner" | CampaignMemberRole> {
+  const role = await getCampaignRole(c, campaignId, getUserAuth(c).username);
+  if (!role || !allowedRoles.includes(role)) {
+    throw new CampaignAccessDeniedError();
+  }
+  return role;
+}
+
+/**
+ * Require the user to be the campaign owner. Throws CampaignAccessDeniedError if not.
+ */
+export async function requireCampaignOwner(
+  c: ContextWithAuth,
+  campaignId: string
+): Promise<void> {
+  await requireCampaignRole(c, campaignId, [CAMPAIGN_ROLES.OWNER]);
+}
+
+/**
+ * Require the user to be able to see spoilers (owner, editor_gm, readonly_gm)
+ */
+export async function requireCanSeeSpoilers(
+  c: ContextWithAuth,
+  campaignId: string
+): Promise<"owner" | CampaignMemberRole> {
+  return requireCampaignRole(c, campaignId, [
+    CAMPAIGN_ROLES.OWNER,
+    CAMPAIGN_ROLES.EDITOR_GM,
+    CAMPAIGN_ROLES.READONLY_GM,
+  ]);
+}
+
+/**
+ * Require the user to be able to edit (owner, editor_gm)
+ */
+export async function requireCanEdit(
+  c: ContextWithAuth,
+  campaignId: string
+): Promise<"owner" | CampaignMemberRole> {
+  return requireCampaignRole(c, campaignId, [
+    CAMPAIGN_ROLES.OWNER,
+    CAMPAIGN_ROLES.EDITOR_GM,
+  ]);
+}
+
+/**
+ * Require the user to be able to approve shards (owner, editor_gm)
+ */
+export async function requireCanApproveShards(
+  c: ContextWithAuth,
+  campaignId: string
+): Promise<"owner" | CampaignMemberRole> {
+  return requireCampaignRole(c, campaignId, [
+    CAMPAIGN_ROLES.OWNER,
+    CAMPAIGN_ROLES.EDITOR_GM,
+  ]);
 }
 
 /**

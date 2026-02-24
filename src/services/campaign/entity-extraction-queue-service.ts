@@ -7,7 +7,6 @@ import {
   type EntityExtractionQueueItem,
 } from "@/dao/entity-extraction-queue-dao";
 import { stageEntitiesFromResource } from "./entity-staging-service";
-import { getCampaignRagBasePath } from "@/lib/campaign-operations";
 import type { Env } from "@/middleware/auth";
 
 export interface EntityExtractionJobOptions {
@@ -18,6 +17,8 @@ export interface EntityExtractionJobOptions {
   resourceName: string;
   fileKey?: string;
   openaiApiKey: string;
+  /** When from an approved proposal, the username who proposed the file (for shard attribution) */
+  proposedBy?: string | null;
 }
 
 const MAX_RETRIES = 5;
@@ -71,8 +72,15 @@ export class EntityExtractionQueueService {
   static async queueEntityExtraction(
     options: EntityExtractionJobOptions
   ): Promise<void> {
-    const { env, username, campaignId, resourceId, resourceName, fileKey } =
-      options;
+    const {
+      env,
+      username,
+      campaignId,
+      resourceId,
+      resourceName,
+      fileKey,
+      proposedBy,
+    } = options;
 
     const queueDAO = new EntityExtractionQueueDAO(env.DB);
     await queueDAO.addToQueue(
@@ -80,7 +88,8 @@ export class EntityExtractionQueueService {
       campaignId,
       resourceId,
       resourceName,
-      fileKey
+      fileKey,
+      proposedBy
     );
 
     console.log(
@@ -181,12 +190,11 @@ export class EntityExtractionQueueService {
           throw new Error(`OpenAI API key not found for user ${item.username}`);
         }
 
-        // Get campaign RAG base path
-        const campaignRagBasePath = await getCampaignRagBasePath(
-          item.username,
-          item.campaign_id,
-          env
-        );
+        // Get campaign RAG base path (by ID - user already has access via getCampaignByIdWithMapping)
+        const campaignRagBasePath =
+          await daoFactory.campaignDAO.getCampaignRagBasePathById(
+            item.campaign_id
+          );
 
         if (!campaignRagBasePath) {
           throw new Error(
@@ -203,6 +211,10 @@ export class EntityExtractionQueueService {
           resource,
           campaignRagBasePath,
           openaiApiKey,
+          attribution:
+            item.proposed_by != null
+              ? { proposedBy: item.proposed_by, approvedBy: item.username }
+              : undefined,
         });
 
         // Mark as completed

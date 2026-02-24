@@ -17,6 +17,14 @@ export interface CampaignResource {
   updated_at?: string;
 }
 
+/** User's role in the campaign (from membership or ownership) */
+export type CampaignRole =
+  | "owner"
+  | "editor_gm"
+  | "readonly_gm"
+  | "editor_player"
+  | "readonly_player";
+
 // Base campaign interface used by Durable Objects
 export interface CampaignData {
   campaignId: string;
@@ -25,7 +33,9 @@ export interface CampaignData {
   campaignRagBasePath?: string;
   createdAt: string;
   updatedAt: string;
-  resources: CampaignResource[];
+  resources?: CampaignResource[];
+  /** User's role in this campaign (owner or from membership) */
+  role?: CampaignRole;
 }
 
 // Campaign interface for UI components (alias for consistency)

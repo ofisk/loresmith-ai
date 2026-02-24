@@ -29,6 +29,13 @@ export const ShardGroup: React.FC<ShardGroupProps> = ({
         <h4 className="font-medium text-white dark:text-white">
           From: {group.sourceRef.meta.fileName}
         </h4>
+        {typeof group.sourceRef.meta.proposedBy === "string" &&
+          typeof group.sourceRef.meta.approvedBy === "string" && (
+            <p className="text-xs text-neutral-400 dark:text-neutral-400 mt-0.5">
+              Co-authored by {group.sourceRef.meta.proposedBy} (proposed) and{" "}
+              {group.sourceRef.meta.approvedBy} (approved)
+            </p>
+          )}
         <p className="text-sm text-neutral-400 dark:text-neutral-400">
           Generated: {new Date(group.created_at).toLocaleString()}
         </p>

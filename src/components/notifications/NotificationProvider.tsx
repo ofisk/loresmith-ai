@@ -139,6 +139,19 @@ export function NotificationProvider({
                 );
                 break;
               }
+              case NOTIFICATION_TYPES.CAMPAIGN_FILE_ADDED: {
+                // Dispatch campaign file added event to trigger library/campaign refresh
+                window.dispatchEvent(
+                  new CustomEvent(APP_EVENT_TYPE.CAMPAIGN_FILE_ADDED, {
+                    detail: {
+                      campaignId: notification?.data?.campaignId,
+                      campaignName: notification?.data?.campaignName,
+                      fileName: notification?.data?.fileName,
+                    },
+                  })
+                );
+                break;
+              }
               case NOTIFICATION_TYPES.SHARDS_GENERATED: {
                 // Dispatch shards-generated event to trigger overlay refresh
                 window.dispatchEvent(

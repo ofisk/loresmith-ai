@@ -248,6 +248,20 @@ export const API_CONFIG = {
       },
       CONTEXT_ASSEMBLY: (campaignId: string) =>
         `/campaigns/${campaignId}/context-assembly`,
+      SHARE_LINKS: (campaignId: string) =>
+        `/campaigns/${campaignId}/share-links`,
+      SHARE_LINKS_REVOKE: (campaignId: string, token: string) =>
+        `/campaigns/${campaignId}/share-links/${encodeURIComponent(token)}`,
+      SHARE_LINKS_REVOKE_PATTERN: "/campaigns/:campaignId/share-links/:token",
+      JOIN: "/campaigns/join",
+      RESOURCE_PROPOSALS: (campaignId: string) =>
+        `/campaigns/${campaignId}/resource-proposals`,
+      RESOURCE_PROPOSAL_APPROVE: (campaignId: string, id: string) =>
+        `/campaigns/${campaignId}/resource-proposals/${id}/approve`,
+      RESOURCE_PROPOSAL_REJECT: (campaignId: string, id: string) =>
+        `/campaigns/${campaignId}/resource-proposals/${id}/reject`,
+      RESOURCE_PROPOSAL_DOWNLOAD: (campaignId: string, id: string) =>
+        `/campaigns/${campaignId}/resource-proposals/${id}/download`,
       GRAPH_REBUILD: {
         TRIGGER: (campaignId: string) =>
           `/campaigns/${campaignId}/graph-rebuild/trigger`,

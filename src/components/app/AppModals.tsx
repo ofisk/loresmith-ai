@@ -39,6 +39,8 @@ interface AppModalsProps {
   addLocalNotification: ReturnType<
     typeof useLocalNotifications
   >["addLocalNotification"];
+  onProposalConfirm: () => void;
+  onProposalCancel: () => void;
 }
 
 /**
@@ -54,6 +56,8 @@ export function AppModals({
   handleFileUpdate,
   addFileToCampaigns,
   addLocalNotification,
+  onProposalConfirm,
+  onProposalCancel,
 }: AppModalsProps) {
   // Debug: Log when auth modal state changes
   useEffect(() => {
@@ -512,6 +516,31 @@ export function AppModals({
           }}
         />
       )}
+
+      {/* Proposal legal confirmation modal */}
+      <Modal
+        isOpen={modalState.isProposalConfirmModalOpen}
+        onClose={onProposalCancel}
+        cardStyle={STANDARD_MODAL_SIZE_OBJECT}
+        showCloseButton={true}
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">
+            Confirm before proposing file
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line mb-6">
+            {modalState.proposalConfirmLegalNotice}
+          </p>
+          <div className="flex justify-end gap-2">
+            <FormButton variant="secondary" onClick={onProposalCancel}>
+              Cancel
+            </FormButton>
+            <FormButton variant="primary" onClick={onProposalConfirm}>
+              I confirm, propose file
+            </FormButton>
+          </div>
+        </div>
+      </Modal>
 
       {/* Admin Dashboard Modal */}
       <Modal

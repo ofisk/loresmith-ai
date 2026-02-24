@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
 import { FileDAO } from "@/dao";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
@@ -10,6 +11,11 @@ import {
   validateCampaignOwnership,
   getCampaignRagBasePath,
 } from "@/lib/campaign-operations";
+import {
+  requireCanEdit,
+  requireCampaignOwner,
+  getCampaignRole,
+} from "@/lib/route-utils";
 import { EntityExtractionQueueDAO } from "@/dao/entity-extraction-queue-dao";
 import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
@@ -24,6 +30,14 @@ import {
 } from "@/lib/response-builders";
 import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
 import { ChecklistStatusService } from "@/services/campaign/checklist-status-service";
+import {
+  isFileAllowedForProposal,
+  getBlockedExtensionsDescription,
+} from "@/lib/proposal-security";
+import {
+  validateR2ObjectAndGetStream,
+  getExtension,
+} from "@/lib/file-upload-security";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -354,19 +368,30 @@ export async function handleDeleteCampaign(c: ContextWithAuth) {
     console.log(`[Server] DELETE /campaigns/${campaignId} - starting request`);
     console.log("[Server] User auth from middleware:", userAuth);
 
-    // Validate campaign ownership
-    const { valid, campaign } = await validateCampaignOwnership(
-      campaignId,
-      userAuth.username,
-      c.env
-    );
-    if (!valid) {
-      console.log(
-        `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
-      );
-      return c.json({ error: "Campaign not found" }, 404);
+    // Only owners can delete campaigns
+    try {
+      await requireCampaignOwner(c, campaignId);
+    } catch (err: unknown) {
+      if (
+        err &&
+        typeof err === "object" &&
+        "name" in err &&
+        err.name === "CampaignAccessDeniedError"
+      ) {
+        return c.json(
+          { error: "Only the campaign owner can delete this campaign" },
+          403
+        );
+      }
+      throw err;
     }
 
+    const campaign = await getDAOFactory(c.env).campaignDAO.getCampaignById(
+      campaignId
+    );
+    if (!campaign) {
+      return c.json({ error: "Campaign not found" }, 404);
+    }
     console.log("[Server] Found campaign:", campaign);
 
     // Delete the campaign (DAO handles cascading deletes)
@@ -427,19 +452,44 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
       return c.json({ error: "Resource type and id are required" }, 400);
     }
 
-    // 1) Validate campaign ownership
-    const { valid, campaign } = await validateCampaignOwnership(
-      campaignId,
-      userAuth.username,
-      c.env
-    );
-    if (!valid) {
-      console.log(
-        `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
-      );
-      return c.json({ error: "Campaign not found" }, 404);
+    // 1) Require edit permission (owner, editor_gm). Editor players must use propose instead.
+    try {
+      await requireCanEdit(c, campaignId);
+    } catch (err: unknown) {
+      if (
+        err &&
+        typeof err === "object" &&
+        "name" in err &&
+        err.name === "CampaignAccessDeniedError"
+      ) {
+        const role = await getCampaignRole(c, campaignId, userAuth.username);
+        if (role === CAMPAIGN_ROLES.EDITOR_PLAYER) {
+          return c.json(
+            {
+              error:
+                "Editor players cannot add resources directly. Use proposeResourceToCampaign to propose a document for GM approval.",
+              useProposeInstead: true,
+            },
+            403
+          );
+        }
+        return c.json(
+          {
+            error:
+              "You do not have permission to add resources to this campaign",
+          },
+          403
+        );
+      }
+      throw err;
     }
 
+    const campaign = await getDAOFactory(c.env).campaignDAO.getCampaignById(
+      campaignId
+    );
+    if (!campaign) {
+      return c.json({ error: "Campaign not found" }, 404);
+    }
     console.log("[Server] Found campaign:", campaign);
 
     // 2) Check for existing resource (idempotency)
@@ -521,6 +571,39 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
     console.log(
       `[Server] File ${id} is indexed and ready. Status: ${fileRecord.status}`
     );
+
+    // 3b) Validate file type (allowlist + magic-byte check)
+    const fileName = name || fileRecord.file_name || id;
+    if (!isFileAllowedForProposal(fileName)) {
+      return c.json(
+        {
+          error: `This file type is not allowed. Allowed formats: ${getBlockedExtensionsDescription()}`,
+        },
+        400
+      );
+    }
+    try {
+      const r2Object = await c.env.R2.get(id);
+      if (r2Object) {
+        const ext = getExtension(fileName);
+        const validation = await validateR2ObjectAndGetStream(r2Object, ext);
+        if (!validation.valid) {
+          return c.json({ error: validation.error }, 400);
+        }
+      }
+    } catch (validateErr) {
+      console.warn(
+        "[handleAddResourceToCampaign] Content validation failed:",
+        validateErr
+      );
+      return c.json(
+        {
+          error:
+            "File validation failed. The file may be corrupted or mislabeled.",
+        },
+        400
+      );
+    }
 
     // 4) Add resource to campaign
     const resourceId = crypto.randomUUID();

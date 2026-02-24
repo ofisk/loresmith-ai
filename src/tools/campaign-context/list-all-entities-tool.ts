@@ -9,9 +9,11 @@ import {
   getEnvFromContext,
   type ToolExecuteOptions,
 } from "../utils";
+import { PLAYER_ROLES } from "@/constants/campaign-roles";
 import { getDAOFactory } from "../../dao/dao-factory";
 import { STRUCTURED_ENTITY_TYPES } from "../../lib/entity-types";
 import { isEntityStub } from "@/lib/entity-content-merge";
+import { sanitizeEntityContentForPlayer } from "@/lib/entity-content-sanitizer";
 
 const ENTITY_TYPES_LIST = STRUCTURED_ENTITY_TYPES.join(", ");
 const LIST_ALL_ENTITIES_PAGE_SIZE = 100;
@@ -116,6 +118,9 @@ Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characte
         );
       }
 
+      const role = await campaignDAO.getCampaignRole(campaignId, userId);
+      const shouldSanitizeForPlayer = role && PLAYER_ROLES.has(role);
+
       const entityTypeMap: Record<string, string> = {
         characters: "character",
         resources: "resource",
@@ -152,10 +157,22 @@ Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characte
         : pageEntities.filter((e) => !isEntityStub(e));
 
       const results = entitiesToReturn.map((entity) => {
+        let contentToSerialize = entity.content ?? "";
+        if (
+          shouldSanitizeForPlayer &&
+          entity.content &&
+          typeof entity.content === "object" &&
+          !Array.isArray(entity.content)
+        ) {
+          contentToSerialize = sanitizeEntityContentForPlayer(
+            entity.content as Record<string, unknown>,
+            entity.entityType
+          );
+        }
         const text =
-          typeof entity.content === "string"
-            ? entity.content
-            : JSON.stringify(entity.content ?? "");
+          typeof contentToSerialize === "string"
+            ? contentToSerialize
+            : JSON.stringify(contentToSerialize);
         return {
           id: entity.id,
           type: entity.entityType,
