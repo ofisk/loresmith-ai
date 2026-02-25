@@ -1,15 +1,22 @@
 import { Card } from "@/components/card/Card";
 import mapIcon from "../../assets/map.png";
 import addToLibraryIcon from "../../assets/add-to-library.png";
+import campaignIcon from "../../assets/campaign.png";
 
 interface WelcomeMessageProps {
   onSuggestionSubmit: (suggestion: string) => void;
   onUploadFiles?: () => void;
+  /** When true, shows "Create your first campaign" as the primary CTA */
+  hasNoCampaigns?: boolean;
+  /** Opens the create campaign modal; used when hasNoCampaigns is true */
+  onCreateCampaign?: () => void;
 }
 
 export function WelcomeMessage({
   onSuggestionSubmit,
   onUploadFiles,
+  hasNoCampaigns,
+  onCreateCampaign,
 }: WelcomeMessageProps) {
   return (
     <div className="w-full flex justify-center py-8">
@@ -66,13 +73,35 @@ export function WelcomeMessage({
             </div>
 
             <p className="font-medium bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700">
-              Ready to dive in? Pick an option below to get started:
+              {hasNoCampaigns
+                ? "Start by creating a campaign to organize your story."
+                : "Ready to dive in? Pick an option below to get started:"}
             </p>
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-4 flex-wrap">
+            {hasNoCampaigns && onCreateCampaign && (
+              <button
+                type="button"
+                className="flex-1 min-w-[200px] bg-white/80 dark:bg-neutral-800/80 p-5 rounded-xl border-2 border-neutral-300 dark:border-neutral-600 backdrop-blur-sm shadow-sm hover:shadow-md hover:bg-white dark:hover:bg-neutral-800 transition-all cursor-pointer text-left"
+                onClick={onCreateCampaign}
+              >
+                <h4 className="font-medium text-base mb-2 flex items-center gap-2">
+                  <img
+                    src={campaignIcon}
+                    alt="Campaign"
+                    className="w-12 h-12"
+                  />
+                  Create your first campaign
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  Create a campaign to organize your narrative, track NPCs, and
+                  build your world
+                </p>
+              </button>
+            )}
             <button
               type="button"
-              className="flex-1 bg-white/80 dark:bg-neutral-800/80 p-5 rounded-xl border border-neutral-200/50 dark:border-neutral-700/50 backdrop-blur-sm shadow-sm hover:shadow-md hover:bg-white dark:hover:bg-neutral-800 transition-all cursor-pointer text-left"
+              className="flex-1 min-w-[200px] bg-white/80 dark:bg-neutral-800/80 p-5 rounded-xl border border-neutral-200/50 dark:border-neutral-700/50 backdrop-blur-sm shadow-sm hover:shadow-md hover:bg-white dark:hover:bg-neutral-800 transition-all cursor-pointer text-left"
               onClick={onUploadFiles}
             >
               <h4 className="font-medium text-base mb-2 flex items-center gap-2">

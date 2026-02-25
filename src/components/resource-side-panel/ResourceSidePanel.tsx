@@ -56,6 +56,13 @@ export function ResourceSidePanel({
     campaigns, // Pass campaigns from parent
   });
 
+  // Open campaigns section by default when no campaigns exist (empty state onboarding)
+  useEffect(() => {
+    if (!campaignsLoading && managedCampaigns.length === 0) {
+      setIsCampaignsOpen(true);
+    }
+  }, [campaignsLoading, managedCampaigns.length]);
+
   // Watch for external trigger to open file upload modal
   useEffect(() => {
     if (triggerFileUpload) {
