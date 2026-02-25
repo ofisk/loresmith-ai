@@ -953,16 +953,24 @@ export async function stageEntitiesFromResource(
 				notificationMessage = ` ❌ We couldn't extract any shards from this file. This may be due to the file being too large or temporary processing issues. Please try again later.`;
 			}
 
-			const shardCount = stagedEntities.length;
+			const totalProcessed = stagedEntities.length;
+			const newForApproval = stagedEntities.filter(
+				(e) =>
+					(e.metadata as Record<string, unknown>)?.shardStatus === "staging"
+			).length;
+			const shardCount = newForApproval; // UI expects shardCount = pending for approval
 			const fileName = normalizedResource.file_name || normalizedResource.id;
 			let title: string;
 			let message: string;
-			if (!shardCount || shardCount === 0) {
+			if (!totalProcessed || totalProcessed === 0) {
 				title = "No shards found";
 				message = `🔎 No shards were discovered from "${fileName}" in "${campaignName}".${notificationMessage}`;
+			} else if (totalProcessed === newForApproval) {
+				title = "New shards ready";
+				message = `🎉 ${newForApproval} new shard${newForApproval === 1 ? "" : "s"} generated from "${fileName}" in "${campaignName}"!${notificationMessage}`;
 			} else {
 				title = "New shards ready";
-				message = `🎉 ${shardCount} new shard${shardCount === 1 ? "" : "s"} generated from "${fileName}" in "${campaignName}"!${notificationMessage}`;
+				message = `🎉 ${totalProcessed} entities processed; ${newForApproval} new shard${newForApproval === 1 ? "" : "s"} ready for approval from "${fileName}" in "${campaignName}".${notificationMessage}`;
 			}
 
 			await notifyCampaignMembers(
