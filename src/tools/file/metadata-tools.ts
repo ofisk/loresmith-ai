@@ -167,7 +167,6 @@ export const autoGenerateFileMetadata = tool({
           // Extract user info from JWT for the background job
           const payload = JSON.parse(atob(jwt.split(".")[1]));
           const username = payload.username;
-          const openaiApiKey = payload.openaiApiKey;
 
           // Create a background processing request
           const processingUrl = `${(env as { VITE_API_URL?: string }).VITE_API_URL}/pdf/process-metadata-background`;
@@ -185,7 +184,6 @@ export const autoGenerateFileMetadata = tool({
             body: JSON.stringify({
               fileKey,
               username,
-              openaiApiKey,
             }),
           });
 

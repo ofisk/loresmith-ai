@@ -9,8 +9,8 @@ import {
   VectorizeIndexRequiredError,
   OpenAIAPIKeyError,
 } from "@/lib/errors";
+import { createLogger } from "@/lib/logger";
 import type { ToolResult } from "@/app-constants";
-import { createToolError } from "@/tools/utils";
 
 export interface EnvWithBindings {
   DB?: unknown;
@@ -21,6 +21,27 @@ export interface EnvWithBindings {
 
 export interface EnvWithSecrets {
   [key: string]: unknown;
+}
+
+let ENV_VAR_CACHE_BY_ENV: WeakMap<object, Map<string, string>> = new WeakMap();
+const ENV_VAR_GLOBAL_CACHE = new Map<string, string>();
+
+function getCacheForEnv(env: EnvWithSecrets): Map<string, string> {
+  if (env && typeof env === "object") {
+    const existing = ENV_VAR_CACHE_BY_ENV.get(env as object);
+    if (existing) return existing;
+    const created = new Map<string, string>();
+    ENV_VAR_CACHE_BY_ENV.set(env as object, created);
+    return created;
+  }
+
+  return ENV_VAR_GLOBAL_CACHE;
+}
+
+// Exported for unit tests and local debugging, but not used by app code.
+export function __resetEnvVarCacheForTests(): void {
+  ENV_VAR_CACHE_BY_ENV = new WeakMap();
+  ENV_VAR_GLOBAL_CACHE.clear();
 }
 
 /**
@@ -40,26 +61,32 @@ export async function getEnvVar(
   varName: string,
   required: boolean = true
 ): Promise<string> {
+  const cache = getCacheForEnv(env);
+  const cached = cache.get(varName);
+  if (cached !== undefined) return cached;
+
+  const logger = createLogger(env as Record<string, unknown>, "[getEnvVar]");
+
   // First priority: .dev.vars file (local development)
   const devVarsValue = process.env[varName];
-  console.log(`[getEnvVar] Checking ${varName}:`, {
-    devVarsValue: devVarsValue ? "present" : "not present",
-    envValue: env[varName] ? typeof env[varName] : "undefined",
-    envValueKeys:
-      env[varName] && typeof env[varName] === "object"
-        ? Object.keys(env[varName])
-        : "N/A",
-  });
-
   if (devVarsValue) {
-    console.log(`[getEnvVar] Using .dev.vars file for ${varName}`);
+    logger.once(
+      `getEnvVar:${varName}`,
+      "debug",
+      `Resolved ${varName} from .dev.vars`
+    );
     return devVarsValue;
   }
 
   // Second priority: direct string from environment binding
   const envValue = env[varName];
   if (typeof envValue === "string") {
-    console.log(`[getEnvVar] Using environment binding for ${varName}`);
+    cache.set(varName, envValue);
+    logger.once(
+      `getEnvVar:${varName}`,
+      "debug",
+      `Resolved ${varName} from environment binding`
+    );
     return envValue;
   }
 
@@ -71,8 +98,14 @@ export async function getEnvVar(
     typeof envValue.get === "function"
   ) {
     try {
-      console.log(`[getEnvVar] Using Cloudflare secrets store for ${varName}`);
-      return await (envValue as { get(): Promise<string> }).get();
+      const secret = await (envValue as { get(): Promise<string> }).get();
+      cache.set(varName, secret);
+      logger.once(
+        `getEnvVar:${varName}`,
+        "debug",
+        `Resolved ${varName} from secrets store`
+      );
+      return secret;
     } catch (_error) {
       throw new SecretStoreAccessError(varName);
     }
@@ -107,7 +140,14 @@ export function validatePlanningContextDependencies(
   if (!env.VECTORIZE) {
     throw new VectorizeIndexRequiredError("Vectorize index not configured");
   }
-  if (!env.OPENAI_API_KEY || typeof env.OPENAI_API_KEY !== "string") {
+  const keyBinding = env.OPENAI_API_KEY;
+  const hasKey =
+    (typeof keyBinding === "string" && keyBinding.trim() !== "") ||
+    (keyBinding &&
+      typeof keyBinding === "object" &&
+      "get" in keyBinding &&
+      typeof (keyBinding as { get?: unknown }).get === "function");
+  if (!hasKey) {
     throw new OpenAIAPIKeyError("OpenAI API key not configured");
   }
 }
@@ -126,28 +166,45 @@ export function validatePlanningContextDependenciesForTool(
   toolCallId: string,
   contextMessage?: string
 ): ToolResult | null {
+  const toolError = (
+    message: string,
+    error: string,
+    errorCode: number
+  ): ToolResult => ({
+    toolCallId,
+    result: {
+      success: false,
+      message,
+      data: { error, errorCode },
+    },
+  });
+
   if (!env.DB) {
-    return createToolError(
+    return toolError(
       "Database not configured",
       contextMessage || "Planning context search requires database access",
-      500,
-      toolCallId
+      500
     );
   }
   if (!env.VECTORIZE) {
-    return createToolError(
+    return toolError(
       "Vectorize index not configured",
       contextMessage || "Planning context search requires vector index access",
-      500,
-      toolCallId
+      500
     );
   }
-  if (!env.OPENAI_API_KEY || typeof env.OPENAI_API_KEY !== "string") {
-    return createToolError(
+  const keyBinding = env.OPENAI_API_KEY;
+  const hasKey =
+    (typeof keyBinding === "string" && keyBinding.trim() !== "") ||
+    (keyBinding &&
+      typeof keyBinding === "object" &&
+      "get" in keyBinding &&
+      typeof (keyBinding as { get?: unknown }).get === "function");
+  if (!hasKey) {
+    return toolError(
       "OpenAI API key not configured",
       contextMessage || "Planning context search requires OpenAI API key",
-      500,
-      toolCallId
+      500
     );
   }
   return null;

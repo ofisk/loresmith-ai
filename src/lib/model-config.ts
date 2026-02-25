@@ -16,7 +16,7 @@ function validateApiKey(apiKey?: string): string {
   if (!apiKey) {
     console.error("OpenAI API key not provided");
     throw new OpenAIAPIKeyError(
-      "OpenAI API key is required - users must provide their own key through application authentication"
+      "OpenAI API key is required. Configure OPENAI_API_KEY on the server (or provide a user key)."
     );
   }
   return apiKey;

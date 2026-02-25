@@ -12,6 +12,7 @@ import { PlanningContextService } from "@/services/rag/planning-context-service"
 import { ContextAssemblyService } from "@/services/context/context-assembly-service";
 import { RebuildQueueService } from "@/services/graph/rebuild-queue-service";
 import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
+import { getEnvVar } from "@/lib/env-utils";
 
 /**
  * Context type extended with authentication information
@@ -174,13 +175,14 @@ export async function requireCanApproveShards(
  * Get PlanningContextService instance
  * Validation happens automatically in PlanningContextService constructor
  */
-export function getPlanningContextService(
+export async function getPlanningContextService(
   c: ContextWithAuth
-): PlanningContextService {
+): Promise<PlanningContextService> {
+  const openaiApiKey = await getEnvVar(c.env, "OPENAI_API_KEY", false);
   return new PlanningContextService(
     c.env.DB!,
     c.env.VECTORIZE!,
-    c.env.OPENAI_API_KEY as string,
+    openaiApiKey,
     c.env
   );
 }
@@ -188,13 +190,14 @@ export function getPlanningContextService(
 /**
  * Get ContextAssemblyService instance
  */
-export function getContextAssemblyService(
+export async function getContextAssemblyService(
   c: ContextWithAuth
-): ContextAssemblyService {
+): Promise<ContextAssemblyService> {
+  const openaiApiKey = await getEnvVar(c.env, "OPENAI_API_KEY", false);
   return new ContextAssemblyService(
     c.env.DB!,
     c.env.VECTORIZE!,
-    c.env.OPENAI_API_KEY as string,
+    openaiApiKey,
     c.env
   );
 }

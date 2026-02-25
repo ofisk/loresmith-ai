@@ -7,6 +7,7 @@ import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic
 import { OpenAIAPIKeyError, EmbeddingGenerationError } from "@/lib/errors";
 import { mergeEntityContent, isStubContent } from "@/lib/entity-content-merge";
 import { normalizeEntityType } from "@/lib/entity-types";
+import { getEnvVar } from "@/lib/env-utils";
 
 export interface EntityExtractionPipelineOptions {
   campaignId: string;
@@ -24,7 +25,7 @@ export interface EntityExtractionPipelineResult {
 }
 
 export class EntityExtractionPipeline {
-  private readonly openaiEmbeddingService: OpenAIEmbeddingService;
+  private openaiEmbeddingService: OpenAIEmbeddingService | null = null;
 
   constructor(
     private readonly entityDAO: EntityDAO,
@@ -33,14 +34,17 @@ export class EntityExtractionPipeline {
     private readonly graphService: EntityGraphService,
     private readonly env: any,
     private readonly openaiApiKey?: string
-  ) {
-    const apiKey = this.openaiApiKey || this.env?.OPENAI_API_KEY;
-    this.openaiEmbeddingService = new OpenAIEmbeddingService(apiKey);
-  }
+  ) {}
 
   async run(
     options: EntityExtractionPipelineOptions
   ): Promise<EntityExtractionPipelineResult> {
+    const openaiKeyRaw = await getEnvVar(this.env, "OPENAI_API_KEY", false);
+    const openaiKey = (this.openaiApiKey ?? openaiKeyRaw).trim() || undefined;
+    if (!this.openaiEmbeddingService) {
+      this.openaiEmbeddingService = new OpenAIEmbeddingService(openaiKey);
+    }
+
     const extractedEntities = await this.extractionService.extractEntities({
       content: options.content,
       sourceName: options.sourceName,
@@ -48,6 +52,7 @@ export class EntityExtractionPipeline {
       sourceType: options.sourceType,
       campaignId: options.campaignId,
       metadata: options.metadata,
+      openaiApiKey: openaiKey,
     });
 
     if (extractedEntities.length === 0) {
@@ -73,7 +78,6 @@ export class EntityExtractionPipeline {
             ? extracted.content
             : JSON.stringify(extracted.content ?? {});
         const contentForSemantic = `${normalizedName} ${contentText}`.trim();
-        const openaiKey = this.openaiApiKey ?? this.env?.OPENAI_API_KEY;
         existing = await SemanticDuplicateDetectionService.findDuplicateEntity({
           content: contentForSemantic,
           campaignId: options.campaignId,
@@ -300,6 +304,9 @@ export class EntityExtractionPipeline {
   }
 
   private async generateEmbedding(text: string): Promise<number[]> {
+    if (!this.openaiEmbeddingService) {
+      throw new OpenAIAPIKeyError("OpenAI API key not configured");
+    }
     try {
       return await this.openaiEmbeddingService.generateEmbedding(text);
     } catch (error) {

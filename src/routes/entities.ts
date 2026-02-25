@@ -10,6 +10,7 @@ import { EntityDeduplicationService } from "@/services/rag/entity-deduplication-
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import { DirectFileContentExtractionProvider } from "@/services/campaign/impl/direct-file-content-extraction-provider";
 import { R2Helper } from "@/lib/r2";
+import { getEnvVar } from "@/lib/env-utils";
 import {
   chunkTextByCharacterCount,
   chunkTextByPages,
@@ -48,9 +49,7 @@ function buildEntityServiceAccessor(
   return () => {
     if (!bundle) {
       const embeddingService = new EntityEmbeddingService(c.env.VECTORIZE);
-      const extractionService = new EntityExtractionService(
-        c.env.OPENAI_API_KEY || null
-      );
+      const extractionService = new EntityExtractionService(null);
       const graphService = new EntityGraphService(entityDAO);
       bundle = {
         embeddingService,
@@ -62,7 +61,7 @@ function buildEntityServiceAccessor(
           embeddingService,
           graphService,
           c.env,
-          c.env.OPENAI_API_KEY as string | undefined
+          undefined
         ),
         dedupeService: new EntityDeduplicationService(
           entityDAO,
@@ -623,7 +622,8 @@ export async function handleTestEntityExtractionFromR2(
       return c.json({ error: "fileKey is required" }, 400);
     }
 
-    const openaiApiKey = c.env.OPENAI_API_KEY as string | undefined;
+    const openaiApiKeyRaw = await getEnvVar(c.env, "OPENAI_API_KEY", false);
+    const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
     if (!openaiApiKey) {
       return c.json(
         {

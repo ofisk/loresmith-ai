@@ -11,7 +11,6 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import { trimToolResultsByRelevancy } from "@/lib/tool-result-trimming";
 
 interface Env {
-  ADMIN_SECRET?: string;
   Chat: DurableObjectNamespace;
   [key: string]: unknown;
 }

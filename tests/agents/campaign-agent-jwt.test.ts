@@ -7,7 +7,7 @@ const mockEnv = {
   R2: {} as R2Bucket,
   VECTORIZE: {} as any,
   AI: {} as any,
-  ADMIN_SECRET: "test-secret",
+  JWT_SECRET: "test-jwt-secret",
   Chat: {} as DurableObjectNamespace,
   UserFileTracker: {} as DurableObjectNamespace,
   UploadSession: {} as DurableObjectNamespace,

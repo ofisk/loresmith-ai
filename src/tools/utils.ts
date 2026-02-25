@@ -28,8 +28,7 @@ export interface ToolContext {
 export interface ToolEnv {
   DB?: D1Database;
   VECTORIZE?: unknown;
-  OPENAI_API_KEY?: string;
-  ADMIN_SECRET?: unknown;
+  OPENAI_API_KEY?: unknown;
   [key: string]: unknown;
 }
 
@@ -46,8 +45,6 @@ export const commonSchemas = {
   campaignId: z.string().describe("The unique identifier for the campaign"),
 
   username: z.string().describe("The username for authentication"),
-
-  adminKey: z.string().describe("The admin key for authentication"),
 };
 
 /**

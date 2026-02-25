@@ -2,7 +2,6 @@
 // This avoids the nanoid hoisting issues while providing the core functionality we need
 
 export interface SimpleChatAgentEnv {
-  ADMIN_SECRET?: string;
   Chat: DurableObjectNamespace;
   [key: string]: unknown;
 }

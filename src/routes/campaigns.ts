@@ -15,7 +15,10 @@ import {
   requireCanEdit,
   requireCampaignOwner,
   getCampaignRole,
+  requireCanSeeSpoilers,
+  ensureCampaignAccess,
 } from "@/lib/route-utils";
+import { CampaignAccessDeniedError } from "@/lib/errors";
 import { EntityExtractionQueueDAO } from "@/dao/entity-extraction-queue-dao";
 import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
@@ -173,6 +176,8 @@ export async function handleGetChecklistStatus(c: ContextWithAuth) {
       return c.json({ error: "Campaign not found" }, 404);
     }
 
+    await requireCanSeeSpoilers(c as any, campaignId);
+
     const records =
       await daoFactory.checklistStatusDAO.getChecklistStatus(campaignId);
 
@@ -185,6 +190,9 @@ export async function handleGetChecklistStatus(c: ContextWithAuth) {
     });
   } catch (error) {
     console.error("Error fetching checklist status:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json({ error: "Internal server error" }, 500);
   }
 }
@@ -192,7 +200,21 @@ export async function handleGetChecklistStatus(c: ContextWithAuth) {
 // Get campaign resources
 export async function handleGetCampaignResources(c: ContextWithAuth) {
   try {
+    const userAuth = (c as any).userAuth;
     const campaignId = c.req.param("campaignId");
+
+    if (!userAuth?.username) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    const hasAccess = await ensureCampaignAccess(
+      c as any,
+      campaignId,
+      userAuth.username
+    );
+    if (!hasAccess) {
+      return c.json({ error: "Campaign not found" }, 404);
+    }
 
     const campaignDAO = getDAOFactory(c.env).campaignDAO;
     const resources = await campaignDAO.getCampaignResources(campaignId);
@@ -642,7 +664,6 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
           resourceId,
           resourceName: name || id,
           fileKey: id,
-          openaiApiKey: userAuth.openaiApiKey,
         });
 
         console.log(
@@ -751,7 +772,6 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
         resourceId,
         resourceName: resource.file_name || resource.id,
         fileKey: resource.file_key || undefined,
-        openaiApiKey: userAuth.openaiApiKey,
       });
 
       console.log(

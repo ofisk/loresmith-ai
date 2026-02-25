@@ -6,46 +6,29 @@ import { Modal } from "./modal/Modal";
 import { API_CONFIG } from "@/shared-config";
 import loresmith from "@/assets/loresmith.png";
 
-/** Which view the auth modal is showing: method picker, create-account form, sign-in form, legacy API-key form, or Google choose-username */
-type AuthModalView =
-  | "choice"
-  | "create"
-  | "signin"
-  | "legacy"
-  | "google_username";
+/** Which view the auth modal is showing: method picker, create-account form, sign-in form, or post-OAuth choose-username */
+type AuthModalView = "choice" | "create" | "signin" | "google_username";
 
 interface BlockingAuthenticationModalProps {
   isOpen: boolean;
   username?: string;
-  storedOpenAIKey?: string;
   /** When set, show "Choose your username" form to complete Google sign-in */
   googlePendingToken?: string | null;
-  onSubmit: (
-    username: string,
-    adminKey: string,
-    openaiApiKey: string
-  ) => Promise<void>;
   onLoginSuccess?: (token: string) => void | Promise<void>;
   onClose?: () => void;
 }
 
 export function BlockingAuthenticationModal({
   isOpen,
-  storedOpenAIKey,
   googlePendingToken,
-  onSubmit,
   onLoginSuccess,
 }: BlockingAuthenticationModalProps) {
   const usernameId = useId();
-  const adminKeyId = useId();
-  const openaiKeyId = useId();
   const emailId = useId();
   const passwordId = useId();
   const confirmPasswordId = useId();
   const [view, setView] = useState<AuthModalView>("choice");
   const [currentUsername, setCurrentUsername] = useState("");
-  const [adminKey, setAdminKey] = useState("");
-  const [openaiApiKey, setOpenaiApiKey] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -54,12 +37,6 @@ export function BlockingAuthenticationModal({
   const [registerSuccess, setRegisterSuccess] = useState(false);
   const [emailNotVerified, setEmailNotVerified] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
-
-  useEffect(() => {
-    if (storedOpenAIKey && isOpen) {
-      setOpenaiApiKey(storedOpenAIKey);
-    }
-  }, [storedOpenAIKey, isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -78,63 +55,58 @@ export function BlockingAuthenticationModal({
     }
   }, [isOpen, googlePendingToken]);
 
-  const googleAuthUrl = `${API_CONFIG.buildAuthUrl(API_CONFIG.ENDPOINTS.AUTH.GOOGLE)}?return_url=${encodeURIComponent(typeof window !== "undefined" ? window.location.origin : "")}`;
+  const googleAuthUrl = `${API_CONFIG.buildAuthUrl(API_CONFIG.ENDPOINTS.AUTH.GOOGLE)}?return_url=${encodeURIComponent(
+    typeof window !== "undefined"
+      ? `${window.location.origin}${window.location.pathname}${window.location.search}`
+      : ""
+  )}`;
 
-  const handleGoogleCompleteSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleCompleteSignup = async (e?: React.SyntheticEvent) => {
+    e?.preventDefault();
     if (!googlePendingToken || !onLoginSuccess) return;
     setError(null);
     setIsLoading(true);
     try {
+      // OAuth auth routes live at origin (not under /api).
       const res = await fetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.GOOGLE_COMPLETE_SIGNUP),
+        API_CONFIG.buildAuthUrl(
+          API_CONFIG.ENDPOINTS.AUTH.GOOGLE_COMPLETE_SIGNUP
+        ),
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
           body: JSON.stringify({
             pendingToken: googlePendingToken,
             username: currentUsername.trim(),
           }),
         }
       );
-      const data = (await res.json()) as { token?: string; error?: string };
+
+      const contentType = res.headers.get("content-type") ?? "";
+      const data = contentType.includes("application/json")
+        ? ((await res.json().catch(() => null)) as null | {
+            token?: string;
+            error?: string;
+          })
+        : null;
       if (!res.ok) {
-        setError(data.error ?? "Sign-up failed");
+        if (data?.error) {
+          setError(data.error);
+          return;
+        }
+
+        // Avoid leaking low-level parse / fetch errors to users.
+        setError("Sign-up failed. Please try again.");
         return;
       }
-      if (data.token) {
+      if (data?.token) {
         await onLoginSuccess(data.token);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSubmitLegacy = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setIsLoading(true);
-    try {
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(
-          () =>
-            reject(
-              new Error(
-                "Connection timeout. Please check if the server is running."
-              )
-            ),
-          30000
-        )
-      );
-      await Promise.race([
-        onSubmit(currentUsername, adminKey, openaiApiKey),
-        timeoutPromise,
-      ]);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Authentication failed");
+    } catch {
+      setError("Sign-up failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -162,7 +134,6 @@ export function BlockingAuthenticationModal({
             username: currentUsername.trim(),
             email: email.trim(),
             password,
-            ...(openaiApiKey.trim() && { openaiApiKey: openaiApiKey.trim() }),
           }),
         }
       );
@@ -203,23 +174,6 @@ export function BlockingAuthenticationModal({
         token?: string;
       };
       if (res.ok && data.token && onLoginSuccess) {
-        if (openaiApiKey.trim()) {
-          try {
-            await fetch(
-              API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.STORE_OPENAI_KEY),
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  username: currentUsername.trim(),
-                  apiKey: openaiApiKey.trim(),
-                }),
-              }
-            );
-          } catch {
-            // Key is optional; still let user in
-          }
-        }
         await onLoginSuccess(data.token);
         return;
       }
@@ -270,16 +224,9 @@ export function BlockingAuthenticationModal({
     }
   };
 
-  const isOpenAIKeyDisabled = !!storedOpenAIKey;
-  const openaiKeyDisplay = storedOpenAIKey
-    ? `${storedOpenAIKey.substring(0, 8)}...${storedOpenAIKey.substring(storedOpenAIKey.length - 4)}`
-    : "";
-
-  // Mobile is full-screen; keep existing fixed desktop dimensions by view.
+  // Mobile is full-screen; keep a fixed desktop size.
   const modalClassName =
-    view === "legacy"
-      ? "w-full h-dvh rounded-none md:rounded-lg md:w-[600px] md:h-[750px]"
-      : "w-full h-dvh rounded-none md:rounded-lg md:w-[600px] md:h-[600px]";
+    "w-full h-dvh rounded-none md:rounded-lg md:w-[600px] md:h-[600px]";
 
   return (
     <Modal
@@ -298,7 +245,7 @@ export function BlockingAuthenticationModal({
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               You signed in with Google. Choose a username to finish.
             </p>
-            <form onSubmit={handleGoogleCompleteSignup} className="space-y-4">
+            <div className="space-y-4">
               <FormField
                 id={usernameId}
                 label="Username"
@@ -306,10 +253,20 @@ export function BlockingAuthenticationModal({
                 value={currentUsername}
                 onValueChange={(v, _) => setCurrentUsername(v)}
                 disabled={false}
+                pattern=".*"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleGoogleCompleteSignup(e);
+                  }
+                }}
               />
               {error && <div className="text-red-500 text-sm">{error}</div>}
               <PrimaryActionButton
-                type="submit"
+                type="button"
+                onClick={() => {
+                  handleGoogleCompleteSignup();
+                }}
                 disabled={
                   isLoading ||
                   !currentUsername.trim() ||
@@ -318,7 +275,7 @@ export function BlockingAuthenticationModal({
               >
                 {isLoading ? "Continuing…" : "Continue"}
               </PrimaryActionButton>
-            </form>
+            </div>
           </>
         )}
 
@@ -366,18 +323,7 @@ export function BlockingAuthenticationModal({
               >
                 Sign in
               </button>
-              <button
-                type="button"
-                onClick={() => setView("legacy")}
-                className="w-full py-2 text-sm text-gray-500 dark:text-gray-400 hover:underline"
-              >
-                Use API key instead
-              </button>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
-              You can provide your own OpenAI API key when signing in or via the
-              API key option above.
-            </p>
           </>
         )}
 
@@ -411,7 +357,7 @@ export function BlockingAuthenticationModal({
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleRegister} className="space-y-4">
+              <form onSubmit={handleRegister} noValidate className="space-y-4">
                 <FormField
                   id={usernameId}
                   label="Username"
@@ -419,6 +365,7 @@ export function BlockingAuthenticationModal({
                   value={currentUsername}
                   onValueChange={(v, _) => setCurrentUsername(v)}
                   disabled={false}
+                  pattern=".*"
                 />
                 <FormField
                   id={emailId}
@@ -444,18 +391,11 @@ export function BlockingAuthenticationModal({
                   onValueChange={(v, _) => setConfirmPassword(v)}
                   disabled={false}
                 />
-                <FormField
-                  id={openaiKeyId}
-                  label="OpenAI API key (optional)"
-                  placeholder="Add your key to use AI features"
-                  value={openaiApiKey}
-                  onValueChange={(v, _) => setOpenaiApiKey(v)}
-                  disabled={false}
-                />
                 {error && <div className="text-red-500 text-sm">{error}</div>}
                 <div className="flex gap-2">
                   <PrimaryActionButton
                     type="submit"
+                    formNoValidate
                     disabled={
                       isLoading ||
                       !currentUsername.trim() ||
@@ -484,7 +424,7 @@ export function BlockingAuthenticationModal({
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Sign in with your username and password.
             </p>
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleLogin} noValidate className="space-y-4">
               <FormField
                 id={usernameId}
                 label="Username"
@@ -492,6 +432,7 @@ export function BlockingAuthenticationModal({
                 value={currentUsername}
                 onValueChange={(v, _) => setCurrentUsername(v)}
                 disabled={false}
+                pattern=".*"
               />
               <FormField
                 id={passwordId}
@@ -499,14 +440,6 @@ export function BlockingAuthenticationModal({
                 placeholder="Your password"
                 value={password}
                 onValueChange={(v, _) => setPassword(v)}
-                disabled={false}
-              />
-              <FormField
-                id={openaiKeyId}
-                label="OpenAI API key (optional)"
-                placeholder="Add your key to use AI features"
-                value={openaiApiKey}
-                onValueChange={(v, _) => setOpenaiApiKey(v)}
                 disabled={false}
               />
               {emailNotVerified && (
@@ -528,6 +461,7 @@ export function BlockingAuthenticationModal({
               <div className="flex gap-2">
                 <PrimaryActionButton
                   type="submit"
+                  formNoValidate
                   disabled={isLoading || !currentUsername.trim() || !password}
                 >
                   {isLoading ? "Signing in…" : "Sign in"}
@@ -541,127 +475,6 @@ export function BlockingAuthenticationModal({
                 </button>
               </div>
             </form>
-          </>
-        )}
-
-        {view === "legacy" && (
-          <>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-              Present your credentials to enter the halls of LoreSmith. You'll
-              need your own OpenAI API key to unlock these ancient gates.
-              Providing the sacred admin key grants unlimited storage access.
-            </p>
-            <form onSubmit={handleSubmitLegacy} className="space-y-4">
-              <FormField
-                id={usernameId}
-                label="Username"
-                placeholder="Speak your name..."
-                value={currentUsername}
-                onValueChange={(value, _isValid) => setCurrentUsername(value)}
-                disabled={false}
-              >
-                <p className="text-xs text-gray-500 mt-1">
-                  Forge your identity in the realm of LoreSmith.
-                </p>
-              </FormField>
-              <FormField
-                id={adminKeyId}
-                label="Admin key (optional)"
-                placeholder="Enter the sacred key for the infinite vault..."
-                value={adminKey}
-                onValueChange={(value, _isValid) => setAdminKey(value)}
-                disabled={false}
-              >
-                <p className="text-xs text-gray-500 mt-1">
-                  Optional: Opens the infinite vault. Without it, you have 20MB
-                  limit.
-                </p>
-              </FormField>
-              <FormField
-                id={openaiKeyId}
-                label="OpenAI API key"
-                placeholder="Enter OpenAI's spell..."
-                value={isOpenAIKeyDisabled ? openaiKeyDisplay : openaiApiKey}
-                onValueChange={(value, _isValid) => setOpenaiApiKey(value)}
-                disabled={isOpenAIKeyDisabled}
-                tooltip={
-                  isOpenAIKeyDisabled ? (
-                    <div className="text-sm text-gray-700 dark:text-gray-300">
-                      <p>
-                        Using stored API key. Contact administrator to reset.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-700 dark:text-gray-300">
-                      <p className="mb-2">
-                        Seeking the power of OpenAI's arcane knowledge?
-                      </p>
-                      <ol className="list-decimal list-inside space-y-1 mb-2">
-                        <li>
-                          Journey to{" "}
-                          <a
-                            href="https://platform.openai.com/api-keys"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 dark:text-blue-400 hover:underline"
-                          >
-                            platform.openai.com/api-keys
-                          </a>
-                        </li>
-                        <li>Sign in or create an account</li>
-                        <li>Click "Create new secret key"</li>
-                        <li>Copy the key and paste it here</li>
-                      </ol>
-                      <p className="text-orange-600 dark:text-orange-400">
-                        ⚠️ Guard your API key like a precious treasure - never
-                        share it publicly.
-                      </p>
-                    </div>
-                  )
-                }
-              />
-              {error && <div className="text-red-500 text-sm">{error}</div>}
-              <div className="flex justify-center pt-4 gap-2">
-                <PrimaryActionButton
-                  type="submit"
-                  disabled={
-                    isLoading ||
-                    !currentUsername.trim() ||
-                    (!isOpenAIKeyDisabled && !openaiApiKey.trim())
-                  }
-                >
-                  {isLoading ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    "Sign In"
-                  )}
-                </PrimaryActionButton>
-                <button
-                  type="button"
-                  onClick={() => setView("choice")}
-                  className="py-2 px-4 text-sm text-gray-600 dark:text-gray-400 hover:underline"
-                >
-                  Back
-                </button>
-              </div>
-            </form>
-
-            <div className="text-xs text-gray-500 mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
-              <p className="font-medium mb-1">
-                🔮 What awaits you beyond these gates?
-              </p>
-              <ul className="list-disc list-inside space-y-1">
-                <li>
-                  Your OpenAI API key can be stored in the vaults of LoreSmith
-                </li>
-                <li>Converse with wise AI agents about your grand campaigns</li>
-                <li>Upload and manage documents for your adventures</li>
-                <li>
-                  <strong>Storage Limits:</strong> 20MB for regular users,
-                  unlimited for admin users
-                </li>
-              </ul>
-            </div>
           </>
         )}
       </div>

@@ -10,7 +10,9 @@ import {
   type ContextWithAuth,
   getUserAuth,
   ensureCampaignAccess,
+  requireCanSeeSpoilers,
 } from "@/lib/route-utils";
+import { CampaignAccessDeniedError } from "@/lib/errors";
 
 // Create a new session digest template
 export async function handleCreateSessionDigestTemplate(c: ContextWithAuth) {
@@ -21,6 +23,7 @@ export async function handleCreateSessionDigestTemplate(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const body = (await c.req.json()) as {
       name: string;
@@ -56,6 +59,9 @@ export async function handleCreateSessionDigestTemplate(c: ContextWithAuth) {
     return c.json({ template: created }, 201);
   } catch (error) {
     console.error("[SessionDigestTemplate] Failed to create template:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json(
       { error: "Failed to create session digest template" },
       error instanceof Error && /required|must/i.test(error.message) ? 400 : 500
@@ -74,6 +80,7 @@ export async function handleGetSessionDigestTemplate(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const daoFactory = getDAOFactory(c.env);
     const template =
@@ -93,6 +100,9 @@ export async function handleGetSessionDigestTemplate(c: ContextWithAuth) {
     return c.json({ template });
   } catch (error) {
     console.error("[SessionDigestTemplate] Failed to get template:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json({ error: "Failed to get template" }, 500);
   }
 }
@@ -107,6 +117,7 @@ export async function handleGetSessionDigestTemplates(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const daoFactory = getDAOFactory(c.env);
     const templates =
@@ -117,6 +128,9 @@ export async function handleGetSessionDigestTemplates(c: ContextWithAuth) {
     return c.json({ templates });
   } catch (error) {
     console.error("[SessionDigestTemplate] Failed to list templates:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json({ error: "Failed to list templates" }, 500);
   }
 }
@@ -186,6 +200,9 @@ export async function handleUpdateSessionDigestTemplate(c: ContextWithAuth) {
     return c.json({ template: updated });
   } catch (error) {
     console.error("[SessionDigestTemplate] Failed to update template:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json(
       { error: "Failed to update template" },
       error instanceof Error && /required|must/i.test(error.message) ? 400 : 500
@@ -204,6 +221,7 @@ export async function handleDeleteSessionDigestTemplate(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const daoFactory = getDAOFactory(c.env);
     const existing =
@@ -225,6 +243,9 @@ export async function handleDeleteSessionDigestTemplate(c: ContextWithAuth) {
     return c.json({ success: true });
   } catch (error) {
     console.error("[SessionDigestTemplate] Failed to delete template:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json({ error: "Failed to delete template" }, 500);
   }
 }

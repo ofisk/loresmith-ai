@@ -476,7 +476,7 @@ export function useNotificationStream(
       isMountedRef.current = false;
       disconnect();
     };
-  }, [connect, disconnect, options.enabled]);
+  }, [connect, disconnect]);
 
   return {
     ...state,

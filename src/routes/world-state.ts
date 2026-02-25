@@ -2,6 +2,7 @@ import { WorldStateChangelogService } from "@/services/graph/world-state-changel
 import type { WorldStateChangelogPayload } from "@/types/world-state";
 import { HistoricalContextService } from "@/services/rag/historical-context-service";
 import type { HistoricalQueryInput } from "@/types/changelog-archive";
+import { getEnvVar } from "@/lib/env-utils";
 
 import {
   type ContextWithAuth,
@@ -31,15 +32,19 @@ function getService(c: ContextWithAuth): WorldStateChangelogService {
   return new WorldStateChangelogService({ db: c.env.DB });
 }
 
-function getHistoricalService(c: ContextWithAuth): HistoricalContextService {
+async function getHistoricalService(
+  c: ContextWithAuth
+): Promise<HistoricalContextService> {
   if (!c.env.DB || !c.env.R2) {
     throw new Error("Database and R2 not configured");
   }
+  const openaiApiKeyRaw = await getEnvVar(c.env, "OPENAI_API_KEY", false);
+  const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
   return new HistoricalContextService({
     db: c.env.DB,
     r2: c.env.R2 as any,
     vectorize: c.env.VECTORIZE,
-    openaiApiKey: c.env.OPENAI_API_KEY as string | undefined,
+    openaiApiKey,
     env: c.env,
   });
 }
@@ -168,7 +173,7 @@ export async function handleQueryHistoricalState(c: ContextWithAuth) {
       );
     }
 
-    const service = getHistoricalService(c);
+    const service = await getHistoricalService(c);
     const historicalContext = await service.queryHistoricalState(
       campaignId,
       body
@@ -208,7 +213,7 @@ export async function handleGetHistoricalOverlay(c: ContextWithAuth) {
       );
     }
 
-    const service = getHistoricalService(c);
+    const service = await getHistoricalService(c);
     const overlay = await service.getHistoricalOverlay(
       campaignId,
       sessionId ? Number(sessionId) : undefined,

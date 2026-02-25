@@ -14,6 +14,7 @@ import { type ContextWithAuth, verifyCampaignAccess } from "@/lib/route-utils";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
+import { getEnvVar } from "@/lib/env-utils";
 
 interface PendingRelation {
   relationshipType: string;
@@ -328,9 +329,9 @@ export async function handleApproveShards(c: ContextWithAuth) {
     const daoFactory = getDAOFactory(c.env);
     const graphService = new EntityGraphService(daoFactory.entityDAO);
     const embeddingService = new EntityEmbeddingService(c.env.VECTORIZE);
-    const openaiEmbeddingService = new OpenAIEmbeddingService(
-      c.env.OPENAI_API_KEY as string | undefined
-    );
+    const openaiApiKeyRaw = await getEnvVar(c.env, "OPENAI_API_KEY", false);
+    const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
+    const openaiEmbeddingService = new OpenAIEmbeddingService(openaiApiKey);
 
     // Diagnostic: List all entities in campaign to help debug relationship target ID mismatches
     const allCampaignEntities =
@@ -907,11 +908,10 @@ export async function handleGenerateShardField(c: ContextWithAuth) {
       );
     }
 
-    const openaiApiKey =
-      (userAuth as { openaiApiKey?: string }).openaiApiKey ||
-      (c.env.OPENAI_API_KEY as string | undefined);
+    const openaiApiKeyRaw = await getEnvVar(c.env, "OPENAI_API_KEY", false);
+    const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
     if (!openaiApiKey) {
-      return c.json({ error: "OpenAI API key required for generation" }, 400);
+      return c.json({ error: "OpenAI API key not configured" }, 503);
     }
 
     const contentObj =

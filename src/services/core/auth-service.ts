@@ -1,24 +1,22 @@
 import type { JWTPayload } from "jose";
 import { jwtVerify, SignJWT } from "jose";
 import { ERROR_MESSAGES, JWT_STORAGE_KEY } from "@/app-constants";
-import { getDAOFactory } from "@/dao";
 import { getEnvVar } from "@/lib/env-utils";
 import { getAuthService } from "@/lib/service-factory";
 import type { Env } from "@/middleware/auth";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { logger } from "@/lib/logger";
-import { extractJwtFromHeader, sanitizeOpenAIApiKey } from "@/lib/auth-utils";
+import { extractJwtFromHeader } from "@/lib/auth-utils";
 
 export interface AuthPayload extends JWTPayload {
   type: "user-auth";
   username: string;
-  openaiApiKey?: string;
   isAdmin: boolean; // Added admin status
 }
 
 export interface AuthEnv {
-  OPENAI_API_KEY?: string;
-  ADMIN_SECRET?: string | { get(): Promise<string> };
+  OPENAI_API_KEY?: unknown;
+  JWT_SECRET?: string | { get(): Promise<string> };
   Chat: DurableObjectNamespace;
   GOOGLE_OAUTH_CLIENT_ID?: string | { get(): Promise<string> };
   GOOGLE_OAUTH_CLIENT_SECRET?: string | { get(): Promise<string> };
@@ -29,10 +27,7 @@ export interface AuthEnv {
 
 export interface AuthRequest {
   username: string;
-  openaiApiKey?: string;
-  adminSecret?: string; // Made optional; ignored when isAdmin is provided
   sessionId?: string;
-  /** When set, used as JWT isAdmin; otherwise adminSecret is checked. */
   isAdmin?: boolean;
 }
 
@@ -63,16 +58,14 @@ export class AuthService {
    * Get JWT secret from environment
    */
   async getJwtSecret(): Promise<Uint8Array> {
-    // For JWT signing, we need a secret. If ADMIN_SECRET is not available, use a fallback
+    // For JWT signing, we need a secret. If JWT_SECRET is not available, use a fallback.
     let secret: string;
 
     try {
-      secret = await getEnvVar(this.env, "ADMIN_SECRET");
+      secret = await getEnvVar(this.env, "JWT_SECRET");
     } catch (_error) {
-      // If ADMIN_SECRET is not available, use a fallback secret for JWT signing
-      // This allows non-admin users to still authenticate
       console.warn(
-        "[AuthService] ADMIN_SECRET not available, using fallback for JWT signing"
+        "[AuthService] JWT_SECRET not available, using fallback for JWT signing"
       );
       secret = "fallback-jwt-secret-for-non-admin-users";
     }
@@ -84,12 +77,7 @@ export class AuthService {
    * Authenticate a user and create a JWT token
    */
   async authenticateUser(request: AuthRequest): Promise<AuthResponse> {
-    const {
-      username,
-      openaiApiKey,
-      adminSecret,
-      isAdmin: requestIsAdmin,
-    } = request;
+    const { username, isAdmin: requestIsAdmin } = request;
 
     // Validate required fields
     if (!username || typeof username !== "string" || username.trim() === "") {
@@ -99,23 +87,7 @@ export class AuthService {
       };
     }
 
-    // Admin: use DB flag when provided, otherwise fall back to admin key check
-    let isAdmin = false;
-    if (requestIsAdmin !== undefined) {
-      isAdmin = requestIsAdmin;
-    } else if (adminSecret && adminSecret.trim() !== "") {
-      let validAdminKey: string | null = null;
-      try {
-        validAdminKey = await getEnvVar(this.env, "ADMIN_SECRET");
-      } catch (_error) {
-        console.warn(
-          "[AuthService] ADMIN_SECRET not available - admin access disabled"
-        );
-      }
-      if (validAdminKey && validAdminKey.trim() !== "") {
-        isAdmin = adminSecret.trim() === validAdminKey;
-      }
-    }
+    const isAdmin = requestIsAdmin === true;
 
     try {
       // Create JWT token
@@ -132,9 +104,6 @@ export class AuthService {
       const token = await new SignJWT({
         type: "user-auth",
         username,
-        openaiApiKey: openaiApiKey
-          ? sanitizeOpenAIApiKey(openaiApiKey)
-          : undefined,
         isAdmin, // Include admin status in JWT
       })
         .setProtectedHeader({ alg: "HS256" })
@@ -474,22 +443,7 @@ export class AuthService {
     };
   }
 
-  // OpenAI API Key Management
-
-  /**
-   * Caching interface for OpenAI API keys
-   */
-  static readonly OpenAIKeyCache = {
-    getCachedKey(): string | null {
-      return null; // To be implemented by implementing classes
-    },
-    async setCachedKey(_key: string): Promise<void> {
-      // To be implemented by implementing classes
-    },
-    async clearCachedKey(): Promise<void> {
-      // To be implemented by implementing classes
-    },
-  };
+  // JWT utilities
 
   /**
    * Utility function to parse JWT and extract username.
@@ -575,107 +529,6 @@ export class AuthService {
   }
 
   /**
-   * Utility function to get OpenAI API key from database for a specific user
-   */
-  static async getUserOpenAIKeyFromDB(
-    db: D1Database,
-    username: string
-  ): Promise<string | null> {
-    try {
-      const daoFactory = getDAOFactory({ DB: db });
-      return await daoFactory.userDAO.getOpenAIKey(username);
-    } catch (error) {
-      console.error("Error getting user OpenAI key from DB:", error);
-      return null;
-    }
-  }
-
-  /**
-   * Helper function to load OpenAI API key with caching
-   */
-  static async loadUserOpenAIKeyWithCache(
-    username: string,
-    db: D1Database,
-    cache: {
-      getCachedKey(): string | null;
-      setCachedKey(key: string): Promise<void>;
-      clearCachedKey(): Promise<void>;
-    }
-  ): Promise<string | null> {
-    try {
-      // First check if we already have it cached
-      const cachedKey = cache.getCachedKey();
-      if (cachedKey) {
-        return cachedKey;
-      }
-
-      // If not cached, get from database
-      const apiKey = await AuthService.getUserOpenAIKeyFromDB(db, username);
-      if (apiKey) {
-        // Cache it
-        await cache.setCachedKey(apiKey);
-        console.log("Cached OpenAI API key from database for user:", username);
-      }
-
-      return apiKey;
-    } catch (error) {
-      console.error("Error loading user OpenAI key with cache:", error);
-      return null;
-    }
-  }
-
-  /**
-   * Handle setting user's OpenAI API key in a durable object
-   */
-  static async handleSetUserOpenAIKey(
-    request: Request,
-    durableObject: { setUserOpenAIKey: (key: string) => Promise<void> }
-  ): Promise<Response> {
-    try {
-      const body = (await request.json()) as { openaiApiKey: string };
-      const { openaiApiKey } = body;
-
-      if (!openaiApiKey) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: "OpenAI API key is required",
-          }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      // Set the API key in the durable object
-      await durableObject.setUserOpenAIKey(openaiApiKey);
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "OpenAI API key set successfully",
-        }),
-        {
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    } catch (error) {
-      console.error("Error setting user OpenAI key:", error);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Failed to set OpenAI API key",
-        }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-  }
-
-  /**
    * Create a modified request with authentication context for agent routing
    * This adds auth info to headers so the agent can access it
    */
@@ -696,99 +549,6 @@ export class AuthService {
       headers,
       body: originalRequest.body,
     });
-  }
-
-  /**
-   * Extract payload from JWT token without verification (for internal use)
-   */
-  static extractPayloadFromJWT(token: string): AuthPayload | null {
-    try {
-      const parts = token.split(".");
-      if (parts.length !== 3) {
-        return null;
-      }
-
-      const payload = JSON.parse(atob(parts[1]));
-      return payload as AuthPayload;
-    } catch (error) {
-      console.warn("[AuthService] Failed to extract JWT payload:", error);
-      return null;
-    }
-  }
-
-  /**
-   * Handle agent authentication for initial message retrieval vs message processing
-   * This allows initial message retrieval without auth but requires auth for processing
-   */
-  static async handleAgentAuthentication(
-    username: string | null,
-    _hasUserMessages: boolean,
-    db: D1Database,
-    cache: {
-      getCachedKey(): string | null;
-      setCachedKey(key: string): Promise<void>;
-      clearCachedKey(): Promise<void>;
-    },
-    jwtToken?: string | null
-  ): Promise<{
-    shouldProceed: boolean;
-    openAIAPIKey: string | null;
-    requiresAuth: boolean;
-  }> {
-    // For initial message retrieval, allow the request to proceed without authentication
-    if (!username) {
-      console.log(
-        "[AuthService] No username found for initial message retrieval, allowing request to proceed"
-      );
-      return { shouldProceed: true, openAIAPIKey: null, requiresAuth: false };
-    }
-
-    // First try to extract API key from JWT token if available
-    let openAIAPIKey: string | null = null;
-    if (jwtToken) {
-      try {
-        const payload = AuthService.extractPayloadFromJWT(jwtToken);
-        if (payload?.openaiApiKey) {
-          openAIAPIKey = sanitizeOpenAIApiKey(payload.openaiApiKey);
-          console.log("[AuthService] Extracted OpenAI API key from JWT token");
-        } else {
-          console.log(
-            "[AuthService] No OpenAI API key found in JWT payload:",
-            payload
-          );
-        }
-      } catch (error) {
-        console.warn(
-          "[AuthService] Failed to extract API key from JWT:",
-          error
-        );
-      }
-    } else {
-      console.log("[AuthService] No JWT token provided for authentication");
-    }
-
-    // Fallback to database if not found in JWT
-    if (!openAIAPIKey) {
-      openAIAPIKey = await AuthService.loadUserOpenAIKeyWithCache(
-        username,
-        db,
-        cache
-      );
-    }
-
-    // If no OpenAI API key found, require authentication
-    if (!openAIAPIKey) {
-      console.log(
-        "[AuthService] No OpenAI API key found for user, requiring authentication"
-      );
-      return { shouldProceed: false, openAIAPIKey: null, requiresAuth: true };
-    }
-
-    console.log(
-      `[AuthService] Authentication successful. Username: ${username}, User OpenAI API key: present`
-    );
-
-    return { shouldProceed: true, openAIAPIKey, requiresAuth: false };
   }
 }
 

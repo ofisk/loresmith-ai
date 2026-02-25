@@ -2,6 +2,7 @@ import type { Env } from "@/middleware/auth";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { ENTITY_TYPE_PCS } from "@/lib/entity-type-constants";
 import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";
+import { getEnvVar } from "@/lib/env-utils";
 
 /**
  * Service to sync character_backstory entries from campaign_context to entities table
@@ -34,7 +35,12 @@ export class CharacterEntitySyncService {
     // If not found by ID, check for semantic duplicate (embedding similarity) with lexical fallback
     if (!existingEntity) {
       const contentForSemantic = `${characterName} ${backstoryContent}`.trim();
-      const openaiApiKey = this.env.OPENAI_API_KEY as string | undefined;
+      const openaiApiKeyRaw = await getEnvVar(
+        this.env,
+        "OPENAI_API_KEY",
+        false
+      );
+      const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
       existingEntity =
         await SemanticDuplicateDetectionService.findDuplicateEntity({
           content: contentForSemantic,

@@ -19,6 +19,14 @@ vi.mock("@/services/core/auth-service", () => ({
   },
   getStoredJwt: vi.fn(() => "mock-jwt"),
   isJwtExpired: vi.fn(() => false),
+  authenticatedFetchWithExpiration: vi.fn(async () => ({
+    response: {
+      ok: true,
+      status: 200,
+      json: async () => ({ files: [] }),
+    },
+    jwtExpired: false,
+  })),
 }));
 
 describe("ResourceSidePanel", () => {

@@ -336,7 +336,9 @@ export class PlanningContextService extends BaseRAGService {
    */
   private async extractEntityNamesWithLLM(query: string): Promise<string[]> {
     try {
-      if (!this.env.OPENAI_API_KEY) {
+      const apiKey =
+        typeof this.openaiApiKey === "string" ? this.openaiApiKey : "";
+      if (!apiKey) {
         console.log(
           "[PlanningContext] No OpenAI API key available, skipping LLM extraction"
         );
@@ -356,7 +358,7 @@ export class PlanningContextService extends BaseRAGService {
 
       const llmProvider = createLLMProvider({
         provider: "openai",
-        apiKey: this.env.OPENAI_API_KEY,
+        apiKey,
         // Use centralized analysis model for lightweight structured extraction
         defaultModel: MODEL_CONFIG.OPENAI.ANALYSIS,
         defaultTemperature: 0.1,
@@ -532,7 +534,7 @@ export class PlanningContextService extends BaseRAGService {
             );
             // Continue with whatever we have
           }
-        } else if (llmExtractedNames.length === 0 && this.env.OPENAI_API_KEY) {
+        } else if (llmExtractedNames.length === 0 && this.openaiApiKey) {
           // LLM returned empty array - this means no entities were found in query
           // This is fine, just log it
           console.log(

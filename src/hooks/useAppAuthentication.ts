@@ -1,17 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { AuthService } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
-import {
-  fetchOpenAIKeyOnce,
-  clearOpenAIKeyCache,
-} from "@/lib/openai-key-store";
 import { JWT_STORAGE_KEY } from "@/app-constants";
 import { logger } from "@/lib/logger";
 
 export function useAppAuthentication() {
   // Authentication state
   const [username, setUsername] = useState<string>("");
-  const [storedOpenAIKey, setStoredOpenAIKey] = useState<string>("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -64,16 +59,6 @@ export function useAppAuthentication() {
         // JWT valid, user is authenticated
         log.debug("JWT is valid - user authenticated");
         setIsAuthenticated(true);
-        // Try to get stored OpenAI key, but don't block authentication if it fails
-        try {
-          const result = await fetchOpenAIKeyOnce(payload.username);
-          if (result.hasKey) {
-            setStoredOpenAIKey(result.apiKey || "");
-          }
-        } catch (error) {
-          log.error("Error checking stored OpenAI key", error);
-          // Don't block authentication if we can't fetch the stored key
-        }
         return true; // User is authenticated
       }
     } else {
@@ -84,114 +69,6 @@ export function useAppAuthentication() {
     }
   }, [getStoredJwt]);
 
-  // Handle authentication submission
-  const handleAuthenticationSubmit = useCallback(
-    async (username: string, adminKey: string, openaiApiKey: string) => {
-      try {
-        // Get session ID from localStorage to ensure we target the correct Chat Durable Object
-        const sessionId =
-          typeof window !== "undefined"
-            ? localStorage.getItem("chat-session-id") || "default"
-            : "default";
-
-        const response = await fetch(
-          API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Session-ID": sessionId, // Include session ID to target the correct Chat Durable Object
-            },
-            body: JSON.stringify({
-              username,
-              adminSecret: adminKey?.trim() || undefined, // Make admin key optional
-              openaiApiKey,
-            }),
-          }
-        );
-
-        const result = (await response.json()) as {
-          success?: boolean;
-          token?: string;
-          error?: string;
-        };
-
-        const log = logger.scope("[useAppAuthentication]");
-        log.debug("Auth response", {
-          ok: response.ok,
-          status: response.status,
-          hasToken: !!result.token,
-          error: result.error,
-        });
-
-        if (response.ok && result.token) {
-          log.info("Storing JWT token");
-          // Store JWT token
-          AuthService.storeJwt(result.token);
-
-          // Verify it was stored
-          const stored = AuthService.getStoredJwt();
-          log.debug("JWT stored, verification", {
-            stored: !!stored,
-            length: stored?.length || 0,
-          });
-
-          // Verify payload can be parsed
-          const payload = AuthService.getJwtPayload();
-          log.debug("JWT payload after storage", {
-            hasPayload: !!payload,
-            hasUsername: !!payload?.username,
-            payloadKeys: payload ? Object.keys(payload) : null,
-          });
-
-          if (!payload || !payload.username) {
-            log.error(
-              "JWT stored but payload cannot be parsed or missing username",
-              undefined,
-              {
-                stored: !!stored,
-                payloadExists: !!payload,
-              }
-            );
-            throw new Error(
-              "Failed to parse authentication token. Please try again."
-            );
-          }
-
-          // Ensure future key lookups are not blocked by stale cache
-          clearOpenAIKeyCache();
-
-          // Persist username immediately for UI
-          setUsername(username);
-
-          // Update stored OpenAI key
-          setStoredOpenAIKey(openaiApiKey);
-
-          // Set authentication state BEFORE re-checking to avoid race conditions
-          setIsAuthenticated(true);
-
-          // Re-check authentication status to ensure state is in sync
-          // This also ensures useAuthReady and other hooks pick up the change
-          await checkAuthenticationStatus();
-
-          log.info("Authentication successful!");
-          return true; // Authentication successful
-        } else {
-          const errorMsg =
-            result.error || `Authentication failed (${response.status})`;
-          log.error("Authentication failed", new Error(errorMsg));
-          throw new Error(errorMsg);
-        }
-      } catch (error) {
-        logger
-          .scope("[useAppAuthentication]")
-          .error("Error during authentication", error);
-        throw error;
-      }
-    },
-    [checkAuthenticationStatus]
-  );
-
   const acceptToken = useCallback(
     async (token: string) => {
       AuthService.storeJwt(token);
@@ -199,7 +76,6 @@ export function useAppAuthentication() {
       if (payload?.username) {
         setUsername(payload.username);
       }
-      clearOpenAIKeyCache();
       setIsAuthenticated(true);
       await checkAuthenticationStatus();
       return true;
@@ -265,7 +141,6 @@ export function useAppAuthentication() {
   return {
     // State
     username,
-    storedOpenAIKey,
     isAuthenticated,
     showUserMenu,
     setShowUserMenu,
@@ -273,7 +148,6 @@ export function useAppAuthentication() {
     // Functions
     getStoredJwt,
     checkAuthenticationStatus,
-    handleAuthenticationSubmit,
     acceptToken,
     handleLogout,
   };

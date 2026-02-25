@@ -301,11 +301,7 @@ export const API_CONFIG = {
         `/character-sheets/${characterSheetId}`,
     },
     AUTH: {
-      AUTHENTICATE: "/auth/authenticate",
       LOGOUT: "/auth/logout",
-      GET_OPENAI_KEY: "/get-openai-key",
-      STORE_OPENAI_KEY: "/store-openai-key",
-      DELETE_OPENAI_KEY: "/delete-openai-key",
       GOOGLE: "/auth/google",
       GOOGLE_CALLBACK: "/auth/google/callback",
       GOOGLE_COMPLETE_SIGNUP: "/auth/google/complete-signup",
@@ -315,12 +311,7 @@ export const API_CONFIG = {
       RESEND_VERIFICATION: "/auth/resend-verification",
     },
     CHAT: {
-      SET_OPENAI_KEY: "/chat/set-openai-key",
       HISTORY: (sessionId: string) => `/chat-history/${sessionId}`,
-    },
-    OPENAI: {
-      CHECK_KEY: "/check-open-ai-key",
-      CHECK_USER_KEY: "/check-user-openai-key",
     },
     RAG: {
       SEARCH: "/rag/search",

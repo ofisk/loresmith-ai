@@ -8,6 +8,7 @@ import {
 } from "@/dao/entity-extraction-queue-dao";
 import { stageEntitiesFromResource } from "./entity-staging-service";
 import type { Env } from "@/middleware/auth";
+import { getEnvVar } from "@/lib/env-utils";
 
 export interface EntityExtractionJobOptions {
   env: Env;
@@ -16,7 +17,6 @@ export interface EntityExtractionJobOptions {
   resourceId: string;
   resourceName: string;
   fileKey?: string;
-  openaiApiKey: string;
   /** When from an approved proposal, the username who proposed the file (for shard attribution) */
   proposedBy?: string | null;
 }
@@ -181,13 +181,10 @@ export class EntityExtractionQueueService {
           );
         }
 
-        // Get OpenAI API key from user
-        const openaiApiKey = await daoFactory.userDAO.getOpenAIKey(
-          item.username
-        );
-
+        const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
+        const openaiApiKey = openaiApiKeyRaw.trim();
         if (!openaiApiKey) {
-          throw new Error(`OpenAI API key not found for user ${item.username}`);
+          throw new Error("OpenAI API key not configured");
         }
 
         // Get campaign RAG base path (by ID - user already has access via getCampaignByIdWithMapping)

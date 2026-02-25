@@ -168,8 +168,8 @@ export class LibraryService {
       });
 
       return Array.from(userUsageMap.entries()).map(([username, usage]) => {
-        // Check if user is admin by looking for admin key usage in recent auth
-        // This is a simplified approach - in production you might want a separate admin table
+        // Admin users are managed directly in the users table (is_admin).
+        // For this summary, we don't attempt to look up per-user admin flags.
         const isAdmin = false; // Default to false for now
 
         const totalBytes = usage.totalBytes;

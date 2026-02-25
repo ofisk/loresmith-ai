@@ -1,11 +1,5 @@
 import { BaseDAOClass } from "./base-dao";
 
-export interface UserOpenAIKey {
-  username: string;
-  api_key: string;
-  updated_at: string;
-}
-
 export interface UserStorageUsage {
   username: string;
   total_size: number;
@@ -13,31 +7,6 @@ export interface UserStorageUsage {
 }
 
 export class UserDAO extends BaseDAOClass {
-  async storeOpenAIKey(username: string, apiKey: string): Promise<void> {
-    const sql = `
-      insert or replace into user_openai_keys (id, username, api_key, updated_at)
-      values (?, ?, ?, current_timestamp)
-    `;
-    await this.execute(sql, [username, username, apiKey]);
-  }
-
-  async getOpenAIKey(username: string): Promise<string | null> {
-    const sql = "select api_key from user_openai_keys where username = ?";
-    const result = await this.queryFirst<{ api_key: string }>(sql, [username]);
-    return result?.api_key || null;
-  }
-
-  async deleteOpenAIKey(username: string): Promise<void> {
-    const sql = "delete from user_openai_keys where username = ?";
-    await this.execute(sql, [username]);
-  }
-
-  async hasOpenAIKey(username: string): Promise<boolean> {
-    const sql = "select 1 from user_openai_keys where username = ?";
-    const result = await this.queryFirst<{ 1: number }>(sql, [username]);
-    return result !== null;
-  }
-
   async getStorageUsage(username: string): Promise<UserStorageUsage> {
     const sql = `
       select

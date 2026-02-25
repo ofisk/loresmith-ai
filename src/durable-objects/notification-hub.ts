@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { createLogger, type RequestLogger } from "@/lib/logger";
 
 const PING_INTERVAL_MS = 30000; // 30 seconds
 const NOTIFICATION_QUEUE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -22,9 +23,14 @@ export interface NotificationSubscriber {
 export class NotificationHub extends DurableObject {
   private subscribers: Map<string, NotificationSubscriber> = new Map();
   private pingInterval: ReturnType<typeof setInterval> | null = null;
+  private logger: RequestLogger;
 
   constructor(ctx: DurableObjectState, env: any) {
     super(ctx, env);
+    this.logger = createLogger(
+      env as Record<string, unknown>,
+      "[NotificationHub]"
+    );
     this.startPingInterval();
     // Clean up expired notifications on initialization
     this.cleanupExpiredNotifications().catch(() => {
@@ -42,11 +48,9 @@ export class NotificationHub extends DurableObject {
 
     try {
       await this.ctx.storage.put(key, payload);
-      console.log(
-        `[NotificationHub] Queued notification: ${payload.type} (key: ${key})`
-      );
+      this.logger.trace(`Queued notification: ${payload.type} (key: ${key})`);
     } catch (error) {
-      console.error(`[NotificationHub] Failed to queue notification:`, error);
+      this.logger.error("Failed to queue notification:", error);
       throw error;
     }
   }
@@ -82,10 +86,7 @@ export class NotificationHub extends DurableObject {
         (a, b) => a.payload.timestamp - b.payload.timestamp
       );
     } catch (error) {
-      console.error(
-        `[NotificationHub] Failed to get queued notifications:`,
-        error
-      );
+      this.logger.error("Failed to get queued notifications:", error);
     }
 
     return queuedNotifications;
@@ -104,14 +105,9 @@ export class NotificationHub extends DurableObject {
     const keys = notifications.map((n) => n.key);
     try {
       await this.ctx.storage.delete(keys);
-      console.log(
-        `[NotificationHub] Deleted ${keys.length} queued notifications`
-      );
+      this.logger.debug(`Deleted ${keys.length} queued notifications`);
     } catch (error) {
-      console.error(
-        `[NotificationHub] Failed to delete queued notifications:`,
-        error
-      );
+      this.logger.error("Failed to delete queued notifications:", error);
     }
   }
 
@@ -138,15 +134,12 @@ export class NotificationHub extends DurableObject {
 
       if (expiredKeys.length > 0) {
         await this.ctx.storage.delete(expiredKeys);
-        console.log(
-          `[NotificationHub] Cleaned up ${expiredKeys.length} expired notifications`
+        this.logger.debug(
+          `Cleaned up ${expiredKeys.length} expired notifications`
         );
       }
     } catch (error) {
-      console.error(
-        `[NotificationHub] Failed to cleanup expired notifications:`,
-        error
-      );
+      this.logger.error("Failed to cleanup expired notifications:", error);
     }
   }
 
@@ -178,8 +171,10 @@ export class NotificationHub extends DurableObject {
       return new Response("Missing userId", { status: 400 });
     }
 
+    const isReconnect = this.subscribers.has(userId);
+
     // Check if this is a reconnection (user already exists)
-    if (this.subscribers.has(userId)) {
+    if (isReconnect) {
       const oldSubscriber = this.subscribers.get(userId);
       if (oldSubscriber) {
         try {
@@ -213,9 +208,15 @@ export class NotificationHub extends DurableObject {
     };
 
     this.subscribers.set(userId, subscriber);
-    console.log(
-      `[NotificationHub] Subscriber added: ${userId}. Total: ${this.subscribers.size}`
-    );
+    if (isReconnect) {
+      this.logger.debug(
+        `Subscriber reconnected: ${userId}. Total: ${this.subscribers.size}`
+      );
+    } else {
+      this.logger.info(
+        `Subscriber connected: ${userId}. Total: ${this.subscribers.size}`
+      );
+    }
 
     // Deliver queued notifications FIRST (before connection message)
     // This ensures users get missed notifications immediately upon reconnection
@@ -224,8 +225,8 @@ export class NotificationHub extends DurableObject {
     const deliveryPromise =
       queuedNotifications.length > 0
         ? (async () => {
-            console.log(
-              `[NotificationHub] Delivering ${queuedNotifications.length} queued notifications to ${userId}`
+            this.logger.debug(
+              `Delivering ${queuedNotifications.length} queued notifications to ${userId}`
             );
 
             const successfullyDelivered: Array<{
@@ -238,8 +239,8 @@ export class NotificationHub extends DurableObject {
               try {
                 await this.sendSSEMessage(writer, encoder, payload);
                 successfullyDelivered.push({ key, payload });
-                console.log(
-                  `[NotificationHub] Successfully delivered queued notification ${i + 1}/${queuedNotifications.length}: ${payload.type} (key: ${key})`
+                this.logger.trace(
+                  `Delivered queued notification ${i + 1}/${queuedNotifications.length}: ${payload.type} (key: ${key})`
                 );
               } catch (error) {
                 // If delivery fails, keep it in the queue for next reconnection
@@ -247,8 +248,8 @@ export class NotificationHub extends DurableObject {
                   error instanceof Error ? error.message : String(error);
                 const errorName =
                   error instanceof Error ? error.name : "UnknownError";
-                console.error(
-                  `[NotificationHub] Failed to deliver queued notification ${i + 1}/${queuedNotifications.length} ${key} (${payload.type}): ${errorName}: ${errorMessage}`
+                this.logger.error(
+                  `Failed to deliver queued notification ${i + 1}/${queuedNotifications.length} ${key} (${payload.type}): ${errorName}: ${errorMessage}`
                 );
                 // If the writer is closed or the stream is broken, stop trying to deliver more
                 if (
@@ -256,8 +257,8 @@ export class NotificationHub extends DurableObject {
                   errorMessage.includes("stream") ||
                   errorMessage.includes("closed")
                 ) {
-                  console.error(
-                    `[NotificationHub] Stream appears broken, stopping queued notification delivery. ${queuedNotifications.length - i - 1} notifications remain undelivered.`
+                  this.logger.warn(
+                    `Stream appears broken, stopping queued notification delivery. ${queuedNotifications.length - i - 1} notifications remain undelivered.`
                   );
                   break;
                 }
@@ -267,12 +268,12 @@ export class NotificationHub extends DurableObject {
             // Delete successfully delivered notifications from queue
             if (successfullyDelivered.length > 0) {
               await this.deleteQueuedNotifications(successfullyDelivered);
-              console.log(
-                `[NotificationHub] Successfully delivered and removed ${successfullyDelivered.length}/${queuedNotifications.length} queued notifications`
+              this.logger.debug(
+                `Delivered and removed ${successfullyDelivered.length}/${queuedNotifications.length} queued notifications`
               );
             } else {
-              console.error(
-                `[NotificationHub] Failed to deliver any of ${queuedNotifications.length} queued notifications - all remain in queue`
+              this.logger.warn(
+                `Failed to deliver any of ${queuedNotifications.length} queued notifications - all remain in queue`
               );
             }
           })()
@@ -281,10 +282,7 @@ export class NotificationHub extends DurableObject {
     // Start delivery (don't await - let it run in parallel with Response creation)
     // Writes to the same writer are queued, so order is preserved
     deliveryPromise.catch((error) => {
-      console.error(
-        `[NotificationHub] Error delivering queued notifications:`,
-        error
-      );
+      this.logger.error("Error delivering queued notifications:", error);
     });
 
     // Send initial connection message after starting queued notification delivery
@@ -299,9 +297,7 @@ export class NotificationHub extends DurableObject {
 
     // Handle client disconnect
     request.signal?.addEventListener("abort", () => {
-      console.log(
-        `[NotificationHub] Connection aborted for subscriber: ${userId}`
-      );
+      this.logger.debug(`Connection aborted for subscriber: ${userId}`);
       this.subscribers.delete(userId);
       // Close writer asynchronously (don't await, but handle errors)
       writer.close().catch(() => {
@@ -349,9 +345,7 @@ export class NotificationHub extends DurableObject {
     // If no active subscribers, queue the notification for later delivery
     if (this.subscribers.size === 0) {
       await this.queueNotification(payload);
-      console.log(
-        `[NotificationHub] No subscribers, queued notification: ${payload.type}`
-      );
+      this.logger.debug(`No subscribers, queued notification: ${payload.type}`);
       return;
     }
 
@@ -359,15 +353,15 @@ export class NotificationHub extends DurableObject {
     const deadSubscribers: string[] = [];
     let successCount = 0;
 
-    console.log(
-      `[NotificationHub] Broadcasting: ${payload.type}. Subscribers: ${this.subscribers.size}`
+    this.logger.debug(
+      `Broadcasting: ${payload.type}. Subscribers: ${this.subscribers.size}`
     );
 
     for (const [userId, subscriber] of this.subscribers.entries()) {
       // Check if request was aborted
       if (subscriber.abortSignal?.aborted) {
-        console.log(
-          `[NotificationHub] Detected aborted request for subscriber: ${userId} (during broadcast)`
+        this.logger.trace(
+          `Detected aborted request for subscriber: ${userId} (during broadcast)`
         );
         deadSubscribers.push(userId);
         continue;
@@ -375,8 +369,8 @@ export class NotificationHub extends DurableObject {
 
       // Check if writer is closed before attempting to write
       if (subscriber.writer.desiredSize === null) {
-        console.log(
-          `[NotificationHub] Detected closed writer for subscriber: ${userId} (during broadcast)`
+        this.logger.trace(
+          `Detected closed writer for subscriber: ${userId} (during broadcast)`
         );
         deadSubscribers.push(userId);
         continue;
@@ -389,8 +383,8 @@ export class NotificationHub extends DurableObject {
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
-        console.error(
-          `[NotificationHub] Failed to broadcast to subscriber ${userId}: ${errorMessage}`
+        this.logger.warn(
+          `Failed to broadcast to subscriber ${userId}: ${errorMessage}`
         );
         deadSubscribers.push(userId);
       }
@@ -404,8 +398,8 @@ export class NotificationHub extends DurableObject {
     // If all subscribers failed (dead connections), queue the notification for later delivery
     if (successCount === 0 && this.subscribers.size === 0) {
       await this.queueNotification(payload);
-      console.log(
-        `[NotificationHub] All subscribers failed, queued notification: ${payload.type}`
+      this.logger.warn(
+        `All subscribers failed, queued notification: ${payload.type}`
       );
     }
   }
@@ -458,8 +452,8 @@ export class NotificationHub extends DurableObject {
     for (const [userId, subscriber] of this.subscribers.entries()) {
       // Check if writer is closed before attempting to write
       if (subscriber.writer.desiredSize === null) {
-        console.log(
-          `[NotificationHub] Detected closed writer for subscriber: ${userId} (during ping)`
+        this.logger.trace(
+          `Detected closed writer for subscriber: ${userId} (during ping)`
         );
         deadSubscribers.push(userId);
         continue;
@@ -471,9 +465,7 @@ export class NotificationHub extends DurableObject {
         subscriber.lastPing = Date.now();
       } catch (_error) {
         // Clean up the failed subscriber immediately
-        console.log(
-          `[NotificationHub] Ping failed for subscriber: ${userId}, cleaning up`
-        );
+        this.logger.debug(`Ping failed for subscriber: ${userId}, cleaning up`);
         try {
           await subscriber.writer.close();
         } catch (_closeError) {

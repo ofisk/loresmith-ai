@@ -11,8 +11,10 @@ import {
   getUserAuth,
   ensureCampaignAccess,
   getPlanningContextService,
+  requireCanSeeSpoilers,
 } from "@/lib/route-utils";
 import { DigestReviewService } from "@/services/session-digest/digest-review-service";
+import { CampaignAccessDeniedError } from "@/lib/errors";
 
 // Create a new session digest
 export async function handleCreateSessionDigest(c: ContextWithAuth) {
@@ -23,6 +25,7 @@ export async function handleCreateSessionDigest(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const body = (await c.req.json()) as {
       sessionNumber?: number;
@@ -72,12 +75,15 @@ export async function handleCreateSessionDigest(c: ContextWithAuth) {
       return c.json({ error: "Failed to retrieve created digest" }, 500);
     }
 
-    const planningService = getPlanningContextService(c);
+    const planningService = await getPlanningContextService(c);
     await planningService.indexSessionDigest(created);
 
     return c.json({ digest: created }, 201);
   } catch (error) {
     console.error("[SessionDigest] Failed to create digest:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json(
       { error: "Failed to create session digest" },
       error instanceof Error && /required|must/i.test(error.message) ? 400 : 500
@@ -96,6 +102,7 @@ export async function handleGetSessionDigest(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const daoFactory = getDAOFactory(c.env);
     const digest =
@@ -115,6 +122,9 @@ export async function handleGetSessionDigest(c: ContextWithAuth) {
     return c.json({ digest });
   } catch (error) {
     console.error("[SessionDigest] Failed to get digest:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json({ error: "Failed to get session digest" }, 500);
   }
 }
@@ -129,6 +139,7 @@ export async function handleGetSessionDigests(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const daoFactory = getDAOFactory(c.env);
     const digests =
@@ -139,6 +150,9 @@ export async function handleGetSessionDigests(c: ContextWithAuth) {
     return c.json({ digests, nextSessionNumber });
   } catch (error) {
     console.error("[SessionDigest] Failed to list digests:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json({ error: "Failed to list session digests" }, 500);
   }
 }
@@ -200,12 +214,15 @@ export async function handleUpdateSessionDigest(c: ContextWithAuth) {
       return c.json({ error: "Failed to retrieve updated digest" }, 500);
     }
 
-    const planningService = getPlanningContextService(c);
+    const planningService = await getPlanningContextService(c);
     await planningService.indexSessionDigest(updated);
 
     return c.json({ digest: updated });
   } catch (error) {
     console.error("[SessionDigest] Failed to update digest:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json(
       { error: "Failed to update session digest" },
       error instanceof Error && /required|must/i.test(error.message) ? 400 : 500
@@ -224,6 +241,7 @@ export async function handleDeleteSessionDigest(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const daoFactory = getDAOFactory(c.env);
     const existing =
@@ -242,7 +260,7 @@ export async function handleDeleteSessionDigest(c: ContextWithAuth) {
 
     // Delete embeddings first to maintain consistency
     // If this fails, we don't delete the digest to avoid orphaned embeddings
-    const planningService = getPlanningContextService(c);
+    const planningService = await getPlanningContextService(c);
     await planningService.deleteSessionDigest(digestId);
 
     // Only delete from database after successful embedding deletion
@@ -251,6 +269,9 @@ export async function handleDeleteSessionDigest(c: ContextWithAuth) {
     return c.json({ success: true });
   } catch (error) {
     console.error("[SessionDigest] Failed to delete digest:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json({ error: "Failed to delete session digest" }, 500);
   }
 }
@@ -266,6 +287,7 @@ export async function handleSubmitDigestForReview(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     if (!c.env.DB) {
       return c.json({ error: "Database not configured" }, 500);
@@ -284,6 +306,9 @@ export async function handleSubmitDigestForReview(c: ContextWithAuth) {
     return c.json({ digest: updated });
   } catch (error) {
     console.error("[SessionDigest] Failed to submit for review:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     const statusCode =
       error instanceof Error && /cannot|cannot submit/i.test(error.message)
         ? 400
@@ -309,6 +334,7 @@ export async function handleApproveDigest(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     if (!c.env.DB) {
       return c.json({ error: "Database not configured" }, 500);
@@ -325,12 +351,15 @@ export async function handleApproveDigest(c: ContextWithAuth) {
     }
 
     // Re-index the digest since it's now approved
-    const planningService = getPlanningContextService(c);
+    const planningService = await getPlanningContextService(c);
     await planningService.indexSessionDigest(updated);
 
     return c.json({ digest: updated });
   } catch (error) {
     console.error("[SessionDigest] Failed to approve digest:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     const statusCode =
       error instanceof Error && /cannot|cannot approve/i.test(error.message)
         ? 400
@@ -356,6 +385,7 @@ export async function handleRejectDigest(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const body = (await c.req.json()) as { reviewNotes: string };
 
@@ -380,6 +410,9 @@ export async function handleRejectDigest(c: ContextWithAuth) {
     return c.json({ digest: updated });
   } catch (error) {
     console.error("[SessionDigest] Failed to reject digest:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     const statusCode =
       error instanceof Error && /cannot|cannot reject/i.test(error.message)
         ? 400

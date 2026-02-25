@@ -11,7 +11,7 @@ export class OpenAIAPIKeyError extends Error {
   constructor(message?: string) {
     super(
       message ||
-        "OpenAI API key is required. Please provide an OpenAI API key to continue."
+        "OpenAI API key is required. Please configure OPENAI_API_KEY on the server."
     );
     this.name = "OpenAIAPIKeyError";
   }

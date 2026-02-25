@@ -38,7 +38,7 @@ export function ResourceList({
   loading,
   error,
   setError,
-  setLoading,
+  setLoading: _setLoading,
   fetchResources,
   onAddToCampaign,
   onEditFile,

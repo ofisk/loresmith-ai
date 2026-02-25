@@ -10,6 +10,7 @@ import {
   calculateCommunityStats,
 } from "@/lib/graph/community-utils";
 import { CommunitySummaryService } from "@/services/graph/community-summary-service";
+import { getEnvVar } from "@/lib/env-utils";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -55,12 +56,15 @@ export async function handleDetectCommunities(c: ContextWithAuth) {
       minImprovement: body.minImprovement,
     };
 
+    const openaiApiKeyRaw = await getEnvVar(c.env, "OPENAI_API_KEY", false);
+    const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
+
     // Create service
     const communityDetectionService = new CommunityDetectionService(
       daoFactory.entityDAO,
       daoFactory.communityDAO,
       daoFactory.communitySummaryDAO,
-      userAuth.openaiApiKey || c.env.OPENAI_API_KEY
+      openaiApiKey
     );
 
     // Detect communities (multi-level if maxLevels > 1)
@@ -557,17 +561,16 @@ export async function handleGenerateCommunitySummary(c: ContextWithAuth) {
     }
 
     // Get OpenAI API key
-    const openaiApiKey =
-      userAuth.openaiApiKey || c.env.OPENAI_API_KEY || undefined;
+    const openaiApiKeyRaw = await getEnvVar(c.env, "OPENAI_API_KEY", false);
+    const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
 
     if (!openaiApiKey) {
       return c.json(
         {
-          error: "OpenAI API key required",
-          message:
-            "OpenAI API key is required for summary generation. Please provide an API key.",
+          error: "OpenAI API key not configured",
+          message: "AI is not configured for this environment.",
         },
-        400
+        503
       );
     }
 

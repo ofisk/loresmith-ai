@@ -274,7 +274,7 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
       ).catch(() => {});
     }
 
-    // Trigger entity extraction (uses approver's credentials; queue fetches key by username)
+    // Trigger entity extraction (queue uses server OpenAI key)
     // Pass proposedBy so shards show "co-authored by proposer and approver"
     try {
       await EntityExtractionQueueService.queueEntityExtraction({
@@ -284,7 +284,6 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
         resourceId,
         resourceName: proposal.file_name,
         fileKey: proposal.file_key,
-        openaiApiKey: userAuth.openaiApiKey ?? "",
         proposedBy: proposal.proposed_by,
       });
     } catch (queueError) {

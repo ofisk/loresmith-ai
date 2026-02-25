@@ -14,6 +14,7 @@ import type { UpdateSessionDigestInput } from "@/types/session-digest";
 import type { ToolResult } from "@/app-constants";
 import type { VectorizeIndex } from "@cloudflare/workers-types";
 import { PlanningContextService } from "@/services/rag/planning-context-service";
+import { getEnvVar } from "@/lib/env-utils";
 
 const commonSchemas = {
   campaignId: z.string().describe("The campaign ID"),
@@ -233,11 +234,22 @@ export const createSessionDigestTool = tool({
         );
       }
 
+      const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
+      const openaiApiKey = openaiApiKeyRaw.trim();
+      if (!openaiApiKey) {
+        return createToolError(
+          "OpenAI API key not configured",
+          "AI is not configured for this environment.",
+          503,
+          toolCallId
+        );
+      }
+
       // Validation happens automatically in PlanningContextService constructor
       const planningService = new PlanningContextService(
         env.DB!,
         env.VECTORIZE as VectorizeIndex,
-        env.OPENAI_API_KEY as string,
+        openaiApiKey,
         env
       );
       await planningService.indexSessionDigest(created);
@@ -579,10 +591,21 @@ export const updateSessionDigestTool = tool({
         );
       }
 
+      const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
+      const openaiApiKey = openaiApiKeyRaw.trim();
+      if (!openaiApiKey) {
+        return createToolError(
+          "OpenAI API key not configured",
+          "AI is not configured for this environment.",
+          503,
+          toolCallId
+        );
+      }
+
       const planningService = new PlanningContextService(
         env.DB!,
         env.VECTORIZE as VectorizeIndex,
-        env.OPENAI_API_KEY as string,
+        openaiApiKey,
         env
       );
       await planningService.indexSessionDigest(updated);

@@ -18,6 +18,7 @@ import {
 import { getAssessmentService } from "../../lib/service-factory";
 import { CharacterEntitySyncService } from "../../services/campaign/character-entity-sync-service";
 import { PlanningContextService } from "../../services/rag/planning-context-service";
+import { getEnvVar } from "@/lib/env-utils";
 import type { Env } from "../../middleware/auth";
 import { getDAOFactory } from "../../dao/dao-factory";
 import type { PlanningTaskStatus } from "../../dao/planning-task-dao";
@@ -626,7 +627,9 @@ async function analyzeMetadataCoverage(
   const coverage: Record<string, boolean> = {};
 
   // If no OpenAI API key, return empty coverage
-  if (!env.OPENAI_API_KEY) {
+  const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
+  const openaiApiKey = openaiApiKeyRaw.trim();
+  if (!openaiApiKey) {
     console.warn(
       "[MetadataAnalysis] No OpenAI API key available, skipping metadata analysis"
     );
@@ -650,7 +653,7 @@ async function analyzeMetadataCoverage(
 
     const llmProvider = createLLMProvider({
       provider: MODEL_CONFIG.PROVIDER.DEFAULT,
-      apiKey: env.OPENAI_API_KEY,
+      apiKey: openaiApiKey,
       defaultModel: MODEL_CONFIG.OPENAI.METADATA_ANALYSIS,
       defaultTemperature: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_TEMPERATURE,
       defaultMaxTokens: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_MAX_TOKENS,
@@ -734,7 +737,9 @@ async function performSemanticChecklistAnalysis(
       coverage.campaign_pitch = coverage.campaign_pitch || true;
     }
 
-    if (!env.DB || !env.VECTORIZE || !env.OPENAI_API_KEY) {
+    const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
+    const openaiApiKey = openaiApiKeyRaw.trim();
+    if (!env.DB || !env.VECTORIZE || !openaiApiKey) {
       // Semantic search not available, return coverage from metadata only
       return { coverage, entityStats };
     }
@@ -744,7 +749,7 @@ async function performSemanticChecklistAnalysis(
       const planningService = new PlanningContextService(
         env.DB,
         env.VECTORIZE,
-        env.OPENAI_API_KEY,
+        openaiApiKey,
         env
       );
 

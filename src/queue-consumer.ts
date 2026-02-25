@@ -16,6 +16,7 @@ import { RebuildTriggerService } from "./services/graph/rebuild-trigger-service"
 import { WorldStateChangelogDAO } from "./dao/world-state-changelog-dao";
 import { CommunitySummaryService } from "./services/graph/community-summary-service";
 import type { Community } from "./dao/community-dao";
+import { getEnvVar } from "@/lib/env-utils";
 
 export interface ProcessingMessage {
   bucket: string;
@@ -491,7 +492,12 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
             );
 
             // Get OpenAI API key from environment
-            const openaiApiKey = env.OPENAI_API_KEY as string | undefined;
+            const openaiApiKeyRaw = await getEnvVar(
+              env,
+              "OPENAI_API_KEY",
+              false
+            );
+            const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
 
             if (openaiApiKey) {
               // Create summary service

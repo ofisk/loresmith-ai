@@ -139,7 +139,7 @@ export const Modal = ({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose, allowEscape]);
+  }, [isOpen, onClose, allowEscape, modalRef.current]);
 
   if (!isOpen) return null;
 

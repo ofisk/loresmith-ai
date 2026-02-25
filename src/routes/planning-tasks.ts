@@ -4,7 +4,9 @@ import {
   type ContextWithAuth,
   ensureCampaignAccess,
   getUserAuth,
+  requireCanSeeSpoilers,
 } from "@/lib/route-utils";
+import { CampaignAccessDeniedError } from "@/lib/errors";
 
 type UpdatePlanningTaskBody = {
   title?: string;
@@ -23,6 +25,7 @@ export async function handleGetPlanningTasks(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const daoFactory = getDAOFactory(c.env);
     const planningTaskDAO = daoFactory.planningTaskDAO;
@@ -43,6 +46,9 @@ export async function handleGetPlanningTasks(c: ContextWithAuth) {
     return c.json({ tasks, nextSessionNumber });
   } catch (error) {
     console.error("[PlanningTasks] Failed to list tasks:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json({ error: "Failed to list planning tasks" }, 500);
   }
 }
@@ -57,6 +63,7 @@ export async function handleCreatePlanningTask(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const body = (await c.req.json()) as {
       title?: unknown;
@@ -89,6 +96,9 @@ export async function handleCreatePlanningTask(c: ContextWithAuth) {
     return c.json({ task }, 201);
   } catch (error) {
     console.error("[PlanningTasks] Failed to create task:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json({ error: "Failed to create planning task" }, 500);
   }
 }
@@ -104,6 +114,7 @@ export async function handleUpdatePlanningTask(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const body = (await c.req.json()) as UpdatePlanningTaskBody;
     const daoFactory = getDAOFactory(c.env);
@@ -173,6 +184,9 @@ export async function handleUpdatePlanningTask(c: ContextWithAuth) {
     return c.json({ task: updated });
   } catch (error) {
     console.error("[PlanningTasks] Failed to update task:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json({ error: "Failed to update planning task" }, 500);
   }
 }
@@ -205,6 +219,9 @@ export async function handleDeletePlanningTask(c: ContextWithAuth) {
     return c.json({ success: true });
   } catch (error) {
     console.error("[PlanningTasks] Failed to delete task:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json({ error: "Failed to delete planning task" }, 500);
   }
 }
@@ -219,6 +236,7 @@ export async function handleBulkCompletePlanningTasks(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const body = (await c.req.json()) as {
       taskIds?: unknown;
@@ -259,6 +277,9 @@ export async function handleBulkCompletePlanningTasks(c: ContextWithAuth) {
     return c.json({ success: true });
   } catch (error) {
     console.error("[PlanningTasks] Failed to bulk-complete tasks:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json({ error: "Failed to complete planning tasks" }, 500);
   }
 }

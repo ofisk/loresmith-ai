@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { UploadSessionDO } from "@/durable-objects/upload-session";
+import { createLogger } from "@/lib/logger";
 import {
   queue as queueFn,
   scheduled as scheduledFn,
@@ -18,9 +19,16 @@ export { UploadSessionDO };
 const app = new Hono<{ Bindings: Env }>();
 
 app.use("*", async (c, next) => {
-  console.log(`[Server] ${c.req.method} ${c.req.path} - request received`);
+  const logger = createLogger(
+    c.env as unknown as Record<string, unknown>,
+    "[Server]"
+  );
+  const start = Date.now();
+  const method = c.req.method;
+  const path = c.req.path;
 
-  if (c.req.method === "OPTIONS") {
+  if (method === "OPTIONS") {
+    logger.trace(`${method} ${path} -> 204 (preflight)`);
     return new Response(null, {
       status: 204,
       headers: {
@@ -33,7 +41,14 @@ app.use("*", async (c, next) => {
       },
     });
   }
-  await next();
+
+  try {
+    await next();
+  } catch (error) {
+    logger.error(`${method} ${path} - unhandled error`, error);
+    throw error;
+  }
+
   c.header("Access-Control-Allow-Origin", "*");
   c.header(
     "Access-Control-Allow-Methods",
@@ -43,6 +58,16 @@ app.use("*", async (c, next) => {
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization, X-Session-ID"
   );
+
+  const status = c.res.status || 200;
+  const durationMs = Date.now() - start;
+  if (status >= 500) {
+    logger.error(`${method} ${path} -> ${status} (${durationMs}ms)`);
+  } else if (status >= 400) {
+    logger.warn(`${method} ${path} -> ${status} (${durationMs}ms)`);
+  } else {
+    logger.debug(`${method} ${path} -> ${status} (${durationMs}ms)`);
+  }
 });
 
 registerRoutes(app);
@@ -54,11 +79,11 @@ export default {
   queue: (
     batch: MessageBatch<ProcessingMessage | RebuildQueueMessage>,
     env: Env,
-    ctx: ExecutionContext
+    _ctx: ExecutionContext
   ) => {
     return queueFn(batch, env);
   },
-  scheduled: (event: ScheduledController, env: Env, ctx: ExecutionContext) => {
+  scheduled: (event: ScheduledController, env: Env, _ctx: ExecutionContext) => {
     return scheduledFn(event, env);
   },
 };
