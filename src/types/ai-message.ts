@@ -1,3 +1,5 @@
+import type { Explainability } from "./explainability";
+
 export interface Message {
   id?: string;
   role: string;
@@ -9,10 +11,11 @@ export interface Message {
       state: string;
       toolName: string;
       toolCallId: string;
-      args?: any;
-      result?: any;
+      args?: unknown;
+      result?: unknown;
     };
   }>;
   createdAt?: Date | string;
-  data?: any;
+  /** May include explainability, jwt, campaignId, sessionId, etc. */
+  data?: Record<string, unknown> & { explainability?: Explainability | null };
 }
