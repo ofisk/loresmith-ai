@@ -1,4 +1,0 @@
-console.log(
-  "API URL:",
-  API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE)
-);
