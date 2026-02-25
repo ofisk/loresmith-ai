@@ -1215,6 +1215,7 @@ export default function Chat() {
                 campaigns={campaigns}
                 selectedCampaignId={selectedCampaignId}
                 onSelectedCampaignChange={setSelectedCampaignId}
+                onCreateCampaign={modalState.handleCreateCampaign}
                 invisibleUserContents={invisibleUserContentsRef.current}
               />
             </div>

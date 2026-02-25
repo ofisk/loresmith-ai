@@ -38,6 +38,8 @@ interface ChatAreaProps {
   campaigns: Campaign[];
   selectedCampaignId: string | null;
   onSelectedCampaignChange: (campaignId: string | null) => void;
+  /** Opens the create campaign modal; used in welcome message when no campaigns exist */
+  onCreateCampaign?: () => void;
   /** User message contents to hide (e.g. button-triggered prompts). */
   invisibleUserContents?: Set<string>;
 }
@@ -63,6 +65,7 @@ export function ChatArea({
   campaigns,
   selectedCampaignId,
   onSelectedCampaignChange,
+  onCreateCampaign,
   invisibleUserContents,
 }: ChatAreaProps) {
   const [placeholder] = useState(() => getRandomPrompt());
@@ -106,6 +109,8 @@ export function ChatArea({
           <WelcomeMessage
             onSuggestionSubmit={onSuggestionSubmit}
             onUploadFiles={onUploadFiles}
+            hasNoCampaigns={campaigns.length === 0}
+            onCreateCampaign={onCreateCampaign}
           />
         )}
         {messages.length === 0 && chatHistoryLoading && (
