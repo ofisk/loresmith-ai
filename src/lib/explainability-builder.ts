@@ -26,14 +26,18 @@ function extractContextSourcesFromSearchResults(
       type: type as ContextSource["type"],
       source: source as ContextSource["source"],
     };
-    if (typeof item.entityId === "string") cs.id = item.entityId;
-    if (typeof item.title === "string") cs.title = item.title;
     if (typeof item.entityType === "string") cs.entityType = item.entityType;
     if (typeof item.sessionNumber === "number")
       cs.sessionNumber = item.sessionNumber;
     if (typeof item.sectionType === "string") cs.sectionType = item.sectionType;
-    if (typeof item.fileKey === "string") cs.id = item.fileKey;
-    if (typeof item.fileName === "string") cs.title = item.fileName;
+    // Use type-specific fields to avoid overwriting: entity/planning use entityId+title, file_content uses fileKey+fileName
+    if (type === "file_content") {
+      if (typeof item.fileKey === "string") cs.id = item.fileKey;
+      if (typeof item.fileName === "string") cs.title = item.fileName;
+    } else {
+      if (typeof item.entityId === "string") cs.id = item.entityId;
+      if (typeof item.title === "string") cs.title = item.title;
+    }
 
     sources.push(cs);
   }

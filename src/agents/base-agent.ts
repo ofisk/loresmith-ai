@@ -583,6 +583,13 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
         const stepsPromise = new Promise<any>((resolve) => {
           stepsResolve = resolve;
         });
+        const STEPS_TIMEOUT_MS = 15_000;
+        const stepsWithTimeout = Promise.race([
+          stepsPromise,
+          new Promise<any[]>((resolve) =>
+            setTimeout(() => resolve([]), STEPS_TIMEOUT_MS)
+          ),
+        ]);
 
         try {
           const result = streamText({
@@ -730,7 +737,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             // Build explainability from tool steps and attach to message data
             let explainability: Explainability | null = null;
             try {
-              const steps = await stepsPromise;
+              const steps = await stepsWithTimeout;
               explainability = buildExplainabilityFromSteps(steps);
             } catch (e) {
               console.warn(
