@@ -55,7 +55,11 @@ export function BlockingAuthenticationModal({
     }
   }, [isOpen, googlePendingToken]);
 
-  const googleAuthUrl = `${API_CONFIG.buildAuthUrl(API_CONFIG.ENDPOINTS.AUTH.GOOGLE)}?return_url=${encodeURIComponent(typeof window !== "undefined" ? window.location.origin : "")}`;
+  const googleAuthUrl = `${API_CONFIG.buildAuthUrl(API_CONFIG.ENDPOINTS.AUTH.GOOGLE)}?return_url=${encodeURIComponent(
+    typeof window !== "undefined"
+      ? `${window.location.origin}${window.location.pathname}${window.location.search}`
+      : ""
+  )}`;
 
   const handleGoogleCompleteSignup = async (e?: React.SyntheticEvent) => {
     e?.preventDefault();
