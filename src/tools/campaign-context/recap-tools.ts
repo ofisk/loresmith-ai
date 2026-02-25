@@ -217,10 +217,10 @@ export const generatePlayerContextRecapTool = tool({
       }
 
       const playerRecapPrompt =
-        "The user is a player in this campaign. Tailor everything for a player-facing experience only. Greet the player and offer to help with: questions about the campaign world from their character's perspective, developing their character, or reviewing session notes while avoiding spoilers. Focus on player next steps, character development, and table-ready ideas. Do not talk about hidden GM tools, planning tasks, or internal permissions; simply act as if your capabilities are naturally scoped to the player view of the campaign.";
+        "The user is a player. Greet them and offer to help with: (1) Session summary—what their character experienced and threads they remember. (2) In-character summary—one paragraph for the table (who their PC is, recent goals, emotional state). (3) Roleplay support—dialogue lines, reactions, decision beats for upcoming scenes. (4) Character notes—checklist of allies, debts, deadlines, goals. Use only information the character would reasonably know; do not reveal future plot, NPC secrets, solutions, or unrevealed content. Do not mention spoilers or permissions—just deliver the experience.";
 
       return createToolSuccess(
-        "Player recap: offer character-focused help and session notes without spoilers.",
+        "Player recap ready.",
         {
           campaignId,
           campaignName: campaign.name,
@@ -228,7 +228,7 @@ export const generatePlayerContextRecapTool = tool({
           recap: {
             isPlayerRecap: true,
             message:
-              "I can help you with the world from your character's perspective, your character's development, and session notes (no spoilers).",
+              "Offer: session summary, in-character summary for the table, roleplay support, or character notes. Ask which they want and which character to focus on.",
           },
         },
         toolCallId

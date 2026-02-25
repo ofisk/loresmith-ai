@@ -660,8 +660,8 @@ export default function Chat() {
 
       // Send a message to trigger recap (next steps) agent
       const nextStepsMessage = isPlayerRole
-        ? "I am a player in this campaign. What should I do next with my character and at the table? Please give spoiler-free, player-facing suggestions based only on what I might reasonably know, focusing on character development, roleplay hooks, and ways to engage in the next session."
-        : "What should I do next for this campaign? Can you analyze my current state and provide prioritized next-step suggestions based on my campaign?";
+        ? "What should I do next with my character and at the table?"
+        : "What should I do next for this campaign?";
       invisibleUserContentsRef.current.add(nextStepsMessage);
 
       await append({

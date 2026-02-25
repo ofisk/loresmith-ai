@@ -9,7 +9,7 @@ const GM_ROLE_CONTEXT =
   "Tailor for the game master: world-building, session planning, next steps, readiness, and session readout.";
 
 const PLAYER_ROLE_CONTEXT =
-  "Tailor your responses for a player: (1) Answer questions from a player/character perspective when relevant. (2) Help develop well-rounded, well-integrated characters in the world. (3) Help review session notes while avoiding spoilers—do not reveal GM-only content (future plot, NPC secrets, solutions, tactics). (4) You are providing a player lens on the same campaign; do not expose planning tasks, session scripts, or world-state changelog in a GM form.";
+  "Tailor your responses for a player. Only share information their character would reasonably know or have experienced in play. Do NOT reveal: future plot, hidden motives, NPC secrets, solutions, treasure locations, tactics, outcomes, or anything not yet revealed in the story. Answer from a player/character perspective and help with session notes and character prep. Never mention spoilers, constraints, or permissions—just deliver helpful content naturally scoped to what the character would know.";
 
 /**
  * Returns the role context string to inject as a system message for the given campaign role.
