@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { SignJWT } from "jose";
 import type { Env } from "@/middleware/auth";
+import { getCorsHeaders } from "@/lib/cors";
 import { AuthService } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
 
@@ -78,11 +79,7 @@ export async function handleNotificationStream(
         status: 401,
         headers: {
           "WWW-Authenticate": "Bearer",
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Headers":
-            "Content-Type, Authorization, X-Session-ID",
-          "Access-Control-Allow-Methods":
-            "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+          ...getCorsHeaders(c.req.raw, c.env),
         },
       });
     }
@@ -108,11 +105,7 @@ export async function handleNotificationStream(
           status: 401,
           headers: {
             "WWW-Authenticate": "Bearer",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers":
-              "Content-Type, Authorization, X-Session-ID",
-            "Access-Control-Allow-Methods":
-              "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+            ...getCorsHeaders(c.req.raw, c.env),
           },
         });
       }
@@ -123,11 +116,7 @@ export async function handleNotificationStream(
           status: 401,
           headers: {
             "WWW-Authenticate": "Bearer",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers":
-              "Content-Type, Authorization, X-Session-ID",
-            "Access-Control-Allow-Methods":
-              "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+            ...getCorsHeaders(c.req.raw, c.env),
           },
         });
       }
@@ -186,11 +175,7 @@ export async function handleNotificationStream(
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
             Connection: "keep-alive",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers":
-              "Content-Type, Authorization, X-Session-ID",
-            "Access-Control-Allow-Methods":
-              "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+            ...getCorsHeaders(c.req.raw, c.env),
           },
         });
       }
@@ -201,24 +186,12 @@ export async function handleNotificationStream(
         );
         return new Response("Failed to establish notification stream", {
           status: 500,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers":
-              "Content-Type, Authorization, X-Session-ID",
-            "Access-Control-Allow-Methods":
-              "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-          },
+          headers: getCorsHeaders(c.req.raw, c.env),
         });
       }
 
       // Clone the response and add CORS headers
-      const corsHeaders = {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers":
-          "Content-Type, Authorization, X-Session-ID",
-        "Access-Control-Allow-Methods":
-          "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-      };
+      const corsHeaders = getCorsHeaders(c.req.raw, c.env);
 
       // Convert Headers to plain object
       const responseHeaders: Record<string, string> = {};
@@ -265,11 +238,7 @@ export async function handleNotificationStream(
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
             Connection: "keep-alive",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers":
-              "Content-Type, Authorization, X-Session-ID",
-            "Access-Control-Allow-Methods":
-              "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+            ...getCorsHeaders(c.req.raw, c.env),
           },
         });
       }
@@ -278,11 +247,7 @@ export async function handleNotificationStream(
         status: 401,
         headers: {
           "WWW-Authenticate": "Bearer",
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Headers":
-            "Content-Type, Authorization, X-Session-ID",
-          "Access-Control-Allow-Methods":
-            "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+          ...getCorsHeaders(c.req.raw, c.env),
         },
       });
     }
@@ -290,13 +255,7 @@ export async function handleNotificationStream(
     console.error("[Notifications] Error handling stream request:", error);
     return new Response("Internal Server Error", {
       status: 500,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers":
-          "Content-Type, Authorization, X-Session-ID",
-        "Access-Control-Allow-Methods":
-          "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-      },
+      headers: getCorsHeaders(c.req.raw, c.env),
     });
   }
 }

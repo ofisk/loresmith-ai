@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { getCorsHeaders, type CorsEnv } from "@/lib/cors";
 import { createLogger, type RequestLogger } from "@/lib/logger";
 
 const PING_INTERVAL_MS = 30000; // 30 seconds
@@ -24,11 +25,13 @@ export class NotificationHub extends DurableObject {
   private subscribers: Map<string, NotificationSubscriber> = new Map();
   private pingInterval: ReturnType<typeof setInterval> | null = null;
   private logger: RequestLogger;
+  private bindings: CorsEnv;
 
-  constructor(ctx: DurableObjectState, env: any) {
+  constructor(ctx: DurableObjectState, env: CorsEnv) {
     super(ctx, env);
+    this.bindings = env;
     this.logger = createLogger(
-      env as Record<string, unknown>,
+      env as unknown as Record<string, unknown>,
       "[NotificationHub]"
     );
     this.startPingInterval();
@@ -310,8 +313,8 @@ export class NotificationHub extends DurableObject {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
-        "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Cache-Control",
+        ...getCorsHeaders(request, this.bindings),
       },
     });
 
