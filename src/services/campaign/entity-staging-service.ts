@@ -480,6 +480,17 @@ export async function stageEntitiesFromResource(
 					errorMessage.includes("rate limit") ||
 					errorMessage.includes("429") ||
 					errorMessage.includes("Too Many Requests");
+				const isNoOutput =
+					errorMessage.includes("No output generated") ||
+					errorMessage.includes("AI_NoOutputGeneratedError");
+
+				// No output from model: treat as empty chunk (0 entities), don't retry
+				if (isNoOutput) {
+					console.warn(
+						`[EntityStaging] Chunk ${chunkNumber} returned no structured output, treating as empty`
+					);
+					return true;
+				}
 
 				if (isRetry) {
 					console.error(

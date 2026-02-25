@@ -51,11 +51,14 @@ export class OpenAIProvider implements LLMProvider {
 			const openaiWithKey = createOpenAI({ apiKey: this.apiKey });
 			const model = openaiWithKey(modelId as any);
 
+			// Reasoning models (gpt-5-mini, gpt-5.2, etc.) do not support temperature
 			const result = await generateText({
 				model,
 				prompt,
-				temperature,
 				maxOutputTokens: maxTokens,
+				...(!MODEL_CONFIG.isReasoningModel(modelId) && {
+					temperature,
+				}),
 			});
 
 			const text = result.text;
@@ -105,9 +108,9 @@ export class OpenAIProvider implements LLMProvider {
 				? prompt
 				: `Respond with valid JSON only.\n\n${prompt}`;
 
+			// Reasoning models (gpt-5-mini, gpt-5.2, etc.) do not support temperature
 			console.log("[OpenAIProvider] Structured output request (AI SDK chat)", {
 				model: modelId,
-				temperature,
 				maxTokens,
 				promptLength: finalPrompt.length,
 			});
@@ -115,9 +118,11 @@ export class OpenAIProvider implements LLMProvider {
 			const result = await generateText({
 				model,
 				prompt: finalPrompt,
-				temperature,
 				maxOutputTokens: maxTokens,
 				output: Output.json(),
+				...(!MODEL_CONFIG.isReasoningModel(modelId) && {
+					temperature,
+				}),
 			});
 
 			const output = result.output;

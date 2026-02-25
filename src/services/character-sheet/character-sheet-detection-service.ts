@@ -25,11 +25,11 @@ const CharacterSheetDetectionSchema = z.object({
 		.describe("Confidence score from 0.0 to 1.0"),
 	characterName: z
 		.string()
-		.optional()
+		.nullish()
 		.describe("The name of the character if detected, otherwise null"),
 	detectedGameSystem: z
 		.string()
-		.optional()
+		.nullish()
 		.describe(
 			"The game system if identifiable (e.g., 'D&D 5e', 'Pathfinder 2e', 'Call of Cthulhu'), otherwise null"
 		),
@@ -140,21 +140,44 @@ export class CharacterSheetDetectionService {
 			defaultMaxTokens: 500,
 		});
 
-		const result =
-			await llmProvider.generateStructuredOutput<CharacterSheetDetectionResult>(
-				prompt,
-				{
-					model: MODEL_CONFIG.OPENAI.ANALYSIS,
-					temperature: 0.1,
-					maxTokens: 500,
-				}
-			);
+		try {
+			const result =
+				await llmProvider.generateStructuredOutput<CharacterSheetDetectionResult>(
+					prompt,
+					{
+						model: MODEL_CONFIG.OPENAI.ANALYSIS,
+						temperature: 0.1,
+						maxTokens: 500,
+					}
+				);
 
-		// Validate against schema (LLM output may be malformed)
-		return parseOrThrow(CharacterSheetDetectionSchema, result, {
-			logPrefix: "[CharacterSheetDetection]",
-			messagePrefix: "Invalid detection result",
-		});
+			// Validate against schema (LLM output may be malformed)
+			return parseOrThrow(CharacterSheetDetectionSchema, result, {
+				logPrefix: "[CharacterSheetDetection]",
+				messagePrefix: "Invalid detection result",
+			});
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error";
+			const isNoOutput =
+				errorMessage.includes("No output generated") ||
+				errorMessage.includes("AI_NoOutputGeneratedError");
+
+			// No output from model: treat as "not a character sheet", continue with normal extraction
+			if (isNoOutput) {
+				console.warn(
+					"[CharacterSheetDetection] Model returned no output, assuming not a character sheet"
+				);
+				return {
+					isCharacterSheet: false,
+					confidence: 0,
+					characterName: undefined,
+					detectedGameSystem: undefined,
+					reasoning: "Model returned no structured output",
+				};
+			}
+			throw error;
+		}
 	}
 
 	/**
