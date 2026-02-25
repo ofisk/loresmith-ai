@@ -7,12 +7,12 @@ import type { ShardStatus } from "@/types/shard";
  * Contains computed properties for rendering communities in graphs
  */
 export interface CommunityNode {
-  id: string;
-  name: string;
-  size: number;
-  entityTypes: string[];
-  level: number;
-  summary?: string;
+	id: string;
+	name: string;
+	size: number;
+	entityTypes: string[];
+	level: number;
+	summary?: string;
 }
 
 /**
@@ -20,8 +20,8 @@ export interface CommunityNode {
  * Used for lightweight community references that don't need full node data
  */
 export type CommunityNodeBasic = Pick<
-  CommunityNode,
-  "id" | "name" | "size" | "level"
+	CommunityNode,
+	"id" | "name" | "size" | "level"
 >;
 
 /**
@@ -29,10 +29,10 @@ export type CommunityNodeBasic = Pick<
  * Used as foundation for both community and entity edges
  */
 export interface GraphEdgeBase {
-  id: string;
-  source: string;
-  target: string;
-  strength?: number;
+	id: string;
+	source: string;
+	target: string;
+	strength?: number;
 }
 
 /**
@@ -40,33 +40,33 @@ export interface GraphEdgeBase {
  * Aggregates multiple relationship types between communities
  */
 export interface InterCommunityEdge extends GraphEdgeBase {
-  relationshipTypes: string[];
-  relationshipCount: number;
+	relationshipTypes: string[];
+	relationshipCount: number;
 }
 
 /**
  * Union type for community-level graph nodes: communities or orphan entities
  */
 export type CommunityGraphNode =
-  | CommunityNode
-  | (EntityNode & { isOrphan: true });
+	| CommunityNode
+	| (EntityNode & { isOrphan: true });
 
 /**
  * Community-level graph data
  */
 export interface CommunityGraphData {
-  nodes: CommunityGraphNode[];
-  edges: InterCommunityEdge[];
+	nodes: CommunityGraphNode[];
+	edges: InterCommunityEdge[];
 }
 
 /**
  * Entity node for graph visualization
  */
 export interface EntityNode {
-  id: string;
-  name: string;
-  entityType: string;
-  importance?: number;
+	id: string;
+	name: string;
+	entityType: string;
+	importance?: number;
 }
 
 /**
@@ -74,17 +74,17 @@ export interface EntityNode {
  * Represents a single relationship between two entities
  */
 export interface EntityEdge extends GraphEdgeBase {
-  relationshipType: string;
+	relationshipType: string;
 }
 
 /**
  * Entity-level graph data within a community
  */
 export interface EntityGraphData {
-  communityId: string;
-  communityName?: string;
-  nodes: EntityNode[];
-  edges: EntityEdge[];
+	communityId: string;
+	communityName?: string;
+	nodes: EntityNode[];
+	edges: EntityEdge[];
 }
 
 /**
@@ -92,50 +92,50 @@ export interface EntityGraphData {
  * API returns an array of these; matchType distinguishes primary vs associated.
  */
 export interface EntitySearchResult {
-  entityId: string;
-  entityName: string;
-  entityType: string;
-  communities: CommunityNodeBasic[];
-  /** Whether this entity was a direct match (primary) or related (associated). */
-  matchType?: "primary" | "associated";
+	entityId: string;
+	entityName: string;
+	entityType: string;
+	communities: CommunityNodeBasic[];
+	/** Whether this entity was a direct match (primary) or related (associated). */
+	matchType?: "primary" | "associated";
 }
 
 /**
  * Filter state for community-level view
  */
 export interface CommunityFilterState {
-  entityTypes?: StructuredEntityType[];
-  relationshipTypes?: RelationshipType[];
-  approvalStatuses?: ShardStatus[];
-  /** Campaign resource IDs: show only entities from these resources and communities that contain them. */
-  resourceIds?: string[];
-  communityLevel?: number;
-  communitySizeMin?: number;
-  communitySizeMax?: number;
+	entityTypes?: StructuredEntityType[];
+	relationshipTypes?: RelationshipType[];
+	approvalStatuses?: ShardStatus[];
+	/** Campaign resource IDs: show only entities from these resources and communities that contain them. */
+	resourceIds?: string[];
+	communityLevel?: number;
+	communitySizeMin?: number;
+	communitySizeMax?: number;
 }
 
 /**
  * Filter state for entity-level view
  */
 export interface EntityFilterState {
-  entityTypes?: StructuredEntityType[];
-  relationshipTypes?: RelationshipType[];
-  searchTerm?: string;
+	entityTypes?: StructuredEntityType[];
+	relationshipTypes?: RelationshipType[];
+	searchTerm?: string;
 }
 
 /**
  * Cytoscape layout options
  */
 export type CytoscapeLayout =
-  | "breadthfirst"
-  | "circle"
-  | "concentric"
-  | "cose"
-  | "grid"
-  | "preset"
-  | "random"
-  | "dagre"
-  | "cola";
+	| "breadthfirst"
+	| "circle"
+	| "concentric"
+	| "cose"
+	| "grid"
+	| "preset"
+	| "random"
+	| "dagre"
+	| "cola";
 
 /**
  * View mode for graph visualization

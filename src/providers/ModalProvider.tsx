@@ -6,10 +6,10 @@ import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
  * Context type for modal state management
  */
 type ModalContextType = {
-  isOpen: boolean;
-  content: ReactNode;
-  openModal: (content: ReactNode) => void;
-  closeModal: () => void;
+	isOpen: boolean;
+	content: ReactNode;
+	openModal: (content: ReactNode) => void;
+	closeModal: () => void;
 };
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
@@ -20,33 +20,33 @@ const ModalContext = createContext<ModalContextType | undefined>(undefined);
  * @param children - React children to wrap with modal context
  */
 export const ModalProvider = ({ children }: { children: ReactNode }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [content, setContent] = useState<ReactNode>(null);
+	const [isOpen, setIsOpen] = useState(false);
+	const [content, setContent] = useState<ReactNode>(null);
 
-  const openModal = (content: ReactNode) => {
-    setContent(content);
-    setIsOpen(true);
-  };
+	const openModal = (content: ReactNode) => {
+		setContent(content);
+		setIsOpen(true);
+	};
 
-  const closeModal = () => {
-    setIsOpen(false);
-    setContent(null);
-  };
+	const closeModal = () => {
+		setIsOpen(false);
+		setContent(null);
+	};
 
-  return (
-    <ModalContext.Provider value={{ isOpen, content, openModal, closeModal }}>
-      {children}
-      {isOpen && (
-        <Modal
-          isOpen={isOpen}
-          onClose={closeModal}
-          cardStyle={STANDARD_MODAL_SIZE_OBJECT}
-        >
-          {content}
-        </Modal>
-      )}
-    </ModalContext.Provider>
-  );
+	return (
+		<ModalContext.Provider value={{ isOpen, content, openModal, closeModal }}>
+			{children}
+			{isOpen && (
+				<Modal
+					isOpen={isOpen}
+					onClose={closeModal}
+					cardStyle={STANDARD_MODAL_SIZE_OBJECT}
+				>
+					{content}
+				</Modal>
+			)}
+		</ModalContext.Provider>
+	);
 };
 
 /**
@@ -56,9 +56,9 @@ export const ModalProvider = ({ children }: { children: ReactNode }) => {
  * @throws Error if used outside of ModalProvider
  */
 export const useModal = () => {
-  const context = useContext(ModalContext);
-  if (!context) {
-    throw new Error("useModal must be used within a ModalProvider");
-  }
-  return context;
+	const context = useContext(ModalContext);
+	if (!context) {
+		throw new Error("useModal must be used within a ModalProvider");
+	}
+	return context;
 };

@@ -3,11 +3,11 @@ import type { CampaignData, CampaignResource } from "../../src/types/campaign";
 
 // Define proper types for the environment and stubs
 type CampaignManagerStub = {
-  fetch: ReturnType<typeof vi.fn>;
+	fetch: ReturnType<typeof vi.fn>;
 };
 
 type D1DatabaseStub = {
-  prepare: ReturnType<typeof vi.fn>;
+	prepare: ReturnType<typeof vi.fn>;
 };
 
 /**
@@ -15,13 +15,13 @@ type D1DatabaseStub = {
  * Defines the structure of the environment object passed to the Hono app
  */
 export type Env = {
-  CampaignManager: {
-    idFromName: ReturnType<typeof vi.fn>;
-    get: ReturnType<typeof vi.fn>;
-  };
-  DB?: D1DatabaseStub;
-  CAMPAIGNS_KV?: any;
-  JWT_SECRET?: string;
+	CampaignManager: {
+		idFromName: ReturnType<typeof vi.fn>;
+		get: ReturnType<typeof vi.fn>;
+	};
+	DB?: D1DatabaseStub;
+	CAMPAIGNS_KV?: any;
+	JWT_SECRET?: string;
 };
 
 /**
@@ -34,251 +34,251 @@ export type Env = {
  * @returns Mock Durable Object stub with fetch method
  */
 export function createCampaignManagerStub(
-  campaigns: CampaignData[] = [],
-  campaign?: CampaignData,
-  operationSuccess = true
+	campaigns: CampaignData[] = [],
+	campaign?: CampaignData,
+	operationSuccess = true
 ): CampaignManagerStub {
-  return {
-    fetch: vi.fn(async (url, _options) => {
-      // Campaign listing endpoint
-      if (url.includes("list-campaigns")) {
-        return {
-          status: 200,
-          json: async () => ({ campaigns }),
-        };
-      }
+	return {
+		fetch: vi.fn(async (url, _options) => {
+			// Campaign listing endpoint
+			if (url.includes("list-campaigns")) {
+				return {
+					status: 200,
+					json: async () => ({ campaigns }),
+				};
+			}
 
-      // Campaign creation endpoint
-      if (url.includes("create-campaign")) {
-        if (!operationSuccess) {
-          return {
-            status: 500,
-            json: async () => ({ error: "Failed to create campaign" }),
-          };
-        }
-        return {
-          status: 200,
-          json: async () => ({
-            success: true,
-            campaign: campaign || {
-              campaignId: "test-campaign-id",
-              name: "Test Campaign",
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              resources: [],
-            },
-          }),
-        };
-      }
+			// Campaign creation endpoint
+			if (url.includes("create-campaign")) {
+				if (!operationSuccess) {
+					return {
+						status: 500,
+						json: async () => ({ error: "Failed to create campaign" }),
+					};
+				}
+				return {
+					status: 200,
+					json: async () => ({
+						success: true,
+						campaign: campaign || {
+							campaignId: "test-campaign-id",
+							name: "Test Campaign",
+							createdAt: new Date().toISOString(),
+							updatedAt: new Date().toISOString(),
+							resources: [],
+						},
+					}),
+				};
+			}
 
-      // Campaign detail endpoint
-      if (url.includes("get-campaign")) {
-        if (!campaign) {
-          return {
-            status: 404,
-            json: async () => ({ error: "Campaign not found" }),
-          };
-        }
-        return {
-          status: 200,
-          json: async () => ({ campaign }),
-        };
-      }
+			// Campaign detail endpoint
+			if (url.includes("get-campaign")) {
+				if (!campaign) {
+					return {
+						status: 404,
+						json: async () => ({ error: "Campaign not found" }),
+					};
+				}
+				return {
+					status: 200,
+					json: async () => ({ campaign }),
+				};
+			}
 
-      // Add resource endpoint
-      if (url.includes("add-resource")) {
-        if (!operationSuccess) {
-          return {
-            status: 500,
-            json: async () => ({ error: "Failed to add resource" }),
-          };
-        }
-        return {
-          status: 200,
-          json: async () => ({
-            success: true,
-            resources: campaign?.resources || [],
-          }),
-        };
-      }
+			// Add resource endpoint
+			if (url.includes("add-resource")) {
+				if (!operationSuccess) {
+					return {
+						status: 500,
+						json: async () => ({ error: "Failed to add resource" }),
+					};
+				}
+				return {
+					status: 200,
+					json: async () => ({
+						success: true,
+						resources: campaign?.resources || [],
+					}),
+				};
+			}
 
-      // Remove resource endpoint
-      if (url.includes("remove-resource")) {
-        if (!operationSuccess) {
-          return {
-            status: 500,
-            json: async () => ({ error: "Failed to remove resource" }),
-          };
-        }
-        return {
-          status: 200,
-          json: async () => ({
-            success: true,
-            resources: campaign?.resources || [],
-          }),
-        };
-      }
+			// Remove resource endpoint
+			if (url.includes("remove-resource")) {
+				if (!operationSuccess) {
+					return {
+						status: 500,
+						json: async () => ({ error: "Failed to remove resource" }),
+					};
+				}
+				return {
+					status: 200,
+					json: async () => ({
+						success: true,
+						resources: campaign?.resources || [],
+					}),
+				};
+			}
 
-      // Delete campaign endpoint
-      if (url.includes("delete-campaign")) {
-        if (!operationSuccess) {
-          return {
-            status: 500,
-            json: async () => ({ error: "Failed to delete campaign" }),
-          };
-        }
-        return {
-          status: 200,
-          json: async () => ({ success: true }),
-        };
-      }
+			// Delete campaign endpoint
+			if (url.includes("delete-campaign")) {
+				if (!operationSuccess) {
+					return {
+						status: 500,
+						json: async () => ({ error: "Failed to delete campaign" }),
+					};
+				}
+				return {
+					status: 200,
+					json: async () => ({ success: true }),
+				};
+			}
 
-      // Trigger indexing endpoint
-      if (url.includes("trigger-indexing")) {
-        if (!operationSuccess) {
-          return {
-            status: 500,
-            json: async () => ({ error: "Failed to trigger indexing" }),
-          };
-        }
-        return {
-          status: 200,
-          json: async () => ({
-            success: true,
-            message: "Indexing triggered successfully",
-          }),
-        };
-      }
+			// Trigger indexing endpoint
+			if (url.includes("trigger-indexing")) {
+				if (!operationSuccess) {
+					return {
+						status: 500,
+						json: async () => ({ error: "Failed to trigger indexing" }),
+					};
+				}
+				return {
+					status: 200,
+					json: async () => ({
+						success: true,
+						message: "Indexing triggered successfully",
+					}),
+				};
+			}
 
-      return { status: 404, json: async () => ({}) };
-    }),
-  };
+			return { status: 404, json: async () => ({}) };
+		}),
+	};
 }
 
 /**
  * Create a mock campaign for testing
  */
 export function createMockCampaign(
-  overrides: Partial<CampaignData> = {}
+	overrides: Partial<CampaignData> = {}
 ): CampaignData {
-  return {
-    campaignId: "test-campaign-id",
-    name: "Test Campaign",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    resources: [],
-    ...overrides,
-  };
+	return {
+		campaignId: "test-campaign-id",
+		name: "Test Campaign",
+		createdAt: new Date().toISOString(),
+		updatedAt: new Date().toISOString(),
+		resources: [],
+		...overrides,
+	};
 }
 
 /**
  * Create a mock campaign resource for testing
  */
 export function createMockResource(
-  overrides: Partial<CampaignResource> = {}
+	overrides: Partial<CampaignResource> = {}
 ): CampaignResource {
-  return {
-    type: "pdf",
-    id: "test-resource-id",
-    name: "Test Resource",
-    ...overrides,
-  };
+	return {
+		type: "pdf",
+		id: "test-resource-id",
+		name: "Test Resource",
+		...overrides,
+	};
 }
 
 /**
  * Create a mock KV namespace stub for campaigns
  */
 export function createCampaignsKVStub(
-  data: Record<string, string> = {},
-  operationSuccess = true
+	data: Record<string, string> = {},
+	operationSuccess = true
 ): any {
-  return {
-    get: vi.fn(async (key: string) => {
-      if (!operationSuccess) return null;
-      return data[key] || null;
-    }),
-    list: vi.fn(async (options?: { prefix?: string }) => {
-      if (!operationSuccess) return { keys: [] };
-      const keys = Object.keys(data).filter(
-        (key) => !options?.prefix || key.startsWith(options.prefix)
-      );
-      return { keys: keys.map((key) => ({ name: key })) };
-    }),
-    put: vi.fn(async (key: string, value: string) => {
-      if (!operationSuccess) throw new Error("KV operation failed");
-      data[key] = value;
-    }),
-    delete: vi.fn(async (key: string) => {
-      if (!operationSuccess) throw new Error("KV operation failed");
-      delete data[key];
-    }),
-  };
+	return {
+		get: vi.fn(async (key: string) => {
+			if (!operationSuccess) return null;
+			return data[key] || null;
+		}),
+		list: vi.fn(async (options?: { prefix?: string }) => {
+			if (!operationSuccess) return { keys: [] };
+			const keys = Object.keys(data).filter(
+				(key) => !options?.prefix || key.startsWith(options.prefix)
+			);
+			return { keys: keys.map((key) => ({ name: key })) };
+		}),
+		put: vi.fn(async (key: string, value: string) => {
+			if (!operationSuccess) throw new Error("KV operation failed");
+			data[key] = value;
+		}),
+		delete: vi.fn(async (key: string) => {
+			if (!operationSuccess) throw new Error("KV operation failed");
+			delete data[key];
+		}),
+	};
 }
 
 /**
  * Create a mock D1 database stub
  */
 export function createD1DatabaseStub(
-  campaigns: any[] = [],
-  operationSuccess = true
+	campaigns: any[] = [],
+	operationSuccess = true
 ): D1DatabaseStub {
-  return {
-    prepare: vi.fn((_query: string) => {
-      const mockStmt = {
-        bind: vi.fn(() => mockStmt),
-        all: vi.fn(async () => ({ results: campaigns })),
-        first: vi.fn(async () => campaigns[0] || null),
-        run: vi.fn(async () => ({
-          meta: { changes: operationSuccess ? 1 : 0 },
-        })),
-      };
-      return mockStmt;
-    }),
-  };
+	return {
+		prepare: vi.fn((_query: string) => {
+			const mockStmt = {
+				bind: vi.fn(() => mockStmt),
+				all: vi.fn(async () => ({ results: campaigns })),
+				first: vi.fn(async () => campaigns[0] || null),
+				run: vi.fn(async () => ({
+					meta: { changes: operationSuccess ? 1 : 0 },
+				})),
+			};
+			return mockStmt;
+		}),
+	};
 }
 
 /**
  * Helper to create a test environment with campaign manager and D1 database
  */
 export function createTestEnv(
-  campaigns: CampaignData[] = [],
-  campaign?: CampaignData,
-  operationSuccess = true
+	campaigns: CampaignData[] = [],
+	campaign?: CampaignData,
+	operationSuccess = true
 ): Env {
-  // Convert campaigns to D1 format
-  const d1Campaigns = campaigns.map((c) => ({
-    id: c.campaignId,
-    username: "demo-user",
-    name: c.name,
-    description: null,
-    status: "active",
-    metadata: JSON.stringify({}),
-    created_at: c.createdAt,
-    updated_at: c.updatedAt,
-  }));
+	// Convert campaigns to D1 format
+	const d1Campaigns = campaigns.map((c) => ({
+		id: c.campaignId,
+		username: "demo-user",
+		name: c.name,
+		description: null,
+		status: "active",
+		metadata: JSON.stringify({}),
+		created_at: c.createdAt,
+		updated_at: c.updatedAt,
+	}));
 
-  // Add individual campaign if provided
-  if (campaign) {
-    d1Campaigns.unshift({
-      id: campaign.campaignId,
-      username: "demo-user",
-      name: campaign.name,
-      description: null,
-      status: "active",
-      metadata: JSON.stringify({}),
-      created_at: campaign.createdAt,
-      updated_at: campaign.updatedAt,
-    });
-  }
+	// Add individual campaign if provided
+	if (campaign) {
+		d1Campaigns.unshift({
+			id: campaign.campaignId,
+			username: "demo-user",
+			name: campaign.name,
+			description: null,
+			status: "active",
+			metadata: JSON.stringify({}),
+			created_at: campaign.createdAt,
+			updated_at: campaign.updatedAt,
+		});
+	}
 
-  return {
-    CampaignManager: {
-      idFromName: vi.fn((name: string) => ({ toString: () => name })),
-      get: vi.fn(() =>
-        createCampaignManagerStub(campaigns, campaign, operationSuccess)
-      ),
-    },
-    DB: createD1DatabaseStub(d1Campaigns, operationSuccess),
-    JWT_SECRET: "test-jwt-secret",
-  };
+	return {
+		CampaignManager: {
+			idFromName: vi.fn((name: string) => ({ toString: () => name })),
+			get: vi.fn(() =>
+				createCampaignManagerStub(campaigns, campaign, operationSuccess)
+			),
+		},
+		DB: createD1DatabaseStub(d1Campaigns, operationSuccess),
+		JWT_SECRET: "test-jwt-secret",
+	};
 }

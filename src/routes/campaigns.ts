@@ -1,1076 +1,1076 @@
 import type { Context } from "hono";
-import { getDAOFactory } from "@/dao/dao-factory";
 import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
 import { FileDAO } from "@/dao";
-import type { Env } from "@/middleware/auth";
-import type { AuthPayload } from "@/services/core/auth-service";
-import {
-  createCampaign,
-  addResourceToCampaign,
-  checkResourceExists,
-  validateCampaignOwnership,
-  getCampaignRagBasePath,
-} from "@/lib/campaign-operations";
-import {
-  requireCanEdit,
-  requireCampaignOwner,
-  getCampaignRole,
-  requireCanSeeSpoilers,
-  ensureCampaignAccess,
-} from "@/lib/route-utils";
-import { CampaignAccessDeniedError } from "@/lib/errors";
+import { getDAOFactory } from "@/dao/dao-factory";
 import { EntityExtractionQueueDAO } from "@/dao/entity-extraction-queue-dao";
-import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
-import { SyncQueueService } from "@/services/file/sync-queue-service";
 import { extractJwtFromContext } from "@/lib/auth-utils";
 import {
-  buildResourceAdditionResponse,
-  buildCampaignCreationResponse,
-  buildCampaignUpdateResponse,
-  buildCampaignDeletionResponse,
-  buildBulkDeletionResponse,
-  buildResourceRemovalResponse,
-} from "@/lib/response-builders";
-import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
-import { ChecklistStatusService } from "@/services/campaign/checklist-status-service";
+	addResourceToCampaign,
+	checkResourceExists,
+	createCampaign,
+	getCampaignRagBasePath,
+	validateCampaignOwnership,
+} from "@/lib/campaign-operations";
+import { CampaignAccessDeniedError } from "@/lib/errors";
 import {
-  isFileAllowedForProposal,
-  getBlockedExtensionsDescription,
+	getExtension,
+	validateR2ObjectAndGetStream,
+} from "@/lib/file-upload-security";
+import {
+	getBlockedExtensionsDescription,
+	isFileAllowedForProposal,
 } from "@/lib/proposal-security";
 import {
-  validateR2ObjectAndGetStream,
-  getExtension,
-} from "@/lib/file-upload-security";
+	buildBulkDeletionResponse,
+	buildCampaignCreationResponse,
+	buildCampaignDeletionResponse,
+	buildCampaignUpdateResponse,
+	buildResourceAdditionResponse,
+	buildResourceRemovalResponse,
+} from "@/lib/response-builders";
+import {
+	ensureCampaignAccess,
+	getCampaignRole,
+	requireCampaignOwner,
+	requireCanEdit,
+	requireCanSeeSpoilers,
+} from "@/lib/route-utils";
+import type { Env } from "@/middleware/auth";
+import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
+import { ChecklistStatusService } from "@/services/campaign/checklist-status-service";
+import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
+import type { AuthPayload } from "@/services/core/auth-service";
+import { SyncQueueService } from "@/services/file/sync-queue-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
-  userAuth?: AuthPayload;
+	userAuth?: AuthPayload;
 };
 
 // Get all campaigns for user
 export async function handleGetCampaigns(c: ContextWithAuth) {
-  try {
-    console.log("[Server] GET /campaigns - starting request");
-    console.log("[Server] Context keys:", Object.keys(c));
+	try {
+		console.log("[Server] GET /campaigns - starting request");
+		console.log("[Server] Context keys:", Object.keys(c));
 
-    const userAuth = (c as any).userAuth;
-    console.log("[Server] User auth from middleware:", userAuth);
+		const userAuth = (c as any).userAuth;
+		console.log("[Server] User auth from middleware:", userAuth);
 
-    if (!userAuth) {
-      console.error("[Server] No user auth found in context");
-      return c.json({ error: "Authentication required" }, 401);
-    }
+		if (!userAuth) {
+			console.error("[Server] No user auth found in context");
+			return c.json({ error: "Authentication required" }, 401);
+		}
 
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    const campaigns = await campaignDAO.getCampaignsByUserWithMapping(
-      userAuth.username
-    );
+		const campaignDAO = getDAOFactory(c.env).campaignDAO;
+		const campaigns = await campaignDAO.getCampaignsByUserWithMapping(
+			userAuth.username
+		);
 
-    console.log(
-      `[Server] Found ${campaigns.length} campaigns for user ${userAuth.username}`
-    );
+		console.log(
+			`[Server] Found ${campaigns.length} campaigns for user ${userAuth.username}`
+		);
 
-    return c.json({ campaigns: campaigns });
-  } catch (error) {
-    console.error("Error fetching campaigns:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
+		return c.json({ campaigns: campaigns });
+	} catch (error) {
+		console.error("Error fetching campaigns:", error);
+		return c.json({ error: "Internal server error" }, 500);
+	}
 }
 
 // Create new campaign
 export async function handleCreateCampaign(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-    const { name, description } = await c.req.json();
+	try {
+		const userAuth = (c as any).userAuth;
+		const { name, description } = await c.req.json();
 
-    if (!name) {
-      return c.json({ error: "Campaign name is required" }, 400);
-    }
+		if (!name) {
+			return c.json({ error: "Campaign name is required" }, 400);
+		}
 
-    const newCampaign = await createCampaign({
-      env: c.env,
-      username: userAuth.username,
-      name,
-      description,
-    });
+		const newCampaign = await createCampaign({
+			env: c.env,
+			username: userAuth.username,
+			name,
+			description,
+		});
 
-    // Sync campaign title and description as searchable context
-    try {
-      const syncService = new CampaignContextSyncService(c.env);
+		// Sync campaign title and description as searchable context
+		try {
+			const syncService = new CampaignContextSyncService(c.env);
 
-      // Sync campaign title
-      await syncService.syncContext(
-        newCampaign.campaignId,
-        `${newCampaign.campaignId}-title`,
-        "campaign_info",
-        "Campaign Title",
-        name,
-        { field: "title" }
-      );
+			// Sync campaign title
+			await syncService.syncContext(
+				newCampaign.campaignId,
+				`${newCampaign.campaignId}-title`,
+				"campaign_info",
+				"Campaign Title",
+				name,
+				{ field: "title" }
+			);
 
-      // Sync campaign description if provided
-      if (description) {
-        await syncService.syncContext(
-          newCampaign.campaignId,
-          `${newCampaign.campaignId}-description`,
-          "campaign_info",
-          "Campaign Description",
-          description,
-          { field: "description" }
-        );
-      }
+			// Sync campaign description if provided
+			if (description) {
+				await syncService.syncContext(
+					newCampaign.campaignId,
+					`${newCampaign.campaignId}-description`,
+					"campaign_info",
+					"Campaign Description",
+					description,
+					{ field: "description" }
+				);
+			}
 
-      console.log("[handleCreateCampaign] Synced campaign info");
-    } catch (syncError) {
-      console.error(
-        "[handleCreateCampaign] Failed to sync campaign:",
-        syncError
-      );
-      // Don't fail campaign creation if sync fails
-    }
+			console.log("[handleCreateCampaign] Synced campaign info");
+		} catch (syncError) {
+			console.error(
+				"[handleCreateCampaign] Failed to sync campaign:",
+				syncError
+			);
+			// Don't fail campaign creation if sync fails
+		}
 
-    const response = buildCampaignCreationResponse(newCampaign);
-    return c.json(response, 201);
-  } catch (error) {
-    console.error("Error creating campaign:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
+		const response = buildCampaignCreationResponse(newCampaign);
+		return c.json(response, 201);
+	} catch (error) {
+		console.error("Error creating campaign:", error);
+		return c.json({ error: "Internal server error" }, 500);
+	}
 }
 
 // Get specific campaign
 export async function handleGetCampaign(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-    const campaignId = c.req.param("campaignId");
+	try {
+		const userAuth = (c as any).userAuth;
+		const campaignId = c.req.param("campaignId");
 
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    const campaign = await campaignDAO.getCampaignByIdWithMapping(
-      campaignId,
-      userAuth.username
-    );
+		const campaignDAO = getDAOFactory(c.env).campaignDAO;
+		const campaign = await campaignDAO.getCampaignByIdWithMapping(
+			campaignId,
+			userAuth.username
+		);
 
-    if (!campaign) {
-      return c.json({ error: "Campaign not found" }, 404);
-    }
+		if (!campaign) {
+			return c.json({ error: "Campaign not found" }, 404);
+		}
 
-    return c.json({ campaign });
-  } catch (error) {
-    console.error("Error fetching campaign:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
+		return c.json({ campaign });
+	} catch (error) {
+		console.error("Error fetching campaign:", error);
+		return c.json({ error: "Internal server error" }, 500);
+	}
 }
 
 // Get campaign checklist status (for tools running outside DO context)
 export async function handleGetChecklistStatus(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-    const campaignId = c.req.param("campaignId");
+	try {
+		const userAuth = (c as any).userAuth;
+		const campaignId = c.req.param("campaignId");
 
-    const daoFactory = getDAOFactory(c.env);
-    const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-      campaignId,
-      userAuth.username
-    );
+		const daoFactory = getDAOFactory(c.env);
+		const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+			campaignId,
+			userAuth.username
+		);
 
-    if (!campaign) {
-      return c.json({ error: "Campaign not found" }, 404);
-    }
+		if (!campaign) {
+			return c.json({ error: "Campaign not found" }, 404);
+		}
 
-    await requireCanSeeSpoilers(c as any, campaignId);
+		await requireCanSeeSpoilers(c as any, campaignId);
 
-    const records =
-      await daoFactory.checklistStatusDAO.getChecklistStatus(campaignId);
+		const records =
+			await daoFactory.checklistStatusDAO.getChecklistStatus(campaignId);
 
-    return c.json({
-      records: records.map((r) => ({
-        checklistItemKey: r.checklistItemKey,
-        status: r.status,
-        summary: r.summary,
-      })),
-    });
-  } catch (error) {
-    console.error("Error fetching checklist status:", error);
-    if (error instanceof CampaignAccessDeniedError) {
-      return c.json({ error: "Access denied" }, 403);
-    }
-    return c.json({ error: "Internal server error" }, 500);
-  }
+		return c.json({
+			records: records.map((r) => ({
+				checklistItemKey: r.checklistItemKey,
+				status: r.status,
+				summary: r.summary,
+			})),
+		});
+	} catch (error) {
+		console.error("Error fetching checklist status:", error);
+		if (error instanceof CampaignAccessDeniedError) {
+			return c.json({ error: "Access denied" }, 403);
+		}
+		return c.json({ error: "Internal server error" }, 500);
+	}
 }
 
 // Get campaign resources
 export async function handleGetCampaignResources(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-    const campaignId = c.req.param("campaignId");
+	try {
+		const userAuth = (c as any).userAuth;
+		const campaignId = c.req.param("campaignId");
 
-    if (!userAuth?.username) {
-      return c.json({ error: "Authentication required" }, 401);
-    }
+		if (!userAuth?.username) {
+			return c.json({ error: "Authentication required" }, 401);
+		}
 
-    const hasAccess = await ensureCampaignAccess(
-      c as any,
-      campaignId,
-      userAuth.username
-    );
-    if (!hasAccess) {
-      return c.json({ error: "Campaign not found" }, 404);
-    }
+		const hasAccess = await ensureCampaignAccess(
+			c as any,
+			campaignId,
+			userAuth.username
+		);
+		if (!hasAccess) {
+			return c.json({ error: "Campaign not found" }, 404);
+		}
 
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    const resources = await campaignDAO.getCampaignResources(campaignId);
+		const campaignDAO = getDAOFactory(c.env).campaignDAO;
+		const resources = await campaignDAO.getCampaignResources(campaignId);
 
-    return c.json({ resources });
-  } catch (error) {
-    console.error("Error fetching campaign resources:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
+		return c.json({ resources });
+	} catch (error) {
+		console.error("Error fetching campaign resources:", error);
+		return c.json({ error: "Internal server error" }, 500);
+	}
 }
 
 export async function handleUpdateCampaign(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-    const campaignId = c.req.param("campaignId");
-    const body = (await c.req.json()) as {
-      name?: string;
-      description?: string;
-      metadata?: Record<string, unknown>;
-    };
+	try {
+		const userAuth = (c as any).userAuth;
+		const campaignId = c.req.param("campaignId");
+		const body = (await c.req.json()) as {
+			name?: string;
+			description?: string;
+			metadata?: Record<string, unknown>;
+		};
 
-    console.log(`[Server] PUT /campaigns/${campaignId} - starting request`);
-    console.log("[Server] User auth from middleware:", userAuth);
-    console.log("[Server] Update data:", body);
+		console.log(`[Server] PUT /campaigns/${campaignId} - starting request`);
+		console.log("[Server] User auth from middleware:", userAuth);
+		console.log("[Server] Update data:", body);
 
-    // Validate campaign ownership
-    const { valid, campaign } = await validateCampaignOwnership(
-      campaignId,
-      userAuth.username,
-      c.env
-    );
-    if (!valid) {
-      console.log(
-        `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
-      );
-      return c.json({ error: "Campaign not found" }, 404);
-    }
+		// Validate campaign ownership
+		const { valid, campaign } = await validateCampaignOwnership(
+			campaignId,
+			userAuth.username,
+			c.env
+		);
+		if (!valid) {
+			console.log(
+				`[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
+			);
+			return c.json({ error: "Campaign not found" }, 404);
+		}
 
-    console.log("[Server] Found campaign:", campaign);
+		console.log("[Server] Found campaign:", campaign);
 
-    // Get existing campaign metadata to merge with new metadata
-    let existingMetadata: Record<string, unknown> = {};
-    if (campaign!.metadata) {
-      try {
-        existingMetadata = JSON.parse(campaign!.metadata) as Record<
-          string,
-          unknown
-        >;
-      } catch (error) {
-        console.warn(
-          "[handleUpdateCampaign] Failed to parse existing metadata:",
-          error
-        );
-      }
-    }
+		// Get existing campaign metadata to merge with new metadata
+		let existingMetadata: Record<string, unknown> = {};
+		if (campaign!.metadata) {
+			try {
+				existingMetadata = JSON.parse(campaign!.metadata) as Record<
+					string,
+					unknown
+				>;
+			} catch (error) {
+				console.warn(
+					"[handleUpdateCampaign] Failed to parse existing metadata:",
+					error
+				);
+			}
+		}
 
-    // Merge new metadata with existing metadata
-    const mergedMetadata =
-      body.metadata !== undefined
-        ? { ...existingMetadata, ...body.metadata }
-        : existingMetadata;
+		// Merge new metadata with existing metadata
+		const mergedMetadata =
+			body.metadata !== undefined
+				? { ...existingMetadata, ...body.metadata }
+				: existingMetadata;
 
-    // Update the campaign using DAO
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    const updateData: {
-      name?: string;
-      description?: string;
-      metadata?: Record<string, unknown>;
-    } = {};
+		// Update the campaign using DAO
+		const campaignDAO = getDAOFactory(c.env).campaignDAO;
+		const updateData: {
+			name?: string;
+			description?: string;
+			metadata?: Record<string, unknown>;
+		} = {};
 
-    // Only include fields that are being updated
-    if (body.name !== undefined) {
-      updateData.name = body.name;
-    }
+		// Only include fields that are being updated
+		if (body.name !== undefined) {
+			updateData.name = body.name;
+		}
 
-    if (body.description !== undefined) {
-      updateData.description = body.description;
-    }
+		if (body.description !== undefined) {
+			updateData.description = body.description;
+		}
 
-    // Always include metadata if it was provided, or if we have merged metadata to save
-    if (body.metadata !== undefined) {
-      updateData.metadata = mergedMetadata;
-    }
+		// Always include metadata if it was provided, or if we have merged metadata to save
+		if (body.metadata !== undefined) {
+			updateData.metadata = mergedMetadata;
+		}
 
-    // Ensure at least one field is being updated
-    if (Object.keys(updateData).length === 0) {
-      return c.json({ error: "No updates provided" }, 400);
-    }
+		// Ensure at least one field is being updated
+		if (Object.keys(updateData).length === 0) {
+			return c.json({ error: "No updates provided" }, 400);
+		}
 
-    await campaignDAO.updateCampaign(campaignId, updateData);
+		await campaignDAO.updateCampaign(campaignId, updateData);
 
-    console.log(`[Server] Updated campaign ${campaignId}`);
+		console.log(`[Server] Updated campaign ${campaignId}`);
 
-    // Update checklist status if metadata was updated
-    if (body.metadata !== undefined) {
-      try {
-        const checklistStatusService = new ChecklistStatusService(
-          c.env.DB,
-          c.env
-        );
-        await checklistStatusService.updateFromMetadata(
-          campaignId,
-          mergedMetadata
-        );
-        console.log(
-          "[handleUpdateCampaign] Updated checklist status from metadata"
-        );
-      } catch (checklistError) {
-        console.error(
-          "[handleUpdateCampaign] Failed to update checklist status:",
-          checklistError
-        );
-        // Don't fail campaign update if checklist status update fails
-      }
-    }
+		// Update checklist status if metadata was updated
+		if (body.metadata !== undefined) {
+			try {
+				const checklistStatusService = new ChecklistStatusService(
+					c.env.DB,
+					c.env
+				);
+				await checklistStatusService.updateFromMetadata(
+					campaignId,
+					mergedMetadata
+				);
+				console.log(
+					"[handleUpdateCampaign] Updated checklist status from metadata"
+				);
+			} catch (checklistError) {
+				console.error(
+					"[handleUpdateCampaign] Failed to update checklist status:",
+					checklistError
+				);
+				// Don't fail campaign update if checklist status update fails
+			}
+		}
 
-    // Sync updated campaign info
-    try {
-      const syncService = new CampaignContextSyncService(c.env);
+		// Sync updated campaign info
+		try {
+			const syncService = new CampaignContextSyncService(c.env);
 
-      // Update campaign title if changed
-      if (body.name) {
-        await syncService.syncContext(
-          campaignId,
-          `${campaignId}-title`,
-          "campaign_info",
-          "Campaign Title",
-          body.name,
-          { field: "title" }
-        );
-      }
+			// Update campaign title if changed
+			if (body.name) {
+				await syncService.syncContext(
+					campaignId,
+					`${campaignId}-title`,
+					"campaign_info",
+					"Campaign Title",
+					body.name,
+					{ field: "title" }
+				);
+			}
 
-      // Update campaign description if changed
-      if (body.description !== undefined) {
-        await syncService.syncContext(
-          campaignId,
-          `${campaignId}-description`,
-          "campaign_info",
-          "Campaign Description",
-          body.description,
-          { field: "description" }
-        );
-      }
+			// Update campaign description if changed
+			if (body.description !== undefined) {
+				await syncService.syncContext(
+					campaignId,
+					`${campaignId}-description`,
+					"campaign_info",
+					"Campaign Description",
+					body.description,
+					{ field: "description" }
+				);
+			}
 
-      console.log("[handleUpdateCampaign] Synced updated campaign info");
-    } catch (syncError) {
-      console.error(
-        "[handleUpdateCampaign] Failed to sync campaign:",
-        syncError
-      );
-      // Don't fail campaign update if sync fails
-    }
+			console.log("[handleUpdateCampaign] Synced updated campaign info");
+		} catch (syncError) {
+			console.error(
+				"[handleUpdateCampaign] Failed to sync campaign:",
+				syncError
+			);
+			// Don't fail campaign update if sync fails
+		}
 
-    // Fetch the updated campaign
-    const updatedCampaign = await campaignDAO.getCampaignByIdWithMapping(
-      campaignId,
-      userAuth.username
-    );
+		// Fetch the updated campaign
+		const updatedCampaign = await campaignDAO.getCampaignByIdWithMapping(
+			campaignId,
+			userAuth.username
+		);
 
-    const response = buildCampaignUpdateResponse(updatedCampaign);
-    return c.json(response);
-  } catch (error) {
-    console.error("Error updating campaign:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
+		const response = buildCampaignUpdateResponse(updatedCampaign);
+		return c.json(response);
+	} catch (error) {
+		console.error("Error updating campaign:", error);
+		return c.json({ error: "Internal server error" }, 500);
+	}
 }
 
 export async function handleDeleteCampaign(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-    const campaignId = c.req.param("campaignId");
+	try {
+		const userAuth = (c as any).userAuth;
+		const campaignId = c.req.param("campaignId");
 
-    console.log(`[Server] DELETE /campaigns/${campaignId} - starting request`);
-    console.log("[Server] User auth from middleware:", userAuth);
+		console.log(`[Server] DELETE /campaigns/${campaignId} - starting request`);
+		console.log("[Server] User auth from middleware:", userAuth);
 
-    // Only owners can delete campaigns
-    try {
-      await requireCampaignOwner(c, campaignId);
-    } catch (err: unknown) {
-      if (
-        err &&
-        typeof err === "object" &&
-        "name" in err &&
-        err.name === "CampaignAccessDeniedError"
-      ) {
-        return c.json(
-          { error: "Only the campaign owner can delete this campaign" },
-          403
-        );
-      }
-      throw err;
-    }
+		// Only owners can delete campaigns
+		try {
+			await requireCampaignOwner(c, campaignId);
+		} catch (err: unknown) {
+			if (
+				err &&
+				typeof err === "object" &&
+				"name" in err &&
+				err.name === "CampaignAccessDeniedError"
+			) {
+				return c.json(
+					{ error: "Only the campaign owner can delete this campaign" },
+					403
+				);
+			}
+			throw err;
+		}
 
-    const campaign = await getDAOFactory(c.env).campaignDAO.getCampaignById(
-      campaignId
-    );
-    if (!campaign) {
-      return c.json({ error: "Campaign not found" }, 404);
-    }
-    console.log("[Server] Found campaign:", campaign);
+		const campaign = await getDAOFactory(c.env).campaignDAO.getCampaignById(
+			campaignId
+		);
+		if (!campaign) {
+			return c.json({ error: "Campaign not found" }, 404);
+		}
+		console.log("[Server] Found campaign:", campaign);
 
-    // Delete the campaign (DAO handles cascading deletes)
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    await campaignDAO.deleteCampaign(campaignId);
+		// Delete the campaign (DAO handles cascading deletes)
+		const campaignDAO = getDAOFactory(c.env).campaignDAO;
+		await campaignDAO.deleteCampaign(campaignId);
 
-    console.log(`[Server] Deleted campaign ${campaignId}`);
+		console.log(`[Server] Deleted campaign ${campaignId}`);
 
-    const response = buildCampaignDeletionResponse(campaign!);
-    return c.json(response);
-  } catch (error) {
-    console.error("Error deleting campaign:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
+		const response = buildCampaignDeletionResponse(campaign!);
+		return c.json(response);
+	} catch (error) {
+		console.error("Error deleting campaign:", error);
+		return c.json({ error: "Internal server error" }, 500);
+	}
 }
 
 // Delete all campaigns for user
 export async function handleDeleteAllCampaigns(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
+	try {
+		const userAuth = (c as any).userAuth;
 
-    console.log("[Server] DELETE /campaigns - starting request");
-    console.log("[Server] User auth from middleware:", userAuth);
+		console.log("[Server] DELETE /campaigns - starting request");
+		console.log("[Server] User auth from middleware:", userAuth);
 
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
+		const campaignDAO = getDAOFactory(c.env).campaignDAO;
 
-    // Delete all campaigns for the user
-    const deletedCampaigns = await campaignDAO.deleteAllCampaignsForUser(
-      userAuth.username
-    );
+		// Delete all campaigns for the user
+		const deletedCampaigns = await campaignDAO.deleteAllCampaignsForUser(
+			userAuth.username
+		);
 
-    console.log(
-      `[Server] Found ${deletedCampaigns.length} campaigns to delete`
-    );
+		console.log(
+			`[Server] Found ${deletedCampaigns.length} campaigns to delete`
+		);
 
-    const response = buildBulkDeletionResponse(deletedCampaigns);
-    return c.json(response);
-  } catch (error) {
-    console.error("Error deleting all campaigns:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
+		const response = buildBulkDeletionResponse(deletedCampaigns);
+		return c.json(response);
+	} catch (error) {
+		console.error("Error deleting all campaigns:", error);
+		return c.json({ error: "Internal server error" }, 500);
+	}
 }
 
 // Add resource to campaign
 export async function handleAddResourceToCampaign(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-    const campaignId = c.req.param("campaignId");
-    const { type, id, name } = await c.req.json();
+	try {
+		const userAuth = (c as any).userAuth;
+		const campaignId = c.req.param("campaignId");
+		const { type, id, name } = await c.req.json();
 
-    console.log(
-      `[Server] POST /campaigns/${campaignId}/resource - starting request`
-    );
-    console.log("[Server] User auth from middleware:", userAuth);
-    console.log("[Server] Request body:", { type, id, name });
+		console.log(
+			`[Server] POST /campaigns/${campaignId}/resource - starting request`
+		);
+		console.log("[Server] User auth from middleware:", userAuth);
+		console.log("[Server] Request body:", { type, id, name });
 
-    if (!type || !id) {
-      return c.json({ error: "Resource type and id are required" }, 400);
-    }
+		if (!type || !id) {
+			return c.json({ error: "Resource type and id are required" }, 400);
+		}
 
-    // 1) Require edit permission (owner, editor_gm). Editor players must use propose instead.
-    try {
-      await requireCanEdit(c, campaignId);
-    } catch (err: unknown) {
-      if (
-        err &&
-        typeof err === "object" &&
-        "name" in err &&
-        err.name === "CampaignAccessDeniedError"
-      ) {
-        const role = await getCampaignRole(c, campaignId, userAuth.username);
-        if (role === CAMPAIGN_ROLES.EDITOR_PLAYER) {
-          return c.json(
-            {
-              error:
-                "Editor players cannot add resources directly. Use proposeResourceToCampaign to propose a document for GM approval.",
-              useProposeInstead: true,
-            },
-            403
-          );
-        }
-        return c.json(
-          {
-            error:
-              "You do not have permission to add resources to this campaign",
-          },
-          403
-        );
-      }
-      throw err;
-    }
+		// 1) Require edit permission (owner, editor_gm). Editor players must use propose instead.
+		try {
+			await requireCanEdit(c, campaignId);
+		} catch (err: unknown) {
+			if (
+				err &&
+				typeof err === "object" &&
+				"name" in err &&
+				err.name === "CampaignAccessDeniedError"
+			) {
+				const role = await getCampaignRole(c, campaignId, userAuth.username);
+				if (role === CAMPAIGN_ROLES.EDITOR_PLAYER) {
+					return c.json(
+						{
+							error:
+								"Editor players cannot add resources directly. Use proposeResourceToCampaign to propose a document for GM approval.",
+							useProposeInstead: true,
+						},
+						403
+					);
+				}
+				return c.json(
+					{
+						error:
+							"You do not have permission to add resources to this campaign",
+					},
+					403
+				);
+			}
+			throw err;
+		}
 
-    const campaign = await getDAOFactory(c.env).campaignDAO.getCampaignById(
-      campaignId
-    );
-    if (!campaign) {
-      return c.json({ error: "Campaign not found" }, 404);
-    }
-    console.log("[Server] Found campaign:", campaign);
+		const campaign = await getDAOFactory(c.env).campaignDAO.getCampaignById(
+			campaignId
+		);
+		if (!campaign) {
+			return c.json({ error: "Campaign not found" }, 404);
+		}
+		console.log("[Server] Found campaign:", campaign);
 
-    // 2) Check for existing resource (idempotency)
-    const { exists, resource: existingResource } = await checkResourceExists(
-      campaignId,
-      id,
-      c.env
-    );
-    if (exists) {
-      console.log(
-        `[Server] Resource ${id} already exists in campaign ${campaignId}`
-      );
-      return c.json(
-        {
-          resource: existingResource,
-          message: "Resource already exists in this campaign",
-        },
-        200
-      );
-    }
+		// 2) Check for existing resource (idempotency)
+		const { exists, resource: existingResource } = await checkResourceExists(
+			campaignId,
+			id,
+			c.env
+		);
+		if (exists) {
+			console.log(
+				`[Server] Resource ${id} already exists in campaign ${campaignId}`
+			);
+			return c.json(
+				{
+					resource: existingResource,
+					message: "Resource already exists in this campaign",
+				},
+				200
+			);
+		}
 
-    // 3) Check if file is indexed before adding to campaign
-    const fileDAO = getDAOFactory(c.env).fileDAO;
-    const fileRecord = await fileDAO.getFileForRag(id, userAuth.username);
+		// 3) Check if file is indexed before adding to campaign
+		const fileDAO = getDAOFactory(c.env).fileDAO;
+		const fileRecord = await fileDAO.getFileForRag(id, userAuth.username);
 
-    if (!fileRecord) {
-      console.warn(
-        `[Server] File ${id} not found in file library for user ${userAuth.username}`
-      );
-      return c.json(
-        { error: "File not found in library. Please upload the file first." },
-        404
-      );
-    }
+		if (!fileRecord) {
+			console.warn(
+				`[Server] File ${id} not found in file library for user ${userAuth.username}`
+			);
+			return c.json(
+				{ error: "File not found in library. Please upload the file first." },
+				404
+			);
+		}
 
-    // Check if file is fully indexed (status should be 'completed')
-    if (fileRecord.status !== FileDAO.STATUS.COMPLETED) {
-      console.error(
-        `[Server] ERROR: File ${id} is not yet indexed but UI allowed addition. Current status: ${fileRecord.status}. This indicates a UI state sync issue.`
-      );
+		// Check if file is fully indexed (status should be 'completed')
+		if (fileRecord.status !== FileDAO.STATUS.COMPLETED) {
+			console.error(
+				`[Server] ERROR: File ${id} is not yet indexed but UI allowed addition. Current status: ${fileRecord.status}. This indicates a UI state sync issue.`
+			);
 
-      // Automatically trigger re-indexing to resolve the issue
-      console.log(
-        `[Server] Auto-triggering re-index for file ${id} to resolve state mismatch`
-      );
+			// Automatically trigger re-indexing to resolve the issue
+			console.log(
+				`[Server] Auto-triggering re-index for file ${id} to resolve state mismatch`
+			);
 
-      try {
-        const jwt = extractJwtFromContext(c);
+			try {
+				const jwt = extractJwtFromContext(c);
 
-        await SyncQueueService.processFileUpload(
-          c.env,
-          userAuth.username,
-          id,
-          fileRecord.file_name,
-          jwt
-        );
+				await SyncQueueService.processFileUpload(
+					c.env,
+					userAuth.username,
+					id,
+					fileRecord.file_name,
+					jwt
+				);
 
-        console.log(
-          `[Server] Re-index triggered for ${id}. User should try adding to campaign again once indexing completes.`
-        );
-      } catch (reindexError) {
-        console.error(
-          `[Server] Failed to trigger re-index for ${id}:`,
-          reindexError
-        );
-      }
+				console.log(
+					`[Server] Re-index triggered for ${id}. User should try adding to campaign again once indexing completes.`
+				);
+			} catch (reindexError) {
+				console.error(
+					`[Server] Failed to trigger re-index for ${id}:`,
+					reindexError
+				);
+			}
 
-      return c.json(
-        {
-          error: "File is not yet indexed",
-          status: fileRecord.status,
-          message: `File status is '${fileRecord.status}'. Re-indexing has been triggered automatically. Please wait a moment and try again.`,
-          reindexTriggered: true,
-        },
-        400
-      );
-    }
+			return c.json(
+				{
+					error: "File is not yet indexed",
+					status: fileRecord.status,
+					message: `File status is '${fileRecord.status}'. Re-indexing has been triggered automatically. Please wait a moment and try again.`,
+					reindexTriggered: true,
+				},
+				400
+			);
+		}
 
-    console.log(
-      `[Server] File ${id} is indexed and ready. Status: ${fileRecord.status}`
-    );
+		console.log(
+			`[Server] File ${id} is indexed and ready. Status: ${fileRecord.status}`
+		);
 
-    // 3b) Validate file type (allowlist + magic-byte check)
-    const fileName = name || fileRecord.file_name || id;
-    if (!isFileAllowedForProposal(fileName)) {
-      return c.json(
-        {
-          error: `This file type is not allowed. Allowed formats: ${getBlockedExtensionsDescription()}`,
-        },
-        400
-      );
-    }
-    try {
-      const r2Object = await c.env.R2.get(id);
-      if (r2Object) {
-        const ext = getExtension(fileName);
-        const validation = await validateR2ObjectAndGetStream(r2Object, ext);
-        if (!validation.valid) {
-          return c.json({ error: validation.error }, 400);
-        }
-      }
-    } catch (validateErr) {
-      console.warn(
-        "[handleAddResourceToCampaign] Content validation failed:",
-        validateErr
-      );
-      return c.json(
-        {
-          error:
-            "File validation failed. The file may be corrupted or mislabeled.",
-        },
-        400
-      );
-    }
+		// 3b) Validate file type (allowlist + magic-byte check)
+		const fileName = name || fileRecord.file_name || id;
+		if (!isFileAllowedForProposal(fileName)) {
+			return c.json(
+				{
+					error: `This file type is not allowed. Allowed formats: ${getBlockedExtensionsDescription()}`,
+				},
+				400
+			);
+		}
+		try {
+			const r2Object = await c.env.R2.get(id);
+			if (r2Object) {
+				const ext = getExtension(fileName);
+				const validation = await validateR2ObjectAndGetStream(r2Object, ext);
+				if (!validation.valid) {
+					return c.json({ error: validation.error }, 400);
+				}
+			}
+		} catch (validateErr) {
+			console.warn(
+				"[handleAddResourceToCampaign] Content validation failed:",
+				validateErr
+			);
+			return c.json(
+				{
+					error:
+						"File validation failed. The file may be corrupted or mislabeled.",
+				},
+				400
+			);
+		}
 
-    // 4) Add resource to campaign
-    const resourceId = crypto.randomUUID();
-    await addResourceToCampaign({
-      env: c.env,
-      username: userAuth.username,
-      campaignId,
-      resourceId,
-      fileKey: id,
-      fileName: name || id,
-    });
+		// 4) Add resource to campaign
+		const resourceId = crypto.randomUUID();
+		await addResourceToCampaign({
+			env: c.env,
+			username: userAuth.username,
+			campaignId,
+			resourceId,
+			fileKey: id,
+			fileName: name || id,
+		});
 
-    // 5) Queue entity extraction for the newly added resource (asynchronous)
-    try {
-      console.log(
-        `[Server] Queueing entity extraction for campaign: ${campaignId}`
-      );
+		// 5) Queue entity extraction for the newly added resource (asynchronous)
+		try {
+			console.log(
+				`[Server] Queueing entity extraction for campaign: ${campaignId}`
+			);
 
-      const campaignRagBasePath = await getCampaignRagBasePath(
-        userAuth.username,
-        campaignId,
-        c.env
-      );
-      if (!campaignRagBasePath) {
-        console.warn(
-          `[Server] Campaign RAG not initialized for campaign: ${campaignId}`
-        );
-        // Continue without entity extraction
-      } else {
-        // Queue entity extraction asynchronously
-        // This allows multiple files to be added in quick succession without overloading the backend
-        await EntityExtractionQueueService.queueEntityExtraction({
-          env: c.env,
-          username: userAuth.username,
-          campaignId,
-          resourceId,
-          resourceName: name || id,
-          fileKey: id,
-        });
+			const campaignRagBasePath = await getCampaignRagBasePath(
+				userAuth.username,
+				campaignId,
+				c.env
+			);
+			if (!campaignRagBasePath) {
+				console.warn(
+					`[Server] Campaign RAG not initialized for campaign: ${campaignId}`
+				);
+				// Continue without entity extraction
+			} else {
+				// Queue entity extraction asynchronously
+				// This allows multiple files to be added in quick succession without overloading the backend
+				await EntityExtractionQueueService.queueEntityExtraction({
+					env: c.env,
+					username: userAuth.username,
+					campaignId,
+					resourceId,
+					resourceName: name || id,
+					fileKey: id,
+				});
 
-        console.log(
-          `[Server] Entity extraction queued for resource ${resourceId} in campaign ${campaignId}`
-        );
-      }
-    } catch (queueError) {
-      console.error(
-        `[Server] Error queueing entity extraction for resource ${resourceId}:`,
-        queueError
-      );
-      // Don't fail the request - resource was added successfully, extraction can be retried
-    }
+				console.log(
+					`[Server] Entity extraction queued for resource ${resourceId} in campaign ${campaignId}`
+				);
+			}
+		} catch (queueError) {
+			console.error(
+				`[Server] Error queueing entity extraction for resource ${resourceId}:`,
+				queueError
+			);
+			// Don't fail the request - resource was added successfully, extraction can be retried
+		}
 
-    // Return success response immediately (entity extraction happens in background)
-    const response = buildResourceAdditionResponse(
-      { id: resourceId, file_name: name || id },
-      "Resource added to campaign. Entity extraction is processing in the background. You'll receive a notification when it's complete."
-    );
-    return c.json(response);
-  } catch (error) {
-    console.error("Error adding resource to campaign:", error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
+		// Return success response immediately (entity extraction happens in background)
+		const response = buildResourceAdditionResponse(
+			{ id: resourceId, file_name: name || id },
+			"Resource added to campaign. Entity extraction is processing in the background. You'll receive a notification when it's complete."
+		);
+		return c.json(response);
+	} catch (error) {
+		console.error("Error adding resource to campaign:", error);
+		const errorMessage = error instanceof Error ? error.message : String(error);
 
-    // Check if it's a memory limit error
-    if (
-      errorMessage.includes("memory limit") ||
-      errorMessage.includes("exceeded") ||
-      errorMessage.includes("Worker exceeded")
-    ) {
-      return c.json(
-        {
-          error: "File too large",
-          message:
-            "This file exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later.",
-        },
-        413
-      );
-    }
+		// Check if it's a memory limit error
+		if (
+			errorMessage.includes("memory limit") ||
+			errorMessage.includes("exceeded") ||
+			errorMessage.includes("Worker exceeded")
+		) {
+			return c.json(
+				{
+					error: "File too large",
+					message:
+						"This file exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later.",
+				},
+				413
+			);
+		}
 
-    // Return a user-friendly error message
-    const truncatedMessage =
-      errorMessage.length > 200
-        ? `${errorMessage.substring(0, 200)}...`
-        : errorMessage;
-    return c.json(
-      {
-        error: "Failed to add file to campaign",
-        message: truncatedMessage,
-      },
-      500
-    );
-  }
+		// Return a user-friendly error message
+		const truncatedMessage =
+			errorMessage.length > 200
+				? `${errorMessage.substring(0, 200)}...`
+				: errorMessage;
+		return c.json(
+			{
+				error: "Failed to add file to campaign",
+				message: truncatedMessage,
+			},
+			500
+		);
+	}
 }
 
 // Retry entity extraction for a resource
 export async function handleRetryEntityExtraction(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-    const campaignId = c.req.param("campaignId");
-    const resourceId = c.req.param("resourceId");
+	try {
+		const userAuth = (c as any).userAuth;
+		const campaignId = c.req.param("campaignId");
+		const resourceId = c.req.param("resourceId");
 
-    console.log(
-      `[Server] POST /campaigns/${campaignId}/resource/${resourceId}/retry-entity-extraction - starting request`
-    );
+		console.log(
+			`[Server] POST /campaigns/${campaignId}/resource/${resourceId}/retry-entity-extraction - starting request`
+		);
 
-    if (!userAuth) {
-      return c.json({ error: "Authentication required" }, 401);
-    }
+		if (!userAuth) {
+			return c.json({ error: "Authentication required" }, 401);
+		}
 
-    // Validate campaign ownership
-    const { valid } = await validateCampaignOwnership(
-      campaignId,
-      userAuth.username,
-      c.env
-    );
-    if (!valid) {
-      console.log(
-        `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
-      );
-      return c.json({ error: "Campaign not found" }, 404);
-    }
+		// Validate campaign ownership
+		const { valid } = await validateCampaignOwnership(
+			campaignId,
+			userAuth.username,
+			c.env
+		);
+		if (!valid) {
+			console.log(
+				`[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
+			);
+			return c.json({ error: "Campaign not found" }, 404);
+		}
 
-    // Check if the resource exists in this campaign
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    const resource = await campaignDAO.getCampaignResourceById(
-      resourceId,
-      campaignId
-    );
+		// Check if the resource exists in this campaign
+		const campaignDAO = getDAOFactory(c.env).campaignDAO;
+		const resource = await campaignDAO.getCampaignResourceById(
+			resourceId,
+			campaignId
+		);
 
-    if (!resource) {
-      console.log(
-        `[Server] Resource ${resourceId} not found in campaign ${campaignId}`
-      );
-      return c.json({ error: "Resource not found in this campaign" }, 404);
-    }
+		if (!resource) {
+			console.log(
+				`[Server] Resource ${resourceId} not found in campaign ${campaignId}`
+			);
+			return c.json({ error: "Resource not found in this campaign" }, 404);
+		}
 
-    console.log("[Server] Found resource for retry:", resource);
+		console.log("[Server] Found resource for retry:", resource);
 
-    // Queue entity extraction retry (asynchronous)
-    try {
-      await EntityExtractionQueueService.queueEntityExtraction({
-        env: c.env,
-        username: userAuth.username,
-        campaignId,
-        resourceId,
-        resourceName: resource.file_name || resource.id,
-        fileKey: resource.file_key || undefined,
-      });
+		// Queue entity extraction retry (asynchronous)
+		try {
+			await EntityExtractionQueueService.queueEntityExtraction({
+				env: c.env,
+				username: userAuth.username,
+				campaignId,
+				resourceId,
+				resourceName: resource.file_name || resource.id,
+				fileKey: resource.file_key || undefined,
+			});
 
-      console.log(
-        `[Server] Entity extraction retry queued for resource ${resourceId} in campaign ${campaignId}`
-      );
+			console.log(
+				`[Server] Entity extraction retry queued for resource ${resourceId} in campaign ${campaignId}`
+			);
 
-      return c.json({
-        success: true,
-        message:
-          "Entity extraction has been queued. You'll receive a notification when it's complete.",
-      });
-    } catch (error) {
-      console.error(
-        `[Server] Error during entity extraction retry for resource ${resourceId}:`,
-        error
-      );
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+			return c.json({
+				success: true,
+				message:
+					"Entity extraction has been queued. You'll receive a notification when it's complete.",
+			});
+		} catch (error) {
+			console.error(
+				`[Server] Error during entity extraction retry for resource ${resourceId}:`,
+				error
+			);
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
 
-      // Check if it's a memory limit error
-      if (
-        errorMessage.includes("memory limit") ||
-        errorMessage.includes("exceeded") ||
-        errorMessage.includes("Worker exceeded")
-      ) {
-        return c.json(
-          {
-            success: false,
-            message: `The file "${resource.file_name}" exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later.`,
-            error: "MEMORY_LIMIT_EXCEEDED",
-          },
-          413
-        );
-      }
+			// Check if it's a memory limit error
+			if (
+				errorMessage.includes("memory limit") ||
+				errorMessage.includes("exceeded") ||
+				errorMessage.includes("Worker exceeded")
+			) {
+				return c.json(
+					{
+						success: false,
+						message: `The file "${resource.file_name}" exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later.`,
+						error: "MEMORY_LIMIT_EXCEEDED",
+					},
+					413
+				);
+			}
 
-      // For rate limit errors, provide actionable message
-      if (
-        errorMessage.includes("rate limit") ||
-        errorMessage.includes("429") ||
-        errorMessage.includes("Too Many Requests")
-      ) {
-        return c.json(
-          {
-            success: false,
-            message: `Entity extraction is being rate-limited. Please wait a few moments and try again. The file is being processed in chunks, which may take longer for large files.`,
-            error: "RATE_LIMIT_EXCEEDED",
-          },
-          429
-        );
-      }
+			// For rate limit errors, provide actionable message
+			if (
+				errorMessage.includes("rate limit") ||
+				errorMessage.includes("429") ||
+				errorMessage.includes("Too Many Requests")
+			) {
+				return c.json(
+					{
+						success: false,
+						message: `Entity extraction is being rate-limited. Please wait a few moments and try again. The file is being processed in chunks, which may take longer for large files.`,
+						error: "RATE_LIMIT_EXCEEDED",
+					},
+					429
+				);
+			}
 
-      // Generic error
-      return c.json(
-        {
-          success: false,
-          message: `Failed to queue entity extraction retry: ${errorMessage}`,
-          error: errorMessage,
-        },
-        500
-      );
-    }
-  } catch (error) {
-    console.error("Error retrying entity extraction:", error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
+			// Generic error
+			return c.json(
+				{
+					success: false,
+					message: `Failed to queue entity extraction retry: ${errorMessage}`,
+					error: errorMessage,
+				},
+				500
+			);
+		}
+	} catch (error) {
+		console.error("Error retrying entity extraction:", error);
+		const errorMessage = error instanceof Error ? error.message : String(error);
 
-    // Check if it's a memory limit error
-    if (
-      errorMessage.includes("memory limit") ||
-      errorMessage.includes("exceeded") ||
-      errorMessage.includes("Worker exceeded")
-    ) {
-      return c.json(
-        {
-          error: "File too large",
-          message:
-            "This file exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later.",
-        },
-        413
-      );
-    }
+		// Check if it's a memory limit error
+		if (
+			errorMessage.includes("memory limit") ||
+			errorMessage.includes("exceeded") ||
+			errorMessage.includes("Worker exceeded")
+		) {
+			return c.json(
+				{
+					error: "File too large",
+					message:
+						"This file exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later.",
+				},
+				413
+			);
+		}
 
-    // Return a user-friendly error message
-    const truncatedMessage =
-      errorMessage.length > 200
-        ? `${errorMessage.substring(0, 200)}...`
-        : errorMessage;
-    return c.json(
-      {
-        error: "Failed to retry entity extraction",
-        message: `An error occurred: ${truncatedMessage}. Please try again later.`,
-      },
-      500
-    );
-  }
+		// Return a user-friendly error message
+		const truncatedMessage =
+			errorMessage.length > 200
+				? `${errorMessage.substring(0, 200)}...`
+				: errorMessage;
+		return c.json(
+			{
+				error: "Failed to retry entity extraction",
+				message: `An error occurred: ${truncatedMessage}. Please try again later.`,
+			},
+			500
+		);
+	}
 }
 
 // Remove resource from campaign
 export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-    const campaignId = c.req.param("campaignId");
-    const resourceId = c.req.param("resourceId");
+	try {
+		const userAuth = (c as any).userAuth;
+		const campaignId = c.req.param("campaignId");
+		const resourceId = c.req.param("resourceId");
 
-    console.log(
-      `[Server] DELETE /campaigns/${campaignId}/resource/${resourceId} - starting request`
-    );
-    console.log("[Server] User auth from middleware:", userAuth);
+		console.log(
+			`[Server] DELETE /campaigns/${campaignId}/resource/${resourceId} - starting request`
+		);
+		console.log("[Server] User auth from middleware:", userAuth);
 
-    // Validate campaign ownership
-    const { valid, campaign } = await validateCampaignOwnership(
-      campaignId,
-      userAuth.username,
-      c.env
-    );
-    if (!valid) {
-      console.log(
-        `[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
-      );
-      return c.json({ error: "Campaign not found" }, 404);
-    }
+		// Validate campaign ownership
+		const { valid, campaign } = await validateCampaignOwnership(
+			campaignId,
+			userAuth.username,
+			c.env
+		);
+		if (!valid) {
+			console.log(
+				`[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
+			);
+			return c.json({ error: "Campaign not found" }, 404);
+		}
 
-    console.log("[Server] Found campaign:", campaign);
+		console.log("[Server] Found campaign:", campaign);
 
-    // Check if the resource exists in this campaign
-    const campaignDAO = getDAOFactory(c.env).campaignDAO;
-    const resource = await campaignDAO.getCampaignResourceById(
-      resourceId,
-      campaignId
-    );
+		// Check if the resource exists in this campaign
+		const campaignDAO = getDAOFactory(c.env).campaignDAO;
+		const resource = await campaignDAO.getCampaignResourceById(
+			resourceId,
+			campaignId
+		);
 
-    if (!resource) {
-      console.log(
-        `[Server] Resource ${resourceId} not found in campaign ${campaignId}`
-      );
-      return c.json({ error: "Resource not found in this campaign" }, 404);
-    }
+		if (!resource) {
+			console.log(
+				`[Server] Resource ${resourceId} not found in campaign ${campaignId}`
+			);
+			return c.json({ error: "Resource not found in this campaign" }, 404);
+		}
 
-    console.log("[Server] Found resource:", resource);
+		console.log("[Server] Found resource:", resource);
 
-    // Remove the resource from the campaign
-    await campaignDAO.removeCampaignResource(campaignId, resourceId);
+		// Remove the resource from the campaign
+		await campaignDAO.removeCampaignResource(campaignId, resourceId);
 
-    console.log(
-      `[Server] Removed resource ${resourceId} from campaign ${campaignId}`
-    );
+		console.log(
+			`[Server] Removed resource ${resourceId} from campaign ${campaignId}`
+		);
 
-    const response = buildResourceRemovalResponse(resource);
-    return c.json(response);
-  } catch (error) {
-    console.error("Error removing resource from campaign:", error);
-    return c.json({ error: "Internal server error" }, 500);
-  }
+		const response = buildResourceRemovalResponse(resource);
+		return c.json(response);
+	} catch (error) {
+		console.error("Error removing resource from campaign:", error);
+		return c.json({ error: "Internal server error" }, 500);
+	}
 }
 
 // Get entity extraction queue status for a resource
 export async function handleGetEntityExtractionStatus(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-    const campaignId = c.req.param("campaignId");
-    const resourceId = c.req.param("resourceId");
+	try {
+		const userAuth = (c as any).userAuth;
+		const campaignId = c.req.param("campaignId");
+		const resourceId = c.req.param("resourceId");
 
-    if (!userAuth) {
-      return c.json({ error: "Authentication required" }, 401);
-    }
+		if (!userAuth) {
+			return c.json({ error: "Authentication required" }, 401);
+		}
 
-    // Validate campaign ownership
-    const { valid } = await validateCampaignOwnership(
-      campaignId,
-      userAuth.username,
-      c.env
-    );
-    if (!valid) {
-      return c.json({ error: "Campaign not found" }, 404);
-    }
+		// Validate campaign ownership
+		const { valid } = await validateCampaignOwnership(
+			campaignId,
+			userAuth.username,
+			c.env
+		);
+		if (!valid) {
+			return c.json({ error: "Campaign not found" }, 404);
+		}
 
-    // Check queue status
-    const queueDAO = new EntityExtractionQueueDAO(c.env.DB);
-    const queueItem = await queueDAO.getQueueItemByResource(
-      campaignId,
-      resourceId
-    );
+		// Check queue status
+		const queueDAO = new EntityExtractionQueueDAO(c.env.DB);
+		const queueItem = await queueDAO.getQueueItemByResource(
+			campaignId,
+			resourceId
+		);
 
-    if (!queueItem) {
-      // Not in queue - extraction is either completed or never started
-      console.log(
-        `[Server] Entity extraction status for resource ${resourceId}: not in queue (completed or never started)`
-      );
-      return c.json({
-        inQueue: false,
-        status: null,
-      });
-    }
+		if (!queueItem) {
+			// Not in queue - extraction is either completed or never started
+			console.log(
+				`[Server] Entity extraction status for resource ${resourceId}: not in queue (completed or never started)`
+			);
+			return c.json({
+				inQueue: false,
+				status: null,
+			});
+		}
 
-    console.log(
-      `[Server] Entity extraction status for resource ${resourceId}: inQueue=true, status=${queueItem.status}, retryCount=${queueItem.retry_count}`
-    );
-    return c.json({
-      inQueue: true,
-      status: queueItem.status,
-      retryCount: queueItem.retry_count,
-      lastError: queueItem.last_error,
-      errorCode: queueItem.error_code,
-      nextRetryAt: queueItem.next_retry_at,
-      createdAt: queueItem.created_at,
-      processedAt: queueItem.processed_at,
-    });
-  } catch (error) {
-    console.error("Error getting entity extraction status:", error);
-    return c.json(
-      {
-        error: "Failed to get extraction status",
-        message:
-          error instanceof Error ? error.message : "Unknown error occurred",
-      },
-      500
-    );
-  }
+		console.log(
+			`[Server] Entity extraction status for resource ${resourceId}: inQueue=true, status=${queueItem.status}, retryCount=${queueItem.retry_count}`
+		);
+		return c.json({
+			inQueue: true,
+			status: queueItem.status,
+			retryCount: queueItem.retry_count,
+			lastError: queueItem.last_error,
+			errorCode: queueItem.error_code,
+			nextRetryAt: queueItem.next_retry_at,
+			createdAt: queueItem.created_at,
+			processedAt: queueItem.processed_at,
+		});
+	} catch (error) {
+		console.error("Error getting entity extraction status:", error);
+		return c.json(
+			{
+				error: "Failed to get extraction status",
+				message:
+					error instanceof Error ? error.message : "Unknown error occurred",
+			},
+			500
+		);
+	}
 }
 
 // Clean up stuck entity extraction queue items
 export async function handleCleanupStuckEntityExtraction(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
-    const timeoutMinutes = parseInt(c.req.query("timeoutMinutes") || "10", 10);
+	try {
+		const userAuth = (c as any).userAuth;
+		const timeoutMinutes = parseInt(c.req.query("timeoutMinutes") || "10", 10);
 
-    if (!userAuth) {
-      return c.json({ error: "Authentication required" }, 401);
-    }
+		if (!userAuth) {
+			return c.json({ error: "Authentication required" }, 401);
+		}
 
-    console.log(
-      `[Server] POST /campaigns/cleanup-stuck-entity-extraction - timeoutMinutes: ${timeoutMinutes}`
-    );
+		console.log(
+			`[Server] POST /campaigns/cleanup-stuck-entity-extraction - timeoutMinutes: ${timeoutMinutes}`
+		);
 
-    const result =
-      await EntityExtractionQueueService.cleanupStuckProcessingItems(
-        c.env,
-        timeoutMinutes
-      );
+		const result =
+			await EntityExtractionQueueService.cleanupStuckProcessingItems(
+				c.env,
+				timeoutMinutes
+			);
 
-    return c.json({
-      success: true,
-      reset: result.reset,
-      items: result.items.map((item) => ({
-        id: item.id,
-        resourceId: item.resource_id,
-        resourceName: item.resource_name,
-        campaignId: item.campaign_id,
-        status: item.status,
-        updatedAt: item.updated_at,
-      })),
-      message: `Reset ${result.reset} stuck processing item(s) back to pending`,
-    });
-  } catch (error) {
-    console.error("Error cleaning up stuck entity extraction items:", error);
-    return c.json(
-      {
-        error: "Failed to clean up stuck items",
-        message:
-          error instanceof Error ? error.message : "Unknown error occurred",
-      },
-      500
-    );
-  }
+		return c.json({
+			success: true,
+			reset: result.reset,
+			items: result.items.map((item) => ({
+				id: item.id,
+				resourceId: item.resource_id,
+				resourceName: item.resource_name,
+				campaignId: item.campaign_id,
+				status: item.status,
+				updatedAt: item.updated_at,
+			})),
+			message: `Reset ${result.reset} stuck processing item(s) back to pending`,
+		});
+	} catch (error) {
+		console.error("Error cleaning up stuck entity extraction items:", error);
+		return c.json(
+			{
+				error: "Failed to clean up stuck items",
+				message:
+					error instanceof Error ? error.message : "Unknown error occurred",
+			},
+			500
+		);
+	}
 }
 
 // Manually trigger entity extraction queue processing
 export async function handleProcessEntityExtractionQueue(c: ContextWithAuth) {
-  try {
-    const userAuth = (c as any).userAuth;
+	try {
+		const userAuth = (c as any).userAuth;
 
-    if (!userAuth) {
-      return c.json({ error: "Authentication required" }, 401);
-    }
+		if (!userAuth) {
+			return c.json({ error: "Authentication required" }, 401);
+		}
 
-    console.log(
-      `[Server] POST /campaigns/process-entity-extraction-queue - manually triggering queue processing for user ${userAuth.username}`
-    );
+		console.log(
+			`[Server] POST /campaigns/process-entity-extraction-queue - manually triggering queue processing for user ${userAuth.username}`
+		);
 
-    // Process queue for the current user
-    const result = await EntityExtractionQueueService.processQueue(
-      c.env,
-      userAuth.username
-    );
+		// Process queue for the current user
+		const result = await EntityExtractionQueueService.processQueue(
+			c.env,
+			userAuth.username
+		);
 
-    return c.json({
-      success: true,
-      processed: result.processed,
-      failed: result.failed,
-      message: `Processed ${result.processed} item(s), ${result.failed} failed`,
-    });
-  } catch (error) {
-    console.error("Error processing entity extraction queue:", error);
-    return c.json(
-      {
-        error: "Failed to process queue",
-        message:
-          error instanceof Error ? error.message : "Unknown error occurred",
-      },
-      500
-    );
-  }
+		return c.json({
+			success: true,
+			processed: result.processed,
+			failed: result.failed,
+			message: `Processed ${result.processed} item(s), ${result.failed} failed`,
+		});
+	} catch (error) {
+		console.error("Error processing entity extraction queue:", error);
+		return c.json(
+			{
+				error: "Failed to process queue",
+				message:
+					error instanceof Error ? error.message : "Unknown error occurred",
+			},
+			500
+		);
+	}
 }

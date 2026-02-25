@@ -5,11 +5,11 @@
  */
 
 function isNonEmpty(value: unknown): boolean {
-  if (value == null) return false;
-  if (typeof value === "string") return value.trim().length > 0;
-  if (Array.isArray(value)) return value.length > 0;
-  if (typeof value === "object") return Object.keys(value).length > 0;
-  return true;
+	if (value == null) return false;
+	if (typeof value === "string") return value.trim().length > 0;
+	if (Array.isArray(value)) return value.length > 0;
+	if (typeof value === "object") return Object.keys(value).length > 0;
+	return true;
 }
 
 /**
@@ -19,69 +19,69 @@ function isNonEmpty(value: unknown): boolean {
  * - Arrays: replace if incoming is non-empty, else keep existing.
  */
 export function mergeEntityContent(
-  existing: unknown,
-  incoming: unknown
+	existing: unknown,
+	incoming: unknown
 ): unknown {
-  if (existing == null && incoming == null) return undefined;
-  if (incoming == null) return existing;
-  if (existing == null) return incoming;
+	if (existing == null && incoming == null) return undefined;
+	if (incoming == null) return existing;
+	if (existing == null) return incoming;
 
-  if (Array.isArray(incoming)) {
-    return isNonEmpty(incoming) ? incoming : existing;
-  }
-  if (
-    Array.isArray(existing) &&
-    typeof incoming === "object" &&
-    incoming !== null &&
-    !Array.isArray(incoming)
-  ) {
-    return incoming;
-  }
+	if (Array.isArray(incoming)) {
+		return isNonEmpty(incoming) ? incoming : existing;
+	}
+	if (
+		Array.isArray(existing) &&
+		typeof incoming === "object" &&
+		incoming !== null &&
+		!Array.isArray(incoming)
+	) {
+		return incoming;
+	}
 
-  if (
-    typeof existing === "object" &&
-    existing !== null &&
-    !Array.isArray(existing) &&
-    typeof incoming === "object" &&
-    incoming !== null &&
-    !Array.isArray(incoming)
-  ) {
-    const result: Record<string, unknown> = {
-      ...(existing as Record<string, unknown>),
-    };
-    const inc = incoming as Record<string, unknown>;
-    for (const key of Object.keys(inc)) {
-      const incVal = inc[key];
-      const existingVal = result[key];
-      if (isNonEmpty(incVal)) {
-        if (
-          typeof incVal === "object" &&
-          incVal !== null &&
-          !Array.isArray(incVal) &&
-          typeof existingVal === "object" &&
-          existingVal !== null &&
-          !Array.isArray(existingVal)
-        ) {
-          result[key] = mergeEntityContent(existingVal, incVal);
-        } else {
-          result[key] = incVal;
-        }
-      } else if (existingVal !== undefined) {
-        result[key] = existingVal;
-      }
-    }
-    return result;
-  }
+	if (
+		typeof existing === "object" &&
+		existing !== null &&
+		!Array.isArray(existing) &&
+		typeof incoming === "object" &&
+		incoming !== null &&
+		!Array.isArray(incoming)
+	) {
+		const result: Record<string, unknown> = {
+			...(existing as Record<string, unknown>),
+		};
+		const inc = incoming as Record<string, unknown>;
+		for (const key of Object.keys(inc)) {
+			const incVal = inc[key];
+			const existingVal = result[key];
+			if (isNonEmpty(incVal)) {
+				if (
+					typeof incVal === "object" &&
+					incVal !== null &&
+					!Array.isArray(incVal) &&
+					typeof existingVal === "object" &&
+					existingVal !== null &&
+					!Array.isArray(existingVal)
+				) {
+					result[key] = mergeEntityContent(existingVal, incVal);
+				} else {
+					result[key] = incVal;
+				}
+			} else if (existingVal !== undefined) {
+				result[key] = existingVal;
+			}
+		}
+		return result;
+	}
 
-  return isNonEmpty(incoming) ? incoming : existing;
+	return isNonEmpty(incoming) ? incoming : existing;
 }
 
 const SUMMARY_LIKE_KEYS = [
-  "overview",
-  "summary",
-  "one_line",
-  "description",
-  "backstory",
+	"overview",
+	"summary",
+	"one_line",
+	"description",
+	"backstory",
 ];
 const MIN_SUBSTANTIVE_LENGTH = 100;
 
@@ -90,36 +90,36 @@ const MIN_SUBSTANTIVE_LENGTH = 100;
  * e.g. only name/source and at most one short summary-like field.
  */
 export function isStubContent(content: unknown, _entityType?: string): boolean {
-  if (content == null) return true;
-  if (typeof content === "string")
-    return content.trim().length < MIN_SUBSTANTIVE_LENGTH;
-  if (typeof content !== "object" || Array.isArray(content)) return false;
+	if (content == null) return true;
+	if (typeof content === "string")
+		return content.trim().length < MIN_SUBSTANTIVE_LENGTH;
+	if (typeof content !== "object" || Array.isArray(content)) return false;
 
-  const obj = content as Record<string, unknown>;
-  const keys = Object.keys(obj).filter(
-    (k) => k !== "name" && k !== "source" && k !== "id" && k !== "type"
-  );
-  let summaryLikeCount = 0;
-  let summaryLikeTotalLength = 0;
-  let otherNonEmptyCount = 0;
+	const obj = content as Record<string, unknown>;
+	const keys = Object.keys(obj).filter(
+		(k) => k !== "name" && k !== "source" && k !== "id" && k !== "type"
+	);
+	let summaryLikeCount = 0;
+	let summaryLikeTotalLength = 0;
+	let otherNonEmptyCount = 0;
 
-  for (const key of keys) {
-    const v = obj[key];
-    if (!isNonEmpty(v)) continue;
-    if (SUMMARY_LIKE_KEYS.some((s) => key.toLowerCase().includes(s))) {
-      summaryLikeCount++;
-      if (typeof v === "string") summaryLikeTotalLength += v.length;
-      else if (typeof v === "object" && v !== null)
-        summaryLikeTotalLength += JSON.stringify(v).length;
-    } else {
-      otherNonEmptyCount++;
-    }
-  }
+	for (const key of keys) {
+		const v = obj[key];
+		if (!isNonEmpty(v)) continue;
+		if (SUMMARY_LIKE_KEYS.some((s) => key.toLowerCase().includes(s))) {
+			summaryLikeCount++;
+			if (typeof v === "string") summaryLikeTotalLength += v.length;
+			else if (typeof v === "object" && v !== null)
+				summaryLikeTotalLength += JSON.stringify(v).length;
+		} else {
+			otherNonEmptyCount++;
+		}
+	}
 
-  if (otherNonEmptyCount > 0) return false;
-  if (summaryLikeCount === 0) return true;
-  if (summaryLikeCount > 1) return false;
-  return summaryLikeTotalLength < MIN_SUBSTANTIVE_LENGTH;
+	if (otherNonEmptyCount > 0) return false;
+	if (summaryLikeCount === 0) return true;
+	if (summaryLikeCount > 1) return false;
+	return summaryLikeTotalLength < MIN_SUBSTANTIVE_LENGTH;
 }
 
 /**
@@ -127,6 +127,6 @@ export function isStubContent(content: unknown, _entityType?: string): boolean {
  * Use for filtering stubs out of search, graph, Leiden, and approval UI.
  */
 export function isEntityStub(entity: { metadata?: unknown }): boolean {
-  const meta = entity.metadata as Record<string, unknown> | undefined;
-  return meta?.isStub === true;
+	const meta = entity.metadata as Record<string, unknown> | undefined;
+	return meta?.isStub === true;
 }

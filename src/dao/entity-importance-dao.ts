@@ -3,44 +3,44 @@ import { BaseDAOClass } from "./base-dao";
 // Raw row structure for the `entity_importance` table. Matches the D1 schema
 // exactly and is primarily used internally before normalization.
 export interface EntityImportanceRecord {
-  entity_id: string;
-  campaign_id: string;
-  pagerank: number;
-  betweenness_centrality: number;
-  hierarchy_level: number;
-  importance_score: number;
-  computed_at: string;
+	entity_id: string;
+	campaign_id: string;
+	pagerank: number;
+	betweenness_centrality: number;
+	hierarchy_level: number;
+	importance_score: number;
+	computed_at: string;
 }
 
 // Application-facing importance shape with camelCase keys.
 export interface EntityImportance {
-  entityId: string;
-  campaignId: string;
-  pagerank: number;
-  betweennessCentrality: number;
-  hierarchyLevel: number;
-  importanceScore: number;
-  computedAt: string;
+	entityId: string;
+	campaignId: string;
+	pagerank: number;
+	betweennessCentrality: number;
+	hierarchyLevel: number;
+	importanceScore: number;
+	computedAt: string;
 }
 
 export interface UpsertEntityImportanceInput {
-  entityId: string;
-  campaignId: string;
-  pagerank: number;
-  betweennessCentrality: number;
-  hierarchyLevel: number;
-  importanceScore: number;
+	entityId: string;
+	campaignId: string;
+	pagerank: number;
+	betweennessCentrality: number;
+	hierarchyLevel: number;
+	importanceScore: number;
 }
 
 export interface EntityImportanceQueryOptions {
-  limit?: number;
-  offset?: number;
-  minScore?: number;
+	limit?: number;
+	offset?: number;
+	minScore?: number;
 }
 
 export class EntityImportanceDAO extends BaseDAOClass {
-  async upsertImportance(input: UpsertEntityImportanceInput): Promise<void> {
-    const sql = `
+	async upsertImportance(input: UpsertEntityImportanceInput): Promise<void> {
+		const sql = `
       INSERT INTO entity_importance (
         entity_id,
         campaign_id,
@@ -61,25 +61,25 @@ export class EntityImportanceDAO extends BaseDAOClass {
         computed_at = CURRENT_TIMESTAMP
     `;
 
-    await this.execute(sql, [
-      input.entityId,
-      input.campaignId,
-      input.pagerank,
-      input.betweennessCentrality,
-      input.hierarchyLevel,
-      input.importanceScore,
-    ]);
-  }
+		await this.execute(sql, [
+			input.entityId,
+			input.campaignId,
+			input.pagerank,
+			input.betweennessCentrality,
+			input.hierarchyLevel,
+			input.importanceScore,
+		]);
+	}
 
-  /**
-   * Batch upsert importance scores (more efficient than individual upserts)
-   */
-  async upsertImportanceBatch(
-    inputs: UpsertEntityImportanceInput[]
-  ): Promise<void> {
-    if (inputs.length === 0) return;
+	/**
+	 * Batch upsert importance scores (more efficient than individual upserts)
+	 */
+	async upsertImportanceBatch(
+		inputs: UpsertEntityImportanceInput[]
+	): Promise<void> {
+		if (inputs.length === 0) return;
 
-    const stmt = this.db.prepare(`
+		const stmt = this.db.prepare(`
       INSERT INTO entity_importance (
         entity_id,
         campaign_id,
@@ -100,98 +100,98 @@ export class EntityImportanceDAO extends BaseDAOClass {
         computed_at = CURRENT_TIMESTAMP
     `);
 
-    const batch = inputs.map((input) =>
-      stmt.bind(
-        input.entityId,
-        input.campaignId,
-        input.pagerank,
-        input.betweennessCentrality,
-        input.hierarchyLevel,
-        input.importanceScore
-      )
-    );
+		const batch = inputs.map((input) =>
+			stmt.bind(
+				input.entityId,
+				input.campaignId,
+				input.pagerank,
+				input.betweennessCentrality,
+				input.hierarchyLevel,
+				input.importanceScore
+			)
+		);
 
-    await this.db.batch(batch);
-  }
+		await this.db.batch(batch);
+	}
 
-  async getImportance(entityId: string): Promise<EntityImportance | null> {
-    const sql = `
+	async getImportance(entityId: string): Promise<EntityImportance | null> {
+		const sql = `
       SELECT * FROM entity_importance
       WHERE entity_id = ?
     `;
 
-    const record = await this.queryFirst<EntityImportanceRecord>(sql, [
-      entityId,
-    ]);
-    return record ? this.mapRecord(record) : null;
-  }
+		const record = await this.queryFirst<EntityImportanceRecord>(sql, [
+			entityId,
+		]);
+		return record ? this.mapRecord(record) : null;
+	}
 
-  async getImportanceForCampaign(
-    campaignId: string,
-    options: EntityImportanceQueryOptions = {}
-  ): Promise<EntityImportance[]> {
-    const conditions: string[] = ["campaign_id = ?"];
-    const params: any[] = [campaignId];
+	async getImportanceForCampaign(
+		campaignId: string,
+		options: EntityImportanceQueryOptions = {}
+	): Promise<EntityImportance[]> {
+		const conditions: string[] = ["campaign_id = ?"];
+		const params: any[] = [campaignId];
 
-    if (options.minScore !== undefined) {
-      conditions.push("importance_score >= ?");
-      params.push(options.minScore);
-    }
+		if (options.minScore !== undefined) {
+			conditions.push("importance_score >= ?");
+			params.push(options.minScore);
+		}
 
-    let sql = `
+		let sql = `
       SELECT * FROM entity_importance
       WHERE ${conditions.join(" AND ")}
       ORDER BY importance_score DESC
     `;
 
-    if (typeof options.limit === "number") {
-      sql += " LIMIT ?";
-      params.push(options.limit);
-    }
+		if (typeof options.limit === "number") {
+			sql += " LIMIT ?";
+			params.push(options.limit);
+		}
 
-    if (typeof options.offset === "number") {
-      sql += " OFFSET ?";
-      params.push(options.offset);
-    }
+		if (typeof options.offset === "number") {
+			sql += " OFFSET ?";
+			params.push(options.offset);
+		}
 
-    const records = await this.queryAll<EntityImportanceRecord>(sql, params);
-    return records.map((record) => this.mapRecord(record));
-  }
+		const records = await this.queryAll<EntityImportanceRecord>(sql, params);
+		return records.map((record) => this.mapRecord(record));
+	}
 
-  async getTopEntitiesByImportance(
-    campaignId: string,
-    limit: number = 10
-  ): Promise<EntityImportance[]> {
-    return this.getImportanceForCampaign(campaignId, { limit });
-  }
+	async getTopEntitiesByImportance(
+		campaignId: string,
+		limit: number = 10
+	): Promise<EntityImportance[]> {
+		return this.getImportanceForCampaign(campaignId, { limit });
+	}
 
-  async deleteImportance(entityId: string): Promise<void> {
-    const sql = `
+	async deleteImportance(entityId: string): Promise<void> {
+		const sql = `
       DELETE FROM entity_importance
       WHERE entity_id = ?
     `;
 
-    await this.execute(sql, [entityId]);
-  }
+		await this.execute(sql, [entityId]);
+	}
 
-  async deleteImportanceForCampaign(campaignId: string): Promise<void> {
-    const sql = `
+	async deleteImportanceForCampaign(campaignId: string): Promise<void> {
+		const sql = `
       DELETE FROM entity_importance
       WHERE campaign_id = ?
     `;
 
-    await this.execute(sql, [campaignId]);
-  }
+		await this.execute(sql, [campaignId]);
+	}
 
-  private mapRecord(record: EntityImportanceRecord): EntityImportance {
-    return {
-      entityId: record.entity_id,
-      campaignId: record.campaign_id,
-      pagerank: record.pagerank,
-      betweennessCentrality: record.betweenness_centrality,
-      hierarchyLevel: record.hierarchy_level,
-      importanceScore: record.importance_score,
-      computedAt: record.computed_at,
-    };
-  }
+	private mapRecord(record: EntityImportanceRecord): EntityImportance {
+		return {
+			entityId: record.entity_id,
+			campaignId: record.campaign_id,
+			pagerank: record.pagerank,
+			betweennessCentrality: record.betweenness_centrality,
+			hierarchyLevel: record.hierarchy_level,
+			importanceScore: record.importance_score,
+			computedAt: record.computed_at,
+		};
+	}
 }

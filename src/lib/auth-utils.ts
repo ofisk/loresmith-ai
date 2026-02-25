@@ -5,13 +5,13 @@ import type { Context } from "hono";
  * that can be pasted from some UIs (e.g. U+2068, U+2069) and cause 400 Bad Request.
  */
 export function sanitizeOpenAIApiKey(key: string): string {
-  if (typeof key !== "string") return "";
-  return key
-    .replace(
-      /[\u2066-\u2069\u200B-\u200D\uFEFF\u00AD]/g,
-      ""
-    ) /* remove format/dir isolates, zero-width, BOM, soft hyphen */
-    .trim();
+	if (typeof key !== "string") return "";
+	return key
+		.replace(
+			/[\u2066-\u2069\u200B-\u200D\uFEFF\u00AD]/g,
+			""
+		) /* remove format/dir isolates, zero-width, BOM, soft hyphen */
+		.trim();
 }
 
 /**
@@ -33,21 +33,21 @@ export function sanitizeOpenAIApiKey(key: string): string {
  * ```
  */
 export function extractJwtFromHeader(
-  authHeader: string | null | undefined
+	authHeader: string | null | undefined
 ): string | undefined {
-  if (!authHeader) {
-    return undefined;
-  }
+	if (!authHeader) {
+		return undefined;
+	}
 
-  // Handle "Bearer <token>" format (case-insensitive)
-  const match = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (match) {
-    return match[1];
-  }
+	// Handle "Bearer <token>" format (case-insensitive)
+	const match = authHeader.match(/^Bearer\s+(.+)$/i);
+	if (match) {
+		return match[1];
+	}
 
-  // Fallback: if header doesn't start with "Bearer ", assume it's the token itself
-  // This handles edge cases where the header might already be just the token
-  return authHeader.trim() || undefined;
+	// Fallback: if header doesn't start with "Bearer ", assume it's the token itself
+	// This handles edge cases where the header might already be just the token
+	return authHeader.trim() || undefined;
 }
 
 /**
@@ -63,8 +63,8 @@ export function extractJwtFromHeader(
  * ```
  */
 export function extractJwtFromContext(
-  c: Context | { req: { header: (name: string) => string | undefined } }
+	c: Context | { req: { header: (name: string) => string | undefined } }
 ): string | undefined {
-  const authHeader = c.req.header("Authorization");
-  return extractJwtFromHeader(authHeader);
+	const authHeader = c.req.header("Authorization");
+	return extractJwtFromHeader(authHeader);
 }

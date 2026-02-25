@@ -7,16 +7,16 @@
  * these constants automatically reflect those changes.
  */
 
-import { STRUCTURED_ENTITY_TYPES } from "./entity-types";
 import type { StructuredEntityType } from "./entity-types";
+import { STRUCTURED_ENTITY_TYPES } from "./entity-types";
 
 // Create a lookup object from the array for type-safe access
 const ENTITY_TYPES = STRUCTURED_ENTITY_TYPES.reduce(
-  (acc, type) => {
-    acc[type] = type;
-    return acc;
-  },
-  {} as Record<StructuredEntityType, StructuredEntityType>
+	(acc, type) => {
+		acc[type] = type;
+		return acc;
+	},
+	{} as Record<StructuredEntityType, StructuredEntityType>
 );
 
 // Core entities

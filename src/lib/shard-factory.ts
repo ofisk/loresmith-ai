@@ -1,11 +1,11 @@
-import type {
-  AISearchResponse,
-  CreateShardData,
-  ShardCandidate,
-  ShardMetadata,
-  ShardSourceRef,
-} from "../types/shard";
 import type { CampaignResource } from "../types/campaign";
+import type {
+	AISearchResponse,
+	CreateShardData,
+	ShardCandidate,
+	ShardMetadata,
+	ShardSourceRef,
+} from "../types/shard";
 import { STRUCTURED_ENTITY_TYPES } from "./entity-types";
 
 /**
@@ -14,300 +14,300 @@ import { STRUCTURED_ENTITY_TYPES } from "./entity-types";
  * and ensure consistent shard structures across the system
  */
 export class ShardFactory {
-  /**
-   * Create a shard candidate from structured content
-   */
-  static createShardCandidate(
-    shard: any,
-    entityType: string,
-    resource: CampaignResource,
-    campaignId: string,
-    source: string = "library_rag_search",
-    confidence: number = 0.9,
-    chunkId?: string,
-    originalMetadata: Record<string, any> = {}
-  ): ShardCandidate {
-    // Defensive checks for resource properties
-    const resourceId = resource?.id || resource?.file_key || "unknown";
-    const resourceName =
-      resource?.file_name ||
-      resource?.name ||
-      resource?.display_name ||
-      resourceId;
+	/**
+	 * Create a shard candidate from structured content
+	 */
+	static createShardCandidate(
+		shard: any,
+		entityType: string,
+		resource: CampaignResource,
+		campaignId: string,
+		source: string = "library_rag_search",
+		confidence: number = 0.9,
+		chunkId?: string,
+		originalMetadata: Record<string, any> = {}
+	): ShardCandidate {
+		// Defensive checks for resource properties
+		const resourceId = resource?.id || resource?.file_key || "unknown";
+		const resourceName =
+			resource?.file_name ||
+			resource?.name ||
+			resource?.display_name ||
+			resourceId;
 
-    console.log(`[ShardFactory] Creating shard candidate:`, {
-      shardKeys: shard ? Object.keys(shard) : "null",
-      resourceId,
-      resourceName,
-      entityType,
-      campaignId,
-    });
+		console.log(`[ShardFactory] Creating shard candidate:`, {
+			shardKeys: shard ? Object.keys(shard) : "null",
+			resourceId,
+			resourceName,
+			entityType,
+			campaignId,
+		});
 
-    // Validate entity type
-    if (!STRUCTURED_ENTITY_TYPES.includes(entityType as any)) {
-      console.warn(`[ShardFactory] Invalid entity type: ${entityType}`);
-    }
+		// Validate entity type
+		if (!STRUCTURED_ENTITY_TYPES.includes(entityType as any)) {
+			console.warn(`[ShardFactory] Invalid entity type: ${entityType}`);
+		}
 
-    // Generate chunk ID if not provided
-    const finalChunkId = chunkId || `${resourceId}_ai_${Date.now()}`;
+		// Generate chunk ID if not provided
+		const finalChunkId = chunkId || `${resourceId}_ai_${Date.now()}`;
 
-    // Create shard ID - ensure uniqueness by using the generateShardId method
-    const index = originalMetadata?.index;
-    const shardId = ShardFactory.generateShardId(resourceId, entityType, index);
+		// Create shard ID - ensure uniqueness by using the generateShardId method
+		const index = originalMetadata?.index;
+		const shardId = ShardFactory.generateShardId(resourceId, entityType, index);
 
-    // Create metadata
-    const metadata: ShardMetadata = {
-      fileKey: resourceId,
-      fileName: resourceName,
-      source,
-      campaignId,
-      entityType: entityType as any,
-      confidence,
-      originalMetadata: {
-        structuredContent: shard,
-        entityType,
-        ...originalMetadata,
-      },
-      sourceRef: {
-        fileKey: resourceId,
-        meta: {
-          fileName: resourceName,
-          campaignId,
-          entityType,
-          chunkId: finalChunkId,
-          score: confidence,
-        },
-      },
-    };
+		// Create metadata
+		const metadata: ShardMetadata = {
+			fileKey: resourceId,
+			fileName: resourceName,
+			source,
+			campaignId,
+			entityType: entityType as any,
+			confidence,
+			originalMetadata: {
+				structuredContent: shard,
+				entityType,
+				...originalMetadata,
+			},
+			sourceRef: {
+				fileKey: resourceId,
+				meta: {
+					fileName: resourceName,
+					campaignId,
+					entityType,
+					chunkId: finalChunkId,
+					score: confidence,
+				},
+			},
+		};
 
-    // Create source reference
-    const sourceRef: ShardSourceRef = {
-      fileKey: resourceId,
-      meta: {
-        fileName: resourceName,
-        campaignId,
-        entityType,
-        chunkId: finalChunkId,
-        score: confidence,
-      },
-    };
+		// Create source reference
+		const sourceRef: ShardSourceRef = {
+			fileKey: resourceId,
+			meta: {
+				fileName: resourceName,
+				campaignId,
+				entityType,
+				chunkId: finalChunkId,
+				score: confidence,
+			},
+		};
 
-    return {
-      id: shardId,
-      text: JSON.stringify(shard, null, 2),
-      metadata,
-      sourceRef,
-    };
-  }
+		return {
+			id: shardId,
+			text: JSON.stringify(shard, null, 2),
+			metadata,
+			sourceRef,
+		};
+	}
 
-  /**
-   * Parse AI Search results into shard candidates
-   * Handles structured JSON responses from RAG search
-   */
-  static parseAISearchResponse(
-    aiSearchResponse: AISearchResponse,
-    resource: CampaignResource,
-    campaignId: string
-  ): ShardCandidate[] {
-    const startTime = Date.now();
-    const shardCandidates: ShardCandidate[] = [];
+	/**
+	 * Parse AI Search results into shard candidates
+	 * Handles structured JSON responses from RAG search
+	 */
+	static parseAISearchResponse(
+		aiSearchResponse: AISearchResponse,
+		resource: CampaignResource,
+		campaignId: string
+	): ShardCandidate[] {
+		const startTime = Date.now();
+		const shardCandidates: ShardCandidate[] = [];
 
-    console.log(
-      `[DEBUG] [ShardFactory] ===== PARSING AI SEARCH RESPONSE =====`
-    );
-    console.log(
-      `[DEBUG] [ShardFactory] Response keys:`,
-      Object.keys(aiSearchResponse)
-    );
-    console.log(
-      `[DEBUG] [ShardFactory] Response type:`,
-      typeof aiSearchResponse
-    );
-    console.log(
-      `[DEBUG] [ShardFactory] Resource:`,
-      JSON.stringify(resource, null, 2)
-    );
-    console.log(`[DEBUG] [ShardFactory] Campaign ID: ${campaignId}`);
-    console.log(
-      `[DEBUG] [ShardFactory] Timestamp: ${new Date().toISOString()}`
-    );
+		console.log(
+			`[DEBUG] [ShardFactory] ===== PARSING AI SEARCH RESPONSE =====`
+		);
+		console.log(
+			`[DEBUG] [ShardFactory] Response keys:`,
+			Object.keys(aiSearchResponse)
+		);
+		console.log(
+			`[DEBUG] [ShardFactory] Response type:`,
+			typeof aiSearchResponse
+		);
+		console.log(
+			`[DEBUG] [ShardFactory] Resource:`,
+			JSON.stringify(resource, null, 2)
+		);
+		console.log(`[DEBUG] [ShardFactory] Campaign ID: ${campaignId}`);
+		console.log(
+			`[DEBUG] [ShardFactory] Timestamp: ${new Date().toISOString()}`
+		);
 
-    if (!aiSearchResponse || typeof aiSearchResponse !== "object") {
-      console.warn(
-        `[DEBUG] [ShardFactory] AI Search response is null/undefined or not an object`
-      );
-      const endTime = Date.now();
-      const duration = endTime - startTime;
-      console.log(
-        `[DEBUG] [ShardFactory] ===== PARSING COMPLETED (NO RESPONSE) =====`
-      );
-      console.log(`[DEBUG] [ShardFactory] Duration: ${duration}ms`);
-      console.log(`[DEBUG] [ShardFactory] Status: NO_RESPONSE`);
-      return [];
-    }
+		if (!aiSearchResponse || typeof aiSearchResponse !== "object") {
+			console.warn(
+				`[DEBUG] [ShardFactory] AI Search response is null/undefined or not an object`
+			);
+			const endTime = Date.now();
+			const duration = endTime - startTime;
+			console.log(
+				`[DEBUG] [ShardFactory] ===== PARSING COMPLETED (NO RESPONSE) =====`
+			);
+			console.log(`[DEBUG] [ShardFactory] Duration: ${duration}ms`);
+			console.log(`[DEBUG] [ShardFactory] Status: NO_RESPONSE`);
+			return [];
+		}
 
-    // Find all entity type arrays in the response
-    console.log(
-      `[DEBUG] [ShardFactory] Searching for entity types in response...`
-    );
-    const foundEntityTypes = Object.keys(aiSearchResponse).filter((key) => {
-      const arr = (aiSearchResponse as any)[key];
-      const isType = STRUCTURED_ENTITY_TYPES.includes(key as any);
-      const len = Array.isArray(arr) ? arr.length : 0;
-      if (isType) {
-        console.log(
-          `[DEBUG] [ShardFactory] Found entity type: ${key} with ${len} items`
-        );
-      }
-      return isType && Array.isArray(arr) && len > 0;
-    });
+		// Find all entity type arrays in the response
+		console.log(
+			`[DEBUG] [ShardFactory] Searching for entity types in response...`
+		);
+		const foundEntityTypes = Object.keys(aiSearchResponse).filter((key) => {
+			const arr = (aiSearchResponse as any)[key];
+			const isType = STRUCTURED_ENTITY_TYPES.includes(key as any);
+			const len = Array.isArray(arr) ? arr.length : 0;
+			if (isType) {
+				console.log(
+					`[DEBUG] [ShardFactory] Found entity type: ${key} with ${len} items`
+				);
+			}
+			return isType && Array.isArray(arr) && len > 0;
+		});
 
-    console.log(
-      `[DEBUG] [ShardFactory] Found ${foundEntityTypes.length} entity types:`,
-      foundEntityTypes
-    );
+		console.log(
+			`[DEBUG] [ShardFactory] Found ${foundEntityTypes.length} entity types:`,
+			foundEntityTypes
+		);
 
-    // Process each entity type
-    for (const entityType of foundEntityTypes) {
-      const shardArray = aiSearchResponse[entityType] as unknown[];
-      console.log(
-        `[DEBUG] [ShardFactory] Processing ${shardArray.length} ${entityType} items`
-      );
+		// Process each entity type
+		for (const entityType of foundEntityTypes) {
+			const shardArray = aiSearchResponse[entityType] as unknown[];
+			console.log(
+				`[DEBUG] [ShardFactory] Processing ${shardArray.length} ${entityType} items`
+			);
 
-      // Process each shard in the entity type array
-      for (let i = 0; i < shardArray.length; i++) {
-        const shard = shardArray[i];
-        if (!shard || typeof shard !== "object") {
-          console.log(
-            `[DEBUG] [ShardFactory] Skipping invalid shard at index ${i}`
-          );
-          continue;
-        }
+			// Process each shard in the entity type array
+			for (let i = 0; i < shardArray.length; i++) {
+				const shard = shardArray[i];
+				if (!shard || typeof shard !== "object") {
+					console.log(
+						`[DEBUG] [ShardFactory] Skipping invalid shard at index ${i}`
+					);
+					continue;
+				}
 
-        console.log(
-          `[DEBUG] [ShardFactory] Creating shard candidate ${i + 1}/${shardArray.length} for ${entityType}`
-        );
-        const candidateUnknown: unknown = ShardFactory.createShardCandidate(
-          shard,
-          entityType,
-          resource,
-          campaignId,
-          "library_rag_search",
-          0.9,
-          `${resource.id}_ai_${shardCandidates.length}`,
-          { aiSearchResponse: true, index: i }
-        );
+				console.log(
+					`[DEBUG] [ShardFactory] Creating shard candidate ${i + 1}/${shardArray.length} for ${entityType}`
+				);
+				const candidateUnknown: unknown = ShardFactory.createShardCandidate(
+					shard,
+					entityType,
+					resource,
+					campaignId,
+					"library_rag_search",
+					0.9,
+					`${resource.id}_ai_${shardCandidates.length}`,
+					{ aiSearchResponse: true, index: i }
+				);
 
-        if (!ShardFactory.validateShardCandidate(candidateUnknown as any)) {
-          console.warn(
-            `[DEBUG] [ShardFactory] Candidate ${i + 1} failed validation`
-          );
-          continue;
-        }
+				if (!ShardFactory.validateShardCandidate(candidateUnknown as any)) {
+					console.warn(
+						`[DEBUG] [ShardFactory] Candidate ${i + 1} failed validation`
+					);
+					continue;
+				}
 
-        const candidate = candidateUnknown as ShardCandidate;
-        shardCandidates.push(candidate);
-        console.log(
-          `[DEBUG] [ShardFactory] Successfully created shard candidate ${i + 1}/${shardArray.length}`
-        );
-      }
+				const candidate = candidateUnknown as ShardCandidate;
+				shardCandidates.push(candidate);
+				console.log(
+					`[DEBUG] [ShardFactory] Successfully created shard candidate ${i + 1}/${shardArray.length}`
+				);
+			}
 
-      console.log(
-        `[DEBUG] [ShardFactory] Processed ${shardArray.length} ${entityType} shards from AI Search response`
-      );
-    }
+			console.log(
+				`[DEBUG] [ShardFactory] Processed ${shardArray.length} ${entityType} shards from AI Search response`
+			);
+		}
 
-    const endTime = Date.now();
-    const duration = endTime - startTime;
-    console.log(`[DEBUG] [ShardFactory] ===== PARSING COMPLETED =====`);
-    console.log(`[DEBUG] [ShardFactory] Duration: ${duration}ms`);
-    console.log(
-      `[DEBUG] [ShardFactory] Total shard candidates created: ${shardCandidates.length}`
-    );
-    console.log(
-      `[DEBUG] [ShardFactory] Status: ${shardCandidates.length > 0 ? "SUCCESS" : "NO_SHARDS"}`
-    );
+		const endTime = Date.now();
+		const duration = endTime - startTime;
+		console.log(`[DEBUG] [ShardFactory] ===== PARSING COMPLETED =====`);
+		console.log(`[DEBUG] [ShardFactory] Duration: ${duration}ms`);
+		console.log(
+			`[DEBUG] [ShardFactory] Total shard candidates created: ${shardCandidates.length}`
+		);
+		console.log(
+			`[DEBUG] [ShardFactory] Status: ${shardCandidates.length > 0 ? "SUCCESS" : "NO_SHARDS"}`
+		);
 
-    return shardCandidates;
-  }
+		return shardCandidates;
+	}
 
-  /**
-   * Convert shard candidates to database format
-   */
-  static toDatabaseFormat(
-    shardCandidates: ShardCandidate[],
-    campaignId: string,
-    resourceId: string
-  ): CreateShardData[] {
-    return shardCandidates
-      .filter((shard) => shard.text && shard.metadata) // Filter out invalid shards
-      .map((shard) => ({
-        id: shard.id,
-        campaign_id: campaignId,
-        resource_id: resourceId,
-        shard_type: shard.metadata.entityType,
-        content: shard.text,
-        metadata: JSON.stringify(shard.metadata),
-      }));
-  }
+	/**
+	 * Convert shard candidates to database format
+	 */
+	static toDatabaseFormat(
+		shardCandidates: ShardCandidate[],
+		campaignId: string,
+		resourceId: string
+	): CreateShardData[] {
+		return shardCandidates
+			.filter((shard) => shard.text && shard.metadata) // Filter out invalid shards
+			.map((shard) => ({
+				id: shard.id,
+				campaign_id: campaignId,
+				resource_id: resourceId,
+				shard_type: shard.metadata.entityType,
+				content: shard.text,
+				metadata: JSON.stringify(shard.metadata),
+			}));
+	}
 
-  /**
-   * Validate shard candidate structure
-   */
-  static validateShardCandidate(shard: any): shard is ShardCandidate {
-    return (
-      shard &&
-      typeof shard === "object" &&
-      typeof shard.id === "string" &&
-      typeof shard.text === "string" &&
-      shard.metadata &&
-      typeof shard.metadata === "object" &&
-      typeof shard.metadata.fileKey === "string" &&
-      typeof shard.metadata.fileName === "string" &&
-      typeof shard.metadata.campaignId === "string" &&
-      typeof shard.metadata.entityType === "string" &&
-      typeof shard.metadata.confidence === "number" &&
-      shard.sourceRef &&
-      typeof shard.sourceRef === "object"
-    );
-  }
+	/**
+	 * Validate shard candidate structure
+	 */
+	static validateShardCandidate(shard: any): shard is ShardCandidate {
+		return (
+			shard &&
+			typeof shard === "object" &&
+			typeof shard.id === "string" &&
+			typeof shard.text === "string" &&
+			shard.metadata &&
+			typeof shard.metadata === "object" &&
+			typeof shard.metadata.fileKey === "string" &&
+			typeof shard.metadata.fileName === "string" &&
+			typeof shard.metadata.campaignId === "string" &&
+			typeof shard.metadata.entityType === "string" &&
+			typeof shard.metadata.confidence === "number" &&
+			shard.sourceRef &&
+			typeof shard.sourceRef === "object"
+		);
+	}
 
-  /**
-   * Filter valid shards from a collection
-   */
-  static filterValidShards(shards: any[]): ShardCandidate[] {
-    return shards.filter((shard) => ShardFactory.validateShardCandidate(shard));
-  }
+	/**
+	 * Filter valid shards from a collection
+	 */
+	static filterValidShards(shards: any[]): ShardCandidate[] {
+		return shards.filter((shard) => ShardFactory.validateShardCandidate(shard));
+	}
 
-  /**
-   * Create shard ID from resource and entity type
-   */
-  static generateShardId(
-    resourceId: string,
-    entityType: string,
-    index?: number
-  ): string {
-    const timestamp = Date.now();
-    const randomSuffix = Math.random().toString(36).substr(2, 9);
-    const indexSuffix = index !== undefined ? `_${index}` : "";
+	/**
+	 * Create shard ID from resource and entity type
+	 */
+	static generateShardId(
+		resourceId: string,
+		entityType: string,
+		index?: number
+	): string {
+		const timestamp = Date.now();
+		const randomSuffix = Math.random().toString(36).substr(2, 9);
+		const indexSuffix = index !== undefined ? `_${index}` : "";
 
-    return `${resourceId}_${entityType}_${timestamp}${indexSuffix}_${randomSuffix}`;
-  }
+		return `${resourceId}_${entityType}_${timestamp}${indexSuffix}_${randomSuffix}`;
+	}
 
-  /**
-   * Extract resource information consistently
-   */
-  static extractResourceInfo(resource: CampaignResource): {
-    id: string;
-    name: string;
-  } {
-    const resourceId = resource?.id || resource?.file_key || "unknown";
-    const resourceName =
-      resource?.file_name ||
-      resource?.name ||
-      resource?.display_name ||
-      resourceId;
+	/**
+	 * Extract resource information consistently
+	 */
+	static extractResourceInfo(resource: CampaignResource): {
+		id: string;
+		name: string;
+	} {
+		const resourceId = resource?.id || resource?.file_key || "unknown";
+		const resourceName =
+			resource?.file_name ||
+			resource?.name ||
+			resource?.display_name ||
+			resourceId;
 
-    return { id: resourceId, name: resourceName };
-  }
+		return { id: resourceId, name: resourceName };
+	}
 }

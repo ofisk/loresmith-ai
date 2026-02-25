@@ -1,8 +1,8 @@
 import type { Context, Next } from "hono";
 import {
-  type AuthContext,
-  type AuthEnv,
-  extractAuthFromHeader,
+	type AuthContext,
+	type AuthEnv,
+	extractAuthFromHeader,
 } from "@/services/core/auth-service";
 
 /**
@@ -10,20 +10,20 @@ import {
  * Attaches auth payload to context.var.auth
  */
 export async function requireAuth(
-  c: Context<{ Bindings: AuthEnv; Variables: AuthContext }>,
-  next: Next
+	c: Context<{ Bindings: AuthEnv; Variables: AuthContext }>,
+	next: Next
 ): Promise<Response | void> {
-  const authHeader = c.req.header("Authorization");
-  const auth = await extractAuthFromHeader(authHeader, c.env);
+	const authHeader = c.req.header("Authorization");
+	const auth = await extractAuthFromHeader(authHeader, c.env);
 
-  if (!auth) {
-    return c.json({ error: "Missing or invalid Authorization header" }, 401);
-  }
+	if (!auth) {
+		return c.json({ error: "Missing or invalid Authorization header" }, 401);
+	}
 
-  // Attach auth info to context
-  c.set("auth", auth);
+	// Attach auth info to context
+	c.set("auth", auth);
 
-  await next();
+	await next();
 }
 
 /**
@@ -32,17 +32,17 @@ export async function requireAuth(
  * Does not return error if no token is provided
  */
 export async function optionalAuth(
-  c: Context<{ Bindings: AuthEnv; Variables: AuthContext }>,
-  next: Next
+	c: Context<{ Bindings: AuthEnv; Variables: AuthContext }>,
+	next: Next
 ): Promise<void> {
-  const authHeader = c.req.header("Authorization");
-  const auth = await extractAuthFromHeader(authHeader, c.env);
+	const authHeader = c.req.header("Authorization");
+	const auth = await extractAuthFromHeader(authHeader, c.env);
 
-  if (auth) {
-    c.set("auth", auth);
-  }
+	if (auth) {
+		c.set("auth", auth);
+	}
 
-  await next();
+	await next();
 }
 
 /**
@@ -50,21 +50,21 @@ export async function optionalAuth(
  * Must be used after requireAuth middleware
  */
 export async function requireUsername(username: string) {
-  return async (
-    c: Context<{ Bindings: AuthEnv; Variables: AuthContext }>,
-    next: Next
-  ): Promise<Response | void> => {
-    const auth = c.get("auth");
-    if (!auth) {
-      return c.json({ error: "Authentication required" }, 401);
-    }
+	return async (
+		c: Context<{ Bindings: AuthEnv; Variables: AuthContext }>,
+		next: Next
+	): Promise<Response | void> => {
+		const auth = c.get("auth");
+		if (!auth) {
+			return c.json({ error: "Authentication required" }, 401);
+		}
 
-    if (auth.username !== username) {
-      return c.json({ error: "Access denied" }, 403);
-    }
+		if (auth.username !== username) {
+			return c.json({ error: "Access denied" }, 403);
+		}
 
-    await next();
-  };
+		await next();
+	};
 }
 
 /**
@@ -73,24 +73,24 @@ export async function requireUsername(username: string) {
  * Expects resourceId parameter in the route
  */
 export async function requireResourceOwnership(
-  c: Context<{ Bindings: AuthEnv; Variables: AuthContext }>,
-  next: Next
+	c: Context<{ Bindings: AuthEnv; Variables: AuthContext }>,
+	next: Next
 ): Promise<Response | void> {
-  const auth = c.get("auth");
-  if (!auth) {
-    return c.json({ error: "Authentication required" }, 401);
-  }
+	const auth = c.get("auth");
+	if (!auth) {
+		return c.json({ error: "Authentication required" }, 401);
+	}
 
-  const resourceId =
-    c.req.param("resourceId") || c.req.param("campaignId") || c.req.param("id");
+	const resourceId =
+		c.req.param("resourceId") || c.req.param("campaignId") || c.req.param("id");
 
-  if (!resourceId) {
-    return c.json({ error: "Resource ID required" }, 400);
-  }
+	if (!resourceId) {
+		return c.json({ error: "Resource ID required" }, 400);
+	}
 
-  // For now, we'll just validate that the user is authenticated
-  // In the future, you could add additional ownership validation here
-  // For example, checking if the resource exists and belongs to the user
+	// For now, we'll just validate that the user is authenticated
+	// In the future, you could add additional ownership validation here
+	// For example, checking if the resource exists and belongs to the user
 
-  await next();
+	await next();
 }

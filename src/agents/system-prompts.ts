@@ -1,72 +1,72 @@
 export interface SystemPromptConfig {
-  agentName: string;
-  responsibilities: string[];
-  tools: Record<string, string>;
-  workflowGuidelines: string[];
-  importantNotes?: string[];
-  specialization?: string;
+	agentName: string;
+	responsibilities: string[];
+	tools: Record<string, string>;
+	workflowGuidelines: string[];
+	importantNotes?: string[];
+	specialization?: string;
 }
 
 /**
  * Extracts tool names from a tools object for safer tool mapping
  */
 export function extractToolNames(
-  tools: Record<string, any>
+	tools: Record<string, any>
 ): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(tools).map(([key, tool]) => {
-      // Use the description as the key and the raw tool name as the value
-      let userFriendlyName = key;
+	return Object.fromEntries(
+		Object.entries(tools).map(([key, tool]) => {
+			// Use the description as the key and the raw tool name as the value
+			let userFriendlyName = key;
 
-      if (tool?.description) {
-        // Extract the first sentence or phrase from the description
-        const description = tool.description;
-        // Look for the first sentence ending with a period, or take the first 50 chars
-        const firstSentence = description.match(/^([^.]+)/)?.[1]?.trim();
-        if (firstSentence && firstSentence.length > 0) {
-          userFriendlyName = firstSentence.toLowerCase();
-        }
-      }
+			if (tool?.description) {
+				// Extract the first sentence or phrase from the description
+				const description = tool.description;
+				// Look for the first sentence ending with a period, or take the first 50 chars
+				const firstSentence = description.match(/^([^.]+)/)?.[1]?.trim();
+				if (firstSentence && firstSentence.length > 0) {
+					userFriendlyName = firstSentence.toLowerCase();
+				}
+			}
 
-      return [userFriendlyName, key];
-    })
-  );
+			return [userFriendlyName, key];
+		})
+	);
 }
 
 /**
  * Creates a tool mapping from tool objects with automatic name extraction
  */
 export function createToolMappingFromObjects(
-  tools: Record<string, any>
+	tools: Record<string, any>
 ): Record<string, string> {
-  return extractToolNames(tools);
+	return extractToolNames(tools);
 }
 
 /**
  * Builds a standardized system prompt for agents
  */
 export function buildSystemPrompt(config: SystemPromptConfig): string {
-  const toolMappings = Object.entries(config.tools)
-    .map(([action, tool]) => `- "${action}" → USE ${tool} tool`)
-    .join("\n");
+	const toolMappings = Object.entries(config.tools)
+		.map(([action, tool]) => `- "${action}" → USE ${tool} tool`)
+		.join("\n");
 
-  const responsibilities = config.responsibilities
-    .map((responsibility) => `- ${responsibility}`)
-    .join("\n");
+	const responsibilities = config.responsibilities
+		.map((responsibility) => `- ${responsibility}`)
+		.join("\n");
 
-  const workflowGuidelines = config.workflowGuidelines
-    .map((guideline, i) => `${i + 1}. ${guideline}`)
-    .join("\n");
+	const workflowGuidelines = config.workflowGuidelines
+		.map((guideline, i) => `${i + 1}. ${guideline}`)
+		.join("\n");
 
-  const importantNotes = config.importantNotes
-    ? `\n## Important Notes:\n${config.importantNotes.map((note) => `**IMPORTANT**: ${note}`).join("\n")}`
-    : "";
+	const importantNotes = config.importantNotes
+		? `\n## Important Notes:\n${config.importantNotes.map((note) => `**IMPORTANT**: ${note}`).join("\n")}`
+		: "";
 
-  const specialization = config.specialization
-    ? `\n## Specialization:\n${config.specialization}`
-    : "";
+	const specialization = config.specialization
+		? `\n## Specialization:\n${config.specialization}`
+		: "";
 
-  return `You are a specialized ${config.agentName} for LoreSmith AI.
+	return `You are a specialized ${config.agentName} for LoreSmith AI.
 
 ## Your Responsibilities:
 ${responsibilities}
@@ -97,7 +97,7 @@ You are focused, efficient, conversational, and always prioritize helping users 
  * Common tool mapping format for consistency
  */
 export function createToolMapping(
-  tools: Record<string, string>
+	tools: Record<string, string>
 ): Record<string, string> {
-  return tools;
+	return tools;
 }

@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 
 /**
  * Base hook for managing async operations with loading states, error handling, and success callbacks.
@@ -36,77 +36,77 @@ import { useCallback, useState, useRef } from "react";
  * ```
  */
 export function useBaseAsync<T, P extends any[]>(
-  asyncFn: (...args: P) => Promise<T>,
-  options: {
-    onSuccess?: (result: T) => void;
-    onError?: (error: string) => void;
-    successMessage?: string;
-    errorMessage?: string;
-    autoExecute?: boolean;
-    autoExecuteArgs?: P;
-  } = {}
+	asyncFn: (...args: P) => Promise<T>,
+	options: {
+		onSuccess?: (result: T) => void;
+		onError?: (error: string) => void;
+		successMessage?: string;
+		errorMessage?: string;
+		autoExecute?: boolean;
+		autoExecuteArgs?: P;
+	} = {}
 ) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<T | null>(null);
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const [data, setData] = useState<T | null>(null);
 
-  // Store options in a ref to prevent unnecessary re-renders
-  const optionsRef = useRef(options);
+	// Store options in a ref to prevent unnecessary re-renders
+	const optionsRef = useRef(options);
 
-  const execute = useCallback(
-    async (...args: P): Promise<T> => {
-      // Update the ref with current options at execution time
-      optionsRef.current = options;
+	const execute = useCallback(
+		async (...args: P): Promise<T> => {
+			// Update the ref with current options at execution time
+			optionsRef.current = options;
 
-      try {
-        setLoading(true);
-        setError(null);
+			try {
+				setLoading(true);
+				setError(null);
 
-        const result = await asyncFn(...args);
+				const result = await asyncFn(...args);
 
-        setData(result);
-        optionsRef.current.onSuccess?.(result);
+				setData(result);
+				optionsRef.current.onSuccess?.(result);
 
-        return result;
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error
-            ? err.message
-            : optionsRef.current.errorMessage || "Operation failed";
-        setError(errorMessage);
-        optionsRef.current.onError?.(errorMessage);
+				return result;
+			} catch (err) {
+				const errorMessage =
+					err instanceof Error
+						? err.message
+						: optionsRef.current.errorMessage || "Operation failed";
+				setError(errorMessage);
+				optionsRef.current.onError?.(errorMessage);
 
-        throw err;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [asyncFn, options]
-  );
+				throw err;
+			} finally {
+				setLoading(false);
+			}
+		},
+		[asyncFn, options]
+	);
 
-  const retry = useCallback(() => {
-    setError(null);
-    if (optionsRef.current.autoExecute && optionsRef.current.autoExecuteArgs) {
-      return execute(...optionsRef.current.autoExecuteArgs);
-    }
-    return execute;
-  }, [execute]);
+	const retry = useCallback(() => {
+		setError(null);
+		if (optionsRef.current.autoExecute && optionsRef.current.autoExecuteArgs) {
+			return execute(...optionsRef.current.autoExecuteArgs);
+		}
+		return execute;
+	}, [execute]);
 
-  const reset = useCallback(() => {
-    setLoading(false);
-    setError(null);
-    setData(null);
-  }, []);
+	const reset = useCallback(() => {
+		setLoading(false);
+		setError(null);
+		setData(null);
+	}, []);
 
-  return {
-    execute,
-    retry,
-    reset,
-    loading,
-    error,
-    data,
-    setError,
-  };
+	return {
+		execute,
+		retry,
+		reset,
+		loading,
+		error,
+		data,
+		setError,
+	};
 }
 
 /**
@@ -131,15 +131,15 @@ export function useBaseAsync<T, P extends any[]>(
  * ```
  */
 export function useBaseAsyncVoid<P extends any[]>(
-  asyncFn: (...args: P) => Promise<void>,
-  options: {
-    onSuccess?: () => void;
-    onError?: (error: string) => void;
-    successMessage?: string;
-    errorMessage?: string;
-    autoExecute?: boolean;
-    autoExecuteArgs?: P;
-  } = {}
+	asyncFn: (...args: P) => Promise<void>,
+	options: {
+		onSuccess?: () => void;
+		onError?: (error: string) => void;
+		successMessage?: string;
+		errorMessage?: string;
+		autoExecute?: boolean;
+		autoExecuteArgs?: P;
+	} = {}
 ) {
-  return useBaseAsync(asyncFn, options);
+	return useBaseAsync(asyncFn, options);
 }

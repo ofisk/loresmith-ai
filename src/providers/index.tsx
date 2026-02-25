@@ -14,9 +14,9 @@ import { TooltipProvider } from "@/providers/TooltipProvider";
  * @param children - React children to wrap with all providers
  */
 export const Providers = ({ children }: { children: React.ReactNode }) => {
-  return (
-    <TooltipProvider>
-      <ModalProvider>{children}</ModalProvider>
-    </TooltipProvider>
-  );
+	return (
+		<TooltipProvider>
+			<ModalProvider>{children}</ModalProvider>
+		</TooltipProvider>
+	);
 };

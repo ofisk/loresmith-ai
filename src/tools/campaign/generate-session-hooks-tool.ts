@@ -2,166 +2,166 @@ import type { D1Database } from "@cloudflare/workers-types";
 import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, type ToolResult } from "@/app-constants";
+import { getDAOFactory } from "@/dao/dao-factory";
 import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
 import {
-  commonSchemas,
-  createToolError,
-  createToolSuccess,
-  extractUsernameFromJwt,
-  getEnvFromContext,
-  requireGMRole,
-  type ToolExecuteOptions,
+	commonSchemas,
+	createToolError,
+	createToolSuccess,
+	extractUsernameFromJwt,
+	getEnvFromContext,
+	requireGMRole,
+	type ToolExecuteOptions,
 } from "../utils";
-import { getDAOFactory } from "@/dao/dao-factory";
 import { generateHooks } from "./planning-tools-utils";
 
 const generateSessionHooksSchema = z.object({
-  campaignId: commonSchemas.campaignId,
-  hookType: z
-    .enum(["opening", "transition", "cliffhanger", "resolution"])
-    .optional()
-    .describe("Type of hook to generate (default: opening)"),
-  context: z
-    .string()
-    .optional()
-    .describe("Additional context for hook generation"),
-  jwt: commonSchemas.jwt,
+	campaignId: commonSchemas.campaignId,
+	hookType: z
+		.enum(["opening", "transition", "cliffhanger", "resolution"])
+		.optional()
+		.describe("Type of hook to generate (default: opening)"),
+	context: z
+		.string()
+		.optional()
+		.describe("Additional context for hook generation"),
+	jwt: commonSchemas.jwt,
 });
 
 export const generateSessionHooks = tool({
-  description:
-    "Generate engaging session hooks and story beats to start or continue a session",
-  inputSchema: generateSessionHooksSchema,
-  execute: async (
-    input: z.infer<typeof generateSessionHooksSchema>,
-    options?: ToolExecuteOptions
-  ): Promise<ToolResult> => {
-    const {
-      campaignId,
-      hookType = "opening",
-      context: contextParam,
-      jwt,
-    } = input;
-    const toolCallId = options?.toolCallId ?? "unknown";
-    console.log("[generateSessionHooks] Using toolCallId:", toolCallId);
+	description:
+		"Generate engaging session hooks and story beats to start or continue a session",
+	inputSchema: generateSessionHooksSchema,
+	execute: async (
+		input: z.infer<typeof generateSessionHooksSchema>,
+		options?: ToolExecuteOptions
+	): Promise<ToolResult> => {
+		const {
+			campaignId,
+			hookType = "opening",
+			context: contextParam,
+			jwt,
+		} = input;
+		const toolCallId = options?.toolCallId ?? "unknown";
+		console.log("[generateSessionHooks] Using toolCallId:", toolCallId);
 
-    console.log("[Tool] generateSessionHooks received:", {
-      campaignId,
-      hookType,
-      context: contextParam,
-    });
+		console.log("[Tool] generateSessionHooks received:", {
+			campaignId,
+			hookType,
+			context: contextParam,
+		});
 
-    try {
-      const env = getEnvFromContext(options);
-      console.log("[Tool] generateSessionHooks - Environment found:", !!env);
-      console.log("[Tool] generateSessionHooks - JWT provided:", !!jwt);
+		try {
+			const env = getEnvFromContext(options);
+			console.log("[Tool] generateSessionHooks - Environment found:", !!env);
+			console.log("[Tool] generateSessionHooks - JWT provided:", !!jwt);
 
-      if (env) {
-        const userId = extractUsernameFromJwt(jwt);
-        console.log("[Tool] generateSessionHooks - User ID extracted:", userId);
+			if (env) {
+				const userId = extractUsernameFromJwt(jwt);
+				console.log("[Tool] generateSessionHooks - User ID extracted:", userId);
 
-        if (!userId) {
-          return createToolError(
-            "Invalid authentication token",
-            "Authentication failed",
-            401,
-            toolCallId
-          );
-        }
+				if (!userId) {
+					return createToolError(
+						"Invalid authentication token",
+						"Authentication failed",
+						401,
+						toolCallId
+					);
+				}
 
-        const daoFactory = getDAOFactory(env as { DB: D1Database });
-        const campaign =
-          await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-            campaignId,
-            userId
-          );
+				const daoFactory = getDAOFactory(env as { DB: D1Database });
+				const campaign =
+					await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+						campaignId,
+						userId
+					);
 
-        if (!campaign) {
-          return createToolError(
-            "Campaign not found",
-            "Campaign not found",
-            404,
-            toolCallId
-          );
-        }
+				if (!campaign) {
+					return createToolError(
+						"Campaign not found",
+						"Campaign not found",
+						404,
+						toolCallId
+					);
+				}
 
-        const gmError = await requireGMRole(
-          env as { DB: D1Database },
-          campaignId,
-          userId,
-          toolCallId
-        );
-        if (gmError) return gmError;
+				const gmError = await requireGMRole(
+					env as { DB: D1Database },
+					campaignId,
+					userId,
+					toolCallId
+				);
+				if (gmError) return gmError;
 
-        const [characters, resources] = await Promise.all([
-          daoFactory.campaignDAO.getCampaignCharacters(campaignId),
-          daoFactory.campaignDAO.getCampaignResources(campaignId),
-        ]);
+				const [characters, resources] = await Promise.all([
+					daoFactory.campaignDAO.getCampaignCharacters(campaignId),
+					daoFactory.campaignDAO.getCampaignResources(campaignId),
+				]);
 
-        const hooks = await generateHooks(
-          hookType,
-          contextParam ?? "",
-          characters,
-          resources
-        );
+				const hooks = await generateHooks(
+					hookType,
+					contextParam ?? "",
+					characters,
+					resources
+				);
 
-        console.log("[Tool] Generated hooks:", hooks.length);
+				console.log("[Tool] Generated hooks:", hooks.length);
 
-        return createToolSuccess(
-          `Generated ${hooks.length} ${hookType} hooks`,
-          {
-            hookType,
-            hooks,
-            totalCount: hooks.length,
-            context: {
-              characters: characters.length,
-              resources: resources.length,
-            },
-          },
-          toolCallId
-        );
-      }
+				return createToolSuccess(
+					`Generated ${hooks.length} ${hookType} hooks`,
+					{
+						hookType,
+						hooks,
+						totalCount: hooks.length,
+						context: {
+							characters: characters.length,
+							resources: resources.length,
+						},
+					},
+					toolCallId
+				);
+			}
 
-      const response = await authenticatedFetch(
-        API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
-        {
-          method: "POST",
-          jwt,
-          body: JSON.stringify({
-            campaignId,
-            hookType,
-            context: contextParam,
-          }),
-        }
-      );
+			const response = await authenticatedFetch(
+				API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
+				{
+					method: "POST",
+					jwt,
+					body: JSON.stringify({
+						campaignId,
+						hookType,
+						context: contextParam,
+					}),
+				}
+			);
 
-      if (!response.ok) {
-        const authError = await handleAuthError(response);
-        if (authError) {
-          return createToolError(authError, null, 401, toolCallId);
-        }
-        return createToolError(
-          "Failed to generate session hooks",
-          `HTTP ${response.status}: ${await response.text()}`,
-          500,
-          toolCallId
-        );
-      }
+			if (!response.ok) {
+				const authError = await handleAuthError(response);
+				if (authError) {
+					return createToolError(authError, null, 401, toolCallId);
+				}
+				return createToolError(
+					"Failed to generate session hooks",
+					`HTTP ${response.status}: ${await response.text()}`,
+					500,
+					toolCallId
+				);
+			}
 
-      const result = (await response.json()) as { hooks?: unknown[] };
-      return createToolSuccess(
-        `Generated ${result.hooks?.length || 0} ${hookType} hooks`,
-        result,
-        toolCallId
-      );
-    } catch (error) {
-      console.error("Error generating session hooks:", error);
-      return createToolError(
-        "Failed to generate session hooks",
-        error instanceof Error ? error.message : String(error),
-        500,
-        toolCallId
-      );
-    }
-  },
+			const result = (await response.json()) as { hooks?: unknown[] };
+			return createToolSuccess(
+				`Generated ${result.hooks?.length || 0} ${hookType} hooks`,
+				result,
+				toolCallId
+			);
+		} catch (error) {
+			console.error("Error generating session hooks:", error);
+			return createToolError(
+				"Failed to generate session hooks",
+				error instanceof Error ? error.message : String(error),
+				500,
+				toolCallId
+			);
+		}
+	},
 });

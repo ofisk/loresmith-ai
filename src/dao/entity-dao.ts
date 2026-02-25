@@ -1,9 +1,9 @@
-import { BaseDAOClass } from "./base-dao";
-import {
-  normalizeRelationshipType,
-  type RelationshipType,
-} from "@/lib/relationship-types";
 import { RelationshipUpsertError } from "@/lib/errors";
+import {
+	normalizeRelationshipType,
+	type RelationshipType,
+} from "@/lib/relationship-types";
+import { BaseDAOClass } from "./base-dao";
 
 /** D1 platform limit: max 100 bound params per query. We use 2×N (from + to IN), so N ≤ 49. */
 const RELATIONSHIPS_BATCH_SIZE = 49;
@@ -11,158 +11,158 @@ const RELATIONSHIPS_BATCH_SIZE = 49;
 // Raw row shape returned directly from D1 queries against the `entities` table.
 // All fields mirror the database column names and use snake_case to match D1 results.
 export interface EntityRecord {
-  id: string;
-  campaign_id: string;
-  entity_type: string;
-  name: string;
-  content: string | null;
-  metadata: string | null;
-  confidence: number | null;
-  source_type: string | null;
-  source_id: string | null;
-  embedding_id: string | null;
-  created_at: string;
-  updated_at: string;
+	id: string;
+	campaign_id: string;
+	entity_type: string;
+	name: string;
+	content: string | null;
+	metadata: string | null;
+	confidence: number | null;
+	source_type: string | null;
+	source_id: string | null;
+	embedding_id: string | null;
+	created_at: string;
+	updated_at: string;
 }
 
 // Normalized entity object exposed to the rest of the application. Uses camelCase,
 // parses JSON fields to richer types, and hides DB-specific implementation details.
 export interface Entity {
-  id: string;
-  campaignId: string;
-  entityType: string;
-  name: string;
-  content?: unknown;
-  metadata?: unknown;
-  confidence?: number;
-  sourceType?: string | null;
-  sourceId?: string | null;
-  embeddingId?: string | null;
-  createdAt: string;
-  updatedAt: string;
+	id: string;
+	campaignId: string;
+	entityType: string;
+	name: string;
+	content?: unknown;
+	metadata?: unknown;
+	confidence?: number;
+	sourceType?: string | null;
+	sourceId?: string | null;
+	embeddingId?: string | null;
+	createdAt: string;
+	updatedAt: string;
 }
 
 // Payload required when inserting a brand-new entity into the database. Consumers
 // provide campaign + entity metadata, while timestamps are handled automatically.
 export interface CreateEntityInput {
-  id: string;
-  campaignId: string;
-  entityType: string;
-  name: string;
-  content?: unknown;
-  metadata?: unknown;
-  confidence?: number | null;
-  sourceType?: string | null;
-  sourceId?: string | null;
-  embeddingId?: string | null;
+	id: string;
+	campaignId: string;
+	entityType: string;
+	name: string;
+	content?: unknown;
+	metadata?: unknown;
+	confidence?: number | null;
+	sourceType?: string | null;
+	sourceId?: string | null;
+	embeddingId?: string | null;
 }
 
 // Partial payload for updates to an existing entity. Only supplied fields are
 // persisted, allowing targeted updates without overwriting other values.
 export interface UpdateEntityInput {
-  name?: string;
-  content?: unknown;
-  metadata?: unknown;
-  confidence?: number | null;
-  sourceType?: string | null;
-  sourceId?: string | null;
-  embeddingId?: string | null;
-  entityType?: string;
+	name?: string;
+	content?: unknown;
+	metadata?: unknown;
+	confidence?: number | null;
+	sourceType?: string | null;
+	sourceId?: string | null;
+	embeddingId?: string | null;
+	entityType?: string;
 }
 
 // Raw row structure for the `entity_relationships` table. Matches the D1 schema
 // exactly and is primarily used internally before normalization.
 export interface EntityRelationshipRecord {
-  id: string;
-  campaign_id: string;
-  from_entity_id: string;
-  to_entity_id: string;
-  relationship_type: string;
-  strength: number | null;
-  metadata: string | null;
-  created_at: string;
-  updated_at: string;
+	id: string;
+	campaign_id: string;
+	from_entity_id: string;
+	to_entity_id: string;
+	relationship_type: string;
+	strength: number | null;
+	metadata: string | null;
+	created_at: string;
+	updated_at: string;
 }
 
 // Application-facing relationship shape with camelCase keys and parsed metadata.
 // Returned by DAO helpers when listing relationships for an entity/campaign.
 export interface EntityRelationship {
-  id: string;
-  campaignId: string;
-  fromEntityId: string;
-  toEntityId: string;
-  relationshipType: RelationshipType;
-  strength?: number | null;
-  metadata?: unknown;
-  createdAt: string;
-  updatedAt: string;
+	id: string;
+	campaignId: string;
+	fromEntityId: string;
+	toEntityId: string;
+	relationshipType: RelationshipType;
+	strength?: number | null;
+	metadata?: unknown;
+	createdAt: string;
+	updatedAt: string;
 }
 
 // Parameters required to create a new directional relationship between two entities.
 // The caller is responsible for providing a unique ID (usually crypto.randomUUID()).
 export interface CreateEntityRelationshipInput {
-  id?: string;
-  campaignId: string;
-  fromEntityId: string;
-  toEntityId: string;
-  relationshipType: RelationshipType;
-  strength?: number | null;
-  metadata?: unknown;
+	id?: string;
+	campaignId: string;
+	fromEntityId: string;
+	toEntityId: string;
+	relationshipType: RelationshipType;
+	strength?: number | null;
+	metadata?: unknown;
 }
 
 // Lightweight representation used by traversal helpers (e.g. breadth-first search)
 // to expose nearby entities and relationship metadata up to a requested depth.
 export interface EntityNeighbor {
-  entityId: string;
-  depth: number;
-  relationshipType: RelationshipType;
-  name: string;
-  entityType: string;
+	entityId: string;
+	depth: number;
+	relationshipType: RelationshipType;
+	name: string;
+	entityType: string;
 }
 
 export interface EntityDeduplicationRecord {
-  id: string;
-  campaign_id: string;
-  new_entity_id: string;
-  potential_duplicate_ids: string;
-  similarity_scores: string;
-  status: string;
-  user_decision: string | null;
-  created_at: string;
-  resolved_at: string | null;
+	id: string;
+	campaign_id: string;
+	new_entity_id: string;
+	potential_duplicate_ids: string;
+	similarity_scores: string;
+	status: string;
+	user_decision: string | null;
+	created_at: string;
+	resolved_at: string | null;
 }
 
 export interface EntityDeduplicationEntry {
-  id: string;
-  campaignId: string;
-  newEntityId: string;
-  potentialDuplicateIds: string[];
-  similarityScores: number[];
-  status: string;
-  userDecision?: string | null;
-  createdAt: string;
-  resolvedAt?: string | null;
+	id: string;
+	campaignId: string;
+	newEntityId: string;
+	potentialDuplicateIds: string[];
+	similarityScores: number[];
+	status: string;
+	userDecision?: string | null;
+	createdAt: string;
+	resolvedAt?: string | null;
 }
 
 export interface CreateEntityDeduplicationInput {
-  id: string;
-  campaignId: string;
-  newEntityId: string;
-  potentialDuplicateIds: string[];
-  similarityScores: number[];
-  status?: string;
-  userDecision?: string | null;
+	id: string;
+	campaignId: string;
+	newEntityId: string;
+	potentialDuplicateIds: string[];
+	similarityScores: number[];
+	status?: string;
+	userDecision?: string | null;
 }
 
 export interface UpdateEntityDeduplicationInput {
-  status?: string;
-  userDecision?: string | null;
-  resolvedAt?: string | null;
+	status?: string;
+	userDecision?: string | null;
+	resolvedAt?: string | null;
 }
 
 export class EntityDAO extends BaseDAOClass {
-  async createEntity(entity: CreateEntityInput): Promise<void> {
-    const sql = `
+	async createEntity(entity: CreateEntityInput): Promise<void> {
+		const sql = `
       INSERT INTO entities (
         id,
         campaign_id,
@@ -181,415 +181,415 @@ export class EntityDAO extends BaseDAOClass {
       )
     `;
 
-    await this.execute(sql, [
-      entity.id,
-      entity.campaignId,
-      entity.entityType,
-      entity.name,
-      entity.content ? JSON.stringify(entity.content) : null,
-      entity.metadata ? JSON.stringify(entity.metadata) : null,
-      entity.confidence ?? null,
-      entity.sourceType ?? null,
-      entity.sourceId ?? null,
-      entity.embeddingId ?? null,
-    ]);
-  }
+		await this.execute(sql, [
+			entity.id,
+			entity.campaignId,
+			entity.entityType,
+			entity.name,
+			entity.content ? JSON.stringify(entity.content) : null,
+			entity.metadata ? JSON.stringify(entity.metadata) : null,
+			entity.confidence ?? null,
+			entity.sourceType ?? null,
+			entity.sourceId ?? null,
+			entity.embeddingId ?? null,
+		]);
+	}
 
-  async updateEntity(
-    entityId: string,
-    updates: UpdateEntityInput
-  ): Promise<void> {
-    const setClauses: string[] = [];
-    const values: any[] = [];
+	async updateEntity(
+		entityId: string,
+		updates: UpdateEntityInput
+	): Promise<void> {
+		const setClauses: string[] = [];
+		const values: any[] = [];
 
-    if (updates.name !== undefined) {
-      setClauses.push("name = ?");
-      values.push(updates.name);
-    }
+		if (updates.name !== undefined) {
+			setClauses.push("name = ?");
+			values.push(updates.name);
+		}
 
-    if (updates.content !== undefined) {
-      setClauses.push("content = ?");
-      values.push(updates.content ? JSON.stringify(updates.content) : null);
-    }
+		if (updates.content !== undefined) {
+			setClauses.push("content = ?");
+			values.push(updates.content ? JSON.stringify(updates.content) : null);
+		}
 
-    if (updates.metadata !== undefined) {
-      setClauses.push("metadata = ?");
-      values.push(updates.metadata ? JSON.stringify(updates.metadata) : null);
-    }
+		if (updates.metadata !== undefined) {
+			setClauses.push("metadata = ?");
+			values.push(updates.metadata ? JSON.stringify(updates.metadata) : null);
+		}
 
-    if (updates.confidence !== undefined) {
-      setClauses.push("confidence = ?");
-      values.push(updates.confidence);
-    }
+		if (updates.confidence !== undefined) {
+			setClauses.push("confidence = ?");
+			values.push(updates.confidence);
+		}
 
-    if (updates.sourceType !== undefined) {
-      setClauses.push("source_type = ?");
-      values.push(updates.sourceType);
-    }
+		if (updates.sourceType !== undefined) {
+			setClauses.push("source_type = ?");
+			values.push(updates.sourceType);
+		}
 
-    if (updates.sourceId !== undefined) {
-      setClauses.push("source_id = ?");
-      values.push(updates.sourceId);
-    }
+		if (updates.sourceId !== undefined) {
+			setClauses.push("source_id = ?");
+			values.push(updates.sourceId);
+		}
 
-    if (updates.embeddingId !== undefined) {
-      setClauses.push("embedding_id = ?");
-      values.push(updates.embeddingId);
-    }
+		if (updates.embeddingId !== undefined) {
+			setClauses.push("embedding_id = ?");
+			values.push(updates.embeddingId);
+		}
 
-    if (updates.entityType !== undefined) {
-      setClauses.push("entity_type = ?");
-      values.push(updates.entityType);
-    }
+		if (updates.entityType !== undefined) {
+			setClauses.push("entity_type = ?");
+			values.push(updates.entityType);
+		}
 
-    if (setClauses.length === 0) {
-      return;
-    }
+		if (setClauses.length === 0) {
+			return;
+		}
 
-    const sql = `
+		const sql = `
       UPDATE entities
       SET ${setClauses.join(", ")}, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `;
 
-    values.push(entityId);
-    await this.execute(sql, values);
-  }
+		values.push(entityId);
+		await this.execute(sql, values);
+	}
 
-  async getEntityById(entityId: string): Promise<Entity | null> {
-    // Entity IDs are campaign-scoped with format: ${campaignId}_${baseId}
-    // So we only need to check by ID - the campaign is already encoded in the ID
-    const sql = `SELECT * FROM entities WHERE id = ?`;
-    const record = await this.queryFirst<EntityRecord>(sql, [entityId]);
-    return record ? this.mapEntityRecord(record) : null;
-  }
+	async getEntityById(entityId: string): Promise<Entity | null> {
+		// Entity IDs are campaign-scoped with format: ${campaignId}_${baseId}
+		// So we only need to check by ID - the campaign is already encoded in the ID
+		const sql = `SELECT * FROM entities WHERE id = ?`;
+		const record = await this.queryFirst<EntityRecord>(sql, [entityId]);
+		return record ? this.mapEntityRecord(record) : null;
+	}
 
-  async getEntitiesByIds(entityIds: string[]): Promise<Entity[]> {
-    if (entityIds.length === 0) {
-      return [];
-    }
-    const placeholders = entityIds.map(() => "?").join(", ");
-    const sql = `SELECT * FROM entities WHERE id IN (${placeholders})`;
-    const records = await this.queryAll<EntityRecord>(sql, entityIds);
-    return records.map((record) => this.mapEntityRecord(record));
-  }
+	async getEntitiesByIds(entityIds: string[]): Promise<Entity[]> {
+		if (entityIds.length === 0) {
+			return [];
+		}
+		const placeholders = entityIds.map(() => "?").join(", ");
+		const sql = `SELECT * FROM entities WHERE id IN (${placeholders})`;
+		const records = await this.queryAll<EntityRecord>(sql, entityIds);
+		return records.map((record) => this.mapEntityRecord(record));
+	}
 
-  async listEntitiesByCampaign(
-    campaignId: string,
-    options: {
-      entityType?: string;
-      limit?: number;
-      offset?: number;
-      orderBy?: "updated_at" | "name";
-    } = {}
-  ): Promise<Entity[]> {
-    const conditions = ["campaign_id = ?"];
-    const params: any[] = [campaignId];
+	async listEntitiesByCampaign(
+		campaignId: string,
+		options: {
+			entityType?: string;
+			limit?: number;
+			offset?: number;
+			orderBy?: "updated_at" | "name";
+		} = {}
+	): Promise<Entity[]> {
+		const conditions = ["campaign_id = ?"];
+		const params: any[] = [campaignId];
 
-    if (options.entityType) {
-      conditions.push("entity_type = ?");
-      params.push(options.entityType);
-    }
+		if (options.entityType) {
+			conditions.push("entity_type = ?");
+			params.push(options.entityType);
+		}
 
-    const orderBy =
-      options.orderBy === "name"
-        ? "LOWER(TRIM(name)) ASC, id ASC"
-        : "updated_at DESC";
-    let sql = `
+		const orderBy =
+			options.orderBy === "name"
+				? "LOWER(TRIM(name)) ASC, id ASC"
+				: "updated_at DESC";
+		let sql = `
       SELECT * FROM entities
       WHERE ${conditions.join(" AND ")}
       ORDER BY ${orderBy}
     `;
 
-    if (typeof options.limit === "number") {
-      sql += " LIMIT ?";
-      params.push(options.limit);
-    }
+		if (typeof options.limit === "number") {
+			sql += " LIMIT ?";
+			params.push(options.limit);
+		}
 
-    if (typeof options.offset === "number") {
-      sql += " OFFSET ?";
-      params.push(options.offset);
-    }
+		if (typeof options.offset === "number") {
+			sql += " OFFSET ?";
+			params.push(options.offset);
+		}
 
-    const records = await this.queryAll<EntityRecord>(sql, params);
-    return records.map((record) => this.mapEntityRecord(record));
-  }
+		const records = await this.queryAll<EntityRecord>(sql, params);
+		return records.map((record) => this.mapEntityRecord(record));
+	}
 
-  /**
-   * Get total count of entities by campaign and optionally by entity type
-   */
-  async getEntityCountByCampaign(
-    campaignId: string,
-    options: { entityType?: string } = {}
-  ): Promise<number> {
-    const conditions = ["campaign_id = ?"];
-    const params: any[] = [campaignId];
+	/**
+	 * Get total count of entities by campaign and optionally by entity type
+	 */
+	async getEntityCountByCampaign(
+		campaignId: string,
+		options: { entityType?: string } = {}
+	): Promise<number> {
+		const conditions = ["campaign_id = ?"];
+		const params: any[] = [campaignId];
 
-    if (options.entityType) {
-      conditions.push("entity_type = ?");
-      params.push(options.entityType);
-    }
+		if (options.entityType) {
+			conditions.push("entity_type = ?");
+			params.push(options.entityType);
+		}
 
-    const sql = `
+		const sql = `
       SELECT COUNT(*) as count
       FROM entities
       WHERE ${conditions.join(" AND ")}
     `;
 
-    const result = await this.queryFirst<{ count: number }>(sql, params);
-    return result?.count || 0;
-  }
+		const result = await this.queryFirst<{ count: number }>(sql, params);
+		return result?.count || 0;
+	}
 
-  /**
-   * Get distinct campaign IDs that have entities
-   * Useful for batch processing campaigns that have entity data
-   */
-  async getCampaignIdsWithEntities(limit?: number): Promise<string[]> {
-    const sql = `
+	/**
+	 * Get distinct campaign IDs that have entities
+	 * Useful for batch processing campaigns that have entity data
+	 */
+	async getCampaignIdsWithEntities(limit?: number): Promise<string[]> {
+		const sql = `
       SELECT DISTINCT campaign_id
       FROM entities
       ORDER BY campaign_id
       ${limit ? `LIMIT ${limit}` : ""}
     `;
-    const results = await this.queryAll<{ campaign_id: string }>(sql, []);
-    return results.map((r) => r.campaign_id);
-  }
+		const results = await this.queryAll<{ campaign_id: string }>(sql, []);
+		return results.map((r) => r.campaign_id);
+	}
 
-  /**
-   * Get entity IDs created after a specific timestamp
-   */
-  async getEntityIdsCreatedAfter(
-    campaignId: string,
-    afterTimestamp: string
-  ): Promise<string[]> {
-    const sql = `
+	/**
+	 * Get entity IDs created after a specific timestamp
+	 */
+	async getEntityIdsCreatedAfter(
+		campaignId: string,
+		afterTimestamp: string
+	): Promise<string[]> {
+		const sql = `
       SELECT id
       FROM entities
       WHERE campaign_id = ? AND created_at > ?
       ORDER BY created_at ASC
     `;
 
-    const records = await this.queryAll<{ id: string }>(sql, [
-      campaignId,
-      afterTimestamp,
-    ]);
-    return records.map((record) => record.id);
-  }
+		const records = await this.queryAll<{ id: string }>(sql, [
+			campaignId,
+			afterTimestamp,
+		]);
+		return records.map((record) => record.id);
+	}
 
-  /**
-   * Search entities by name keywords (case-insensitive partial match)
-   */
-  async searchEntitiesByName(
-    campaignId: string,
-    keywords: string[],
-    options: { entityType?: string; limit?: number } = {}
-  ): Promise<Entity[]> {
-    const conditions = ["campaign_id = ?"];
-    const params: any[] = [campaignId];
+	/**
+	 * Search entities by name keywords (case-insensitive partial match)
+	 */
+	async searchEntitiesByName(
+		campaignId: string,
+		keywords: string[],
+		options: { entityType?: string; limit?: number } = {}
+	): Promise<Entity[]> {
+		const conditions = ["campaign_id = ?"];
+		const params: any[] = [campaignId];
 
-    if (options.entityType) {
-      conditions.push("entity_type = ?");
-      params.push(options.entityType);
-    }
+		if (options.entityType) {
+			conditions.push("entity_type = ?");
+			params.push(options.entityType);
+		}
 
-    // Build OR conditions for each keyword
-    if (keywords.length > 0) {
-      const keywordConditions = keywords.map(() => "LOWER(name) LIKE ?");
-      conditions.push(`(${keywordConditions.join(" OR ")})`);
-      params.push(...keywords.map((kw) => `%${kw.toLowerCase()}%`));
-    }
+		// Build OR conditions for each keyword
+		if (keywords.length > 0) {
+			const keywordConditions = keywords.map(() => "LOWER(name) LIKE ?");
+			conditions.push(`(${keywordConditions.join(" OR ")})`);
+			params.push(...keywords.map((kw) => `%${kw.toLowerCase()}%`));
+		}
 
-    let sql = `
+		let sql = `
       SELECT * FROM entities
       WHERE ${conditions.join(" AND ")}
       ORDER BY updated_at DESC
     `;
 
-    if (typeof options.limit === "number") {
-      sql += " LIMIT ?";
-      params.push(options.limit);
-    }
+		if (typeof options.limit === "number") {
+			sql += " LIMIT ?";
+			params.push(options.limit);
+		}
 
-    const records = await this.queryAll<EntityRecord>(sql, params);
-    return records.map((record) => this.mapEntityRecord(record));
-  }
+		const records = await this.queryAll<EntityRecord>(sql, params);
+		return records.map((record) => this.mapEntityRecord(record));
+	}
 
-  /**
-   * Search entities by a single text term across one or more fields (name, content).
-   * Case-insensitive partial match. Use for graph search and flexible lookup.
-   */
-  async searchEntitiesByText(
-    campaignId: string,
-    searchTerm: string,
-    options: {
-      fields?: Array<"name" | "content">;
-      limit?: number;
-    } = {}
-  ): Promise<Entity[]> {
-    const fields = options.fields?.length
-      ? options.fields
-      : (["name", "content"] as const);
-    const term = `%${searchTerm.trim().toLowerCase()}%`;
-    const conditions = ["campaign_id = ?"];
-    const params: (string | number)[] = [campaignId];
+	/**
+	 * Search entities by a single text term across one or more fields (name, content).
+	 * Case-insensitive partial match. Use for graph search and flexible lookup.
+	 */
+	async searchEntitiesByText(
+		campaignId: string,
+		searchTerm: string,
+		options: {
+			fields?: Array<"name" | "content">;
+			limit?: number;
+		} = {}
+	): Promise<Entity[]> {
+		const fields = options.fields?.length
+			? options.fields
+			: (["name", "content"] as const);
+		const term = `%${searchTerm.trim().toLowerCase()}%`;
+		const conditions = ["campaign_id = ?"];
+		const params: (string | number)[] = [campaignId];
 
-    const orParts: string[] = [];
-    if (fields.includes("name")) {
-      orParts.push("LOWER(name) LIKE ?");
-      params.push(term);
-    }
-    if (fields.includes("content")) {
-      orParts.push("(content IS NOT NULL AND LOWER(content) LIKE ?)");
-      params.push(term);
-    }
-    if (orParts.length > 0) {
-      conditions.push(`(${orParts.join(" OR ")})`);
-    }
+		const orParts: string[] = [];
+		if (fields.includes("name")) {
+			orParts.push("LOWER(name) LIKE ?");
+			params.push(term);
+		}
+		if (fields.includes("content")) {
+			orParts.push("(content IS NOT NULL AND LOWER(content) LIKE ?)");
+			params.push(term);
+		}
+		if (orParts.length > 0) {
+			conditions.push(`(${orParts.join(" OR ")})`);
+		}
 
-    let sql = `
+		let sql = `
       SELECT * FROM entities
       WHERE ${conditions.join(" AND ")}
       ORDER BY updated_at DESC
     `;
-    if (typeof options.limit === "number") {
-      sql += " LIMIT ?";
-      params.push(options.limit);
-    }
+		if (typeof options.limit === "number") {
+			sql += " LIMIT ?";
+			params.push(options.limit);
+		}
 
-    const records = await this.queryAll<EntityRecord>(sql, params);
-    return records.map((record) => this.mapEntityRecord(record));
-  }
+		const records = await this.queryAll<EntityRecord>(sql, params);
+		return records.map((record) => this.mapEntityRecord(record));
+	}
 
-  /**
-   * Find entity by exact name and type (case-insensitive for name and type).
-   * Used to detect if an extracted entity candidate already exists.
-   */
-  async findEntityByNameAndType(
-    campaignId: string,
-    name: string,
-    entityType: string
-  ): Promise<Entity | null> {
-    const normalizedName = (name ?? "").trim();
-    const sql = `
+	/**
+	 * Find entity by exact name and type (case-insensitive for name and type).
+	 * Used to detect if an extracted entity candidate already exists.
+	 */
+	async findEntityByNameAndType(
+		campaignId: string,
+		name: string,
+		entityType: string
+	): Promise<Entity | null> {
+		const normalizedName = (name ?? "").trim();
+		const sql = `
       SELECT * FROM entities
       WHERE campaign_id = ?
         AND LOWER(TRIM(name)) = LOWER(?)
         AND LOWER(entity_type) = LOWER(?)
       LIMIT 1
     `;
-    const record = await this.queryFirst<EntityRecord>(sql, [
-      campaignId,
-      normalizedName,
-      entityType,
-    ]);
-    return record ? this.mapEntityRecord(record) : null;
-  }
+		const record = await this.queryFirst<EntityRecord>(sql, [
+			campaignId,
+			normalizedName,
+			entityType,
+		]);
+		return record ? this.mapEntityRecord(record) : null;
+	}
 
-  /**
-   * Find all entities with the same name (case-insensitive) in a campaign.
-   * Name is trimmed; type comparison is case-insensitive when provided.
-   * Used as lexical fallback for duplicate detection (primary is semantic via SemanticDuplicateDetectionService) and for same-name reporting.
-   */
-  async findEntitiesByName(
-    campaignId: string,
-    name: string,
-    entityType?: string
-  ): Promise<Entity[]> {
-    const normalizedName = (name ?? "").trim();
-    let sql = `
+	/**
+	 * Find all entities with the same name (case-insensitive) in a campaign.
+	 * Name is trimmed; type comparison is case-insensitive when provided.
+	 * Used as lexical fallback for duplicate detection (primary is semantic via SemanticDuplicateDetectionService) and for same-name reporting.
+	 */
+	async findEntitiesByName(
+		campaignId: string,
+		name: string,
+		entityType?: string
+	): Promise<Entity[]> {
+		const normalizedName = (name ?? "").trim();
+		let sql = `
       SELECT * FROM entities
       WHERE campaign_id = ?
         AND LOWER(TRIM(name)) = LOWER(?)
     `;
-    const params: (string | undefined)[] = [campaignId, normalizedName];
+		const params: (string | undefined)[] = [campaignId, normalizedName];
 
-    if (entityType !== undefined && entityType !== null && entityType !== "") {
-      sql += ` AND LOWER(entity_type) = LOWER(?)`;
-      params.push(entityType);
-    }
+		if (entityType !== undefined && entityType !== null && entityType !== "") {
+			sql += ` AND LOWER(entity_type) = LOWER(?)`;
+			params.push(entityType);
+		}
 
-    sql += ` ORDER BY created_at DESC`;
+		sql += ` ORDER BY created_at DESC`;
 
-    const records = await this.queryAll<EntityRecord>(sql, params);
-    return records.map((record) => this.mapEntityRecord(record));
-  }
+		const records = await this.queryAll<EntityRecord>(sql, params);
+		return records.map((record) => this.mapEntityRecord(record));
+	}
 
-  /**
-   * Lexical duplicate check by name (and optional type).
-   * Used as fallback when semantic duplicate detection is unavailable; primary duplicate detection is SemanticDuplicateDetectionService.findDuplicateEntity.
-   */
-  async findDuplicateByName(
-    campaignId: string,
-    name: string,
-    entityType?: string,
-    excludeEntityId?: string
-  ): Promise<Entity | null> {
-    const duplicates = await this.findEntitiesByName(
-      campaignId,
-      name,
-      entityType
-    );
+	/**
+	 * Lexical duplicate check by name (and optional type).
+	 * Used as fallback when semantic duplicate detection is unavailable; primary duplicate detection is SemanticDuplicateDetectionService.findDuplicateEntity.
+	 */
+	async findDuplicateByName(
+		campaignId: string,
+		name: string,
+		entityType?: string,
+		excludeEntityId?: string
+	): Promise<Entity | null> {
+		const duplicates = await this.findEntitiesByName(
+			campaignId,
+			name,
+			entityType
+		);
 
-    // Filter out the entity we're excluding (if updating an existing entity)
-    const filtered = excludeEntityId
-      ? duplicates.filter((e) => e.id !== excludeEntityId)
-      : duplicates;
+		// Filter out the entity we're excluding (if updating an existing entity)
+		const filtered = excludeEntityId
+			? duplicates.filter((e) => e.id !== excludeEntityId)
+			: duplicates;
 
-    // Return the most recent duplicate, or null if none found
-    return filtered.length > 0 ? filtered[0] : null;
-  }
+		// Return the most recent duplicate, or null if none found
+		return filtered.length > 0 ? filtered[0] : null;
+	}
 
-  /**
-   * Create an entity with duplicate checking.
-   * Returns information about whether a duplicate was found.
-   * This is useful for agent-driven entity creation where the agent should
-   * ask the user if they want to update an existing entity instead.
-   */
-  async createEntityWithDuplicateCheck(
-    entity: CreateEntityInput
-  ): Promise<{ created: boolean; entity: Entity; duplicate?: Entity }> {
-    // Check for duplicates by name (case-insensitive)
-    const duplicate = await this.findDuplicateByName(
-      entity.campaignId,
-      entity.name,
-      entity.entityType
-    );
+	/**
+	 * Create an entity with duplicate checking.
+	 * Returns information about whether a duplicate was found.
+	 * This is useful for agent-driven entity creation where the agent should
+	 * ask the user if they want to update an existing entity instead.
+	 */
+	async createEntityWithDuplicateCheck(
+		entity: CreateEntityInput
+	): Promise<{ created: boolean; entity: Entity; duplicate?: Entity }> {
+		// Check for duplicates by name (case-insensitive)
+		const duplicate = await this.findDuplicateByName(
+			entity.campaignId,
+			entity.name,
+			entity.entityType
+		);
 
-    if (duplicate) {
-      // Return the duplicate so the caller can decide what to do
-      return {
-        created: false,
-        entity: duplicate,
-        duplicate,
-      };
-    }
+		if (duplicate) {
+			// Return the duplicate so the caller can decide what to do
+			return {
+				created: false,
+				entity: duplicate,
+				duplicate,
+			};
+		}
 
-    // No duplicate found - create the entity
-    await this.createEntity(entity);
-    const created = await this.getEntityById(entity.id);
-    if (!created) {
-      throw new Error(`Failed to create entity ${entity.id}`);
-    }
+		// No duplicate found - create the entity
+		await this.createEntity(entity);
+		const created = await this.getEntityById(entity.id);
+		if (!created) {
+			throw new Error(`Failed to create entity ${entity.id}`);
+		}
 
-    return {
-      created: true,
-      entity: created,
-    };
-  }
+		return {
+			created: true,
+			entity: created,
+		};
+	}
 
-  async deleteEntity(entityId: string): Promise<void> {
-    await this.execute(
-      "DELETE FROM entity_relationships WHERE from_entity_id = ? OR to_entity_id = ?",
-      [entityId, entityId]
-    );
-    await this.execute("DELETE FROM entities WHERE id = ?", [entityId]);
-  }
+	async deleteEntity(entityId: string): Promise<void> {
+		await this.execute(
+			"DELETE FROM entity_relationships WHERE from_entity_id = ? OR to_entity_id = ?",
+			[entityId, entityId]
+		);
+		await this.execute("DELETE FROM entities WHERE id = ?", [entityId]);
+	}
 
-  async upsertRelationship(
-    relationship: CreateEntityRelationshipInput
-  ): Promise<EntityRelationship> {
-    const relationshipId = relationship.id ?? crypto.randomUUID();
-    const sql = `
+	async upsertRelationship(
+		relationship: CreateEntityRelationshipInput
+	): Promise<EntityRelationship> {
+		const relationshipId = relationship.id ?? crypto.randomUUID();
+		const sql = `
       INSERT INTO entity_relationships (
         id,
         campaign_id,
@@ -611,227 +611,227 @@ export class EntityDAO extends BaseDAOClass {
       RETURNING *;
     `;
 
-    const record = await this.queryFirst<EntityRelationshipRecord>(sql, [
-      relationshipId,
-      relationship.campaignId,
-      relationship.fromEntityId,
-      relationship.toEntityId,
-      relationship.relationshipType,
-      relationship.strength ?? null,
-      relationship.metadata ? JSON.stringify(relationship.metadata) : null,
-    ]);
+		const record = await this.queryFirst<EntityRelationshipRecord>(sql, [
+			relationshipId,
+			relationship.campaignId,
+			relationship.fromEntityId,
+			relationship.toEntityId,
+			relationship.relationshipType,
+			relationship.strength ?? null,
+			relationship.metadata ? JSON.stringify(relationship.metadata) : null,
+		]);
 
-    if (!record) {
-      throw new RelationshipUpsertError();
-    }
+		if (!record) {
+			throw new RelationshipUpsertError();
+		}
 
-    return this.mapRelationshipRecord(record);
-  }
+		return this.mapRelationshipRecord(record);
+	}
 
-  async deleteRelationship(relationshipId: string): Promise<void> {
-    await this.execute("DELETE FROM entity_relationships WHERE id = ?", [
-      relationshipId,
-    ]);
-  }
+	async deleteRelationship(relationshipId: string): Promise<void> {
+		await this.execute("DELETE FROM entity_relationships WHERE id = ?", [
+			relationshipId,
+		]);
+	}
 
-  async deleteRelationshipByCompositeKey(
-    fromEntityId: string,
-    toEntityId: string,
-    relationshipType: RelationshipType
-  ): Promise<void> {
-    await this.execute(
-      `
+	async deleteRelationshipByCompositeKey(
+		fromEntityId: string,
+		toEntityId: string,
+		relationshipType: RelationshipType
+	): Promise<void> {
+		await this.execute(
+			`
         DELETE FROM entity_relationships
         WHERE from_entity_id = ? AND to_entity_id = ? AND relationship_type = ?
       `,
-      [fromEntityId, toEntityId, relationshipType]
-    );
-  }
+			[fromEntityId, toEntityId, relationshipType]
+		);
+	}
 
-  async getRelationshipsForEntity(
-    entityId: string,
-    options: { relationshipType?: RelationshipType } = {}
-  ): Promise<EntityRelationship[]> {
-    const params: any[] = [entityId, entityId];
-    const filters: string[] = ["(from_entity_id = ? OR to_entity_id = ?)"];
+	async getRelationshipsForEntity(
+		entityId: string,
+		options: { relationshipType?: RelationshipType } = {}
+	): Promise<EntityRelationship[]> {
+		const params: any[] = [entityId, entityId];
+		const filters: string[] = ["(from_entity_id = ? OR to_entity_id = ?)"];
 
-    if (options.relationshipType) {
-      filters.push("relationship_type = ?");
-      params.push(options.relationshipType);
-    }
+		if (options.relationshipType) {
+			filters.push("relationship_type = ?");
+			params.push(options.relationshipType);
+		}
 
-    const sql = `
+		const sql = `
       SELECT * FROM entity_relationships
       WHERE ${filters.join(" AND ")}
       ORDER BY created_at DESC
     `;
 
-    const records = await this.queryAll<EntityRelationshipRecord>(sql, params);
-    return records.map((record) => this.mapRelationshipRecord(record));
-  }
+		const records = await this.queryAll<EntityRelationshipRecord>(sql, params);
+		return records.map((record) => this.mapRelationshipRecord(record));
+	}
 
-  async getRelationshipsForEntities(
-    entityIds: string[],
-    options: { relationshipType?: RelationshipType } = {}
-  ): Promise<Map<string, EntityRelationship[]>> {
-    if (entityIds.length === 0) {
-      return new Map();
-    }
+	async getRelationshipsForEntities(
+		entityIds: string[],
+		options: { relationshipType?: RelationshipType } = {}
+	): Promise<Map<string, EntityRelationship[]>> {
+		if (entityIds.length === 0) {
+			return new Map();
+		}
 
-    const result = new Map<string, EntityRelationship[]>();
-    for (const entityId of entityIds) {
-      result.set(entityId, []);
-    }
+		const result = new Map<string, EntityRelationship[]>();
+		for (const entityId of entityIds) {
+			result.set(entityId, []);
+		}
 
-    // Iterate in small groups: D1 limit 100 params/query; we use 2*N (from + to IN). Cap so 2*chunk ≤ 100.
-    const batchSize = Math.min(RELATIONSHIPS_BATCH_SIZE, 49);
-    for (let i = 0; i < entityIds.length; i += batchSize) {
-      const chunk = entityIds.slice(i, i + batchSize);
-      if (chunk.length === 0) continue;
-      const placeholders = chunk.map(() => "?").join(", ");
-      const params: unknown[] = [...chunk, ...chunk];
-      const filters: string[] = [
-        `(from_entity_id IN (${placeholders}) OR to_entity_id IN (${placeholders}))`,
-      ];
+		// Iterate in small groups: D1 limit 100 params/query; we use 2*N (from + to IN). Cap so 2*chunk ≤ 100.
+		const batchSize = Math.min(RELATIONSHIPS_BATCH_SIZE, 49);
+		for (let i = 0; i < entityIds.length; i += batchSize) {
+			const chunk = entityIds.slice(i, i + batchSize);
+			if (chunk.length === 0) continue;
+			const placeholders = chunk.map(() => "?").join(", ");
+			const params: unknown[] = [...chunk, ...chunk];
+			const filters: string[] = [
+				`(from_entity_id IN (${placeholders}) OR to_entity_id IN (${placeholders}))`,
+			];
 
-      if (options.relationshipType) {
-        filters.push("relationship_type = ?");
-        params.push(options.relationshipType);
-      }
+			if (options.relationshipType) {
+				filters.push("relationship_type = ?");
+				params.push(options.relationshipType);
+			}
 
-      const sql = `
+			const sql = `
       SELECT * FROM entity_relationships
       WHERE ${filters.join(" AND ")}
       ORDER BY created_at DESC
     `;
 
-      const records = await this.queryAll<EntityRelationshipRecord>(
-        sql,
-        params
-      );
-      const relationships = records.map((record) =>
-        this.mapRelationshipRecord(record)
-      );
+			const records = await this.queryAll<EntityRelationshipRecord>(
+				sql,
+				params
+			);
+			const relationships = records.map((record) =>
+				this.mapRelationshipRecord(record)
+			);
 
-      const entityIdSet = new Set(entityIds);
-      for (const rel of relationships) {
-        if (entityIdSet.has(rel.fromEntityId)) {
-          const existing = result.get(rel.fromEntityId) ?? [];
-          existing.push(rel);
-          result.set(rel.fromEntityId, existing);
-        }
-        if (entityIdSet.has(rel.toEntityId)) {
-          const existing = result.get(rel.toEntityId) ?? [];
-          existing.push(rel);
-          result.set(rel.toEntityId, existing);
-        }
-      }
-    }
+			const entityIdSet = new Set(entityIds);
+			for (const rel of relationships) {
+				if (entityIdSet.has(rel.fromEntityId)) {
+					const existing = result.get(rel.fromEntityId) ?? [];
+					existing.push(rel);
+					result.set(rel.fromEntityId, existing);
+				}
+				if (entityIdSet.has(rel.toEntityId)) {
+					const existing = result.get(rel.toEntityId) ?? [];
+					existing.push(rel);
+					result.set(rel.toEntityId, existing);
+				}
+			}
+		}
 
-    return result;
-  }
+		return result;
+	}
 
-  async getRelationshipsByType(
-    campaignId: string,
-    relationshipType: RelationshipType
-  ): Promise<EntityRelationship[]> {
-    const sql = `
+	async getRelationshipsByType(
+		campaignId: string,
+		relationshipType: RelationshipType
+	): Promise<EntityRelationship[]> {
+		const sql = `
       SELECT * FROM entity_relationships
       WHERE campaign_id = ? AND relationship_type = ?
       ORDER BY created_at DESC
     `;
 
-    const records = await this.queryAll<EntityRelationshipRecord>(sql, [
-      campaignId,
-      relationshipType,
-    ]);
+		const records = await this.queryAll<EntityRelationshipRecord>(sql, [
+			campaignId,
+			relationshipType,
+		]);
 
-    return records.map((record) => this.mapRelationshipRecord(record));
-  }
+		return records.map((record) => this.mapRelationshipRecord(record));
+	}
 
-  /**
-   * Get minimal relationship data for a campaign (for memory-efficient graph operations)
-   * Returns only from/to/strength/metadata fields needed for community detection
-   */
-  async getMinimalRelationshipsForCampaign(campaignId: string): Promise<
-    Array<{
-      fromEntityId: string;
-      toEntityId: string;
-      strength: number | null;
-      metadata: string | null;
-    }>
-  > {
-    const sql = `
+	/**
+	 * Get minimal relationship data for a campaign (for memory-efficient graph operations)
+	 * Returns only from/to/strength/metadata fields needed for community detection
+	 */
+	async getMinimalRelationshipsForCampaign(campaignId: string): Promise<
+		Array<{
+			fromEntityId: string;
+			toEntityId: string;
+			strength: number | null;
+			metadata: string | null;
+		}>
+	> {
+		const sql = `
       SELECT from_entity_id, to_entity_id, strength, metadata
       FROM entity_relationships
       WHERE campaign_id = ?
     `;
 
-    const records = await this.queryAll<{
-      from_entity_id: string;
-      to_entity_id: string;
-      strength: number | null;
-      metadata: string | null;
-    }>(sql, [campaignId]);
+		const records = await this.queryAll<{
+			from_entity_id: string;
+			to_entity_id: string;
+			strength: number | null;
+			metadata: string | null;
+		}>(sql, [campaignId]);
 
-    return records.map((record) => ({
-      fromEntityId: record.from_entity_id,
-      toEntityId: record.to_entity_id,
-      strength: record.strength,
-      metadata: record.metadata,
-    }));
-  }
+		return records.map((record) => ({
+			fromEntityId: record.from_entity_id,
+			toEntityId: record.to_entity_id,
+			strength: record.strength,
+			metadata: record.metadata,
+		}));
+	}
 
-  /**
-   * Get minimal entity data for a campaign (for memory-efficient graph operations)
-   * Returns only id and metadata fields needed for filtering rejected/ignored entities
-   */
-  async getMinimalEntitiesForCampaign(
-    campaignId: string
-  ): Promise<Array<{ id: string; metadata: string | null }>> {
-    const sql = `
+	/**
+	 * Get minimal entity data for a campaign (for memory-efficient graph operations)
+	 * Returns only id and metadata fields needed for filtering rejected/ignored entities
+	 */
+	async getMinimalEntitiesForCampaign(
+		campaignId: string
+	): Promise<Array<{ id: string; metadata: string | null }>> {
+		const sql = `
       SELECT id, metadata
       FROM entities
       WHERE campaign_id = ?
     `;
 
-    const records = await this.queryAll<{
-      id: string;
-      metadata: string | null;
-    }>(sql, [campaignId]);
+		const records = await this.queryAll<{
+			id: string;
+			metadata: string | null;
+		}>(sql, [campaignId]);
 
-    return records.map((record) => ({
-      id: record.id,
-      metadata: record.metadata,
-    }));
-  }
+		return records.map((record) => ({
+			id: record.id,
+			metadata: record.metadata,
+		}));
+	}
 
-  async getRelationshipNeighborhood(
-    entityId: string,
-    options: {
-      maxDepth?: number;
-      relationshipTypes?: RelationshipType[];
-    } = {}
-  ): Promise<EntityNeighbor[]> {
-    const maxDepth = Math.max(1, options.maxDepth ?? 1);
-    const relationshipTypes = options.relationshipTypes ?? [];
+	async getRelationshipNeighborhood(
+		entityId: string,
+		options: {
+			maxDepth?: number;
+			relationshipTypes?: RelationshipType[];
+		} = {}
+	): Promise<EntityNeighbor[]> {
+		const maxDepth = Math.max(1, options.maxDepth ?? 1);
+		const relationshipTypes = options.relationshipTypes ?? [];
 
-    const typePlaceholders =
-      relationshipTypes.length > 0
-        ? `AND er.relationship_type IN (${relationshipTypes
-            .map(() => "?")
-            .join(", ")})`
-        : "";
+		const typePlaceholders =
+			relationshipTypes.length > 0
+				? `AND er.relationship_type IN (${relationshipTypes
+						.map(() => "?")
+						.join(", ")})`
+				: "";
 
-    const params: any[] = [
-      entityId,
-      ...relationshipTypes,
-      maxDepth,
-      ...relationshipTypes,
-      entityId,
-    ];
+		const params: any[] = [
+			entityId,
+			...relationshipTypes,
+			maxDepth,
+			...relationshipTypes,
+			entityId,
+		];
 
-    const sql = `
+		const sql = `
       WITH RECURSIVE neighbor_tree AS (
         SELECT
           er.from_entity_id,
@@ -864,70 +864,70 @@ export class EntityDAO extends BaseDAOClass {
       ORDER BY nt.depth, e.name
     `;
 
-    const records = await this.queryAll<{
-      entity_id: string;
-      relationship_type: string;
-      depth: number;
-      name: string;
-      entity_type: string;
-    }>(sql, params);
+		const records = await this.queryAll<{
+			entity_id: string;
+			relationship_type: string;
+			depth: number;
+			name: string;
+			entity_type: string;
+		}>(sql, params);
 
-    return records.map((row) => ({
-      entityId: row.entity_id,
-      relationshipType: normalizeRelationshipType(row.relationship_type),
-      depth: row.depth,
-      name: row.name,
-      entityType: row.entity_type,
-    }));
-  }
+		return records.map((row) => ({
+			entityId: row.entity_id,
+			relationshipType: normalizeRelationshipType(row.relationship_type),
+			depth: row.depth,
+			name: row.name,
+			entityType: row.entity_type,
+		}));
+	}
 
-  async getRelationshipNeighborhoodBatch(
-    entityIds: string[],
-    options: {
-      maxDepth?: number;
-      relationshipTypes?: RelationshipType[];
-    } = {}
-  ): Promise<Map<string, EntityNeighbor[]>> {
-    if (entityIds.length === 0) {
-      return new Map();
-    }
+	async getRelationshipNeighborhoodBatch(
+		entityIds: string[],
+		options: {
+			maxDepth?: number;
+			relationshipTypes?: RelationshipType[];
+		} = {}
+	): Promise<Map<string, EntityNeighbor[]>> {
+		if (entityIds.length === 0) {
+			return new Map();
+		}
 
-    const maxDepth = Math.max(1, options.maxDepth ?? 1);
-    const relationshipTypes = options.relationshipTypes ?? [];
-    const typePlaceholders =
-      relationshipTypes.length > 0
-        ? `AND er.relationship_type IN (${relationshipTypes
-            .map(() => "?")
-            .join(", ")})`
-        : "";
-    // D1 limit 100 params/query. Params = 2*chunk + 2*types + 1.
-    const batchSize = Math.min(
-      RELATIONSHIPS_BATCH_SIZE,
-      Math.max(0, Math.floor((99 - 2 * relationshipTypes.length) / 2))
-    );
-    if (batchSize <= 0) {
-      return new Map(entityIds.map((id) => [id, []]));
-    }
+		const maxDepth = Math.max(1, options.maxDepth ?? 1);
+		const relationshipTypes = options.relationshipTypes ?? [];
+		const typePlaceholders =
+			relationshipTypes.length > 0
+				? `AND er.relationship_type IN (${relationshipTypes
+						.map(() => "?")
+						.join(", ")})`
+				: "";
+		// D1 limit 100 params/query. Params = 2*chunk + 2*types + 1.
+		const batchSize = Math.min(
+			RELATIONSHIPS_BATCH_SIZE,
+			Math.max(0, Math.floor((99 - 2 * relationshipTypes.length) / 2))
+		);
+		if (batchSize <= 0) {
+			return new Map(entityIds.map((id) => [id, []]));
+		}
 
-    const result = new Map<string, EntityNeighbor[]>();
-    for (const entityId of entityIds) {
-      result.set(entityId, []);
-    }
+		const result = new Map<string, EntityNeighbor[]>();
+		for (const entityId of entityIds) {
+			result.set(entityId, []);
+		}
 
-    for (let i = 0; i < entityIds.length; i += batchSize) {
-      const chunk = entityIds.slice(i, i + batchSize);
-      if (chunk.length === 0) continue;
+		for (let i = 0; i < entityIds.length; i += batchSize) {
+			const chunk = entityIds.slice(i, i + batchSize);
+			if (chunk.length === 0) continue;
 
-      const entityPlaceholders = chunk.map(() => "?").join(", ");
-      const params: any[] = [
-        ...chunk,
-        ...relationshipTypes,
-        maxDepth,
-        ...relationshipTypes,
-        ...chunk,
-      ];
+			const entityPlaceholders = chunk.map(() => "?").join(", ");
+			const params: any[] = [
+				...chunk,
+				...relationshipTypes,
+				maxDepth,
+				...relationshipTypes,
+				...chunk,
+			];
 
-      const sql = `
+			const sql = `
       WITH RECURSIVE neighbor_tree AS (
         SELECT
           er.from_entity_id,
@@ -963,78 +963,78 @@ export class EntityDAO extends BaseDAOClass {
       ORDER BY nt.start_entity_id, nt.depth, e.name
     `;
 
-      const records = await this.queryAll<{
-        start_entity_id: string;
-        entity_id: string;
-        relationship_type: string;
-        depth: number;
-        name: string;
-        entity_type: string;
-      }>(sql, params);
+			const records = await this.queryAll<{
+				start_entity_id: string;
+				entity_id: string;
+				relationship_type: string;
+				depth: number;
+				name: string;
+				entity_type: string;
+			}>(sql, params);
 
-      for (const row of records) {
-        const neighbors = result.get(row.start_entity_id) || [];
-        neighbors.push({
-          entityId: row.entity_id,
-          relationshipType: normalizeRelationshipType(row.relationship_type),
-          depth: row.depth,
-          name: row.name,
-          entityType: row.entity_type,
-        });
-        result.set(row.start_entity_id, neighbors);
-      }
-    }
+			for (const row of records) {
+				const neighbors = result.get(row.start_entity_id) || [];
+				neighbors.push({
+					entityId: row.entity_id,
+					relationshipType: normalizeRelationshipType(row.relationship_type),
+					depth: row.depth,
+					name: row.name,
+					entityType: row.entity_type,
+				});
+				result.set(row.start_entity_id, neighbors);
+			}
+		}
 
-    return result;
-  }
+		return result;
+	}
 
-  mapEntityRecord(record: EntityRecord): Entity {
-    return {
-      id: record.id,
-      campaignId: record.campaign_id,
-      entityType: record.entity_type,
-      name: record.name,
-      content: record.content ? this.safeParseJson(record.content) : undefined,
-      metadata: record.metadata
-        ? this.safeParseJson(record.metadata)
-        : undefined,
-      confidence: record.confidence ?? undefined,
-      sourceType: record.source_type,
-      sourceId: record.source_id,
-      embeddingId: record.embedding_id,
-      createdAt: record.created_at,
-      updatedAt: record.updated_at,
-    };
-  }
+	mapEntityRecord(record: EntityRecord): Entity {
+		return {
+			id: record.id,
+			campaignId: record.campaign_id,
+			entityType: record.entity_type,
+			name: record.name,
+			content: record.content ? this.safeParseJson(record.content) : undefined,
+			metadata: record.metadata
+				? this.safeParseJson(record.metadata)
+				: undefined,
+			confidence: record.confidence ?? undefined,
+			sourceType: record.source_type,
+			sourceId: record.source_id,
+			embeddingId: record.embedding_id,
+			createdAt: record.created_at,
+			updatedAt: record.updated_at,
+		};
+	}
 
-  mapRelationshipRecord(record: EntityRelationshipRecord): EntityRelationship {
-    return {
-      id: record.id,
-      campaignId: record.campaign_id,
-      fromEntityId: record.from_entity_id,
-      toEntityId: record.to_entity_id,
-      relationshipType: normalizeRelationshipType(record.relationship_type),
-      strength: record.strength,
-      metadata: record.metadata
-        ? this.safeParseJson(record.metadata)
-        : undefined,
-      createdAt: record.created_at,
-      updatedAt: record.updated_at,
-    };
-  }
+	mapRelationshipRecord(record: EntityRelationshipRecord): EntityRelationship {
+		return {
+			id: record.id,
+			campaignId: record.campaign_id,
+			fromEntityId: record.from_entity_id,
+			toEntityId: record.to_entity_id,
+			relationshipType: normalizeRelationshipType(record.relationship_type),
+			strength: record.strength,
+			metadata: record.metadata
+				? this.safeParseJson(record.metadata)
+				: undefined,
+			createdAt: record.created_at,
+			updatedAt: record.updated_at,
+		};
+	}
 
-  private safeParseJson(value: string): unknown {
-    try {
-      return JSON.parse(value);
-    } catch (_error) {
-      return undefined;
-    }
-  }
+	private safeParseJson(value: string): unknown {
+		try {
+			return JSON.parse(value);
+		} catch (_error) {
+			return undefined;
+		}
+	}
 
-  async createDeduplicationEntry(
-    entry: CreateEntityDeduplicationInput
-  ): Promise<void> {
-    const sql = `
+	async createDeduplicationEntry(
+		entry: CreateEntityDeduplicationInput
+	): Promise<void> {
+		const sql = `
       INSERT INTO entity_deduplication_pending (
         id,
         campaign_id,
@@ -1049,106 +1049,106 @@ export class EntityDAO extends BaseDAOClass {
       )
     `;
 
-    await this.execute(sql, [
-      entry.id,
-      entry.campaignId,
-      entry.newEntityId,
-      JSON.stringify(entry.potentialDuplicateIds),
-      JSON.stringify(entry.similarityScores),
-      entry.status ?? "pending",
-      entry.userDecision ?? null,
-    ]);
-  }
+		await this.execute(sql, [
+			entry.id,
+			entry.campaignId,
+			entry.newEntityId,
+			JSON.stringify(entry.potentialDuplicateIds),
+			JSON.stringify(entry.similarityScores),
+			entry.status ?? "pending",
+			entry.userDecision ?? null,
+		]);
+	}
 
-  async updateDeduplicationEntry(
-    id: string,
-    updates: UpdateEntityDeduplicationInput
-  ): Promise<void> {
-    const setClauses: string[] = [];
-    const values: any[] = [];
+	async updateDeduplicationEntry(
+		id: string,
+		updates: UpdateEntityDeduplicationInput
+	): Promise<void> {
+		const setClauses: string[] = [];
+		const values: any[] = [];
 
-    if (updates.status !== undefined) {
-      setClauses.push("status = ?");
-      values.push(updates.status);
-    }
+		if (updates.status !== undefined) {
+			setClauses.push("status = ?");
+			values.push(updates.status);
+		}
 
-    if (updates.userDecision !== undefined) {
-      setClauses.push("user_decision = ?");
-      values.push(updates.userDecision);
-    }
+		if (updates.userDecision !== undefined) {
+			setClauses.push("user_decision = ?");
+			values.push(updates.userDecision);
+		}
 
-    if (updates.resolvedAt !== undefined) {
-      setClauses.push("resolved_at = ?");
-      values.push(updates.resolvedAt);
-    }
+		if (updates.resolvedAt !== undefined) {
+			setClauses.push("resolved_at = ?");
+			values.push(updates.resolvedAt);
+		}
 
-    if (setClauses.length === 0) {
-      return;
-    }
+		if (setClauses.length === 0) {
+			return;
+		}
 
-    const sql = `
+		const sql = `
       UPDATE entity_deduplication_pending
       SET ${setClauses.join(", ")}
       WHERE id = ?
     `;
 
-    values.push(id);
-    await this.execute(sql, values);
-  }
+		values.push(id);
+		await this.execute(sql, values);
+	}
 
-  async getDeduplicationEntryById(
-    id: string
-  ): Promise<EntityDeduplicationEntry | null> {
-    const sql = `
+	async getDeduplicationEntryById(
+		id: string
+	): Promise<EntityDeduplicationEntry | null> {
+		const sql = `
       SELECT * FROM entity_deduplication_pending
       WHERE id = ?
     `;
 
-    const record = await this.queryFirst<EntityDeduplicationRecord>(sql, [id]);
-    return record ? this.mapDeduplicationRecord(record) : null;
-  }
+		const record = await this.queryFirst<EntityDeduplicationRecord>(sql, [id]);
+		return record ? this.mapDeduplicationRecord(record) : null;
+	}
 
-  async listDeduplicationEntries(
-    campaignId: string,
-    status: string = "pending"
-  ): Promise<EntityDeduplicationEntry[]> {
-    const sql = `
+	async listDeduplicationEntries(
+		campaignId: string,
+		status: string = "pending"
+	): Promise<EntityDeduplicationEntry[]> {
+		const sql = `
       SELECT * FROM entity_deduplication_pending
       WHERE campaign_id = ? AND status = ?
       ORDER BY created_at ASC
     `;
 
-    const records = await this.queryAll<EntityDeduplicationRecord>(sql, [
-      campaignId,
-      status,
-    ]);
-    return records.map((record) => this.mapDeduplicationRecord(record));
-  }
+		const records = await this.queryAll<EntityDeduplicationRecord>(sql, [
+			campaignId,
+			status,
+		]);
+		return records.map((record) => this.mapDeduplicationRecord(record));
+	}
 
-  private mapDeduplicationRecord(
-    record: EntityDeduplicationRecord
-  ): EntityDeduplicationEntry {
-    return {
-      id: record.id,
-      campaignId: record.campaign_id,
-      newEntityId: record.new_entity_id,
-      potentialDuplicateIds: this.safeParseArray(
-        record.potential_duplicate_ids
-      ),
-      similarityScores: this.safeParseArray(record.similarity_scores),
-      status: record.status,
-      userDecision: record.user_decision,
-      createdAt: record.created_at,
-      resolvedAt: record.resolved_at,
-    };
-  }
+	private mapDeduplicationRecord(
+		record: EntityDeduplicationRecord
+	): EntityDeduplicationEntry {
+		return {
+			id: record.id,
+			campaignId: record.campaign_id,
+			newEntityId: record.new_entity_id,
+			potentialDuplicateIds: this.safeParseArray(
+				record.potential_duplicate_ids
+			),
+			similarityScores: this.safeParseArray(record.similarity_scores),
+			status: record.status,
+			userDecision: record.user_decision,
+			createdAt: record.created_at,
+			resolvedAt: record.resolved_at,
+		};
+	}
 
-  private safeParseArray<T = any>(value: string): T[] {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (_error) {
-      return [];
-    }
-  }
+	private safeParseArray<T = any>(value: string): T[] {
+		try {
+			const parsed = JSON.parse(value);
+			return Array.isArray(parsed) ? parsed : [];
+		} catch (_error) {
+			return [];
+		}
+	}
 }

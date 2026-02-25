@@ -7,12 +7,12 @@ import { deleteFile, getFileStats, listFiles } from "./list-tools";
 import { autoGenerateFileMetadata, updateFileMetadata } from "./metadata-tools";
 
 export const fileTools = {
-  // List tools
-  listFiles,
-  getFileStats,
-  deleteFile,
+	// List tools
+	listFiles,
+	getFileStats,
+	deleteFile,
 
-  // Metadata tools
-  updateFileMetadata,
-  autoGenerateFileMetadata,
+	// Metadata tools
+	updateFileMetadata,
+	autoGenerateFileMetadata,
 } as const;

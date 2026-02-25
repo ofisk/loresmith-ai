@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import {
-  AuthService,
-  authenticatedFetchWithExpiration,
+	AuthService,
+	authenticatedFetchWithExpiration,
 } from "@/services/core/auth-service";
 
 /**
@@ -27,42 +27,43 @@ import {
  * ```
  */
 export function useAuthenticatedRequest() {
-  const makeRequest = useCallback(
-    async (url: string, options?: RequestInit) => {
-      const jwt = AuthService.getStoredJwt();
-      const { response, jwtExpired } = await authenticatedFetchWithExpiration(
-        url,
-        { ...options, jwt }
-      );
+	const makeRequest = useCallback(
+		async (url: string, options?: RequestInit) => {
+			const jwt = AuthService.getStoredJwt();
+			const { response, jwtExpired } = await authenticatedFetchWithExpiration(
+				url,
+				{ ...options, jwt }
+			);
 
-      if (jwtExpired) {
-        throw new Error("Authentication required. Please log in.");
-      }
+			if (jwtExpired) {
+				throw new Error("Authentication required. Please log in.");
+			}
 
-      return response;
-    },
-    []
-  );
+			return response;
+		},
+		[]
+	);
 
-  const makeRequestWithData = useCallback(
-    async <T>(url: string, options?: RequestInit): Promise<T> => {
-      const response = await makeRequest(url, options);
+	const makeRequestWithData = useCallback(
+		async <T>(url: string, options?: RequestInit): Promise<T> => {
+			const response = await makeRequest(url, options);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        const { parseErrorResponse, formatErrorForNotification } =
-          await import("@/lib/error-parsing");
-        const parsedError = parseErrorResponse(errorText, response.status);
-        throw new Error(formatErrorForNotification(parsedError));
-      }
+			if (!response.ok) {
+				const errorText = await response.text();
+				const { parseErrorResponse, formatErrorForNotification } = await import(
+					"@/lib/error-parsing"
+				);
+				const parsedError = parseErrorResponse(errorText, response.status);
+				throw new Error(formatErrorForNotification(parsedError));
+			}
 
-      return response.json() as Promise<T>;
-    },
-    [makeRequest]
-  );
+			return response.json() as Promise<T>;
+		},
+		[makeRequest]
+	);
 
-  return {
-    makeRequest,
-    makeRequestWithData,
-  };
+	return {
+		makeRequest,
+		makeRequestWithData,
+	};
 }

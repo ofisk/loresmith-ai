@@ -4,11 +4,11 @@
  */
 
 import {
-  STRUCTURED_ENTITY_TYPES,
-  ENTITY_TYPE_CATEGORIES,
-  ENTITY_TYPE_EXTRACTION_HINTS,
-  getEntityTypeDisplayName,
-  type StructuredEntityType,
+	ENTITY_TYPE_CATEGORIES,
+	ENTITY_TYPE_EXTRACTION_HINTS,
+	getEntityTypeDisplayName,
+	STRUCTURED_ENTITY_TYPES,
+	type StructuredEntityType,
 } from "@/lib/entity-types";
 import { RELATIONSHIP_TYPE_CATEGORIES } from "@/lib/relationship-types";
 
@@ -16,64 +16,64 @@ import { RELATIONSHIP_TYPE_CATEGORIES } from "@/lib/relationship-types";
  * Build the entity type list for the prompt
  */
 function buildEntityTypeList(): string {
-  return Object.entries(ENTITY_TYPE_CATEGORIES)
-    .map(([category, types]) => {
-      const typeList = types.join(", ");
-      return `- ${category}: ${typeList}`;
-    })
-    .join("\n");
+	return Object.entries(ENTITY_TYPE_CATEGORIES)
+		.map(([category, types]) => {
+			const typeList = types.join(", ");
+			return `- ${category}: ${typeList}`;
+		})
+		.join("\n");
 }
 
 /**
  * Build the relationship type list for the prompt
  */
 function buildRelationshipTypeList(): string {
-  return Object.entries(RELATIONSHIP_TYPE_CATEGORIES)
-    .map(([category, types]) => {
-      const typeList = types.join(", ");
-      return `- ${category}: ${typeList}`;
-    })
-    .join("\n");
+	return Object.entries(RELATIONSHIP_TYPE_CATEGORIES)
+		.map(([category, types]) => {
+			const typeList = types.join(", ");
+			return `- ${category}: ${typeList}`;
+		})
+		.join("\n");
 }
 
 /**
  * Build the extraction hints list for the prompt
  */
 function buildExtractionHints(): string {
-  const hints = Object.entries(ENTITY_TYPE_EXTRACTION_HINTS)
-    .map(([type, hint]) => {
-      const displayName = getEntityTypeDisplayName(
-        type as StructuredEntityType
-      );
-      return `- ${displayName}: ${hint}`;
-    })
-    .join("\n");
+	const hints = Object.entries(ENTITY_TYPE_EXTRACTION_HINTS)
+		.map(([type, hint]) => {
+			const displayName = getEntityTypeDisplayName(
+				type as StructuredEntityType
+			);
+			return `- ${displayName}: ${hint}`;
+		})
+		.join("\n");
 
-  return (
-    hints ||
-    "- Look for structured content matching the entity type definitions above."
-  );
+	return (
+		hints ||
+		"- Look for structured content matching the entity type definitions above."
+	);
 }
 
 /**
  * Build the top-level return shape JSON structure
  */
 function buildTopLevelReturnShape(): string {
-  const entityTypeKeys = STRUCTURED_ENTITY_TYPES.map(
-    (type) => `"${type}": []`
-  ).join(",\n  ");
-  return `{
+	const entityTypeKeys = STRUCTURED_ENTITY_TYPES.map(
+		(type) => `"${type}": []`
+	).join(",\n  ");
+	return `{
   "meta": { "source": { "doc": string, "pages"?: string, "anchor"?: string } },
   ${entityTypeKeys}
 }`;
 }
 
 export const RPG_EXTRACTION_PROMPTS = {
-  /**
-   * Main prompt for extracting structured game content from text for GraphRAG
-   * Used to identify game-ready primitives and build a knowledge graph
-   */
-  STRUCTURED_CONTENT: `You are extracting Game Master prep data from tabletop game text to build a knowledge graph for GraphRAG (Graph-based Retrieval Augmented Generation).
+	/**
+	 * Main prompt for extracting structured game content from text for GraphRAG
+	 * Used to identify game-ready primitives and build a knowledge graph
+	 */
+	STRUCTURED_CONTENT: `You are extracting Game Master prep data from tabletop game text to build a knowledge graph for GraphRAG (Graph-based Retrieval Augmented Generation).
 
 PURPOSE
 Your output will be used to construct a knowledge graph where entities are nodes and relationships are edges. This graph enables:
@@ -190,25 +190,25 @@ ${buildTopLevelReturnShape()}
 
 RETURN ONLY JSON.`,
 
-  /**
-   * Helper function to format the prompt with resource-specific variables
-   */
-  formatStructuredContentPrompt: (resourceName: string): string => {
-    // Replace only whole-word "document" so we don't corrupt "documented_by" in the relationship list
-    return RPG_EXTRACTION_PROMPTS.STRUCTURED_CONTENT.replace(
-      /\bdocument\b/g,
-      resourceName
-    );
-  },
+	/**
+	 * Helper function to format the prompt with resource-specific variables
+	 */
+	formatStructuredContentPrompt: (resourceName: string): string => {
+		// Replace only whole-word "document" so we don't corrupt "documented_by" in the relationship list
+		return RPG_EXTRACTION_PROMPTS.STRUCTURED_CONTENT.replace(
+			/\bdocument\b/g,
+			resourceName
+		);
+	},
 
-  /**
-   * Generate a prompt for extracting a specific content type from game text
-   * Used for targeted extraction of individual content types
-   * @param contentType - The type of content to extract (e.g., "monsters", "spells", "npcs")
-   * @returns Formatted prompt string for extracting the specified content type
-   */
-  getTypeSpecificExtractionPrompt: (contentType: string): string => {
-    return `You are extracting ${contentType} from tabletop game text.
+	/**
+	 * Generate a prompt for extracting a specific content type from game text
+	 * Used for targeted extraction of individual content types
+	 * @param contentType - The type of content to extract (e.g., "monsters", "spells", "npcs")
+	 * @returns Formatted prompt string for extracting the specified content type
+	 */
+	getTypeSpecificExtractionPrompt: (contentType: string): string => {
+		return `You are extracting ${contentType} from tabletop game text.
 
 TASK
 From the provided text, identify and synthesize ALL relevant ${contentType} and output a JSON object. Return ONLY valid JSON (no comments, no markdown).
@@ -246,5 +246,5 @@ RETURN ONLY JSON in this format:
     }
   ]
 }`;
-  },
+	},
 };

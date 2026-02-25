@@ -1,10 +1,10 @@
-import type { CampaignRole } from "@/types/campaign";
 import { isGMRole } from "@/constants/campaign-roles";
+import type { CampaignRole } from "@/types/campaign";
 import { entityGraphTools } from "../tools/campaign-context/entity-graph-tools";
 import { BaseAgent } from "./base-agent";
 import {
-  buildSystemPrompt,
-  createToolMappingFromObjects,
+	buildSystemPrompt,
+	createToolMappingFromObjects,
 } from "./system-prompts";
 
 /**
@@ -12,26 +12,26 @@ import {
  * Focused on entity extraction, relationship management, and community detection.
  */
 const ENTITY_GRAPH_SYSTEM_PROMPT = buildSystemPrompt({
-  agentName: "Entity Graph Agent",
-  responsibilities: [
-    "Entity Extraction: Extract structured entities (NPCs, locations, items, monsters, etc.) from text content and add them to the entity graph",
-    "Relationship Management: Create relationships between entities in the graph when users mention connections",
-    "Community Detection: Analyze entity relationship graphs to identify clusters of related entities using graph algorithms",
-  ],
-  tools: createToolMappingFromObjects(entityGraphTools),
-  workflowGuidelines: [
-    "Entity Extraction: When users provide text content (from files or chat) containing entities like NPCs, locations, items, or monsters, use extractEntitiesFromContentTool to extract and add them to the graph",
-    "Relationship Creation: When users mention relationships between entities (e.g., 'NPC X lives in Location Y', 'Character A is allied with Character B'), use createEntityRelationshipTool to create the relationship in the graph",
-    "Relationship Queries with Graph Traversal: When users ask questions about entity relationships, use searchCampaignContext iteratively: (1) First, search semantically to find the target entity, (2) Check if initial search results provide sufficient context - only traverse if more information is needed, (3) If traversal is needed, extract the entity ID from results and use traverseFromEntityIds, (4) ALWAYS start with traverseDepth=1 (direct neighbors only) for better performance, (5) ALWAYS use traverseRelationshipTypes filter when possible to reduce traversal scope, (6) Only increase to depth 2 or 3 if depth 1 results are insufficient, (7) Answer using accumulated context. Do NOT use getCommunitiesTool for relationship queries - communities are graph clusters, not entity relationships",
-    "Community Detection: When users want to understand how entities cluster or find related groups, use detectCommunitiesTool to analyze the entity graph",
-    "Community Analysis: Use getCommunitiesTool or getCommunityHierarchyTool to show users existing communities and their structure (these show graph clusters, not direct entity relationships)",
-  ],
-  importantNotes: [
-    "Entity extraction and relationship creation help build the entity graph, which is then used for context search and community detection",
-    "Before creating relationships, ensure both entities exist in the graph (create them first using extractEntitiesFromContentTool if needed)",
-    "Use searchCampaignContext with graph traversal to query entity relationships iteratively. First search semantically to find entities, then traverse from their IDs to explore connected entities. Use getCommunitiesTool only for community/cluster analysis, not for relationship queries",
-    "CRITICAL - Duplicate Detection: The extractEntitiesFromContentTool automatically checks for duplicates by name before creating entities. If duplicates are found, it will update existing entities instead of creating new ones. However, if you notice duplicate entities in search results, proactively inform the user and offer to help consolidate them.",
-  ],
+	agentName: "Entity Graph Agent",
+	responsibilities: [
+		"Entity Extraction: Extract structured entities (NPCs, locations, items, monsters, etc.) from text content and add them to the entity graph",
+		"Relationship Management: Create relationships between entities in the graph when users mention connections",
+		"Community Detection: Analyze entity relationship graphs to identify clusters of related entities using graph algorithms",
+	],
+	tools: createToolMappingFromObjects(entityGraphTools),
+	workflowGuidelines: [
+		"Entity Extraction: When users provide text content (from files or chat) containing entities like NPCs, locations, items, or monsters, use extractEntitiesFromContentTool to extract and add them to the graph",
+		"Relationship Creation: When users mention relationships between entities (e.g., 'NPC X lives in Location Y', 'Character A is allied with Character B'), use createEntityRelationshipTool to create the relationship in the graph",
+		"Relationship Queries with Graph Traversal: When users ask questions about entity relationships, use searchCampaignContext iteratively: (1) First, search semantically to find the target entity, (2) Check if initial search results provide sufficient context - only traverse if more information is needed, (3) If traversal is needed, extract the entity ID from results and use traverseFromEntityIds, (4) ALWAYS start with traverseDepth=1 (direct neighbors only) for better performance, (5) ALWAYS use traverseRelationshipTypes filter when possible to reduce traversal scope, (6) Only increase to depth 2 or 3 if depth 1 results are insufficient, (7) Answer using accumulated context. Do NOT use getCommunitiesTool for relationship queries - communities are graph clusters, not entity relationships",
+		"Community Detection: When users want to understand how entities cluster or find related groups, use detectCommunitiesTool to analyze the entity graph",
+		"Community Analysis: Use getCommunitiesTool or getCommunityHierarchyTool to show users existing communities and their structure (these show graph clusters, not direct entity relationships)",
+	],
+	importantNotes: [
+		"Entity extraction and relationship creation help build the entity graph, which is then used for context search and community detection",
+		"Before creating relationships, ensure both entities exist in the graph (create them first using extractEntitiesFromContentTool if needed)",
+		"Use searchCampaignContext with graph traversal to query entity relationships iteratively. First search semantically to find entities, then traverse from their IDs to explore connected entities. Use getCommunitiesTool only for community/cluster analysis, not for relationship queries",
+		"CRITICAL - Duplicate Detection: The extractEntitiesFromContentTool automatically checks for duplicates by name before creating entities. If duplicates are found, it will update existing entities instead of creating new ones. However, if you notice duplicate entities in search results, proactively inform the user and offer to help consolidate them.",
+	],
 });
 
 /**
@@ -50,27 +50,27 @@ const ENTITY_GRAPH_SYSTEM_PROMPT = buildSystemPrompt({
  * @extends BaseAgent - Inherits common agent functionality
  */
 export class EntityGraphAgent extends BaseAgent {
-  /** Agent metadata for registration and routing */
-  static readonly agentMetadata = {
-    type: "entity-graph",
-    description:
-      "Manages entity extraction, relationship creation, and community detection in the entity relationship graph.",
-    systemPrompt: ENTITY_GRAPH_SYSTEM_PROMPT,
-    tools: entityGraphTools,
-  };
+	/** Agent metadata for registration and routing */
+	static readonly agentMetadata = {
+		type: "entity-graph",
+		description:
+			"Manages entity extraction, relationship creation, and community detection in the entity relationship graph.",
+		systemPrompt: ENTITY_GRAPH_SYSTEM_PROMPT,
+		tools: entityGraphTools,
+	};
 
-  /**
-   * Creates a new EntityGraphAgent instance.
-   *
-   * @param ctx - The Durable Object state for persistence
-   * @param env - The environment containing Cloudflare bindings
-   * @param model - The AI model instance for generating responses
-   */
-  constructor(ctx: DurableObjectState, env: any, model: any) {
-    super(ctx, env, model, entityGraphTools);
-  }
+	/**
+	 * Creates a new EntityGraphAgent instance.
+	 *
+	 * @param ctx - The Durable Object state for persistence
+	 * @param env - The environment containing Cloudflare bindings
+	 * @param model - The AI model instance for generating responses
+	 */
+	constructor(ctx: DurableObjectState, env: any, model: any) {
+		super(ctx, env, model, entityGraphTools);
+	}
 
-  protected getToolsForRole(role: CampaignRole | null): Record<string, any> {
-    return isGMRole(role) ? entityGraphTools : {};
-  }
+	protected getToolsForRole(role: CampaignRole | null): Record<string, any> {
+		return isGMRole(role) ? entityGraphTools : {};
+	}
 }

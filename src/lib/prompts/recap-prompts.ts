@@ -1,5 +1,5 @@
-import type { ContextRecapData } from "@/services/core/recap-service";
 import { CAMPAIGN_PLANNING_CHECKLIST } from "@/lib/campaign-planning-checklist";
+import type { ContextRecapData } from "@/services/core/recap-service";
 
 /**
  * Generate a prompt for the AI agent to create a friendly context recap message
@@ -7,66 +7,66 @@ import { CAMPAIGN_PLANNING_CHECKLIST } from "@/lib/campaign-planning-checklist";
  * @returns A formatted prompt string for the AI agent
  */
 export function formatContextRecapPrompt(recap: ContextRecapData): string {
-  // Build detailed session digest information
-  const sessionDigestsDetails =
-    recap.recentSessionDigests && recap.recentSessionDigests.length > 0
-      ? recap.recentSessionDigests
-          .map((digest) => {
-            const sessionDate = digest.sessionDate
-              ? new Date(digest.sessionDate).toLocaleDateString()
-              : "No date";
-            const keyEvents =
-              digest.digestData?.last_session_recap?.key_events || [];
-            const openThreads =
-              digest.digestData?.last_session_recap?.open_threads || [];
-            return `Session ${digest.sessionNumber} (${sessionDate}):\n  Key Events: ${keyEvents.length > 0 ? keyEvents.join("; ") : "None"}\n  Open Threads: ${openThreads.length > 0 ? openThreads.join("; ") : "None"}`;
-          })
-          .join("\n\n")
-      : "";
+	// Build detailed session digest information
+	const sessionDigestsDetails =
+		recap.recentSessionDigests && recap.recentSessionDigests.length > 0
+			? recap.recentSessionDigests
+					.map((digest) => {
+						const sessionDate = digest.sessionDate
+							? new Date(digest.sessionDate).toLocaleDateString()
+							: "No date";
+						const keyEvents =
+							digest.digestData?.last_session_recap?.key_events || [];
+						const openThreads =
+							digest.digestData?.last_session_recap?.open_threads || [];
+						return `Session ${digest.sessionNumber} (${sessionDate}):\n  Key Events: ${keyEvents.length > 0 ? keyEvents.join("; ") : "None"}\n  Open Threads: ${openThreads.length > 0 ? openThreads.join("; ") : "None"}`;
+					})
+					.join("\n\n")
+			: "";
 
-  // Build world state changes summary
-  const worldStateChangesSummary =
-    recap.worldStateChanges && recap.worldStateChanges.length > 0
-      ? recap.worldStateChanges
-          .slice(0, 10)
-          .map((entry) => {
-            const changes: string[] = [];
-            if (entry.payload.entity_updates?.length > 0) {
-              changes.push(
-                `${entry.payload.entity_updates.length} entity update(s)`
-              );
-            }
-            if (entry.payload.relationship_updates?.length > 0) {
-              changes.push(
-                `${entry.payload.relationship_updates.length} relationship update(s)`
-              );
-            }
-            if (entry.payload.new_entities?.length > 0) {
-              changes.push(
-                `${entry.payload.new_entities.length} new entity/entities`
-              );
-            }
-            return `- ${new Date(entry.timestamp).toLocaleDateString()}: ${changes.join(", ") || "Unknown changes"}`;
-          })
-          .join("\n")
-      : "";
+	// Build world state changes summary
+	const worldStateChangesSummary =
+		recap.worldStateChanges && recap.worldStateChanges.length > 0
+			? recap.worldStateChanges
+					.slice(0, 10)
+					.map((entry) => {
+						const changes: string[] = [];
+						if (entry.payload.entity_updates?.length > 0) {
+							changes.push(
+								`${entry.payload.entity_updates.length} entity update(s)`
+							);
+						}
+						if (entry.payload.relationship_updates?.length > 0) {
+							changes.push(
+								`${entry.payload.relationship_updates.length} relationship update(s)`
+							);
+						}
+						if (entry.payload.new_entities?.length > 0) {
+							changes.push(
+								`${entry.payload.new_entities.length} new entity/entities`
+							);
+						}
+						return `- ${new Date(entry.timestamp).toLocaleDateString()}: ${changes.join(", ") || "Unknown changes"}`;
+					})
+					.join("\n")
+			: "";
 
-  // Check if there's minimal campaign data
-  const hasSessionDigests =
-    recap.recentSessionDigests && recap.recentSessionDigests.length > 0;
-  const hasWorldStateChanges =
-    recap.worldStateChanges && recap.worldStateChanges.length > 0;
-  const hasTodos =
-    recap.inProgressGoals?.todoChecklist &&
-    recap.inProgressGoals.todoChecklist.length > 0;
-  const hasOpenThreads =
-    recap.inProgressGoals?.openThreads &&
-    recap.inProgressGoals.openThreads.length > 0;
-  const hasMinimalData =
-    !hasSessionDigests && !hasWorldStateChanges && !hasTodos && !hasOpenThreads;
+	// Check if there's minimal campaign data
+	const hasSessionDigests =
+		recap.recentSessionDigests && recap.recentSessionDigests.length > 0;
+	const hasWorldStateChanges =
+		recap.worldStateChanges && recap.worldStateChanges.length > 0;
+	const hasTodos =
+		recap.inProgressGoals?.todoChecklist &&
+		recap.inProgressGoals.todoChecklist.length > 0;
+	const hasOpenThreads =
+		recap.inProgressGoals?.openThreads &&
+		recap.inProgressGoals.openThreads.length > 0;
+	const hasMinimalData =
+		!hasSessionDigests && !hasWorldStateChanges && !hasTodos && !hasOpenThreads;
 
-  if (hasMinimalData) {
-    return `This campaign is still in its early stages with minimal planning data.
+	if (hasMinimalData) {
+		return `This campaign is still in its early stages with minimal planning data.
 
 Please provide a friendly welcome message and assess what's most important to work on next using this comprehensive campaign planning checklist:
 
@@ -92,9 +92,9 @@ SAVING NEXT STEPS: When you suggest next steps, they must be saved so they appea
 Analyze what appears to be missing or incomplete based on the search results, and suggest 3-5 prioritized next steps from the checklist that would be most valuable to tackle. Focus on foundational elements first (Campaign Foundation, World & Setting Basics, Starting Location) before moving to later stages.
 
 Be encouraging and helpful, framing these as exciting opportunities to build their campaign world. Prioritize based on logical dependencies (e.g., setting basics before factions, starting location before first arc, etc.).`;
-  }
+	}
 
-  return `CONTEXT RECAP MODE: You must write the recap narrative using ONLY the data in this message. Do NOT call searchCampaignContext or listAllEntities for the recap. Only after you have written the full "Since you were away..." recap and the Open Threads may you call any tools (getPlanningTaskProgress, getChecklistStatus, showCampaignDetails, recordPlanningTasks) for the Next Steps section.
+	return `CONTEXT RECAP MODE: You must write the recap narrative using ONLY the data in this message. Do NOT call searchCampaignContext or listAllEntities for the recap. Only after you have written the full "Since you were away..." recap and the Open Threads may you call any tools (getPlanningTaskProgress, getChecklistStatus, showCampaignDetails, recordPlanningTasks) for the Next Steps section.
 
 Please provide a friendly context recap for this campaign.
 
@@ -140,5 +140,5 @@ Based on the search results and current campaign state, suggest 2-3 prioritized 
 }
 
 export const RECAP_PROMPTS = {
-  formatContextRecapPrompt,
+	formatContextRecapPrompt,
 };

@@ -10,18 +10,18 @@
  * 4. "Unknown file" (ultimate fallback)
  */
 export function getDisplayName(resource: {
-  display_name?: string;
-  file_name?: string;
-  name?: string;
+	display_name?: string;
+	file_name?: string;
+	name?: string;
 }): string {
-  if (resource.display_name) {
-    return resource.display_name;
-  }
-  if (resource.file_name) {
-    return resource.file_name;
-  }
-  if (resource.name) {
-    return resource.name;
-  }
-  return "Unknown file";
+	if (resource.display_name) {
+		return resource.display_name;
+	}
+	if (resource.file_name) {
+		return resource.file_name;
+	}
+	if (resource.name) {
+		return resource.name;
+	}
+	return "Unknown file";
 }

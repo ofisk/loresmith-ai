@@ -4,207 +4,207 @@ import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import type { Campaign } from "@/types/campaign";
 
 interface ResourceFileDetailsProps {
-  file: ResourceFileWithCampaigns;
-  onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
-  onEditFile?: (file: ResourceFileWithCampaigns) => void;
-  onRetryIndexing: (fileKey: string) => Promise<void>;
-  fetchResources: () => Promise<void>;
-  campaigns?: Campaign[];
+	file: ResourceFileWithCampaigns;
+	onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
+	onEditFile?: (file: ResourceFileWithCampaigns) => void;
+	onRetryIndexing: (fileKey: string) => Promise<void>;
+	fetchResources: () => Promise<void>;
+	campaigns?: Campaign[];
 }
 
 /**
  * Expanded file details component
  */
 export function ResourceFileDetails({
-  file,
-  onAddToCampaign,
-  onEditFile,
-  onRetryIndexing,
-  fetchResources,
-  campaigns = [],
+	file,
+	onAddToCampaign,
+	onEditFile,
+	onRetryIndexing,
+	fetchResources,
+	campaigns = [],
 }: ResourceFileDetailsProps) {
-  const handleRetryIndexing = async () => {
-    await onRetryIndexing(file.file_key);
-    await fetchResources();
-  };
+	const handleRetryIndexing = async () => {
+		await onRetryIndexing(file.file_key);
+		await fetchResources();
+	};
 
-  // Calculate available campaigns (campaigns the file isn't already in)
-  const availableCampaigns = campaigns.filter((campaign) => {
-    if (!file.campaigns) return true;
-    return !file.campaigns.some(
-      (existingCampaign) => existingCampaign.campaignId === campaign.campaignId
-    );
-  });
+	// Calculate available campaigns (campaigns the file isn't already in)
+	const availableCampaigns = campaigns.filter((campaign) => {
+		if (!file.campaigns) return true;
+		return !file.campaigns.some(
+			(existingCampaign) => existingCampaign.campaignId === campaign.campaignId
+		);
+	});
 
-  return (
-    <div
-      className={`overflow-y-auto transition-all duration-300 ease-in-out max-h-96 opacity-100`}
-    >
-      <div className="mt-4 text-xs space-y-1">
-        {file.display_name && (
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-            <span className="text-gray-600 dark:text-gray-400">
-              Display name:
-            </span>
-            <span className="font-medium text-gray-900 dark:text-gray-100 break-words">
-              {file.display_name}
-            </span>
-          </div>
-        )}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-          <span className="text-gray-600 dark:text-gray-400">Filename:</span>
-          <span className="font-medium text-gray-900 dark:text-gray-100 break-all">
-            {file.file_name}
-          </span>
-        </div>
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-          <span className="text-gray-600 dark:text-gray-400">Uploaded:</span>
-          <span className="font-medium text-gray-900 dark:text-gray-100">
-            {new Date(file.created_at || file.updated_at)
-              .toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "2-digit",
-                hour: "numeric",
-                minute: "2-digit",
-                hour12: true,
-              })
-              .replace(",", "")
-              .replace(" PM", "p")
-              .replace(" AM", "a")}
-          </span>
-        </div>
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-          <span className="text-gray-600 dark:text-gray-400">Size:</span>
-          <span className="font-medium text-gray-900 dark:text-gray-100">
-            {file.file_size
-              ? (file.file_size / 1024 / 1024).toFixed(2)
-              : "Unknown"}{" "}
-            MB
-          </span>
-        </div>
-      </div>
+	return (
+		<div
+			className={`overflow-y-auto transition-all duration-300 ease-in-out max-h-96 opacity-100`}
+		>
+			<div className="mt-4 text-xs space-y-1">
+				{file.display_name && (
+					<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+						<span className="text-gray-600 dark:text-gray-400">
+							Display name:
+						</span>
+						<span className="font-medium text-gray-900 dark:text-gray-100 break-words">
+							{file.display_name}
+						</span>
+					</div>
+				)}
+				<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+					<span className="text-gray-600 dark:text-gray-400">Filename:</span>
+					<span className="font-medium text-gray-900 dark:text-gray-100 break-all">
+						{file.file_name}
+					</span>
+				</div>
+				<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+					<span className="text-gray-600 dark:text-gray-400">Uploaded:</span>
+					<span className="font-medium text-gray-900 dark:text-gray-100">
+						{new Date(file.created_at || file.updated_at)
+							.toLocaleDateString("en-US", {
+								month: "short",
+								day: "numeric",
+								year: "2-digit",
+								hour: "numeric",
+								minute: "2-digit",
+								hour12: true,
+							})
+							.replace(",", "")
+							.replace(" PM", "p")
+							.replace(" AM", "a")}
+					</span>
+				</div>
+				<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+					<span className="text-gray-600 dark:text-gray-400">Size:</span>
+					<span className="font-medium text-gray-900 dark:text-gray-100">
+						{file.file_size
+							? (file.file_size / 1024 / 1024).toFixed(2)
+							: "Unknown"}{" "}
+						MB
+					</span>
+				</div>
+			</div>
 
-      {file.description && (
-        <div className="mt-3">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            {file.description}
-          </p>
-        </div>
-      )}
-      {file.tags && Array.isArray(file.tags) && file.tags.length > 0 && (
-        <div className="mt-3">
-          <div className="flex flex-wrap gap-1">
-            {file.tags.map((tag: string) => (
-              <span
-                key={tag}
-                className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
+			{file.description && (
+				<div className="mt-3">
+					<p className="text-sm text-gray-600 dark:text-gray-300">
+						{file.description}
+					</p>
+				</div>
+			)}
+			{file.tags && Array.isArray(file.tags) && file.tags.length > 0 && (
+				<div className="mt-3">
+					<div className="flex flex-wrap gap-1">
+						{file.tags.map((tag: string) => (
+							<span
+								key={tag}
+								className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded"
+							>
+								{tag}
+							</span>
+						))}
+					</div>
+				</div>
+			)}
 
-      {file.campaigns && file.campaigns.length > 0 && (
-        <div className="mt-3">
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-            Linked campaigns:
-          </p>
-          <div className="flex flex-wrap gap-1">
-            {file.campaigns.map((campaign) => (
-              <span
-                key={campaign.campaignId}
-                className="px-2 py-1 text-xs bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 rounded"
-              >
-                {campaign.name}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
+			{file.campaigns && file.campaigns.length > 0 && (
+				<div className="mt-3">
+					<p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+						Linked campaigns:
+					</p>
+					<div className="flex flex-wrap gap-1">
+						{file.campaigns.map((campaign) => (
+							<span
+								key={campaign.campaignId}
+								className="px-2 py-1 text-xs bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 rounded"
+							>
+								{campaign.name}
+							</span>
+						))}
+					</div>
+				</div>
+			)}
 
-      <div className="mt-4 space-y-2">
-        {/* Check if file has memory limit error */}
-        {(() => {
-          let isMemoryLimitError = false;
-          if (file.processing_error) {
-            try {
-              const errorData = JSON.parse(file.processing_error);
-              isMemoryLimitError = errorData.code === "MEMORY_LIMIT_EXCEEDED";
-            } catch {
-              // If parsing fails, ignore
-            }
-          }
+			<div className="mt-4 space-y-2">
+				{/* Check if file has memory limit error */}
+				{(() => {
+					let isMemoryLimitError = false;
+					if (file.processing_error) {
+						try {
+							const errorData = JSON.parse(file.processing_error);
+							isMemoryLimitError = errorData.code === "MEMORY_LIMIT_EXCEEDED";
+						} catch {
+							// If parsing fails, ignore
+						}
+					}
 
-          // Show retry button for error/unindexed/failed statuses, but not for memory limit errors
-          const isFailedStatus =
-            file.status === FileDAO.STATUS.UNINDEXED ||
-            file.status === FileDAO.STATUS.ERROR ||
-            file.status === "failed" ||
-            file.status === "error";
+					// Show retry button for error/unindexed/failed statuses, but not for memory limit errors
+					const isFailedStatus =
+						file.status === FileDAO.STATUS.UNINDEXED ||
+						file.status === FileDAO.STATUS.ERROR ||
+						file.status === "failed" ||
+						file.status === "error";
 
-          return (
-            isFailedStatus &&
-            !isMemoryLimitError && (
-              <Button
-                onClick={handleRetryIndexing}
-                variant="secondary"
-                size="sm"
-                className="w-full !text-orange-600 dark:!text-orange-400 hover:!text-orange-700 dark:hover:!text-orange-300 border-orange-200 dark:border-orange-700 hover:border-orange-300 dark:hover:border-orange-600"
-              >
-                Retry Indexing
-              </Button>
-            )
-          );
-        })()}
-        {file.processing_error &&
-          (() => {
-            try {
-              const errorData = JSON.parse(file.processing_error);
-              if (errorData.code === "MEMORY_LIMIT_EXCEEDED") {
-                return (
-                  <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-sm text-yellow-800 dark:text-yellow-200">
-                    <p className="font-medium mb-1">⚠️ File Too Large</p>
-                    <p className="text-xs">
-                      {errorData.message ||
-                        "This file exceeds the 128MB memory limit. Please split the file into smaller parts or use a file under 128MB."}
-                    </p>
-                  </div>
-                );
-              }
-            } catch {
-              // If parsing fails, ignore
-            }
-            return null;
-          })()}
-        {availableCampaigns.length > 0 && onAddToCampaign && (
-          <Button
-            onClick={() => {
-              onAddToCampaign(file);
-            }}
-            variant="secondary"
-            size="sm"
-            className="w-full !text-purple-600 dark:!text-purple-400 hover:!text-purple-700 dark:hover:!text-purple-300 border-purple-200 dark:border-purple-700 hover:border-purple-300 dark:hover:border-purple-600"
-            disabled={file.status !== FileDAO.STATUS.COMPLETED}
-          >
-            {file.status === FileDAO.STATUS.COMPLETED
-              ? "Add to campaign"
-              : "File Not Ready"}
-          </Button>
-        )}
-        <Button
-          onClick={() => {
-            onEditFile?.(file);
-          }}
-          variant="secondary"
-          size="sm"
-          className="w-full text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-        >
-          Edit
-        </Button>
-      </div>
-    </div>
-  );
+					return (
+						isFailedStatus &&
+						!isMemoryLimitError && (
+							<Button
+								onClick={handleRetryIndexing}
+								variant="secondary"
+								size="sm"
+								className="w-full !text-orange-600 dark:!text-orange-400 hover:!text-orange-700 dark:hover:!text-orange-300 border-orange-200 dark:border-orange-700 hover:border-orange-300 dark:hover:border-orange-600"
+							>
+								Retry Indexing
+							</Button>
+						)
+					);
+				})()}
+				{file.processing_error &&
+					(() => {
+						try {
+							const errorData = JSON.parse(file.processing_error);
+							if (errorData.code === "MEMORY_LIMIT_EXCEEDED") {
+								return (
+									<div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-sm text-yellow-800 dark:text-yellow-200">
+										<p className="font-medium mb-1">⚠️ File Too Large</p>
+										<p className="text-xs">
+											{errorData.message ||
+												"This file exceeds the 128MB memory limit. Please split the file into smaller parts or use a file under 128MB."}
+										</p>
+									</div>
+								);
+							}
+						} catch {
+							// If parsing fails, ignore
+						}
+						return null;
+					})()}
+				{availableCampaigns.length > 0 && onAddToCampaign && (
+					<Button
+						onClick={() => {
+							onAddToCampaign(file);
+						}}
+						variant="secondary"
+						size="sm"
+						className="w-full !text-purple-600 dark:!text-purple-400 hover:!text-purple-700 dark:hover:!text-purple-300 border-purple-200 dark:border-purple-700 hover:border-purple-300 dark:hover:border-purple-600"
+						disabled={file.status !== FileDAO.STATUS.COMPLETED}
+					>
+						{file.status === FileDAO.STATUS.COMPLETED
+							? "Add to campaign"
+							: "File Not Ready"}
+					</Button>
+				)}
+				<Button
+					onClick={() => {
+						onEditFile?.(file);
+					}}
+					variant="secondary"
+					size="sm"
+					className="w-full text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+				>
+					Edit
+				</Button>
+			</div>
+		</div>
+	);
 }

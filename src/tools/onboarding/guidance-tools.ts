@@ -4,10 +4,10 @@ import type { ToolResult } from "../../app-constants";
 import { getAssessmentService } from "../../lib/service-factory";
 import type { Env } from "../../middleware/auth";
 import {
-  commonSchemas,
-  createToolError,
-  createToolSuccess,
-  type ToolExecuteOptions,
+	commonSchemas,
+	createToolError,
+	createToolSuccess,
+	type ToolExecuteOptions,
 } from "../utils";
 import type { ActionSuggestion } from "./state-analysis-tools";
 
@@ -17,61 +17,61 @@ import type { ActionSuggestion } from "./state-analysis-tools";
  * For returning users: provides personalized suggestions based on their progress
  */
 const provideWelcomeGuidanceParameters = z.object({
-  jwt: commonSchemas.jwt,
+	jwt: commonSchemas.jwt,
 });
 
 export const provideWelcomeGuidanceTool = tool({
-  description:
-    "Provide personalized guidance based on user's current state (first-time vs returning user with existing campaigns/resources)",
-  inputSchema: provideWelcomeGuidanceParameters,
-  execute: async (
-    input: z.infer<typeof provideWelcomeGuidanceParameters>,
-    options: ToolExecuteOptions
-  ): Promise<ToolResult> => {
-    const { jwt } = input;
-    try {
-      if (!jwt) {
-        return createToolError(
-          "No JWT provided",
-          "Authentication token is required",
-          400,
-          options?.toolCallId ?? "unknown"
-        );
-      }
+	description:
+		"Provide personalized guidance based on user's current state (first-time vs returning user with existing campaigns/resources)",
+	inputSchema: provideWelcomeGuidanceParameters,
+	execute: async (
+		input: z.infer<typeof provideWelcomeGuidanceParameters>,
+		options: ToolExecuteOptions
+	): Promise<ToolResult> => {
+		const { jwt } = input;
+		try {
+			if (!jwt) {
+				return createToolError(
+					"No JWT provided",
+					"Authentication token is required",
+					400,
+					options?.toolCallId ?? "unknown"
+				);
+			}
 
-      const payload = JSON.parse(atob(jwt.split(".")[1]));
-      const username = payload.username;
+			const payload = JSON.parse(atob(jwt.split(".")[1]));
+			const username = payload.username;
 
-      if (!username) {
-        return createToolError(
-          "No username found in JWT",
-          "Unable to extract username from authentication token",
-          400,
-          options?.toolCallId ?? "unknown"
-        );
-      }
+			if (!username) {
+				return createToolError(
+					"No username found in JWT",
+					"Unable to extract username from authentication token",
+					400,
+					options?.toolCallId ?? "unknown"
+				);
+			}
 
-      const env = options?.env;
-      if (!env) {
-        return createToolError(
-          "Environment not available",
-          "Database connection not available",
-          500,
-          options?.toolCallId ?? "unknown"
-        );
-      }
+			const env = options?.env;
+			if (!env) {
+				return createToolError(
+					"Environment not available",
+					"Database connection not available",
+					500,
+					options?.toolCallId ?? "unknown"
+				);
+			}
 
-      // Analyze user state to provide contextual guidance
-      const assessmentService = getAssessmentService(env as Env);
-      const userState = await assessmentService.analyzeUserState(username);
+			// Analyze user state to provide contextual guidance
+			const assessmentService = getAssessmentService(env as Env);
+			const userState = await assessmentService.analyzeUserState(username);
 
-      // Provide different guidance based on user state
-      if (userState.isFirstTime) {
-        // First-time user guidance
-        return createToolSuccess(
-          "Welcome guidance provided successfully",
-          {
-            message: `Welcome to LoreSmith AI! 🎲
+			// Provide different guidance based on user state
+			if (userState.isFirstTime) {
+				// First-time user guidance
+				return createToolSuccess(
+					"Welcome guidance provided successfully",
+					{
+						message: `Welcome to LoreSmith AI! 🎲
 
 I'm here to help you become a better Game Master by managing your inspiration library, creating rich campaign contexts, and planning engaging sessions.
 
@@ -81,46 +81,46 @@ I'm here to help you become a better Game Master by managing your inspiration li
 • **Session Planning**: Plan engaging sessions with hooks, encounters, and story beats
 
 Let's get you started! What would you like to do first?`,
-            primaryAction: {
-              title: "Upload Your First Resource",
-              description:
-                "Click the 'Add to library' button to upload documents, images, or other files to your inspiration library",
-              action: "upload_resource",
-              priority: "high",
-              estimatedTime: "5 minutes",
-            },
-            secondaryActions: [
-              {
-                title: "Create Your First Campaign",
-                description:
-                  "Set up a campaign and start organizing your story elements",
-                action: "create_campaign",
-                priority: "medium",
-                estimatedTime: "10 minutes",
-              },
-              {
-                title: "Chat with Me",
-                description:
-                  "Tell me about your campaign ideas and I'll help you develop them",
-                action: "start_chat",
-                priority: "medium",
-                estimatedTime: "15 minutes",
-              },
-            ],
-          },
-          options?.toolCallId ?? "unknown"
-        );
-      } else {
-        // Returning user guidance
-        const campaignText =
-          userState.campaignCount === 1 ? "campaign" : "campaigns";
-        const resourceText =
-          userState.resourceCount === 1 ? "resource" : "resources";
+						primaryAction: {
+							title: "Upload Your First Resource",
+							description:
+								"Click the 'Add to library' button to upload documents, images, or other files to your inspiration library",
+							action: "upload_resource",
+							priority: "high",
+							estimatedTime: "5 minutes",
+						},
+						secondaryActions: [
+							{
+								title: "Create Your First Campaign",
+								description:
+									"Set up a campaign and start organizing your story elements",
+								action: "create_campaign",
+								priority: "medium",
+								estimatedTime: "10 minutes",
+							},
+							{
+								title: "Chat with Me",
+								description:
+									"Tell me about your campaign ideas and I'll help you develop them",
+								action: "start_chat",
+								priority: "medium",
+								estimatedTime: "15 minutes",
+							},
+						],
+					},
+					options?.toolCallId ?? "unknown"
+				);
+			} else {
+				// Returning user guidance
+				const campaignText =
+					userState.campaignCount === 1 ? "campaign" : "campaigns";
+				const resourceText =
+					userState.resourceCount === 1 ? "resource" : "resources";
 
-        return createToolSuccess(
-          "Personalized guidance provided successfully",
-          {
-            message: `Great to see you back! 🎲
+				return createToolSuccess(
+					"Personalized guidance provided successfully",
+					{
+						message: `Great to see you back! 🎲
 
 You currently have **${userState.campaignCount} ${campaignText}** and **${userState.resourceCount} ${resourceText}** in your library.
 
@@ -133,227 +133,227 @@ You currently have **${userState.campaignCount} ${campaignText}** and **${userSt
 • **Chat about your campaigns**: Ask me questions about your world, NPCs, plot hooks, or get help with session planning
 
 What would you like to work on today?`,
-            primaryAction: {
-              title: "Continue Your Campaign",
-              description:
-                "Work on your existing campaigns - add resources, update world state, or plan sessions",
-              action: "continue_campaign",
-              priority: "high",
-              estimatedTime: "15 minutes",
-            },
-            secondaryActions: [
-              {
-                title: "Add More Resources",
-                description:
-                  "Upload additional documents, maps, or inspiration to your library",
-                action: "upload_resource",
-                priority: "medium",
-                estimatedTime: "5 minutes",
-              },
-              {
-                title: "Plan Your Next Session",
-                description: "Get AI-powered help planning an engaging session",
-                action: "plan_session",
-                priority: "medium",
-                estimatedTime: "15 minutes",
-              },
-            ],
-          },
-          options?.toolCallId ?? "unknown"
-        );
-      }
-    } catch (error) {
-      console.error("Failed to provide welcome guidance:", error);
-      return createToolError(
-        "Failed to generate welcome guidance",
-        error instanceof Error ? error.message : "Unknown error",
-        500,
-        options?.toolCallId ?? "unknown"
-      );
-    }
-  },
+						primaryAction: {
+							title: "Continue Your Campaign",
+							description:
+								"Work on your existing campaigns - add resources, update world state, or plan sessions",
+							action: "continue_campaign",
+							priority: "high",
+							estimatedTime: "15 minutes",
+						},
+						secondaryActions: [
+							{
+								title: "Add More Resources",
+								description:
+									"Upload additional documents, maps, or inspiration to your library",
+								action: "upload_resource",
+								priority: "medium",
+								estimatedTime: "5 minutes",
+							},
+							{
+								title: "Plan Your Next Session",
+								description: "Get AI-powered help planning an engaging session",
+								action: "plan_session",
+								priority: "medium",
+								estimatedTime: "15 minutes",
+							},
+						],
+					},
+					options?.toolCallId ?? "unknown"
+				);
+			}
+		} catch (error) {
+			console.error("Failed to provide welcome guidance:", error);
+			return createToolError(
+				"Failed to generate welcome guidance",
+				error instanceof Error ? error.message : "Unknown error",
+				500,
+				options?.toolCallId ?? "unknown"
+			);
+		}
+	},
 });
 
 /**
  * Tool: Suggest next actions based on user state
  */
 const suggestNextActionsParameters = z.object({
-  jwt: commonSchemas.jwt,
+	jwt: commonSchemas.jwt,
 });
 
 export const suggestNextActionsTool = tool({
-  description: "Suggest next actions based on user state",
-  inputSchema: suggestNextActionsParameters,
-  execute: async (
-    input: z.infer<typeof suggestNextActionsParameters>,
-    options: ToolExecuteOptions
-  ): Promise<ToolResult> => {
-    const { jwt } = input;
-    try {
-      // Extract username from JWT
-      if (!jwt) {
-        return createToolError(
-          "No JWT provided",
-          "Authentication token is required",
-          400,
-          options?.toolCallId ?? "unknown"
-        );
-      }
+	description: "Suggest next actions based on user state",
+	inputSchema: suggestNextActionsParameters,
+	execute: async (
+		input: z.infer<typeof suggestNextActionsParameters>,
+		options: ToolExecuteOptions
+	): Promise<ToolResult> => {
+		const { jwt } = input;
+		try {
+			// Extract username from JWT
+			if (!jwt) {
+				return createToolError(
+					"No JWT provided",
+					"Authentication token is required",
+					400,
+					options?.toolCallId ?? "unknown"
+				);
+			}
 
-      const payload = JSON.parse(atob(jwt.split(".")[1]));
-      const username = payload.username;
+			const payload = JSON.parse(atob(jwt.split(".")[1]));
+			const username = payload.username;
 
-      if (!username) {
-        return createToolError(
-          "No username found in JWT",
-          "Unable to extract username from authentication token",
-          400,
-          options?.toolCallId ?? "unknown"
-        );
-      }
+			if (!username) {
+				return createToolError(
+					"No username found in JWT",
+					"Unable to extract username from authentication token",
+					400,
+					options?.toolCallId ?? "unknown"
+				);
+			}
 
-      const env = options?.env;
-      if (!env) {
-        return createToolError(
-          "Environment not available",
-          "Database connection not available",
-          500,
-          options?.toolCallId ?? "unknown"
-        );
-      }
+			const env = options?.env;
+			if (!env) {
+				return createToolError(
+					"Environment not available",
+					"Database connection not available",
+					500,
+					options?.toolCallId ?? "unknown"
+				);
+			}
 
-      const assessmentService = getAssessmentService(env as Env);
-      const userState = await assessmentService.analyzeUserState(username);
+			const assessmentService = getAssessmentService(env as Env);
+			const userState = await assessmentService.analyzeUserState(username);
 
-      const actions: ActionSuggestion[] = [];
+			const actions: ActionSuggestion[] = [];
 
-      // Suggest actions based on user state
-      if (userState.isFirstTime) {
-        actions.push({
-          title: "Upload Your First Resource",
-          description: "Start building your inspiration library",
-          action: "upload_resource",
-          priority: "high",
-          estimatedTime: "5 minutes",
-        });
-      }
+			// Suggest actions based on user state
+			if (userState.isFirstTime) {
+				actions.push({
+					title: "Upload Your First Resource",
+					description: "Start building your inspiration library",
+					action: "upload_resource",
+					priority: "high",
+					estimatedTime: "5 minutes",
+				});
+			}
 
-      if (!userState.hasCampaigns) {
-        actions.push({
-          title: "Create Your First Campaign",
-          description: "Set up a campaign and start organizing your story",
-          action: "create_campaign",
-          priority: "high",
-          estimatedTime: "10 minutes",
-        });
-      }
+			if (!userState.hasCampaigns) {
+				actions.push({
+					title: "Create Your First Campaign",
+					description: "Set up a campaign and start organizing your story",
+					action: "create_campaign",
+					priority: "high",
+					estimatedTime: "10 minutes",
+				});
+			}
 
-      if (userState.hasResources && userState.hasCampaigns) {
-        actions.push({
-          title: "Plan Your Next Session",
-          description: "Use your resources to plan an engaging session",
-          action: "plan_session",
-          priority: "medium",
-          estimatedTime: "15 minutes",
-        });
-      }
+			if (userState.hasResources && userState.hasCampaigns) {
+				actions.push({
+					title: "Plan Your Next Session",
+					description: "Use your resources to plan an engaging session",
+					action: "plan_session",
+					priority: "medium",
+					estimatedTime: "15 minutes",
+				});
+			}
 
-      return createToolSuccess(
-        `Next actions suggested successfully for ${username}`,
-        {
-          userState,
-          actions,
-          explanation: `Based on your current state, here are the recommended next steps to enhance your GM experience.`,
-        },
-        options?.toolCallId ?? "unknown"
-      );
-    } catch (error) {
-      console.error("Failed to suggest next actions:", error);
-      return createToolError(
-        "Failed to suggest next actions",
-        error instanceof Error ? error.message : "Unknown error",
-        500,
-        options?.toolCallId ?? "unknown"
-      );
-    }
-  },
+			return createToolSuccess(
+				`Next actions suggested successfully for ${username}`,
+				{
+					userState,
+					actions,
+					explanation: `Based on your current state, here are the recommended next steps to enhance your GM experience.`,
+				},
+				options?.toolCallId ?? "unknown"
+			);
+		} catch (error) {
+			console.error("Failed to suggest next actions:", error);
+			return createToolError(
+				"Failed to suggest next actions",
+				error instanceof Error ? error.message : "Unknown error",
+				500,
+				options?.toolCallId ?? "unknown"
+			);
+		}
+	},
 });
 
 /**
  * Tool: Provide campaign-specific guidance
  */
 const provideCampaignGuidanceParameters = z.object({
-  campaignId: z.string().describe("The campaign ID to provide guidance for"),
-  jwt: commonSchemas.jwt,
+	campaignId: z.string().describe("The campaign ID to provide guidance for"),
+	jwt: commonSchemas.jwt,
 });
 
 export const provideCampaignGuidanceTool = tool({
-  description: "Provide campaign-specific guidance based on campaign readiness",
-  inputSchema: provideCampaignGuidanceParameters,
-  execute: async (
-    input: z.infer<typeof provideCampaignGuidanceParameters>,
-    options: ToolExecuteOptions
-  ): Promise<ToolResult> => {
-    const { campaignId } = input;
-    try {
-      const env = options?.env;
-      if (!env) {
-        return createToolError(
-          "Environment not available",
-          "Database connection not available",
-          500,
-          options?.toolCallId ?? "unknown"
-        );
-      }
+	description: "Provide campaign-specific guidance based on campaign readiness",
+	inputSchema: provideCampaignGuidanceParameters,
+	execute: async (
+		input: z.infer<typeof provideCampaignGuidanceParameters>,
+		options: ToolExecuteOptions
+	): Promise<ToolResult> => {
+		const { campaignId } = input;
+		try {
+			const env = options?.env;
+			if (!env) {
+				return createToolError(
+					"Environment not available",
+					"Database connection not available",
+					500,
+					options?.toolCallId ?? "unknown"
+				);
+			}
 
-      const assessmentService = getAssessmentService(env as Env);
-      const campaignReadiness = await assessmentService.getCampaignReadiness(
-        campaignId,
-        {} as any,
-        []
-      );
+			const assessmentService = getAssessmentService(env as Env);
+			const campaignReadiness = await assessmentService.getCampaignReadiness(
+				campaignId,
+				{} as any,
+				[]
+			);
 
-      return createToolSuccess(
-        `Campaign guidance provided successfully for campaign ${campaignId}`,
-        {
-          campaignReadiness,
-          primaryAction: {
-            title: "Improve Campaign Readiness",
-            description:
-              "Focus on the priority areas identified in your campaign readiness assessment",
-            action: "improve_campaign",
-            priority: "high",
-            estimatedTime: "20 minutes",
-          },
-          secondaryActions: [
-            {
-              title: "Add More Resources",
-              description:
-                "Upload additional resources to enrich your campaign",
-              action: "upload_resource",
-              priority: "medium",
-              estimatedTime: "10 minutes",
-            },
-            {
-              title: "Plan Next Session",
-              description: "Use your campaign context to plan the next session",
-              action: "plan_session",
-              priority: "medium",
-              estimatedTime: "15 minutes",
-            },
-          ],
-          explanation: `Your campaign readiness assessment shows areas for improvement. Focus on the priority areas to enhance your campaign experience.`,
-        },
-        options?.toolCallId ?? "unknown"
-      );
-    } catch (error) {
-      console.error("Failed to provide campaign guidance:", error);
-      return createToolError(
-        "Failed to provide campaign guidance",
-        error instanceof Error ? error.message : "Unknown error",
-        500,
-        options?.toolCallId ?? "unknown"
-      );
-    }
-  },
+			return createToolSuccess(
+				`Campaign guidance provided successfully for campaign ${campaignId}`,
+				{
+					campaignReadiness,
+					primaryAction: {
+						title: "Improve Campaign Readiness",
+						description:
+							"Focus on the priority areas identified in your campaign readiness assessment",
+						action: "improve_campaign",
+						priority: "high",
+						estimatedTime: "20 minutes",
+					},
+					secondaryActions: [
+						{
+							title: "Add More Resources",
+							description:
+								"Upload additional resources to enrich your campaign",
+							action: "upload_resource",
+							priority: "medium",
+							estimatedTime: "10 minutes",
+						},
+						{
+							title: "Plan Next Session",
+							description: "Use your campaign context to plan the next session",
+							action: "plan_session",
+							priority: "medium",
+							estimatedTime: "15 minutes",
+						},
+					],
+					explanation: `Your campaign readiness assessment shows areas for improvement. Focus on the priority areas to enhance your campaign experience.`,
+				},
+				options?.toolCallId ?? "unknown"
+			);
+		} catch (error) {
+			console.error("Failed to provide campaign guidance:", error);
+			return createToolError(
+				"Failed to provide campaign guidance",
+				error instanceof Error ? error.message : "Unknown error",
+				500,
+				options?.toolCallId ?? "unknown"
+			);
+		}
+	},
 });

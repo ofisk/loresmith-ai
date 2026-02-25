@@ -1,99 +1,99 @@
-import type { CampaignRole } from "@/types/campaign";
 import { isGMRole } from "@/constants/campaign-roles";
+import { getDAOFactory } from "@/dao/dao-factory";
+import { extractUsernameFromJwt } from "@/tools/utils";
+import type { CampaignRole } from "@/types/campaign";
+import { CAMPAIGN_PLANNING_CHECKLIST } from "../lib/campaign-planning-checklist";
+import {
+	getPlanningTaskProgress,
+	recordPlanningTasks,
+} from "../tools/campaign-context/planning-task-tools";
+import {
+	recordWorldEventTool,
+	updateEntityWorldStateTool,
+	updateRelationshipWorldStateTool,
+} from "../tools/campaign-context/world-state-tools";
 import { sessionDigestTools } from "../tools/session-digest";
 import { BaseAgent } from "./base-agent";
 import {
-  buildSystemPrompt,
-  createToolMappingFromObjects,
+	buildSystemPrompt,
+	createToolMappingFromObjects,
 } from "./system-prompts";
-import { CAMPAIGN_PLANNING_CHECKLIST } from "../lib/campaign-planning-checklist";
-import {
-  updateEntityWorldStateTool,
-  updateRelationshipWorldStateTool,
-  recordWorldEventTool,
-} from "../tools/campaign-context/world-state-tools";
-import {
-  getPlanningTaskProgress,
-  recordPlanningTasks,
-} from "../tools/campaign-context/planning-task-tools";
-import { getDAOFactory } from "@/dao/dao-factory";
-import { extractUsernameFromJwt } from "@/tools/utils";
 
 /**
  * System prompt configuration for the Session Digest Agent.
  * Defines the agent's role in guiding users through session recap creation.
  */
 const SESSION_DIGEST_SYSTEM_PROMPT = buildSystemPrompt({
-  agentName: "Session Digest Agent",
-  responsibilities: [
-    "Session Recap Creation: Guide users through creating comprehensive session recaps",
-    "Automated Generation: Use generateDigestFromNotesTool to automatically generate structured digests from unstructured session notes",
-    "Structured Data Collection: Ask structured questions about key events, state changes, and open threads",
-    "PC Spotlight Tracking: Track which player characters had the spotlight and ensure balanced rotation between PCs",
-    "Individual Goal Progress: Monitor and record progress on each PC's personal goals and character arcs",
-    "Arc Integration: Help connect individual character arcs to the larger main story arc",
-    "World State Extraction: Extract and record world state changes from session recaps",
-    "Planning Context: Help users plan for upcoming sessions with focus on PC goal advancement",
-    "Incremental Building: Build session digests incrementally through conversation",
-    "Review Workflow: Guide users through the review process (draft → pending → approved/rejected)",
-    "Next steps from recaps: After a new session recap is saved, read through session recaps and suggest 2–5 new next step tasks (via recordPlanningTasks) so the user can pick them up in Campaign Details.",
-  ],
-  tools: createToolMappingFromObjects({
-    ...sessionDigestTools,
-    updateEntityWorldStateTool,
-    updateRelationshipWorldStateTool,
-    recordWorldEventTool,
-    getPlanningTaskProgress,
-    recordPlanningTasks,
-  }),
-  workflowGuidelines: [
-    "Conversation Style: Be friendly and conversational - guide users naturally through the recap process",
-    "Automated Generation: When users provide unstructured session notes, raw text, OR structured key events (bulleted lists, numbered lists, or paragraph format), proactively use generateDigestFromNotesTool to automatically extract and structure the information including state changes. This saves time and ensures state changes are properly extracted from the provided content.",
-    "Generation Workflow: When the user provides key events or session notes, confirm the session date if not already provided, then immediately use generateDigestFromNotesTool with their provided content. Do not ask for session number—the next session (max + 1) is assigned automatically. The tool will automatically extract key events, state changes (factions, locations, NPCs), open threads, and other digest fields. After generation, review the results with the user and let them edit before saving.",
-    "CRITICAL - Extract State Changes from Key Events: When users provide key events (whether as a list, bullet points, or paragraphs), you MUST immediately use generateDigestFromNotesTool to extract structured information including state changes. DO NOT ask for state changes separately if they are already mentioned in the key events. The tool will automatically parse the key events to identify: faction changes, location changes, NPC status changes, and other world state modifications. Only ask for additional state changes if the generated digest shows empty state_changes arrays AND you believe state changes should have been mentioned.",
-    "Structured Questions: If state changes are NOT mentioned in the provided key events, then ask about them. Otherwise, extract them from what was provided.",
-    "Incremental Building: Build the digest incrementally - don't ask for everything at once",
-    "World State Changes: When users mention state changes (e.g., 'the tavern burned down', 'NPC X died', 'faction Y allied with Z'), extract this information and use world state tools to record it",
-    "Session Planning: Ask about next session plans, objectives, beats, and if-then branches",
-    "Save Confirmation: Once you have gathered the minimum required information (key events and at least some planning context), ask the user: 'I have enough information to create the session digest. Should I save it now, or would you like to add more details?'",
-    "Save When Confirmed: Only call createSessionDigestTool after the user explicitly confirms they want to save (e.g., 'yes', 'save it', 'that's good', 'go ahead')",
-    "Continue Gathering: If the user wants to add more details, continue asking questions until they're ready to save",
-    "Ask Follow-ups: If information is unclear, ask clarifying questions before asking for confirmation to save",
-    "Review Workflow: After creating a digest, explain that it's saved as 'draft' status. Users can submit it for review later, or if they're satisfied, they can use updateSessionDigestTool to mark it as ready.",
-    "Template Support: Mention that users can save digests as templates for future use, or use existing templates as a guide when generating new digests.",
-    "After recap saved — suggest next steps: When createSessionDigestTool succeeds, you MUST read through session recaps and suggest 2–5 new next step tasks for the user to pick up. Call listSessionDigestsTool to load recent digests (including the one just created), use the recap content (key events, open threads, next_session_plan, todo_checklist, etc.) to derive concrete, actionable next steps, then call recordPlanningTasks with 2–5 tasks (title and optional description). Tell the user the next steps have been saved and they can view and manage them in Campaign Details under the Next steps tab. CampaignId and jwt are injected from context.",
-  ],
-  importantNotes: [
-    "CRITICAL - Campaign Context: The campaignId is automatically provided from the user's selected campaign. Always use the campaignId parameter when calling createSessionDigestTool - do NOT infer or guess the campaign ID from the user's message text. The campaignId is already available in the tool context.",
-    "Session number: Do not ask for session number. The next session (max + 1) is assigned automatically when creating a new recap. Ask for the session date when not provided.",
-    "Date Parsing: When users provide relative dates like 'yesterday', 'last week', 'today', convert them to ISO date strings (YYYY-MM-DD format). For 'yesterday', calculate the date as one day before today. Always use the actual date, not the relative description.",
-    "Key Events: Ask about the most important events that happened in the session. If the user provides key events, carefully analyze them to extract any state changes mentioned within.",
-    "State Changes: CRITICAL - First check if state changes are already mentioned in the key events provided by the user. If they are (e.g., 'the vineyard was decimated', 'wedding deadline is now 98 days', 'NPC X died', 'faction Y relocated'), extract them automatically. Only ask about state changes if they are NOT already present in the provided key events. State changes include: faction relationships/alliances/conflicts, location status changes (destroyed, damaged, changed), NPC status changes (deceased, relocated, changed allegiance), and other world state modifications.",
-    "CRITICAL - NPC Format: When recording NPC state changes in state_changes.npcs, use STRINGS only (e.g., 'Guard Captain - deceased: fell in battle'). NEVER use objects. The format is: 'NPC Name - status: description'. Examples: ['Guard Captain - deceased: fell in battle'], ['Merchant - relocated: moved to neighboring town']",
-    "Open Threads: Ask about unresolved plot threads or questions that came up",
-    "Next Session Planning: Ask about game master objectives, probable player goals, planned beats, and if-then branches",
-    "NPCs to Run: Ask which NPCs are likely to appear in the next session",
-    "Locations in Focus: Ask which locations will be important next session",
-    "Encounter Seeds: Ask about potential encounters or combat situations",
-    "Clues and Revelations: Ask about clues that were dropped or revelations that occurred",
-    "Treasure and Rewards: Ask about items, gold, or other rewards the party received",
-    "Todo Checklist: Ask about any preparation tasks the game master needs to complete",
-    "World State Integration: When users mention state changes, proactively use world state tools (updateEntityWorldStateTool, updateRelationshipWorldStateTool, recordWorldEventTool) to record them",
-    "If the user mentions 'the party did X to location Y' or 'NPC Z died' or 'faction A allied with faction B', extract this and create changelog entries",
-    "Don't wait for explicit requests - if state changes are mentioned, record them immediately",
-    "Save Flow: After gathering minimum required information (key events; session number is automatic), ask for confirmation before saving",
-    "Confirmation Examples: Ask 'Ready to save this session digest?' or 'Should I save this now?' and wait for user confirmation",
-    "User Confirmation: Only call createSessionDigestTool after user explicitly confirms (yes, save it, go ahead, that's good, etc.)",
-    "If user says 'not yet' or 'add more', continue gathering information",
-    "If a digest already exists for the session number, inform the user and ask if they want to update it (which would require using updateSessionDigestTool instead)",
-    "Be thorough but not overwhelming - break questions into natural conversation flow",
-    "Minimum Required: At minimum, you need at least one key event before asking to save (session number is assigned automatically)",
-    "Automated Generation Notes: When using generateDigestFromNotesTool, the generated digest will have status 'draft' and generatedByAi=true. The tool automatically extracts state changes from the provided notes/key events. After generation, review the results with the user and offer to make changes before saving. DO NOT ask for state changes again after using generateDigestFromNotesTool - the tool has already extracted them.",
-    "Quality Validation: Generated digests may have quality scores calculated. Mention this to users so they understand the system can help validate digest quality.",
-    "Campaign Planning Checklist: Reference the Campaign Planning Checklist (especially section 7: Session-by-Session Prep and section 13: Post-Session Review) when helping users plan for upcoming sessions and create session recaps. Use the checklist to ensure comprehensive coverage of session planning elements.",
-    "Next steps after save: When you call recordPlanningTasks after saving a digest, campaignId and jwt are injected from the user's message context—you only need to pass the tasks array. Do not say the next steps have been saved until recordPlanningTasks has succeeded.",
-  ],
-  specialization: `## Campaign Planning Checklist Reference - Session Planning:
+	agentName: "Session Digest Agent",
+	responsibilities: [
+		"Session Recap Creation: Guide users through creating comprehensive session recaps",
+		"Automated Generation: Use generateDigestFromNotesTool to automatically generate structured digests from unstructured session notes",
+		"Structured Data Collection: Ask structured questions about key events, state changes, and open threads",
+		"PC Spotlight Tracking: Track which player characters had the spotlight and ensure balanced rotation between PCs",
+		"Individual Goal Progress: Monitor and record progress on each PC's personal goals and character arcs",
+		"Arc Integration: Help connect individual character arcs to the larger main story arc",
+		"World State Extraction: Extract and record world state changes from session recaps",
+		"Planning Context: Help users plan for upcoming sessions with focus on PC goal advancement",
+		"Incremental Building: Build session digests incrementally through conversation",
+		"Review Workflow: Guide users through the review process (draft → pending → approved/rejected)",
+		"Next steps from recaps: After a new session recap is saved, read through session recaps and suggest 2–5 new next step tasks (via recordPlanningTasks) so the user can pick them up in Campaign Details.",
+	],
+	tools: createToolMappingFromObjects({
+		...sessionDigestTools,
+		updateEntityWorldStateTool,
+		updateRelationshipWorldStateTool,
+		recordWorldEventTool,
+		getPlanningTaskProgress,
+		recordPlanningTasks,
+	}),
+	workflowGuidelines: [
+		"Conversation Style: Be friendly and conversational - guide users naturally through the recap process",
+		"Automated Generation: When users provide unstructured session notes, raw text, OR structured key events (bulleted lists, numbered lists, or paragraph format), proactively use generateDigestFromNotesTool to automatically extract and structure the information including state changes. This saves time and ensures state changes are properly extracted from the provided content.",
+		"Generation Workflow: When the user provides key events or session notes, confirm the session date if not already provided, then immediately use generateDigestFromNotesTool with their provided content. Do not ask for session number—the next session (max + 1) is assigned automatically. The tool will automatically extract key events, state changes (factions, locations, NPCs), open threads, and other digest fields. After generation, review the results with the user and let them edit before saving.",
+		"CRITICAL - Extract State Changes from Key Events: When users provide key events (whether as a list, bullet points, or paragraphs), you MUST immediately use generateDigestFromNotesTool to extract structured information including state changes. DO NOT ask for state changes separately if they are already mentioned in the key events. The tool will automatically parse the key events to identify: faction changes, location changes, NPC status changes, and other world state modifications. Only ask for additional state changes if the generated digest shows empty state_changes arrays AND you believe state changes should have been mentioned.",
+		"Structured Questions: If state changes are NOT mentioned in the provided key events, then ask about them. Otherwise, extract them from what was provided.",
+		"Incremental Building: Build the digest incrementally - don't ask for everything at once",
+		"World State Changes: When users mention state changes (e.g., 'the tavern burned down', 'NPC X died', 'faction Y allied with Z'), extract this information and use world state tools to record it",
+		"Session Planning: Ask about next session plans, objectives, beats, and if-then branches",
+		"Save Confirmation: Once you have gathered the minimum required information (key events and at least some planning context), ask the user: 'I have enough information to create the session digest. Should I save it now, or would you like to add more details?'",
+		"Save When Confirmed: Only call createSessionDigestTool after the user explicitly confirms they want to save (e.g., 'yes', 'save it', 'that's good', 'go ahead')",
+		"Continue Gathering: If the user wants to add more details, continue asking questions until they're ready to save",
+		"Ask Follow-ups: If information is unclear, ask clarifying questions before asking for confirmation to save",
+		"Review Workflow: After creating a digest, explain that it's saved as 'draft' status. Users can submit it for review later, or if they're satisfied, they can use updateSessionDigestTool to mark it as ready.",
+		"Template Support: Mention that users can save digests as templates for future use, or use existing templates as a guide when generating new digests.",
+		"After recap saved — suggest next steps: When createSessionDigestTool succeeds, you MUST read through session recaps and suggest 2–5 new next step tasks for the user to pick up. Call listSessionDigestsTool to load recent digests (including the one just created), use the recap content (key events, open threads, next_session_plan, todo_checklist, etc.) to derive concrete, actionable next steps, then call recordPlanningTasks with 2–5 tasks (title and optional description). Tell the user the next steps have been saved and they can view and manage them in Campaign Details under the Next steps tab. CampaignId and jwt are injected from context.",
+	],
+	importantNotes: [
+		"CRITICAL - Campaign Context: The campaignId is automatically provided from the user's selected campaign. Always use the campaignId parameter when calling createSessionDigestTool - do NOT infer or guess the campaign ID from the user's message text. The campaignId is already available in the tool context.",
+		"Session number: Do not ask for session number. The next session (max + 1) is assigned automatically when creating a new recap. Ask for the session date when not provided.",
+		"Date Parsing: When users provide relative dates like 'yesterday', 'last week', 'today', convert them to ISO date strings (YYYY-MM-DD format). For 'yesterday', calculate the date as one day before today. Always use the actual date, not the relative description.",
+		"Key Events: Ask about the most important events that happened in the session. If the user provides key events, carefully analyze them to extract any state changes mentioned within.",
+		"State Changes: CRITICAL - First check if state changes are already mentioned in the key events provided by the user. If they are (e.g., 'the vineyard was decimated', 'wedding deadline is now 98 days', 'NPC X died', 'faction Y relocated'), extract them automatically. Only ask about state changes if they are NOT already present in the provided key events. State changes include: faction relationships/alliances/conflicts, location status changes (destroyed, damaged, changed), NPC status changes (deceased, relocated, changed allegiance), and other world state modifications.",
+		"CRITICAL - NPC Format: When recording NPC state changes in state_changes.npcs, use STRINGS only (e.g., 'Guard Captain - deceased: fell in battle'). NEVER use objects. The format is: 'NPC Name - status: description'. Examples: ['Guard Captain - deceased: fell in battle'], ['Merchant - relocated: moved to neighboring town']",
+		"Open Threads: Ask about unresolved plot threads or questions that came up",
+		"Next Session Planning: Ask about game master objectives, probable player goals, planned beats, and if-then branches",
+		"NPCs to Run: Ask which NPCs are likely to appear in the next session",
+		"Locations in Focus: Ask which locations will be important next session",
+		"Encounter Seeds: Ask about potential encounters or combat situations",
+		"Clues and Revelations: Ask about clues that were dropped or revelations that occurred",
+		"Treasure and Rewards: Ask about items, gold, or other rewards the party received",
+		"Todo Checklist: Ask about any preparation tasks the game master needs to complete",
+		"World State Integration: When users mention state changes, proactively use world state tools (updateEntityWorldStateTool, updateRelationshipWorldStateTool, recordWorldEventTool) to record them",
+		"If the user mentions 'the party did X to location Y' or 'NPC Z died' or 'faction A allied with faction B', extract this and create changelog entries",
+		"Don't wait for explicit requests - if state changes are mentioned, record them immediately",
+		"Save Flow: After gathering minimum required information (key events; session number is automatic), ask for confirmation before saving",
+		"Confirmation Examples: Ask 'Ready to save this session digest?' or 'Should I save this now?' and wait for user confirmation",
+		"User Confirmation: Only call createSessionDigestTool after user explicitly confirms (yes, save it, go ahead, that's good, etc.)",
+		"If user says 'not yet' or 'add more', continue gathering information",
+		"If a digest already exists for the session number, inform the user and ask if they want to update it (which would require using updateSessionDigestTool instead)",
+		"Be thorough but not overwhelming - break questions into natural conversation flow",
+		"Minimum Required: At minimum, you need at least one key event before asking to save (session number is assigned automatically)",
+		"Automated Generation Notes: When using generateDigestFromNotesTool, the generated digest will have status 'draft' and generatedByAi=true. The tool automatically extracts state changes from the provided notes/key events. After generation, review the results with the user and offer to make changes before saving. DO NOT ask for state changes again after using generateDigestFromNotesTool - the tool has already extracted them.",
+		"Quality Validation: Generated digests may have quality scores calculated. Mention this to users so they understand the system can help validate digest quality.",
+		"Campaign Planning Checklist: Reference the Campaign Planning Checklist (especially section 7: Session-by-Session Prep and section 13: Post-Session Review) when helping users plan for upcoming sessions and create session recaps. Use the checklist to ensure comprehensive coverage of session planning elements.",
+		"Next steps after save: When you call recordPlanningTasks after saving a digest, campaignId and jwt are injected from the user's message context—you only need to pass the tasks array. Do not say the next steps have been saved until recordPlanningTasks has succeeded.",
+	],
+	specialization: `## Campaign Planning Checklist Reference - Session Planning:
 
 Use this comprehensive checklist, especially sections 7 (Session-by-Session Prep) and 13 (Post-Session Review), to guide your session planning questions and recommendations:
 
@@ -125,115 +125,115 @@ When helping users plan for upcoming sessions or creating session recaps, refere
  * ```
  */
 export class SessionDigestAgent extends BaseAgent {
-  /** Agent metadata for registration and routing */
-  static readonly agentMetadata = {
-    type: "session-digest",
-    description:
-      "Guides users through creating session recaps and planning information. Extracts world state changes and builds comprehensive session digests.",
-    systemPrompt: SESSION_DIGEST_SYSTEM_PROMPT,
-    tools: {
-      ...sessionDigestTools,
-      updateEntityWorldStateTool,
-      updateRelationshipWorldStateTool,
-      recordWorldEventTool,
-      getPlanningTaskProgress,
-      recordPlanningTasks,
-    },
-  };
+	/** Agent metadata for registration and routing */
+	static readonly agentMetadata = {
+		type: "session-digest",
+		description:
+			"Guides users through creating session recaps and planning information. Extracts world state changes and builds comprehensive session digests.",
+		systemPrompt: SESSION_DIGEST_SYSTEM_PROMPT,
+		tools: {
+			...sessionDigestTools,
+			updateEntityWorldStateTool,
+			updateRelationshipWorldStateTool,
+			recordWorldEventTool,
+			getPlanningTaskProgress,
+			recordPlanningTasks,
+		},
+	};
 
-  /**
-   * Creates a new SessionDigestAgent instance.
-   *
-   * @param ctx - The Durable Object state for persistence
-   * @param env - The environment containing Cloudflare bindings
-   * @param model - The AI model instance for generating responses
-   */
-  constructor(ctx: DurableObjectState, env: any, model: any) {
-    super(ctx, env, model, {
-      ...sessionDigestTools,
-      updateEntityWorldStateTool,
-      updateRelationshipWorldStateTool,
-      recordWorldEventTool,
-      getPlanningTaskProgress,
-      recordPlanningTasks,
-    });
-  }
+	/**
+	 * Creates a new SessionDigestAgent instance.
+	 *
+	 * @param ctx - The Durable Object state for persistence
+	 * @param env - The environment containing Cloudflare bindings
+	 * @param model - The AI model instance for generating responses
+	 */
+	constructor(ctx: DurableObjectState, env: any, model: any) {
+		super(ctx, env, model, {
+			...sessionDigestTools,
+			updateEntityWorldStateTool,
+			updateRelationshipWorldStateTool,
+			recordWorldEventTool,
+			getPlanningTaskProgress,
+			recordPlanningTasks,
+		});
+	}
 
-  protected getToolsForRole(role: CampaignRole | null): Record<string, any> {
-    const fullTools = {
-      ...sessionDigestTools,
-      updateEntityWorldStateTool,
-      updateRelationshipWorldStateTool,
-      recordWorldEventTool,
-      getPlanningTaskProgress,
-      recordPlanningTasks,
-    };
-    return isGMRole(role) ? fullTools : {};
-  }
+	protected getToolsForRole(role: CampaignRole | null): Record<string, any> {
+		const fullTools = {
+			...sessionDigestTools,
+			updateEntityWorldStateTool,
+			updateRelationshipWorldStateTool,
+			recordWorldEventTool,
+			getPlanningTaskProgress,
+			recordPlanningTasks,
+		};
+		return isGMRole(role) ? fullTools : {};
+	}
 
-  /**
-   * Override onChatMessage to add campaign context
-   */
-  async onChatMessage(onFinish: any, options?: { abortSignal?: AbortSignal }) {
-    // Extract campaignId from the last user message if available
-    const lastUserMessage = this.messages
-      .slice()
-      .reverse()
-      .find((msg) => msg.role === "user");
+	/**
+	 * Override onChatMessage to add campaign context
+	 */
+	async onChatMessage(onFinish: any, options?: { abortSignal?: AbortSignal }) {
+		// Extract campaignId from the last user message if available
+		const lastUserMessage = this.messages
+			.slice()
+			.reverse()
+			.find((msg) => msg.role === "user");
 
-    let campaignId: string | null = null;
-    if (lastUserMessage && "data" in lastUserMessage && lastUserMessage.data) {
-      const messageData = lastUserMessage.data as { campaignId?: string };
-      campaignId = messageData.campaignId || null;
-    }
+		let campaignId: string | null = null;
+		if (lastUserMessage && "data" in lastUserMessage && lastUserMessage.data) {
+			const messageData = lastUserMessage.data as { campaignId?: string };
+			campaignId = messageData.campaignId || null;
+		}
 
-    // If we have a campaignId, fetch the campaign name and add it as context
-    if (campaignId) {
-      try {
-        // Get JWT from last user message before filtering
-        const jwt =
-          lastUserMessage && "data" in lastUserMessage && lastUserMessage.data
-            ? (lastUserMessage.data as { jwt?: string }).jwt
-            : null;
+		// If we have a campaignId, fetch the campaign name and add it as context
+		if (campaignId) {
+			try {
+				// Get JWT from last user message before filtering
+				const jwt =
+					lastUserMessage && "data" in lastUserMessage && lastUserMessage.data
+						? (lastUserMessage.data as { jwt?: string }).jwt
+						: null;
 
-        // Remove any existing campaign context messages to avoid stale data
-        this.messages = this.messages.filter(
-          (msg) =>
-            !(
-              msg.role === "system" &&
-              typeof msg.content === "string" &&
-              msg.content.includes("Campaign Context:")
-            )
-        );
+				// Remove any existing campaign context messages to avoid stale data
+				this.messages = this.messages.filter(
+					(msg) =>
+						!(
+							msg.role === "system" &&
+							typeof msg.content === "string" &&
+							msg.content.includes("Campaign Context:")
+						)
+				);
 
-        if (jwt) {
-          const daoFactory = getDAOFactory(this.env as any);
-          const userId = extractUsernameFromJwt(jwt);
-          if (userId) {
-            const campaign =
-              await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-                campaignId,
-                userId
-              );
-            if (campaign) {
-              const contextMessage = `Campaign Context: You are creating a session digest for the campaign "${campaign.name}" (ID: ${campaignId}). Always use this campaignId when calling createSessionDigestTool.`;
-              this.messages.push({
-                role: "system",
-                content: contextMessage,
-              });
-            }
-          }
-        }
-      } catch (error) {
-        console.error(
-          "[SessionDigestAgent] Failed to fetch campaign context:",
-          error
-        );
-        // Continue anyway - the campaignId will still be available in tool context
-      }
-    }
+				if (jwt) {
+					const daoFactory = getDAOFactory(this.env as any);
+					const userId = extractUsernameFromJwt(jwt);
+					if (userId) {
+						const campaign =
+							await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+								campaignId,
+								userId
+							);
+						if (campaign) {
+							const contextMessage = `Campaign Context: You are creating a session digest for the campaign "${campaign.name}" (ID: ${campaignId}). Always use this campaignId when calling createSessionDigestTool.`;
+							this.messages.push({
+								role: "system",
+								content: contextMessage,
+							});
+						}
+					}
+				}
+			} catch (error) {
+				console.error(
+					"[SessionDigestAgent] Failed to fetch campaign context:",
+					error
+				);
+				// Continue anyway - the campaignId will still be available in tool context
+			}
+		}
 
-    // Now call the parent's onChatMessage with the enhanced context
-    return super.onChatMessage(onFinish, options);
-  }
+		// Now call the parent's onChatMessage with the enhanced context
+		return super.onChatMessage(onFinish, options);
+	}
 }

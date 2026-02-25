@@ -8,7 +8,7 @@
  * @returns Formatted prompt string
  */
 export function getFileExistencePrompt(filename: string): string {
-  return `Do you have information from a file named "${filename}"? Answer 'yes' or 'no'.`;
+	return `Do you have information from a file named "${filename}"? Answer 'yes' or 'no'.`;
 }
 
 /**
@@ -23,27 +23,27 @@ export function getFileExistencePrompt(filename: string): string {
  * @returns Formatted prompt string
  */
 export function getSemanticMetadataPrompt(
-  fileName: string,
-  fileKey: string,
-  username: string,
-  hasContent: boolean,
-  chunkPreview?: string,
-  totalChunks?: number,
-  currentChunkIndex?: number
+	fileName: string,
+	fileKey: string,
+	username: string,
+	hasContent: boolean,
+	chunkPreview?: string,
+	totalChunks?: number,
+	currentChunkIndex?: number
 ): string {
-  const contentPreview =
-    hasContent && chunkPreview
-      ? `Document content preview:\n${chunkPreview}\n\n`
-      : "";
+	const contentPreview =
+		hasContent && chunkPreview
+			? `Document content preview:\n${chunkPreview}\n\n`
+			: "";
 
-  const isMultiChunk =
-    hasContent && totalChunks !== undefined && totalChunks > 1;
-  const chunkNote =
-    isMultiChunk && currentChunkIndex !== undefined
-      ? `Note: This is chunk ${currentChunkIndex + 1} of ${totalChunks}.\n`
-      : "";
+	const isMultiChunk =
+		hasContent && totalChunks !== undefined && totalChunks > 1;
+	const chunkNote =
+		isMultiChunk && currentChunkIndex !== undefined
+			? `Note: This is chunk ${currentChunkIndex + 1} of ${totalChunks}.\n`
+			: "";
 
-  return `Analyze this document and generate meaningful metadata.
+	return `Analyze this document and generate meaningful metadata.
 
 Document filename: ${fileName}
 File key: ${fileKey}

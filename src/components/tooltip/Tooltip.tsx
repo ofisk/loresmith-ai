@@ -1,154 +1,154 @@
 import {
-  isValidElement,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
+	isValidElement,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
 } from "react";
-import { cn } from "../../lib/utils";
 import { useTooltip } from "@/providers/TooltipProvider";
+import { cn } from "../../lib/utils";
 
 export type TooltipProps = {
-  children: React.ReactNode;
-  className?: string;
-  content: string;
-  id?: number | string;
+	children: React.ReactNode;
+	className?: string;
+	content: string;
+	id?: number | string;
 };
 
 export const Tooltip = ({ children, className, content, id }: TooltipProps) => {
-  const { activeTooltip, showTooltip, hideTooltip } = useTooltip();
-  const [positionX, setPositionX] = useState<"center" | "left" | "right">(
-    "center"
-  );
-  const [positionY, setPositionY] = useState<"top" | "bottom">("top");
-  const [isHoverAvailable, setIsHoverAvailable] = useState(false); // if hover state exists
-  const [isPointer, setIsPointer] = useState(false); // if user is using a pointer device
+	const { activeTooltip, showTooltip, hideTooltip } = useTooltip();
+	const [positionX, setPositionX] = useState<"center" | "left" | "right">(
+		"center"
+	);
+	const [positionY, setPositionY] = useState<"top" | "bottom">("top");
+	const [isHoverAvailable, setIsHoverAvailable] = useState(false); // if hover state exists
+	const [isPointer, setIsPointer] = useState(false); // if user is using a pointer device
 
-  const tooltipRef = useRef<HTMLElement>(null);
+	const tooltipRef = useRef<HTMLElement>(null);
 
-  useEffect(() => {
-    setIsHoverAvailable(window.matchMedia("(hover: hover)").matches); // check if hover state is available
-  }, []);
+	useEffect(() => {
+		setIsHoverAvailable(window.matchMedia("(hover: hover)").matches); // check if hover state is available
+	}, []);
 
-  const tooltipIdentifier = id ? id + content : content;
-  const tooltipId = `tooltip-${id || content.replace(/\s+/g, "-")}`; // used for ARIA
+	const tooltipIdentifier = id ? id + content : content;
+	const tooltipId = `tooltip-${id || content.replace(/\s+/g, "-")}`; // used for ARIA
 
-  const isVisible = activeTooltip === tooltipIdentifier;
+	const isVisible = activeTooltip === tooltipIdentifier;
 
-  // detect collision once the tooltip is visible
-  useLayoutEffect(() => {
-    const detectCollision = () => {
-      const ref = tooltipRef.current;
+	// detect collision once the tooltip is visible
+	useLayoutEffect(() => {
+		const detectCollision = () => {
+			const ref = tooltipRef.current;
 
-      if (ref) {
-        const tooltipRect = ref.getBoundingClientRect();
-        const { top, left, bottom, right } = tooltipRect;
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
+			if (ref) {
+				const tooltipRect = ref.getBoundingClientRect();
+				const { top, left, bottom, right } = tooltipRect;
+				const viewportWidth = window.innerWidth;
+				const viewportHeight = window.innerHeight;
 
-        if (top <= 0) setPositionY("bottom");
-        if (left <= 0) setPositionX("left");
-        if (bottom >= viewportHeight) setPositionY("top");
-        if (right >= viewportWidth) setPositionX("right");
-      }
-    };
+				if (top <= 0) setPositionY("bottom");
+				if (left <= 0) setPositionX("left");
+				if (bottom >= viewportHeight) setPositionY("top");
+				if (right >= viewportWidth) setPositionX("right");
+			}
+		};
 
-    if (!isVisible) {
-      setPositionX("center");
-      setPositionY("top");
-    } else {
-      detectCollision();
-    }
-  }, [isVisible]);
+		if (!isVisible) {
+			setPositionX("center");
+			setPositionY("top");
+		} else {
+			detectCollision();
+		}
+	}, [isVisible]);
 
-  // Check if children is a button element to avoid nesting
-  const isButtonChild =
-    isValidElement(children) &&
-    (children.type === "button" ||
-      (typeof children.type === "function" &&
-        children.type.name === "ButtonComponent"));
+	// Check if children is a button element to avoid nesting
+	const isButtonChild =
+		isValidElement(children) &&
+		(children.type === "button" ||
+			(typeof children.type === "function" &&
+				children.type.name === "ButtonComponent"));
 
-  if (isButtonChild) {
-    return (
-      <span
-        aria-describedby={isVisible ? tooltipId : undefined}
-        className={cn("relative inline-block", className)}
-      >
-        {children}
-        {isVisible && (
-          <span
-            aria-hidden={!isVisible}
-            className={cn(
-              "bg-neutral-800 dark:bg-neutral-700 text-white border border-neutral-600 dark:border-neutral-500 absolute w-max rounded-md px-3 py-2 text-xs shadow-lg z-[99999]",
-              {
-                "left-0 translate-x-0": positionX === "left",
-                "right-0 translate-x-0": positionX === "right",
-                "left-1/2 -translate-x-1/2": positionX === "center",
-                "top-full mt-2": positionY === "bottom",
-                "bottom-full mb-2": positionY === "top",
-              }
-            )}
-            id={tooltipId}
-            ref={tooltipRef}
-            role="tooltip"
-          >
-            {content}
-          </span>
-        )}
-      </span>
-    );
-  }
+	if (isButtonChild) {
+		return (
+			<span
+				aria-describedby={isVisible ? tooltipId : undefined}
+				className={cn("relative inline-block", className)}
+			>
+				{children}
+				{isVisible && (
+					<span
+						aria-hidden={!isVisible}
+						className={cn(
+							"bg-neutral-800 dark:bg-neutral-700 text-white border border-neutral-600 dark:border-neutral-500 absolute w-max rounded-md px-3 py-2 text-xs shadow-lg z-[99999]",
+							{
+								"left-0 translate-x-0": positionX === "left",
+								"right-0 translate-x-0": positionX === "right",
+								"left-1/2 -translate-x-1/2": positionX === "center",
+								"top-full mt-2": positionY === "bottom",
+								"bottom-full mb-2": positionY === "top",
+							}
+						)}
+						id={tooltipId}
+						ref={tooltipRef}
+						role="tooltip"
+					>
+						{content}
+					</span>
+				)}
+			</span>
+		);
+	}
 
-  // Otherwise, render as a button for accessibility
-  return (
-    <button
-      type="button"
-      aria-describedby={isVisible ? tooltipId : undefined}
-      className={cn("relative inline-block", className)}
-      onMouseEnter={() =>
-        isHoverAvailable && showTooltip(tooltipIdentifier, false)
-      }
-      onMouseLeave={() => hideTooltip()}
-      onPointerDown={(e: React.PointerEvent) => {
-        if (e.pointerType === "mouse") {
-          setIsPointer(true);
-        }
-      }}
-      onPointerUp={() => setIsPointer(false)}
-      onFocus={() => {
-        // only allow tooltips when hover state is available
-        if (isHoverAvailable) {
-          isPointer // if user clicks with a mouse, do not auto-populate tooltip
-            ? showTooltip(tooltipIdentifier, false)
-            : showTooltip(tooltipIdentifier, true);
-        } else {
-          hideTooltip();
-        }
-      }}
-      onBlur={() => hideTooltip()}
-      tabIndex={0}
-    >
-      {children}
-      {isVisible && (
-        <span
-          aria-hidden={!isVisible}
-          className={cn(
-            "bg-neutral-800 dark:bg-neutral-700 text-white border border-neutral-600 dark:border-neutral-500 absolute w-max rounded-md px-3 py-2 text-xs shadow-lg z-[99999]",
-            {
-              "left-0 translate-x-0": positionX === "left",
-              "right-0 translate-x-0": positionX === "right",
-              "left-1/2 -translate-x-1/2": positionX === "center",
-              "top-full mt-2": positionY === "bottom",
-              "bottom-full mb-2": positionY === "top",
-            }
-          )}
-          id={tooltipId}
-          ref={tooltipRef}
-          role="tooltip"
-        >
-          {content}
-        </span>
-      )}
-    </button>
-  );
+	// Otherwise, render as a button for accessibility
+	return (
+		<button
+			type="button"
+			aria-describedby={isVisible ? tooltipId : undefined}
+			className={cn("relative inline-block", className)}
+			onMouseEnter={() =>
+				isHoverAvailable && showTooltip(tooltipIdentifier, false)
+			}
+			onMouseLeave={() => hideTooltip()}
+			onPointerDown={(e: React.PointerEvent) => {
+				if (e.pointerType === "mouse") {
+					setIsPointer(true);
+				}
+			}}
+			onPointerUp={() => setIsPointer(false)}
+			onFocus={() => {
+				// only allow tooltips when hover state is available
+				if (isHoverAvailable) {
+					isPointer // if user clicks with a mouse, do not auto-populate tooltip
+						? showTooltip(tooltipIdentifier, false)
+						: showTooltip(tooltipIdentifier, true);
+				} else {
+					hideTooltip();
+				}
+			}}
+			onBlur={() => hideTooltip()}
+			tabIndex={0}
+		>
+			{children}
+			{isVisible && (
+				<span
+					aria-hidden={!isVisible}
+					className={cn(
+						"bg-neutral-800 dark:bg-neutral-700 text-white border border-neutral-600 dark:border-neutral-500 absolute w-max rounded-md px-3 py-2 text-xs shadow-lg z-[99999]",
+						{
+							"left-0 translate-x-0": positionX === "left",
+							"right-0 translate-x-0": positionX === "right",
+							"left-1/2 -translate-x-1/2": positionX === "center",
+							"top-full mt-2": positionY === "bottom",
+							"bottom-full mb-2": positionY === "top",
+						}
+					)}
+					id={tooltipId}
+					ref={tooltipRef}
+					role="tooltip"
+				>
+					{content}
+				</span>
+			)}
+		</button>
+	);
 };

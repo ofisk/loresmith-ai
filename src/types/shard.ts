@@ -16,64 +16,64 @@ export type ShardStatus = "staging" | "approved" | "rejected" | "deleted";
  * Shard metadata containing file and source information
  */
 export interface ShardMetadata {
-  fileKey: string;
-  fileName: string;
-  source: string;
-  campaignId: string;
-  entityType: StructuredEntityType;
-  confidence: number;
-  originalMetadata?: Record<string, unknown>;
-  sourceRef?: ShardSourceRef;
-  [key: string]: unknown;
+	fileKey: string;
+	fileName: string;
+	source: string;
+	campaignId: string;
+	entityType: StructuredEntityType;
+	confidence: number;
+	originalMetadata?: Record<string, unknown>;
+	sourceRef?: ShardSourceRef;
+	[key: string]: unknown;
 }
 
 /**
  * Source reference for a shard, pointing to its origin
  */
 export interface ShardSourceRef {
-  fileKey: string;
-  meta: {
-    fileName: string;
-    campaignId: string;
-    entityType: string;
-    chunkId?: string;
-    score?: number;
-    [key: string]: unknown;
-  };
+	fileKey: string;
+	meta: {
+		fileName: string;
+		campaignId: string;
+		entityType: string;
+		chunkId?: string;
+		score?: number;
+		[key: string]: unknown;
+	};
 }
 
 /**
  * Core shard candidate interface used throughout the system
  */
 export interface ShardCandidate {
-  id: string;
-  text: string;
-  metadata: ShardMetadata;
-  sourceRef: ShardSourceRef;
+	id: string;
+	text: string;
+	metadata: ShardMetadata;
+	sourceRef: ShardSourceRef;
 }
 
 /**
  * Group of staged shards from the same resource
  */
 export interface StagedShardGroup {
-  key: string;
-  sourceRef: ShardSourceRef;
-  shards: ShardCandidate[];
-  created_at: string;
-  campaignRagBasePath: string;
+	key: string;
+	sourceRef: ShardSourceRef;
+	shards: ShardCandidate[];
+	created_at: string;
+	campaignRagBasePath: string;
 }
 
 /**
  * AI search response structure
  */
 export interface AISearchResponse {
-  results: Array<{
-    id?: string;
-    type?: string;
-    content?: unknown;
-    [key: string]: unknown;
-  }>;
-  [key: string]: unknown;
+	results: Array<{
+		id?: string;
+		type?: string;
+		content?: unknown;
+		[key: string]: unknown;
+	}>;
+	[key: string]: unknown;
 }
 
 /**
@@ -81,11 +81,11 @@ export interface AISearchResponse {
  * Used for database insertion with snake_case field names
  */
 export interface CreateShardData {
-  id?: string;
-  campaign_id: string;
-  resource_id: string;
-  shard_type: string;
-  content: string;
-  metadata: string;
-  [key: string]: unknown;
+	id?: string;
+	campaign_id: string;
+	resource_id: string;
+	shard_type: string;
+	content: string;
+	metadata: string;
+	[key: string]: unknown;
 }

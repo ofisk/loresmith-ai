@@ -13,58 +13,58 @@ import { OpenAIAPIKeyError } from "./errors";
  * Validate that an API key is available
  */
 function validateApiKey(apiKey?: string): string {
-  if (!apiKey) {
-    console.error("OpenAI API key not provided");
-    throw new OpenAIAPIKeyError(
-      "OpenAI API key is required. Configure OPENAI_API_KEY on the server (or provide a user key)."
-    );
-  }
-  return apiKey;
+	if (!apiKey) {
+		console.error("OpenAI API key not provided");
+		throw new OpenAIAPIKeyError(
+			"OpenAI API key is required. Configure OPENAI_API_KEY on the server (or provide a user key)."
+		);
+	}
+	return apiKey;
 }
 
 /**
  * Create a model with the specified configuration
  */
 export function createModel(
-  modelName: string,
-  apiKey?: string,
-  params: Record<string, any> = {}
+	modelName: string,
+	apiKey?: string,
+	params: Record<string, any> = {}
 ) {
-  validateApiKey(apiKey);
-  const anyOpenAI = openai as any;
-  return anyOpenAI(modelName as any, params);
+	validateApiKey(apiKey);
+	const anyOpenAI = openai as any;
+	return anyOpenAI(modelName as any, params);
 }
 
 /**
  * Get the primary model for chat and general tasks
  */
 export function getPrimaryModel(apiKey?: string) {
-  return createModel(MODEL_CONFIG.OPENAI.PRIMARY, apiKey);
+	return createModel(MODEL_CONFIG.OPENAI.PRIMARY, apiKey);
 }
 
 /**
  * Get the analysis model for metadata generation and analysis tasks
  */
 export function getAnalysisModel(apiKey?: string) {
-  return createModel(MODEL_CONFIG.OPENAI.ANALYSIS, apiKey);
+	return createModel(MODEL_CONFIG.OPENAI.ANALYSIS, apiKey);
 }
 
 /**
  * Get the embedding model for vector operations
  */
 export function getEmbeddingModel(apiKey?: string) {
-  return createModel(MODEL_CONFIG.OPENAI.EMBEDDINGS, apiKey);
+	return createModel(MODEL_CONFIG.OPENAI.EMBEDDINGS, apiKey);
 }
 
 /**
  * Get model with custom parameters
  */
 export function getModelWithParams(
-  modelName: string,
-  params: Record<string, any>,
-  apiKey?: string
+	modelName: string,
+	params: Record<string, any>,
+	apiKey?: string
 ) {
-  return createModel(modelName, apiKey, params);
+	return createModel(modelName, apiKey, params);
 }
 
 // Legacy exports for backward compatibility
