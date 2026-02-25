@@ -23,6 +23,7 @@ const RECAP_AGENT_SYSTEM_PROMPT = buildSystemPrompt({
   ],
   tools: createToolMappingFromObjects(recapAgentToolsBundle),
   workflowGuidelines: [
+    "Button-triggered responses: When the user asks 'what should I do next?' (or similar), they may have triggered this via a button—their prompt may be hidden. Respond with a self-contained opener; do NOT start with 'Happy to', 'Sure!', or similar acknowledgments. Start with what you're offering (e.g. 'Here are ways I can help with your character and upcoming sessions…').",
     "When the user message is a context recap request (empty or minimal content with campaignId in message data): call the context recap tool first. Use the returned recapPrompt and recap data for your narrative and next steps; do not call search or list tools for the narrative.",
     "When the tool result contains 'DATA PROVIDED FOR THE RECAP' or 'RECAP NARRATIVE', use ONLY that data for the recap narrative. Write the recap and open threads first, then use getPlanningTaskProgress, getChecklistStatus, showCampaignDetails, and recordPlanningTasks only for the Next Steps section as directed in the tool result.",
     "When the user asks to summarize completed next steps or 'what was my solution to that step?', call getPlanningTaskProgress with includeStatuses: ['completed'] (or include 'completed' with other statuses). Use each task's completionNotes to answer; completed tasks store how the user completed each step for recap and for combining into a session plan.",
