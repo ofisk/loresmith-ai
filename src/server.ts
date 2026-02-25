@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { UploadSessionDO } from "@/durable-objects/upload-session";
+import { getCorsHeaders } from "@/lib/cors";
 import { createLogger } from "@/lib/logger";
 import {
   queue as queueFn,
@@ -31,14 +32,7 @@ app.use("*", async (c, next) => {
     logger.trace(`${method} ${path} -> 204 (preflight)`);
     return new Response(null, {
       status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods":
-          "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-        "Access-Control-Allow-Headers":
-          "Content-Type, Authorization, X-Session-ID",
-        "Access-Control-Max-Age": "86400",
-      },
+      headers: getCorsHeaders(c.req.raw, c.env),
     });
   }
 
@@ -49,15 +43,9 @@ app.use("*", async (c, next) => {
     throw error;
   }
 
-  c.header("Access-Control-Allow-Origin", "*");
-  c.header(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-  );
-  c.header(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Session-ID"
-  );
+  for (const [key, value] of Object.entries(getCorsHeaders(c.req.raw, c.env))) {
+    c.header(key, value);
+  }
 
   const status = c.res.status || 200;
   const durationMs = Date.now() - start;
