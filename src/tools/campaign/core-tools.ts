@@ -32,12 +32,8 @@ export const listCampaigns = tool({
   ): Promise<ToolResult> => {
     const { jwt } = input;
     const toolCallId = options?.toolCallId ?? "unknown";
-    console.log("[Tool] listCampaigns received JWT:", jwt);
-    console.log("[Tool] listCampaigns context:", options);
-    console.log("[listCampaigns] Using toolCallId:", toolCallId);
 
     try {
-      console.log("[listCampaigns] Making API request");
       const response = await authenticatedFetch(
         API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
         {
@@ -69,7 +65,6 @@ export const listCampaigns = tool({
       }
 
       const data = (await response.json()) as { campaigns?: any[] };
-      console.log("[listCampaigns] API data:", data);
 
       if (data.campaigns && data.campaigns.length > 0) {
         return createToolSuccess(
@@ -122,15 +117,8 @@ export const createCampaign = tool({
   ): Promise<ToolResult> => {
     const { name, description, jwt } = input;
     const toolCallId = options?.toolCallId ?? "unknown";
-    console.log("[Tool] createCampaign received:", { name, description, jwt });
-    console.log("[Tool] createCampaign context:", options);
-    console.log("[createCampaign] Using toolCallId:", toolCallId);
 
     try {
-      console.log(
-        "[createCampaign] Making API request with user-provided description"
-      );
-
       const response = await authenticatedFetch(
         API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
         {
@@ -161,7 +149,6 @@ export const createCampaign = tool({
       }
 
       const data = (await response.json()) as { campaignId: string };
-      console.log("[createCampaign] API data:", data);
 
       return createToolSuccess(
         `Perfect! I've created your campaign "${name}" with a description that captures the essence of your adventure. Here's what I've set up for you:
@@ -205,12 +192,8 @@ export const showCampaignDetails = tool({
   ): Promise<ToolResult> => {
     const { campaignId, jwt } = input;
     const toolCallId = options?.toolCallId ?? "unknown";
-    console.log("[Tool] showCampaignDetails received:", { campaignId, jwt });
-    console.log("[Tool] showCampaignDetails context:", options);
-    console.log("[showCampaignDetails] Using toolCallId:", toolCallId);
 
     try {
-      console.log("[showCampaignDetails] Making API request");
       const response = await authenticatedFetch(
         API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.DETAILS(campaignId)),
         {

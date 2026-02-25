@@ -1,3 +1,5 @@
+import type { CampaignRole } from "@/types/campaign";
+import { isGMRole } from "@/constants/campaign-roles";
 import { campaignAnalysisTools } from "../tools/campaign-context/analysis-tools";
 import { BaseAgent } from "./base-agent";
 import {
@@ -183,5 +185,9 @@ export class CampaignAnalysisAgent extends BaseAgent {
    */
   constructor(ctx: DurableObjectState, env: any, model: any) {
     super(ctx, env, model, campaignAnalysisTools);
+  }
+
+  protected getToolsForRole(role: CampaignRole | null): Record<string, any> {
+    return isGMRole(role) ? campaignAnalysisTools : {};
   }
 }

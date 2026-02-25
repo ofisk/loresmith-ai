@@ -6,6 +6,7 @@ import {
   createToolError,
   createToolSuccess,
   extractUsernameFromJwt,
+  requireGMRole,
   type ToolEnv,
 } from "@/tools/utils";
 import { getDAOFactory } from "@/dao/dao-factory";
@@ -194,6 +195,9 @@ export const createSessionDigestTool = tool({
         );
       }
 
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
+
       const sessionNumber =
         input.sessionNumber ??
         (await daoFactory.sessionDigestDAO.getNextSessionNumber(campaignId));
@@ -349,6 +353,9 @@ export const getSessionDigestTool = tool({
         );
       }
 
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
+
       const digest =
         await daoFactory.sessionDigestDAO.getSessionDigestByCampaignAndSession(
           campaignId,
@@ -442,6 +449,9 @@ export const listSessionDigestsTool = tool({
         );
       }
 
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
+
       const digests =
         await daoFactory.sessionDigestDAO.getSessionDigestsByCampaign(
           campaignId
@@ -527,6 +537,9 @@ export const updateSessionDigestTool = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       // Get the existing digest by sessionNumber (there's only one per session)
       const existing =

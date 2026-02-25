@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BaseAgent } from "../../src/agents/base-agent";
 import { SimpleChatAgent } from "../../src/agents/simple-chat-agent";
 
+vi.mock("@/lib/agent-role-utils", () => ({
+  resolveCampaignRole: vi.fn().mockResolvedValue("owner"),
+}));
+
 // Mock environment (DB undefined so addMessage does not attempt persistence; avoids DAO errors and log noise in tests)
 const mockEnv = {
   DB: undefined as unknown as D1Database,

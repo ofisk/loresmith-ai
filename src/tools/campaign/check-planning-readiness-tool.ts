@@ -7,6 +7,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  requireGMRole,
   type ToolExecuteOptions,
 } from "../utils";
 import { getDAOFactory } from "@/dao/dao-factory";
@@ -72,6 +73,9 @@ export const checkPlanningReadiness = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       const gaps: Array<{
         type: string;

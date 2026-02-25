@@ -2,6 +2,7 @@ import type { D1Database } from "@cloudflare/workers-types";
 import type { ToolExecutionOptions } from "ai";
 import { z } from "zod";
 import type { ToolResult } from "../app-constants";
+import { CAMPAIGN_ROLES, PLAYER_ROLES } from "@/constants/campaign-roles";
 import { getDAOFactory } from "../dao/dao-factory";
 
 /** Re-export for v6 tool execute signature. */
@@ -186,6 +187,29 @@ export function createToolSuccess(
 }
 
 /**
+ * Require the user to have a GM role for this campaign. Call at the start of GM-only tools.
+ * Returns a ToolResult error if the user is a player; returns null if allowed (GM or owner).
+ */
+export async function requireGMRole(
+  env: ToolEnv,
+  campaignId: string,
+  userId: string,
+  toolCallId: string
+): Promise<ToolResult | null> {
+  const daoFactory = getDAOFactory(env);
+  const role = await daoFactory.campaignDAO.getCampaignRole(campaignId, userId);
+  if (role && PLAYER_ROLES.has(role)) {
+    return createToolError(
+      "This action is not available.",
+      "This action is limited to GM tools.",
+      403,
+      toolCallId
+    );
+  }
+  return null;
+}
+
+/**
  * Execute API request with standard error handling
  */
 export async function executeApiRequest(
@@ -265,4 +289,67 @@ export async function runWithEnvOrApi<T>(params: {
   }
 
   return dbCall(env, userId);
+}
+
+const SPOILER_ROLES = new Set<string>([
+  CAMPAIGN_ROLES.OWNER,
+  CAMPAIGN_ROLES.EDITOR_GM,
+  CAMPAIGN_ROLES.READONLY_GM,
+]);
+
+export function canSeeSpoilersForCampaignRole(
+  role: string | null | undefined
+): boolean {
+  if (!role) return false;
+  return SPOILER_ROLES.has(role);
+}
+
+/**
+ * Enforce GM-only spoiler access for tools that expose campaign planning / spoilers.
+ *
+ * This is intentionally server-side and DAO-backed so it cannot be bypassed by
+ * calling the tool directly from an agent.
+ */
+export async function requireCanSeeSpoilersForTool(params: {
+  env: unknown;
+  campaignId: string;
+  jwt: string | null | undefined;
+  toolCallId: string;
+}): Promise<{ userId: string; role: string } | ToolResult> {
+  const { env, campaignId, jwt, toolCallId } = params;
+
+  const userId = extractUsernameFromJwt(jwt);
+  if (!userId) {
+    return createToolError(
+      "Invalid authentication token",
+      "Authentication failed",
+      401,
+      toolCallId,
+      campaignId
+    );
+  }
+
+  const daoFactory = getDAOFactory(env);
+  const role = await daoFactory.campaignDAO.getCampaignRole(campaignId, userId);
+  if (!role) {
+    return createToolError(
+      "Campaign not found",
+      "Campaign not found or access denied",
+      404,
+      toolCallId,
+      campaignId
+    );
+  }
+
+  if (!canSeeSpoilersForCampaignRole(role)) {
+    return createToolError(
+      "Access denied",
+      "You do not have permission to view or modify campaign planning information.",
+      403,
+      toolCallId,
+      campaignId
+    );
+  }
+
+  return { userId, role };
 }

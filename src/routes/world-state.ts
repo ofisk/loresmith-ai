@@ -4,10 +4,12 @@ import { HistoricalContextService } from "@/services/rag/historical-context-serv
 import type { HistoricalQueryInput } from "@/types/changelog-archive";
 import { getEnvVar } from "@/lib/env-utils";
 
+import { PLAYER_ROLES } from "@/constants/campaign-roles";
 import {
   type ContextWithAuth,
   getUserAuth,
   ensureCampaignAccess,
+  getCampaignRole,
 } from "@/lib/route-utils";
 
 interface IncomingChangelogPayload extends Partial<
@@ -78,6 +80,10 @@ export async function handleCreateWorldStateChangelog(c: ContextWithAuth) {
     const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
+    }
+    const role = await getCampaignRole(c, campaignId, auth.username);
+    if (role && PLAYER_ROLES.has(role)) {
+      return c.json({ error: "This action is not available." }, 403);
     }
 
     const body = (await c.req.json()) as IncomingChangelogPayload;

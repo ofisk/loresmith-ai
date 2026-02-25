@@ -46,3 +46,11 @@ export const campaignContextToolsBundle = {
   generateContextRecapTool,
   captureConversationalContext,
 };
+
+/** Player-facing subset: search, list (sanitized), campaign details, message history */
+export const playerCampaignContextToolsBundle = {
+  searchCampaignContext,
+  listAllEntities,
+  showCampaignDetails,
+  getMessageHistory,
+};

@@ -4,6 +4,7 @@ import {
   commonSchemas,
   createToolSuccess,
   createToolError,
+  canSeeSpoilersForCampaignRole,
   runWithEnvOrApi,
   type ToolExecuteOptions,
 } from "../utils";
@@ -150,6 +151,16 @@ Total tracked items: ${statusRecords.length}`;
               "Campaign not found or access denied",
               `Campaign ${campaignId} not found for user ${userId}`,
               404,
+              toolCallId
+            );
+          }
+
+          const role = await campaignDAO.getCampaignRole(campaignId, userId);
+          if (!canSeeSpoilersForCampaignRole(role)) {
+            return createToolError(
+              "This action is not available.",
+              "This action is limited to GM tools.",
+              403,
               toolCallId
             );
           }

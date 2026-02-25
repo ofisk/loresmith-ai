@@ -5,6 +5,8 @@ import { TopBarNotifications } from "@/components/notifications/TopBarNotificati
 import loresmith from "@/assets/loresmith.png";
 import type { NotificationPayload } from "@/durable-objects/notification-hub";
 import { AuthService } from "@/services/core/auth-service";
+import type { CampaignRole } from "@/types/campaign";
+import { PLAYER_ROLES } from "@/constants/campaign-roles";
 
 interface AppHeaderProps {
   onToggleSidebar?: () => void;
@@ -27,6 +29,7 @@ interface AppHeaderProps {
   onClearAllNotifications: () => void;
   selectedCampaignId: string | null;
   onAdminDashboardOpen?: () => void;
+  selectedCampaignRole?: CampaignRole | null;
 }
 
 /**
@@ -43,10 +46,13 @@ export function AppHeader({
   onClearAllNotifications,
   selectedCampaignId,
   onAdminDashboardOpen,
+  selectedCampaignRole = null,
 }: AppHeaderProps) {
   // Check if user is admin
   const payload = AuthService.getJwtPayload();
   const isAdmin = payload?.isAdmin === true;
+  const isPlayerRole =
+    selectedCampaignRole !== null && PLAYER_ROLES.has(selectedCampaignRole);
 
   return (
     <div className="app-header px-4 py-2 border-b border-neutral-200/50 dark:border-neutral-700/50 flex items-center gap-3 bg-white/60 dark:bg-neutral-950/60 backdrop-blur-sm rounded-t-2xl">
@@ -110,9 +116,11 @@ export function AppHeader({
           onClick={onNextStepsRequest}
           disabled={!selectedCampaignId}
           tooltip={
-            selectedCampaignId
-              ? "What should I do next?"
-              : "Select a campaign to get next-step suggestions"
+            !selectedCampaignId
+              ? "Select a campaign to get next-step suggestions"
+              : isPlayerRole
+                ? "What should I do next as a player?"
+                : "What should I do next?"
           }
         >
           <Lightbulb size={18} />

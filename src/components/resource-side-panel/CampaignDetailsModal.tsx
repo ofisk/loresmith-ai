@@ -12,8 +12,8 @@ import { SessionDigestBulkImport } from "@/components/session/SessionDigestBulkI
 import { SessionDigestModal } from "@/components/session/SessionDigestModal";
 import { ShareCampaignModal } from "@/components/campaign/ShareCampaignModal";
 import { PendingProposalsSection } from "@/components/campaign/PendingProposalsSection";
-import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
 import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
+import { CAMPAIGN_ROLES, PLAYER_ROLES } from "@/constants/campaign-roles";
 import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
 import { useBaseAsync } from "@/hooks/useBaseAsync";
 import { useResourceFiles } from "@/hooks/useResourceFiles";
@@ -495,6 +495,10 @@ export function CampaignDetailsModal({
 
   if (!campaign) return null;
 
+  const role = campaign.role ?? null;
+  const isPlayerRole = role !== null && PLAYER_ROLES.has(role);
+  const isOwner = role === CAMPAIGN_ROLES.OWNER;
+
   return (
     <>
       <Modal
@@ -508,13 +512,15 @@ export function CampaignDetailsModal({
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
               Campaign details
             </h2>
-            <button
-              type="button"
-              onClick={() => setIsGraphModalOpen(true)}
-              className="w-full sm:w-auto min-w-0 sm:min-w-[180px] px-4 md:px-6 py-2 text-sm font-medium rounded-lg bg-neutral-700 dark:bg-neutral-800 text-blue-500 dark:text-blue-400 border border-neutral-600 dark:border-neutral-700 hover:bg-neutral-600 dark:hover:bg-neutral-700 transition-colors"
-            >
-              View graph
-            </button>
+            {!isPlayerRole && (
+              <button
+                type="button"
+                onClick={() => setIsGraphModalOpen(true)}
+                className="w-full sm:w-auto min-w-0 sm:min-w-[180px] px-4 md:px-6 py-2 text-sm font-medium rounded-lg bg-neutral-700 dark:bg-neutral-800 text-blue-500 dark:text-blue-400 border border-neutral-600 dark:border-neutral-700 hover:bg-neutral-600 dark:hover:bg-neutral-700 transition-colors"
+              >
+                View graph
+              </button>
+            )}
           </div>
 
           {/* Tabs */}
@@ -542,17 +548,19 @@ export function CampaignDetailsModal({
               >
                 Session digests
               </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("nextSteps")}
-                className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === "nextSteps"
-                    ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                    : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                }`}
-              >
-                Next steps
-              </button>
+              {!isPlayerRole && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("nextSteps")}
+                  className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === "nextSteps"
+                      ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                      : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                  }`}
+                >
+                  Next steps
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setActiveTab("resources")}
@@ -593,7 +601,7 @@ export function CampaignDetailsModal({
               />
             )}
 
-            {activeTab === "nextSteps" && (
+            {activeTab === "nextSteps" && !isPlayerRole && (
               <div className="mt-2">
                 <PlanningTasksPanel campaignId={campaign.campaignId} />
               </div>
@@ -667,15 +675,13 @@ export function CampaignDetailsModal({
                 )}
               </div>
 
-              {!isEditing && (
-                <div>
-                  <ConfirmDeleteButton
-                    label="Delete"
-                    confirmLabel="Confirm delete"
-                    onConfirm={handleDeleteCampaign}
-                    disabled={isUpdating}
-                  />
-                </div>
+              {!isEditing && isOwner && (
+                <ConfirmDeleteButton
+                  label="Delete campaign"
+                  confirmLabel="Confirm delete"
+                  onConfirm={handleDeleteCampaign}
+                  disabled={isUpdating}
+                />
               )}
             </div>
           )}
@@ -865,7 +871,7 @@ export function CampaignDetailsModal({
       </Modal>
 
       {/* Graph visualization modal */}
-      {campaign && (
+      {campaign && !isPlayerRole && (
         <GraphVisualizationModal
           campaignId={campaign.campaignId}
           campaignName={campaign.name}

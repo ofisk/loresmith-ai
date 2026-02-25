@@ -5,6 +5,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  requireCanSeeSpoilersForTool,
   type ToolExecuteOptions,
 } from "../utils";
 import { getDAOFactory } from "@/dao/dao-factory";
@@ -71,8 +72,19 @@ export const getDocumentContent = tool({
       }
 
       const daoFactory = getDAOFactory(env);
+
+      const access = await requireCanSeeSpoilersForTool({
+        env,
+        campaignId,
+        jwt,
+        toolCallId,
+      });
+      if (!("userId" in access)) {
+        return access;
+      }
+
       const campaign = await daoFactory.campaignDAO.getCampaignById(campaignId);
-      if (!campaign || campaign.username !== userId) {
+      if (!campaign) {
         return createToolError(
           "Campaign not found or access denied",
           "Campaign not found",

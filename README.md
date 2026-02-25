@@ -83,7 +83,7 @@ cd loresmith-ai
 npm install
 
 # Set up environment variables
-cp .dev.vars.example .dev.vars
+cp .dev.vars.template .dev.vars
 # Edit .dev.vars with your credentials
 
 # Set up local database

@@ -17,3 +17,11 @@ export const characterSheetTools = {
   listCharacterSheets,
   getDocumentContent,
 };
+
+/** Player-facing character sheet tools (excludes getDocumentContent, which is GM-only) */
+export const playerCharacterSheetTools = {
+  uploadCharacterSheet,
+  processCharacterSheet,
+  createCharacterSheet,
+  listCharacterSheets,
+};

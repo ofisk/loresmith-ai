@@ -1,4 +1,9 @@
-import { characterSheetTools } from "../tools/character-sheet";
+import type { CampaignRole } from "@/types/campaign";
+import { isGMRole } from "@/constants/campaign-roles";
+import {
+  characterSheetTools,
+  playerCharacterSheetTools,
+} from "../tools/character-sheet";
 import { BaseAgent } from "./base-agent";
 import {
   buildSystemPrompt,
@@ -99,5 +104,9 @@ export class CharacterSheetAgent extends BaseAgent {
    */
   constructor(ctx: DurableObjectState, env: any, model: any) {
     super(ctx, env, model, characterSheetTools);
+  }
+
+  protected getToolsForRole(role: CampaignRole | null): Record<string, any> {
+    return isGMRole(role) ? characterSheetTools : playerCharacterSheetTools;
   }
 }

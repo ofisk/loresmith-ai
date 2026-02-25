@@ -1,3 +1,5 @@
+import type { CampaignRole } from "@/types/campaign";
+import { isGMRole } from "@/constants/campaign-roles";
 import { entityGraphTools } from "../tools/campaign-context/entity-graph-tools";
 import { BaseAgent } from "./base-agent";
 import {
@@ -66,5 +68,9 @@ export class EntityGraphAgent extends BaseAgent {
    */
   constructor(ctx: DurableObjectState, env: any, model: any) {
     super(ctx, env, model, entityGraphTools);
+  }
+
+  protected getToolsForRole(role: CampaignRole | null): Record<string, any> {
+    return isGMRole(role) ? entityGraphTools : {};
   }
 }

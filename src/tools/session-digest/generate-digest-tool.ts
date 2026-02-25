@@ -4,6 +4,8 @@ import {
   createToolError,
   createToolSuccess,
   extractUsernameFromJwt,
+  requireGMRole,
+  type ToolEnv,
   type ToolExecuteOptions,
 } from "@/tools/utils";
 import { getDAOFactory } from "@/dao/dao-factory";
@@ -104,6 +106,14 @@ export const generateDigestFromNotesTool = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(
+        env as ToolEnv,
+        campaignId,
+        userId,
+        toolCallId
+      );
+      if (gmError) return gmError;
 
       const sessionNumber =
         input.sessionNumber ??

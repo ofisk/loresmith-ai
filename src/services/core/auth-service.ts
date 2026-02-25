@@ -58,18 +58,7 @@ export class AuthService {
    * Get JWT secret from environment
    */
   async getJwtSecret(): Promise<Uint8Array> {
-    // For JWT signing, we need a secret. If JWT_SECRET is not available, use a fallback.
-    let secret: string;
-
-    try {
-      secret = await getEnvVar(this.env, "JWT_SECRET");
-    } catch (_error) {
-      console.warn(
-        "[AuthService] JWT_SECRET not available, using fallback for JWT signing"
-      );
-      secret = "fallback-jwt-secret-for-non-admin-users";
-    }
-
+    const secret = await getEnvVar(this.env, "JWT_SECRET");
     return new TextEncoder().encode(secret);
   }
 
@@ -90,16 +79,7 @@ export class AuthService {
     const isAdmin = requestIsAdmin === true;
 
     try {
-      // Create JWT token
       const secret = await this.getJwtSecret();
-      console.log(
-        "[AuthService] Creating JWT with secret length:",
-        secret.length
-      );
-      console.log(
-        "[AuthService] Secret bytes:",
-        Array.from(secret).slice(0, 10)
-      );
 
       const token = await new SignJWT({
         type: "user-auth",
@@ -111,10 +91,6 @@ export class AuthService {
         .setExpirationTime("24h")
         .sign(secret);
 
-      console.log(
-        `[AuthService] Authentication successful for user: ${username} (${isAdmin ? "Admin" : "Regular user"})`
-      );
-
       return {
         success: true,
         token,
@@ -123,7 +99,12 @@ export class AuthService {
       console.error("[AuthService] Error creating JWT:", error);
       return {
         success: false,
-        error: "Failed to create authentication token",
+        error:
+          error instanceof Error &&
+          (error.name === "EnvironmentVariableError" ||
+            /JWT_SECRET/i.test(error.message))
+            ? "Authentication is not configured on the server."
+            : "Failed to create authentication token",
       };
     }
   }

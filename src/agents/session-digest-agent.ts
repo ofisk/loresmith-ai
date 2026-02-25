@@ -1,3 +1,5 @@
+import type { CampaignRole } from "@/types/campaign";
+import { isGMRole } from "@/constants/campaign-roles";
 import { sessionDigestTools } from "../tools/session-digest";
 import { BaseAgent } from "./base-agent";
 import {
@@ -155,6 +157,18 @@ export class SessionDigestAgent extends BaseAgent {
       getPlanningTaskProgress,
       recordPlanningTasks,
     });
+  }
+
+  protected getToolsForRole(role: CampaignRole | null): Record<string, any> {
+    const fullTools = {
+      ...sessionDigestTools,
+      updateEntityWorldStateTool,
+      updateRelationshipWorldStateTool,
+      recordWorldEventTool,
+      getPlanningTaskProgress,
+      recordPlanningTasks,
+    };
+    return isGMRole(role) ? fullTools : {};
   }
 
   /**

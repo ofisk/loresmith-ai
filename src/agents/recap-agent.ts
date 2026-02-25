@@ -1,4 +1,10 @@
-import { recapAgentToolsBundle } from "../tools/campaign-context/recap-agent-tools-bundle";
+import type { CampaignRole } from "@/types/campaign";
+import { isGMRole } from "@/constants/campaign-roles";
+import {
+  gmRecapToolsBundle,
+  playerRecapToolsBundle,
+  recapAgentToolsBundle,
+} from "../tools/campaign-context/recap-agent-tools-bundle";
 import { BaseAgent } from "./base-agent";
 import {
   buildSystemPrompt,
@@ -11,13 +17,14 @@ import {
 const RECAP_AGENT_SYSTEM_PROMPT = buildSystemPrompt({
   agentName: "Recap Agent",
   responsibilities: [
-    "Context recap: When the user returns to the app or asks for a recap, call generateContextRecapTool first (campaignId and jwt are injected from message data). Use the tool result (recapPrompt and recap data) to write a friendly 'Since you were away...' narrative and next steps. Do not ask the user for context.",
+    "Context recap: When the user returns to the app or asks for a recap, call the context recap tool first (generateGMContextRecapTool or generatePlayerContextRecapTool, depending on your tool set). Use the tool result (recapPrompt and recap data) to write a friendly 'Since you were away...' narrative and next steps. Do not ask the user for context.",
     "Next steps: After the recap (or when the user asks 'what should I do next?'), follow the instructions in the recap tool result or call getPlanningTaskProgress first. If there are open tasks, present them. If none, suggest 2–3 concrete next steps and call recordPlanningTasks to save them, then tell the user they can view them in Campaign Details > Next steps.",
     "Session plan readout: When all next steps are completed (openTaskCount 0, counts.completed > 0), immediately ask the user if they're ready to construct the readout for their next session's plan or if there's something else they'd like to add. Do not offer other suggestions (e.g. world expansion, session prep) before this question. If they ask for the readout, call getSessionReadoutContext once. Transform the returned content into a session plan the DM can run at the table: scene-based outline with Description, Helpful DM Info, Dialogue, mechanics. Include all substantive detail from the entities but present it as a session plan—never expose graph structure (e.g. 'EXPLICIT ENTITY RELATIONSHIPS', 'MEMBER_OF'). Output should read like Loresmith Notes / session script, not a graph walk.",
   ],
   tools: createToolMappingFromObjects(recapAgentToolsBundle),
   workflowGuidelines: [
-    "When the user message is a context recap request (empty or minimal content with campaignId in message data): call generateContextRecapTool first. Use the returned recapPrompt and recap data for your narrative and next steps; do not call search or list tools for the narrative.",
+    "Button-triggered responses: When the user asks 'what should I do next?' (or similar), they may have triggered this via a button—their prompt may be hidden. Respond with a self-contained opener; do NOT start with 'Happy to', 'Sure!', or similar acknowledgments. Start with what you're offering (e.g. 'Here are ways I can help with your character and upcoming sessions…').",
+    "When the user message is a context recap request (empty or minimal content with campaignId in message data): call the context recap tool first. Use the returned recapPrompt and recap data for your narrative and next steps; do not call search or list tools for the narrative.",
     "When the tool result contains 'DATA PROVIDED FOR THE RECAP' or 'RECAP NARRATIVE', use ONLY that data for the recap narrative. Write the recap and open threads first, then use getPlanningTaskProgress, getChecklistStatus, showCampaignDetails, and recordPlanningTasks only for the Next Steps section as directed in the tool result.",
     "When the user asks to summarize completed next steps or 'what was my solution to that step?', call getPlanningTaskProgress with includeStatuses: ['completed'] (or include 'completed' with other statuses). Use each task's completionNotes to answer; completed tasks store how the user completed each step for recap and for combining into a session plan.",
     "When the user asks 'what should I do next?' (without a recap request), call getPlanningTaskProgress first. If there are open tasks, present them. If not, check counts.completed: if there are completed tasks and openTaskCount is 0, treat this as 'all next steps complete' and offer the session plan readout (see below). If there are no completed tasks either, call getChecklistStatus and showCampaignDetails to inform suggestions, then suggest 2–3 next steps and call recordPlanningTasks. Always tell the user they can view next steps in Campaign Details under the Next steps tab.",
@@ -28,6 +35,7 @@ const RECAP_AGENT_SYSTEM_PROMPT = buildSystemPrompt({
   ],
   importantNotes: [
     "Recap and next steps are your main focus. You have getSessionReadoutContext for the session plan readout (it runs search + traversal per step); searchCampaignContext is still available for follow-up entity questions; for general entity questions the user may be routed to the campaign-context agent.",
+    "Permission guardrails: If any tool call returns an access/permission error (e.g. 403), immediately stop and explain that campaign planning information is only available to GM roles for that campaign. Do not attempt alternative tool calls to bypass this.",
     "When focusing on a single next step, treat it like a mini planning session: ask 1–3 clarifying questions if needed, propose concrete sub-steps or examples, and only reference other tasks if they are direct prerequisites.",
     "Readout format: Output a session plan the DM can run at the table—scene-based, with Description, Helpful DM Info, Dialogue, mechanics. Do not expose graph structure or relationship metadata. Include all entity detail but present it as narrative/session script (e.g. Loresmith Notes style), not as a graph-structured walk.",
   ],
@@ -48,5 +56,9 @@ export class RecapAgent extends BaseAgent {
 
   constructor(ctx: DurableObjectState, env: any, model: any) {
     super(ctx, env, model, recapAgentToolsBundle);
+  }
+
+  protected getToolsForRole(role: CampaignRole | null): Record<string, any> {
+    return isGMRole(role) ? gmRecapToolsBundle : playerRecapToolsBundle;
   }
 }

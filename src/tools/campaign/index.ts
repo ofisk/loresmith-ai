@@ -87,6 +87,23 @@ export {
   noOpTool,
 };
 
+/** Player-facing campaign tools: list, create, show, resources (list + propose), search, file library, no-op */
+export const playerCampaignTools = {
+  listCampaigns,
+  createCampaign,
+  showCampaignDetails,
+  listCampaignResources,
+  proposeResourceToCampaign,
+  searchCampaignContext,
+  listAllEntities,
+  searchFileLibrary,
+  getFileLibraryStats,
+  listFiles,
+  getFileStats,
+  resolveCampaignIdentifier,
+  noOpTool,
+};
+
 // Export the tools object for backward compatibility
 export const campaignTools = {
   listCampaigns,

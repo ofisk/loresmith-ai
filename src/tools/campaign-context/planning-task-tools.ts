@@ -4,8 +4,9 @@ import {
   commonSchemas,
   createToolError,
   createToolSuccess,
-  extractUsernameFromJwt,
   getEnvFromContext,
+  requireGMRole,
+  requireCanSeeSpoilersForTool,
   type ToolExecuteOptions,
 } from "../utils";
 import type { ToolResult } from "@/app-constants";
@@ -69,15 +70,16 @@ export const recordPlanningTasks = tool({
         );
       }
 
-      const userId = extractUsernameFromJwt(jwt);
-      if (!userId) {
-        return createToolError(
-          "Invalid authentication token",
-          "Authentication failed",
-          401,
-          toolCallId
-        );
+      const access = await requireCanSeeSpoilersForTool({
+        env,
+        campaignId,
+        jwt,
+        toolCallId,
+      });
+      if (!("userId" in access)) {
+        return access;
       }
+      const { userId } = access;
 
       const daoFactory = getDAOFactory(env);
       const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
@@ -92,6 +94,9 @@ export const recordPlanningTasks = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       const planningTaskDAO = daoFactory.planningTaskDAO;
       const sessionDigestDAO = daoFactory.sessionDigestDAO;
@@ -185,15 +190,16 @@ export const getPlanningTaskProgress = tool({
         );
       }
 
-      const userId = extractUsernameFromJwt(jwt);
-      if (!userId) {
-        return createToolError(
-          "Invalid authentication token",
-          "Authentication failed",
-          401,
-          toolCallId
-        );
+      const access = await requireCanSeeSpoilersForTool({
+        env,
+        campaignId,
+        jwt,
+        toolCallId,
+      });
+      if (!("userId" in access)) {
+        return access;
       }
+      const { userId } = access;
 
       const daoFactory = getDAOFactory(env);
       const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
@@ -208,6 +214,9 @@ export const getPlanningTaskProgress = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       const planningTaskDAO = daoFactory.planningTaskDAO;
 
@@ -298,15 +307,16 @@ export const completePlanningTask = tool({
         );
       }
 
-      const userId = extractUsernameFromJwt(jwt);
-      if (!userId) {
-        return createToolError(
-          "Invalid authentication token",
-          "Authentication failed",
-          401,
-          toolCallId
-        );
+      const access = await requireCanSeeSpoilersForTool({
+        env,
+        campaignId,
+        jwt,
+        toolCallId,
+      });
+      if (!("userId" in access)) {
+        return access;
       }
+      const { userId } = access;
 
       const daoFactory = getDAOFactory(env);
       const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
@@ -321,6 +331,9 @@ export const completePlanningTask = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       const planningTaskDAO = daoFactory.planningTaskDAO;
       await planningTaskDAO.updateStatus(

@@ -31,6 +31,7 @@ import { useAppEventHandlers } from "@/hooks/useAppEventHandlers";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { getHelpContent } from "@/lib/help-content";
+import { PLAYER_ROLES } from "@/constants/campaign-roles";
 
 import type { campaignTools } from "@/tools/campaign";
 import type { fileTools } from "@/tools/file";
@@ -221,6 +222,7 @@ export default function Chat() {
     createCampaign,
     campaigns,
     selectedCampaignId,
+    selectedCampaign,
     setSelectedCampaignId,
     refetch: refetchCampaigns,
   } = useCampaigns();
@@ -653,9 +655,13 @@ export default function Chat() {
         return;
       }
 
+      const role = selectedCampaign?.role ?? null;
+      const isPlayerRole = role !== null && PLAYER_ROLES.has(role as any);
+
       // Send a message to trigger recap (next steps) agent
-      const nextStepsMessage =
-        "What should I do next for this campaign? Can you analyze my current state and provide personalized suggestions based on my campaign?";
+      const nextStepsMessage = isPlayerRole
+        ? "What should I do next with my character and at the table?"
+        : "What should I do next for this campaign?";
       invisibleUserContentsRef.current.add(nextStepsMessage);
 
       await append({
@@ -670,7 +676,7 @@ export default function Chat() {
     } catch (error) {
       console.error("Error requesting next steps:", error);
     }
-  }, [append, authState.getStoredJwt, selectedCampaignId]);
+  }, [append, authState.getStoredJwt, selectedCampaignId, selectedCampaign]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -1084,13 +1090,19 @@ export default function Chat() {
             onToggleSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
             isSidebarOpen={isMobileSidebarOpen}
             onHelpAction={handleHelpAction}
-            onSessionRecapRequest={handleSessionRecapRequest}
+            onSessionRecapRequest={
+              selectedCampaign?.role &&
+              !PLAYER_ROLES.has(selectedCampaign.role as any)
+                ? handleSessionRecapRequest
+                : undefined
+            }
             onNextStepsRequest={handleNextStepsRequest}
             notifications={allNotifications}
             onDismissNotification={dismissNotification}
             onClearAllNotifications={clearAllNotifications}
             selectedCampaignId={selectedCampaignId}
             onAdminDashboardOpen={modalState.handleAdminDashboardOpen}
+            selectedCampaignRole={selectedCampaign?.role ?? null}
           />
 
           {/* Main Content Area */}

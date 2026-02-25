@@ -9,6 +9,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  requireGMRole,
   type ToolExecuteOptions,
 } from "../utils";
 import { getDAOFactory } from "@/dao/dao-factory";
@@ -83,6 +84,14 @@ export const generateSessionHooks = tool({
             toolCallId
           );
         }
+
+        const gmError = await requireGMRole(
+          env as { DB: D1Database },
+          campaignId,
+          userId,
+          toolCallId
+        );
+        if (gmError) return gmError;
 
         const [characters, resources] = await Promise.all([
           daoFactory.campaignDAO.getCampaignCharacters(campaignId),
