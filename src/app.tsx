@@ -6,6 +6,7 @@ import Joyride from "react-joyride";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { CONTEXT_RECAP_PLACEHOLDER } from "@/app-constants";
+import { createStatusInterceptingFetch } from "@/lib/stream-status-interceptor";
 import { API_CONFIG } from "@/shared-config";
 
 // Component imports
@@ -378,6 +379,9 @@ export default function Chat() {
     () =>
       new DefaultChatTransport({
         api: `${API_CONFIG.getApiBaseUrl()}/agents/chat/${conversationId}`,
+        fetch: createStatusInterceptingFetch(fetch, (msg) =>
+          setAgentStatus(msg)
+        ),
         headers: () => ({
           Authorization: `Bearer ${chatAuthRef.current.jwt ?? ""}`,
         }),
@@ -437,6 +441,7 @@ export default function Chat() {
   });
 
   const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<string | null>(null);
 
   const [agentInput, setInput] = useState("");
   const handleAgentInputChange = useCallback(
@@ -486,6 +491,65 @@ export default function Chat() {
   );
 
   const authReady = useAuthReady();
+
+  // On stream end: clear agent status and refetch history to get explainability
+  const prevChatStatusRef = useRef(chatStatus);
+  useEffect(() => {
+    const wasStreaming = prevChatStatusRef.current === "streaming";
+    prevChatStatusRef.current = chatStatus;
+
+    if (wasStreaming && chatStatus === "ready") {
+      setAgentStatus(null);
+
+      const jwt = authState.getStoredJwt();
+      if (jwt && authReady) {
+        const url = API_CONFIG.buildUrl(
+          API_CONFIG.ENDPOINTS.CHAT.HISTORY(conversationId)
+        );
+        fetch(url, { headers: { Authorization: `Bearer ${jwt}` } })
+          .then((res) =>
+            res.ok
+              ? (res.json() as Promise<{ messages?: Message[] }>)
+              : { messages: [] }
+          )
+          .then((data) => {
+            const serverMessages = data?.messages ?? [];
+            const lastServer = serverMessages[serverMessages.length - 1];
+            if (
+              lastServer?.role !== "assistant" ||
+              !lastServer.data?.explainability
+            )
+              return;
+
+            setChatMessages((prev) => {
+              const prevList = prev as Message[];
+              const lastPrev = prevList[prevList.length - 1];
+              const explainability = lastServer?.data?.explainability;
+              if (
+                !explainability ||
+                lastPrev?.role !== "assistant" ||
+                lastPrev.data?.explainability
+              )
+                return prev;
+              return [
+                ...prevList.slice(0, -1),
+                {
+                  ...lastPrev,
+                  data: { ...lastPrev.data, explainability },
+                },
+              ] as typeof prev;
+            });
+          })
+          .catch(() => {});
+      }
+    }
+  }, [
+    chatStatus,
+    conversationId,
+    authReady,
+    authState.getStoredJwt,
+    setChatMessages,
+  ]);
 
   // Restore chat history from API; when conversationId changes, clear and load that conversation's history.
   // Unauthenticated users are routed to the auth flow (no shared anon key to avoid data leaks).
@@ -1208,6 +1272,7 @@ export default function Chat() {
                 isLoading={isLoading}
                 onStop={stop}
                 formatTime={formatTime}
+                agentStatus={agentStatus}
                 onSuggestionSubmit={handleSuggestionSubmit}
                 onUploadFiles={() => setTriggerFileUpload(true)}
                 textareaHeight={textareaHeight}

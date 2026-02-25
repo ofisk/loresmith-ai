@@ -42,6 +42,8 @@ interface ChatAreaProps {
   onCreateCampaign?: () => void;
   /** User message contents to hide (e.g. button-triggered prompts). */
   invisibleUserContents?: Set<string>;
+  /** Live status from agent (e.g. "Searching campaign...") for thinking spinner */
+  agentStatus?: string | null;
 }
 
 /**
@@ -67,6 +69,7 @@ export function ChatArea({
   onSelectedCampaignChange,
   onCreateCampaign,
   invisibleUserContents,
+  agentStatus,
 }: ChatAreaProps) {
   const [placeholder] = useState(() => getRandomPrompt());
 
@@ -130,7 +133,7 @@ export function ChatArea({
           <div className="flex justify-start">
             <div className="w-full">
               <Card className="p-4 rounded-xl bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-sm rounded-bl-none border-assistant-border shadow-sm border border-neutral-200/50 dark:border-neutral-700/50">
-                <ThinkingSpinner />
+                <ThinkingSpinner status={agentStatus} />
               </Card>
             </div>
           </div>

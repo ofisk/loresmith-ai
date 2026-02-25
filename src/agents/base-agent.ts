@@ -1,12 +1,15 @@
 import { streamText, stepCountIs } from "ai";
 import { SimpleChatAgent, type ChatMessage } from "./simple-chat-agent";
+import { MODEL_CONFIG } from "@/app-constants";
+import type { Explainability } from "@/types/explainability";
+import { buildExplainabilityFromSteps } from "@/lib/explainability-builder";
+import { getStatusMessageForTool } from "@/lib/agent-status-messages";
 import {
   estimateRequestTokens,
   estimateTokenCount,
   estimateToolsTokens,
   getSafeContextLimit,
 } from "@/lib/token-utils";
-import { MODEL_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { CampaignRole } from "@/types/campaign";
 import { resolveCampaignRole } from "@/lib/agent-role-utils";
@@ -476,12 +479,19 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           );
         }
 
-        // Create enhanced tools that automatically include JWT and apply stale-command guard
+        // Create enhanced tools with optional status callback for real-time "thinking" updates
+        const onToolStart = (toolName: string) => {
+          dataStream.write({
+            type: "status",
+            message: getStatusMessageForTool(toolName),
+          });
+        };
         const enhancedTools = this.createEnhancedTools(
           clientJwt,
           selectedCampaignId,
           { isStaleCommand },
-          toolsToUse
+          toolsToUse,
+          { onToolStart }
         );
 
         // Determine tool choice: use "auto" to allow the agent to call tools when needed
@@ -569,6 +579,18 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           })
         );
 
+        let stepsResolve: (steps: any) => void;
+        const stepsPromise = new Promise<any>((resolve) => {
+          stepsResolve = resolve;
+        });
+        const STEPS_TIMEOUT_MS = 15_000;
+        const stepsWithTimeout = Promise.race([
+          stepsPromise,
+          new Promise<any[]>((resolve) =>
+            setTimeout(() => resolve([]), STEPS_TIMEOUT_MS)
+          ),
+        ]);
+
         try {
           const result = streamText({
             model: this.model,
@@ -578,6 +600,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
             tools: enhancedTools,
             stopWhen: stepCountIs(MAX_AGENT_STEPS), // Allow multiple tool-call rounds until final text response
             onFinish: async (args) => {
+              stepsResolve(args?.steps ?? []);
               console.log(
                 `[${this.constructor.name}] onFinish called with finishReason: ${args.finishReason}`
               );
@@ -711,12 +734,25 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
               `${fullText.substring(0, 100)}...`
             );
 
+            // Build explainability from tool steps and attach to message data
+            let explainability: Explainability | null = null;
+            try {
+              const steps = await stepsWithTimeout;
+              explainability = buildExplainabilityFromSteps(steps);
+            } catch (e) {
+              console.warn(
+                `[${this.constructor.name}] Failed to build explainability:`,
+                e
+              );
+            }
+
             // Persist the assistant's final message to message history.
             try {
               const assistantData: {
                 jwt?: string | null;
                 campaignId?: string | null;
                 sessionId?: string;
+                explainability?: Explainability | null;
               } = {};
               if (clientJwt) {
                 assistantData.jwt = clientJwt;
@@ -733,6 +769,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
                   sessionIdFromUser) ||
                 this.ctx?.id?.toString() ||
                 `session-${Date.now()}`;
+
+              if (explainability) {
+                assistantData.explainability = explainability;
+              }
 
               const assistantMessage: ChatMessage = {
                 role: "assistant",
@@ -807,7 +847,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
     clientJwt: string | null,
     selectedCampaignId: string | null,
     staleGuard?: { isStaleCommand?: boolean },
-    toolsOverride?: Record<string, any>
+    toolsOverride?: Record<string, any>,
+    options?: { onToolStart?: (toolName: string) => void }
   ): Record<string, any> {
     const tools = toolsOverride ?? this.tools;
     // Track tool calls to prevent infinite loops
@@ -821,6 +862,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           {
             ...tool,
             execute: async (args: any, context: any) => {
+              options?.onToolStart?.(toolName);
+
               // Check for infinite loops
               const callKey = `${toolName}_${JSON.stringify(args)}`;
               const currentCount = toolCallCounts.get(callKey) || 0;

@@ -1,48 +1,30 @@
-import { useEffect, useState } from "react";
 import { Loader } from "../loader/Loader";
 
 type ThinkingSpinnerProps = {
   className?: string;
   size?: number;
   showText?: boolean;
+  /** Live status from the agent (e.g. "Searching campaign..."); when omitted, shows a neutral loading message */
+  status?: string | null;
 };
 
-const mysticalMessages = [
-  {
-    primary: "🧙‍♂️ Consulting the ancient scrolls...",
-    secondary: "✨ Weaving wisdom from the ethereal realm",
-  },
-  {
-    primary: "🔮 Gazing into the crystal ball...",
-    secondary: "🌟 Divining the perfect tale for your quest",
-  },
-  {
-    primary: "📜 Deciphering mystical runes...",
-    secondary: "⚡ Channeling the power of storytelling",
-  },
-  {
-    primary: "🏰 Summoning knowledge from distant realms...",
-    secondary: "🗡️ Forging the perfect campaign wisdom",
-  },
-  {
-    primary: "🌙 Communing with the spirits of lore...",
-    secondary: "🎭 Crafting epic adventures from moonlight",
-  },
-];
+const DEFAULT_LOADING = {
+  primary: "Preparing your response...",
+  secondary: "This may take a moment...",
+};
 
 export const ThinkingSpinner = ({
   className = "",
   size = 20,
   showText = true,
+  status,
 }: ThinkingSpinnerProps) => {
-  const [messageIndex, setMessageIndex] = useState(0);
-
-  useEffect(() => {
-    // Pick a random message when component mounts
-    setMessageIndex(Math.floor(Math.random() * mysticalMessages.length));
-  }, []);
-
-  const currentMessage = mysticalMessages[messageIndex];
+  const primaryText =
+    status && status.trim().length > 0 ? status : DEFAULT_LOADING.primary;
+  const secondaryText =
+    status && status.trim().length > 0
+      ? "This may take a moment..."
+      : DEFAULT_LOADING.secondary;
 
   return (
     <div className={`flex items-center gap-3 p-3 ${className}`}>
@@ -51,10 +33,10 @@ export const ThinkingSpinner = ({
         {showText && (
           <div className="flex flex-col">
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {currentMessage.primary}
+              {primaryText}
             </span>
             <span className="text-xs text-gray-500 dark:text-gray-400">
-              {currentMessage.secondary}
+              {secondaryText}
             </span>
           </div>
         )}

@@ -1,5 +1,6 @@
 import type { Message } from "@/types/ai-message";
 import { Card } from "@/components/card/Card";
+import { ExplainabilitySection } from "@/components/chat/ExplainabilitySection";
 import { MemoizedMarkdown } from "@/components/MemoizedMarkdown";
 
 interface ChatMessageListProps {
@@ -112,6 +113,16 @@ export function ChatMessageList({
                                     )}
                                   />
                                 </Card>
+                                {isLastTextPart &&
+                                  !isUser &&
+                                  m.data?.explainability &&
+                                  m.data.explainability.contextSources?.length >
+                                    0 && (
+                                    <ExplainabilitySection
+                                      explainability={m.data.explainability}
+                                      collapsedByDefault
+                                    />
+                                  )}
                                 {isLastTextPart &&
                                   (() => {
                                     const createdAt = m.createdAt as
