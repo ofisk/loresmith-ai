@@ -8,6 +8,7 @@ import {
 } from "@/lib/token-utils";
 import { MODEL_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
+import type { CampaignRole } from "@/types/campaign";
 import { resolveCampaignRole } from "@/lib/agent-role-utils";
 import { getAgentRoleContext } from "@/lib/prompts/agent-role-context";
 import { trimToolResultsByRelevancy } from "@/lib/tool-result-trimming";
@@ -123,6 +124,13 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
     this.tools = tools;
     // systemPrompt is now stored in static agentMetadata
   }
+
+  /**
+   * Optional hook for role-based tool filtering. When defined, the agent's tool
+   * set is filtered by the user's campaign role (e.g. GM vs player). Return the
+   * tools appropriate for the given role.
+   */
+  protected getToolsForRole?(_role: CampaignRole | null): Record<string, any>;
 
   /**
    * Override addMessage to store messages in database for persistent history
@@ -378,12 +386,6 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
         console.log(
           `[${this.constructor.name}] Built minimal message context: ${this.messages.length} total -> ${processedMessages.length} messages (current user prompt + agent's previous response + essential system messages). Historical context available via getMessageHistory tool.`
         );
-
-        // Debug: Log available tools
-        console.log(
-          `[${this.constructor.name}] Available tools:`,
-          Object.keys(this.tools)
-        );
         if (lastUserMessage) {
           const userContent =
             typeof lastUserMessage.content === "string"
@@ -443,9 +445,20 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
           }
         } catch (_e) {}
 
+        // Resolve tool set: use role-filtered tools if agent defines getToolsForRole
+        const getToolsForRole = (
+          this as unknown as {
+            getToolsForRole?: (r: CampaignRole | null) => Record<string, any>;
+          }
+        ).getToolsForRole;
+        const toolsToUse =
+          typeof getToolsForRole === "function"
+            ? getToolsForRole(campaignRole)
+            : this.tools;
+
         // Log when tools require campaignId but no explicit selection is available
         // This is a valid use case (e.g., user asks to delete a campaign by name without selecting it)
-        const toolsRequiringCampaignId = Object.entries(this.tools).filter(
+        const toolsRequiringCampaignId = Object.entries(toolsToUse).filter(
           ([_, t]) => {
             const schema = (t as any).inputSchema ?? (t as any).parameters;
             const shape =
@@ -467,7 +480,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
         const enhancedTools = this.createEnhancedTools(
           clientJwt,
           selectedCampaignId,
-          { isStaleCommand }
+          { isStaleCommand },
+          toolsToUse
         );
 
         // Determine tool choice: use "auto" to allow the agent to call tools when needed
@@ -786,18 +800,21 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
   }
 
   /**
-   * Create enhanced tools that automatically include JWT for operations
+   * Create enhanced tools that automatically include JWT for operations.
+   * @param toolsOverride - Optional tool set to use instead of this.tools (for role-based filtering)
    */
   protected createEnhancedTools(
     clientJwt: string | null,
     selectedCampaignId: string | null,
-    staleGuard?: { isStaleCommand?: boolean }
+    staleGuard?: { isStaleCommand?: boolean },
+    toolsOverride?: Record<string, any>
   ): Record<string, any> {
+    const tools = toolsOverride ?? this.tools;
     // Track tool calls to prevent infinite loops
     const toolCallCounts = new Map<string, number>();
 
     return Object.fromEntries(
-      Object.entries(this.tools).map(([toolName, tool]) => {
+      Object.entries(tools).map(([toolName, tool]) => {
         console.log(`[${this.constructor.name}] Adding tool ${toolName}`);
         return [
           toolName,

@@ -13,6 +13,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  requireGMRole,
   type ToolExecuteOptions,
 } from "../utils";
 import { getAssessmentService } from "../../lib/service-factory";
@@ -108,6 +109,14 @@ export const getCampaignSuggestions = tool({
             toolCallId
           );
         }
+
+        const gmError = await requireGMRole(
+          env as Env,
+          campaignId,
+          userId,
+          toolCallId
+        );
+        if (gmError) return gmError;
 
         const planningTaskDAO = daoFactory.planningTaskDAO;
 
@@ -370,6 +379,14 @@ export const assessCampaignReadiness = tool({
             toolCallId
           );
         }
+
+        const gmError = await requireGMRole(
+          env as Env,
+          campaignId,
+          userId,
+          toolCallId
+        );
+        if (gmError) return gmError;
 
         // Sync character_backstory entries to entities before assessment
         try {

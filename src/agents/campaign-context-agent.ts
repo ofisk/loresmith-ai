@@ -1,4 +1,9 @@
-import { campaignContextToolsBundle } from "../tools/campaign-context/context-tools-bundle";
+import type { CampaignRole } from "@/types/campaign";
+import { isGMRole } from "@/constants/campaign-roles";
+import {
+  campaignContextToolsBundle,
+  playerCampaignContextToolsBundle,
+} from "../tools/campaign-context/context-tools-bundle";
 import { BaseAgent } from "./base-agent";
 import {
   buildSystemPrompt,
@@ -49,5 +54,11 @@ export class CampaignContextAgent extends BaseAgent {
 
   constructor(ctx: DurableObjectState, env: any, model: any) {
     super(ctx, env, model, campaignContextToolsBundle);
+  }
+
+  protected getToolsForRole(role: CampaignRole | null): Record<string, any> {
+    return isGMRole(role)
+      ? campaignContextToolsBundle
+      : playerCampaignContextToolsBundle;
   }
 }

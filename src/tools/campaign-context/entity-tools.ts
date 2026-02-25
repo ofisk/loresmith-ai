@@ -5,6 +5,7 @@ import {
   createToolError,
   createToolSuccess,
   getEnvFromContext,
+  requireGMRole,
   type ToolExecuteOptions,
 } from "../utils";
 import type { ToolResult } from "@/app-constants";
@@ -142,10 +143,9 @@ export const extractEntitiesFromContentTool = tool({
         );
       }
 
-      // Get DAO factory and services
       const daoFactory = getDAOFactory(env);
 
-      // Verify campaign ownership using DAO
+      // Verify campaign access and GM role
       const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
         campaignId,
         userId
@@ -159,6 +159,9 @@ export const extractEntitiesFromContentTool = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       // Initialize services
       const extractionService = new EntityExtractionService(null, null);
@@ -337,10 +340,8 @@ export const createEntityRelationshipTool = tool({
         );
       }
 
-      // Get DAO factory and services
       const daoFactory = getDAOFactory(env);
 
-      // Verify campaign ownership using DAO
       const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
         campaignId,
         userId
@@ -354,6 +355,9 @@ export const createEntityRelationshipTool = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       // Initialize graph service
       const graphService = new EntityGraphService(daoFactory.entityDAO);
@@ -535,10 +539,8 @@ export const updateEntityMetadataTool = tool({
         );
       }
 
-      // Get DAO factory
       const daoFactory = getDAOFactory(env);
 
-      // Verify campaign ownership
       const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
         campaignId,
         userId
@@ -552,6 +554,9 @@ export const updateEntityMetadataTool = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       // Get existing entity
       const entity = await daoFactory.entityDAO.getEntityById(entityId);
@@ -654,7 +659,6 @@ export const updateEntityTypeTool = tool({
         );
       }
 
-      // Direct database access
       const userId = extractUsernameFromJwt(jwt);
       if (!userId) {
         return createToolError(
@@ -665,10 +669,8 @@ export const updateEntityTypeTool = tool({
         );
       }
 
-      // Get DAO factory
       const daoFactory = getDAOFactory(env);
 
-      // Verify campaign ownership
       const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
         campaignId,
         userId
@@ -682,6 +684,9 @@ export const updateEntityTypeTool = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       // Verify entity exists and belongs to campaign
       const entity = await daoFactory.entityDAO.getEntityById(entityId);
@@ -799,10 +804,8 @@ export const deleteEntityTool = tool({
         );
       }
 
-      // Get DAO factory
       const daoFactory = getDAOFactory(env);
 
-      // Verify campaign ownership
       const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
         campaignId,
         userId
@@ -816,6 +819,9 @@ export const deleteEntityTool = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+      if (gmError) return gmError;
 
       // Verify entity exists and belongs to campaign
       const entity = await daoFactory.entityDAO.getEntityById(entityId);

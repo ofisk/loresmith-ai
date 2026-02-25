@@ -6,10 +6,14 @@ import {
   commonSchemas,
   createToolError,
   createToolSuccess,
+  extractUsernameFromJwt,
+  getEnvFromContext,
+  requireGMRole,
   type ToolExecuteOptions,
 } from "../utils";
 import type { ToolResult } from "@/app-constants";
 import type { WorldStateChangelogPayload } from "@/types/world-state";
+import { getDAOFactory } from "@/dao/dao-factory";
 
 const entityUpdateSchema = z.object({
   entityId: z.string().describe("ID of the entity that changed."),
@@ -206,6 +210,29 @@ export const recordWorldEventTool = tool({
       jwt,
     } = input;
     const toolCallId = options?.toolCallId ?? "unknown";
+
+    const env = getEnvFromContext(options);
+    if (env) {
+      const userId = extractUsernameFromJwt(jwt);
+      if (userId) {
+        const daoFactory = getDAOFactory(env);
+        const campaign =
+          await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+            campaignId,
+            userId
+          );
+        if (campaign) {
+          const gmError = await requireGMRole(
+            env,
+            campaignId,
+            userId,
+            toolCallId
+          );
+          if (gmError) return gmError;
+        }
+      }
+    }
+
     const payload = buildPayload({
       campaignSessionId,
       timestamp,
@@ -271,6 +298,29 @@ export const updateEntityWorldStateTool = tool({
       jwt,
     } = input;
     const toolCallId = options?.toolCallId ?? "unknown";
+
+    const env = getEnvFromContext(options);
+    if (env) {
+      const userId = extractUsernameFromJwt(jwt);
+      if (userId) {
+        const daoFactory = getDAOFactory(env);
+        const campaign =
+          await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+            campaignId,
+            userId
+          );
+        if (campaign) {
+          const gmError = await requireGMRole(
+            env,
+            campaignId,
+            userId,
+            toolCallId
+          );
+          if (gmError) return gmError;
+        }
+      }
+    }
+
     const payload = buildPayload({
       campaignSessionId,
       timestamp,
@@ -346,6 +396,29 @@ export const updateRelationshipWorldStateTool = tool({
       jwt,
     } = input;
     const toolCallId = options?.toolCallId ?? "unknown";
+
+    const env = getEnvFromContext(options);
+    if (env) {
+      const userId = extractUsernameFromJwt(jwt);
+      if (userId) {
+        const daoFactory = getDAOFactory(env);
+        const campaign =
+          await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+            campaignId,
+            userId
+          );
+        if (campaign) {
+          const gmError = await requireGMRole(
+            env,
+            campaignId,
+            userId,
+            toolCallId
+          );
+          if (gmError) return gmError;
+        }
+      }
+    }
+
     const payload = buildPayload({
       campaignSessionId,
       timestamp,

@@ -3,11 +3,11 @@ import { z } from "zod";
 import type { ToolResult } from "../../app-constants";
 import { getDAOFactory } from "../../dao/dao-factory";
 import type { PlanningTaskStatus } from "../../dao/planning-task-dao";
-import { PLAYER_ROLES } from "@/constants/campaign-roles";
 import {
   commonSchemas,
   createToolError,
   createToolSuccess,
+  extractUsernameFromJwt,
   getEnvFromContext,
   requireGMRole,
   requireCanSeeSpoilersForTool,
@@ -28,15 +28,13 @@ const generateContextRecapSchema = z.object({
 });
 
 /**
- * Single tool for campaign context recap. Uses RecapService (session digests,
- * world state changes, in-progress goals), builds the recap prompt with
- * next-steps preflight, and returns recapPrompt for the agent. Used both when
- * the user returns to the app (automatic recap) and when the agent needs
- * context recap (e.g. "give me a recap").
+ * GM-only context recap. Full RecapService flow (session digests, world state,
+ * planning tasks). Requires spoiler access. Used when the user returns to the
+ * app or asks for a recap and has GM role.
  */
-export const generateContextRecapTool = tool({
+export const generateGMContextRecapTool = tool({
   description:
-    "Generate a context recap for a campaign summarizing recent activity, world state changes, session digests, and in-progress goals. Use this when a user returns to the app after being away, when they switch campaigns, or when they ask for a recap.",
+    "Generate a GM context recap for a campaign: recent activity, world state changes, session digests, and in-progress goals. Use when a game master returns to the app, switches campaigns, or asks for a recap. Returns full planning data and next-step preflight.",
   inputSchema: generateContextRecapSchema,
   execute: async (
     input: z.infer<typeof generateContextRecapSchema>,
@@ -87,30 +85,6 @@ export const generateContextRecapTool = tool({
           "Campaign not found",
           "Campaign not found or access denied",
           404,
-          toolCallId
-        );
-      }
-
-      const role = await daoFactory.campaignDAO.getCampaignRole(
-        campaignId,
-        userId
-      );
-      const isPlayer = role && PLAYER_ROLES.has(role);
-      if (isPlayer) {
-        const playerRecapPrompt =
-          "The user is a player in this campaign. Tailor everything for a player-facing experience only. Greet the player and offer to help with: questions about the campaign world from their character's perspective, developing their character, or reviewing session notes while avoiding spoilers. Focus on player next steps, character development, and table-ready ideas. Do not talk about hidden GM tools, planning tasks, or internal permissions; simply act as if your capabilities are naturally scoped to the player view of the campaign.";
-        return createToolSuccess(
-          "Player recap: offer character-focused help and session notes without spoilers.",
-          {
-            campaignId,
-            campaignName: campaign.name,
-            recapPrompt: playerRecapPrompt,
-            recap: {
-              isPlayerRecap: true,
-              message:
-                "I can help you with the world from your character's perspective, your character's development, and session notes (no spoilers).",
-            },
-          },
           toolCallId
         );
       }
@@ -170,7 +144,7 @@ export const generateContextRecapTool = tool({
         toolCallId
       );
     } catch (error) {
-      console.error("[generateContextRecapTool] Error:", error);
+      console.error("[generateGMContextRecapTool] Error:", error);
       return createToolError(
         "Failed to generate context recap",
         error instanceof Error ? error.message : String(error),
@@ -180,6 +154,99 @@ export const generateContextRecapTool = tool({
     }
   },
 });
+
+/**
+ * Player-only context recap. Returns a player-focused prompt with no GM data.
+ * Requires campaign access only (no spoiler access). Used for players when they
+ * return to the app or ask for a recap.
+ */
+export const generatePlayerContextRecapTool = tool({
+  description:
+    "Generate a player context recap: character-focused help and session notes without spoilers. Use when a player returns to the app, switches campaigns, or asks for a recap. Returns a player-facing prompt only; no GM planning data.",
+  inputSchema: generateContextRecapSchema,
+  execute: async (
+    input: z.infer<typeof generateContextRecapSchema>,
+    options: ToolExecuteOptions
+  ): Promise<ToolResult> => {
+    const { campaignId, jwt } = input;
+    const toolCallId = options?.toolCallId ?? crypto.randomUUID();
+
+    try {
+      if (!jwt) {
+        return createToolError(
+          "Authentication required",
+          "JWT token is required",
+          401,
+          toolCallId
+        );
+      }
+
+      const env = getEnvFromContext(options);
+      if (!env) {
+        return createToolError(
+          "Environment not available",
+          "Server environment is required",
+          500,
+          toolCallId
+        );
+      }
+
+      const userId = extractUsernameFromJwt(jwt);
+      if (!userId) {
+        return createToolError(
+          "Invalid authentication token",
+          "Authentication failed",
+          401,
+          toolCallId
+        );
+      }
+
+      const daoFactory = getDAOFactory(env);
+      const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+        campaignId,
+        userId
+      );
+
+      if (!campaign) {
+        return createToolError(
+          "Campaign not found",
+          "Campaign not found or access denied",
+          404,
+          toolCallId
+        );
+      }
+
+      const playerRecapPrompt =
+        "The user is a player in this campaign. Tailor everything for a player-facing experience only. Greet the player and offer to help with: questions about the campaign world from their character's perspective, developing their character, or reviewing session notes while avoiding spoilers. Focus on player next steps, character development, and table-ready ideas. Do not talk about hidden GM tools, planning tasks, or internal permissions; simply act as if your capabilities are naturally scoped to the player view of the campaign.";
+
+      return createToolSuccess(
+        "Player recap: offer character-focused help and session notes without spoilers.",
+        {
+          campaignId,
+          campaignName: campaign.name,
+          recapPrompt: playerRecapPrompt,
+          recap: {
+            isPlayerRecap: true,
+            message:
+              "I can help you with the world from your character's perspective, your character's development, and session notes (no spoilers).",
+          },
+        },
+        toolCallId
+      );
+    } catch (error) {
+      console.error("[generatePlayerContextRecapTool] Error:", error);
+      return createToolError(
+        "Failed to generate player context recap",
+        error instanceof Error ? error.message : String(error),
+        500,
+        toolCallId
+      );
+    }
+  },
+});
+
+/** @deprecated Use generateGMContextRecapTool or generatePlayerContextRecapTool. Kept for backward compatibility. */
+export const generateContextRecapTool = generateGMContextRecapTool;
 
 const getSessionReadoutContextSchema = z.object({
   campaignId: commonSchemas.campaignId,

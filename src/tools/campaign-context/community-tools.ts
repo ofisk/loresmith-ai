@@ -7,6 +7,7 @@ import {
   createToolSuccess,
   extractUsernameFromJwt,
   getEnvFromContext,
+  requireGMRole,
   runWithEnvOrApi,
   type ToolExecuteOptions,
 } from "../utils";
@@ -129,6 +130,14 @@ export const detectCommunitiesTool = tool({
               toolCallId
             );
           }
+
+          const gmError = await requireGMRole(
+            env as { DB: D1Database },
+            campaignId,
+            _userId,
+            toolCallId
+          );
+          if (gmError) return gmError;
 
           const openaiApiKeyRaw = await getEnvVar(
             env as any,
@@ -291,10 +300,8 @@ export const getCommunitiesTool = tool({
         );
       }
 
-      // Get DAO factory
       const daoFactory = getDAOFactory(env as { DB: D1Database });
 
-      // Verify campaign ownership using DAO
       const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
         campaignId,
         userId
@@ -308,6 +315,14 @@ export const getCommunitiesTool = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(
+        env as { DB: D1Database },
+        campaignId,
+        userId,
+        toolCallId
+      );
+      if (gmError) return gmError;
 
       const communities =
         await daoFactory.communityDAO.listCommunitiesByCampaign(
@@ -426,6 +441,15 @@ export const getCommunityHierarchyTool = tool({
           toolCallId
         );
       }
+
+      const gmError = await requireGMRole(
+        env as { DB: D1Database },
+        campaignId,
+        userId,
+        toolCallId
+      );
+      if (gmError) return gmError;
+
       const communities =
         await daoFactory.communityDAO.listCommunitiesByCampaign(campaignId);
 
