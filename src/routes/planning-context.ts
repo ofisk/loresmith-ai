@@ -5,7 +5,9 @@ import {
   getUserAuth,
   ensureCampaignAccess,
   getPlanningContextService,
+  requireCanSeeSpoilers,
 } from "@/lib/route-utils";
+import { CampaignAccessDeniedError } from "@/lib/errors";
 
 export async function handleSearchPlanningContext(c: ContextWithAuth) {
   try {
@@ -21,6 +23,7 @@ export async function handleSearchPlanningContext(c: ContextWithAuth) {
       );
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const body = (await c.req.json()) as {
       query: string;
@@ -63,6 +66,9 @@ export async function handleSearchPlanningContext(c: ContextWithAuth) {
     return c.json({ results });
   } catch (error) {
     console.error("[PlanningContext] Failed to search:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json(
       { error: "Failed to search planning context" },
       error instanceof Error && /required|must/i.test(error.message) ? 400 : 500
@@ -78,6 +84,7 @@ export async function handleGetRecentPlanningContext(c: ContextWithAuth) {
     if (!hasAccess) {
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const limit = c.req.query("limit")
       ? Number(c.req.query("limit"))
@@ -92,6 +99,9 @@ export async function handleGetRecentPlanningContext(c: ContextWithAuth) {
     return c.json({ digests });
   } catch (error) {
     console.error("[PlanningContext] Failed to get recent digests:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json({ error: "Failed to get recent planning context" }, 500);
   }
 }

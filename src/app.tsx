@@ -24,6 +24,7 @@ import { useAppState } from "@/hooks/useAppState";
 import { useUiHints } from "@/hooks/useUiHints";
 import { useGlobalShardManager } from "@/hooks/useGlobalShardManager";
 import { ShardOverlay } from "@/components/shard/ShardOverlay";
+import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
 import { JoinCampaignPage } from "@/components/join/JoinCampaignPage";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAppEventHandlers } from "@/hooks/useAppEventHandlers";
@@ -775,6 +776,39 @@ export default function Chat() {
     removeProcessedShards,
   } = useGlobalShardManager(authState.getStoredJwt);
 
+  const campaignIdsWithShardApprovalPermission = useMemo(() => {
+    const allowed = new Set<string>();
+    for (const c of campaigns) {
+      if (
+        c.role === CAMPAIGN_ROLES.OWNER ||
+        c.role === CAMPAIGN_ROLES.EDITOR_GM
+      ) {
+        allowed.add(c.campaignId);
+      }
+    }
+    return allowed;
+  }, [campaigns]);
+
+  const visibleShardGroups = useMemo(() => {
+    const getShardCampaignId = (group: any): string | null => {
+      return (
+        group?.campaignId ||
+        group?.sourceRef?.meta?.campaignId ||
+        group?.sourceRef?.campaignId ||
+        group?.metadata?.campaignId ||
+        null
+      );
+    };
+
+    return globalShards.filter((group) => {
+      const campaignId = getShardCampaignId(group);
+      if (!campaignId) return false;
+      return campaignIdsWithShardApprovalPermission.has(campaignId);
+    });
+  }, [globalShards, campaignIdsWithShardApprovalPermission]);
+
+  const canReviewShards = campaignIdsWithShardApprovalPermission.size > 0;
+
   useAppEventHandlers({
     modalState,
     refetchCampaigns,
@@ -1143,18 +1177,20 @@ export default function Chat() {
           </div>
         </div>
 
-        {/* Shard Management Overlay */}
-        <ShardOverlay
-          shards={globalShards}
-          isLoading={shardsLoading}
-          onShardsProcessed={removeProcessedShards}
-          getJwt={authState.getStoredJwt}
-          onAutoExpand={() => {
-            // Optional: Add any additional logic when auto-expanding
-            console.log("Shard overlay auto-expanded due to new shards");
-          }}
-          onRefresh={fetchAllStagedShards}
-        />
+        {/* Shard Management Overlay (GM/editor only) */}
+        {canReviewShards && (
+          <ShardOverlay
+            shards={visibleShardGroups}
+            isLoading={shardsLoading}
+            onShardsProcessed={removeProcessedShards}
+            getJwt={authState.getStoredJwt}
+            onAutoExpand={() => {
+              // Optional: Add any additional logic when auto-expanding
+              console.log("Shard overlay auto-expanded due to new shards");
+            }}
+            onRefresh={fetchAllStagedShards}
+          />
+        )}
       </div>
 
       <AppModals

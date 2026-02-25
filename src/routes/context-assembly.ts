@@ -4,7 +4,9 @@ import {
   getUserAuth,
   ensureCampaignAccess,
   getContextAssemblyService,
+  requireCanSeeSpoilers,
 } from "@/lib/route-utils";
+import { CampaignAccessDeniedError } from "@/lib/errors";
 
 export async function handleAssembleContext(c: ContextWithAuth) {
   try {
@@ -22,6 +24,7 @@ export async function handleAssembleContext(c: ContextWithAuth) {
       );
       return c.json({ error: "Campaign not found" }, 404);
     }
+    await requireCanSeeSpoilers(c, campaignId);
 
     const body = (await c.req.json()) as {
       query: string;
@@ -61,6 +64,9 @@ export async function handleAssembleContext(c: ContextWithAuth) {
     });
   } catch (error) {
     console.error("[ContextAssembly] Failed to assemble context:", error);
+    if (error instanceof CampaignAccessDeniedError) {
+      return c.json({ error: "Access denied" }, 403);
+    }
     return c.json(
       { error: "Failed to assemble context" },
       error instanceof Error && /required|must/i.test(error.message) ? 400 : 500
