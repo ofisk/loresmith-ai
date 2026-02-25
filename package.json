@@ -112,7 +112,7 @@
     "jose": "^6.0.11",
     "lucide-react": "^0.545.0",
     "mammoth": "^1.11.0",
-    "marked": "^16.0.0",
+    "marked": "^17.0.3",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^5.4.54",
