@@ -98,7 +98,7 @@
     "@radix-ui/react-switch": "^1.2.5",
     "@types/cytoscape": "^3.21.9",
     "@types/marked": "^6.0.0",
-    "agents": "^0.3.6",
+    "agents": "^0.6.0",
     "ai": "^6.0.67",
     "aws4fetch": "^1.0.20",
     "bcryptjs": "^2.4.3",
