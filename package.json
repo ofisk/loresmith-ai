@@ -9,11 +9,13 @@
     "url": "https://github.com/ofisk/loresmith-ai"
   },
   "engines": {
-    "node": ">=24 <25"
+    "node": ">=20"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json}": [
-      "prettier --write",
+      "prettier --write"
+    ],
+    "*.{js,jsx,ts,tsx}": [
       "npx @biomejs/biome lint --write"
     ],
     "*.{jsonc,md,css,mjs}": [
