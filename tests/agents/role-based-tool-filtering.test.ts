@@ -1,10 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
-import { CAMPAIGN_ROLES } from "../../src/constants/campaign-roles";
-import { campaignTools, playerCampaignTools } from "../../src/tools/campaign";
-import {
-	characterManagementTools,
-	playerCharacterTools,
-} from "../../src/tools/campaign-context/character-tools-bundle";
+import { describe, expect, it } from "vitest";
+import { playerCampaignTools } from "../../src/tools/campaign";
+import { playerCharacterTools } from "../../src/tools/campaign-context/character-tools-bundle";
 import {
 	campaignContextToolsBundle,
 	playerCampaignContextToolsBundle,
@@ -13,10 +9,7 @@ import {
 	gmRecapToolsBundle,
 	playerRecapToolsBundle,
 } from "../../src/tools/campaign-context/recap-agent-tools-bundle";
-import {
-	characterSheetTools,
-	playerCharacterSheetTools,
-} from "../../src/tools/character-sheet";
+import { playerCharacterSheetTools } from "../../src/tools/character-sheet";
 
 describe("Role-based tool filtering", () => {
 	describe("Recap tools bundles", () => {

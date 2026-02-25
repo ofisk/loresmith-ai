@@ -232,7 +232,7 @@ async function clearR2WithAWSCLI() {
 }
 
 // Helper: Use S3-compatible API via fetch
-async function clearR2WithS3API(accessKey, secretKey, endpoint) {
+async function clearR2WithS3API(_accessKey, _secretKey, _endpoint) {
 	try {
 		let deleted = 0;
 		let continuationToken = "";
@@ -283,7 +283,7 @@ async function clearR2WithS3API(accessKey, secretKey, endpoint) {
 						});
 						console.log(`🗑️  Deleted: ${key}`);
 						deleted++;
-					} catch (error) {
+					} catch (_error) {
 						console.error(`⚠️  Failed to delete ${key}`);
 					}
 				}

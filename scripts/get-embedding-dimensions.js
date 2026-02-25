@@ -3,8 +3,8 @@
 // Simple script to extract embedding dimensions constant for use in shell scripts
 // This ensures shell scripts use the same dimension value as the TypeScript code
 
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const sourceFile = path.join(
 	__dirname,
@@ -16,7 +16,7 @@ try {
 
 	// Extract the constant value from the source file
 	const match = content.match(/const EXPECTED_DIMENSIONS = (\d+)/);
-	if (match && match[1]) {
+	if (match?.[1]) {
 		console.log(match[1]);
 		process.exit(0);
 	}

@@ -13,7 +13,7 @@
  *   GITHUB_TOKEN: Personal access token with repo scope (optional, uses git auth if not set)
  */
 
-import { execSync } from "child_process";
+import { execSync } from "node:child_process";
 import {
 	cpSync,
 	existsSync,
@@ -23,8 +23,8 @@ import {
 	rmSync,
 	statSync,
 	writeFileSync,
-} from "fs";
-import { join } from "path";
+} from "node:fs";
+import { join } from "node:path";
 
 const REPO_OWNER = "ofisk";
 const REPO_NAME = "loresmith-ai";
@@ -100,7 +100,7 @@ function processMarkdown(content, isHomePage = false) {
 	// Convert docs/ links to wiki links
 	processed = processed.replace(
 		/\[([^\]]+)\]\(docs\/([^)]+\.md)\)/g,
-		(match, text, file) => {
+		(_match, text, file) => {
 			// Convert file path to wiki page name
 			const wikiName = file
 				.replace(/\.md$/, "")
@@ -177,7 +177,7 @@ if (existsSync(WIKI_DIR)) {
 console.log("📥 Cloning wiki repository...");
 try {
 	exec(`git clone "${WIKI_URL}" "${WIKI_DIR}"`, { stdio: "pipe" });
-} catch (error) {
+} catch (_error) {
 	console.error("❌ Failed to clone wiki repository");
 	console.error("");
 	console.error("Note: The wiki must be initialized on GitHub first.");
@@ -269,7 +269,7 @@ try {
 			encoding: "utf-8",
 			stdio: "pipe",
 		});
-	} catch (error) {
+	} catch (_error) {
 		// Git status might return non-zero in some cases, but we'll check the output
 		status = "";
 	}
