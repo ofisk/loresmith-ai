@@ -76,7 +76,8 @@ export function buildExplainabilityFromSteps(
     }
   }
 
-  if (contextSources.length === 0 && toolsUsed.length === 0) return null;
+  // Only show explainability when we have concrete context sources; hide generic "tools used" fallback
+  if (contextSources.length === 0) return null;
 
   const entityCount = contextSources.filter((s) => s.type === "entity").length;
   const planningCount = contextSources.filter(

@@ -115,7 +115,9 @@ export function ChatMessageList({
                                 </Card>
                                 {isLastTextPart &&
                                   !isUser &&
-                                  m.data?.explainability && (
+                                  m.data?.explainability &&
+                                  m.data.explainability.contextSources?.length >
+                                    0 && (
                                     <ExplainabilitySection
                                       explainability={m.data.explainability}
                                       collapsedByDefault
