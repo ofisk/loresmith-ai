@@ -9,9 +9,9 @@ import type { SessionDigestData } from "@/types/session-digest";
  * Prompt for assessing relevance of digest content
  */
 export function formatRelevanceAssessmentPrompt(
-  digestData: SessionDigestData
+	digestData: SessionDigestData
 ): string {
-  return `Review this session digest data and assess the relevance and quality of the content.
+	return `Review this session digest data and assess the relevance and quality of the content.
 
 ${JSON.stringify(digestData, null, 2)}
 
@@ -32,9 +32,9 @@ Return JSON in this format:
  * Prompt for assessing specificity of digest entries
  */
 export function formatSpecificityAssessmentPrompt(
-  digestData: SessionDigestData
+	digestData: SessionDigestData
 ): string {
-  return `Review this session digest and assess the specificity of each entry. 
+	return `Review this session digest and assess the specificity of each entry. 
 Entries should be concrete, specific, and actionable rather than vague or generic.
 
 Session Digest:
@@ -66,45 +66,45 @@ Provide a specificity score from 0-10 and list specific issues. Return JSON in t
  * Prompt for assessing consistency between digest content and campaign entity graph
  */
 export function formatConsistencyAssessmentPrompt(
-  digestData: SessionDigestData,
-  entityInfo: Array<{
-    extractedEntity: { name: string; entityType: string };
-    graphEntity: {
-      id: string;
-      name: string;
-      entityType: string;
-      content: unknown;
-      relationships: Array<{
-        type: string;
-        target: string;
-      }>;
-    } | null;
-  }>
+	digestData: SessionDigestData,
+	entityInfo: Array<{
+		extractedEntity: { name: string; entityType: string };
+		graphEntity: {
+			id: string;
+			name: string;
+			entityType: string;
+			content: unknown;
+			relationships: Array<{
+				type: string;
+				target: string;
+			}>;
+		} | null;
+	}>
 ): string {
-  return `Compare the session digest content with the campaign's entity graph information to find inconsistencies.
+	return `Compare the session digest content with the campaign's entity graph information to find inconsistencies.
 
 Session Digest:
 ${JSON.stringify(digestData, null, 2)}
 
 Entity Information from Campaign Graph:
 ${JSON.stringify(
-  entityInfo.map((info) => ({
-    mentionedInDigest: info.extractedEntity,
-    foundInGraph: info.graphEntity
-      ? {
-          id: info.graphEntity.id,
-          name: info.graphEntity.name,
-          entityType: info.graphEntity.entityType,
-          content: info.graphEntity.content,
-          relationships: info.graphEntity.relationships.map((r) => ({
-            type: r.type,
-            target: r.target,
-          })),
-        }
-      : null,
-  })),
-  null,
-  2
+	entityInfo.map((info) => ({
+		mentionedInDigest: info.extractedEntity,
+		foundInGraph: info.graphEntity
+			? {
+					id: info.graphEntity.id,
+					name: info.graphEntity.name,
+					entityType: info.graphEntity.entityType,
+					content: info.graphEntity.content,
+					relationships: info.graphEntity.relationships.map((r) => ({
+						type: r.type,
+						target: r.target,
+					})),
+				}
+			: null,
+	})),
+	null,
+	2
 )}
 
 Find inconsistencies such as:
@@ -125,7 +125,7 @@ Return JSON in this format:
 }
 
 export const DIGEST_QUALITY_PROMPTS = {
-  formatRelevanceAssessmentPrompt,
-  formatSpecificityAssessmentPrompt,
-  formatConsistencyAssessmentPrompt,
+	formatRelevanceAssessmentPrompt,
+	formatSpecificityAssessmentPrompt,
+	formatConsistencyAssessmentPrompt,
 };

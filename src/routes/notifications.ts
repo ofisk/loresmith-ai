@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import { SignJWT } from "jose";
-import type { Env } from "@/middleware/auth";
 import { getCorsHeaders } from "@/lib/cors";
+import type { Env } from "@/middleware/auth";
 import { AuthService } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
 
@@ -9,309 +9,309 @@ import { API_CONFIG } from "@/shared-config";
  * Handle minting short-lived stream tokens
  */
 export async function handleMintStreamToken(
-  c: Context<{ Bindings: Env }>
+	c: Context<{ Bindings: Env }>
 ): Promise<Response> {
-  try {
-    // Authenticate user with their main JWT
-    const authResult = await AuthService.extractAuthFromHeader(
-      c.req.header("Authorization") || "",
-      c.env
-    );
+	try {
+		// Authenticate user with their main JWT
+		const authResult = await AuthService.extractAuthFromHeader(
+			c.req.header("Authorization") || "",
+			c.env
+		);
 
-    if (!authResult || !authResult.username) {
-      return new Response("Invalid or expired token", {
-        status: 401,
-        headers: {
-          "WWW-Authenticate": "Bearer",
-        },
-      });
-    }
+		if (!authResult || !authResult.username) {
+			return new Response("Invalid or expired token", {
+				status: 401,
+				headers: {
+					"WWW-Authenticate": "Bearer",
+				},
+			});
+		}
 
-    const userId = authResult.username;
+		const userId = authResult.username;
 
-    // Create a short-lived token specifically for SSE
-    const authService = new AuthService(c.env);
-    const jwtSecret = await authService.getJwtSecret();
+		// Create a short-lived token specifically for SSE
+		const authService = new AuthService(c.env);
+		const jwtSecret = await authService.getJwtSecret();
 
-    const streamToken = await new SignJWT({
-      type: "sse-stream",
-      userId,
-      purpose: "notification-stream",
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      // Use a longer expiry to reduce 401s from token expiration
-      .setExpirationTime("15m") // 15 minutes instead of 5
-      .setSubject(userId)
-      .sign(jwtSecret);
+		const streamToken = await new SignJWT({
+			type: "sse-stream",
+			userId,
+			purpose: "notification-stream",
+		})
+			.setProtectedHeader({ alg: "HS256" })
+			.setIssuedAt()
+			// Use a longer expiry to reduce 401s from token expiration
+			.setExpirationTime("15m") // 15 minutes instead of 5
+			.setSubject(userId)
+			.sign(jwtSecret);
 
-    // Create the stream URL with the short-lived token
-    const streamUrl = new URL(
-      API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.STREAM),
-      c.req.url
-    );
-    streamUrl.searchParams.set("token", streamToken);
+		// Create the stream URL with the short-lived token
+		const streamUrl = new URL(
+			API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.STREAM),
+			c.req.url
+		);
+		streamUrl.searchParams.set("token", streamToken);
 
-    const response = {
-      streamUrl: streamUrl.toString(),
-      expiresIn: 900, // 15 minutes in seconds
-    };
+		const response = {
+			streamUrl: streamUrl.toString(),
+			expiresIn: 900, // 15 minutes in seconds
+		};
 
-    return c.json(response);
-  } catch (error) {
-    console.error("[Notifications] Error minting stream token:", error);
-    return new Response("Internal Server Error", { status: 500 });
-  }
+		return c.json(response);
+	} catch (error) {
+		console.error("[Notifications] Error minting stream token:", error);
+		return new Response("Internal Server Error", { status: 500 });
+	}
 }
 
 /**
  * Handle SSE notification stream requests
  */
 export async function handleNotificationStream(
-  c: Context<{ Bindings: Env }>
+	c: Context<{ Bindings: Env }>
 ): Promise<Response> {
-  try {
-    // Get short-lived stream token from query parameter
-    const streamToken = c.req.query("token");
+	try {
+		// Get short-lived stream token from query parameter
+		const streamToken = c.req.query("token");
 
-    if (!streamToken) {
-      return new Response("Missing stream token", {
-        status: 401,
-        headers: {
-          "WWW-Authenticate": "Bearer",
-          ...getCorsHeaders(c.req.raw, c.env),
-        },
-      });
-    }
+		if (!streamToken) {
+			return new Response("Missing stream token", {
+				status: 401,
+				headers: {
+					"WWW-Authenticate": "Bearer",
+					...getCorsHeaders(c.req.raw, c.env),
+				},
+			});
+		}
 
-    // Validate the short-lived stream token
-    const authService = new AuthService(c.env);
-    const jwtSecret = await authService.getJwtSecret();
+		// Validate the short-lived stream token
+		const authService = new AuthService(c.env);
+		const jwtSecret = await authService.getJwtSecret();
 
-    try {
-      const { jwtVerify } = await import("jose");
-      // Allow small clock drift to reduce false 401s
-      const { payload } = await jwtVerify(streamToken, jwtSecret, {
-        clockTolerance: 60, // seconds
-      });
+		try {
+			const { jwtVerify } = await import("jose");
+			// Allow small clock drift to reduce false 401s
+			const { payload } = await jwtVerify(streamToken, jwtSecret, {
+				clockTolerance: 60, // seconds
+			});
 
-      // Verify this is a stream token with correct purpose
-      if (
-        !payload ||
-        payload.type !== "sse-stream" ||
-        payload.purpose !== "notification-stream"
-      ) {
-        return new Response("Invalid stream token", {
-          status: 401,
-          headers: {
-            "WWW-Authenticate": "Bearer",
-            ...getCorsHeaders(c.req.raw, c.env),
-          },
-        });
-      }
+			// Verify this is a stream token with correct purpose
+			if (
+				!payload ||
+				payload.type !== "sse-stream" ||
+				payload.purpose !== "notification-stream"
+			) {
+				return new Response("Invalid stream token", {
+					status: 401,
+					headers: {
+						"WWW-Authenticate": "Bearer",
+						...getCorsHeaders(c.req.raw, c.env),
+					},
+				});
+			}
 
-      const userId = payload.userId as string;
-      if (!userId) {
-        return new Response("Invalid stream token: missing user ID", {
-          status: 401,
-          headers: {
-            "WWW-Authenticate": "Bearer",
-            ...getCorsHeaders(c.req.raw, c.env),
-          },
-        });
-      }
+			const userId = payload.userId as string;
+			if (!userId) {
+				return new Response("Invalid stream token: missing user ID", {
+					status: 401,
+					headers: {
+						"WWW-Authenticate": "Bearer",
+						...getCorsHeaders(c.req.raw, c.env),
+					},
+				});
+			}
 
-      // Get or create NotificationHub Durable Object
-      const notificationHubId = c.env.NOTIFICATIONS.idFromName(
-        `user-${userId}`
-      );
-      const notificationHub = c.env.NOTIFICATIONS.get(notificationHubId);
+			// Get or create NotificationHub Durable Object
+			const notificationHubId = c.env.NOTIFICATIONS.idFromName(
+				`user-${userId}`
+			);
+			const notificationHub = c.env.NOTIFICATIONS.get(notificationHubId);
 
-      // Create request to Durable Object directly
-      const doRequest = new Request("http://localhost/subscribe", {
-        method: "GET",
-        headers: {
-          Accept: "text/event-stream",
-        },
-        // Remove signal to avoid hanging
-      });
+			// Create request to Durable Object directly
+			const doRequest = new Request("http://localhost/subscribe", {
+				method: "GET",
+				headers: {
+					Accept: "text/event-stream",
+				},
+				// Remove signal to avoid hanging
+			});
 
-      // Add userId as query parameter
-      const doUrl = new URL(doRequest.url);
-      doUrl.searchParams.set("userId", userId);
-      const finalRequest = new Request(doUrl.toString(), doRequest);
+			// Add userId as query parameter
+			const doUrl = new URL(doRequest.url);
+			doUrl.searchParams.set("userId", userId);
+			const finalRequest = new Request(doUrl.toString(), doRequest);
 
-      let response: Response;
-      try {
-        response = await notificationHub.fetch(finalRequest);
-      } catch (doError) {
-        console.error(
-          `[handleNotificationStream] Durable Object fetch error:`,
-          doError
-        );
-        // If DO fetch fails (e.g., due to reset), return a reset message
-        const { readable, writable } = new TransformStream();
-        const writer = writable.getWriter();
-        const encoder = new TextEncoder();
+			let response: Response;
+			try {
+				response = await notificationHub.fetch(finalRequest);
+			} catch (doError) {
+				console.error(
+					`[handleNotificationStream] Durable Object fetch error:`,
+					doError
+				);
+				// If DO fetch fails (e.g., due to reset), return a reset message
+				const { readable, writable } = new TransformStream();
+				const writer = writable.getWriter();
+				const encoder = new TextEncoder();
 
-        const resetMessage = `data: ${JSON.stringify({
-          type: "durable-object-reset",
-          message: "Durable Object reset detected - reconnecting",
-          timestamp: Date.now(),
-        })}\n\n`;
-        writer.write(encoder.encode(resetMessage));
+				const resetMessage = `data: ${JSON.stringify({
+					type: "durable-object-reset",
+					message: "Durable Object reset detected - reconnecting",
+					timestamp: Date.now(),
+				})}\n\n`;
+				writer.write(encoder.encode(resetMessage));
 
-        setTimeout(async () => {
-          try {
-            await writer.close();
-          } catch (_error) {
-            // Ignore error closing reset stream
-          }
-        }, 100);
+				setTimeout(async () => {
+					try {
+						await writer.close();
+					} catch (_error) {
+						// Ignore error closing reset stream
+					}
+				}, 100);
 
-        return new Response(readable, {
-          status: 200,
-          headers: {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            Connection: "keep-alive",
-            ...getCorsHeaders(c.req.raw, c.env),
-          },
-        });
-      }
+				return new Response(readable, {
+					status: 200,
+					headers: {
+						"Content-Type": "text/event-stream",
+						"Cache-Control": "no-cache",
+						Connection: "keep-alive",
+						...getCorsHeaders(c.req.raw, c.env),
+					},
+				});
+			}
 
-      if (!response.ok) {
-        console.error(
-          `[handleNotificationStream] DO response error: ${response.status} ${response.statusText}`
-        );
-        return new Response("Failed to establish notification stream", {
-          status: 500,
-          headers: getCorsHeaders(c.req.raw, c.env),
-        });
-      }
+			if (!response.ok) {
+				console.error(
+					`[handleNotificationStream] DO response error: ${response.status} ${response.statusText}`
+				);
+				return new Response("Failed to establish notification stream", {
+					status: 500,
+					headers: getCorsHeaders(c.req.raw, c.env),
+				});
+			}
 
-      // Clone the response and add CORS headers
-      const corsHeaders = getCorsHeaders(c.req.raw, c.env);
+			// Clone the response and add CORS headers
+			const corsHeaders = getCorsHeaders(c.req.raw, c.env);
 
-      // Convert Headers to plain object
-      const responseHeaders: Record<string, string> = {};
-      response.headers.forEach((value, key) => {
-        responseHeaders[key] = value;
-      });
+			// Convert Headers to plain object
+			const responseHeaders: Record<string, string> = {};
+			response.headers.forEach((value, key) => {
+				responseHeaders[key] = value;
+			});
 
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: {
-          ...responseHeaders,
-          ...corsHeaders,
-        },
-      });
-    } catch (jwtError) {
-      console.error("[Notifications] JWT verification error:", jwtError);
+			return new Response(response.body, {
+				status: response.status,
+				statusText: response.statusText,
+				headers: {
+					...responseHeaders,
+					...corsHeaders,
+				},
+			});
+		} catch (jwtError) {
+			console.error("[Notifications] JWT verification error:", jwtError);
 
-      // Check if this is a Durable Object reset error
-      if (
-        jwtError instanceof Error &&
-        jwtError.message.includes("Durable Object reset")
-      ) {
-        // Return a successful SSE response with a reset message
-        const { readable, writable } = new TransformStream();
-        const writer = writable.getWriter();
-        const encoder = new TextEncoder();
+			// Check if this is a Durable Object reset error
+			if (
+				jwtError instanceof Error &&
+				jwtError.message.includes("Durable Object reset")
+			) {
+				// Return a successful SSE response with a reset message
+				const { readable, writable } = new TransformStream();
+				const writer = writable.getWriter();
+				const encoder = new TextEncoder();
 
-        const resetMessage = `data: {"type": "durable-object-reset", "message": "Durable Object reset detected - reconnecting", "timestamp": ${Date.now()}}\n\n`;
-        writer.write(encoder.encode(resetMessage));
+				const resetMessage = `data: {"type": "durable-object-reset", "message": "Durable Object reset detected - reconnecting", "timestamp": ${Date.now()}}\n\n`;
+				writer.write(encoder.encode(resetMessage));
 
-        // Close the stream after sending the reset message
-        setTimeout(async () => {
-          try {
-            await writer.close();
-          } catch (_error) {
-            // Ignore error closing reset stream
-          }
-        }, 100);
+				// Close the stream after sending the reset message
+				setTimeout(async () => {
+					try {
+						await writer.close();
+					} catch (_error) {
+						// Ignore error closing reset stream
+					}
+				}, 100);
 
-        return new Response(readable, {
-          status: 200,
-          headers: {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            Connection: "keep-alive",
-            ...getCorsHeaders(c.req.raw, c.env),
-          },
-        });
-      }
+				return new Response(readable, {
+					status: 200,
+					headers: {
+						"Content-Type": "text/event-stream",
+						"Cache-Control": "no-cache",
+						Connection: "keep-alive",
+						...getCorsHeaders(c.req.raw, c.env),
+					},
+				});
+			}
 
-      return new Response("Invalid or expired stream token", {
-        status: 401,
-        headers: {
-          "WWW-Authenticate": "Bearer",
-          ...getCorsHeaders(c.req.raw, c.env),
-        },
-      });
-    }
-  } catch (error) {
-    console.error("[Notifications] Error handling stream request:", error);
-    return new Response("Internal Server Error", {
-      status: 500,
-      headers: getCorsHeaders(c.req.raw, c.env),
-    });
-  }
+			return new Response("Invalid or expired stream token", {
+				status: 401,
+				headers: {
+					"WWW-Authenticate": "Bearer",
+					...getCorsHeaders(c.req.raw, c.env),
+				},
+			});
+		}
+	} catch (error) {
+		console.error("[Notifications] Error handling stream request:", error);
+		return new Response("Internal Server Error", {
+			status: 500,
+			headers: getCorsHeaders(c.req.raw, c.env),
+		});
+	}
 }
 
 export async function handleNotificationPublish(
-  c: Context<{ Bindings: Env }>
+	c: Context<{ Bindings: Env }>
 ): Promise<Response> {
-  try {
-    // Authenticate user
-    const authResult = await AuthService.extractAuthFromHeader(
-      c.req.header("Authorization") || "",
-      c.env
-    );
+	try {
+		// Authenticate user
+		const authResult = await AuthService.extractAuthFromHeader(
+			c.req.header("Authorization") || "",
+			c.env
+		);
 
-    if (!authResult || !authResult.username) {
-      return new Response("Unauthorized", {
-        status: 401,
-        headers: {
-          "WWW-Authenticate": "Bearer",
-        },
-      });
-    }
+		if (!authResult || !authResult.username) {
+			return new Response("Unauthorized", {
+				status: 401,
+				headers: {
+					"WWW-Authenticate": "Bearer",
+				},
+			});
+		}
 
-    const userId = authResult.username;
+		const userId = authResult.username;
 
-    // Parse notification payload
-    const payload = await c.req.json();
+		// Parse notification payload
+		const payload = await c.req.json();
 
-    // Validate payload structure
-    if (!payload.type || !payload.title || !payload.message) {
-      return new Response("Invalid payload: missing required fields", {
-        status: 400,
-      });
-    }
+		// Validate payload structure
+		if (!payload.type || !payload.title || !payload.message) {
+			return new Response("Invalid payload: missing required fields", {
+				status: 400,
+			});
+		}
 
-    // Add timestamp if not provided
-    if (!payload.timestamp) {
-      payload.timestamp = Date.now();
-    }
+		// Add timestamp if not provided
+		if (!payload.timestamp) {
+			payload.timestamp = Date.now();
+		}
 
-    // Get NotificationHub Durable Object
-    const notificationHubId = c.env.NOTIFICATIONS.idFromName(`user-${userId}`);
-    const notificationHub = c.env.NOTIFICATIONS.get(notificationHubId);
+		// Get NotificationHub Durable Object
+		const notificationHubId = c.env.NOTIFICATIONS.idFromName(`user-${userId}`);
+		const notificationHub = c.env.NOTIFICATIONS.get(notificationHubId);
 
-    // Create publish request to call the Durable Object directly
-    const doRequest = new Request("http://localhost/publish", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+		// Create publish request to call the Durable Object directly
+		const doRequest = new Request("http://localhost/publish", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(payload),
+		});
 
-    return await notificationHub.fetch(doRequest);
-  } catch (error) {
-    console.error("[Notifications] Error handling publish request:", error);
-    return new Response("Internal Server Error", { status: 500 });
-  }
+		return await notificationHub.fetch(doRequest);
+	} catch (error) {
+		console.error("[Notifications] Error handling publish request:", error);
+		return new Response("Internal Server Error", { status: 500 });
+	}
 }

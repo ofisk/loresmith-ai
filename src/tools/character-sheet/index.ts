@@ -11,17 +11,17 @@ export { processCharacterSheet, uploadCharacterSheet } from "./upload-tools";
 
 // Export the tools object for backward compatibility
 export const characterSheetTools = {
-  uploadCharacterSheet,
-  processCharacterSheet,
-  createCharacterSheet,
-  listCharacterSheets,
-  getDocumentContent,
+	uploadCharacterSheet,
+	processCharacterSheet,
+	createCharacterSheet,
+	listCharacterSheets,
+	getDocumentContent,
 };
 
 /** Player-facing character sheet tools (excludes getDocumentContent, which is GM-only) */
 export const playerCharacterSheetTools = {
-  uploadCharacterSheet,
-  processCharacterSheet,
-  createCharacterSheet,
-  listCharacterSheets,
+	uploadCharacterSheet,
+	processCharacterSheet,
+	createCharacterSheet,
+	listCharacterSheets,
 };

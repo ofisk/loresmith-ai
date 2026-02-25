@@ -12,34 +12,34 @@
  * @returns Array of text chunks
  */
 export function chunkTextByPages(text: string, maxChunkSize: number): string[] {
-  const pagePattern = /\[Page \d+\]/g;
-  const pages = text.split(pagePattern);
-  const pageMarkers = text.match(pagePattern) || [];
+	const pagePattern = /\[Page \d+\]/g;
+	const pages = text.split(pagePattern);
+	const pageMarkers = text.match(pagePattern) || [];
 
-  const chunks: string[] = [];
-  let currentChunk = "";
+	const chunks: string[] = [];
+	let currentChunk = "";
 
-  for (let i = 0; i < pages.length; i++) {
-    const pageMarker = i > 0 ? pageMarkers[i - 1] : "";
-    const pageContent = pages[i];
+	for (let i = 0; i < pages.length; i++) {
+		const pageMarker = i > 0 ? pageMarkers[i - 1] : "";
+		const pageContent = pages[i];
 
-    if (
-      currentChunk.length > 0 &&
-      currentChunk.length + pageMarker.length + pageContent.length >
-        maxChunkSize
-    ) {
-      chunks.push(currentChunk);
-      currentChunk = pageMarker + pageContent;
-    } else {
-      currentChunk += pageMarker + pageContent;
-    }
-  }
+		if (
+			currentChunk.length > 0 &&
+			currentChunk.length + pageMarker.length + pageContent.length >
+				maxChunkSize
+		) {
+			chunks.push(currentChunk);
+			currentChunk = pageMarker + pageContent;
+		} else {
+			currentChunk += pageMarker + pageContent;
+		}
+	}
 
-  if (currentChunk.trim().length > 0) {
-    chunks.push(currentChunk);
-  }
+	if (currentChunk.trim().length > 0) {
+		chunks.push(currentChunk);
+	}
 
-  return chunks.length > 0 ? chunks : [text];
+	return chunks.length > 0 ? chunks : [text];
 }
 
 /**
@@ -51,44 +51,44 @@ export function chunkTextByPages(text: string, maxChunkSize: number): string[] {
  * @returns Array of text chunks
  */
 export function chunkTextByCharacterCount(
-  text: string,
-  maxChunkSize: number
+	text: string,
+	maxChunkSize: number
 ): string[] {
-  const chunks: string[] = [];
-  let currentPos = 0;
+	const chunks: string[] = [];
+	let currentPos = 0;
 
-  while (currentPos < text.length) {
-    const remainingText = text.slice(currentPos);
-    let chunkSize = Math.min(maxChunkSize, remainingText.length);
+	while (currentPos < text.length) {
+		const remainingText = text.slice(currentPos);
+		let chunkSize = Math.min(maxChunkSize, remainingText.length);
 
-    if (chunkSize < remainingText.length) {
-      // Try to break at sentence boundaries first (., !, ?)
-      const lastPeriod = remainingText.lastIndexOf(".", chunkSize);
-      const lastExclamation = remainingText.lastIndexOf("!", chunkSize);
-      const lastQuestion = remainingText.lastIndexOf("?", chunkSize);
-      const lastSentence = Math.max(lastPeriod, lastExclamation, lastQuestion);
+		if (chunkSize < remainingText.length) {
+			// Try to break at sentence boundaries first (., !, ?)
+			const lastPeriod = remainingText.lastIndexOf(".", chunkSize);
+			const lastExclamation = remainingText.lastIndexOf("!", chunkSize);
+			const lastQuestion = remainingText.lastIndexOf("?", chunkSize);
+			const lastSentence = Math.max(lastPeriod, lastExclamation, lastQuestion);
 
-      if (lastSentence > chunkSize * 0.5) {
-        // Prefer sentence boundary if it's not too far back
-        chunkSize = lastSentence + 1;
-      } else {
-        // Fall back to word boundaries (spaces/newlines)
-        const lastSpace = remainingText.lastIndexOf(" ", chunkSize);
-        const lastNewline = remainingText.lastIndexOf("\n", chunkSize);
-        const breakPoint = Math.max(lastSpace, lastNewline);
+			if (lastSentence > chunkSize * 0.5) {
+				// Prefer sentence boundary if it's not too far back
+				chunkSize = lastSentence + 1;
+			} else {
+				// Fall back to word boundaries (spaces/newlines)
+				const lastSpace = remainingText.lastIndexOf(" ", chunkSize);
+				const lastNewline = remainingText.lastIndexOf("\n", chunkSize);
+				const breakPoint = Math.max(lastSpace, lastNewline);
 
-        if (breakPoint > chunkSize * 0.8) {
-          chunkSize = breakPoint;
-        }
-      }
-    }
+				if (breakPoint > chunkSize * 0.8) {
+					chunkSize = breakPoint;
+				}
+			}
+		}
 
-    const chunk = remainingText.slice(0, chunkSize).trim();
-    if (chunk.length > 0) {
-      chunks.push(chunk);
-    }
-    currentPos += chunkSize;
-  }
+		const chunk = remainingText.slice(0, chunkSize).trim();
+		if (chunk.length > 0) {
+			chunks.push(chunk);
+		}
+		currentPos += chunkSize;
+	}
 
-  return chunks.length > 0 ? chunks : [text];
+	return chunks.length > 0 ? chunks : [text];
 }

@@ -1,13 +1,13 @@
-import { tool, type ToolExecutionOptions } from "ai";
+import { type ToolExecutionOptions, tool } from "ai";
 import { z } from "zod";
 import { createToolSuccess } from "../utils";
 
 const noOpToolSchema = z.object({
-  reason: z
-    .string()
-    .describe(
-      "Brief explanation of why no tool is needed (e.g., 'Answering a general question that doesn't require data access')"
-    ),
+	reason: z
+		.string()
+		.describe(
+			"Brief explanation of why no tool is needed (e.g., 'Answering a general question that doesn't require data access')"
+		),
 });
 
 /**
@@ -23,7 +23,7 @@ const noOpToolSchema = z.object({
  * for entity queries, listCampaigns for campaign listings, etc.).
  */
 export const noOpTool = tool({
-  description: `A no-op tool that allows you to explicitly opt out of using any actual tools when you can answer the user's question directly without tool assistance. 
+	description: `A no-op tool that allows you to explicitly opt out of using any actual tools when you can answer the user's question directly without tool assistance. 
 
 Use this tool ONLY when:
 - You can answer the question from the conversation context alone
@@ -37,16 +37,16 @@ DO NOT use this tool if:
 - You need to search, retrieve, or update any data → use the appropriate tool
 
 When in doubt, use the appropriate tool rather than this no-op tool.`,
-  inputSchema: noOpToolSchema,
-  execute: async (
-    input: z.infer<typeof noOpToolSchema>,
-    _options: ToolExecutionOptions
-  ): Promise<any> => {
-    const { reason } = input;
-    return createToolSuccess(
-      `No tool needed: ${reason}`,
-      { optedOut: true, reason },
-      "no-op"
-    );
-  },
+	inputSchema: noOpToolSchema,
+	execute: async (
+		input: z.infer<typeof noOpToolSchema>,
+		_options: ToolExecutionOptions
+	): Promise<any> => {
+		const { reason } = input;
+		return createToolSuccess(
+			`No tool needed: ${reason}`,
+			{ optedOut: true, reason },
+			"no-op"
+		);
+	},
 });

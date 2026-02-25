@@ -1,14 +1,14 @@
 import { BaseDAOClass } from "./base-dao";
 
 export interface UserStorageUsage {
-  username: string;
-  total_size: number;
-  file_count: number;
+	username: string;
+	total_size: number;
+	file_count: number;
 }
 
 export class UserDAO extends BaseDAOClass {
-  async getStorageUsage(username: string): Promise<UserStorageUsage> {
-    const sql = `
+	async getStorageUsage(username: string): Promise<UserStorageUsage> {
+		const sql = `
       select
         username,
         coalesce(sum(file_size), 0) as total_size,
@@ -18,19 +18,19 @@ export class UserDAO extends BaseDAOClass {
       group by username
     `;
 
-    const result = await this.queryFirst<UserStorageUsage>(sql, [username]);
+		const result = await this.queryFirst<UserStorageUsage>(sql, [username]);
 
-    return (
-      result || {
-        username,
-        total_size: 0,
-        file_count: 0,
-      }
-    );
-  }
+		return (
+			result || {
+				username,
+				total_size: 0,
+				file_count: 0,
+			}
+		);
+	}
 
-  async getAllUsersStorageUsage(): Promise<UserStorageUsage[]> {
-    const sql = `
+	async getAllUsersStorageUsage(): Promise<UserStorageUsage[]> {
+		const sql = `
       select
         username,
         coalesce(sum(file_size), 0) as total_size,
@@ -40,6 +40,6 @@ export class UserDAO extends BaseDAOClass {
       order by total_size desc
     `;
 
-    return await this.queryAll<UserStorageUsage>(sql);
-  }
+		return await this.queryAll<UserStorageUsage>(sql);
+	}
 }

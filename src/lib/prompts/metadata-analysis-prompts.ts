@@ -4,28 +4,28 @@
  */
 
 export interface ChecklistItem {
-  key: string;
-  description: string;
+	key: string;
+	description: string;
 }
 
 /**
  * Generate prompt for analyzing campaign metadata against checklist items
  */
 export function formatMetadataAnalysisPrompt(
-  checklistItems: readonly ChecklistItem[],
-  metadata: Record<string, unknown>,
-  campaignDescription?: string
+	checklistItems: readonly ChecklistItem[],
+	metadata: Record<string, unknown>,
+	campaignDescription?: string
 ): string {
-  const checklistItemsText = checklistItems
-    .map((item) => `- ${item.key}: ${item.description}`)
-    .join("\n");
+	const checklistItemsText = checklistItems
+		.map((item) => `- ${item.key}: ${item.description}`)
+		.join("\n");
 
-  const metadataJson = JSON.stringify(metadata, null, 2);
-  const descriptionText = campaignDescription
-    ? `\n\nCampaign Description:\n${campaignDescription}`
-    : "";
+	const metadataJson = JSON.stringify(metadata, null, 2);
+	const descriptionText = campaignDescription
+		? `\n\nCampaign Description:\n${campaignDescription}`
+		: "";
 
-  return `Analyze the following campaign metadata and determine which checklist items are adequately covered.
+	return `Analyze the following campaign metadata and determine which checklist items are adequately covered.
 
 Checklist Items:
 ${checklistItemsText}
@@ -53,5 +53,5 @@ Example response:
 }
 
 export const METADATA_ANALYSIS_PROMPTS = {
-  formatMetadataAnalysisPrompt,
+	formatMetadataAnalysisPrompt,
 };

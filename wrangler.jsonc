@@ -3,148 +3,148 @@
  * https://developers.cloudflare.com/workers/wrangler/configuration/
  */
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "loresmith-ai",
-  "main": "src/server.ts",
-  "compatibility_date": "2025-05-07",
-  "compatibility_flags": [
-    "nodejs_compat",
-    "nodejs_compat_populate_process_env",
-  ],
-  "assets": {
-    "directory": "dist/client",
-    "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/auth/*"],
-  },
-  "vars": {
-    "MAX_INDEX_FILE_BYTES": "4194304",
-    "STAGING_PREFIX": "staging",
-    "READINESS_TIMEOUT_SEC": "600",
-    "READINESS_BACKOFF_MS": "2000",
-    "PRODUCTION_URL": "https://loresmith.ai",
-    "APP_ORIGIN": "https://loresmith.ai",
-    "VERIFICATION_EMAIL_FROM": "LoreSmith <support@loresmith.ai>",
-  },
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "CHAT",
-        "class_name": "Chat",
-      },
-      {
-        "name": "UPLOAD_SESSION",
-        "class_name": "UploadSessionDO",
-      },
-      {
-        "name": "NOTIFICATIONS",
-        "class_name": "NotificationHub",
-      },
-    ],
-  },
-  "r2_buckets": [
-    {
-      "binding": "R2",
-      "bucket_name": "loresmith-files",
-      "preview_bucket_name": "loresmith-files",
-    },
-  ],
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "loresmith-db",
-      "database_id": "7a5854a8-9b74-401b-83d0-3e69941feb8d",
-    },
-  ],
-  "vectorize": [
-    {
-      "binding": "VECTORIZE",
-      "index_name": "loresmith-embeddings",
-    },
-  ],
-  "ai": {
-    "binding": "AI",
-  },
-  "queues": {
-    "producers": [
-      {
-        "queue": "upload-events",
-        "binding": "FILE_PROCESSING_QUEUE",
-      },
-      {
-        "queue": "file-processing-dlq",
-        "binding": "FILE_PROCESSING_DLQ",
-      },
-      {
-        "queue": "graph-rebuild-queue",
-        "binding": "GRAPH_REBUILD_QUEUE",
-      },
-    ],
-    "consumers": [
-      {
-        "queue": "upload-events",
-        "max_batch_size": 1,
-        "max_retries": 5,
-      },
-      {
-        "queue": "graph-rebuild-queue",
-        "max_batch_size": 1,
-        "max_retries": 3,
-      },
-    ],
-  },
-  "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": ["Chat", "UserFileTracker"],
-    },
-    {
-      "tag": "v2",
-      "new_sqlite_classes": ["CampaignManager"],
-    },
-    {
-      "tag": "v3",
-      "new_sqlite_classes": [],
-    },
-    {
-      "tag": "v4",
-      "deleted_classes": ["CampaignManager"],
-    },
-    {
-      "tag": "v5",
-      "new_classes": ["UploadSessionDO"],
-    },
-    {
-      "tag": "v6",
-      "new_classes": [],
-    },
-    {
-      "tag": "v7",
-      "new_classes": ["NotificationHub"],
-    },
-    {
-      "tag": "v8",
-      "deleted_classes": ["UserFileTracker"],
-    },
-    {
-      "tag": "v9",
-      "new_classes": [],
-      "deleted_classes": [],
-    },
-  ],
-  "observability": {
-    "enabled": true,
-  },
-  "triggers": {
-    "crons": ["*/5 * * * *"],
-  },
-  "routes": [
-    {
-      "pattern": "loresmith.ai",
-      "custom_domain": true,
-    },
-    {
-      "pattern": "www.loresmith.ai",
-      "custom_domain": true,
-    },
-  ],
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "loresmith-ai",
+	"main": "src/server.ts",
+	"compatibility_date": "2025-05-07",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"nodejs_compat_populate_process_env"
+	],
+	"assets": {
+		"directory": "dist/client",
+		"not_found_handling": "single-page-application",
+		"run_worker_first": ["/api/*", "/auth/*"]
+	},
+	"vars": {
+		"MAX_INDEX_FILE_BYTES": "4194304",
+		"STAGING_PREFIX": "staging",
+		"READINESS_TIMEOUT_SEC": "600",
+		"READINESS_BACKOFF_MS": "2000",
+		"PRODUCTION_URL": "https://loresmith.ai",
+		"APP_ORIGIN": "https://loresmith.ai",
+		"VERIFICATION_EMAIL_FROM": "LoreSmith <support@loresmith.ai>"
+	},
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "CHAT",
+				"class_name": "Chat"
+			},
+			{
+				"name": "UPLOAD_SESSION",
+				"class_name": "UploadSessionDO"
+			},
+			{
+				"name": "NOTIFICATIONS",
+				"class_name": "NotificationHub"
+			}
+		]
+	},
+	"r2_buckets": [
+		{
+			"binding": "R2",
+			"bucket_name": "loresmith-files",
+			"preview_bucket_name": "loresmith-files"
+		}
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "loresmith-db",
+			"database_id": "7a5854a8-9b74-401b-83d0-3e69941feb8d"
+		}
+	],
+	"vectorize": [
+		{
+			"binding": "VECTORIZE",
+			"index_name": "loresmith-embeddings"
+		}
+	],
+	"ai": {
+		"binding": "AI"
+	},
+	"queues": {
+		"producers": [
+			{
+				"queue": "upload-events",
+				"binding": "FILE_PROCESSING_QUEUE"
+			},
+			{
+				"queue": "file-processing-dlq",
+				"binding": "FILE_PROCESSING_DLQ"
+			},
+			{
+				"queue": "graph-rebuild-queue",
+				"binding": "GRAPH_REBUILD_QUEUE"
+			}
+		],
+		"consumers": [
+			{
+				"queue": "upload-events",
+				"max_batch_size": 1,
+				"max_retries": 5
+			},
+			{
+				"queue": "graph-rebuild-queue",
+				"max_batch_size": 1,
+				"max_retries": 3
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["Chat", "UserFileTracker"]
+		},
+		{
+			"tag": "v2",
+			"new_sqlite_classes": ["CampaignManager"]
+		},
+		{
+			"tag": "v3",
+			"new_sqlite_classes": []
+		},
+		{
+			"tag": "v4",
+			"deleted_classes": ["CampaignManager"]
+		},
+		{
+			"tag": "v5",
+			"new_classes": ["UploadSessionDO"]
+		},
+		{
+			"tag": "v6",
+			"new_classes": []
+		},
+		{
+			"tag": "v7",
+			"new_classes": ["NotificationHub"]
+		},
+		{
+			"tag": "v8",
+			"deleted_classes": ["UserFileTracker"]
+		},
+		{
+			"tag": "v9",
+			"new_classes": [],
+			"deleted_classes": []
+		}
+	],
+	"observability": {
+		"enabled": true
+	},
+	"triggers": {
+		"crons": ["*/5 * * * *"]
+	},
+	"routes": [
+		{
+			"pattern": "loresmith.ai",
+			"custom_domain": true
+		},
+		{
+			"pattern": "www.loresmith.ai",
+			"custom_domain": true
+		}
+	]
 }

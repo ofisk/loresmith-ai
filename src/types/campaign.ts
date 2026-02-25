@@ -3,39 +3,39 @@
 export type ResourceType = "file" | "character" | "note" | "image";
 
 export interface CampaignResource {
-  type: ResourceType;
-  id: string;
-  name: string;
-  campaign_id: string;
-  file_key: string;
-  file_name: string;
-  display_name?: string;
-  description?: string;
-  tags?: string;
-  status: string;
-  created_at: string;
-  updated_at?: string;
+	type: ResourceType;
+	id: string;
+	name: string;
+	campaign_id: string;
+	file_key: string;
+	file_name: string;
+	display_name?: string;
+	description?: string;
+	tags?: string;
+	status: string;
+	created_at: string;
+	updated_at?: string;
 }
 
 /** User's role in the campaign (from membership or ownership) */
 export type CampaignRole =
-  | "owner"
-  | "editor_gm"
-  | "readonly_gm"
-  | "editor_player"
-  | "readonly_player";
+	| "owner"
+	| "editor_gm"
+	| "readonly_gm"
+	| "editor_player"
+	| "readonly_player";
 
 // Base campaign interface used by Durable Objects
 export interface CampaignData {
-  campaignId: string;
-  name: string;
-  description?: string;
-  campaignRagBasePath?: string;
-  createdAt: string;
-  updatedAt: string;
-  resources?: CampaignResource[];
-  /** User's role in this campaign (owner or from membership) */
-  role?: CampaignRole;
+	campaignId: string;
+	name: string;
+	description?: string;
+	campaignRagBasePath?: string;
+	createdAt: string;
+	updatedAt: string;
+	resources?: CampaignResource[];
+	/** User's role in this campaign (owner or from membership) */
+	role?: CampaignRole;
 }
 
 // Campaign interface for UI components (alias for consistency)
@@ -43,60 +43,60 @@ export type Campaign = CampaignData;
 
 // API Request/Response Types
 export interface CreateCampaignRequest {
-  name: string;
+	name: string;
 }
 
 export interface CreateCampaignResponse {
-  success: boolean;
-  campaign: CampaignData;
+	success: boolean;
+	campaign: CampaignData;
 }
 
 export interface AddResourceRequest {
-  type: ResourceType;
-  id: string;
-  name?: string;
+	type: ResourceType;
+	id: string;
+	name?: string;
 }
 
 export interface AddResourceResponse {
-  success: boolean;
-  resources: CampaignResource[];
+	success: boolean;
+	resources: CampaignResource[];
 }
 
 export interface RemoveResourceResponse {
-  success: boolean;
-  resources: CampaignResource[];
+	success: boolean;
+	resources: CampaignResource[];
 }
 
 export interface ListResourcesResponse {
-  resources: CampaignResource[];
+	resources: CampaignResource[];
 }
 
 export interface ListCampaignsResponse {
-  campaigns: CampaignData[];
+	campaigns: CampaignData[];
 }
 
 // Utility types for UI components
 export interface CampaignListProps {
-  onViewCampaign: (campaignId: string) => void;
-  onCreateCampaign: () => void;
+	onViewCampaign: (campaignId: string) => void;
+	onCreateCampaign: () => void;
 }
 
 export interface CampaignDetailProps {
-  campaignId: string;
-  onBack: () => void;
-  onAddResource: () => void;
+	campaignId: string;
+	onBack: () => void;
+	onAddResource: () => void;
 }
 
 export interface CreateCampaignFormProps {
-  onSuccess: (campaign: Campaign) => void;
-  onCancel: () => void;
-  defaultName?: string;
+	onSuccess: (campaign: Campaign) => void;
+	onCancel: () => void;
+	defaultName?: string;
 }
 
 export interface File {
-  fileKey: string;
-  fileName: string;
-  fileSize: number;
-  uploaded: string;
-  status: string;
+	fileKey: string;
+	fileName: string;
+	fileSize: number;
+	uploaded: string;
+	status: string;
 }

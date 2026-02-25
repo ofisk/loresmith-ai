@@ -4,48 +4,48 @@
  */
 
 export interface SessionScriptContext {
-  campaignName: string;
-  sessionTitle: string;
-  sessionType: "combat" | "social" | "exploration" | "mixed";
-  estimatedDuration: number;
-  focusAreas?: string[];
-  recentSessionDigests: Array<{
-    sessionNumber: number;
-    sessionDate: string | null;
-    keyEvents: string[];
-    openThreads: string[];
-    stateChanges: {
-      factions: string[];
-      locations: string[];
-      npcs: string[];
-    };
-    nextSessionPlan?: {
-      objectives_dm: string[];
-      probable_player_goals: string[];
-      beats: string[];
-      if_then_branches: string[];
-    };
-  }>;
-  relevantEntities: Array<{
-    entityId: string;
-    entityName: string;
-    entityType: string;
-    description?: string;
-    relationships?: Array<{
-      targetName: string;
-      relationshipType: string;
-    }>;
-  }>;
-  characterBackstories?: Array<{
-    name: string;
-    backstory?: string;
-    goals?: string[];
-  }>;
-  campaignResources?: Array<{
-    title: string;
-    type: string;
-  }>;
-  isOneOff?: boolean;
+	campaignName: string;
+	sessionTitle: string;
+	sessionType: "combat" | "social" | "exploration" | "mixed";
+	estimatedDuration: number;
+	focusAreas?: string[];
+	recentSessionDigests: Array<{
+		sessionNumber: number;
+		sessionDate: string | null;
+		keyEvents: string[];
+		openThreads: string[];
+		stateChanges: {
+			factions: string[];
+			locations: string[];
+			npcs: string[];
+		};
+		nextSessionPlan?: {
+			objectives_dm: string[];
+			probable_player_goals: string[];
+			beats: string[];
+			if_then_branches: string[];
+		};
+	}>;
+	relevantEntities: Array<{
+		entityId: string;
+		entityName: string;
+		entityType: string;
+		description?: string;
+		relationships?: Array<{
+			targetName: string;
+			relationshipType: string;
+		}>;
+	}>;
+	characterBackstories?: Array<{
+		name: string;
+		backstory?: string;
+		goals?: string[];
+	}>;
+	campaignResources?: Array<{
+		title: string;
+		type: string;
+	}>;
+	isOneOff?: boolean;
 }
 
 /**
@@ -53,33 +53,33 @@ export interface SessionScriptContext {
  * This is the core prompt body that gets populated with dynamic context
  */
 function buildSessionScriptPromptBody(params: {
-  campaignName: string;
-  sessionTitle: string;
-  sessionType: string;
-  estimatedDuration: number;
-  focusAreas: string;
-  isOneOffNote: string;
-  sessionContext: string;
-  entityContext: string;
-  characterContext: string;
-  campaignResourcesSection: string;
-  endGoalInstruction: string;
+	campaignName: string;
+	sessionTitle: string;
+	sessionType: string;
+	estimatedDuration: number;
+	focusAreas: string;
+	isOneOffNote: string;
+	sessionContext: string;
+	entityContext: string;
+	characterContext: string;
+	campaignResourcesSection: string;
+	endGoalInstruction: string;
 }): string {
-  const {
-    campaignName,
-    sessionTitle,
-    sessionType,
-    estimatedDuration,
-    focusAreas,
-    isOneOffNote,
-    sessionContext,
-    entityContext,
-    characterContext,
-    campaignResourcesSection,
-    endGoalInstruction,
-  } = params;
+	const {
+		campaignName,
+		sessionTitle,
+		sessionType,
+		estimatedDuration,
+		focusAreas,
+		isOneOffNote,
+		sessionContext,
+		entityContext,
+		characterContext,
+		campaignResourcesSection,
+		endGoalInstruction,
+	} = params;
 
-  return `You are an expert game master assistant creating a detailed, actionable session script for a tabletop roleplaying game campaign.
+	return `You are an expert game master assistant creating a detailed, actionable session script for a tabletop roleplaying game campaign.
 
 ## Campaign Context
 
@@ -216,121 +216,121 @@ Generate the complete session script now, ensuring all requirements are met.`;
  * Generate a comprehensive prompt for creating a detailed session script
  */
 export function formatSessionScriptPrompt(
-  context: SessionScriptContext
+	context: SessionScriptContext
 ): string {
-  const {
-    campaignName,
-    sessionTitle,
-    sessionType,
-    estimatedDuration,
-    focusAreas,
-    recentSessionDigests,
-    relevantEntities,
-    characterBackstories,
-    campaignResources,
-    isOneOff,
-  } = context;
+	const {
+		campaignName,
+		sessionTitle,
+		sessionType,
+		estimatedDuration,
+		focusAreas,
+		recentSessionDigests,
+		relevantEntities,
+		characterBackstories,
+		campaignResources,
+		isOneOff,
+	} = context;
 
-  // Build recent session context
-  const sessionContext =
-    recentSessionDigests.length > 0
-      ? recentSessionDigests
-          .slice(-3) // Last 3 sessions
-          .map((digest) => {
-            const date = digest.sessionDate
-              ? new Date(digest.sessionDate).toLocaleDateString()
-              : "No date";
-            return `Session ${digest.sessionNumber} (${date}):
+	// Build recent session context
+	const sessionContext =
+		recentSessionDigests.length > 0
+			? recentSessionDigests
+					.slice(-3) // Last 3 sessions
+					.map((digest) => {
+						const date = digest.sessionDate
+							? new Date(digest.sessionDate).toLocaleDateString()
+							: "No date";
+						return `Session ${digest.sessionNumber} (${date}):
   Key Events: ${digest.keyEvents.join("; ") || "None"}
   Open Threads: ${digest.openThreads.join("; ") || "None"}
   State Changes - Factions: ${digest.stateChanges.factions.join(", ") || "None"}
   State Changes - Locations: ${digest.stateChanges.locations.join(", ") || "None"}
   State Changes - NPCs: ${digest.stateChanges.npcs.join(", ") || "None"}
   ${
-    digest.nextSessionPlan
-      ? `Next Session Plan:
+		digest.nextSessionPlan
+			? `Next Session Plan:
     DM Objectives: ${digest.nextSessionPlan.objectives_dm.join("; ") || "None"}
     Player Goals: ${digest.nextSessionPlan.probable_player_goals.join("; ") || "None"}
     Beats: ${digest.nextSessionPlan.beats.join("; ") || "None"}`
-      : ""
-  }`;
-          })
-          .join("\n\n")
-      : "No previous sessions recorded";
+			: ""
+	}`;
+					})
+					.join("\n\n")
+			: "No previous sessions recorded";
 
-  // Build entity context
-  const entityContext =
-    relevantEntities.length > 0
-      ? relevantEntities
-          .map((entity) => {
-            const relationships = entity.relationships
-              ? entity.relationships
-                  .map(
-                    (rel) =>
-                      `  - ${rel.relationshipType} with ${rel.targetName}`
-                  )
-                  .join("\n")
-              : "";
-            return `${entity.entityName} (${entity.entityType})${entity.description ? `: ${entity.description}` : ""}${relationships ? `\n${relationships}` : ""}`;
-          })
-          .join("\n\n")
-      : "No relevant entities found";
+	// Build entity context
+	const entityContext =
+		relevantEntities.length > 0
+			? relevantEntities
+					.map((entity) => {
+						const relationships = entity.relationships
+							? entity.relationships
+									.map(
+										(rel) =>
+											`  - ${rel.relationshipType} with ${rel.targetName}`
+									)
+									.join("\n")
+							: "";
+						return `${entity.entityName} (${entity.entityType})${entity.description ? `: ${entity.description}` : ""}${relationships ? `\n${relationships}` : ""}`;
+					})
+					.join("\n\n")
+			: "No relevant entities found";
 
-  // Build character context
-  const characterContext =
-    characterBackstories && characterBackstories.length > 0
-      ? characterBackstories
-          .map((char) => {
-            const goals =
-              char.goals && char.goals.length > 0
-                ? `\n  Goals: ${char.goals.join(", ")}`
-                : "";
-            return `${char.name}${char.backstory ? `\n  Backstory: ${char.backstory}` : ""}${goals}`;
-          })
-          .join("\n\n")
-      : "No character backstories available";
+	// Build character context
+	const characterContext =
+		characterBackstories && characterBackstories.length > 0
+			? characterBackstories
+					.map((char) => {
+						const goals =
+							char.goals && char.goals.length > 0
+								? `\n  Goals: ${char.goals.join(", ")}`
+								: "";
+						return `${char.name}${char.backstory ? `\n  Backstory: ${char.backstory}` : ""}${goals}`;
+					})
+					.join("\n\n")
+			: "No character backstories available";
 
-  // Build campaign resources section
-  const campaignResourcesSection =
-    campaignResources && campaignResources.length > 0
-      ? `## Campaign Resources Available
+	// Build campaign resources section
+	const campaignResourcesSection =
+		campaignResources && campaignResources.length > 0
+			? `## Campaign Resources Available
 
 ${campaignResources.map((r) => `- ${r.title} (${r.type})`).join("\n")}
 
 These resources may contain relevant information for the session. Reference them when appropriate.`
-      : "";
+			: "";
 
-  // Build focus areas string
-  const focusAreasStr =
-    focusAreas && focusAreas.length > 0
-      ? `Focus Areas: ${focusAreas.join(", ")}`
-      : "";
+	// Build focus areas string
+	const focusAreasStr =
+		focusAreas && focusAreas.length > 0
+			? `Focus Areas: ${focusAreas.join(", ")}`
+			: "";
 
-  // Build one-off note
-  const isOneOffNote = isOneOff
-    ? "NOTE: This is a one-off session (shopping, side quest, seasonal, etc.) and does not need to connect to the main campaign arc."
-    : "";
+	// Build one-off note
+	const isOneOffNote = isOneOff
+		? "NOTE: This is a one-off session (shopping, side quest, seasonal, etc.) and does not need to connect to the main campaign arc."
+		: "";
 
-  // Build end goal instruction
-  const endGoalInstruction = isOneOff
-    ? "Since this is a one-off session, create a self-contained goal that provides a satisfying experience within the session."
-    : "Create a clear end goal for the session that relates back to the larger campaign arc. This should be something achievable by the end of the session that advances the overall story.";
+	// Build end goal instruction
+	const endGoalInstruction = isOneOff
+		? "Since this is a one-off session, create a self-contained goal that provides a satisfying experience within the session."
+		: "Create a clear end goal for the session that relates back to the larger campaign arc. This should be something achievable by the end of the session that advances the overall story.";
 
-  return buildSessionScriptPromptBody({
-    campaignName,
-    sessionTitle,
-    sessionType,
-    estimatedDuration,
-    focusAreas: focusAreasStr,
-    isOneOffNote,
-    sessionContext,
-    entityContext,
-    characterContext,
-    campaignResourcesSection,
-    endGoalInstruction,
-  });
+	return buildSessionScriptPromptBody({
+		campaignName,
+		sessionTitle,
+		sessionType,
+		estimatedDuration,
+		focusAreas: focusAreasStr,
+		isOneOffNote,
+		sessionContext,
+		entityContext,
+		characterContext,
+		campaignResourcesSection,
+		endGoalInstruction,
+	});
 }
 
 export const SESSION_SCRIPT_PROMPTS = {
-  formatSessionScriptPrompt,
+	formatSessionScriptPrompt,
 };

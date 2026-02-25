@@ -7,20 +7,20 @@ const RECAP_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour in milliseconds
  * Get the last recap timestamp for a specific campaign
  */
 export function getLastRecapTimestamp(campaignId: string): number | null {
-  const key = `loresmith-recap-${campaignId}`;
-  const stored = localStorage.getItem(key);
-  return stored ? parseInt(stored, 10) : null;
+	const key = `loresmith-recap-${campaignId}`;
+	const stored = localStorage.getItem(key);
+	return stored ? parseInt(stored, 10) : null;
 }
 
 /**
  * Set the last recap timestamp for a specific campaign
  */
 export function setLastRecapTimestamp(
-  campaignId: string,
-  timestamp: number
+	campaignId: string,
+	timestamp: number
 ): void {
-  const key = `loresmith-recap-${campaignId}`;
-  localStorage.setItem(key, timestamp.toString());
+	const key = `loresmith-recap-${campaignId}`;
+	localStorage.setItem(key, timestamp.toString());
 }
 
 /**
@@ -28,49 +28,49 @@ export function setLastRecapTimestamp(
  * Returns true if no recap has been shown for this campaign OR > 1 hour since last recap
  */
 export function shouldShowRecap(campaignId: string | null): boolean {
-  if (!campaignId) {
-    return false;
-  }
+	if (!campaignId) {
+		return false;
+	}
 
-  const lastRecap = getLastRecapTimestamp(campaignId);
-  if (!lastRecap) {
-    // No recap shown yet for this campaign
-    return true;
-  }
+	const lastRecap = getLastRecapTimestamp(campaignId);
+	if (!lastRecap) {
+		// No recap shown yet for this campaign
+		return true;
+	}
 
-  const now = Date.now();
-  const timeSinceLastRecap = now - lastRecap;
-  return timeSinceLastRecap >= RECAP_COOLDOWN_MS;
+	const now = Date.now();
+	const timeSinceLastRecap = now - lastRecap;
+	return timeSinceLastRecap >= RECAP_COOLDOWN_MS;
 }
 
 /**
  * Get the last activity timestamp
  */
 export function getLastActivityTimestamp(): number | null {
-  const stored = localStorage.getItem(LAST_ACTIVITY_STORAGE_KEY);
-  return stored ? parseInt(stored, 10) : null;
+	const stored = localStorage.getItem(LAST_ACTIVITY_STORAGE_KEY);
+	return stored ? parseInt(stored, 10) : null;
 }
 
 /**
  * Update the last activity timestamp to now
  */
 export function updateActivityTimestamp(): void {
-  localStorage.setItem(LAST_ACTIVITY_STORAGE_KEY, Date.now().toString());
+	localStorage.setItem(LAST_ACTIVITY_STORAGE_KEY, Date.now().toString());
 }
 
 /**
  * Check if user has been away for more than the inactivity threshold
  */
 export function hasBeenAway(thresholdMs: number = RECAP_COOLDOWN_MS): boolean {
-  const lastActivity = getLastActivityTimestamp();
-  if (!lastActivity) {
-    // No activity recorded, consider user as returning
-    return true;
-  }
+	const lastActivity = getLastActivityTimestamp();
+	if (!lastActivity) {
+		// No activity recorded, consider user as returning
+		return true;
+	}
 
-  const now = Date.now();
-  const timeSinceActivity = now - lastActivity;
-  return timeSinceActivity >= thresholdMs;
+	const now = Date.now();
+	const timeSinceActivity = now - lastActivity;
+	return timeSinceActivity >= thresholdMs;
 }
 
 /**
@@ -78,29 +78,29 @@ export function hasBeenAway(thresholdMs: number = RECAP_COOLDOWN_MS): boolean {
  * Provides functions to update activity and check if recaps should be shown
  */
 export function useActivityTracking() {
-  const updateActivity = useCallback(() => {
-    updateActivityTimestamp();
-  }, []);
+	const updateActivity = useCallback(() => {
+		updateActivityTimestamp();
+	}, []);
 
-  const checkShouldShowRecap = useCallback(
-    (campaignId: string | null): boolean => {
-      return shouldShowRecap(campaignId);
-    },
-    []
-  );
+	const checkShouldShowRecap = useCallback(
+		(campaignId: string | null): boolean => {
+			return shouldShowRecap(campaignId);
+		},
+		[]
+	);
 
-  const markRecapShown = useCallback((campaignId: string) => {
-    setLastRecapTimestamp(campaignId, Date.now());
-  }, []);
+	const markRecapShown = useCallback((campaignId: string) => {
+		setLastRecapTimestamp(campaignId, Date.now());
+	}, []);
 
-  const checkHasBeenAway = useCallback((thresholdMs?: number): boolean => {
-    return hasBeenAway(thresholdMs);
-  }, []);
+	const checkHasBeenAway = useCallback((thresholdMs?: number): boolean => {
+		return hasBeenAway(thresholdMs);
+	}, []);
 
-  return {
-    updateActivity,
-    checkShouldShowRecap,
-    markRecapShown,
-    checkHasBeenAway,
-  };
+	return {
+		updateActivity,
+		checkShouldShowRecap,
+		markRecapShown,
+		checkHasBeenAway,
+	};
 }

@@ -12,12 +12,12 @@
  * @returns Formatted prompt string for agent routing
  */
 export function formatAgentRoutingPrompt(
-  agentDescriptions: string,
-  userMessage: string,
-  recentContext: string | undefined,
-  _registeredAgents: string[]
+	agentDescriptions: string,
+	userMessage: string,
+	recentContext: string | undefined,
+	_registeredAgents: string[]
 ): string {
-  return `Based on the user's message, determine which agent should handle this request.
+	return `Based on the user's message, determine which agent should handle this request.
 
 Available agents:
 ${agentDescriptions}
@@ -58,5 +58,5 @@ Examples:
 }
 
 export const AGENT_ROUTING_PROMPTS = {
-  formatAgentRoutingPrompt,
+	formatAgentRoutingPrompt,
 };

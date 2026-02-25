@@ -9,26 +9,26 @@ import { LIBRARY_CONFIG } from "../app-constants";
  * @returns A human-readable file type string (e.g., "PDF", "Image", "Document")
  */
 export function getFileTypeFromName(fileName: string): string {
-  if (!fileName) return "file";
-  const extension = fileName.split(".").pop()?.toLowerCase() || "";
-  const typeMap: Record<string, string> = {
-    pdf: "PDF",
-    doc: "Document",
-    docx: "Document",
-    txt: "Text",
-    md: "Markdown",
-    json: "JSON",
-    jpg: "Image",
-    jpeg: "Image",
-    png: "Image",
-    gif: "Image",
-    webp: "Image",
-    mp3: "Audio",
-    wav: "Audio",
-    mp4: "Video",
-    mov: "Video",
-  };
-  return typeMap[extension] || "File";
+	if (!fileName) return "file";
+	const extension = fileName.split(".").pop()?.toLowerCase() || "";
+	const typeMap: Record<string, string> = {
+		pdf: "PDF",
+		doc: "Document",
+		docx: "Document",
+		txt: "Text",
+		md: "Markdown",
+		json: "JSON",
+		jpg: "Image",
+		jpeg: "Image",
+		png: "Image",
+		gif: "Image",
+		webp: "Image",
+		mp3: "Audio",
+		wav: "Audio",
+		mp4: "Video",
+		mov: "Video",
+	};
+	return typeMap[extension] || "File";
 }
 
 /**
@@ -38,17 +38,17 @@ export function getFileTypeFromName(fileName: string): string {
  * @returns Filename with number appended (e.g., "file.pdf" -> "file (1).pdf")
  */
 export function appendNumberToFilename(
-  filename: string,
-  number: number
+	filename: string,
+	number: number
 ): string {
-  const lastDotIndex = filename.lastIndexOf(".");
-  if (lastDotIndex === -1) {
-    // No extension
-    return `${filename} (${number})`;
-  }
-  const name = filename.substring(0, lastDotIndex);
-  const extension = filename.substring(lastDotIndex);
-  return `${name} (${number})${extension}`;
+	const lastDotIndex = filename.lastIndexOf(".");
+	if (lastDotIndex === -1) {
+		// No extension
+		return `${filename} (${number})`;
+	}
+	const name = filename.substring(0, lastDotIndex);
+	const extension = filename.substring(lastDotIndex);
+	return `${name} (${number})${extension}`;
 }
 
 /**
@@ -58,10 +58,10 @@ export function appendNumberToFilename(
  * @returns Display name with number appended (e.g., "My File" -> "My File (1)")
  */
 export function appendNumberToDisplayName(
-  displayName: string,
-  number: number
+	displayName: string,
+	number: number
 ): string {
-  return `${displayName} (${number})`;
+	return `${displayName} (${number})`;
 }
 
 /**
@@ -72,39 +72,39 @@ export function appendNumberToDisplayName(
  * @returns A unique filename
  */
 export async function getUniqueFilename(
-  checkExists: (username: string, filename: string) => Promise<boolean>,
-  originalFilename: string,
-  username: string
+	checkExists: (username: string, filename: string) => Promise<boolean>,
+	originalFilename: string,
+	username: string
 ): Promise<string> {
-  // Check if the original filename is already taken
-  const exists = await checkExists(username, originalFilename);
-  if (!exists) {
-    return originalFilename;
-  }
+	// Check if the original filename is already taken
+	const exists = await checkExists(username, originalFilename);
+	if (!exists) {
+		return originalFilename;
+	}
 
-  // Try appending numbers until we find a unique name
-  let counter = 1;
-  let candidateFilename = appendNumberToFilename(originalFilename, counter);
+	// Try appending numbers until we find a unique name
+	let counter = 1;
+	let candidateFilename = appendNumberToFilename(originalFilename, counter);
 
-  while (await checkExists(username, candidateFilename)) {
-    counter++;
-    candidateFilename = appendNumberToFilename(originalFilename, counter);
+	while (await checkExists(username, candidateFilename)) {
+		counter++;
+		candidateFilename = appendNumberToFilename(originalFilename, counter);
 
-    // Safety limit to prevent infinite loops
-    if (counter > 1000) {
-      // Fallback to timestamp-based name
-      const timestamp = Date.now();
-      const lastDotIndex = originalFilename.lastIndexOf(".");
-      if (lastDotIndex === -1) {
-        return `${originalFilename}_${timestamp}`;
-      }
-      const name = originalFilename.substring(0, lastDotIndex);
-      const extension = originalFilename.substring(lastDotIndex);
-      return `${name}_${timestamp}${extension}`;
-    }
-  }
+		// Safety limit to prevent infinite loops
+		if (counter > 1000) {
+			// Fallback to timestamp-based name
+			const timestamp = Date.now();
+			const lastDotIndex = originalFilename.lastIndexOf(".");
+			if (lastDotIndex === -1) {
+				return `${originalFilename}_${timestamp}`;
+			}
+			const name = originalFilename.substring(0, lastDotIndex);
+			const extension = originalFilename.substring(lastDotIndex);
+			return `${name}_${timestamp}${extension}`;
+		}
+	}
 
-  return candidateFilename;
+	return candidateFilename;
 }
 
 /**
@@ -116,52 +116,52 @@ export async function getUniqueFilename(
  * @returns A unique display name
  */
 export async function getUniqueDisplayName(
-  checkExists: (
-    username: string,
-    displayName: string,
-    excludeFileKey?: string
-  ) => Promise<boolean>,
-  originalDisplayName: string,
-  username: string,
-  excludeFileKey?: string
+	checkExists: (
+		username: string,
+		displayName: string,
+		excludeFileKey?: string
+	) => Promise<boolean>,
+	originalDisplayName: string,
+	username: string,
+	excludeFileKey?: string
 ): Promise<string> {
-  if (!originalDisplayName) {
-    return originalDisplayName; // Empty display names don't need uniqueness
-  }
+	if (!originalDisplayName) {
+		return originalDisplayName; // Empty display names don't need uniqueness
+	}
 
-  // Check if the original display name is already taken
-  const exists = await checkExists(
-    username,
-    originalDisplayName,
-    excludeFileKey
-  );
-  if (!exists) {
-    return originalDisplayName;
-  }
+	// Check if the original display name is already taken
+	const exists = await checkExists(
+		username,
+		originalDisplayName,
+		excludeFileKey
+	);
+	if (!exists) {
+		return originalDisplayName;
+	}
 
-  // Try appending numbers until we find a unique name
-  let counter = 1;
-  let candidateDisplayName = appendNumberToDisplayName(
-    originalDisplayName,
-    counter
-  );
+	// Try appending numbers until we find a unique name
+	let counter = 1;
+	let candidateDisplayName = appendNumberToDisplayName(
+		originalDisplayName,
+		counter
+	);
 
-  while (await checkExists(username, candidateDisplayName, excludeFileKey)) {
-    counter++;
-    candidateDisplayName = appendNumberToDisplayName(
-      originalDisplayName,
-      counter
-    );
+	while (await checkExists(username, candidateDisplayName, excludeFileKey)) {
+		counter++;
+		candidateDisplayName = appendNumberToDisplayName(
+			originalDisplayName,
+			counter
+		);
 
-    // Safety limit to prevent infinite loops
-    if (counter > 1000) {
-      // Fallback to timestamp-based name
-      const timestamp = Date.now();
-      return `${originalDisplayName}_${timestamp}`;
-    }
-  }
+		// Safety limit to prevent infinite loops
+		if (counter > 1000) {
+			// Fallback to timestamp-based name
+			const timestamp = Date.now();
+			return `${originalDisplayName}_${timestamp}`;
+		}
+	}
 
-  return candidateDisplayName;
+	return candidateDisplayName;
 }
 
 /**
@@ -171,7 +171,7 @@ export async function getUniqueDisplayName(
  * @returns The staging file key in format: staging/{tenant}/{filename}
  */
 export function buildStagingFileKey(tenant: string, filename: string): string {
-  return `staging/${tenant}/${filename}`;
+	return `staging/${tenant}/${filename}`;
 }
 
 /**
@@ -181,21 +181,21 @@ export function buildStagingFileKey(tenant: string, filename: string): string {
  * @returns The library file key in format: library/{tenant}/{hash}/{filename}
  */
 export async function buildLibraryFileKey(
-  tenant: string,
-  filename: string
+	tenant: string,
+	filename: string
 ): Promise<string> {
-  // Create a hash of the filename to avoid special character issues
-  const filenameHash = await crypto.subtle
-    .digest("SHA-256", new TextEncoder().encode(filename))
-    .then((hashBuffer) =>
-      Array.from(new Uint8Array(hashBuffer))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("")
-        .substring(0, 16)
-    ); // Use first 16 chars of hash
+	// Create a hash of the filename to avoid special character issues
+	const filenameHash = await crypto.subtle
+		.digest("SHA-256", new TextEncoder().encode(filename))
+		.then((hashBuffer) =>
+			Array.from(new Uint8Array(hashBuffer))
+				.map((b) => b.toString(16).padStart(2, "0"))
+				.join("")
+				.substring(0, 16)
+		); // Use first 16 chars of hash
 
-  // Use hash-based path structure: library/username/hash/filename
-  return `${LIBRARY_CONFIG.getBasePath()}/${tenant}/${filenameHash}/${filename}`;
+	// Use hash-based path structure: library/username/hash/filename
+	return `${LIBRARY_CONFIG.getBasePath()}/${tenant}/${filenameHash}/${filename}`;
 }
 
 /**
@@ -204,11 +204,11 @@ export async function buildLibraryFileKey(
  * @returns The tenant/username or null if invalid format
  */
 export function extractTenantFromFileKey(fileKey: string): string | null {
-  const parts = fileKey.split("/");
-  if (parts.length >= 2) {
-    return parts[1];
-  }
-  return null;
+	const parts = fileKey.split("/");
+	if (parts.length >= 2) {
+		return parts[1];
+	}
+	return null;
 }
 
 /**
@@ -217,11 +217,11 @@ export function extractTenantFromFileKey(fileKey: string): string | null {
  * @returns The filename or null if invalid format
  */
 export function extractFilenameFromFileKey(fileKey: string): string | null {
-  const parts = fileKey.split("/");
-  if (parts.length >= 3) {
-    return parts[2];
-  }
-  return null;
+	const parts = fileKey.split("/");
+	if (parts.length >= 3) {
+		return parts[2];
+	}
+	return null;
 }
 
 /**
@@ -231,19 +231,19 @@ export function extractFilenameFromFileKey(fileKey: string): string | null {
  * @returns True if the file key has the correct format
  */
 export function isValidFileKey(
-  fileKey: string,
-  expectedPrefix?: string
+	fileKey: string,
+	expectedPrefix?: string
 ): boolean {
-  const parts = fileKey.split("/");
+	const parts = fileKey.split("/");
 
-  if (parts.length < 3) {
-    return false;
-  }
+	if (parts.length < 3) {
+		return false;
+	}
 
-  if (expectedPrefix && parts[0] !== expectedPrefix) {
-    return false;
-  }
+	if (expectedPrefix && parts[0] !== expectedPrefix) {
+		return false;
+	}
 
-  // Check that tenant and filename are not empty
-  return parts[1].length > 0 && parts[2].length > 0;
+	// Check that tenant and filename are not empty
+	return parts[1].length > 0 && parts[2].length > 0;
 }

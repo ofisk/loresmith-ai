@@ -6,25 +6,25 @@
  * UI components for each shard type.
  */
 
-// Core utilities
-export {
-  isKnownStructure,
-  getShardStructure,
-  getEditableProperties,
-  validateShardStructure,
-  getShardTypeDisplayName,
-  getShardTypeIcon,
-  getConfidenceColorClass,
-  getConfidenceDescription,
-  type Shard,
-  type StructuredShard,
-  type FlexibleShard,
-  type ShardMetadata,
-} from "./shard-type-detector";
+export { FlexibleShardCard } from "./FlexibleShardCard";
 
 // UI Components
 export { PropertyField, PropertyGrid } from "./PropertyField";
-export { StructuredShardCard } from "./StructuredShardCard";
-export { FlexibleShardCard } from "./FlexibleShardCard";
 export { ShardGrid } from "./ShardGrid";
 export { ShardTemplateBuilder } from "./ShardTemplateBuilder";
+export { StructuredShardCard } from "./StructuredShardCard";
+// Core utilities
+export {
+	type FlexibleShard,
+	getConfidenceColorClass,
+	getConfidenceDescription,
+	getEditableProperties,
+	getShardStructure,
+	getShardTypeDisplayName,
+	getShardTypeIcon,
+	isKnownStructure,
+	type Shard,
+	type ShardMetadata,
+	type StructuredShard,
+	validateShardStructure,
+} from "./shard-type-detector";

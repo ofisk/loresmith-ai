@@ -1,494 +1,494 @@
 import type { Schedule } from "agents";
 import { SimpleChatAgent } from "@/agents/simple-chat-agent";
 import { JWT_STORAGE_KEY } from "@/app-constants";
+import { AgentRegistryService } from "@/lib/agent-registry";
 import type { AgentType } from "@/lib/agent-router";
 import { AgentRouter } from "@/lib/agent-router";
-import { ModelManager } from "@/lib/model-manager";
-import { AgentRegistryService } from "@/lib/agent-registry";
-import type { AuthEnv } from "@/services/core/auth-service";
-import { AuthService } from "@/services/core/auth-service";
-import { AuthenticationRequiredError, OpenAIAPIKeyError } from "@/lib/errors";
-import { notifyAuthenticationRequired } from "@/lib/notifications";
 import { extractJwtFromHeader, sanitizeOpenAIApiKey } from "@/lib/auth-utils";
 import { getEnvVar } from "@/lib/env-utils";
+import { AuthenticationRequiredError, OpenAIAPIKeyError } from "@/lib/errors";
+import { ModelManager } from "@/lib/model-manager";
+import { notifyAuthenticationRequired } from "@/lib/notifications";
 import type { Env as MiddlewareEnv } from "@/middleware/auth";
+import type { AuthEnv } from "@/services/core/auth-service";
+import { AuthService } from "@/services/core/auth-service";
 
 interface Env extends AuthEnv {
-  OPENAI_API_KEY?: unknown;
-  R2: R2Bucket;
-  DB: D1Database;
-  VECTORIZE: VectorizeIndex;
-  AI: any;
-  CHAT: DurableObjectNamespace;
-  UPLOAD_SESSION: DurableObjectNamespace;
-  NOTIFICATIONS: DurableObjectNamespace;
-  ASSETS: Fetcher;
-  FILE_PROCESSING_QUEUE: Queue;
-  FILE_PROCESSING_DLQ: Queue;
-  // Additional fields required by AIChatAgent's Cloudflare.Env constraint
-  MAX_INDEX_FILE_BYTES?: number;
-  STAGING_PREFIX?: string;
-  READINESS_TIMEOUT_SEC?: number;
-  READINESS_BACKOFF_MS?: number;
-  READINESS_MAX_ATTEMPTS?: number;
-  MAX_CAMPAIGN_ROWS?: number;
-  MAX_WORLD_STATE_ROWS?: number;
-  MAX_ENTITY_ROWS?: number;
-  // Index signature for string indexing
-  [key: string]: unknown;
+	OPENAI_API_KEY?: unknown;
+	R2: R2Bucket;
+	DB: D1Database;
+	VECTORIZE: VectorizeIndex;
+	AI: any;
+	CHAT: DurableObjectNamespace;
+	UPLOAD_SESSION: DurableObjectNamespace;
+	NOTIFICATIONS: DurableObjectNamespace;
+	ASSETS: Fetcher;
+	FILE_PROCESSING_QUEUE: Queue;
+	FILE_PROCESSING_DLQ: Queue;
+	// Additional fields required by AIChatAgent's Cloudflare.Env constraint
+	MAX_INDEX_FILE_BYTES?: number;
+	STAGING_PREFIX?: string;
+	READINESS_TIMEOUT_SEC?: number;
+	READINESS_BACKOFF_MS?: number;
+	READINESS_MAX_ATTEMPTS?: number;
+	MAX_CAMPAIGN_ROWS?: number;
+	MAX_WORLD_STATE_ROWS?: number;
+	MAX_ENTITY_ROWS?: number;
+	// Index signature for string indexing
+	[key: string]: unknown;
 }
 
 /**
  * Chat Agent implementation that routes to specialized agents based on user intent
  */
 export class Chat extends SimpleChatAgent<Env> {
-  private agents: Map<string, any> = new Map();
+	private agents: Map<string, any> = new Map();
 
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env);
+	constructor(ctx: DurableObjectState, env: Env) {
+		super(ctx, env);
 
-    this.agents = new Map();
+		this.agents = new Map();
 
-    this.loadServerOpenAIKey();
-  }
+		this.loadServerOpenAIKey();
+	}
 
-  /**
-   * Extract and store JWT token from message data if available
-   * @param lastUserMessage - The last user message to extract JWT from
-   * @returns The JWT token if found in storage or message data, null otherwise
-   */
-  private async extractAndStoreJwtFromMessage(
-    lastUserMessage: any
-  ): Promise<string | null> {
-    // First check durable object storage
-    let jwtToken = await this.ctx.storage.get<string>(JWT_STORAGE_KEY);
+	/**
+	 * Extract and store JWT token from message data if available
+	 * @param lastUserMessage - The last user message to extract JWT from
+	 * @returns The JWT token if found in storage or message data, null otherwise
+	 */
+	private async extractAndStoreJwtFromMessage(
+		lastUserMessage: any
+	): Promise<string | null> {
+		// First check durable object storage
+		let jwtToken = await this.ctx.storage.get<string>(JWT_STORAGE_KEY);
 
-    // If not in storage, try to extract from message data
-    if (
-      !jwtToken &&
-      lastUserMessage &&
-      "data" in lastUserMessage &&
-      lastUserMessage.data
-    ) {
-      const messageData = lastUserMessage.data as { jwt?: string };
-      if (messageData.jwt) {
-        jwtToken = messageData.jwt;
-        await this.ctx.storage.put(JWT_STORAGE_KEY, jwtToken);
-        console.log("[Chat] Extracted and stored JWT token from message data");
-      }
-    }
+		// If not in storage, try to extract from message data
+		if (
+			!jwtToken &&
+			lastUserMessage &&
+			"data" in lastUserMessage &&
+			lastUserMessage.data
+		) {
+			const messageData = lastUserMessage.data as { jwt?: string };
+			if (messageData.jwt) {
+				jwtToken = messageData.jwt;
+				await this.ctx.storage.put(JWT_STORAGE_KEY, jwtToken);
+				console.log("[Chat] Extracted and stored JWT token from message data");
+			}
+		}
 
-    return jwtToken || null;
-  }
+		return jwtToken || null;
+	}
 
-  private async getServerOpenAIKey(): Promise<string | null> {
-    const raw = await getEnvVar(
-      this.env as unknown as Record<string, unknown>,
-      "OPENAI_API_KEY",
-      false
-    );
-    const trimmed = raw.trim();
-    if (!trimmed) return null;
-    return sanitizeOpenAIApiKey(trimmed);
-  }
+	private async getServerOpenAIKey(): Promise<string | null> {
+		const raw = await getEnvVar(
+			this.env as unknown as Record<string, unknown>,
+			"OPENAI_API_KEY",
+			false
+		);
+		const trimmed = raw.trim();
+		if (!trimmed) return null;
+		return sanitizeOpenAIApiKey(trimmed);
+	}
 
-  /**
-   * Initialize agents from the server-configured OpenAI API key (if set).
-   */
-  private async loadServerOpenAIKey() {
-    try {
-      const serverKey = await this.getServerOpenAIKey();
-      if (!serverKey) return;
+	/**
+	 * Initialize agents from the server-configured OpenAI API key (if set).
+	 */
+	private async loadServerOpenAIKey() {
+		try {
+			const serverKey = await this.getServerOpenAIKey();
+			if (!serverKey) return;
 
-      console.log("[Chat] Using server OpenAI API key from environment");
-      await this.initializeAgents(serverKey);
-    } catch (error) {
-      console.error("[Chat] Error initializing agents from server key:", error);
-      // Re-throw authentication errors so they can be handled properly
-      if (
-        error instanceof AuthenticationRequiredError ||
-        error instanceof OpenAIAPIKeyError
-      ) {
-        throw error;
-      }
-      // For other errors, log but don't throw - allow onChatMessage to handle auth errors
-    }
-  }
+			console.log("[Chat] Using server OpenAI API key from environment");
+			await this.initializeAgents(serverKey);
+		} catch (error) {
+			console.error("[Chat] Error initializing agents from server key:", error);
+			// Re-throw authentication errors so they can be handled properly
+			if (
+				error instanceof AuthenticationRequiredError ||
+				error instanceof OpenAIAPIKeyError
+			) {
+				throw error;
+			}
+			// For other errors, log but don't throw - allow onChatMessage to handle auth errors
+		}
+	}
 
-  private async initializeAgents(openAIAPIKey: string | null) {
-    try {
-      const modelManager = ModelManager.getInstance();
+	private async initializeAgents(openAIAPIKey: string | null) {
+		try {
+			const modelManager = ModelManager.getInstance();
 
-      if (openAIAPIKey) {
-        modelManager.initializeModel(openAIAPIKey);
-        console.log("[Chat] Initialized model with OpenAI API key");
-      } else {
-        throw new OpenAIAPIKeyError(
-          "OpenAI API key is required. Please configure OPENAI_API_KEY on the server."
-        );
-      }
+			if (openAIAPIKey) {
+				modelManager.initializeModel(openAIAPIKey);
+				console.log("[Chat] Initialized model with OpenAI API key");
+			} else {
+				throw new OpenAIAPIKeyError(
+					"OpenAI API key is required. Please configure OPENAI_API_KEY on the server."
+				);
+			}
 
-      const registeredAgentTypes =
-        await AgentRegistryService.getRegisteredAgentTypes();
+			const registeredAgentTypes =
+				await AgentRegistryService.getRegisteredAgentTypes();
 
-      for (const agentType of registeredAgentTypes) {
-        const agentClass = await AgentRegistryService.getAgentClass(
-          agentType as AgentType
-        );
-        if (agentClass) {
-          const agentInstance = new agentClass(
-            this.ctx,
-            this.env,
-            modelManager.getModel()
-          );
+			for (const agentType of registeredAgentTypes) {
+				const agentClass = await AgentRegistryService.getAgentClass(
+					agentType as AgentType
+				);
+				if (agentClass) {
+					const agentInstance = new agentClass(
+						this.ctx,
+						this.env,
+						modelManager.getModel()
+					);
 
-          this.agents.set(agentType, agentInstance);
-        }
-      }
+					this.agents.set(agentType, agentInstance);
+				}
+			}
 
-      console.log(
-        `Agents initialized successfully: ${registeredAgentTypes.join(", ")}`
-      );
-    } catch (error) {
-      console.error("Error initializing agents:", error);
-      throw error;
-    }
-  }
+			console.log(
+				`Agents initialized successfully: ${registeredAgentTypes.join(", ")}`
+			);
+		} catch (error) {
+			console.error("Error initializing agents:", error);
+			throw error;
+		}
+	}
 
-  /**
-   * Handle HTTP requests to the Chat durable object
-   */
-  async fetch(request: Request): Promise<Response> {
-    const authHeader = request.headers.get("Authorization");
-    const jwtToken = extractJwtFromHeader(authHeader);
-    if (jwtToken) {
-      await this.ctx.storage.put(JWT_STORAGE_KEY, jwtToken);
-      console.log("[Chat] Stored JWT token from Authorization header");
-    }
+	/**
+	 * Handle HTTP requests to the Chat durable object
+	 */
+	async fetch(request: Request): Promise<Response> {
+		const authHeader = request.headers.get("Authorization");
+		const jwtToken = extractJwtFromHeader(authHeader);
+		if (jwtToken) {
+			await this.ctx.storage.put(JWT_STORAGE_KEY, jwtToken);
+			console.log("[Chat] Stored JWT token from Authorization header");
+		}
 
-    // Handle POST chat message (e.g. from AI SDK useChat)
-    if (request.method === "POST") {
-      try {
-        const body = (await request.json()) as {
-          messages?: Array<{
-            role?: string;
-            content?: string;
-            parts?: Array<{ type?: string; text?: string }>;
-            data?: unknown;
-            metadata?: unknown;
-            [key: string]: unknown;
-          }>;
-          data?: unknown;
-        };
-        const rawMessages = body?.messages;
-        if (Array.isArray(rawMessages)) {
-          this.messages = rawMessages.map((m) => {
-            let content: string;
-            if (typeof m.content === "string" && m.content.length > 0) {
-              content = m.content;
-            } else if (
-              Array.isArray(m.parts) &&
-              m.parts.some((p) => p?.type === "text")
-            ) {
-              content = m.parts
-                .filter(
-                  (p): p is { type: string; text: string } =>
-                    p?.type === "text" && typeof p.text === "string"
-                )
-                .map((p) => p.text)
-                .join("\n");
-            } else {
-              content = "";
-            }
-            const data = m.data ?? m.metadata;
-            return {
-              role: (m.role as "user" | "assistant" | "system") || "user",
-              content,
-              ...(data != null && { data }),
-            };
-          });
-        }
-        const response = await this.onChatMessage(() => {});
-        return response;
-      } catch (err) {
-        console.error("[Chat] Error handling POST:", err);
-        return new Response(
-          JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          }),
-          { status: 500, headers: { "Content-Type": "application/json" } }
-        );
-      }
-    }
+		// Handle POST chat message (e.g. from AI SDK useChat)
+		if (request.method === "POST") {
+			try {
+				const body = (await request.json()) as {
+					messages?: Array<{
+						role?: string;
+						content?: string;
+						parts?: Array<{ type?: string; text?: string }>;
+						data?: unknown;
+						metadata?: unknown;
+						[key: string]: unknown;
+					}>;
+					data?: unknown;
+				};
+				const rawMessages = body?.messages;
+				if (Array.isArray(rawMessages)) {
+					this.messages = rawMessages.map((m) => {
+						let content: string;
+						if (typeof m.content === "string" && m.content.length > 0) {
+							content = m.content;
+						} else if (
+							Array.isArray(m.parts) &&
+							m.parts.some((p) => p?.type === "text")
+						) {
+							content = m.parts
+								.filter(
+									(p): p is { type: string; text: string } =>
+										p?.type === "text" && typeof p.text === "string"
+								)
+								.map((p) => p.text)
+								.join("\n");
+						} else {
+							content = "";
+						}
+						const data = m.data ?? m.metadata;
+						return {
+							role: (m.role as "user" | "assistant" | "system") || "user",
+							content,
+							...(data != null && { data }),
+						};
+					});
+				}
+				const response = await this.onChatMessage(() => {});
+				return response;
+			} catch (err) {
+				console.error("[Chat] Error handling POST:", err);
+				return new Response(
+					JSON.stringify({
+						error: err instanceof Error ? err.message : String(err),
+					}),
+					{ status: 500, headers: { "Content-Type": "application/json" } }
+				);
+			}
+		}
 
-    return super.fetch(request);
-  }
+		return super.fetch(request);
+	}
 
-  /**
-   * Determines which specialized agent should handle the user's request
-   * based on keywords and intent in the message and conversation context
-   */
-  private async determineAgent(userMessage: string): Promise<string> {
-    const modelManager = ModelManager.getInstance();
-    const model = modelManager.getModel();
+	/**
+	 * Determines which specialized agent should handle the user's request
+	 * based on keywords and intent in the message and conversation context
+	 */
+	private async determineAgent(userMessage: string): Promise<string> {
+		const modelManager = ModelManager.getInstance();
+		const model = modelManager.getModel();
 
-    if (!model) {
-      console.log(
-        "[Chat] No model available for agent routing, using default agent"
-      );
-      return "recap";
-    }
+		if (!model) {
+			console.log(
+				"[Chat] No model available for agent routing, using default agent"
+			);
+			return "recap";
+		}
 
-    const intent = await AgentRouter.routeMessage(
-      userMessage,
-      this.messages
-        .slice(-6)
-        .map((msg) => (msg as { content?: string }).content ?? "")
-        .join(" "),
-      null,
-      model
-    );
+		const intent = await AgentRouter.routeMessage(
+			userMessage,
+			this.messages
+				.slice(-6)
+				.map((msg) => (msg as { content?: string }).content ?? "")
+				.join(" "),
+			null,
+			model
+		);
 
-    return intent.agent;
-  }
+		return intent.agent;
+	}
 
-  /**
-   * Handles incoming chat messages and routes to appropriate specialized agent
-   * @param onFinish - Callback function executed when streaming completes
-   */
-  async onChatMessage(
-    onFinish: (message: any) => void | Promise<void>,
-    _options?: { abortSignal?: AbortSignal }
-  ) {
-    try {
-      const messages = this.messages as Array<{
-        role: string;
-        content?: string;
-      }>;
-      const lastUserMessage = messages
-        .slice()
-        .reverse()
-        .find((msg) => msg.role === "user");
+	/**
+	 * Handles incoming chat messages and routes to appropriate specialized agent
+	 * @param onFinish - Callback function executed when streaming completes
+	 */
+	async onChatMessage(
+		onFinish: (message: any) => void | Promise<void>,
+		_options?: { abortSignal?: AbortSignal }
+	) {
+		try {
+			const messages = this.messages as Array<{
+				role: string;
+				content?: string;
+			}>;
+			const lastUserMessage = messages
+				.slice()
+				.reverse()
+				.find((msg) => msg.role === "user");
 
-      // Extract JWT from message data if available and store it
-      const jwtToken =
-        await this.extractAndStoreJwtFromMessage(lastUserMessage);
+			// Extract JWT from message data if available and store it
+			const jwtToken =
+				await this.extractAndStoreJwtFromMessage(lastUserMessage);
 
-      if (this.agents.size === 0) {
-        if (!jwtToken) {
-          console.log(
-            "[Chat] No JWT token found in storage or message data, requiring authentication"
-          );
+			if (this.agents.size === 0) {
+				if (!jwtToken) {
+					console.log(
+						"[Chat] No JWT token found in storage or message data, requiring authentication"
+					);
 
-          // Try to get username from message data JWT if available (for notification purposes)
-          let username: string | null = null;
-          if (
-            lastUserMessage &&
-            "data" in lastUserMessage &&
-            lastUserMessage.data
-          ) {
-            const messageData = lastUserMessage.data as { jwt?: string };
-            if (messageData.jwt) {
-              try {
-                username = AuthService.parseJwtForUsername(messageData.jwt);
-              } catch (error) {
-                console.warn(
-                  "[Chat] Failed to parse username from message data JWT:",
-                  error
-                );
-              }
-            }
-          }
+					// Try to get username from message data JWT if available (for notification purposes)
+					let username: string | null = null;
+					if (
+						lastUserMessage &&
+						"data" in lastUserMessage &&
+						lastUserMessage.data
+					) {
+						const messageData = lastUserMessage.data as { jwt?: string };
+						if (messageData.jwt) {
+							try {
+								username = AuthService.parseJwtForUsername(messageData.jwt);
+							} catch (error) {
+								console.warn(
+									"[Chat] Failed to parse username from message data JWT:",
+									error
+								);
+							}
+						}
+					}
 
-          // Send notification if we have a username, otherwise just throw error
-          if (username) {
-            try {
-              await notifyAuthenticationRequired(
-                this.env as unknown as MiddlewareEnv,
-                username,
-                "Authentication required. Please sign in to continue."
-              );
-            } catch (notifyError) {
-              console.error(
-                "[Chat] Failed to send authentication notification:",
-                notifyError
-              );
-            }
-          }
+					// Send notification if we have a username, otherwise just throw error
+					if (username) {
+						try {
+							await notifyAuthenticationRequired(
+								this.env as unknown as MiddlewareEnv,
+								username,
+								"Authentication required. Please sign in to continue."
+							);
+						} catch (notifyError) {
+							console.error(
+								"[Chat] Failed to send authentication notification:",
+								notifyError
+							);
+						}
+					}
 
-          throw new AuthenticationRequiredError(
-            "AUTHENTICATION_REQUIRED: Authentication required."
-          );
-        }
+					throw new AuthenticationRequiredError(
+						"AUTHENTICATION_REQUIRED: Authentication required."
+					);
+				}
 
-        const username = AuthService.parseJwtForUsername(jwtToken);
-        if (!username) {
-          throw new AuthenticationRequiredError(
-            "AUTHENTICATION_REQUIRED: Authentication required."
-          );
-        }
+				const username = AuthService.parseJwtForUsername(jwtToken);
+				if (!username) {
+					throw new AuthenticationRequiredError(
+						"AUTHENTICATION_REQUIRED: Authentication required."
+					);
+				}
 
-        const serverKey = await this.getServerOpenAIKey();
-        if (!serverKey) {
-          throw new OpenAIAPIKeyError(
-            "OpenAI API key is required. Please configure OPENAI_API_KEY on the server."
-          );
-        }
+				const serverKey = await this.getServerOpenAIKey();
+				if (!serverKey) {
+					throw new OpenAIAPIKeyError(
+						"OpenAI API key is required. Please configure OPENAI_API_KEY on the server."
+					);
+				}
 
-        console.log("[Chat] Initializing agents with server OpenAI API key");
-        await this.initializeAgents(serverKey);
-      }
+				console.log("[Chat] Initializing agents with server OpenAI API key");
+				await this.initializeAgents(serverKey);
+			}
 
-      if (!lastUserMessage) {
-        if (this.agents.size === 0) {
-          console.log(
-            "[Chat] No agents initialized and no user messages, returning empty response"
-          );
-          return;
-        }
+			if (!lastUserMessage) {
+				if (this.agents.size === 0) {
+					console.log(
+						"[Chat] No agents initialized and no user messages, returning empty response"
+					);
+					return;
+				}
 
-        const targetAgentInstance = this.getAgentInstance("recap");
-        targetAgentInstance.messages = [...messages];
-        return targetAgentInstance.onChatMessage(onFinish, {
-          abortSignal: _options?.abortSignal,
-        });
-      }
+				const targetAgentInstance = this.getAgentInstance("recap");
+				targetAgentInstance.messages = [...messages];
+				return targetAgentInstance.onChatMessage(onFinish, {
+					abortSignal: _options?.abortSignal,
+				});
+			}
 
-      if (this.agents.size === 0) {
-        console.log(
-          "[Chat] Agents not initialized for message processing, requiring authentication"
-        );
-        throw new AuthenticationRequiredError(
-          "AUTHENTICATION_REQUIRED: Authentication required."
-        );
-      }
+			if (this.agents.size === 0) {
+				console.log(
+					"[Chat] Agents not initialized for message processing, requiring authentication"
+				);
+				throw new AuthenticationRequiredError(
+					"AUTHENTICATION_REQUIRED: Authentication required."
+				);
+			}
 
-      const userContent =
-        (lastUserMessage as { content?: string })?.content ?? "";
-      const targetAgent = await this.determineAgent(userContent);
-      console.log(
-        `[Chat] Routing to ${targetAgent} agent for message: "${(lastUserMessage as any).content}"`
-      );
+			const userContent =
+				(lastUserMessage as { content?: string })?.content ?? "";
+			const targetAgent = await this.determineAgent(userContent);
+			console.log(
+				`[Chat] Routing to ${targetAgent} agent for message: "${(lastUserMessage as any).content}"`
+			);
 
-      const targetAgentInstance = this.getAgentInstance(targetAgent);
-      // Persist the latest user message to message history using the agent's
-      // persistence pipeline. This writes exactly one user row per turn,
-      // keyed by (sessionId, username, campaignId) without duplicating DB logic.
-      try {
-        if (lastUserMessage) {
-          targetAgentInstance.addMessage(
-            lastUserMessage as {
-              role: "user" | "assistant" | "system";
-              content: string;
-            }
-          );
-        }
-      } catch (persistError) {
-        console.error(
-          "[Chat] Failed to persist latest user message to history:",
-          persistError
-        );
-      }
-      targetAgentInstance.messages = [...messages];
+			const targetAgentInstance = this.getAgentInstance(targetAgent);
+			// Persist the latest user message to message history using the agent's
+			// persistence pipeline. This writes exactly one user row per turn,
+			// keyed by (sessionId, username, campaignId) without duplicating DB logic.
+			try {
+				if (lastUserMessage) {
+					targetAgentInstance.addMessage(
+						lastUserMessage as {
+							role: "user" | "assistant" | "system";
+							content: string;
+						}
+					);
+				}
+			} catch (persistError) {
+				console.error(
+					"[Chat] Failed to persist latest user message to history:",
+					persistError
+				);
+			}
+			targetAgentInstance.messages = [...messages];
 
-      return targetAgentInstance.onChatMessage(onFinish, {
-        abortSignal: _options?.abortSignal,
-      });
-    } catch (error) {
-      // Ensure authentication errors are properly propagated to the client
-      if (
-        error instanceof AuthenticationRequiredError ||
-        error instanceof OpenAIAPIKeyError
-      ) {
-        console.error("[Chat] Authentication error in onChatMessage:", error);
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+			return targetAgentInstance.onChatMessage(onFinish, {
+				abortSignal: _options?.abortSignal,
+			});
+		} catch (error) {
+			// Ensure authentication errors are properly propagated to the client
+			if (
+				error instanceof AuthenticationRequiredError ||
+				error instanceof OpenAIAPIKeyError
+			) {
+				console.error("[Chat] Authentication error in onChatMessage:", error);
+				const errorMessage =
+					error instanceof Error ? error.message : String(error);
 
-        // Send structured notification via notification stream
-        try {
-          // Try to get JWT token from storage or message data
-          const lastUserMessage = (this.messages as any[])
-            .slice()
-            .reverse()
-            .find((msg) => msg.role === "user");
-          const jwtToken =
-            await this.extractAndStoreJwtFromMessage(lastUserMessage);
+				// Send structured notification via notification stream
+				try {
+					// Try to get JWT token from storage or message data
+					const lastUserMessage = (this.messages as any[])
+						.slice()
+						.reverse()
+						.find((msg) => msg.role === "user");
+					const jwtToken =
+						await this.extractAndStoreJwtFromMessage(lastUserMessage);
 
-          if (jwtToken) {
-            const username = AuthService.parseJwtForUsername(jwtToken);
-            if (username) {
-              await notifyAuthenticationRequired(
-                this.env as unknown as MiddlewareEnv,
-                username,
-                errorMessage
-              );
-              console.log(
-                "[Chat] Sent authentication notification to user:",
-                username
-              );
-            }
-          } else {
-            console.log(
-              "[Chat] No JWT token available to send authentication notification"
-            );
-          }
-        } catch (notifyError) {
-          console.error(
-            "[Chat] Failed to send authentication notification:",
-            notifyError
-          );
-        }
+					if (jwtToken) {
+						const username = AuthService.parseJwtForUsername(jwtToken);
+						if (username) {
+							await notifyAuthenticationRequired(
+								this.env as unknown as MiddlewareEnv,
+								username,
+								errorMessage
+							);
+							console.log(
+								"[Chat] Sent authentication notification to user:",
+								username
+							);
+						}
+					} else {
+						console.log(
+							"[Chat] No JWT token available to send authentication notification"
+						);
+					}
+				} catch (notifyError) {
+					console.error(
+						"[Chat] Failed to send authentication notification:",
+						notifyError
+					);
+				}
 
-        // Re-throw the error so the framework propagates it to the client's onError callback
-        // The notification system will also trigger the auth modal if possible
-        throw error;
-      }
-      // For other errors, log and re-throw
-      console.error("[Chat] Error in onChatMessage:", error);
-      throw error;
-    }
-  }
+				// Re-throw the error so the framework propagates it to the client's onError callback
+				// The notification system will also trigger the auth modal if possible
+				throw error;
+			}
+			// For other errors, log and re-throw
+			console.error("[Chat] Error in onChatMessage:", error);
+			throw error;
+		}
+	}
 
-  /**
-   * Get the appropriate agent instance based on the target type
-   */
-  private getAgentInstance(targetAgent: string): any {
-    if (this.agents.size === 0) {
-      throw new Error(
-        "Agents not initialized. Please configure OPENAI_API_KEY on the server."
-      );
-    }
+	/**
+	 * Get the appropriate agent instance based on the target type
+	 */
+	private getAgentInstance(targetAgent: string): any {
+		if (this.agents.size === 0) {
+			throw new Error(
+				"Agents not initialized. Please configure OPENAI_API_KEY on the server."
+			);
+		}
 
-    const agentInstance = this.agents.get(targetAgent);
-    if (!agentInstance) {
-      const firstAgent = this.agents.values().next().value;
-      console.warn(`Agent '${targetAgent}' not found, using fallback agent`);
-      return firstAgent;
-    }
+		const agentInstance = this.agents.get(targetAgent);
+		if (!agentInstance) {
+			const firstAgent = this.agents.values().next().value;
+			console.warn(`Agent '${targetAgent}' not found, using fallback agent`);
+			return firstAgent;
+		}
 
-    return agentInstance;
-  }
+		return agentInstance;
+	}
 
-  /**
-   * Handle errors and send them to the client
-   */
-  onError(error: unknown): void {
-    // Check if this is an authentication error
-    if (
-      error instanceof AuthenticationRequiredError ||
-      error instanceof OpenAIAPIKeyError
-    ) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      console.error("[Chat] Authentication error in onError:", errorMessage);
-    } else {
-      console.error("[Chat] Error:", error);
-    }
-  }
+	/**
+	 * Handle errors and send them to the client
+	 */
+	onError(error: unknown): void {
+		// Check if this is an authentication error
+		if (
+			error instanceof AuthenticationRequiredError ||
+			error instanceof OpenAIAPIKeyError
+		) {
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
+			console.error("[Chat] Authentication error in onError:", errorMessage);
+		} else {
+			console.error("[Chat] Error:", error);
+		}
+	}
 
-  async executeTask(description: string, _task: Schedule<string>) {
-    const messages = this.getMessages();
-    console.log("[Chat] Executing scheduled task:", description, messages);
-    // Task execution logic here if needed
-  }
+	async executeTask(description: string, _task: Schedule<string>) {
+		const messages = this.getMessages();
+		console.log("[Chat] Executing scheduled task:", description, messages);
+		// Task execution logic here if needed
+	}
 }

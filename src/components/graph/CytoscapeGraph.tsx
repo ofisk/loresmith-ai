@@ -1,609 +1,609 @@
-import { useEffect, useRef, useMemo, useCallback } from "react";
 import cytoscape, { type Core, type ElementDefinition } from "cytoscape";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type {
-  CommunityGraphData,
-  CommunityNode,
-  EntityGraphData,
-  CytoscapeLayout,
+	CommunityGraphData,
+	CommunityNode,
+	CytoscapeLayout,
+	EntityGraphData,
 } from "@/types/graph-visualization";
 import { GraphNavigationControls } from "./GraphNavigationControls";
 
 interface CytoscapeGraphProps {
-  data: CommunityGraphData | EntityGraphData;
-  layout?: CytoscapeLayout;
-  onNodeClick?: (nodeId: string) => void;
-  highlightedNodes?: string[];
-  className?: string;
-  style?: React.CSSProperties;
+	data: CommunityGraphData | EntityGraphData;
+	layout?: CytoscapeLayout;
+	onNodeClick?: (nodeId: string) => void;
+	highlightedNodes?: string[];
+	className?: string;
+	style?: React.CSSProperties;
 }
 
 export function CytoscapeGraph({
-  data,
-  layout = "cose",
-  onNodeClick,
-  highlightedNodes = [],
-  className = "",
-  style,
+	data,
+	layout = "cose",
+	onNodeClick,
+	highlightedNodes = [],
+	className = "",
+	style,
 }: CytoscapeGraphProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const cyRef = useRef<Core | null>(null);
-  const layoutRef = useRef<any>(null);
-  const isReadyRef = useRef<boolean>(false);
-  const isDestroyingRef = useRef<boolean>(false);
-  const previousDataKeyRef = useRef<string>("");
-  const onNodeClickRef = useRef(onNodeClick);
-  const highlightedNodesRef = useRef<string[]>(highlightedNodes);
+	const containerRef = useRef<HTMLDivElement>(null);
+	const cyRef = useRef<Core | null>(null);
+	const layoutRef = useRef<any>(null);
+	const isReadyRef = useRef<boolean>(false);
+	const isDestroyingRef = useRef<boolean>(false);
+	const previousDataKeyRef = useRef<string>("");
+	const onNodeClickRef = useRef(onNodeClick);
+	const highlightedNodesRef = useRef<string[]>(highlightedNodes);
 
-  // Keep refs in sync with props
-  useEffect(() => {
-    onNodeClickRef.current = onNodeClick;
-  }, [onNodeClick]);
-  useEffect(() => {
-    highlightedNodesRef.current = highlightedNodes;
-  }, [highlightedNodes]);
+	// Keep refs in sync with props
+	useEffect(() => {
+		onNodeClickRef.current = onNodeClick;
+	}, [onNodeClick]);
+	useEffect(() => {
+		highlightedNodesRef.current = highlightedNodes;
+	}, [highlightedNodes]);
 
-  // Create a stable key from the data to prevent unnecessary re-renders
-  const dataKey = useMemo(() => {
-    if ("communityId" in data) {
-      const entityData = data as EntityGraphData;
-      return `entity:${entityData.communityId}:${entityData.nodes.length}:${entityData.edges.length}:${entityData.nodes
-        .map((n) => n.id)
-        .sort()
-        .join(",")}:${entityData.edges
-        .map((e) => `${e.source}-${e.target}`)
-        .sort()
-        .join(",")}`;
-    } else {
-      const communityData = data as CommunityGraphData;
-      return `community:${communityData.nodes.length}:${communityData.edges.length}:${communityData.nodes
-        .map((n) => n.id)
-        .sort()
-        .join(",")}:${communityData.edges
-        .map((e) => `${e.source}-${e.target}`)
-        .sort()
-        .join(",")}`;
-    }
-  }, [data]);
+	// Create a stable key from the data to prevent unnecessary re-renders
+	const dataKey = useMemo(() => {
+		if ("communityId" in data) {
+			const entityData = data as EntityGraphData;
+			return `entity:${entityData.communityId}:${entityData.nodes.length}:${entityData.edges.length}:${entityData.nodes
+				.map((n) => n.id)
+				.sort()
+				.join(",")}:${entityData.edges
+				.map((e) => `${e.source}-${e.target}`)
+				.sort()
+				.join(",")}`;
+		} else {
+			const communityData = data as CommunityGraphData;
+			return `community:${communityData.nodes.length}:${communityData.edges.length}:${communityData.nodes
+				.map((n) => n.id)
+				.sort()
+				.join(",")}:${communityData.edges
+				.map((e) => `${e.source}-${e.target}`)
+				.sort()
+				.join(",")}`;
+		}
+	}, [data]);
 
-  // Convert graph data to Cytoscape elements
-  const elements = useMemo<ElementDefinition[]>(() => {
-    console.log("[CytoscapeGraph] Converting data to elements:", {
-      hasData: !!data,
-      isEntityGraph: "communityId" in data,
-      nodeCount:
-        "communityId" in data
-          ? (data as EntityGraphData).nodes.length
-          : (data as CommunityGraphData).nodes.length,
-      edgeCount:
-        "communityId" in data
-          ? (data as EntityGraphData).edges.length
-          : (data as CommunityGraphData).edges.length,
-    });
+	// Convert graph data to Cytoscape elements
+	const elements = useMemo<ElementDefinition[]>(() => {
+		console.log("[CytoscapeGraph] Converting data to elements:", {
+			hasData: !!data,
+			isEntityGraph: "communityId" in data,
+			nodeCount:
+				"communityId" in data
+					? (data as EntityGraphData).nodes.length
+					: (data as CommunityGraphData).nodes.length,
+			edgeCount:
+				"communityId" in data
+					? (data as EntityGraphData).edges.length
+					: (data as CommunityGraphData).edges.length,
+		});
 
-    const els: ElementDefinition[] = [];
+		const els: ElementDefinition[] = [];
 
-    if ("communityId" in data) {
-      // Entity-level graph
-      const entityData = data as EntityGraphData;
-      for (const node of entityData.nodes) {
-        // Truncate long labels to prevent overflow
-        const maxLabelLength = 40;
-        const truncatedLabel =
-          node.name.length > maxLabelLength
-            ? `${node.name.substring(0, maxLabelLength)}...`
-            : node.name;
+		if ("communityId" in data) {
+			// Entity-level graph
+			const entityData = data as EntityGraphData;
+			for (const node of entityData.nodes) {
+				// Truncate long labels to prevent overflow
+				const maxLabelLength = 40;
+				const truncatedLabel =
+					node.name.length > maxLabelLength
+						? `${node.name.substring(0, maxLabelLength)}...`
+						: node.name;
 
-        els.push({
-          data: {
-            id: node.id,
-            label: truncatedLabel,
-            entityType: node.entityType,
-            importance: node.importance,
-            fullName: node.name, // Keep original for tooltips if needed
-            isEntityNode: true, // Same display as orphan nodes (ellipse, dashed)
-          },
-        });
-      }
-      for (const edge of entityData.edges) {
-        els.push({
-          data: {
-            id: edge.id,
-            source: edge.source,
-            target: edge.target,
-            relationshipType: edge.relationshipType,
-            strength: edge.strength,
-          },
-        });
-      }
-    } else {
-      // Community-level graph (communities + orphan entities)
-      const communityData = data as CommunityGraphData;
-      for (const node of communityData.nodes) {
-        if ("isOrphan" in node && node.isOrphan) {
-          const nodeLabel = node.name || node.id;
-          els.push({
-            data: {
-              id: node.id,
-              label: nodeLabel,
-              entityType: node.entityType,
-              isOrphan: true,
-              fullName: node.name,
-            },
-          });
-        } else {
-          const communityNode = node as CommunityNode;
-          const nodeLabel =
-            communityNode.name ||
-            `Community ${communityNode.id.slice(0, 8)} (${communityNode.size})`;
-          els.push({
-            data: {
-              id: communityNode.id,
-              label: nodeLabel,
-              size: communityNode.size,
-              entityTypes: communityNode.entityTypes,
-              level: communityNode.level,
-              summary: communityNode.summary,
-              fullName: communityNode.name || nodeLabel,
-            },
-          });
-        }
-      }
-      for (const edge of communityData.edges) {
-        els.push({
-          data: {
-            id: edge.id,
-            source: edge.source,
-            target: edge.target,
-            relationshipTypes: edge.relationshipTypes,
-            relationshipCount: edge.relationshipCount,
-            strength: edge.strength,
-          },
-        });
-      }
-    }
+				els.push({
+					data: {
+						id: node.id,
+						label: truncatedLabel,
+						entityType: node.entityType,
+						importance: node.importance,
+						fullName: node.name, // Keep original for tooltips if needed
+						isEntityNode: true, // Same display as orphan nodes (ellipse, dashed)
+					},
+				});
+			}
+			for (const edge of entityData.edges) {
+				els.push({
+					data: {
+						id: edge.id,
+						source: edge.source,
+						target: edge.target,
+						relationshipType: edge.relationshipType,
+						strength: edge.strength,
+					},
+				});
+			}
+		} else {
+			// Community-level graph (communities + orphan entities)
+			const communityData = data as CommunityGraphData;
+			for (const node of communityData.nodes) {
+				if ("isOrphan" in node && node.isOrphan) {
+					const nodeLabel = node.name || node.id;
+					els.push({
+						data: {
+							id: node.id,
+							label: nodeLabel,
+							entityType: node.entityType,
+							isOrphan: true,
+							fullName: node.name,
+						},
+					});
+				} else {
+					const communityNode = node as CommunityNode;
+					const nodeLabel =
+						communityNode.name ||
+						`Community ${communityNode.id.slice(0, 8)} (${communityNode.size})`;
+					els.push({
+						data: {
+							id: communityNode.id,
+							label: nodeLabel,
+							size: communityNode.size,
+							entityTypes: communityNode.entityTypes,
+							level: communityNode.level,
+							summary: communityNode.summary,
+							fullName: communityNode.name || nodeLabel,
+						},
+					});
+				}
+			}
+			for (const edge of communityData.edges) {
+				els.push({
+					data: {
+						id: edge.id,
+						source: edge.source,
+						target: edge.target,
+						relationshipTypes: edge.relationshipTypes,
+						relationshipCount: edge.relationshipCount,
+						strength: edge.strength,
+					},
+				});
+			}
+		}
 
-    console.log(
-      "[CytoscapeGraph] Converted to elements:",
-      els.length,
-      "total elements"
-    );
-    return els;
-  }, [data]);
+		console.log(
+			"[CytoscapeGraph] Converted to elements:",
+			els.length,
+			"total elements"
+		);
+		return els;
+	}, [data]);
 
-  // Initialize Cytoscape
-  useEffect(() => {
-    if (!containerRef.current) return;
+	// Initialize Cytoscape
+	useEffect(() => {
+		if (!containerRef.current) return;
 
-    // Ensure we have elements before initializing
-    if (elements.length === 0) {
-      console.warn(
-        "[CytoscapeGraph] No elements to render, skipping initialization"
-      );
-      return;
-    }
+		// Ensure we have elements before initializing
+		if (elements.length === 0) {
+			console.warn(
+				"[CytoscapeGraph] No elements to render, skipping initialization"
+			);
+			return;
+		}
 
-    // Skip if data hasn't actually changed
-    if (dataKey === previousDataKeyRef.current && cyRef.current) {
-      return;
-    }
+		// Skip if data hasn't actually changed
+		if (dataKey === previousDataKeyRef.current && cyRef.current) {
+			return;
+		}
 
-    previousDataKeyRef.current = dataKey;
+		previousDataKeyRef.current = dataKey;
 
-    console.log(
-      "[CytoscapeGraph] Initializing with",
-      elements.length,
-      "elements"
-    );
+		console.log(
+			"[CytoscapeGraph] Initializing with",
+			elements.length,
+			"elements"
+		);
 
-    // Destroy existing instance if any
-    if (cyRef.current) {
-      isDestroyingRef.current = true;
+		// Destroy existing instance if any
+		if (cyRef.current) {
+			isDestroyingRef.current = true;
 
-      // Stop any running layout first
-      if (layoutRef.current) {
-        try {
-          layoutRef.current.stop();
-        } catch (_error) {
-          // Ignore errors stopping layout
-        }
-        layoutRef.current = null;
-      }
+			// Stop any running layout first
+			if (layoutRef.current) {
+				try {
+					layoutRef.current.stop();
+				} catch (_error) {
+					// Ignore errors stopping layout
+				}
+				layoutRef.current = null;
+			}
 
-      try {
-        cyRef.current.destroy();
-      } catch (error) {
-        console.warn("[CytoscapeGraph] Error destroying instance:", error);
-      }
-      cyRef.current = null;
-      isReadyRef.current = false;
-      isDestroyingRef.current = false;
-    }
+			try {
+				cyRef.current.destroy();
+			} catch (error) {
+				console.warn("[CytoscapeGraph] Error destroying instance:", error);
+			}
+			cyRef.current = null;
+			isReadyRef.current = false;
+			isDestroyingRef.current = false;
+		}
 
-    // Wait for container to have dimensions
-    const container = containerRef.current;
-    const checkDimensions = () => {
-      if (container.offsetWidth > 0 && container.offsetHeight > 0) {
-        initializeCytoscape();
-      } else {
-        // Retry after a short delay
-        setTimeout(checkDimensions, 50);
-      }
-    };
+		// Wait for container to have dimensions
+		const container = containerRef.current;
+		const checkDimensions = () => {
+			if (container.offsetWidth > 0 && container.offsetHeight > 0) {
+				initializeCytoscape();
+			} else {
+				// Retry after a short delay
+				setTimeout(checkDimensions, 50);
+			}
+		};
 
-    const initializeCytoscape = () => {
-      if (!containerRef.current || elements.length === 0) return;
+		const initializeCytoscape = () => {
+			if (!containerRef.current || elements.length === 0) return;
 
-      // Use requestAnimationFrame to ensure DOM is ready
-      requestAnimationFrame(() => {
-        if (!containerRef.current || elements.length === 0) return;
+			// Use requestAnimationFrame to ensure DOM is ready
+			requestAnimationFrame(() => {
+				if (!containerRef.current || elements.length === 0) return;
 
-        try {
-          // Create new Cytoscape instance without layout first
-          const cy = cytoscape({
-            container: containerRef.current,
-            elements,
-            style: [
-              {
-                selector: "node",
-                style: {
-                  "background-color": "#a78bfa",
-                  label: "data(label)",
-                  "text-valign": "center",
-                  "text-halign": "center",
-                  "font-size": "10px",
-                  color: "#4b5563",
-                  width: 120,
-                  height: 60,
-                  "text-wrap": "wrap",
-                  "text-max-width": "110px",
-                  padding: "8px",
-                  shape: "round-rectangle",
-                  "border-width": "1px",
-                  "border-color": "#9ca3af",
-                },
-              },
-              {
-                selector: "edge",
-                style: {
-                  width: 2,
-                  "line-color": "#9ca3af",
-                  "target-arrow-color": "#9ca3af",
-                  "target-arrow-shape": "triangle",
-                  "curve-style": "bezier",
-                  label: "data(relationshipType)",
-                  "font-size": "10px",
-                  "text-rotation": "autorotate",
-                  "text-margin-y": -10,
-                  "text-background-color": "#fff",
-                  "text-background-opacity": 0.8,
-                  "text-background-padding": "2px",
-                  "text-border-color": "#ccc",
-                  "text-border-width": 1,
-                  "text-border-opacity": 0.5,
-                  color: "#333",
-                },
-              },
-              {
-                selector: "node:selected",
-                style: {
-                  "background-color": "#0074D9",
-                  "border-width": 3,
-                  "border-color": "#0059B3",
-                },
-              },
-              {
-                selector: "node[isOrphan], node[isEntityNode]",
-                style: {
-                  shape: "ellipse",
-                  "background-color": "#8b5cf6",
-                  "border-width": "1px",
-                  "border-color": "#9ca3af",
-                  color: "#374151",
-                },
-              },
-              // Highlighted style must come after orphan/entity so it overrides (Cytoscape uses last match)
-              {
-                selector: "node.highlighted",
-                style: {
-                  "background-color": "#FFD700",
-                  "border-width": 3,
-                  "border-color": "#FFA500",
-                },
-              },
-              {
-                selector:
-                  "node.highlighted[isOrphan], node.highlighted[isEntityNode]",
-                style: {
-                  "background-color": "#FFD700",
-                  "border-width": 3,
-                  "border-color": "#FFA500",
-                },
-              },
-            ],
-            // Don't set layout during initialization - run it after ready
-            layout: {
-              name: "preset",
-            },
-          });
+				try {
+					// Create new Cytoscape instance without layout first
+					const cy = cytoscape({
+						container: containerRef.current,
+						elements,
+						style: [
+							{
+								selector: "node",
+								style: {
+									"background-color": "#a78bfa",
+									label: "data(label)",
+									"text-valign": "center",
+									"text-halign": "center",
+									"font-size": "10px",
+									color: "#4b5563",
+									width: 120,
+									height: 60,
+									"text-wrap": "wrap",
+									"text-max-width": "110px",
+									padding: "8px",
+									shape: "round-rectangle",
+									"border-width": "1px",
+									"border-color": "#9ca3af",
+								},
+							},
+							{
+								selector: "edge",
+								style: {
+									width: 2,
+									"line-color": "#9ca3af",
+									"target-arrow-color": "#9ca3af",
+									"target-arrow-shape": "triangle",
+									"curve-style": "bezier",
+									label: "data(relationshipType)",
+									"font-size": "10px",
+									"text-rotation": "autorotate",
+									"text-margin-y": -10,
+									"text-background-color": "#fff",
+									"text-background-opacity": 0.8,
+									"text-background-padding": "2px",
+									"text-border-color": "#ccc",
+									"text-border-width": 1,
+									"text-border-opacity": 0.5,
+									color: "#333",
+								},
+							},
+							{
+								selector: "node:selected",
+								style: {
+									"background-color": "#0074D9",
+									"border-width": 3,
+									"border-color": "#0059B3",
+								},
+							},
+							{
+								selector: "node[isOrphan], node[isEntityNode]",
+								style: {
+									shape: "ellipse",
+									"background-color": "#8b5cf6",
+									"border-width": "1px",
+									"border-color": "#9ca3af",
+									color: "#374151",
+								},
+							},
+							// Highlighted style must come after orphan/entity so it overrides (Cytoscape uses last match)
+							{
+								selector: "node.highlighted",
+								style: {
+									"background-color": "#FFD700",
+									"border-width": 3,
+									"border-color": "#FFA500",
+								},
+							},
+							{
+								selector:
+									"node.highlighted[isOrphan], node.highlighted[isEntityNode]",
+								style: {
+									"background-color": "#FFD700",
+									"border-width": 3,
+									"border-color": "#FFA500",
+								},
+							},
+						],
+						// Don't set layout during initialization - run it after ready
+						layout: {
+							name: "preset",
+						},
+					});
 
-          cyRef.current = cy;
+					cyRef.current = cy;
 
-          // Expose Cytoscape instance on container for export operations
-          if (containerRef.current) {
-            (containerRef.current as any).__cytoscape = cy;
-          }
+					// Expose Cytoscape instance on container for export operations
+					if (containerRef.current) {
+						(containerRef.current as any).__cytoscape = cy;
+					}
 
-          // Handle node clicks
-          cy.on("tap", "node", (evt) => {
-            const nodeId = evt.target.id();
-            if (onNodeClickRef.current) {
-              onNodeClickRef.current(nodeId);
-            }
-          });
+					// Handle node clicks
+					cy.on("tap", "node", (evt) => {
+						const nodeId = evt.target.id();
+						if (onNodeClickRef.current) {
+							onNodeClickRef.current(nodeId);
+						}
+					});
 
-          // Run layout after instance is ready
-          cy.ready(() => {
-            // Double-check instance is still valid
-            if (!cyRef.current || cyRef.current !== cy) return;
+					// Run layout after instance is ready
+					cy.ready(() => {
+						// Double-check instance is still valid
+						if (!cyRef.current || cyRef.current !== cy) return;
 
-            // Check if container is still valid
-            try {
-              if (!cy.container()) return;
-            } catch (_error) {
-              return;
-            }
+						// Check if container is still valid
+						try {
+							if (!cy.container()) return;
+						} catch (_error) {
+							return;
+						}
 
-            // Ensure we have elements
-            if (cy.elements().length === 0) {
-              isReadyRef.current = true;
-              return;
-            }
+						// Ensure we have elements
+						if (cy.elements().length === 0) {
+							isReadyRef.current = true;
+							return;
+						}
 
-            // Small delay to ensure everything is settled
-            setTimeout(() => {
-              // Don't run if we're destroying
-              if (isDestroyingRef.current) return;
+						// Small delay to ensure everything is settled
+						setTimeout(() => {
+							// Don't run if we're destroying
+							if (isDestroyingRef.current) return;
 
-              // Double-check again after delay
-              if (!cyRef.current || cyRef.current !== cy) return;
+							// Double-check again after delay
+							if (!cyRef.current || cyRef.current !== cy) return;
 
-              try {
-                if (!cy.container()) return;
-              } catch (_error) {
-                return;
-              }
+							try {
+								if (!cy.container()) return;
+							} catch (_error) {
+								return;
+							}
 
-              isReadyRef.current = true;
+							isReadyRef.current = true;
 
-              // Stop any existing layout
-              if (layoutRef.current) {
-                try {
-                  layoutRef.current.stop();
-                } catch (_error) {
-                  // Ignore errors stopping layout
-                }
-                layoutRef.current = null;
-              }
+							// Stop any existing layout
+							if (layoutRef.current) {
+								try {
+									layoutRef.current.stop();
+								} catch (_error) {
+									// Ignore errors stopping layout
+								}
+								layoutRef.current = null;
+							}
 
-              try {
-                const layoutInstance = cy.layout({
-                  name: layout,
-                });
-                layoutRef.current = layoutInstance;
-                layoutInstance.run();
-              } catch (layoutError) {
-                console.warn(
-                  "[CytoscapeGraph] Error running layout:",
-                  layoutError
-                );
-                // Fallback to a simple layout if the requested one fails
-                try {
-                  const fallbackLayout = cy.layout({ name: "grid" });
-                  layoutRef.current = fallbackLayout;
-                  fallbackLayout.run();
-                } catch (fallbackError) {
-                  console.error(
-                    "[CytoscapeGraph] Error running fallback layout:",
-                    fallbackError
-                  );
-                }
-              }
+							try {
+								const layoutInstance = cy.layout({
+									name: layout,
+								});
+								layoutRef.current = layoutInstance;
+								layoutInstance.run();
+							} catch (layoutError) {
+								console.warn(
+									"[CytoscapeGraph] Error running layout:",
+									layoutError
+								);
+								// Fallback to a simple layout if the requested one fails
+								try {
+									const fallbackLayout = cy.layout({ name: "grid" });
+									layoutRef.current = fallbackLayout;
+									fallbackLayout.run();
+								} catch (fallbackError) {
+									console.error(
+										"[CytoscapeGraph] Error running fallback layout:",
+										fallbackError
+									);
+								}
+							}
 
-              // Re-apply highlights when graph is ready (in case search ran before/during re-init)
-              const ids = highlightedNodesRef.current;
-              if (ids.length > 0) {
-                cy.elements().removeClass("highlighted");
-                const toHighlight = cy
-                  .elements()
-                  .filter((ele) => ids.includes(ele.id()));
-                toHighlight.addClass("highlighted");
-              }
-            }, 100);
-          });
-        } catch (error) {
-          console.error(
-            "[CytoscapeGraph] Error initializing Cytoscape:",
-            error
-          );
-        }
-      });
-    };
+							// Re-apply highlights when graph is ready (in case search ran before/during re-init)
+							const ids = highlightedNodesRef.current;
+							if (ids.length > 0) {
+								cy.elements().removeClass("highlighted");
+								const toHighlight = cy
+									.elements()
+									.filter((ele) => ids.includes(ele.id()));
+								toHighlight.addClass("highlighted");
+							}
+						}, 100);
+					});
+				} catch (error) {
+					console.error(
+						"[CytoscapeGraph] Error initializing Cytoscape:",
+						error
+					);
+				}
+			});
+		};
 
-    // Start checking dimensions
-    checkDimensions();
+		// Start checking dimensions
+		checkDimensions();
 
-    // Cleanup on unmount
-    return () => {
-      // Stop any running layout
-      if (layoutRef.current) {
-        try {
-          layoutRef.current.stop();
-        } catch (_error) {
-          // Ignore errors stopping layout
-        }
-        layoutRef.current = null;
-      }
+		// Cleanup on unmount
+		return () => {
+			// Stop any running layout
+			if (layoutRef.current) {
+				try {
+					layoutRef.current.stop();
+				} catch (_error) {
+					// Ignore errors stopping layout
+				}
+				layoutRef.current = null;
+			}
 
-      if (containerRef.current) {
-        delete (containerRef.current as any).__cytoscape;
-      }
-      if (cyRef.current) {
-        try {
-          cyRef.current.destroy();
-        } catch (_error) {
-          console.warn("[CytoscapeGraph] Error during cleanup:", _error);
-        }
-        cyRef.current = null;
-      }
-      isReadyRef.current = false;
-    };
-  }, [dataKey, elements, layout]);
+			if (containerRef.current) {
+				delete (containerRef.current as any).__cytoscape;
+			}
+			if (cyRef.current) {
+				try {
+					cyRef.current.destroy();
+				} catch (_error) {
+					console.warn("[CytoscapeGraph] Error during cleanup:", _error);
+				}
+				cyRef.current = null;
+			}
+			isReadyRef.current = false;
+		};
+	}, [dataKey, elements, layout]);
 
-  // Handle layout changes
-  useEffect(() => {
-    // Don't run layout changes until instance is ready or if we're destroying
-    if (!cyRef.current || !isReadyRef.current || isDestroyingRef.current)
-      return;
+	// Handle layout changes
+	useEffect(() => {
+		// Don't run layout changes until instance is ready or if we're destroying
+		if (!cyRef.current || !isReadyRef.current || isDestroyingRef.current)
+			return;
 
-    const cy = cyRef.current;
+		const cy = cyRef.current;
 
-    // Check if instance is still valid
-    try {
-      // Test if instance is still valid by checking container
-      if (!cy.container()) {
-        isReadyRef.current = false;
-        return;
-      }
-    } catch (_error) {
-      // Instance is destroyed or invalid
-      isReadyRef.current = false;
-      return;
-    }
+		// Check if instance is still valid
+		try {
+			// Test if instance is still valid by checking container
+			if (!cy.container()) {
+				isReadyRef.current = false;
+				return;
+			}
+		} catch (_error) {
+			// Instance is destroyed or invalid
+			isReadyRef.current = false;
+			return;
+		}
 
-    // Stop any existing layout
-    if (layoutRef.current) {
-      try {
-        layoutRef.current.stop();
-      } catch (_error) {
-        // Ignore errors stopping layout
-      }
-      layoutRef.current = null;
-    }
+		// Stop any existing layout
+		if (layoutRef.current) {
+			try {
+				layoutRef.current.stop();
+			} catch (_error) {
+				// Ignore errors stopping layout
+			}
+			layoutRef.current = null;
+		}
 
-    // Run new layout
-    try {
-      const layoutInstance = cy.layout({
-        name: layout,
-      });
-      layoutRef.current = layoutInstance;
-      layoutInstance.run();
-    } catch (layoutError) {
-      console.warn("[CytoscapeGraph] Error running layout:", layoutError);
-      // Fallback to a simple layout if the requested one fails
-      try {
-        const fallbackLayout = cy.layout({ name: "grid" });
-        layoutRef.current = fallbackLayout;
-        fallbackLayout.run();
-      } catch (fallbackError) {
-        console.error(
-          "[CytoscapeGraph] Error running fallback layout:",
-          fallbackError
-        );
-      }
-    }
-  }, [layout]);
+		// Run new layout
+		try {
+			const layoutInstance = cy.layout({
+				name: layout,
+			});
+			layoutRef.current = layoutInstance;
+			layoutInstance.run();
+		} catch (layoutError) {
+			console.warn("[CytoscapeGraph] Error running layout:", layoutError);
+			// Fallback to a simple layout if the requested one fails
+			try {
+				const fallbackLayout = cy.layout({ name: "grid" });
+				layoutRef.current = fallbackLayout;
+				fallbackLayout.run();
+			} catch (fallbackError) {
+				console.error(
+					"[CytoscapeGraph] Error running fallback layout:",
+					fallbackError
+				);
+			}
+		}
+	}, [layout]);
 
-  // Update highlighted nodes
-  useEffect(() => {
-    if (!cyRef.current) return;
+	// Update highlighted nodes
+	useEffect(() => {
+		if (!cyRef.current) return;
 
-    const cy = cyRef.current;
+		const cy = cyRef.current;
 
-    // Check if instance is still valid
-    try {
-      if (!cy.container()) return;
-    } catch (_error) {
-      return;
-    }
+		// Check if instance is still valid
+		try {
+			if (!cy.container()) return;
+		} catch (_error) {
+			return;
+		}
 
-    cy.elements().removeClass("highlighted");
-    if (highlightedNodes.length > 0) {
-      const highlightedElements = cy
-        .elements()
-        .filter((ele) => highlightedNodes.includes(ele.id()));
-      highlightedElements.addClass("highlighted");
-    }
-  }, [highlightedNodes]);
+		cy.elements().removeClass("highlighted");
+		if (highlightedNodes.length > 0) {
+			const highlightedElements = cy
+				.elements()
+				.filter((ele) => highlightedNodes.includes(ele.id()));
+			highlightedElements.addClass("highlighted");
+		}
+	}, [highlightedNodes]);
 
-  // Navigation handlers
-  const handleZoomIn = useCallback(() => {
-    if (!cyRef.current) return;
-    const cy = cyRef.current;
-    const currentZoom = cy.zoom();
-    cy.zoom({
-      level: currentZoom * 1.2,
-      renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
-    });
-  }, []);
+	// Navigation handlers
+	const handleZoomIn = useCallback(() => {
+		if (!cyRef.current) return;
+		const cy = cyRef.current;
+		const currentZoom = cy.zoom();
+		cy.zoom({
+			level: currentZoom * 1.2,
+			renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+		});
+	}, []);
 
-  const handleZoomOut = useCallback(() => {
-    if (!cyRef.current) return;
-    const cy = cyRef.current;
-    const currentZoom = cy.zoom();
-    cy.zoom({
-      level: currentZoom * 0.8,
-      renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
-    });
-  }, []);
+	const handleZoomOut = useCallback(() => {
+		if (!cyRef.current) return;
+		const cy = cyRef.current;
+		const currentZoom = cy.zoom();
+		cy.zoom({
+			level: currentZoom * 0.8,
+			renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+		});
+	}, []);
 
-  const handlePanUp = useCallback(() => {
-    if (!cyRef.current) return;
-    const cy = cyRef.current;
-    const pan = cy.pan();
-    cy.pan({ x: pan.x, y: pan.y + 50 });
-  }, []);
+	const handlePanUp = useCallback(() => {
+		if (!cyRef.current) return;
+		const cy = cyRef.current;
+		const pan = cy.pan();
+		cy.pan({ x: pan.x, y: pan.y + 50 });
+	}, []);
 
-  const handlePanDown = useCallback(() => {
-    if (!cyRef.current) return;
-    const cy = cyRef.current;
-    const pan = cy.pan();
-    cy.pan({ x: pan.x, y: pan.y - 50 });
-  }, []);
+	const handlePanDown = useCallback(() => {
+		if (!cyRef.current) return;
+		const cy = cyRef.current;
+		const pan = cy.pan();
+		cy.pan({ x: pan.x, y: pan.y - 50 });
+	}, []);
 
-  const handlePanLeft = useCallback(() => {
-    if (!cyRef.current) return;
-    const cy = cyRef.current;
-    const pan = cy.pan();
-    cy.pan({ x: pan.x + 50, y: pan.y });
-  }, []);
+	const handlePanLeft = useCallback(() => {
+		if (!cyRef.current) return;
+		const cy = cyRef.current;
+		const pan = cy.pan();
+		cy.pan({ x: pan.x + 50, y: pan.y });
+	}, []);
 
-  const handlePanRight = useCallback(() => {
-    if (!cyRef.current) return;
-    const cy = cyRef.current;
-    const pan = cy.pan();
-    cy.pan({ x: pan.x - 50, y: pan.y });
-  }, []);
+	const handlePanRight = useCallback(() => {
+		if (!cyRef.current) return;
+		const cy = cyRef.current;
+		const pan = cy.pan();
+		cy.pan({ x: pan.x - 50, y: pan.y });
+	}, []);
 
-  return (
-    <div className="relative w-full h-full" style={{ minHeight: "400px" }}>
-      <div
-        ref={containerRef}
-        data-cytoscape-container
-        className={className}
-        style={{
-          width: "100%",
-          height: "100%",
-          ...style,
-        }}
-      />
-      <GraphNavigationControls
-        onZoomIn={handleZoomIn}
-        onZoomOut={handleZoomOut}
-        onPanUp={handlePanUp}
-        onPanDown={handlePanDown}
-        onPanLeft={handlePanLeft}
-        onPanRight={handlePanRight}
-      />
-    </div>
-  );
+	return (
+		<div className="relative w-full h-full" style={{ minHeight: "400px" }}>
+			<div
+				ref={containerRef}
+				data-cytoscape-container
+				className={className}
+				style={{
+					width: "100%",
+					height: "100%",
+					...style,
+				}}
+			/>
+			<GraphNavigationControls
+				onZoomIn={handleZoomIn}
+				onZoomOut={handleZoomOut}
+				onPanUp={handlePanUp}
+				onPanDown={handlePanDown}
+				onPanLeft={handlePanLeft}
+				onPanRight={handlePanRight}
+			/>
+		</div>
+	);
 }

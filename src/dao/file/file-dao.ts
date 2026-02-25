@@ -1,1267 +1,1267 @@
 import type {
-  D1Database,
-  R2Bucket,
-  VectorizeIndex,
+	D1Database,
+	R2Bucket,
+	VectorizeIndex,
 } from "@cloudflare/workers-types";
+import { LibraryRAGService } from "@/services/rag/rag-service";
 import { BaseDAOClass } from "../base-dao";
 import { FileProcessingChunksDAO } from "./file-processing-chunks-dao";
-import { LibraryRAGService } from "@/services/rag/rag-service";
 
 export interface FileMetadata {
-  id: string;
-  file_key: string;
-  file_name: string;
-  display_name?: string;
-  username: string;
-  file_size: number;
-  content_type: string;
-  description?: string;
-  tags?: string;
-  vector_id?: string;
-  chunk_count?: number;
-  created_at: string;
-  updated_at: string;
-  content_summary?: string;
-  key_topics?: string;
-  content_type_categories?: string;
-  difficulty_level?: string;
-  target_audience?: string;
-  campaign_themes?: string;
-  recommended_campaign_types?: string;
-  content_quality_score?: number;
-  last_analyzed_at?: string;
-  analysis_status?: string;
-  analysis_error?: string;
+	id: string;
+	file_key: string;
+	file_name: string;
+	display_name?: string;
+	username: string;
+	file_size: number;
+	content_type: string;
+	description?: string;
+	tags?: string;
+	vector_id?: string;
+	chunk_count?: number;
+	created_at: string;
+	updated_at: string;
+	content_summary?: string;
+	key_topics?: string;
+	content_type_categories?: string;
+	difficulty_level?: string;
+	target_audience?: string;
+	campaign_themes?: string;
+	recommended_campaign_types?: string;
+	content_quality_score?: number;
+	last_analyzed_at?: string;
+	analysis_status?: string;
+	analysis_error?: string;
 }
 
 // Interface for parsed file metadata (with tags as array)
 export interface ParsedFileMetadata extends Omit<FileMetadata, "tags"> {
-  tags: string[];
+	tags: string[];
 }
 
 export interface PDFChunk {
-  id: string;
-  file_key: string;
-  username: string;
-  chunk_index: number;
-  chunk_text: string;
-  embedding_id?: string;
-  metadata?: string;
-  created_at: string;
+	id: string;
+	file_key: string;
+	username: string;
+	chunk_index: number;
+	chunk_text: string;
+	embedding_id?: string;
+	metadata?: string;
+	created_at: string;
 }
 
 export interface FileWithChunks extends ParsedFileMetadata {
-  chunks: PDFChunk[];
+	chunks: PDFChunk[];
 }
 
 export class FileDAO extends BaseDAOClass {
-  private readonly processingChunksDAO: FileProcessingChunksDAO;
+	private readonly processingChunksDAO: FileProcessingChunksDAO;
 
-  constructor(db: D1Database) {
-    super(db);
-    this.processingChunksDAO = new FileProcessingChunksDAO(db);
-  }
+	constructor(db: D1Database) {
+		super(db);
+		this.processingChunksDAO = new FileProcessingChunksDAO(db);
+	}
 
-  // File status constants
-  static readonly STATUS = {
-    // Upload flow statuses
-    UPLOADING: "uploading", // File is being uploaded to R2
-    UPLOADED: "uploaded", // File uploaded to R2, ready for indexing
-    SYNCING: "syncing", // Indexing job started
-    PROCESSING: "processing", // File is being processed
-    INDEXING: "indexing", // File is being indexed
-    COMPLETED: "completed", // File is fully indexed and searchable
-    ERROR: "error", // Error occurred at any step
-    UNINDEXED: "unindexed", // File uploaded but not indexed (legacy)
-  } as const;
-  /**
-   * Helper function to parse tags from JSON string to array
-   * @param tags - The tags field from the database (JSON string or null)
-   * @param fileKey - The file key for error logging
-   * @returns Parsed tags array or empty array if parsing fails
-   */
-  private parseTags(tags: string | null, fileKey: string): string[] {
-    if (!tags) return [];
+	// File status constants
+	static readonly STATUS = {
+		// Upload flow statuses
+		UPLOADING: "uploading", // File is being uploaded to R2
+		UPLOADED: "uploaded", // File uploaded to R2, ready for indexing
+		SYNCING: "syncing", // Indexing job started
+		PROCESSING: "processing", // File is being processed
+		INDEXING: "indexing", // File is being indexed
+		COMPLETED: "completed", // File is fully indexed and searchable
+		ERROR: "error", // Error occurred at any step
+		UNINDEXED: "unindexed", // File uploaded but not indexed (legacy)
+	} as const;
+	/**
+	 * Helper function to parse tags from JSON string to array
+	 * @param tags - The tags field from the database (JSON string or null)
+	 * @param fileKey - The file key for error logging
+	 * @returns Parsed tags array or empty array if parsing fails
+	 */
+	private parseTags(tags: string | null, fileKey: string): string[] {
+		if (!tags) return [];
 
-    try {
-      return JSON.parse(tags);
-    } catch (error) {
-      console.warn(
-        `[FileDAO] Failed to parse tags for file ${fileKey}:`,
-        error
-      );
-      return [];
-    }
-  }
+		try {
+			return JSON.parse(tags);
+		} catch (error) {
+			console.warn(
+				`[FileDAO] Failed to parse tags for file ${fileKey}:`,
+				error
+			);
+			return [];
+		}
+	}
 
-  /**
-   * Helper function to query file metadata and parse tags
-   * @param sql - SQL query to execute
-   * @param params - Query parameters
-   * @returns Parsed file metadata or null if not found
-   */
-  private async queryAndParseFileMetadata(
-    sql: string,
-    params: any[]
-  ): Promise<ParsedFileMetadata | null> {
-    const file = await this.queryFirst<FileMetadata>(sql, params);
+	/**
+	 * Helper function to query file metadata and parse tags
+	 * @param sql - SQL query to execute
+	 * @param params - Query parameters
+	 * @returns Parsed file metadata or null if not found
+	 */
+	private async queryAndParseFileMetadata(
+		sql: string,
+		params: any[]
+	): Promise<ParsedFileMetadata | null> {
+		const file = await this.queryFirst<FileMetadata>(sql, params);
 
-    if (!file) return null;
+		if (!file) return null;
 
-    return {
-      ...file,
-      tags: this.parseTags(file.tags || null, file.file_key),
-    };
-  }
+		return {
+			...file,
+			tags: this.parseTags(file.tags || null, file.file_key),
+		};
+	}
 
-  /**
-   * Helper function to query multiple file metadata records and parse tags
-   * @param sql - SQL query to execute
-   * @param params - Query parameters
-   * @returns Array of parsed file metadata
-   */
-  private async queryAndParseMultipleFileMetadata(
-    sql: string,
-    params: any[]
-  ): Promise<ParsedFileMetadata[]> {
-    const files = await this.queryAll<FileMetadata>(sql, params);
+	/**
+	 * Helper function to query multiple file metadata records and parse tags
+	 * @param sql - SQL query to execute
+	 * @param params - Query parameters
+	 * @returns Array of parsed file metadata
+	 */
+	private async queryAndParseMultipleFileMetadata(
+		sql: string,
+		params: any[]
+	): Promise<ParsedFileMetadata[]> {
+		const files = await this.queryAll<FileMetadata>(sql, params);
 
-    return files.map((file) => ({
-      ...file,
-      tags: this.parseTags(file.tags || null, file.file_key),
-    }));
-  }
-  async createFileMetadata(
-    id: string,
-    fileKey: string,
-    file_name: string,
-    username: string,
-    fileSize: number,
-    contentType: string,
-    description?: string,
-    tags?: string
-  ): Promise<void> {
-    const sql = `
+		return files.map((file) => ({
+			...file,
+			tags: this.parseTags(file.tags || null, file.file_key),
+		}));
+	}
+	async createFileMetadata(
+		id: string,
+		fileKey: string,
+		file_name: string,
+		username: string,
+		fileSize: number,
+		contentType: string,
+		description?: string,
+		tags?: string
+	): Promise<void> {
+		const sql = `
       INSERT OR REPLACE INTO file_metadata (
         id, file_key, file_name, username, file_size, content_type,
         description, tags, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `;
-    await this.execute(sql, [
-      id,
-      fileKey,
-      file_name,
-      username,
-      fileSize,
-      contentType,
-      description,
-      tags,
-    ]);
-  }
+		await this.execute(sql, [
+			id,
+			fileKey,
+			file_name,
+			username,
+			fileSize,
+			contentType,
+			description,
+			tags,
+		]);
+	}
 
-  async getFileMetadata(fileKey: string): Promise<ParsedFileMetadata | null> {
-    const sql = "SELECT * FROM file_metadata WHERE file_key = ?";
-    return this.queryAndParseFileMetadata(sql, [fileKey]);
-  }
+	async getFileMetadata(fileKey: string): Promise<ParsedFileMetadata | null> {
+		const sql = "SELECT * FROM file_metadata WHERE file_key = ?";
+		return this.queryAndParseFileMetadata(sql, [fileKey]);
+	}
 
-  async getFileMetadataById(id: string): Promise<ParsedFileMetadata | null> {
-    const sql = "SELECT * FROM file_metadata WHERE id = ?";
-    return this.queryAndParseFileMetadata(sql, [id]);
-  }
+	async getFileMetadataById(id: string): Promise<ParsedFileMetadata | null> {
+		const sql = "SELECT * FROM file_metadata WHERE id = ?";
+		return this.queryAndParseFileMetadata(sql, [id]);
+	}
 
-  /**
-   * Check if a file with the given name exists for the user
-   * @param username - The username
-   * @param fileName - The file name to check
-   * @returns True if a file with this name exists
-   */
-  async fileExistsForUser(
-    username: string,
-    fileName: string
-  ): Promise<boolean> {
-    const sql = `
+	/**
+	 * Check if a file with the given name exists for the user
+	 * @param username - The username
+	 * @param fileName - The file name to check
+	 * @returns True if a file with this name exists
+	 */
+	async fileExistsForUser(
+		username: string,
+		fileName: string
+	): Promise<boolean> {
+		const sql = `
       SELECT COUNT(*) as count
       FROM file_metadata
       WHERE username = ? AND file_name = ?
     `;
-    const result = await this.queryFirst(sql, [username, fileName]);
-    return (result?.count as number) > 0;
-  }
+		const result = await this.queryFirst(sql, [username, fileName]);
+		return (result?.count as number) > 0;
+	}
 
-  /**
-   * Check if a display name exists for the user (optionally excluding a specific file)
-   * @param username - The username
-   * @param displayName - The display name to check
-   * @param excludeFileKey - Optional file key to exclude from the check (for updates)
-   * @returns True if a file with this display name exists
-   */
-  async displayNameExistsForUser(
-    username: string,
-    displayName: string,
-    excludeFileKey?: string
-  ): Promise<boolean> {
-    if (!displayName) {
-      return false; // Empty display names don't count as collisions
-    }
+	/**
+	 * Check if a display name exists for the user (optionally excluding a specific file)
+	 * @param username - The username
+	 * @param displayName - The display name to check
+	 * @param excludeFileKey - Optional file key to exclude from the check (for updates)
+	 * @returns True if a file with this display name exists
+	 */
+	async displayNameExistsForUser(
+		username: string,
+		displayName: string,
+		excludeFileKey?: string
+	): Promise<boolean> {
+		if (!displayName) {
+			return false; // Empty display names don't count as collisions
+		}
 
-    let sql = `
+		let sql = `
       SELECT COUNT(*) as count
       FROM file_metadata
       WHERE username = ? AND display_name = ?
     `;
-    const params: unknown[] = [username, displayName];
+		const params: unknown[] = [username, displayName];
 
-    if (excludeFileKey) {
-      sql += ` AND file_key != ?`;
-      params.push(excludeFileKey);
-    }
+		if (excludeFileKey) {
+			sql += ` AND file_key != ?`;
+			params.push(excludeFileKey);
+		}
 
-    const result = await this.queryFirst(sql, params);
-    return (result?.count as number) > 0;
-  }
+		const result = await this.queryFirst(sql, params);
+		return (result?.count as number) > 0;
+	}
 
-  async getFilesByUser(username: string): Promise<ParsedFileMetadata[]> {
-    const sql = `
+	async getFilesByUser(username: string): Promise<ParsedFileMetadata[]> {
+		const sql = `
       SELECT * FROM file_metadata 
       WHERE username = ? 
       ORDER BY created_at DESC
     `;
-    return this.queryAndParseMultipleFileMetadata(sql, [username]);
-  }
+		return this.queryAndParseMultipleFileMetadata(sql, [username]);
+	}
 
-  async getFilesByStatus(
-    username: string,
-    status: string
-  ): Promise<ParsedFileMetadata[]> {
-    const sql = `
+	async getFilesByStatus(
+		username: string,
+		status: string
+	): Promise<ParsedFileMetadata[]> {
+		const sql = `
       SELECT * FROM file_metadata 
       WHERE username = ? AND status = ?
       ORDER BY created_at DESC
     `;
-    return this.queryAndParseMultipleFileMetadata(sql, [username, status]);
-  }
+		return this.queryAndParseMultipleFileMetadata(sql, [username, status]);
+	}
 
-  /**
-   * Get all files stuck in processing status across all users
-   * Used for scheduled cleanup of stuck files
-   */
-  async getStuckProcessingFiles(
-    timeoutMinutes: number = 1
-  ): Promise<ParsedFileMetadata[]> {
-    const timeoutDate = new Date(Date.now() - timeoutMinutes * 60 * 1000);
-    const sql = `
+	/**
+	 * Get all files stuck in processing status across all users
+	 * Used for scheduled cleanup of stuck files
+	 */
+	async getStuckProcessingFiles(
+		timeoutMinutes: number = 1
+	): Promise<ParsedFileMetadata[]> {
+		const timeoutDate = new Date(Date.now() - timeoutMinutes * 60 * 1000);
+		const sql = `
       SELECT * FROM file_metadata 
       WHERE status IN (?, ?, ?, ?) AND updated_at < ?
       ORDER BY updated_at ASC
     `;
-    return this.queryAndParseMultipleFileMetadata(sql, [
-      FileDAO.STATUS.PROCESSING,
-      FileDAO.STATUS.SYNCING,
-      FileDAO.STATUS.INDEXING,
-      FileDAO.STATUS.UPLOADED,
-      timeoutDate.toISOString(),
-    ]);
-  }
+		return this.queryAndParseMultipleFileMetadata(sql, [
+			FileDAO.STATUS.PROCESSING,
+			FileDAO.STATUS.SYNCING,
+			FileDAO.STATUS.INDEXING,
+			FileDAO.STATUS.UPLOADED,
+			timeoutDate.toISOString(),
+		]);
+	}
 
-  async updateFileMetadata(
-    fileKey: string,
-    updates: Partial<
-      Pick<
-        FileMetadata,
-        "display_name" | "description" | "tags" | "vector_id" | "chunk_count"
-      >
-    >
-  ): Promise<void> {
-    const setClause = Object.keys(updates)
-      .map((key) => {
-        // Map display_name to display_name column
-        const columnName = key === "display_name" ? "display_name" : key;
-        return `${columnName} = ?`;
-      })
-      .join(", ");
+	async updateFileMetadata(
+		fileKey: string,
+		updates: Partial<
+			Pick<
+				FileMetadata,
+				"display_name" | "description" | "tags" | "vector_id" | "chunk_count"
+			>
+		>
+	): Promise<void> {
+		const setClause = Object.keys(updates)
+			.map((key) => {
+				// Map display_name to display_name column
+				const columnName = key === "display_name" ? "display_name" : key;
+				return `${columnName} = ?`;
+			})
+			.join(", ");
 
-    const sql = `
+		const sql = `
       UPDATE file_metadata 
       SET ${setClause}, updated_at = CURRENT_TIMESTAMP
       WHERE file_key = ?
     `;
 
-    const values = [...Object.values(updates), fileKey];
-    await this.execute(sql, values);
-  }
+		const values = [...Object.values(updates), fileKey];
+		await this.execute(sql, values);
+	}
 
-  async getFileIdByKeyAndUser(
-    fileKey: string,
-    username: string
-  ): Promise<any | null> {
-    const sql =
-      "SELECT id FROM file_metadata WHERE file_key = ? AND username = ?";
-    return await this.queryFirst(sql, [fileKey, username]);
-  }
+	async getFileIdByKeyAndUser(
+		fileKey: string,
+		username: string
+	): Promise<any | null> {
+		const sql =
+			"SELECT id FROM file_metadata WHERE file_key = ? AND username = ?";
+		return await this.queryFirst(sql, [fileKey, username]);
+	}
 
-  async updateFileForProcessing(
-    fileKey: string,
-    username: string,
-    file_name: string,
-    description: string,
-    tags: string,
-    fileSize: number
-  ): Promise<void> {
-    const sql = `
+	async updateFileForProcessing(
+		fileKey: string,
+		username: string,
+		file_name: string,
+		description: string,
+		tags: string,
+		fileSize: number
+	): Promise<void> {
+		const sql = `
       UPDATE file_metadata 
       SET file_name = ?, description = ?, tags = ?, status = ?, file_size = ? 
       WHERE file_key = ? AND username = ?
     `;
-    await this.execute(sql, [
-      file_name,
-      description,
-      tags,
-      "processing",
-      fileSize,
-      fileKey,
-      username,
-    ]);
-  }
+		await this.execute(sql, [
+			file_name,
+			description,
+			tags,
+			"processing",
+			fileSize,
+			fileKey,
+			username,
+		]);
+	}
 
-  async insertFileForProcessing(
-    fileKey: string,
-    file_name: string,
-    description: string,
-    tags: string,
-    username: string,
-    fileSize: number
-  ): Promise<void> {
-    const sql = `
+	async insertFileForProcessing(
+		fileKey: string,
+		file_name: string,
+		description: string,
+		tags: string,
+		username: string,
+		fileSize: number
+	): Promise<void> {
+		const sql = `
       INSERT OR REPLACE INTO file_metadata (file_key, file_name, description, tags, username, status, file_size)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
-    await this.execute(sql, [
-      fileKey,
-      file_name,
-      description,
-      tags,
-      username,
-      "processing",
-      fileSize,
-    ]);
-  }
+		await this.execute(sql, [
+			fileKey,
+			file_name,
+			description,
+			tags,
+			username,
+			"processing",
+			fileSize,
+		]);
+	}
 
-  async updateFileStatusByKey(fileKey: string, status: string): Promise<void> {
-    const sql = `
+	async updateFileStatusByKey(fileKey: string, status: string): Promise<void> {
+		const sql = `
       UPDATE file_metadata 
       SET status = ?, updated_at = CURRENT_TIMESTAMP
       WHERE file_key = ?
     `;
-    await this.execute(sql, [status, fileKey]);
-  }
+		await this.execute(sql, [status, fileKey]);
+	}
 
-  /**
-   * Mark a file as failed due to timeout
-   */
-  async markFileAsTimeoutFailed(
-    fileKey: string,
-    reason: string = "Processing timeout"
-  ): Promise<void> {
-    const sql = `
+	/**
+	 * Mark a file as failed due to timeout
+	 */
+	async markFileAsTimeoutFailed(
+		fileKey: string,
+		reason: string = "Processing timeout"
+	): Promise<void> {
+		const sql = `
       UPDATE file_metadata 
       SET status = ?, analysis_error = ?, updated_at = CURRENT_TIMESTAMP
       WHERE file_key = ?
     `;
-    await this.execute(sql, [FileDAO.STATUS.ERROR, reason, fileKey]);
-  }
+		await this.execute(sql, [FileDAO.STATUS.ERROR, reason, fileKey]);
+	}
 
-  async updateFileStatus(
-    fileKey: string,
-    username: string,
-    status: string
-  ): Promise<void> {
-    const sql = `
+	async updateFileStatus(
+		fileKey: string,
+		username: string,
+		status: string
+	): Promise<void> {
+		const sql = `
       UPDATE file_metadata
       SET status = ?
       WHERE file_key = ? AND username = ?
     `;
-    await this.execute(sql, [status, fileKey, username]);
-  }
+		await this.execute(sql, [status, fileKey, username]);
+	}
 
-  /**
-   * Check if a file is indexed by attempting a search with LibraryRAGService
-   */
-  async checkFileIndexingStatus(
-    fileKey: string,
-    username: string,
-    env: any
-  ): Promise<{ isIndexed: boolean; error?: string }> {
-    try {
-      // Extract filename from fileKey for search
-      const filename = fileKey.split("/").pop() || "";
+	/**
+	 * Check if a file is indexed by attempting a search with LibraryRAGService
+	 */
+	async checkFileIndexingStatus(
+		fileKey: string,
+		username: string,
+		env: any
+	): Promise<{ isIndexed: boolean; error?: string }> {
+		try {
+			// Extract filename from fileKey for search
+			const filename = fileKey.split("/").pop() || "";
 
-      // Use LibraryRAGService to check if file is indexed
-      const ragService = new LibraryRAGService(env);
+			// Use LibraryRAGService to check if file is indexed
+			const ragService = new LibraryRAGService(env);
 
-      // Check if file exists by searching for it
-      const searchQuery = `Find the file named "${filename}"`;
-      const searchResult = await ragService.searchContent(
-        username,
-        searchQuery,
-        1
-      );
+			// Check if file exists by searching for it
+			const searchQuery = `Find the file named "${filename}"`;
+			const searchResult = await ragService.searchContent(
+				username,
+				searchQuery,
+				1
+			);
 
-      console.log(
-        `[FileDAO] LibraryRAGService search result for ${filename}:`,
-        JSON.stringify(searchResult, null, 2)
-      );
+			console.log(
+				`[FileDAO] LibraryRAGService search result for ${filename}:`,
+				JSON.stringify(searchResult, null, 2)
+			);
 
-      // Check if we have results (file is indexed)
-      const hasResults = Array.isArray(searchResult) && searchResult.length > 0;
+			// Check if we have results (file is indexed)
+			const hasResults = Array.isArray(searchResult) && searchResult.length > 0;
 
-      console.log(`[FileDAO] Parsed response for ${filename}:`, {
-        hasResults,
-        resultCount: Array.isArray(searchResult) ? searchResult.length : 0,
-      });
+			console.log(`[FileDAO] Parsed response for ${filename}:`, {
+				hasResults,
+				resultCount: Array.isArray(searchResult) ? searchResult.length : 0,
+			});
 
-      return { isIndexed: hasResults };
-    } catch (error) {
-      console.error(`Error checking indexing status for ${fileKey}:`, error);
-      return {
-        isIndexed: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
-    }
-  }
+			return { isIndexed: hasResults };
+		} catch (error) {
+			console.error(`Error checking indexing status for ${fileKey}:`, error);
+			return {
+				isIndexed: false,
+				error: error instanceof Error ? error.message : "Unknown error",
+			};
+		}
+	}
 
-  async getFilesPendingIndexing(
-    username: string
-  ): Promise<ParsedFileMetadata[]> {
-    const sql = `
+	async getFilesPendingIndexing(
+		username: string
+	): Promise<ParsedFileMetadata[]> {
+		const sql = `
       SELECT file_key, file_name, description, tags, username, status, file_size, created_at, updated_at
       FROM file_metadata
       WHERE username = ? AND status IN ('uploaded', 'processing')
       ORDER BY created_at DESC
     `;
-    return this.queryAndParseMultipleFileMetadata(sql, [username]);
-  }
+		return this.queryAndParseMultipleFileMetadata(sql, [username]);
+	}
 
-  async getFileStatsByUser(username: string): Promise<any[]> {
-    const sql = `
+	async getFileStatsByUser(username: string): Promise<any[]> {
+		const sql = `
       SELECT status, COUNT(*) as count 
       FROM file_metadata 
       WHERE username = ? 
       GROUP BY status
     `;
-    return await this.queryAll(sql, [username]);
-  }
+		return await this.queryAll(sql, [username]);
+	}
 
-  async getFileSizeStatsByUser(username: string): Promise<any> {
-    const sql = `
+	async getFileSizeStatsByUser(username: string): Promise<any> {
+		const sql = `
       SELECT SUM(file_size) as total_size, AVG(file_size) as avg_size, COUNT(*) as total_files 
       FROM file_metadata 
       WHERE username = ? AND file_size > 0
     `;
-    return await this.queryFirst(sql, [username]);
-  }
+		return await this.queryFirst(sql, [username]);
+	}
 
-  async getFileStatusInfo(
-    fileKey: string,
-    username: string
-  ): Promise<any | null> {
-    const sql = `
+	async getFileStatusInfo(
+		fileKey: string,
+		username: string
+	): Promise<any | null> {
+		const sql = `
       SELECT status, created_at, updated_at, file_size 
       FROM file_metadata 
       WHERE file_key = ? AND username = ?
     `;
-    return await this.queryFirst(sql, [fileKey, username]);
-  }
+		return await this.queryFirst(sql, [fileKey, username]);
+	}
 
-  async updateFileDescriptionAndTags(
-    fileKey: string,
-    username: string,
-    description: string,
-    tags: string
-  ): Promise<void> {
-    const sql = `
+	async updateFileDescriptionAndTags(
+		fileKey: string,
+		username: string,
+		description: string,
+		tags: string
+	): Promise<void> {
+		const sql = `
       UPDATE file_metadata 
       SET description = ?, tags = ? 
       WHERE file_key = ? AND username = ?
     `;
-    await this.execute(sql, [description, tags, fileKey, username]);
-  }
+		await this.execute(sql, [description, tags, fileKey, username]);
+	}
 
-  // NOTE: Current implementation deletes file from global RAG index.
-  // Future enhancement: When files can be associated with multiple campaigns
-  // (each with their own RAG instance), we should also delete the file from
-  // all associated campaign RAGs. This requires tracking campaign-file associations.
-  async deleteFile(
-    fileKey: string,
-    r2Bucket?: R2Bucket,
-    vectorizeIndex?: VectorizeIndex
-  ): Promise<void> {
-    // Get file metadata before deletion for cleanup operations
-    const metadata = await this.getFileMetadata(fileKey);
+	// NOTE: Current implementation deletes file from global RAG index.
+	// Future enhancement: When files can be associated with multiple campaigns
+	// (each with their own RAG instance), we should also delete the file from
+	// all associated campaign RAGs. This requires tracking campaign-file associations.
+	async deleteFile(
+		fileKey: string,
+		r2Bucket?: R2Bucket,
+		vectorizeIndex?: VectorizeIndex
+	): Promise<void> {
+		// Get file metadata before deletion for cleanup operations
+		const metadata = await this.getFileMetadata(fileKey);
 
-    // Delete from database first
-    await this.transaction([
-      () =>
-        this.execute("DELETE FROM file_chunks WHERE file_key = ?", [fileKey]),
-      () =>
-        this.execute("DELETE FROM file_metadata WHERE file_key = ?", [fileKey]),
-    ]);
+		// Delete from database first
+		await this.transaction([
+			() =>
+				this.execute("DELETE FROM file_chunks WHERE file_key = ?", [fileKey]),
+			() =>
+				this.execute("DELETE FROM file_metadata WHERE file_key = ?", [fileKey]),
+		]);
 
-    // Delete from R2 storage if bucket is provided
-    if (r2Bucket && metadata) {
-      try {
-        await r2Bucket.delete(fileKey);
-        console.log(`[FileDAO] Deleted file from R2: ${fileKey}`);
-      } catch (error) {
-        console.warn(
-          `[FileDAO] Failed to delete file from R2: ${fileKey}`,
-          error
-        );
-      }
-    }
+		// Delete from R2 storage if bucket is provided
+		if (r2Bucket && metadata) {
+			try {
+				await r2Bucket.delete(fileKey);
+				console.log(`[FileDAO] Deleted file from R2: ${fileKey}`);
+			} catch (error) {
+				console.warn(
+					`[FileDAO] Failed to delete file from R2: ${fileKey}`,
+					error
+				);
+			}
+		}
 
-    // Delete from vector index if provided and metadata has vector_id
-    if (vectorizeIndex && metadata?.vector_id) {
-      try {
-        await vectorizeIndex.deleteByIds([metadata.vector_id]);
-        console.log(`[FileDAO] Deleted vector embeddings for: ${fileKey}`);
-      } catch (error) {
-        console.warn(
-          `[FileDAO] Failed to delete vector embeddings for: ${fileKey}`,
-          error
-        );
-      }
-    }
-  }
+		// Delete from vector index if provided and metadata has vector_id
+		if (vectorizeIndex && metadata?.vector_id) {
+			try {
+				await vectorizeIndex.deleteByIds([metadata.vector_id]);
+				console.log(`[FileDAO] Deleted vector embeddings for: ${fileKey}`);
+			} catch (error) {
+				console.warn(
+					`[FileDAO] Failed to delete vector embeddings for: ${fileKey}`,
+					error
+				);
+			}
+		}
+	}
 
-  async getFileChunks(fileKey: string): Promise<PDFChunk[]> {
-    const sql = `
+	async getFileChunks(fileKey: string): Promise<PDFChunk[]> {
+		const sql = `
       SELECT id, file_key, username, chunk_index, chunk_text, embedding_id, metadata, created_at
       FROM file_chunks 
       WHERE file_key = ? 
       ORDER BY chunk_index
     `;
-    return await this.queryAll<PDFChunk>(sql, [fileKey]);
-  }
+		return await this.queryAll<PDFChunk>(sql, [fileKey]);
+	}
 
-  async getFileWithChunks(fileKey: string): Promise<FileWithChunks | null> {
-    const metadata = await this.getFileMetadata(fileKey);
-    if (!metadata) return null;
+	async getFileWithChunks(fileKey: string): Promise<FileWithChunks | null> {
+		const metadata = await this.getFileMetadata(fileKey);
+		if (!metadata) return null;
 
-    const chunks = await this.getFileChunks(fileKey);
-    return {
-      ...metadata,
-      chunks,
-    };
-  }
+		const chunks = await this.getFileChunks(fileKey);
+		return {
+			...metadata,
+			chunks,
+		};
+	}
 
-  async insertFileChunks(
-    chunks: Array<{
-      fileKey: string;
-      chunkIndex: number;
-      content: string;
-      embedding?: string;
-    }>
-  ): Promise<void> {
-    const sql = `
+	async insertFileChunks(
+		chunks: Array<{
+			fileKey: string;
+			chunkIndex: number;
+			content: string;
+			embedding?: string;
+		}>
+	): Promise<void> {
+		const sql = `
       INSERT INTO file_chunks (id, file_key, username, chunk_text, chunk_index, embedding_id, created_at)
       VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `;
 
-    await Promise.all(
-      chunks.map((chunk) =>
-        this.execute(sql, [
-          `${chunk.fileKey}-chunk-${chunk.chunkIndex}`,
-          chunk.fileKey,
-          chunk.fileKey.split("/")[1] || "", // Extract username from fileKey (library/username/...)
-          chunk.content,
-          chunk.chunkIndex,
-          chunk.embedding || null,
-        ])
-      )
-    );
-  }
+		await Promise.all(
+			chunks.map((chunk) =>
+				this.execute(sql, [
+					`${chunk.fileKey}-chunk-${chunk.chunkIndex}`,
+					chunk.fileKey,
+					chunk.fileKey.split("/")[1] || "", // Extract username from fileKey (library/username/...)
+					chunk.content,
+					chunk.chunkIndex,
+					chunk.embedding || null,
+				])
+			)
+		);
+	}
 
-  async searchFiles(
-    query: string,
-    username?: string
-  ): Promise<ParsedFileMetadata[]> {
-    let sql = `
+	async searchFiles(
+		query: string,
+		username?: string
+	): Promise<ParsedFileMetadata[]> {
+		let sql = `
       SELECT DISTINCT fm.* 
       FROM file_metadata fm
       JOIN file_metadata_fts fts ON fm.id = fts.id
       WHERE file_metadata_fts MATCH ?
     `;
 
-    const params = [query];
+		const params = [query];
 
-    if (username) {
-      sql += " AND fm.username = ?";
-      params.push(username);
-    }
+		if (username) {
+			sql += " AND fm.username = ?";
+			params.push(username);
+		}
 
-    sql += " ORDER BY fm.created_at DESC";
+		sql += " ORDER BY fm.created_at DESC";
 
-    return this.queryAndParseMultipleFileMetadata(sql, params);
-  }
+		return this.queryAndParseMultipleFileMetadata(sql, params);
+	}
 
-  async getFileCount(username: string): Promise<number> {
-    const sql =
-      "SELECT COUNT(*) as count FROM file_metadata WHERE username = ?";
-    const result = await this.queryFirst<{ count: number }>(sql, [username]);
-    return result?.count || 0;
-  }
+	async getFileCount(username: string): Promise<number> {
+		const sql =
+			"SELECT COUNT(*) as count FROM file_metadata WHERE username = ?";
+		const result = await this.queryFirst<{ count: number }>(sql, [username]);
+		return result?.count || 0;
+	}
 
-  async getTotalStorageUsage(username: string): Promise<number> {
-    const sql =
-      "SELECT COALESCE(SUM(file_size), 0) as total FROM file_metadata WHERE username = ?";
-    const result = await this.queryFirst<{ total: number }>(sql, [username]);
-    return result?.total || 0;
-  }
+	async getTotalStorageUsage(username: string): Promise<number> {
+		const sql =
+			"SELECT COALESCE(SUM(file_size), 0) as total FROM file_metadata WHERE username = ?";
+		const result = await this.queryFirst<{ total: number }>(sql, [username]);
+		return result?.total || 0;
+	}
 
-  async fileExists(fileKey: string): Promise<boolean> {
-    const sql = "SELECT 1 FROM file_metadata WHERE file_key = ?";
-    const result = await this.queryFirst<{ 1: number }>(sql, [fileKey]);
-    return result !== null;
-  }
+	async fileExists(fileKey: string): Promise<boolean> {
+		const sql = "SELECT 1 FROM file_metadata WHERE file_key = ?";
+		const result = await this.queryFirst<{ 1: number }>(sql, [fileKey]);
+		return result !== null;
+	}
 
-  async getFilesByType(
-    username: string,
-    contentType: string
-  ): Promise<ParsedFileMetadata[]> {
-    const sql = `
+	async getFilesByType(
+		username: string,
+		contentType: string
+	): Promise<ParsedFileMetadata[]> {
+		const sql = `
       SELECT * FROM file_metadata 
       WHERE username = ? AND content_type = ?
       ORDER BY created_at DESC
     `;
-    return this.queryAndParseMultipleFileMetadata(sql, [username, contentType]);
-  }
+		return this.queryAndParseMultipleFileMetadata(sql, [username, contentType]);
+	}
 
-  async getRecentFiles(
-    username: string,
-    limit: number = 10
-  ): Promise<ParsedFileMetadata[]> {
-    const sql = `
+	async getRecentFiles(
+		username: string,
+		limit: number = 10
+	): Promise<ParsedFileMetadata[]> {
+		const sql = `
       SELECT * FROM file_metadata 
       WHERE username = ? 
       ORDER BY created_at DESC 
       LIMIT ?
     `;
-    return this.queryAndParseMultipleFileMetadata(sql, [username, limit]);
-  }
+		return this.queryAndParseMultipleFileMetadata(sql, [username, limit]);
+	}
 
-  // Methods for the 'files' table (used by RAG functionality)
+	// Methods for the 'files' table (used by RAG functionality)
 
-  async createFileRecord(
-    _id: string,
-    fileKey: string,
-    fileName: string,
-    description: string,
-    tags: string,
-    username: string,
-    status: string,
-    fileSize: number
-  ): Promise<void> {
-    const sql = `
+	async createFileRecord(
+		_id: string,
+		fileKey: string,
+		fileName: string,
+		description: string,
+		tags: string,
+		username: string,
+		status: string,
+		fileSize: number
+	): Promise<void> {
+		const sql = `
       INSERT OR REPLACE INTO file_metadata (file_key, file_name, description, tags, username, status, file_size)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
-    await this.execute(sql, [
-      fileKey,
-      fileName,
-      description,
-      tags,
-      username,
-      status,
-      fileSize,
-    ]);
-  }
+		await this.execute(sql, [
+			fileKey,
+			fileName,
+			description,
+			tags,
+			username,
+			status,
+			fileSize,
+		]);
+	}
 
-  async updateFileRecord(
-    fileKey: string,
-    status: string,
-    fileSize?: number
-  ): Promise<void> {
-    let sql: string;
-    let params: any[];
+	async updateFileRecord(
+		fileKey: string,
+		status: string,
+		fileSize?: number
+	): Promise<void> {
+		let sql: string;
+		let params: any[];
 
-    if (fileSize !== undefined) {
-      sql = `
+		if (fileSize !== undefined) {
+			sql = `
         UPDATE file_metadata 
         SET status = ?, file_size = ?, updated_at = CURRENT_TIMESTAMP
         WHERE file_key = ?
       `;
-      params = [status, fileSize, fileKey];
-    } else {
-      sql = `
+			params = [status, fileSize, fileKey];
+		} else {
+			sql = `
         UPDATE file_metadata 
         SET status = ?, updated_at = CURRENT_TIMESTAMP
         WHERE file_key = ?
       `;
-      params = [status, fileKey];
-    }
+			params = [status, fileKey];
+		}
 
-    await this.execute(sql, params);
-  }
+		await this.execute(sql, params);
+	}
 
-  /**
-   * Update file record with error status and error code
-   * Used to mark files with specific error types (e.g., MEMORY_LIMIT_EXCEEDED)
-   * to prevent infinite retries
-   */
-  async updateFileRecordWithError(
-    fileKey: string,
-    status: string,
-    errorCode: string,
-    errorMessage?: string
-  ): Promise<void> {
-    // Store error code and message in processing_error field as JSON
-    const errorData = {
-      code: errorCode,
-      message: errorMessage || null,
-      timestamp: new Date().toISOString(),
-    };
+	/**
+	 * Update file record with error status and error code
+	 * Used to mark files with specific error types (e.g., MEMORY_LIMIT_EXCEEDED)
+	 * to prevent infinite retries
+	 */
+	async updateFileRecordWithError(
+		fileKey: string,
+		status: string,
+		errorCode: string,
+		errorMessage?: string
+	): Promise<void> {
+		// Store error code and message in processing_error field as JSON
+		const errorData = {
+			code: errorCode,
+			message: errorMessage || null,
+			timestamp: new Date().toISOString(),
+		};
 
-    const sql = `
+		const sql = `
       UPDATE file_metadata 
       SET status = ?, processing_error = ?, updated_at = CURRENT_TIMESTAMP
       WHERE file_key = ?
     `;
-    await this.execute(sql, [status, JSON.stringify(errorData), fileKey]);
-  }
+		await this.execute(sql, [status, JSON.stringify(errorData), fileKey]);
+	}
 
-  /**
-   * Get processing error code for a file (if any)
-   */
-  async getProcessingError(fileKey: string): Promise<{
-    code?: string;
-    message?: string;
-    timestamp?: string;
-  } | null> {
-    const sql = `
+	/**
+	 * Get processing error code for a file (if any)
+	 */
+	async getProcessingError(fileKey: string): Promise<{
+		code?: string;
+		message?: string;
+		timestamp?: string;
+	} | null> {
+		const sql = `
       SELECT processing_error
       FROM file_metadata
       WHERE file_key = ?
     `;
-    const result = await this.queryAll<{ processing_error: string | null }>(
-      sql,
-      [fileKey]
-    );
+		const result = await this.queryAll<{ processing_error: string | null }>(
+			sql,
+			[fileKey]
+		);
 
-    if (!result || !result[0] || !result[0].processing_error) {
-      return null;
-    }
+		if (!result || !result[0] || !result[0].processing_error) {
+			return null;
+		}
 
-    try {
-      return JSON.parse(result[0].processing_error);
-    } catch {
-      // If parsing fails, return null
-      return null;
-    }
-  }
+		try {
+			return JSON.parse(result[0].processing_error);
+		} catch {
+			// If parsing fails, return null
+			return null;
+		}
+	}
 
-  async updateFileMetadataForRag(
-    fileKey: string,
-    username: string,
-    description: string,
-    tags: string,
-    displayName?: string
-  ): Promise<void> {
-    if (displayName !== undefined) {
-      const sql = `
+	async updateFileMetadataForRag(
+		fileKey: string,
+		username: string,
+		description: string,
+		tags: string,
+		displayName?: string
+	): Promise<void> {
+		if (displayName !== undefined) {
+			const sql = `
         UPDATE file_metadata 
         SET description = ?, tags = ?, display_name = ? 
         WHERE file_key = ? AND username = ?
       `;
-      await this.execute(sql, [
-        description,
-        tags,
-        displayName,
-        fileKey,
-        username,
-      ]);
-    } else {
-      const sql = `
+			await this.execute(sql, [
+				description,
+				tags,
+				displayName,
+				fileKey,
+				username,
+			]);
+		} else {
+			const sql = `
         UPDATE file_metadata 
         SET description = ?, tags = ? 
         WHERE file_key = ? AND username = ?
       `;
-      await this.execute(sql, [description, tags, fileKey, username]);
-    }
-  }
+			await this.execute(sql, [description, tags, fileKey, username]);
+		}
+	}
 
-  async getFilesForRag(username: string): Promise<any[]> {
-    const sql = `
+	async getFilesForRag(username: string): Promise<any[]> {
+		const sql = `
       SELECT file_key, file_name, display_name, description, tags, status, created_at, file_size, updated_at, processing_error
       FROM file_metadata 
       WHERE username = ? 
       ORDER BY created_at DESC
     `;
-    return await this.queryAll(sql, [username]);
-  }
+		return await this.queryAll(sql, [username]);
+	}
 
-  async getFileForRag(fileKey: string, username: string): Promise<any | null> {
-    const sql = `
+	async getFileForRag(fileKey: string, username: string): Promise<any | null> {
+		const sql = `
       SELECT * FROM file_metadata 
       WHERE file_key = ? AND username = ?
     `;
-    return await this.queryFirst(sql, [fileKey, username]);
-  }
+		return await this.queryFirst(sql, [fileKey, username]);
+	}
 
-  async getFileChunksForRag(fileKey: string, username: string): Promise<any[]> {
-    const sql = `
+	async getFileChunksForRag(fileKey: string, username: string): Promise<any[]> {
+		const sql = `
       SELECT id, file_key, chunk_text, chunk_index, created_at 
       FROM file_chunks 
       WHERE file_key = ? AND username = ? 
       ORDER BY chunk_index
     `;
-    return await this.queryAll(sql, [fileKey, username]);
-  }
+		return await this.queryAll(sql, [fileKey, username]);
+	}
 
-  async getFileStatsForRag(username: string): Promise<any> {
-    const sql = `
+	async getFileStatsForRag(username: string): Promise<any> {
+		const sql = `
       SELECT * FROM file_metadata 
       WHERE username = ? 
       ORDER BY created_at DESC
     `;
-    const files = await this.queryAll(sql, [username]);
+		const files = await this.queryAll(sql, [username]);
 
-    const uploaded = files.filter((f: any) => f.status === "uploaded").length;
-    const processed = files.filter((f: any) => f.status === "processed").length;
-    const processing = files.filter(
-      (f: any) => f.status === "processing"
-    ).length;
-    const error = files.filter((f: any) => f.status === "error").length;
+		const uploaded = files.filter((f: any) => f.status === "uploaded").length;
+		const processed = files.filter((f: any) => f.status === "processed").length;
+		const processing = files.filter(
+			(f: any) => f.status === "processing"
+		).length;
+		const error = files.filter((f: any) => f.status === "error").length;
 
-    return {
-      uploaded,
-      processed,
-      processing,
-      error,
-      total: files.length,
-    };
-  }
+		return {
+			uploaded,
+			processed,
+			processing,
+			error,
+			total: files.length,
+		};
+	}
 
-  async getAllFilesForStorageUsage(): Promise<any[]> {
-    const sql = `
+	async getAllFilesForStorageUsage(): Promise<any[]> {
+		const sql = `
       SELECT username, file_size, status 
       FROM file_metadata 
       ORDER BY created_at DESC
     `;
-    return await this.queryAll(sql, []);
-  }
+		return await this.queryAll(sql, []);
+	}
 
-  async getUserFilesForStorageUsage(username: string): Promise<any[]> {
-    const sql = `
+	async getUserFilesForStorageUsage(username: string): Promise<any[]> {
+		const sql = `
       SELECT file_size, status
       FROM file_metadata
       WHERE username = ?
       ORDER BY created_at DESC
     `;
-    return await this.queryAll(sql, [username]);
-  }
+		return await this.queryAll(sql, [username]);
+	}
 
-  async deleteFileForUser(fileKey: string, username: string): Promise<void> {
-    // Delete all related data in a transaction
-    await this.transaction([
-      () =>
-        this.execute(
-          "DELETE FROM file_chunks WHERE file_key = ? AND username = ?",
-          [fileKey, username]
-        ),
-      () =>
-        this.execute("DELETE FROM campaign_resources WHERE file_key = ?", [
-          fileKey,
-        ]),
-      () =>
-        this.execute(
-          "DELETE FROM file_metadata WHERE file_key = ? AND username = ?",
-          [fileKey, username]
-        ),
-    ]);
-  }
+	async deleteFileForUser(fileKey: string, username: string): Promise<void> {
+		// Delete all related data in a transaction
+		await this.transaction([
+			() =>
+				this.execute(
+					"DELETE FROM file_chunks WHERE file_key = ? AND username = ?",
+					[fileKey, username]
+				),
+			() =>
+				this.execute("DELETE FROM campaign_resources WHERE file_key = ?", [
+					fileKey,
+				]),
+			() =>
+				this.execute(
+					"DELETE FROM file_metadata WHERE file_key = ? AND username = ?",
+					[fileKey, username]
+				),
+		]);
+	}
 
-  async deleteAllFilesForUser(username: string): Promise<void> {
-    // Delete all files and related data for a user
-    await this.transaction([
-      () =>
-        this.execute("DELETE FROM file_chunks WHERE username = ?", [username]),
-      () =>
-        this.execute(
-          "DELETE FROM campaign_resources WHERE file_key IN (SELECT file_key FROM file_metadata WHERE username = ?)",
-          [username]
-        ),
-      () =>
-        this.execute("DELETE FROM file_metadata WHERE username = ?", [
-          username,
-        ]),
-    ]);
-  }
+	async deleteAllFilesForUser(username: string): Promise<void> {
+		// Delete all files and related data for a user
+		await this.transaction([
+			() =>
+				this.execute("DELETE FROM file_chunks WHERE username = ?", [username]),
+			() =>
+				this.execute(
+					"DELETE FROM campaign_resources WHERE file_key IN (SELECT file_key FROM file_metadata WHERE username = ?)",
+					[username]
+				),
+			() =>
+				this.execute("DELETE FROM file_metadata WHERE username = ?", [
+					username,
+				]),
+		]);
+	}
 
-  async updateFileMetadataForUser(
-    fileKey: string,
-    username: string,
-    description?: string,
-    tags?: string[]
-  ): Promise<void> {
-    const sql = `
+	async updateFileMetadataForUser(
+		fileKey: string,
+		username: string,
+		description?: string,
+		tags?: string[]
+	): Promise<void> {
+		const sql = `
       UPDATE file_metadata 
       SET description = ?, tags = ?
       WHERE file_key = ? AND username = ?
     `;
 
-    await this.execute(sql, [
-      description || "",
-      tags ? JSON.stringify(tags) : "[]",
-      fileKey,
-      username,
-    ]);
-  }
+		await this.execute(sql, [
+			description || "",
+			tags ? JSON.stringify(tags) : "[]",
+			fileKey,
+			username,
+		]);
+	}
 
-  /**
-   * Update enhanced metadata from file analysis
-   */
-  async updateEnhancedMetadata(
-    fileKey: string,
-    username: string,
-    enhancedMetadata: {
-      content_summary?: string;
-      key_topics?: string[];
-      content_type_categories?: string[];
-      difficulty_level?: string;
-      target_audience?: string;
-      campaign_themes?: string[];
-      recommended_campaign_types?: string[];
-      content_quality_score?: number;
-      analysis_status?: string;
-      analysis_error?: string;
-    }
-  ): Promise<void> {
-    const updates: string[] = [];
-    const values: any[] = [];
+	/**
+	 * Update enhanced metadata from file analysis
+	 */
+	async updateEnhancedMetadata(
+		fileKey: string,
+		username: string,
+		enhancedMetadata: {
+			content_summary?: string;
+			key_topics?: string[];
+			content_type_categories?: string[];
+			difficulty_level?: string;
+			target_audience?: string;
+			campaign_themes?: string[];
+			recommended_campaign_types?: string[];
+			content_quality_score?: number;
+			analysis_status?: string;
+			analysis_error?: string;
+		}
+	): Promise<void> {
+		const updates: string[] = [];
+		const values: any[] = [];
 
-    // Build dynamic update query
-    if (enhancedMetadata.content_summary !== undefined) {
-      updates.push("content_summary = ?");
-      values.push(enhancedMetadata.content_summary);
-    }
-    if (enhancedMetadata.key_topics !== undefined) {
-      updates.push("key_topics = ?");
-      values.push(JSON.stringify(enhancedMetadata.key_topics));
-    }
-    if (enhancedMetadata.content_type_categories !== undefined) {
-      updates.push("content_type_categories = ?");
-      values.push(JSON.stringify(enhancedMetadata.content_type_categories));
-    }
-    if (enhancedMetadata.difficulty_level !== undefined) {
-      updates.push("difficulty_level = ?");
-      values.push(enhancedMetadata.difficulty_level);
-    }
-    if (enhancedMetadata.target_audience !== undefined) {
-      updates.push("target_audience = ?");
-      values.push(enhancedMetadata.target_audience);
-    }
-    if (enhancedMetadata.campaign_themes !== undefined) {
-      updates.push("campaign_themes = ?");
-      values.push(JSON.stringify(enhancedMetadata.campaign_themes));
-    }
-    if (enhancedMetadata.recommended_campaign_types !== undefined) {
-      updates.push("recommended_campaign_types = ?");
-      values.push(JSON.stringify(enhancedMetadata.recommended_campaign_types));
-    }
-    if (enhancedMetadata.content_quality_score !== undefined) {
-      updates.push("content_quality_score = ?");
-      values.push(enhancedMetadata.content_quality_score);
-    }
-    if (enhancedMetadata.analysis_status !== undefined) {
-      updates.push("analysis_status = ?");
-      values.push(enhancedMetadata.analysis_status);
-    }
-    if (enhancedMetadata.analysis_error !== undefined) {
-      updates.push("analysis_error = ?");
-      values.push(enhancedMetadata.analysis_error);
-    }
+		// Build dynamic update query
+		if (enhancedMetadata.content_summary !== undefined) {
+			updates.push("content_summary = ?");
+			values.push(enhancedMetadata.content_summary);
+		}
+		if (enhancedMetadata.key_topics !== undefined) {
+			updates.push("key_topics = ?");
+			values.push(JSON.stringify(enhancedMetadata.key_topics));
+		}
+		if (enhancedMetadata.content_type_categories !== undefined) {
+			updates.push("content_type_categories = ?");
+			values.push(JSON.stringify(enhancedMetadata.content_type_categories));
+		}
+		if (enhancedMetadata.difficulty_level !== undefined) {
+			updates.push("difficulty_level = ?");
+			values.push(enhancedMetadata.difficulty_level);
+		}
+		if (enhancedMetadata.target_audience !== undefined) {
+			updates.push("target_audience = ?");
+			values.push(enhancedMetadata.target_audience);
+		}
+		if (enhancedMetadata.campaign_themes !== undefined) {
+			updates.push("campaign_themes = ?");
+			values.push(JSON.stringify(enhancedMetadata.campaign_themes));
+		}
+		if (enhancedMetadata.recommended_campaign_types !== undefined) {
+			updates.push("recommended_campaign_types = ?");
+			values.push(JSON.stringify(enhancedMetadata.recommended_campaign_types));
+		}
+		if (enhancedMetadata.content_quality_score !== undefined) {
+			updates.push("content_quality_score = ?");
+			values.push(enhancedMetadata.content_quality_score);
+		}
+		if (enhancedMetadata.analysis_status !== undefined) {
+			updates.push("analysis_status = ?");
+			values.push(enhancedMetadata.analysis_status);
+		}
+		if (enhancedMetadata.analysis_error !== undefined) {
+			updates.push("analysis_error = ?");
+			values.push(enhancedMetadata.analysis_error);
+		}
 
-    // Always update last_analyzed_at and analysis_status
-    updates.push("last_analyzed_at = CURRENT_TIMESTAMP");
+		// Always update last_analyzed_at and analysis_status
+		updates.push("last_analyzed_at = CURRENT_TIMESTAMP");
 
-    if (updates.length === 0) return;
+		if (updates.length === 0) return;
 
-    const sql = `
+		const sql = `
       UPDATE file_metadata 
       SET ${updates.join(", ")}
       WHERE file_key = ? AND username = ?
     `;
 
-    await this.execute(sql, [...values, fileKey, username]);
-  }
+		await this.execute(sql, [...values, fileKey, username]);
+	}
 
-  /**
-   * Get files with enhanced metadata for recommendations
-   */
-  async getFilesForRecommendations(
-    username: string,
-    filters?: {
-      content_type_categories?: string;
-      difficulty_level?: string;
-      target_audience?: string;
-      campaign_themes?: string[];
-      min_quality_score?: number;
-      limit?: number;
-    }
-  ): Promise<ParsedFileMetadata[]> {
-    let sql = `
+	/**
+	 * Get files with enhanced metadata for recommendations
+	 */
+	async getFilesForRecommendations(
+		username: string,
+		filters?: {
+			content_type_categories?: string;
+			difficulty_level?: string;
+			target_audience?: string;
+			campaign_themes?: string[];
+			min_quality_score?: number;
+			limit?: number;
+		}
+	): Promise<ParsedFileMetadata[]> {
+		let sql = `
       SELECT * FROM file_metadata 
       WHERE username = ? AND analysis_status = 'completed'
     `;
-    const values: any[] = [username];
+		const values: any[] = [username];
 
-    if (filters?.content_type_categories) {
-      sql += " AND content_type_categories LIKE ?";
-      values.push(`%${filters.content_type_categories}%`);
-    }
-    if (filters?.difficulty_level) {
-      sql += " AND difficulty_level = ?";
-      values.push(filters.difficulty_level);
-    }
-    if (filters?.target_audience) {
-      sql += " AND target_audience = ?";
-      values.push(filters.target_audience);
-    }
-    if (filters?.min_quality_score) {
-      sql += " AND content_quality_score >= ?";
-      values.push(filters.min_quality_score);
-    }
+		if (filters?.content_type_categories) {
+			sql += " AND content_type_categories LIKE ?";
+			values.push(`%${filters.content_type_categories}%`);
+		}
+		if (filters?.difficulty_level) {
+			sql += " AND difficulty_level = ?";
+			values.push(filters.difficulty_level);
+		}
+		if (filters?.target_audience) {
+			sql += " AND target_audience = ?";
+			values.push(filters.target_audience);
+		}
+		if (filters?.min_quality_score) {
+			sql += " AND content_quality_score >= ?";
+			values.push(filters.min_quality_score);
+		}
 
-    sql += " ORDER BY content_quality_score DESC, created_at DESC";
+		sql += " ORDER BY content_quality_score DESC, created_at DESC";
 
-    if (filters?.limit) {
-      sql += " LIMIT ?";
-      values.push(filters.limit);
-    }
+		if (filters?.limit) {
+			sql += " LIMIT ?";
+			values.push(filters.limit);
+		}
 
-    const files = await this.queryAll(sql, values);
+		const files = await this.queryAll(sql, values);
 
-    // Parse tags and filter by campaign themes if specified
-    let parsedFiles = files.map((file: any) => ({
-      ...file,
-      tags: this.parseTags(file.tags || null, file.file_key),
-      campaign_themes: file.campaign_themes
-        ? JSON.parse(file.campaign_themes)
-        : [],
-      recommended_campaign_types: file.recommended_campaign_types
-        ? JSON.parse(file.recommended_campaign_types)
-        : [],
-      key_topics: file.key_topics ? JSON.parse(file.key_topics) : [],
-      content_type_categories: file.content_type_categories
-        ? JSON.parse(file.content_type_categories)
-        : [],
-    }));
+		// Parse tags and filter by campaign themes if specified
+		let parsedFiles = files.map((file: any) => ({
+			...file,
+			tags: this.parseTags(file.tags || null, file.file_key),
+			campaign_themes: file.campaign_themes
+				? JSON.parse(file.campaign_themes)
+				: [],
+			recommended_campaign_types: file.recommended_campaign_types
+				? JSON.parse(file.recommended_campaign_types)
+				: [],
+			key_topics: file.key_topics ? JSON.parse(file.key_topics) : [],
+			content_type_categories: file.content_type_categories
+				? JSON.parse(file.content_type_categories)
+				: [],
+		}));
 
-    // Filter by campaign themes if specified
-    if (filters?.campaign_themes && filters.campaign_themes.length > 0) {
-      parsedFiles = parsedFiles.filter((file: any) => {
-        const fileThemes = file.campaign_themes || [];
-        return filters.campaign_themes!.some((theme) =>
-          fileThemes.includes(theme)
-        );
-      });
-    }
+		// Filter by campaign themes if specified
+		if (filters?.campaign_themes && filters.campaign_themes.length > 0) {
+			parsedFiles = parsedFiles.filter((file: any) => {
+				const fileThemes = file.campaign_themes || [];
+				return filters.campaign_themes!.some((theme) =>
+					fileThemes.includes(theme)
+				);
+			});
+		}
 
-    return parsedFiles;
-  }
+		return parsedFiles;
+	}
 
-  /**
-   * Get analysis status for a file
-   */
-  async getAnalysisStatus(
-    fileKey: string,
-    username: string
-  ): Promise<{
-    analysis_status: string;
-    last_analyzed_at?: string;
-    analysis_error?: string;
-  } | null> {
-    const sql = `
+	/**
+	 * Get analysis status for a file
+	 */
+	async getAnalysisStatus(
+		fileKey: string,
+		username: string
+	): Promise<{
+		analysis_status: string;
+		last_analyzed_at?: string;
+		analysis_error?: string;
+	} | null> {
+		const sql = `
       SELECT analysis_status, last_analyzed_at, analysis_error
       FROM file_metadata 
       WHERE file_key = ? AND username = ?
     `;
 
-    return await this.queryFirst(sql, [fileKey, username]);
-  }
+		return await this.queryFirst(sql, [fileKey, username]);
+	}
 
-  /**
-   * Get files pending analysis
-   */
-  async getFilesPendingAnalysis(
-    username: string
-  ): Promise<ParsedFileMetadata[]> {
-    const sql = `
+	/**
+	 * Get files pending analysis
+	 */
+	async getFilesPendingAnalysis(
+		username: string
+	): Promise<ParsedFileMetadata[]> {
+		const sql = `
       SELECT * FROM file_metadata 
       WHERE username = ? AND (analysis_status IS NULL OR analysis_status = 'pending')
       ORDER BY created_at DESC
     `;
 
-    return this.queryAndParseMultipleFileMetadata(sql, [username]);
-  }
+		return this.queryAndParseMultipleFileMetadata(sql, [username]);
+	}
 
-  /**
-   * Add a file to the sync queue
-   */
-  async addToSyncQueue(
-    username: string,
-    fileKey: string,
-    fileName: string,
-    ragId: string
-  ): Promise<void> {
-    const sql = `
+	/**
+	 * Add a file to the sync queue
+	 */
+	async addToSyncQueue(
+		username: string,
+		fileKey: string,
+		fileName: string,
+		ragId: string
+	): Promise<void> {
+		const sql = `
       INSERT INTO sync_queue (username, file_key, file_name, rag_id, status, created_at)
       VALUES (?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)
     `;
-    await this.execute(sql, [username, fileKey, fileName, ragId]);
-  }
+		await this.execute(sql, [username, fileKey, fileName, ragId]);
+	}
 
-  /**
-   * Get pending sync queue items for a user
-   */
-  async getSyncQueue(username: string): Promise<any[]> {
-    const sql = `
+	/**
+	 * Get pending sync queue items for a user
+	 */
+	async getSyncQueue(username: string): Promise<any[]> {
+		const sql = `
       SELECT * FROM sync_queue 
       WHERE username = ? AND status = 'pending'
       ORDER BY created_at ASC
     `;
-    return await this.queryAll(sql, [username]);
-  }
+		return await this.queryAll(sql, [username]);
+	}
 
-  /**
-   * Remove an item from the sync queue
-   */
-  async removeFromSyncQueue(fileKey: string): Promise<void> {
-    const sql = `
+	/**
+	 * Remove an item from the sync queue
+	 */
+	async removeFromSyncQueue(fileKey: string): Promise<void> {
+		const sql = `
       DELETE FROM sync_queue WHERE file_key = ?
     `;
-    await this.execute(sql, [fileKey]);
-  }
+		await this.execute(sql, [fileKey]);
+	}
 
-  /**
-   * Update retry count for a sync queue item
-   */
-  async updateSyncQueueRetryCount(
-    fileKey: string,
-    retryCount: number
-  ): Promise<void> {
-    const sql = `
+	/**
+	 * Update retry count for a sync queue item
+	 */
+	async updateSyncQueueRetryCount(
+		fileKey: string,
+		retryCount: number
+	): Promise<void> {
+		const sql = `
       UPDATE sync_queue 
       SET retry_count = ?, updated_at = datetime('now')
       WHERE file_key = ?
     `;
-    await this.execute(sql, [retryCount, fileKey]);
-  }
+		await this.execute(sql, [retryCount, fileKey]);
+	}
 
-  /**
-   * Get all unique usernames that have pending queue items
-   */
-  async getUsernamesWithPendingQueueItems(): Promise<string[]> {
-    const sql = `
+	/**
+	 * Get all unique usernames that have pending queue items
+	 */
+	async getUsernamesWithPendingQueueItems(): Promise<string[]> {
+		const sql = `
       SELECT DISTINCT username 
       FROM sync_queue 
       WHERE status = 'pending'
     `;
-    const results = await this.queryAll(sql, []);
-    return results.map((row: any) => row.username);
-  }
+		const results = await this.queryAll(sql, []);
+		return results.map((row: any) => row.username);
+	}
 
-  /** Delegates to FileProcessingChunksDAO. */
-  async createFileProcessingChunk(chunk: {
-    id: string;
-    fileKey: string;
-    username: string;
-    chunkIndex: number;
-    totalChunks: number;
-    pageRangeStart?: number;
-    pageRangeEnd?: number;
-    byteRangeStart?: number;
-    byteRangeEnd?: number;
-  }): Promise<void> {
-    return this.processingChunksDAO.createFileProcessingChunk(chunk);
-  }
+	/** Delegates to FileProcessingChunksDAO. */
+	async createFileProcessingChunk(chunk: {
+		id: string;
+		fileKey: string;
+		username: string;
+		chunkIndex: number;
+		totalChunks: number;
+		pageRangeStart?: number;
+		pageRangeEnd?: number;
+		byteRangeStart?: number;
+		byteRangeEnd?: number;
+	}): Promise<void> {
+		return this.processingChunksDAO.createFileProcessingChunk(chunk);
+	}
 
-  /** Delegates to FileProcessingChunksDAO. */
-  async getFileProcessingChunks(fileKey: string): Promise<
-    Array<{
-      id: string;
-      fileKey: string;
-      username: string;
-      chunkIndex: number;
-      totalChunks: number;
-      pageRangeStart?: number;
-      pageRangeEnd?: number;
-      byteRangeStart?: number;
-      byteRangeEnd?: number;
-      status: string;
-      vectorId?: string;
-      errorMessage?: string;
-      retryCount: number;
-      createdAt: string;
-      processedAt?: string;
-      updatedAt?: string;
-    }>
-  > {
-    return this.processingChunksDAO.getFileProcessingChunks(fileKey);
-  }
+	/** Delegates to FileProcessingChunksDAO. */
+	async getFileProcessingChunks(fileKey: string): Promise<
+		Array<{
+			id: string;
+			fileKey: string;
+			username: string;
+			chunkIndex: number;
+			totalChunks: number;
+			pageRangeStart?: number;
+			pageRangeEnd?: number;
+			byteRangeStart?: number;
+			byteRangeEnd?: number;
+			status: string;
+			vectorId?: string;
+			errorMessage?: string;
+			retryCount: number;
+			createdAt: string;
+			processedAt?: string;
+			updatedAt?: string;
+		}>
+	> {
+		return this.processingChunksDAO.getFileProcessingChunks(fileKey);
+	}
 
-  /** Delegates to FileProcessingChunksDAO. */
-  async updateFileProcessingChunk(
-    chunkId: string,
-    updates: {
-      status?: string;
-      vectorId?: string;
-      errorMessage?: string;
-      retryCount?: number;
-    }
-  ): Promise<void> {
-    return this.processingChunksDAO.updateFileProcessingChunk(chunkId, updates);
-  }
+	/** Delegates to FileProcessingChunksDAO. */
+	async updateFileProcessingChunk(
+		chunkId: string,
+		updates: {
+			status?: string;
+			vectorId?: string;
+			errorMessage?: string;
+			retryCount?: number;
+		}
+	): Promise<void> {
+		return this.processingChunksDAO.updateFileProcessingChunk(chunkId, updates);
+	}
 
-  /** Delegates to FileProcessingChunksDAO. */
-  async markFileChunkComplete(
-    chunkId: string,
-    vectorId: string
-  ): Promise<void> {
-    return this.processingChunksDAO.markFileChunkComplete(chunkId, vectorId);
-  }
+	/** Delegates to FileProcessingChunksDAO. */
+	async markFileChunkComplete(
+		chunkId: string,
+		vectorId: string
+	): Promise<void> {
+		return this.processingChunksDAO.markFileChunkComplete(chunkId, vectorId);
+	}
 
-  /** Delegates to FileProcessingChunksDAO. */
-  async getPendingFileChunks(username?: string): Promise<
-    Array<{
-      id: string;
-      fileKey: string;
-      username: string;
-      chunkIndex: number;
-      totalChunks: number;
-      pageRangeStart?: number;
-      pageRangeEnd?: number;
-      byteRangeStart?: number;
-      byteRangeEnd?: number;
-      retryCount: number;
-    }>
-  > {
-    return this.processingChunksDAO.getPendingFileChunks(username);
-  }
+	/** Delegates to FileProcessingChunksDAO. */
+	async getPendingFileChunks(username?: string): Promise<
+		Array<{
+			id: string;
+			fileKey: string;
+			username: string;
+			chunkIndex: number;
+			totalChunks: number;
+			pageRangeStart?: number;
+			pageRangeEnd?: number;
+			byteRangeStart?: number;
+			byteRangeEnd?: number;
+			retryCount: number;
+		}>
+	> {
+		return this.processingChunksDAO.getPendingFileChunks(username);
+	}
 
-  /** Delegates to FileProcessingChunksDAO. */
-  async getFileChunkStats(fileKey: string): Promise<{
-    total: number;
-    completed: number;
-    failed: number;
-    pending: number;
-    processing: number;
-  }> {
-    return this.processingChunksDAO.getFileChunkStats(fileKey);
-  }
+	/** Delegates to FileProcessingChunksDAO. */
+	async getFileChunkStats(fileKey: string): Promise<{
+		total: number;
+		completed: number;
+		failed: number;
+		pending: number;
+		processing: number;
+	}> {
+		return this.processingChunksDAO.getFileChunkStats(fileKey);
+	}
 
-  /** Delegates to FileProcessingChunksDAO. */
-  async deleteFileProcessingChunks(fileKey: string): Promise<void> {
-    return this.processingChunksDAO.deleteFileProcessingChunks(fileKey);
-  }
+	/** Delegates to FileProcessingChunksDAO. */
+	async deleteFileProcessingChunks(fileKey: string): Promise<void> {
+		return this.processingChunksDAO.deleteFileProcessingChunks(fileKey);
+	}
 }

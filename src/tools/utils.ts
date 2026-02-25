@@ -1,8 +1,8 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import type { ToolExecutionOptions } from "ai";
 import { z } from "zod";
-import type { ToolResult } from "../app-constants";
 import { CAMPAIGN_ROLES, PLAYER_ROLES } from "@/constants/campaign-roles";
+import type { ToolResult } from "../app-constants";
 import { getDAOFactory } from "../dao/dao-factory";
 
 /** Re-export for v6 tool execute signature. */
@@ -18,8 +18,8 @@ export type ToolExecuteOptions = ToolExecutionOptions & { env?: unknown };
  * env is set when running inside a Worker/DO; toolCallId may be set by the runtime.
  */
 export interface ToolContext {
-  env?: unknown;
-  toolCallId?: string;
+	env?: unknown;
+	toolCallId?: string;
 }
 
 /**
@@ -27,163 +27,163 @@ export interface ToolContext {
  * Used so tools can safely access env.DB, env.VECTORIZE, etc. when present.
  */
 export interface ToolEnv {
-  DB?: D1Database;
-  VECTORIZE?: unknown;
-  OPENAI_API_KEY?: unknown;
-  [key: string]: unknown;
+	DB?: D1Database;
+	VECTORIZE?: unknown;
+	OPENAI_API_KEY?: unknown;
+	[key: string]: unknown;
 }
 
 /**
  * Common tool parameter schemas
  */
 export const commonSchemas = {
-  jwt: z
-    .string()
-    .nullable()
-    .optional()
-    .describe("JWT token for authentication"),
+	jwt: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("JWT token for authentication"),
 
-  campaignId: z.string().describe("The unique identifier for the campaign"),
+	campaignId: z.string().describe("The unique identifier for the campaign"),
 
-  username: z.string().describe("The username for authentication"),
+	username: z.string().describe("The username for authentication"),
 };
 
 /**
  * Extract username from JWT token
  */
 export function extractUsernameFromJwt(jwt: string | null | undefined): string {
-  if (!jwt) return "";
+	if (!jwt) return "";
 
-  try {
-    const parts = jwt.split(".");
-    if (parts.length !== 3) {
-      console.error(
-        "Error parsing JWT: invalid format, expected 3 parts but got",
-        parts.length
-      );
-      return "";
-    }
+	try {
+		const parts = jwt.split(".");
+		if (parts.length !== 3) {
+			console.error(
+				"Error parsing JWT: invalid format, expected 3 parts but got",
+				parts.length
+			);
+			return "";
+		}
 
-    let base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const pad = base64.length % 4;
-    if (pad) base64 += "=".repeat(4 - pad);
+		let base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+		const pad = base64.length % 4;
+		if (pad) base64 += "=".repeat(4 - pad);
 
-    const payload = JSON.parse(atob(base64));
-    return payload.username || "";
-  } catch (error) {
-    console.error("Error parsing JWT:", error);
-    return "";
-  }
+		const payload = JSON.parse(atob(base64));
+		return payload.username || "";
+	} catch (error) {
+		console.error("Error parsing JWT:", error);
+		return "";
+	}
 }
 
 /**
  * Create authenticated headers for API requests
  */
 export function createAuthHeaders(jwt?: string | null): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-  };
+	return {
+		"Content-Type": "application/json",
+		...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+	};
 }
 
 /**
  * Get campaign name from campaignId (async helper for tools)
  */
 export async function getCampaignName(
-  campaignId: string | null | undefined,
-  env: any,
-  jwt: string | null | undefined
+	campaignId: string | null | undefined,
+	env: any,
+	jwt: string | null | undefined
 ): Promise<string | null> {
-  if (!campaignId || !env || !jwt) {
-    return null;
-  }
+	if (!campaignId || !env || !jwt) {
+		return null;
+	}
 
-  try {
-    const userId = extractUsernameFromJwt(jwt);
-    if (!userId) {
-      return null;
-    }
+	try {
+		const userId = extractUsernameFromJwt(jwt);
+		if (!userId) {
+			return null;
+		}
 
-    const daoFactory = getDAOFactory(env);
-    const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-      campaignId,
-      userId
-    );
+		const daoFactory = getDAOFactory(env);
+		const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+			campaignId,
+			userId
+		);
 
-    return campaign?.name || null;
-  } catch (error) {
-    console.error("[getCampaignName] Error fetching campaign name:", error);
-    return null;
-  }
+		return campaign?.name || null;
+	} catch (error) {
+		console.error("[getCampaignName] Error fetching campaign name:", error);
+		return null;
+	}
 }
 
 /**
  * Format message with campaign context
  */
 function formatMessageWithCampaign(
-  message: string,
-  campaignName: string | null | undefined
+	message: string,
+	campaignName: string | null | undefined
 ): string {
-  if (!campaignName) {
-    return message;
-  }
-  return `${message} for campaign "${campaignName}"`;
+	if (!campaignName) {
+		return message;
+	}
+	return `${message} for campaign "${campaignName}"`;
 }
 
 /**
  * Standard error response for tool execution
  */
 export function createToolError(
-  message: string,
-  error: any,
-  code: number,
-  toolCallId: string,
-  _campaignId?: string | null,
-  campaignName?: string | null
+	message: string,
+	error: any,
+	code: number,
+	toolCallId: string,
+	_campaignId?: string | null,
+	campaignName?: string | null
 ): ToolResult {
-  const formattedMessage = campaignName
-    ? formatMessageWithCampaign(message, campaignName)
-    : message;
+	const formattedMessage = campaignName
+		? formatMessageWithCampaign(message, campaignName)
+		: message;
 
-  return {
-    toolCallId,
-    result: {
-      success: false,
-      message: formattedMessage,
-      data: {
-        error: error instanceof Error ? error.message : String(error),
-        errorCode: code,
-        ...(campaignName ? { campaignName } : {}),
-      },
-    },
-  };
+	return {
+		toolCallId,
+		result: {
+			success: false,
+			message: formattedMessage,
+			data: {
+				error: error instanceof Error ? error.message : String(error),
+				errorCode: code,
+				...(campaignName ? { campaignName } : {}),
+			},
+		},
+	};
 }
 
 /**
  * Standard success response for tool execution
  */
 export function createToolSuccess(
-  message: string,
-  data: any,
-  toolCallId: string,
-  _campaignId?: string | null,
-  campaignName?: string | null
+	message: string,
+	data: any,
+	toolCallId: string,
+	_campaignId?: string | null,
+	campaignName?: string | null
 ): ToolResult {
-  const formattedMessage = campaignName
-    ? formatMessageWithCampaign(message, campaignName)
-    : message;
+	const formattedMessage = campaignName
+		? formatMessageWithCampaign(message, campaignName)
+		: message;
 
-  return {
-    toolCallId,
-    result: {
-      success: true,
-      message: formattedMessage,
-      data: {
-        ...data,
-        ...(campaignName ? { campaignName } : {}),
-      },
-    },
-  };
+	return {
+		toolCallId,
+		result: {
+			success: true,
+			message: formattedMessage,
+			data: {
+				...data,
+				...(campaignName ? { campaignName } : {}),
+			},
+		},
+	};
 }
 
 /**
@@ -191,64 +191,64 @@ export function createToolSuccess(
  * Returns a ToolResult error if the user is a player; returns null if allowed (GM or owner).
  */
 export async function requireGMRole(
-  env: ToolEnv,
-  campaignId: string,
-  userId: string,
-  toolCallId: string
+	env: ToolEnv,
+	campaignId: string,
+	userId: string,
+	toolCallId: string
 ): Promise<ToolResult | null> {
-  const daoFactory = getDAOFactory(env);
-  const role = await daoFactory.campaignDAO.getCampaignRole(campaignId, userId);
-  if (role && PLAYER_ROLES.has(role)) {
-    return createToolError(
-      "This action is not available.",
-      "This action is limited to GM tools.",
-      403,
-      toolCallId
-    );
-  }
-  return null;
+	const daoFactory = getDAOFactory(env);
+	const role = await daoFactory.campaignDAO.getCampaignRole(campaignId, userId);
+	if (role && PLAYER_ROLES.has(role)) {
+		return createToolError(
+			"This action is not available.",
+			"This action is limited to GM tools.",
+			403,
+			toolCallId
+		);
+	}
+	return null;
 }
 
 /**
  * Execute API request with standard error handling
  */
 export async function executeApiRequest(
-  url: string,
-  options: RequestInit = {}
+	url: string,
+	options: RequestInit = {}
 ): Promise<{ success: boolean; data?: any; error?: string }> {
-  try {
-    const response = await fetch(url, options);
+	try {
+		const response = await fetch(url, options);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      return {
-        success: false,
-        error: `HTTP ${response.status}: ${errorText}`,
-      };
-    }
+		if (!response.ok) {
+			const errorText = await response.text();
+			return {
+				success: false,
+				error: `HTTP ${response.status}: ${errorText}`,
+			};
+		}
 
-    const data = await response.json();
-    return { success: true, data };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
+		const data = await response.json();
+		return { success: true, data };
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : String(error),
+		};
+	}
 }
 
 /**
  * Check if running in Durable Object context
  */
 export function isDurableObjectContext(context?: any): boolean {
-  return context?.env !== undefined;
+	return context?.env !== undefined;
 }
 
 /**
  * Get environment from context with fallback
  */
 export function getEnvironment(context?: any): any {
-  return context?.env || {};
+	return context?.env || {};
 }
 
 /**
@@ -256,12 +256,12 @@ export function getEnvironment(context?: any): any {
  * running in a context that provides env, so callers can fall back to API.
  */
 export function getEnvFromContext(context: unknown): ToolEnv | null {
-  const c = context as { env?: unknown } | null | undefined;
-  if (c?.env) return c.env as ToolEnv;
-  if (typeof globalThis !== "undefined" && "env" in globalThis) {
-    return (globalThis as unknown as { env: unknown }).env as ToolEnv;
-  }
-  return null;
+	const c = context as { env?: unknown } | null | undefined;
+	if (c?.env) return c.env as ToolEnv;
+	if (typeof globalThis !== "undefined" && "env" in globalThis) {
+		return (globalThis as unknown as { env: unknown }).env as ToolEnv;
+	}
+	return null;
 }
 
 /**
@@ -270,38 +270,38 @@ export function getEnvFromContext(context: unknown): ToolEnv | null {
  * If env: extracts userId from JWT; if missing returns authErrorResult; else calls dbCall(env, userId).
  */
 export async function runWithEnvOrApi<T>(params: {
-  context: unknown;
-  jwt: string | null | undefined;
-  apiCall: () => Promise<T>;
-  dbCall: (env: unknown, userId: string) => Promise<T>;
-  authErrorResult: T;
+	context: unknown;
+	jwt: string | null | undefined;
+	apiCall: () => Promise<T>;
+	dbCall: (env: unknown, userId: string) => Promise<T>;
+	authErrorResult: T;
 }): Promise<T> {
-  const { context, jwt, apiCall, dbCall, authErrorResult } = params;
-  const env = getEnvFromContext(context);
+	const { context, jwt, apiCall, dbCall, authErrorResult } = params;
+	const env = getEnvFromContext(context);
 
-  if (!env) {
-    return apiCall();
-  }
+	if (!env) {
+		return apiCall();
+	}
 
-  const userId = extractUsernameFromJwt(jwt);
-  if (!userId) {
-    return authErrorResult;
-  }
+	const userId = extractUsernameFromJwt(jwt);
+	if (!userId) {
+		return authErrorResult;
+	}
 
-  return dbCall(env, userId);
+	return dbCall(env, userId);
 }
 
 const SPOILER_ROLES = new Set<string>([
-  CAMPAIGN_ROLES.OWNER,
-  CAMPAIGN_ROLES.EDITOR_GM,
-  CAMPAIGN_ROLES.READONLY_GM,
+	CAMPAIGN_ROLES.OWNER,
+	CAMPAIGN_ROLES.EDITOR_GM,
+	CAMPAIGN_ROLES.READONLY_GM,
 ]);
 
 export function canSeeSpoilersForCampaignRole(
-  role: string | null | undefined
+	role: string | null | undefined
 ): boolean {
-  if (!role) return false;
-  return SPOILER_ROLES.has(role);
+	if (!role) return false;
+	return SPOILER_ROLES.has(role);
 }
 
 /**
@@ -311,45 +311,45 @@ export function canSeeSpoilersForCampaignRole(
  * calling the tool directly from an agent.
  */
 export async function requireCanSeeSpoilersForTool(params: {
-  env: unknown;
-  campaignId: string;
-  jwt: string | null | undefined;
-  toolCallId: string;
+	env: unknown;
+	campaignId: string;
+	jwt: string | null | undefined;
+	toolCallId: string;
 }): Promise<{ userId: string; role: string } | ToolResult> {
-  const { env, campaignId, jwt, toolCallId } = params;
+	const { env, campaignId, jwt, toolCallId } = params;
 
-  const userId = extractUsernameFromJwt(jwt);
-  if (!userId) {
-    return createToolError(
-      "Invalid authentication token",
-      "Authentication failed",
-      401,
-      toolCallId,
-      campaignId
-    );
-  }
+	const userId = extractUsernameFromJwt(jwt);
+	if (!userId) {
+		return createToolError(
+			"Invalid authentication token",
+			"Authentication failed",
+			401,
+			toolCallId,
+			campaignId
+		);
+	}
 
-  const daoFactory = getDAOFactory(env);
-  const role = await daoFactory.campaignDAO.getCampaignRole(campaignId, userId);
-  if (!role) {
-    return createToolError(
-      "Campaign not found",
-      "Campaign not found or access denied",
-      404,
-      toolCallId,
-      campaignId
-    );
-  }
+	const daoFactory = getDAOFactory(env);
+	const role = await daoFactory.campaignDAO.getCampaignRole(campaignId, userId);
+	if (!role) {
+		return createToolError(
+			"Campaign not found",
+			"Campaign not found or access denied",
+			404,
+			toolCallId,
+			campaignId
+		);
+	}
 
-  if (!canSeeSpoilersForCampaignRole(role)) {
-    return createToolError(
-      "Access denied",
-      "You do not have permission to view or modify campaign planning information.",
-      403,
-      toolCallId,
-      campaignId
-    );
-  }
+	if (!canSeeSpoilersForCampaignRole(role)) {
+		return createToolError(
+			"Access denied",
+			"You do not have permission to view or modify campaign planning information.",
+			403,
+			toolCallId,
+			campaignId
+		);
+	}
 
-  return { userId, role };
+	return { userId, role };
 }

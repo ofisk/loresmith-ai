@@ -7,9 +7,9 @@
  * Generate prompt for detecting if text content is a character sheet
  */
 export function formatCharacterSheetDetectionPrompt(
-  textContent: string
+	textContent: string
 ): string {
-  return `Analyze the following text content and determine if it is a character sheet from a tabletop role-playing game.
+	return `Analyze the following text content and determine if it is a character sheet from a tabletop role-playing game.
 
 The content may be from any file type (PDF, DOCX, Markdown, TXT, etc.) and any game system (D&D, Pathfinder, Call of Cthulhu, etc.).
 
@@ -48,14 +48,14 @@ Respond with valid JSON only.`;
  * Generate prompt for parsing character sheet text into structured data
  */
 export function formatCharacterSheetParsingPrompt(
-  textContent: string,
-  characterName?: string
+	textContent: string,
+	characterName?: string
 ): string {
-  const characterNameHint = characterName
-    ? `\nThe character's name is: ${characterName}\n`
-    : "";
+	const characterNameHint = characterName
+		? `\nThe character's name is: ${characterName}\n`
+		: "";
 
-  return `Extract structured character data from the following character sheet text.
+	return `Extract structured character data from the following character sheet text.
 
 The content may be from any file type (PDF, DOCX, Markdown, TXT, etc.) and any game system (D&D, Pathfinder, Call of Cthulhu, etc.).
 
@@ -118,6 +118,6 @@ Please respond with a JSON object containing the extracted character data. Respo
 }
 
 export const CHARACTER_SHEET_PROMPTS = {
-  formatCharacterSheetDetectionPrompt,
-  formatCharacterSheetParsingPrompt,
+	formatCharacterSheetDetectionPrompt,
+	formatCharacterSheetParsingPrompt,
 };

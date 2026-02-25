@@ -9,7 +9,7 @@ export { isFileAllowedForProposal } from "./file-upload-security";
 
 /** Returns allowed formats for error messages. */
 export function getBlockedExtensionsDescription(): string {
-  return getAllowedExtensionsDescription();
+	return getAllowedExtensionsDescription();
 }
 
 /** Legal notice shown to proposers before creating a proposal */

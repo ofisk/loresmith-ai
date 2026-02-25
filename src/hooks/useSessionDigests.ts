@@ -1,13 +1,13 @@
 import { useMemo, useState } from "react";
 import { USER_MESSAGES } from "@/app-constants";
-import { API_CONFIG } from "@/shared-config";
-import type {
-  SessionDigestWithData,
-  CreateSessionDigestInput,
-  UpdateSessionDigestInput,
-} from "@/types/session-digest";
 import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
 import { useBaseAsync } from "@/hooks/useBaseAsync";
+import { API_CONFIG } from "@/shared-config";
+import type {
+	CreateSessionDigestInput,
+	SessionDigestWithData,
+	UpdateSessionDigestInput,
+} from "@/types/session-digest";
 
 /**
  * Hook for managing session digest operations
@@ -36,277 +36,277 @@ import { useBaseAsync } from "@/hooks/useBaseAsync";
  * ```
  */
 export function useSessionDigests() {
-  const [digests, setDigests] = useState<SessionDigestWithData[]>([]);
-  const [nextSessionNumber, setNextSessionNumber] = useState<number>(1);
-  const [currentDigest, setCurrentDigest] =
-    useState<SessionDigestWithData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+	const [digests, setDigests] = useState<SessionDigestWithData[]>([]);
+	const [nextSessionNumber, setNextSessionNumber] = useState<number>(1);
+	const [currentDigest, setCurrentDigest] =
+		useState<SessionDigestWithData | null>(null);
+	const [error, setError] = useState<string | null>(null);
 
-  const { makeRequestWithData } = useAuthenticatedRequest();
+	const { makeRequestWithData } = useAuthenticatedRequest();
 
-  // Fetch all session digests for a campaign (includes nextSessionNumber from server)
-  const fetchSessionDigests = useBaseAsync(
-    useMemo(
-      () => async (campaignId: string) => {
-        const data = await makeRequestWithData<{
-          digests: SessionDigestWithData[];
-          nextSessionNumber?: number;
-        }>(
-          API_CONFIG.buildUrl(
-            API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.BASE(campaignId)
-          )
-        );
-        return {
-          digests: data.digests || [],
-          nextSessionNumber:
-            typeof data.nextSessionNumber === "number" &&
-            data.nextSessionNumber >= 1
-              ? data.nextSessionNumber
-              : 1,
-        };
-      },
-      [makeRequestWithData]
-    ),
-    useMemo(
-      () => ({
-        onSuccess: (result: {
-          digests: SessionDigestWithData[];
-          nextSessionNumber: number;
-        }) => {
-          setDigests(result.digests);
-          setNextSessionNumber(result.nextSessionNumber);
-        },
-        onError: (error: string) => setError(error),
-        errorMessage: USER_MESSAGES.HOOK_FAILED_TO_FETCH_SESSION_DIGESTS,
-      }),
-      []
-    )
-  );
+	// Fetch all session digests for a campaign (includes nextSessionNumber from server)
+	const fetchSessionDigests = useBaseAsync(
+		useMemo(
+			() => async (campaignId: string) => {
+				const data = await makeRequestWithData<{
+					digests: SessionDigestWithData[];
+					nextSessionNumber?: number;
+				}>(
+					API_CONFIG.buildUrl(
+						API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.BASE(campaignId)
+					)
+				);
+				return {
+					digests: data.digests || [],
+					nextSessionNumber:
+						typeof data.nextSessionNumber === "number" &&
+						data.nextSessionNumber >= 1
+							? data.nextSessionNumber
+							: 1,
+				};
+			},
+			[makeRequestWithData]
+		),
+		useMemo(
+			() => ({
+				onSuccess: (result: {
+					digests: SessionDigestWithData[];
+					nextSessionNumber: number;
+				}) => {
+					setDigests(result.digests);
+					setNextSessionNumber(result.nextSessionNumber);
+				},
+				onError: (error: string) => setError(error),
+				errorMessage: USER_MESSAGES.HOOK_FAILED_TO_FETCH_SESSION_DIGESTS,
+			}),
+			[]
+		)
+	);
 
-  // Fetch a single session digest
-  const fetchSessionDigest = useBaseAsync(
-    useMemo(
-      () => async (campaignId: string, digestId: string) => {
-        const data = await makeRequestWithData<{
-          digest: SessionDigestWithData;
-        }>(
-          API_CONFIG.buildUrl(
-            API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
-              campaignId,
-              digestId
-            )
-          )
-        );
-        return data.digest;
-      },
-      [makeRequestWithData]
-    ),
-    useMemo(
-      () => ({
-        onSuccess: (digest: SessionDigestWithData) => {
-          setCurrentDigest(digest);
-        },
-        onError: (error: string) => setError(error),
-        errorMessage: USER_MESSAGES.HOOK_FAILED_TO_FETCH_SESSION_DIGEST,
-      }),
-      []
-    )
-  );
+	// Fetch a single session digest
+	const fetchSessionDigest = useBaseAsync(
+		useMemo(
+			() => async (campaignId: string, digestId: string) => {
+				const data = await makeRequestWithData<{
+					digest: SessionDigestWithData;
+				}>(
+					API_CONFIG.buildUrl(
+						API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
+							campaignId,
+							digestId
+						)
+					)
+				);
+				return data.digest;
+			},
+			[makeRequestWithData]
+		),
+		useMemo(
+			() => ({
+				onSuccess: (digest: SessionDigestWithData) => {
+					setCurrentDigest(digest);
+				},
+				onError: (error: string) => setError(error),
+				errorMessage: USER_MESSAGES.HOOK_FAILED_TO_FETCH_SESSION_DIGEST,
+			}),
+			[]
+		)
+	);
 
-  // Create a new session digest
-  const createSessionDigest = useBaseAsync(
-    useMemo(
-      () =>
-        async (
-          campaignId: string,
-          input: Omit<CreateSessionDigestInput, "campaignId">
-        ) => {
-          const data = await makeRequestWithData<{
-            digest: SessionDigestWithData;
-          }>(
-            API_CONFIG.buildUrl(
-              API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.BASE(campaignId)
-            ),
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                sessionNumber: input.sessionNumber,
-                sessionDate: input.sessionDate || null,
-                digestData: input.digestData,
-              }),
-            }
-          );
-          return data.digest;
-        },
-      [makeRequestWithData]
-    ),
-    useMemo(
-      () => ({
-        onSuccess: (digest: SessionDigestWithData) => {
-          setDigests((prev) =>
-            [...prev, digest].sort((a, b) => {
-              if (a.sessionNumber !== b.sessionNumber) {
-                return b.sessionNumber - a.sessionNumber;
-              }
-              return (
-                new Date(b.createdAt).getTime() -
-                new Date(a.createdAt).getTime()
-              );
-            })
-          );
-        },
-        onError: (error: string) => setError(error),
-        errorMessage: USER_MESSAGES.HOOK_FAILED_TO_CREATE_SESSION_DIGEST,
-      }),
-      []
-    )
-  );
+	// Create a new session digest
+	const createSessionDigest = useBaseAsync(
+		useMemo(
+			() =>
+				async (
+					campaignId: string,
+					input: Omit<CreateSessionDigestInput, "campaignId">
+				) => {
+					const data = await makeRequestWithData<{
+						digest: SessionDigestWithData;
+					}>(
+						API_CONFIG.buildUrl(
+							API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.BASE(campaignId)
+						),
+						{
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+							},
+							body: JSON.stringify({
+								sessionNumber: input.sessionNumber,
+								sessionDate: input.sessionDate || null,
+								digestData: input.digestData,
+							}),
+						}
+					);
+					return data.digest;
+				},
+			[makeRequestWithData]
+		),
+		useMemo(
+			() => ({
+				onSuccess: (digest: SessionDigestWithData) => {
+					setDigests((prev) =>
+						[...prev, digest].sort((a, b) => {
+							if (a.sessionNumber !== b.sessionNumber) {
+								return b.sessionNumber - a.sessionNumber;
+							}
+							return (
+								new Date(b.createdAt).getTime() -
+								new Date(a.createdAt).getTime()
+							);
+						})
+					);
+				},
+				onError: (error: string) => setError(error),
+				errorMessage: USER_MESSAGES.HOOK_FAILED_TO_CREATE_SESSION_DIGEST,
+			}),
+			[]
+		)
+	);
 
-  // Update a session digest
-  const updateSessionDigest = useBaseAsync(
-    useMemo(
-      () =>
-        async (
-          campaignId: string,
-          digestId: string,
-          input: UpdateSessionDigestInput
-        ) => {
-          const data = await makeRequestWithData<{
-            digest: SessionDigestWithData;
-          }>(
-            API_CONFIG.buildUrl(
-              API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
-                campaignId,
-                digestId
-              )
-            ),
-            {
-              method: "PUT",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(input),
-            }
-          );
-          return data.digest;
-        },
-      [makeRequestWithData]
-    ),
-    useMemo(
-      () => ({
-        onSuccess: (digest: SessionDigestWithData) => {
-          setDigests((prev) =>
-            prev
-              .map((d) => (d.id === digest.id ? digest : d))
-              .sort((a, b) => {
-                if (a.sessionNumber !== b.sessionNumber) {
-                  return b.sessionNumber - a.sessionNumber;
-                }
-                return (
-                  new Date(b.createdAt).getTime() -
-                  new Date(a.createdAt).getTime()
-                );
-              })
-          );
-          if (currentDigest?.id === digest.id) {
-            setCurrentDigest(digest);
-          }
-        },
-        onError: (error: string) => setError(error),
-        errorMessage: USER_MESSAGES.HOOK_FAILED_TO_UPDATE_SESSION_DIGEST,
-      }),
-      [currentDigest]
-    )
-  );
+	// Update a session digest
+	const updateSessionDigest = useBaseAsync(
+		useMemo(
+			() =>
+				async (
+					campaignId: string,
+					digestId: string,
+					input: UpdateSessionDigestInput
+				) => {
+					const data = await makeRequestWithData<{
+						digest: SessionDigestWithData;
+					}>(
+						API_CONFIG.buildUrl(
+							API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
+								campaignId,
+								digestId
+							)
+						),
+						{
+							method: "PUT",
+							headers: {
+								"Content-Type": "application/json",
+							},
+							body: JSON.stringify(input),
+						}
+					);
+					return data.digest;
+				},
+			[makeRequestWithData]
+		),
+		useMemo(
+			() => ({
+				onSuccess: (digest: SessionDigestWithData) => {
+					setDigests((prev) =>
+						prev
+							.map((d) => (d.id === digest.id ? digest : d))
+							.sort((a, b) => {
+								if (a.sessionNumber !== b.sessionNumber) {
+									return b.sessionNumber - a.sessionNumber;
+								}
+								return (
+									new Date(b.createdAt).getTime() -
+									new Date(a.createdAt).getTime()
+								);
+							})
+					);
+					if (currentDigest?.id === digest.id) {
+						setCurrentDigest(digest);
+					}
+				},
+				onError: (error: string) => setError(error),
+				errorMessage: USER_MESSAGES.HOOK_FAILED_TO_UPDATE_SESSION_DIGEST,
+			}),
+			[currentDigest]
+		)
+	);
 
-  // Delete a session digest
-  const deleteSessionDigest = useBaseAsync(
-    useMemo(
-      () => async (campaignId: string, digestId: string) => {
-        await makeRequestWithData(
-          API_CONFIG.buildUrl(
-            API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
-              campaignId,
-              digestId
-            )
-          ),
-          {
-            method: "DELETE",
-          }
-        );
-        return digestId;
-      },
-      [makeRequestWithData]
-    ),
-    useMemo(
-      () => ({
-        onSuccess: (digestId: string) => {
-          setDigests((prev) => prev.filter((d) => d.id !== digestId));
-          if (currentDigest?.id === digestId) {
-            setCurrentDigest(null);
-          }
-        },
-        onError: (error: string) => setError(error),
-        errorMessage: USER_MESSAGES.HOOK_FAILED_TO_DELETE_SESSION_DIGEST,
-      }),
-      [currentDigest]
-    )
-  );
+	// Delete a session digest
+	const deleteSessionDigest = useBaseAsync(
+		useMemo(
+			() => async (campaignId: string, digestId: string) => {
+				await makeRequestWithData(
+					API_CONFIG.buildUrl(
+						API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
+							campaignId,
+							digestId
+						)
+					),
+					{
+						method: "DELETE",
+					}
+				);
+				return digestId;
+			},
+			[makeRequestWithData]
+		),
+		useMemo(
+			() => ({
+				onSuccess: (digestId: string) => {
+					setDigests((prev) => prev.filter((d) => d.id !== digestId));
+					if (currentDigest?.id === digestId) {
+						setCurrentDigest(null);
+					}
+				},
+				onError: (error: string) => setError(error),
+				errorMessage: USER_MESSAGES.HOOK_FAILED_TO_DELETE_SESSION_DIGEST,
+			}),
+			[currentDigest]
+		)
+	);
 
-  return {
-    // State
-    digests,
-    nextSessionNumber,
-    currentDigest,
-    loading:
-      fetchSessionDigests.loading ||
-      fetchSessionDigest.loading ||
-      createSessionDigest.loading ||
-      updateSessionDigest.loading ||
-      deleteSessionDigest.loading,
-    error:
-      error ||
-      fetchSessionDigests.error ||
-      fetchSessionDigest.error ||
-      createSessionDigest.error ||
-      updateSessionDigest.error ||
-      deleteSessionDigest.error,
+	return {
+		// State
+		digests,
+		nextSessionNumber,
+		currentDigest,
+		loading:
+			fetchSessionDigests.loading ||
+			fetchSessionDigest.loading ||
+			createSessionDigest.loading ||
+			updateSessionDigest.loading ||
+			deleteSessionDigest.loading,
+		error:
+			error ||
+			fetchSessionDigests.error ||
+			fetchSessionDigest.error ||
+			createSessionDigest.error ||
+			updateSessionDigest.error ||
+			deleteSessionDigest.error,
 
-    // Actions
-    fetchSessionDigests: {
-      execute: fetchSessionDigests.execute,
-      loading: fetchSessionDigests.loading,
-    },
-    fetchSessionDigest: {
-      execute: fetchSessionDigest.execute,
-      loading: fetchSessionDigest.loading,
-    },
-    createSessionDigest: {
-      execute: createSessionDigest.execute,
-      loading: createSessionDigest.loading,
-    },
-    updateSessionDigest: {
-      execute: updateSessionDigest.execute,
-      loading: updateSessionDigest.loading,
-    },
-    deleteSessionDigest: {
-      execute: deleteSessionDigest.execute,
-      loading: deleteSessionDigest.loading,
-    },
+		// Actions
+		fetchSessionDigests: {
+			execute: fetchSessionDigests.execute,
+			loading: fetchSessionDigests.loading,
+		},
+		fetchSessionDigest: {
+			execute: fetchSessionDigest.execute,
+			loading: fetchSessionDigest.loading,
+		},
+		createSessionDigest: {
+			execute: createSessionDigest.execute,
+			loading: createSessionDigest.loading,
+		},
+		updateSessionDigest: {
+			execute: updateSessionDigest.execute,
+			loading: updateSessionDigest.loading,
+		},
+		deleteSessionDigest: {
+			execute: deleteSessionDigest.execute,
+			loading: deleteSessionDigest.loading,
+		},
 
-    // Utilities
-    refetch: (campaignId: string) => {
-      fetchSessionDigests.execute(campaignId);
-    },
-    reset: () => {
-      setDigests([]);
-      setNextSessionNumber(1);
-      setCurrentDigest(null);
-      setError(null);
-    },
-    setError,
-  };
+		// Utilities
+		refetch: (campaignId: string) => {
+			fetchSessionDigests.execute(campaignId);
+		},
+		reset: () => {
+			setDigests([]);
+			setNextSessionNumber(1);
+			setCurrentDigest(null);
+			setError(null);
+		},
+		setError,
+	};
 }

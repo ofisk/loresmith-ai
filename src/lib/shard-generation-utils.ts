@@ -1,15 +1,15 @@
 // Utilities for entity/staging generation with robust path handling and validation
 import {
-  ResourceRequiredError,
-  ResourceIdRequiredError,
-  ResourceFileKeyRequiredError,
-  ResourceFileNameRequiredError,
-  SearchPathValidationError,
-  EnvironmentRequiredError,
-  UsernameRequiredError,
-  CampaignIdRequiredError,
-  CampaignNameRequiredError,
-  CampaignRagBasePathRequiredError,
+	CampaignIdRequiredError,
+	CampaignNameRequiredError,
+	CampaignRagBasePathRequiredError,
+	EnvironmentRequiredError,
+	ResourceFileKeyRequiredError,
+	ResourceFileNameRequiredError,
+	ResourceIdRequiredError,
+	ResourceRequiredError,
+	SearchPathValidationError,
+	UsernameRequiredError,
 } from "@/lib/errors";
 
 /**
@@ -17,52 +17,52 @@ import {
  * This ensures consistent field names across the system
  */
 export interface ShardGenerationResource {
-  id: string; // Resource UUID
-  file_key: string; // Full file path (e.g., "staging/ofisk/file.pdf")
-  file_name: string; // Just filename (e.g., "file.pdf")
-  campaign_id: string; // Campaign UUID
+	id: string; // Resource UUID
+	file_key: string; // Full file path (e.g., "staging/ofisk/file.pdf")
+	file_name: string; // Just filename (e.g., "file.pdf")
+	campaign_id: string; // Campaign UUID
 }
 
 /**
  * Options interface for entity staging (replaces old ShardGenerationOptions)
  */
 export interface EntityStagingOptionsLike {
-  env?: any;
-  username?: string;
-  campaignId?: string;
-  campaignName?: string;
-  resource?: any;
-  campaignRagBasePath?: string;
+	env?: any;
+	username?: string;
+	campaignId?: string;
+	campaignName?: string;
+	resource?: any;
+	campaignRagBasePath?: string;
 }
 
 /**
  * Validates that a resource has the required fields for shard generation
  */
 export function validateShardGenerationResource(
-  resource: any
+	resource: any
 ): ShardGenerationResource {
-  if (!resource) {
-    throw new ResourceRequiredError();
-  }
+	if (!resource) {
+		throw new ResourceRequiredError();
+	}
 
-  if (!resource.id) {
-    throw new ResourceIdRequiredError();
-  }
+	if (!resource.id) {
+		throw new ResourceIdRequiredError();
+	}
 
-  if (!resource.file_key) {
-    throw new ResourceFileKeyRequiredError();
-  }
+	if (!resource.file_key) {
+		throw new ResourceFileKeyRequiredError();
+	}
 
-  if (!resource.file_name) {
-    throw new ResourceFileNameRequiredError();
-  }
+	if (!resource.file_name) {
+		throw new ResourceFileNameRequiredError();
+	}
 
-  return {
-    id: resource.id,
-    file_key: resource.file_key,
-    file_name: resource.file_name,
-    campaign_id: resource.campaign_id || resource.campaignId,
-  };
+	return {
+		id: resource.id,
+		file_key: resource.file_key,
+		file_name: resource.file_name,
+		campaign_id: resource.campaign_id || resource.campaignId,
+	};
 }
 
 /**
@@ -70,15 +70,15 @@ export function validateShardGenerationResource(
  * This is the single source of truth for how we construct search paths
  */
 export function getRAGSearchPath(resource: ShardGenerationResource): string {
-  // Extract folder path from file_key
-  // e.g., "library/username/file.pdf/file.pdf" -> "library/username/file.pdf/"
-  const fileKey = resource.file_key;
-  const lastSlashIndex = fileKey.lastIndexOf("/");
-  if (lastSlashIndex === -1) {
-    return fileKey;
-  }
-  // Return the folder path (everything up to but not including the last filename)
-  return fileKey.substring(0, lastSlashIndex + 1);
+	// Extract folder path from file_key
+	// e.g., "library/username/file.pdf/file.pdf" -> "library/username/file.pdf/"
+	const fileKey = resource.file_key;
+	const lastSlashIndex = fileKey.lastIndexOf("/");
+	if (lastSlashIndex === -1) {
+		return fileKey;
+	}
+	// Return the folder path (everything up to but not including the last filename)
+	return fileKey.substring(0, lastSlashIndex + 1);
 }
 
 /**
@@ -86,37 +86,37 @@ export function getRAGSearchPath(resource: ShardGenerationResource): string {
  * This helps catch configuration issues early
  */
 export function validateSearchPath(searchPath: string): void {
-  if (!searchPath || searchPath.trim().length === 0) {
-    throw new SearchPathValidationError(
-      searchPath,
-      "Search path cannot be empty"
-    );
-  }
+	if (!searchPath || searchPath.trim().length === 0) {
+		throw new SearchPathValidationError(
+			searchPath,
+			"Search path cannot be empty"
+		);
+	}
 
-  if (searchPath.length < 3) {
-    throw new SearchPathValidationError(searchPath, "Search path too short");
-  }
+	if (searchPath.length < 3) {
+		throw new SearchPathValidationError(searchPath, "Search path too short");
+	}
 
-  // Check for common issues
-  if (searchPath.includes("undefined") || searchPath.includes("null")) {
-    throw new SearchPathValidationError(
-      searchPath,
-      "Search path contains undefined/null"
-    );
-  }
+	// Check for common issues
+	if (searchPath.includes("undefined") || searchPath.includes("null")) {
+		throw new SearchPathValidationError(
+			searchPath,
+			"Search path contains undefined/null"
+		);
+	}
 
-  // Warn about potential issues
-  if (searchPath.match(/^[a-f0-9-]{36}$/)) {
-    console.warn(
-      `[ShardGeneration] Search path looks like a UUID: "${searchPath}". This might indicate a field mapping issue.`
-    );
-  }
+	// Warn about potential issues
+	if (searchPath.match(/^[a-f0-9-]{36}$/)) {
+		console.warn(
+			`[ShardGeneration] Search path looks like a UUID: "${searchPath}". This might indicate a field mapping issue.`
+		);
+	}
 
-  if (!searchPath.includes("/")) {
-    console.warn(
-      `[ShardGeneration] Search path has no path separators: "${searchPath}". This might not match indexed content.`
-    );
-  }
+	if (!searchPath.includes("/")) {
+		console.warn(
+			`[ShardGeneration] Search path has no path separators: "${searchPath}". This might not match indexed content.`
+		);
+	}
 }
 
 /**
@@ -124,64 +124,64 @@ export function validateSearchPath(searchPath: string): void {
  * This handles the different ways resources can be passed to shard generation
  */
 export function normalizeResourceForShardGeneration(
-  resource: any
+	resource: any
 ): ShardGenerationResource {
-  // Handle different possible field names
-  const normalized = {
-    id: resource.id || resource.resourceId,
-    file_key: resource.file_key || resource.fileKey || resource.id, // fallback to id if file_key missing
-    file_name: resource.file_name || resource.fileName || resource.name,
-    campaign_id: resource.campaign_id || resource.campaignId,
-  };
+	// Handle different possible field names
+	const normalized = {
+		id: resource.id || resource.resourceId,
+		file_key: resource.file_key || resource.fileKey || resource.id, // fallback to id if file_key missing
+		file_name: resource.file_name || resource.fileName || resource.name,
+		campaign_id: resource.campaign_id || resource.campaignId,
+	};
 
-  return validateShardGenerationResource(normalized);
+	return validateShardGenerationResource(normalized);
 }
 
 /**
  * Logs detailed information about the shard generation process for debugging
  */
 export function logShardGenerationContext(
-  resource: ShardGenerationResource,
-  searchPath: string,
-  campaignId: string
+	resource: ShardGenerationResource,
+	searchPath: string,
+	campaignId: string
 ): void {
-  console.log(`[ShardGeneration] Context:`, {
-    resourceId: resource.id,
-    fileKey: resource.file_key,
-    fileName: resource.file_name,
-    searchPath,
-    campaignId,
-    pathMatches: resource.file_key === searchPath,
-  });
+	console.log(`[ShardGeneration] Context:`, {
+		resourceId: resource.id,
+		fileKey: resource.file_key,
+		fileName: resource.file_name,
+		searchPath,
+		campaignId,
+		pathMatches: resource.file_key === searchPath,
+	});
 }
 
 /**
  * Validates the complete entity staging options
  */
 export function validateShardGenerationOptions(
-  options: EntityStagingOptionsLike
+	options: EntityStagingOptionsLike
 ): void {
-  if (!options.env) {
-    throw new EnvironmentRequiredError();
-  }
+	if (!options.env) {
+		throw new EnvironmentRequiredError();
+	}
 
-  if (!options.username) {
-    throw new UsernameRequiredError();
-  }
+	if (!options.username) {
+		throw new UsernameRequiredError();
+	}
 
-  if (!options.campaignId) {
-    throw new CampaignIdRequiredError();
-  }
+	if (!options.campaignId) {
+		throw new CampaignIdRequiredError();
+	}
 
-  if (!options.campaignName) {
-    throw new CampaignNameRequiredError();
-  }
+	if (!options.campaignName) {
+		throw new CampaignNameRequiredError();
+	}
 
-  if (!options.resource) {
-    throw new ResourceRequiredError();
-  }
+	if (!options.resource) {
+		throw new ResourceRequiredError();
+	}
 
-  if (!options.campaignRagBasePath) {
-    throw new CampaignRagBasePathRequiredError();
-  }
+	if (!options.campaignRagBasePath) {
+		throw new CampaignRagBasePathRequiredError();
+	}
 }

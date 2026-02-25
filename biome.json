@@ -1,58 +1,46 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
-  "vcs": {
-    "enabled": false,
-    "clientKind": "git",
-    "useIgnoreFile": false
-  },
-  "files": {
-    "ignoreUnknown": false,
-    "includes": [
-      "**/*.js",
-      "**/*.jsx",
-      "**/*.ts",
-      "**/*.tsx",
-      "**/*.json",
-      "!!dist",
-      "!!node_modules",
-      "!!.wrangler",
-      "!!build",
-      "!!**/worker-configuration.d.ts"
-    ]
-  },
-  "formatter": {
-    "enabled": false,
-    "indentStyle": "tab"
-  },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "recommended": true,
-      "style": {
-        "noNonNullAssertion": "off",
-        "useImportType": "error"
-      },
-      "complexity": {
-        "noBannedTypes": "off",
-        "noStaticOnlyClass": "off"
-      },
-      "correctness": {
-        "useExhaustiveDependencies": "warn",
-        "noUnusedFunctionParameters": "warn"
-      },
-      "a11y": {
-        "noLabelWithoutControl": "warn"
-      },
-      "suspicious": {
-        "noExplicitAny": "off",
-        "noConfusingVoidType": "off",
-        "noArrayIndexKey": "warn"
-      }
-    }
-  },
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "double"
-    }
-  }
+	"$schema": "https://biomejs.dev/schemas/2.4.4/schema.json",
+	"vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+	"files": {
+		"ignoreUnknown": false,
+		"includes": [
+			"**/*.js",
+			"**/*.jsx",
+			"**/*.ts",
+			"**/*.tsx",
+			"**/*.json",
+			"**/*.jsonc",
+			"**/*.css",
+			"**/*.mjs",
+			"!!dist",
+			"!!node_modules",
+			"!!.wrangler",
+			"!!build",
+			"!!.claude",
+			"!!.vscode",
+			"!!**/worker-configuration.d.ts"
+		]
+	},
+	"formatter": { "enabled": true, "indentStyle": "tab" },
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"style": { "noNonNullAssertion": "off", "useImportType": "error" },
+			"complexity": { "noBannedTypes": "off", "noStaticOnlyClass": "off" },
+			"correctness": {
+				"useExhaustiveDependencies": "warn",
+				"noUnusedFunctionParameters": "warn"
+			},
+			"a11y": { "noLabelWithoutControl": "warn" },
+			"suspicious": {
+				"noExplicitAny": "off",
+				"noConfusingVoidType": "off",
+				"noArrayIndexKey": "warn"
+			}
+		}
+	},
+	"javascript": {
+		"formatter": { "quoteStyle": "double", "trailingCommas": "es5" }
+	}
 }

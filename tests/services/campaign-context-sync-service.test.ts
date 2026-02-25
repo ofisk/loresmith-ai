@@ -1,334 +1,334 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { CampaignContextSyncService } from "../../src/services/campaign/campaign-context-sync-service";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../../src/middleware/auth";
+import { CampaignContextSyncService } from "../../src/services/campaign/campaign-context-sync-service";
 
 describe("CampaignContextSyncService", () => {
-  let syncService: CampaignContextSyncService;
-  let mockEnv: Env;
-  let mockR2: any;
+	let syncService: CampaignContextSyncService;
+	let mockEnv: Env;
+	let mockR2: any;
 
-  const campaignId = "test-campaign-123";
+	const campaignId = "test-campaign-123";
 
-  beforeEach(() => {
-    vi.clearAllMocks();
+	beforeEach(() => {
+		vi.clearAllMocks();
 
-    // Mock R2 operations
-    mockR2 = {
-      get: vi.fn(),
-      put: vi.fn(),
-      delete: vi.fn(),
-      list: vi.fn(),
-    };
+		// Mock R2 operations
+		mockR2 = {
+			get: vi.fn(),
+			put: vi.fn(),
+			delete: vi.fn(),
+			list: vi.fn(),
+		};
 
-    // Mock environment
-    mockEnv = {
-      DB: {} as any,
-      R2_BUCKET: mockR2 as any,
-      R2: mockR2 as any,
-      VECTORIZE: {} as any,
-      AI: {} as any,
-      Chat: {} as any,
-      NOTIFICATION_HUB: {} as any,
-      UPLOAD_SESSION: {} as any,
-      UploadSession: {} as any,
-      OPENAI_API_KEY: "test-key",
-      ASSETS: {} as any,
-      FILE_PROCESSING_QUEUE: {} as any,
-      FILE_PROCESSING_DLQ: {} as any,
-    } as unknown as Env;
+		// Mock environment
+		mockEnv = {
+			DB: {} as any,
+			R2_BUCKET: mockR2 as any,
+			R2: mockR2 as any,
+			VECTORIZE: {} as any,
+			AI: {} as any,
+			Chat: {} as any,
+			NOTIFICATION_HUB: {} as any,
+			UPLOAD_SESSION: {} as any,
+			UploadSession: {} as any,
+			OPENAI_API_KEY: "test-key",
+			ASSETS: {} as any,
+			FILE_PROCESSING_QUEUE: {} as any,
+			FILE_PROCESSING_DLQ: {} as any,
+		} as unknown as Env;
 
-    syncService = new CampaignContextSyncService(mockEnv);
-  });
+		syncService = new CampaignContextSyncService(mockEnv);
+	});
 
-  describe("syncCharacter", () => {
-    it("should sync character to approved folder", async () => {
-      const characterId = "char-123";
-      const characterName = "Aragorn";
-      const characterData = {
-        backstory: "Ranger of the North",
-        personality_traits: "Noble and brave",
-        goals: "Reclaim the throne",
-      };
+	describe("syncCharacter", () => {
+		it("should sync character to approved folder", async () => {
+			const characterId = "char-123";
+			const characterName = "Aragorn";
+			const characterData = {
+				backstory: "Ranger of the North",
+				personality_traits: "Noble and brave",
+				goals: "Reclaim the throne",
+			};
 
-      mockR2.put.mockResolvedValue(undefined);
+			mockR2.put.mockResolvedValue(undefined);
 
-      await syncService.syncCharacter(
-        campaignId,
-        characterId,
-        characterName,
-        characterData
-      );
+			await syncService.syncCharacter(
+				campaignId,
+				characterId,
+				characterName,
+				characterData
+			);
 
-      expect(mockR2.put).toHaveBeenCalledOnce();
-      const call = mockR2.put.mock.calls[0];
+			expect(mockR2.put).toHaveBeenCalledOnce();
+			const call = mockR2.put.mock.calls[0];
 
-      // Verify path
-      expect(call[0]).toBe(
-        `campaigns/${campaignId}/context/approved/${characterId}.json`
-      );
+			// Verify path
+			expect(call[0]).toBe(
+				`campaigns/${campaignId}/context/approved/${characterId}.json`
+			);
 
-      // Verify content structure
-      const savedData = JSON.parse(new TextDecoder().decode(call[1]));
-      expect(savedData.id).toBe(characterId);
-      expect(savedData.metadata.entityType).toBe("character");
-      expect(savedData.metadata.characterName).toBe(characterName);
-      expect(savedData.metadata.campaignId).toBe(campaignId);
-      expect(savedData.text).toContain("Aragorn");
-      expect(savedData.text).toContain("Ranger of the North");
-    });
-  });
+			// Verify content structure
+			const savedData = JSON.parse(new TextDecoder().decode(call[1]));
+			expect(savedData.id).toBe(characterId);
+			expect(savedData.metadata.entityType).toBe("character");
+			expect(savedData.metadata.characterName).toBe(characterName);
+			expect(savedData.metadata.campaignId).toBe(campaignId);
+			expect(savedData.text).toContain("Aragorn");
+			expect(savedData.text).toContain("Ranger of the North");
+		});
+	});
 
-  describe("syncContext", () => {
-    it("should sync campaign context to approved folder", async () => {
-      const contextId = "ctx-456";
-      const contextType = "campaign_info";
-      const title = "Campaign Title";
-      const content = "The Rise of the Dragon Lords";
+	describe("syncContext", () => {
+		it("should sync campaign context to approved folder", async () => {
+			const contextId = "ctx-456";
+			const contextType = "campaign_info";
+			const title = "Campaign Title";
+			const content = "The Rise of the Dragon Lords";
 
-      mockR2.put.mockResolvedValue(undefined);
+			mockR2.put.mockResolvedValue(undefined);
 
-      await syncService.syncContext(
-        campaignId,
-        contextId,
-        contextType,
-        title,
-        content
-      );
+			await syncService.syncContext(
+				campaignId,
+				contextId,
+				contextType,
+				title,
+				content
+			);
 
-      expect(mockR2.put).toHaveBeenCalledOnce();
-      const call = mockR2.put.mock.calls[0];
+			expect(mockR2.put).toHaveBeenCalledOnce();
+			const call = mockR2.put.mock.calls[0];
 
-      // Verify path
-      expect(call[0]).toBe(
-        `campaigns/${campaignId}/context/approved/${contextId}.json`
-      );
+			// Verify path
+			expect(call[0]).toBe(
+				`campaigns/${campaignId}/context/approved/${contextId}.json`
+			);
 
-      // Verify content structure
-      const savedData = JSON.parse(new TextDecoder().decode(call[1]));
-      expect(savedData.id).toBe(contextId);
-      expect(savedData.metadata.entityType).toBe("context");
-      expect(savedData.metadata.contextType).toBe(contextType);
-      expect(savedData.metadata.title).toBe(title);
-      expect(savedData.text).toContain(title);
-      expect(savedData.text).toContain(content);
-    });
+			// Verify content structure
+			const savedData = JSON.parse(new TextDecoder().decode(call[1]));
+			expect(savedData.id).toBe(contextId);
+			expect(savedData.metadata.entityType).toBe("context");
+			expect(savedData.metadata.contextType).toBe(contextType);
+			expect(savedData.metadata.title).toBe(title);
+			expect(savedData.text).toContain(title);
+			expect(savedData.text).toContain(content);
+		});
 
-    it("should include additional metadata when provided", async () => {
-      const contextId = "ctx-789";
-      const additionalMeta = { field: "description", customFlag: true };
+		it("should include additional metadata when provided", async () => {
+			const contextId = "ctx-789";
+			const additionalMeta = { field: "description", customFlag: true };
 
-      mockR2.put.mockResolvedValue(undefined);
+			mockR2.put.mockResolvedValue(undefined);
 
-      await syncService.syncContext(
-        campaignId,
-        contextId,
-        "plot_decision",
-        "Main Quest",
-        "Defeat the dragon",
-        additionalMeta
-      );
+			await syncService.syncContext(
+				campaignId,
+				contextId,
+				"plot_decision",
+				"Main Quest",
+				"Defeat the dragon",
+				additionalMeta
+			);
 
-      const call = mockR2.put.mock.calls[0];
-      const savedData = JSON.parse(new TextDecoder().decode(call[1]));
+			const call = mockR2.put.mock.calls[0];
+			const savedData = JSON.parse(new TextDecoder().decode(call[1]));
 
-      expect(savedData.metadata.field).toBe("description");
-      expect(savedData.metadata.customFlag).toBe(true);
-    });
-  });
+			expect(savedData.metadata.field).toBe("description");
+			expect(savedData.metadata.customFlag).toBe(true);
+		});
+	});
 
-  describe("syncCharacterSheet", () => {
-    it("should sync character sheet to approved folder", async () => {
-      const sheetId = "sheet-123";
-      const characterName = "Gandalf";
-      const characterData = {
-        class: "Wizard",
-        level: 20,
-        stats: { str: 10, dex: 12, con: 14, int: 20, wis: 18, cha: 16 },
-      };
+	describe("syncCharacterSheet", () => {
+		it("should sync character sheet to approved folder", async () => {
+			const sheetId = "sheet-123";
+			const characterName = "Gandalf";
+			const characterData = {
+				class: "Wizard",
+				level: 20,
+				stats: { str: 10, dex: 12, con: 14, int: 20, wis: 18, cha: 16 },
+			};
 
-      mockR2.put.mockResolvedValue(undefined);
+			mockR2.put.mockResolvedValue(undefined);
 
-      await syncService.syncCharacterSheet(
-        campaignId,
-        sheetId,
-        characterName,
-        characterData
-      );
+			await syncService.syncCharacterSheet(
+				campaignId,
+				sheetId,
+				characterName,
+				characterData
+			);
 
-      expect(mockR2.put).toHaveBeenCalledOnce();
-      const call = mockR2.put.mock.calls[0];
+			expect(mockR2.put).toHaveBeenCalledOnce();
+			const call = mockR2.put.mock.calls[0];
 
-      // Verify path
-      expect(call[0]).toBe(
-        `campaigns/${campaignId}/context/approved/${sheetId}.json`
-      );
+			// Verify path
+			expect(call[0]).toBe(
+				`campaigns/${campaignId}/context/approved/${sheetId}.json`
+			);
 
-      // Verify content
-      const savedData = JSON.parse(new TextDecoder().decode(call[1]));
-      expect(savedData.metadata.entityType).toBe("character_sheet");
-      expect(savedData.metadata.characterName).toBe(characterName);
-      expect(savedData.text).toContain("Gandalf");
-    });
-  });
+			// Verify content
+			const savedData = JSON.parse(new TextDecoder().decode(call[1]));
+			expect(savedData.metadata.entityType).toBe("character_sheet");
+			expect(savedData.metadata.characterName).toBe(characterName);
+			expect(savedData.text).toContain("Gandalf");
+		});
+	});
 
-  describe("createStagingShard", () => {
-    it("should create staging shard for conversational context", async () => {
-      const noteId = "note-123";
-      const noteTitle = "Village of Barovia";
-      const noteContent = "A gloomy village trapped in mist...";
-      const noteType = "locations";
-      const confidence = 0.85;
-      const sourceMessageId = "msg-456";
+	describe("createStagingShard", () => {
+		it("should create staging shard for conversational context", async () => {
+			const noteId = "note-123";
+			const noteTitle = "Village of Barovia";
+			const noteContent = "A gloomy village trapped in mist...";
+			const noteType = "locations";
+			const confidence = 0.85;
+			const sourceMessageId = "msg-456";
 
-      mockR2.put.mockResolvedValue(undefined);
+			mockR2.put.mockResolvedValue(undefined);
 
-      const result = await syncService.createStagingShard(
-        campaignId,
-        noteId,
-        noteTitle,
-        noteContent,
-        noteType,
-        confidence,
-        sourceMessageId
-      );
+			const result = await syncService.createStagingShard(
+				campaignId,
+				noteId,
+				noteTitle,
+				noteContent,
+				noteType,
+				confidence,
+				sourceMessageId
+			);
 
-      expect(mockR2.put).toHaveBeenCalledOnce();
-      expect(result.stagingKey).toContain("/conversation/staging/");
-      expect(result.stagingKey).toContain(noteId);
+			expect(mockR2.put).toHaveBeenCalledOnce();
+			expect(result.stagingKey).toContain("/conversation/staging/");
+			expect(result.stagingKey).toContain(noteId);
 
-      const call = mockR2.put.mock.calls[0];
-      const savedData = JSON.parse(new TextDecoder().decode(call[1]));
+			const call = mockR2.put.mock.calls[0];
+			const savedData = JSON.parse(new TextDecoder().decode(call[1]));
 
-      expect(savedData.id).toBe(noteId);
-      expect(savedData.text).toBe(noteContent);
-      expect(savedData.metadata.entityType).toBe("conversational_context");
-      expect(savedData.metadata.noteType).toBe(noteType);
-      expect(savedData.metadata.title).toBe(noteTitle);
-      expect(savedData.metadata.sourceType).toBe("ai_detected");
-      expect(savedData.metadata.confidence).toBe(confidence);
-      expect(savedData.metadata.sourceMessageId).toBe(sourceMessageId);
-    });
+			expect(savedData.id).toBe(noteId);
+			expect(savedData.text).toBe(noteContent);
+			expect(savedData.metadata.entityType).toBe("conversational_context");
+			expect(savedData.metadata.noteType).toBe(noteType);
+			expect(savedData.metadata.title).toBe(noteTitle);
+			expect(savedData.metadata.sourceType).toBe("ai_detected");
+			expect(savedData.metadata.confidence).toBe(confidence);
+			expect(savedData.metadata.sourceMessageId).toBe(sourceMessageId);
+		});
 
-    it("should use default confidence when not provided", async () => {
-      mockR2.put.mockResolvedValue(undefined);
+		it("should use default confidence when not provided", async () => {
+			mockR2.put.mockResolvedValue(undefined);
 
-      await syncService.createStagingShard(
-        campaignId,
-        "note-789",
-        "Test Note",
-        "Test content"
-      );
+			await syncService.createStagingShard(
+				campaignId,
+				"note-789",
+				"Test Note",
+				"Test content"
+			);
 
-      const call = mockR2.put.mock.calls[0];
-      const savedData = JSON.parse(new TextDecoder().decode(call[1]));
+			const call = mockR2.put.mock.calls[0];
+			const savedData = JSON.parse(new TextDecoder().decode(call[1]));
 
-      expect(savedData.metadata.confidence).toBe(0.8); // default
-      expect(savedData.metadata.noteType).toBe("general"); // default
-    });
-  });
+			expect(savedData.metadata.confidence).toBe(0.8); // default
+			expect(savedData.metadata.noteType).toBe("general"); // default
+		});
+	});
 
-  describe("delete operations", () => {
-    it("should delete character", async () => {
-      const characterId = "char-123";
-      mockR2.delete.mockResolvedValue(undefined);
+	describe("delete operations", () => {
+		it("should delete character", async () => {
+			const characterId = "char-123";
+			mockR2.delete.mockResolvedValue(undefined);
 
-      await syncService.deleteCharacter(campaignId, characterId);
+			await syncService.deleteCharacter(campaignId, characterId);
 
-      expect(mockR2.delete).toHaveBeenCalledWith(
-        `campaigns/${campaignId}/context/approved/${characterId}.json`
-      );
-    });
+			expect(mockR2.delete).toHaveBeenCalledWith(
+				`campaigns/${campaignId}/context/approved/${characterId}.json`
+			);
+		});
 
-    it("should delete context", async () => {
-      const contextId = "ctx-456";
-      mockR2.delete.mockResolvedValue(undefined);
+		it("should delete context", async () => {
+			const contextId = "ctx-456";
+			mockR2.delete.mockResolvedValue(undefined);
 
-      await syncService.deleteContext(campaignId, contextId);
+			await syncService.deleteContext(campaignId, contextId);
 
-      expect(mockR2.delete).toHaveBeenCalledWith(
-        `campaigns/${campaignId}/context/approved/${contextId}.json`
-      );
-    });
+			expect(mockR2.delete).toHaveBeenCalledWith(
+				`campaigns/${campaignId}/context/approved/${contextId}.json`
+			);
+		});
 
-    it("should delete character sheet", async () => {
-      const sheetId = "sheet-789";
-      mockR2.delete.mockResolvedValue(undefined);
+		it("should delete character sheet", async () => {
+			const sheetId = "sheet-789";
+			mockR2.delete.mockResolvedValue(undefined);
 
-      await syncService.deleteCharacterSheet(campaignId, sheetId);
+			await syncService.deleteCharacterSheet(campaignId, sheetId);
 
-      expect(mockR2.delete).toHaveBeenCalledWith(
-        `campaigns/${campaignId}/context/approved/${sheetId}.json`
-      );
-    });
-  });
+			expect(mockR2.delete).toHaveBeenCalledWith(
+				`campaigns/${campaignId}/context/approved/${sheetId}.json`
+			);
+		});
+	});
 
-  describe("text formatting", () => {
-    it("should format character data with all fields", async () => {
-      const characterData = {
-        backstory: "Ancient warrior",
-        personality_traits: "Stoic and wise",
-        goals: "Protect the realm",
-        notes: "Carries ancient sword",
-        custom_field: "Custom value",
-      };
+	describe("text formatting", () => {
+		it("should format character data with all fields", async () => {
+			const characterData = {
+				backstory: "Ancient warrior",
+				personality_traits: "Stoic and wise",
+				goals: "Protect the realm",
+				notes: "Carries ancient sword",
+				custom_field: "Custom value",
+			};
 
-      mockR2.put.mockResolvedValue(undefined);
+			mockR2.put.mockResolvedValue(undefined);
 
-      await syncService.syncCharacter(
-        campaignId,
-        "char-1",
-        "Warrior",
-        characterData
-      );
+			await syncService.syncCharacter(
+				campaignId,
+				"char-1",
+				"Warrior",
+				characterData
+			);
 
-      const call = mockR2.put.mock.calls[0];
-      const savedData = JSON.parse(new TextDecoder().decode(call[1]));
+			const call = mockR2.put.mock.calls[0];
+			const savedData = JSON.parse(new TextDecoder().decode(call[1]));
 
-      expect(savedData.text).toContain("Warrior");
-      expect(savedData.text).toContain("Ancient warrior");
-      expect(savedData.text).toContain("Stoic and wise");
-      expect(savedData.text).toContain("Protect the realm");
-      expect(savedData.text).toContain("ancient sword");
-      expect(savedData.text).toContain("Custom Field");
-    });
+			expect(savedData.text).toContain("Warrior");
+			expect(savedData.text).toContain("Ancient warrior");
+			expect(savedData.text).toContain("Stoic and wise");
+			expect(savedData.text).toContain("Protect the realm");
+			expect(savedData.text).toContain("ancient sword");
+			expect(savedData.text).toContain("Custom Field");
+		});
 
-    it("should format context with type and content", async () => {
-      mockR2.put.mockResolvedValue(undefined);
+		it("should format context with type and content", async () => {
+			mockR2.put.mockResolvedValue(undefined);
 
-      await syncService.syncContext(
-        campaignId,
-        "ctx-1",
-        "world_building",
-        "Magic System",
-        "Magic is powered by emotions"
-      );
+			await syncService.syncContext(
+				campaignId,
+				"ctx-1",
+				"world_building",
+				"Magic System",
+				"Magic is powered by emotions"
+			);
 
-      const call = mockR2.put.mock.calls[0];
-      const savedData = JSON.parse(new TextDecoder().decode(call[1]));
+			const call = mockR2.put.mock.calls[0];
+			const savedData = JSON.parse(new TextDecoder().decode(call[1]));
 
-      expect(savedData.text).toContain("WORLD_BUILDING");
-      expect(savedData.text).toContain("Magic System");
-      expect(savedData.text).toContain("Magic is powered by emotions");
-    });
-  });
+			expect(savedData.text).toContain("WORLD_BUILDING");
+			expect(savedData.text).toContain("Magic System");
+			expect(savedData.text).toContain("Magic is powered by emotions");
+		});
+	});
 
-  describe("R2 path construction", () => {
-    it("should construct correct approved paths for characters", () => {
-      const characterId = "char-123";
-      const expectedPath = `campaigns/${campaignId}/context/approved/${characterId}.json`;
+	describe("R2 path construction", () => {
+		it("should construct correct approved paths for characters", () => {
+			const characterId = "char-123";
+			const expectedPath = `campaigns/${campaignId}/context/approved/${characterId}.json`;
 
-      expect(expectedPath).toMatch(
-        /campaigns\/.*\/context\/approved\/.*\.json/
-      );
-    });
+			expect(expectedPath).toMatch(
+				/campaigns\/.*\/context\/approved\/.*\.json/
+			);
+		});
 
-    it("should construct correct staging paths for conversational context", () => {
-      const noteId = "note-456";
-      const expectedPath = `campaigns/${campaignId}/conversation/staging/${noteId}.json`;
+		it("should construct correct staging paths for conversational context", () => {
+			const noteId = "note-456";
+			const expectedPath = `campaigns/${campaignId}/conversation/staging/${noteId}.json`;
 
-      expect(expectedPath).toMatch(
-        /campaigns\/.*\/conversation\/staging\/.*\.json/
-      );
-    });
-  });
+			expect(expectedPath).toMatch(
+				/campaigns\/.*\/conversation\/staging\/.*\.json/
+			);
+		});
+	});
 });
