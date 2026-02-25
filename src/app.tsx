@@ -31,6 +31,7 @@ import { useAppEventHandlers } from "@/hooks/useAppEventHandlers";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { getHelpContent } from "@/lib/help-content";
+import { AuthService } from "@/services/core/auth-service";
 import { PLAYER_ROLES } from "@/constants/campaign-roles";
 
 import type { campaignTools } from "@/tools/campaign";
@@ -215,7 +216,6 @@ export default function Chat() {
     setTextareaHeight,
     triggerFileUpload,
     setTriggerFileUpload,
-    sessionId,
   } = useAppState({ modalState, authState });
 
   const {
@@ -226,6 +226,12 @@ export default function Chat() {
     setSelectedCampaignId,
     refetch: refetchCampaigns,
   } = useCampaigns();
+
+  const username = AuthService.getJwtPayload()?.username ?? null;
+  const conversationId =
+    username !== null
+      ? `${username}-campaign-${selectedCampaignId ?? "none"}`
+      : "auth-required";
 
   // Join page: /join?token=xxx
   const [joinComplete, setJoinComplete] = useState(false);
@@ -371,7 +377,7 @@ export default function Chat() {
   const chatTransport = useMemo(
     () =>
       new DefaultChatTransport({
-        api: `${API_CONFIG.getApiBaseUrl()}/agents/chat/${sessionId}`,
+        api: `${API_CONFIG.getApiBaseUrl()}/agents/chat/${conversationId}`,
         headers: () => ({
           Authorization: `Bearer ${chatAuthRef.current.jwt ?? ""}`,
         }),
@@ -416,7 +422,7 @@ export default function Chat() {
           };
         },
       }),
-    [sessionId]
+    [conversationId]
   );
 
   const {
@@ -426,7 +432,7 @@ export default function Chat() {
     status: chatStatus,
     stop,
   } = useChat({
-    id: sessionId,
+    id: conversationId,
     transport: chatTransport,
   });
 
@@ -458,7 +464,7 @@ export default function Chat() {
     }) => {
       const text = (message.content ?? "").trim();
       const baseData = message.data ?? {};
-      const enrichedData = { ...baseData, sessionId };
+      const enrichedData = { ...baseData, sessionId: conversationId };
 
       if (message.role === "user") {
         void sendMessage({
@@ -476,34 +482,51 @@ export default function Chat() {
         setChatMessages((prev) => [...prev, newMsg] as typeof prev);
       }
     },
-    [sendMessage, setChatMessages, sessionId]
+    [sendMessage, setChatMessages, conversationId]
   );
 
   const authReady = useAuthReady();
 
-  // Restore chat history from API on load so it persists across refreshes
+  // Restore chat history from API; when conversationId changes, clear and load that conversation's history.
+  // Unauthenticated users are routed to the auth flow (no shared anon key to avoid data leaks).
+  // Fault tolerant: new conversationId format may return empty; treat errors as empty messages.
+  const setShowAuthModal = modalState.setShowAuthModal;
   useEffect(() => {
-    if (!authReady || !sessionId) return;
+    if (!authReady) return;
+
+    setChatMessages([]);
+    setChatHistoryLoaded(false);
+
     const jwt = authState.getStoredJwt();
-    if (!jwt) {
+    if (!jwt || conversationId === "auth-required") {
       setChatHistoryLoaded(true);
+      setShowAuthModal(true);
       return;
     }
+
     let cancelled = false;
     const url = API_CONFIG.buildUrl(
-      API_CONFIG.ENDPOINTS.CHAT.HISTORY(sessionId)
+      API_CONFIG.ENDPOINTS.CHAT.HISTORY(conversationId)
     );
     fetch(url, {
       headers: { Authorization: `Bearer ${jwt}` },
     })
-      .then((res) => (res.ok ? res.json() : Promise.resolve({ messages: [] })))
+      .then((res) => {
+        if (res.status === 401) {
+          setShowAuthModal(true);
+          return { messages: [] };
+        }
+        if (!res.ok) return { messages: [] };
+        return res.json().catch(() => ({ messages: [] }));
+      })
       .then((data: unknown) => {
         if (cancelled) return;
         const parsed = data as { messages?: Message[] };
-        const messages = parsed.messages ?? [];
-        setChatMessages((prev) =>
-          prev.length === 0 ? (messages as typeof prev) : prev
-        );
+        const messages = parsed?.messages ?? [];
+        setChatMessages((_prev) => messages as typeof _prev);
+      })
+      .catch(() => {
+        if (!cancelled) setChatMessages((_prev) => [] as typeof _prev);
       })
       .finally(() => {
         if (!cancelled) setChatHistoryLoaded(true);
@@ -511,7 +534,13 @@ export default function Chat() {
     return () => {
       cancelled = true;
     };
-  }, [authReady, sessionId, setChatMessages, authState.getStoredJwt]);
+  }, [
+    authReady,
+    conversationId,
+    setChatMessages,
+    authState.getStoredJwt,
+    setShowAuthModal,
+  ]);
 
   useEffect(() => {
     void agentMessages;
@@ -813,7 +842,10 @@ export default function Chat() {
     });
   }, [globalShards, campaignIdsWithShardApprovalPermission]);
 
-  const canReviewShards = campaignIdsWithShardApprovalPermission.size > 0;
+  const canReviewShards =
+    campaignIdsWithShardApprovalPermission.size > 0 &&
+    (!selectedCampaignId ||
+      campaignIdsWithShardApprovalPermission.has(selectedCampaignId));
 
   useAppEventHandlers({
     modalState,
