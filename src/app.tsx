@@ -489,6 +489,8 @@ export default function Chat() {
 
   // Restore chat history from API; when conversationId changes, clear and load that conversation's history.
   // Unauthenticated users are routed to the auth flow (no shared anon key to avoid data leaks).
+  // Fault tolerant: new conversationId format may return empty; treat errors as empty messages.
+  const setShowAuthModal = modalState.setShowAuthModal;
   useEffect(() => {
     if (!authReady) return;
 
@@ -498,7 +500,7 @@ export default function Chat() {
     const jwt = authState.getStoredJwt();
     if (!jwt || conversationId === "auth-required") {
       setChatHistoryLoaded(true);
-      modalState.setShowAuthModal(true);
+      setShowAuthModal(true);
       return;
     }
 
@@ -511,16 +513,20 @@ export default function Chat() {
     })
       .then((res) => {
         if (res.status === 401) {
-          modalState.setShowAuthModal(true);
+          setShowAuthModal(true);
           return { messages: [] };
         }
-        return res.ok ? res.json() : { messages: [] };
+        if (!res.ok) return { messages: [] };
+        return res.json().catch(() => ({ messages: [] }));
       })
       .then((data: unknown) => {
         if (cancelled) return;
         const parsed = data as { messages?: Message[] };
-        const messages = parsed.messages ?? [];
+        const messages = parsed?.messages ?? [];
         setChatMessages((_prev) => messages as typeof _prev);
+      })
+      .catch(() => {
+        if (!cancelled) setChatMessages((_prev) => [] as typeof _prev);
       })
       .finally(() => {
         if (!cancelled) setChatHistoryLoaded(true);
@@ -533,7 +539,7 @@ export default function Chat() {
     conversationId,
     setChatMessages,
     authState.getStoredJwt,
-    modalState,
+    setShowAuthModal,
   ]);
 
   useEffect(() => {
