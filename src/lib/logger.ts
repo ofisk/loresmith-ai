@@ -63,17 +63,24 @@ function normalizeBooleanFlag(value: unknown): boolean {
   }
 }
 
+function getProcessEnv(): Record<string, string | undefined> | undefined {
+  if (typeof process === "undefined") return undefined;
+  return process.env as Record<string, string | undefined>;
+}
+
 function resolveLogLevelName(env?: Record<string, unknown>): LogLevelName {
+  const proc = getProcessEnv();
   const fromEnv =
     normalizeLogLevelName(env?.LOG_LEVEL) ??
     normalizeLogLevelName(env?.LOGLEVEL) ??
-    normalizeLogLevelName(process.env.LOG_LEVEL) ??
-    normalizeLogLevelName(process.env.LOGLEVEL);
+    (proc && normalizeLogLevelName(proc.LOG_LEVEL)) ??
+    (proc && normalizeLogLevelName(proc.LOGLEVEL));
 
   if (fromEnv) return fromEnv;
 
   const debugFlag =
-    normalizeBooleanFlag(env?.DEBUG) || normalizeBooleanFlag(process.env.DEBUG);
+    normalizeBooleanFlag(env?.DEBUG) ||
+    (proc && normalizeBooleanFlag(proc.DEBUG));
   if (debugFlag) return "debug";
 
   return "info";
