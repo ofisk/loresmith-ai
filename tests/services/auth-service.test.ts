@@ -10,7 +10,7 @@ const originalEnv = process.env;
 
 // Mock environment
 const mockEnv = {
-  ADMIN_SECRET: "test-admin-secret",
+  JWT_SECRET: "test-jwt-secret",
   Chat: {} as DurableObjectNamespace,
   FILE_BUCKET: {} as any,
   DB: {} as any,
@@ -25,8 +25,8 @@ const mockEnv = {
 
 // Mock environment with Cloudflare secrets store
 const mockCloudflareEnv = {
-  ADMIN_SECRET: {
-    get: vi.fn().mockResolvedValue("cloudflare-admin-secret"),
+  JWT_SECRET: {
+    get: vi.fn().mockResolvedValue("cloudflare-jwt-secret"),
   },
   Chat: {} as DurableObjectNamespace,
   FILE_BUCKET: {} as any,
@@ -40,9 +40,9 @@ const mockCloudflareEnv = {
   FILE_PROCESSING_DLQ: {} as any,
 };
 
-// Mock environment without admin secret
-const mockNoAdminEnv = {
-  ADMIN_SECRET: undefined,
+// Mock environment without JWT secret
+const mockNoJwtSecretEnv = {
+  JWT_SECRET: undefined,
   Chat: {} as DurableObjectNamespace,
   FILE_BUCKET: {} as any,
   DB: {} as any,
@@ -74,20 +74,20 @@ describe("AuthService", () => {
     it("should return JWT secret from local environment", async () => {
       const secret = await authService.getJwtSecret();
       expect(secret).toBeInstanceOf(Uint8Array);
-      expect(new TextDecoder().decode(secret)).toBe("test-admin-secret");
+      expect(new TextDecoder().decode(secret)).toBe("test-jwt-secret");
     });
 
     it("should return JWT secret from Cloudflare secrets store", async () => {
       const cloudflareAuthService = new AuthService(mockCloudflareEnv);
       const secret = await cloudflareAuthService.getJwtSecret();
       expect(secret).toBeInstanceOf(Uint8Array);
-      expect(new TextDecoder().decode(secret)).toBe("cloudflare-admin-secret");
-      expect(mockCloudflareEnv.ADMIN_SECRET.get).toHaveBeenCalled();
+      expect(new TextDecoder().decode(secret)).toBe("cloudflare-jwt-secret");
+      expect(mockCloudflareEnv.JWT_SECRET.get).toHaveBeenCalled();
     });
 
-    it("should return fallback secret when no admin secret configured", async () => {
-      const noAdminAuthService = new AuthService(mockNoAdminEnv);
-      const secret = await noAdminAuthService.getJwtSecret();
+    it("should return fallback secret when no JWT secret configured", async () => {
+      const noJwtSecretAuthService = new AuthService(mockNoJwtSecretEnv);
+      const secret = await noJwtSecretAuthService.getJwtSecret();
       expect(secret).toBeInstanceOf(Uint8Array);
       expect(new TextDecoder().decode(secret)).toBe(
         "fallback-jwt-secret-for-non-admin-users"
@@ -96,7 +96,7 @@ describe("AuthService", () => {
 
     it("should handle Cloudflare secrets store errors gracefully", async () => {
       const errorEnv = {
-        ADMIN_SECRET: {
+        JWT_SECRET: {
           get: vi.fn().mockRejectedValue(new Error("Secrets store error")),
         },
         Chat: {} as DurableObjectNamespace,
@@ -123,7 +123,6 @@ describe("AuthService", () => {
     it("should authenticate regular user successfully", async () => {
       const request: AuthRequest = {
         username: "testuser",
-        openaiApiKey: "sk-test-key",
       };
 
       const response = await authService.authenticateUser(request);
@@ -133,25 +132,10 @@ describe("AuthService", () => {
       expect(response.error).toBeUndefined();
     });
 
-    it("should authenticate admin user with valid admin secret", async () => {
+    it("should set isAdmin when request indicates admin", async () => {
       const request: AuthRequest = {
         username: "adminuser",
-        openaiApiKey: "sk-admin-key",
-        adminSecret: "test-admin-secret",
-      };
-
-      const response = await authService.authenticateUser(request);
-
-      expect(response.success).toBe(true);
-      expect(response.token).toBeDefined();
-      expect(response.error).toBeUndefined();
-    });
-
-    it("should treat user with invalid admin secret as non-admin", async () => {
-      const request: AuthRequest = {
-        username: "adminuser",
-        openaiApiKey: "sk-admin-key",
-        adminSecret: "wrong-admin-secret",
+        isAdmin: true,
       };
 
       const response = await authService.authenticateUser(request);
@@ -160,16 +144,15 @@ describe("AuthService", () => {
       expect(response.token).toBeDefined();
       expect(response.error).toBeUndefined();
 
-      // Verify the user is not treated as admin
+      // Verify the user is treated as admin
       const secret = await authService.getJwtSecret();
       const { payload } = await jwtVerify(response.token!, secret);
-      expect(payload.isAdmin).toBe(false);
+      expect(payload.isAdmin).toBe(true);
     });
 
     it("should reject user with empty username", async () => {
       const request: AuthRequest = {
         username: "",
-        openaiApiKey: "sk-test-key",
       };
 
       const response = await authService.authenticateUser(request);
@@ -181,7 +164,6 @@ describe("AuthService", () => {
     it("should reject user with whitespace-only username", async () => {
       const request: AuthRequest = {
         username: "   ",
-        openaiApiKey: "sk-test-key",
       };
 
       const response = await authService.authenticateUser(request);
@@ -193,7 +175,6 @@ describe("AuthService", () => {
     it("should reject user with undefined username", async () => {
       const request: AuthRequest = {
         username: undefined as any,
-        openaiApiKey: "sk-test-key",
       };
 
       const response = await authService.authenticateUser(request);
@@ -210,7 +191,6 @@ describe("AuthService", () => {
 
       const request: AuthRequest = {
         username: "testuser",
-        openaiApiKey: "sk-test-key",
       };
 
       const response = await authService.authenticateUser(request);
@@ -219,21 +199,9 @@ describe("AuthService", () => {
       expect(response.error).toBe("Failed to create authentication token");
     });
 
-    it("should work without OpenAI API key", async () => {
-      const request: AuthRequest = {
-        username: "testuser",
-      };
-
-      const response = await authService.authenticateUser(request);
-
-      expect(response.success).toBe(true);
-      expect(response.token).toBeDefined();
-    });
-
     it("should work without admin secret", async () => {
       const request: AuthRequest = {
         username: "testuser",
-        openaiApiKey: "sk-test-key",
       };
 
       const response = await authService.authenticateUser(request);
@@ -241,6 +209,8 @@ describe("AuthService", () => {
       expect(response.success).toBe(true);
       expect(response.token).toBeDefined();
     });
+
+    // OpenAI API keys are server-configured; user requests never include a key.
   });
 
   describe("extractAuthFromHeader", () => {
@@ -248,7 +218,6 @@ describe("AuthService", () => {
       // First create a valid token
       const request: AuthRequest = {
         username: "testuser",
-        openaiApiKey: "sk-test-key",
       };
       const authResponse = await authService.authenticateUser(request);
       const token = authResponse.token!;
@@ -259,7 +228,6 @@ describe("AuthService", () => {
       expect(payload).toBeDefined();
       expect(payload?.type).toBe("user-auth");
       expect(payload?.username).toBe("testuser");
-      expect(payload?.openaiApiKey).toBe("sk-test-key");
       expect(payload?.isAdmin).toBe(false);
     });
 
@@ -308,7 +276,6 @@ describe("AuthService", () => {
       // First create a valid token
       const request: AuthRequest = {
         username: "testuser",
-        openaiApiKey: "sk-test-key",
       };
       const authResponse = await authService.authenticateUser(request);
       const token = authResponse.token!;
@@ -328,7 +295,6 @@ describe("AuthService", () => {
     it("should extract username from valid token", async () => {
       const request: AuthRequest = {
         username: "testuser",
-        openaiApiKey: "sk-test-key",
       };
       const authResponse = await authService.authenticateUser(request);
       const token = authResponse.token!;
@@ -404,7 +370,6 @@ describe("AuthService", () => {
     it("should detect valid JWT", async () => {
       const request: AuthRequest = {
         username: "testuser",
-        openaiApiKey: "sk-test-key",
       };
       const authResponse = await authService.authenticateUser(request);
       const token = authResponse.token!;
@@ -436,7 +401,6 @@ describe("AuthService", () => {
     it("should detect valid JWT", async () => {
       const request: AuthRequest = {
         username: "testuser",
-        openaiApiKey: "sk-test-key",
       };
       const authResponse = await authService.authenticateUser(request);
       const token = authResponse.token!;
@@ -448,13 +412,9 @@ describe("AuthService", () => {
 
   describe("JWT token structure", () => {
     it("should create JWT with correct payload structure", async () => {
-      // Set up the environment to match the expected admin secret
-      process.env.ADMIN_SECRET = "test-admin-secret";
-
       const request: AuthRequest = {
         username: "testuser",
-        openaiApiKey: "sk-test-key",
-        adminSecret: "test-admin-secret",
+        isAdmin: true,
       };
 
       const response = await authService.authenticateUser(request);
@@ -468,7 +428,6 @@ describe("AuthService", () => {
       const payload = JSON.parse(atob(parts[1]));
       expect(payload.type).toBe("user-auth");
       expect(payload.username).toBe("testuser");
-      expect(payload.openaiApiKey).toBe("sk-test-key");
       expect(payload.isAdmin).toBe(true);
       expect(payload.iat).toBeDefined();
       expect(payload.exp).toBeDefined();
@@ -477,7 +436,6 @@ describe("AuthService", () => {
     it("should create JWT with 24-hour expiration", async () => {
       const request: AuthRequest = {
         username: "testuser",
-        openaiApiKey: "sk-test-key",
       };
 
       const response = await authService.authenticateUser(request);

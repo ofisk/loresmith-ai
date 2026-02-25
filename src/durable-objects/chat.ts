@@ -10,11 +10,11 @@ import { AuthService } from "@/services/core/auth-service";
 import { AuthenticationRequiredError, OpenAIAPIKeyError } from "@/lib/errors";
 import { notifyAuthenticationRequired } from "@/lib/notifications";
 import { extractJwtFromHeader, sanitizeOpenAIApiKey } from "@/lib/auth-utils";
+import { getEnvVar } from "@/lib/env-utils";
 import type { Env as MiddlewareEnv } from "@/middleware/auth";
 
 interface Env extends AuthEnv {
-  ADMIN_SECRET?: string;
-  OPENAI_API_KEY?: string;
+  OPENAI_API_KEY?: unknown;
   R2: R2Bucket;
   DB: D1Database;
   VECTORIZE: VectorizeIndex;
@@ -43,14 +43,13 @@ interface Env extends AuthEnv {
  */
 export class Chat extends SimpleChatAgent<Env> {
   private agents: Map<string, any> = new Map();
-  private userOpenAIKey: string | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
 
     this.agents = new Map();
 
-    this.loadUserOpenAIKey();
+    this.loadServerOpenAIKey();
   }
 
   /**
@@ -82,60 +81,29 @@ export class Chat extends SimpleChatAgent<Env> {
     return jwtToken || null;
   }
 
+  private async getServerOpenAIKey(): Promise<string | null> {
+    const raw = await getEnvVar(
+      this.env as unknown as Record<string, unknown>,
+      "OPENAI_API_KEY",
+      false
+    );
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    return sanitizeOpenAIApiKey(trimmed);
+  }
+
   /**
-   * Load the user's OpenAI API key from storage or database
+   * Initialize agents from the server-configured OpenAI API key (if set).
    */
-  private async loadUserOpenAIKey() {
+  private async loadServerOpenAIKey() {
     try {
-      // First check durable object storage
-      let storedKey = await this.ctx.storage.get<string>("userOpenAIKey");
+      const serverKey = await this.getServerOpenAIKey();
+      if (!serverKey) return;
 
-      if (storedKey) {
-        console.log(
-          "[Chat] Loaded user OpenAI API key from durable object storage"
-        );
-        const cleanKey = sanitizeOpenAIApiKey(storedKey);
-        this.userOpenAIKey = cleanKey;
-        await this.initializeAgents(cleanKey);
-        return;
-      }
-
-      // If not in storage, try loading from database if we have a JWT token
-      const jwtToken = await this.ctx.storage.get<string>(JWT_STORAGE_KEY);
-      if (jwtToken) {
-        const username = AuthService.parseJwtForUsername(jwtToken);
-        if (username && this.env.DB) {
-          console.log(
-            "[Chat] Key not in storage, loading from database for user:",
-            username
-          );
-          const dbKey = await AuthService.loadUserOpenAIKeyWithCache(
-            username,
-            this.env.DB,
-            this
-          );
-
-          if (dbKey) {
-            console.log(
-              "[Chat] Loaded user OpenAI API key from database, storing in durable object"
-            );
-            const cleanKey = sanitizeOpenAIApiKey(dbKey);
-            storedKey = cleanKey;
-            this.userOpenAIKey = cleanKey;
-            await this.ctx.storage.put("userOpenAIKey", cleanKey);
-            await this.initializeAgents(cleanKey);
-            return;
-          }
-        }
-      }
-
-      console.log(
-        "[Chat] No user API key found in storage or database - user must authenticate through the application"
-      );
-      // Don't initialize agents if no key is stored - this will cause an error
-      // when onChatMessage is called, which will trigger the authentication flow
+      console.log("[Chat] Using server OpenAI API key from environment");
+      await this.initializeAgents(serverKey);
     } catch (error) {
-      console.error("[Chat] Error loading user OpenAI API key:", error);
+      console.error("[Chat] Error initializing agents from server key:", error);
       // Re-throw authentication errors so they can be handled properly
       if (
         error instanceof AuthenticationRequiredError ||
@@ -153,10 +121,10 @@ export class Chat extends SimpleChatAgent<Env> {
 
       if (openAIAPIKey) {
         modelManager.initializeModel(openAIAPIKey);
-        console.log("[Chat] Initialized model with user OpenAI API key");
+        console.log("[Chat] Initialized model with OpenAI API key");
       } else {
         throw new OpenAIAPIKeyError(
-          "OpenAI API key is required. Please authenticate through the application to provide your OpenAI API key."
+          "OpenAI API key is required. Please configure OPENAI_API_KEY on the server."
         );
       }
 
@@ -187,64 +155,10 @@ export class Chat extends SimpleChatAgent<Env> {
     }
   }
 
-  getCachedKey(): string | null {
-    return this.userOpenAIKey;
-  }
-
-  /**
-   * Set the user's OpenAI API key and initialize all agents with the new key.
-   * This is called when a user explicitly sets their API key (e.g., via HTTP request).
-   *
-   * @param openAIAPIKey - The OpenAI API key to set
-   */
-  async setUserOpenAIKey(openAIAPIKey: string) {
-    this.userOpenAIKey = openAIAPIKey;
-    this.ctx.storage.put("userOpenAIKey", openAIAPIKey);
-
-    await this.initializeAgents(openAIAPIKey);
-  }
-
-  /**
-   * Handle HTTP request to set user's OpenAI API key.
-   * This is the HTTP endpoint handler that validates the request and calls setUserOpenAIKey().
-   *
-   * @param request - The HTTP request containing the API key
-   * @returns Promise<Response> - HTTP response indicating success/failure
-   */
-  private async handleSetUserOpenAIKeyRequest(
-    request: Request
-  ): Promise<Response> {
-    return AuthService.handleSetUserOpenAIKey(request, this);
-  }
-
-  /**
-   * Cache the user's OpenAI API key without initializing agents.
-   * This is part of the OpenAIKeyCache interface and is called when loading
-   * keys from the database during caching operations.
-   *
-   * @param key - The OpenAI API key to cache
-   */
-  async setCachedKey(key: string): Promise<void> {
-    this.userOpenAIKey = key;
-    await this.ctx.storage.put("userOpenAIKey", key);
-  }
-
-  async clearCachedKey(): Promise<void> {
-    this.userOpenAIKey = null;
-    await this.ctx.storage.delete("userOpenAIKey");
-  }
-
   /**
    * Handle HTTP requests to the Chat durable object
    */
   async fetch(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-    const path = url.pathname;
-
-    if (path === "/set-user-openai-key") {
-      return this.handleSetUserOpenAIKeyRequest(request);
-    }
-
     const authHeader = request.headers.get("Authorization");
     const jwtToken = extractJwtFromHeader(authHeader);
     if (jwtToken) {
@@ -392,7 +306,7 @@ export class Chat extends SimpleChatAgent<Env> {
               await notifyAuthenticationRequired(
                 this.env as unknown as MiddlewareEnv,
                 username,
-                "OpenAI API key required. Please authenticate to continue."
+                "Authentication required. Please sign in to continue."
               );
             } catch (notifyError) {
               console.error(
@@ -403,41 +317,26 @@ export class Chat extends SimpleChatAgent<Env> {
           }
 
           throw new AuthenticationRequiredError(
-            "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
+            "AUTHENTICATION_REQUIRED: Authentication required."
           );
         }
 
         const username = AuthService.parseJwtForUsername(jwtToken);
-        const authResult = await AuthService.handleAgentAuthentication(
-          username,
-          this.messages.some((msg) => msg.role === "user"),
-          this.env.DB,
-          this,
-          jwtToken
-        );
-
-        if (!authResult.shouldProceed) {
-          console.log("[Chat] Authentication failed, requiring authentication");
+        if (!username) {
           throw new AuthenticationRequiredError(
-            "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
+            "AUTHENTICATION_REQUIRED: Authentication required."
           );
         }
 
-        if (authResult.openAIAPIKey) {
-          console.log("[Chat] Initializing agents with user OpenAI API key");
-          const cleanKey = sanitizeOpenAIApiKey(authResult.openAIAPIKey);
-          // Store the key in durable object storage for persistence
-          this.userOpenAIKey = cleanKey;
-          await this.ctx.storage.put("userOpenAIKey", cleanKey);
-          await this.initializeAgents(cleanKey);
-        } else {
-          console.log(
-            "[Chat] No user OpenAI API key found, requiring authentication"
-          );
-          throw new AuthenticationRequiredError(
-            "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
+        const serverKey = await this.getServerOpenAIKey();
+        if (!serverKey) {
+          throw new OpenAIAPIKeyError(
+            "OpenAI API key is required. Please configure OPENAI_API_KEY on the server."
           );
         }
+
+        console.log("[Chat] Initializing agents with server OpenAI API key");
+        await this.initializeAgents(serverKey);
       }
 
       if (!lastUserMessage) {
@@ -460,7 +359,7 @@ export class Chat extends SimpleChatAgent<Env> {
           "[Chat] Agents not initialized for message processing, requiring authentication"
         );
         throw new AuthenticationRequiredError(
-          "AUTHENTICATION_REQUIRED: OpenAI API key required. Please authenticate first."
+          "AUTHENTICATION_REQUIRED: Authentication required."
         );
       }
 
@@ -556,7 +455,7 @@ export class Chat extends SimpleChatAgent<Env> {
   private getAgentInstance(targetAgent: string): any {
     if (this.agents.size === 0) {
       throw new Error(
-        "Agents not initialized. Please set an OpenAI API key first."
+        "Agents not initialized. Please configure OPENAI_API_KEY on the server."
       );
     }
 

@@ -65,9 +65,9 @@ export class ModelManager {
    */
   getModel(): any {
     if (!this.model) {
-      // No auto-initialization - users must authenticate through the app
+      // Model is initialized once an OpenAI key is available (user key or server key).
       console.log(
-        "[ModelManager] No model initialized - user must authenticate through the application"
+        "[ModelManager] No model initialized - OpenAI API key not configured"
       );
       return null;
     }

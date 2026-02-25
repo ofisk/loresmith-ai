@@ -20,6 +20,7 @@ import { STRUCTURED_ENTITY_TYPES } from "../../lib/entity-types";
 import { isEntityStub } from "@/lib/entity-content-merge";
 import { sanitizeEntityContentForPlayer } from "@/lib/entity-content-sanitizer";
 import { parseQueryIntent } from "./search-tools-query-intent";
+import { getEnvVar } from "@/lib/env-utils";
 
 // Dynamically build entity types list for descriptions
 const ENTITY_TYPES_LIST = STRUCTURED_ENTITY_TYPES.join(", ");
@@ -332,27 +333,40 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
           return fileKeys;
         };
 
-        try {
-          planningService = new PlanningContextService(
-            env.DB!,
-            env.VECTORIZE as VectorizeIndex,
-            env.OPENAI_API_KEY as string,
-            env
+        const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
+        const openaiApiKey = openaiApiKeyRaw.trim();
+        if (requiresPlanningContext && !openaiApiKey) {
+          return createToolError(
+            "OpenAI API key not configured",
+            "AI is not configured for this environment.",
+            503,
+            toolCallId
           );
-        } catch (error) {
-          // If required, this is an error; if optional, just log and continue
-          if (requiresPlanningContext) {
-            return createToolError(
-              "Failed to initialize PlanningContextService",
-              error instanceof Error ? error.message : String(error),
-              500,
-              toolCallId
+        }
+
+        if (openaiApiKey) {
+          try {
+            planningService = new PlanningContextService(
+              env.DB!,
+              env.VECTORIZE as VectorizeIndex,
+              openaiApiKey,
+              env
+            );
+          } catch (error) {
+            // If required, this is an error; if optional, just log and continue
+            if (requiresPlanningContext) {
+              return createToolError(
+                "Failed to initialize PlanningContextService",
+                error instanceof Error ? error.message : String(error),
+                500,
+                toolCallId
+              );
+            }
+            console.warn(
+              "[Tool] searchCampaignContext - PlanningContextService initialization failed (optional for entity search):",
+              error
             );
           }
-          console.warn(
-            "[Tool] searchCampaignContext - PlanningContextService initialization failed (optional for entity search):",
-            error
-          );
         }
 
         // Primary search: Use PlanningContextService for semantic search of session digests and changelog

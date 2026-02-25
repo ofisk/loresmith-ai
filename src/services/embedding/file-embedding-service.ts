@@ -6,6 +6,7 @@ import {
 } from "@/lib/errors";
 import { chunkTextByCharacterCount } from "@/lib/text-chunking-utils";
 import { OpenAIEmbeddingService } from "./openai-embedding-service";
+import { getEnvVar } from "@/lib/env-utils";
 
 const EMBEDDING_CHUNK_SIZE = 3500; // Stay safely under 4000 char limit
 const BATCH_SIZE = 1000; // Process in batches to avoid timeout/memory issues
@@ -24,7 +25,8 @@ export interface EmbeddingMetadata {
 export class FileEmbeddingService {
   constructor(
     private vectorize: VectorizeIndex | undefined,
-    private openaiApiKey: string
+    private openaiApiKey: unknown,
+    private env?: Record<string, unknown>
   ) {}
 
   /**
@@ -319,16 +321,14 @@ export class FileEmbeddingService {
    * Generate embedding using OpenAI API
    */
   private async generateEmbedding(text: string): Promise<number[]> {
-    if (!this.openaiApiKey) {
-      throw new OpenAIAPIKeyError();
-    }
+    const apiKey = await this.resolveOpenAIKey();
 
     try {
       const response = await fetch(OpenAIEmbeddingService.EMBEDDINGS_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${this.openaiApiKey}`,
+          Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
           input: text,
@@ -370,6 +370,21 @@ export class FileEmbeddingService {
       }
       throw new EmbeddingGenerationError();
     }
+  }
+
+  private async resolveOpenAIKey(): Promise<string> {
+    if (typeof this.openaiApiKey === "string") {
+      const trimmed = this.openaiApiKey.trim();
+      if (trimmed) return trimmed;
+    }
+
+    if (this.env) {
+      const raw = await getEnvVar(this.env, "OPENAI_API_KEY", true);
+      const trimmed = raw.trim();
+      if (trimmed) return trimmed;
+    }
+
+    throw new OpenAIAPIKeyError();
   }
 
   /**

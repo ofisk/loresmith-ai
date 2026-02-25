@@ -4,6 +4,7 @@ import { RebuildPipelineService } from "./rebuild-pipeline-service";
 import type { RebuildQueueMessage } from "@/types/rebuild-queue";
 import { WorldStateChangelogDAO } from "@/dao/world-state-changelog-dao";
 import { notifyRebuildStatus } from "@/lib/notifications-rebuild";
+import { getEnvVar } from "@/lib/env-utils";
 
 export class RebuildQueueProcessor {
   constructor(private env: Env) {}
@@ -22,7 +23,12 @@ export class RebuildQueueProcessor {
 
     try {
       const daoFactory = getDAOFactory(this.env);
-      const openaiApiKey = this.env.OPENAI_API_KEY as string | undefined;
+      const openaiApiKeyRaw = await getEnvVar(
+        this.env,
+        "OPENAI_API_KEY",
+        false
+      );
+      const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
 
       // Instantiate WorldStateChangelogDAO directly (not exposed in DAOFactory)
       const worldStateChangelogDAO = new WorldStateChangelogDAO(this.env.DB!);

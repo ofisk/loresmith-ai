@@ -30,7 +30,7 @@ export { createDAOFactory, DAOFactoryImpl, getDAOFactory } from "./dao-factory";
 export type { FileMetadata, FileWithChunks, PDFChunk } from "./file/file-dao";
 // File DAO (library file metadata + chunk pipeline; see src/dao/file/)
 export { FileDAO } from "./file/file-dao";
-export type { UserOpenAIKey, UserStorageUsage } from "./user-dao";
+export type { UserStorageUsage } from "./user-dao";
 // User DAO
 export { UserDAO } from "./user-dao";
 export type {

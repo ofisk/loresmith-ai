@@ -105,9 +105,6 @@ const tslog = new TsLogger({
         case "INFO":
           console.info(...logArgs);
           return;
-        case "DEBUG":
-        case "TRACE":
-        case "SILLY":
         default:
           console.log(...logArgs);
           return;

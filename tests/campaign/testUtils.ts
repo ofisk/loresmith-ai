@@ -21,7 +21,7 @@ export type Env = {
   };
   DB?: D1DatabaseStub;
   CAMPAIGNS_KV?: any;
-  ADMIN_SECRET?: string;
+  JWT_SECRET?: string;
 };
 
 /**
@@ -279,6 +279,6 @@ export function createTestEnv(
       ),
     },
     DB: createD1DatabaseStub(d1Campaigns, operationSuccess),
-    ADMIN_SECRET: "test-admin-secret",
+    JWT_SECRET: "test-jwt-secret",
   };
 }

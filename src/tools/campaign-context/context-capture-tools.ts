@@ -16,6 +16,7 @@ import { getDAOFactory } from "../../dao/dao-factory";
 import type { PlanningTaskStatus } from "../../dao/planning-task-dao";
 import { notifyShardGeneration } from "../../lib/notifications";
 import { ALL_CONTEXT_TYPES } from "../../constants/context-types";
+import { getEnvVar } from "@/lib/env-utils";
 
 const captureConversationalContextSchema = z.object({
   campaignId: commonSchemas.campaignId,
@@ -146,16 +147,8 @@ export const captureConversationalContext = tool({
         );
       }
 
-      // Extract OpenAI API key from JWT if available
-      let openaiApiKey: string | undefined;
-      try {
-        if (jwt) {
-          const payload = JSON.parse(atob(jwt.split(".")[1]));
-          openaiApiKey = payload.openaiApiKey;
-        }
-      } catch {
-        // JWT parsing failed, continue without OpenAI key
-      }
+      const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
+      const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
 
       // Create staging shard (requires user approval)
       const syncService = new CampaignContextSyncService(env as Env);
@@ -387,16 +380,8 @@ export const saveContextExplicitly = tool({
         );
       }
 
-      // Extract OpenAI API key from JWT if available
-      let openaiApiKey: string | undefined;
-      try {
-        if (jwt) {
-          const payload = JSON.parse(atob(jwt.split(".")[1]));
-          openaiApiKey = payload.openaiApiKey;
-        }
-      } catch {
-        // JWT parsing failed, continue without OpenAI key
-      }
+      const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
+      const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
 
       // Create staging shard with high confidence (user explicitly requested)
       const syncService = new CampaignContextSyncService(env as Env);

@@ -17,10 +17,12 @@ import { LibraryRAGService } from "@/services/rag/rag-service";
 // Service factory class with per-request caching
 export class ServiceFactory {
   private static services = new Map<string, any>();
+  private static authServicesByEnv = new WeakMap<object, AuthService>();
 
   // Clear services (called between requests to prevent memory leaks)
   static clearCache(): void {
     ServiceFactory.services.clear();
+    ServiceFactory.authServicesByEnv = new WeakMap();
   }
 
   // Get or create AssessmentService
@@ -34,27 +36,20 @@ export class ServiceFactory {
 
   // Get or create AuthService
   static getAuthService(env: Env): AuthService {
-    // Create a more unique key based on environment content
-    const envHash = JSON.stringify({
-      hasAdmin: !!env.ADMIN_SECRET,
-      adminType: typeof env.ADMIN_SECRET,
-      hasDb: !!env.DB,
-      hasFileBucket: !!env.FILE_BUCKET,
-      hasAi: !!env.AI,
-    });
-    const key = `auth-${envHash}`;
+    if (env && typeof env === "object") {
+      const cached = ServiceFactory.authServicesByEnv.get(env as object);
+      if (cached) return cached;
+      const created = new AuthService(env);
+      ServiceFactory.authServicesByEnv.set(env as object, created);
+      return created;
+    }
 
-    console.log("[ServiceFactory] Creating/getting AuthService:", {
-      key,
-      hasAdmin: !!env.ADMIN_SECRET,
-      adminType: typeof env.ADMIN_SECRET,
-      processEnvAdmin: process.env.ADMIN_SECRET ? "present" : "not present",
-    });
-
+    // Fallback for unexpected non-object env shapes
+    const key = `auth-${String(env)}`;
     if (!ServiceFactory.services.has(key)) {
       ServiceFactory.services.set(key, new AuthService(env));
     }
-    return ServiceFactory.services.get(key);
+    return ServiceFactory.services.get(key) as AuthService;
   }
 
   // Get or create MetadataService
@@ -81,7 +76,7 @@ export class ServiceFactory {
     const envHash = JSON.stringify({
       hasFileBucket: !!env.FILE_BUCKET,
       hasDb: !!env.DB,
-      hasAdmin: !!env.ADMIN_SECRET,
+      hasJwtSecret: !!env.JWT_SECRET,
     });
     const key = `library-${envHash}`;
     if (!ServiceFactory.services.has(key)) {
@@ -96,7 +91,7 @@ export class ServiceFactory {
     const dbKey = getDatabaseKey(env.DB);
     const envHash = JSON.stringify({
       hasDb: !!env.DB,
-      hasAdmin: !!env.ADMIN_SECRET,
+      hasJwtSecret: !!env.JWT_SECRET,
       hasFileBucket: !!env.FILE_BUCKET,
       dbKey,
     });
@@ -112,7 +107,7 @@ export class ServiceFactory {
     // Create a more unique key based on environment content
     const envHash = JSON.stringify({
       hasAi: !!env.AI,
-      hasAdmin: !!env.ADMIN_SECRET,
+      hasJwtSecret: !!env.JWT_SECRET,
       hasDb: !!env.DB,
     });
     const key = `model-manager-${envHash}`;

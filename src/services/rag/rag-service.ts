@@ -26,11 +26,12 @@ export class LibraryRAGService extends BaseRAGService {
   private chunkedProcessingService: ChunkedProcessingService;
 
   constructor(env: Env) {
-    super(env.DB, env.VECTORIZE, env.OPENAI_API_KEY || "", env);
+    super(env.DB, env.VECTORIZE, env.OPENAI_API_KEY, env);
     this.extractionService = new FileExtractionService();
     this.embeddingService = new FileEmbeddingService(
       env.VECTORIZE,
-      env.OPENAI_API_KEY || ""
+      env.OPENAI_API_KEY,
+      env as unknown as Record<string, unknown>
     );
     this.metadataService = new LibraryMetadataService(env);
     this.queueUtils = new FileQueueUtils();

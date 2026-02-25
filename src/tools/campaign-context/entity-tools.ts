@@ -161,22 +161,20 @@ export const extractEntitiesFromContentTool = tool({
       }
 
       // Initialize services
-      const openaiKey = env?.OPENAI_API_KEY ?? null;
-      const extractionService = new EntityExtractionService(openaiKey, null);
+      const extractionService = new EntityExtractionService(null, null);
       const embeddingService = new EntityEmbeddingService(
         env.VECTORIZE as
           | import("@cloudflare/workers-types").VectorizeIndex
           | undefined
       );
       const graphService = new EntityGraphService(daoFactory.entityDAO);
-      const openaiApiKey = env?.OPENAI_API_KEY as string | undefined;
       const pipeline = new EntityExtractionPipeline(
         daoFactory.entityDAO,
         extractionService,
         embeddingService,
         graphService,
         env,
-        openaiApiKey
+        undefined
       );
 
       // Extract and persist entities using the pipeline

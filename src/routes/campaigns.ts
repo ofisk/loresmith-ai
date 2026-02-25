@@ -642,7 +642,6 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
           resourceId,
           resourceName: name || id,
           fileKey: id,
-          openaiApiKey: userAuth.openaiApiKey,
         });
 
         console.log(
@@ -751,7 +750,6 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
         resourceId,
         resourceName: resource.file_name || resource.id,
         fileKey: resource.file_key || undefined,
-        openaiApiKey: userAuth.openaiApiKey,
       });
 
       console.log(

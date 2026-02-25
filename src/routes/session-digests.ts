@@ -72,7 +72,7 @@ export async function handleCreateSessionDigest(c: ContextWithAuth) {
       return c.json({ error: "Failed to retrieve created digest" }, 500);
     }
 
-    const planningService = getPlanningContextService(c);
+    const planningService = await getPlanningContextService(c);
     await planningService.indexSessionDigest(created);
 
     return c.json({ digest: created }, 201);
@@ -200,7 +200,7 @@ export async function handleUpdateSessionDigest(c: ContextWithAuth) {
       return c.json({ error: "Failed to retrieve updated digest" }, 500);
     }
 
-    const planningService = getPlanningContextService(c);
+    const planningService = await getPlanningContextService(c);
     await planningService.indexSessionDigest(updated);
 
     return c.json({ digest: updated });
@@ -242,7 +242,7 @@ export async function handleDeleteSessionDigest(c: ContextWithAuth) {
 
     // Delete embeddings first to maintain consistency
     // If this fails, we don't delete the digest to avoid orphaned embeddings
-    const planningService = getPlanningContextService(c);
+    const planningService = await getPlanningContextService(c);
     await planningService.deleteSessionDigest(digestId);
 
     // Only delete from database after successful embedding deletion
@@ -325,7 +325,7 @@ export async function handleApproveDigest(c: ContextWithAuth) {
     }
 
     // Re-index the digest since it's now approved
-    const planningService = getPlanningContextService(c);
+    const planningService = await getPlanningContextService(c);
     await planningService.indexSessionDigest(updated);
 
     return c.json({ digest: updated });

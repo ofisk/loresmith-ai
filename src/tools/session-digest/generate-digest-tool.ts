@@ -12,6 +12,7 @@ import { validateSessionDigestData } from "@/types/session-digest";
 import type { SessionDigestData } from "@/types/session-digest";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import { MODEL_CONFIG } from "@/app-constants";
+import { getEnvVar } from "@/lib/env-utils";
 
 const generateDigestSchema = z.object({
   campaignId: z.string().describe("The campaign ID"),
@@ -135,15 +136,17 @@ export const generateDigestFromNotesTool = tool({
       }
 
       // Get OpenAI API key
-      const openaiApiKey =
-        (env as { OPENAI_API_KEY?: string }).OPENAI_API_KEY ||
-        (await daoFactory.getOpenAIKey(userId));
-
+      const openaiApiKeyRaw = await getEnvVar(
+        env as unknown as Record<string, unknown>,
+        "OPENAI_API_KEY",
+        false
+      );
+      const openaiApiKey = openaiApiKeyRaw.trim();
       if (!openaiApiKey) {
         return createToolError(
-          "OpenAI API key required",
-          "An OpenAI API key is required for digest generation. Please provide one in your settings.",
-          400,
+          "OpenAI API key not configured",
+          "AI is not configured for this environment.",
+          503,
           toolCallId
         );
       }

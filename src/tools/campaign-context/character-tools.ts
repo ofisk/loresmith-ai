@@ -15,6 +15,7 @@ import { getDAOFactory } from "../../dao/dao-factory";
 import type { Env } from "../../middleware/auth";
 import { ENTITY_TYPE_PCS } from "../../lib/entity-type-constants";
 import { SemanticDuplicateDetectionService } from "../../services/vectorize/semantic-duplicate-detection-service";
+import { getEnvVar } from "@/lib/env-utils";
 
 const storeCharacterInfoSchema = z.object({
   campaignId: commonSchemas.campaignId,
@@ -128,7 +129,12 @@ export const storeCharacterInfo = tool({
         ]
           .filter(Boolean)
           .join(" ");
-        const openaiApiKey = (env as Env).OPENAI_API_KEY as string | undefined;
+        const openaiApiKeyRaw = await getEnvVar(
+          env as any,
+          "OPENAI_API_KEY",
+          false
+        );
+        const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
         const duplicate =
           await SemanticDuplicateDetectionService.findDuplicateEntity({
             content: contentForSemantic || characterName,

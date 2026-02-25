@@ -6,6 +6,7 @@ import {
   DatabaseConnectionError,
   VectorizeIndexRequiredError,
 } from "@/lib/errors";
+import { getEnvVar } from "@/lib/env-utils";
 
 /**
  * Base RAG Service that provides shared functionality for different RAG implementations.
@@ -26,7 +27,7 @@ export abstract class BaseRAGService {
   constructor(
     protected db: D1Database,
     protected vectorize: VectorizeIndex,
-    protected openaiApiKey: string,
+    protected openaiApiKey: unknown,
     env?: any
   ) {
     // Validate dependencies in constructor - fail fast if required dependencies are missing
@@ -39,16 +40,14 @@ export abstract class BaseRAGService {
    * Generate embeddings for an array of texts using OpenAI
    */
   public async generateEmbeddings(texts: string[]): Promise<number[][]> {
-    if (!this.openaiApiKey) {
-      throw new OpenAIAPIKeyError();
-    }
+    const apiKey = await this.resolveOpenAIKey();
 
     try {
       const response = await fetch("https://api.openai.com/v1/embeddings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${this.openaiApiKey}`,
+          Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
           input: texts,
@@ -178,12 +177,33 @@ export abstract class BaseRAGService {
       throw new VectorizeIndexRequiredError("Vectorize index not configured");
     }
 
-    // Validate OpenAI API key if provided (some services may not need embeddings)
-    if (!this.openaiApiKey) {
-      // OpenAI API key is optional for services that don't generate embeddings
-    } else if (typeof this.openaiApiKey !== "string") {
-      throw new OpenAIAPIKeyError("OpenAI API key not configured");
+    // Validate OpenAI API key binding shape if provided (some services may not need embeddings)
+    if (!this.openaiApiKey) return;
+    if (typeof this.openaiApiKey === "string") return;
+    if (
+      this.openaiApiKey &&
+      typeof this.openaiApiKey === "object" &&
+      "get" in this.openaiApiKey &&
+      typeof (this.openaiApiKey as { get?: unknown }).get === "function"
+    ) {
+      return;
     }
+    throw new OpenAIAPIKeyError("OpenAI API key not configured");
+  }
+
+  private async resolveOpenAIKey(): Promise<string> {
+    if (typeof this.openaiApiKey === "string") {
+      const trimmed = this.openaiApiKey.trim();
+      if (trimmed) return trimmed;
+    }
+
+    if (this.env) {
+      const raw = await getEnvVar(this.env, "OPENAI_API_KEY", true);
+      const trimmed = raw.trim();
+      if (trimmed) return trimmed;
+    }
+
+    throw new OpenAIAPIKeyError();
   }
 
   /**

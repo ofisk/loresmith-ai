@@ -48,11 +48,6 @@ export interface DAOFactory {
   campaignShareLinkDAO: CampaignShareLinkDAO;
   campaignResourceProposalDAO: CampaignResourceProposalDAO;
 
-  // Convenience methods for common operations
-  storeOpenAIKey(username: string, apiKey: string): Promise<void>;
-  getOpenAIKey(username: string): Promise<string | null>;
-  deleteOpenAIKey(username: string): Promise<void>;
-  hasOpenAIKey(username: string): Promise<boolean>;
   getStorageUsage(username: string): Promise<UserStorageUsage>;
 }
 
@@ -97,37 +92,13 @@ export class DAOFactoryImpl implements DAOFactory {
     this.campaignResourceProposalDAO = new CampaignResourceProposalDAO(db);
   }
 
-  // Convenience methods for common operations
-  async storeOpenAIKey(username: string, apiKey: string): Promise<void> {
-    return this.userDAO.storeOpenAIKey(username, apiKey);
-  }
-
-  async getOpenAIKey(username: string): Promise<string | null> {
-    return this.userDAO.getOpenAIKey(username);
-  }
-
-  async deleteOpenAIKey(username: string): Promise<void> {
-    return this.userDAO.deleteOpenAIKey(username);
-  }
-
-  async hasOpenAIKey(username: string): Promise<boolean> {
-    return this.userDAO.hasOpenAIKey(username);
-  }
-
   async getStorageUsage(username: string): Promise<UserStorageUsage> {
     return this.userDAO.getStorageUsage(username);
   }
 
-  getDAO<
-    T extends keyof Omit<
-      DAOFactory,
-      | "storeOpenAIKey"
-      | "getOpenAIKey"
-      | "deleteOpenAIKey"
-      | "hasOpenAIKey"
-      | "getStorageUsage"
-    >,
-  >(name: T): DAOFactory[T] {
+  getDAO<T extends keyof Omit<DAOFactory, "getStorageUsage">>(
+    name: T
+  ): DAOFactory[T] {
     return this[name];
   }
 

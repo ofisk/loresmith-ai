@@ -432,7 +432,7 @@ export async function notifyProposalRejected(
 export async function notifyCampaignMembers(
   env: Env,
   campaignId: string,
-  campaignName: string,
+  _campaignName: string,
   buildPayload: (username: string) => Omit<NotificationPayload, "timestamp">,
   excludeUsernames: string[] = []
 ): Promise<void> {

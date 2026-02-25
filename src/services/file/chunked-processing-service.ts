@@ -7,6 +7,7 @@ import {
 } from "./file-extraction-service";
 import { PDFChunkingService } from "./pdf-chunking-service";
 import { extractPdfPagesRange } from "@/lib/pdf-utils";
+import { FileEmbeddingService } from "@/services/embedding/file-embedding-service";
 
 /**
  * Service for handling chunked processing of large files that exceed memory limits
@@ -217,11 +218,10 @@ export class ChunkedProcessingService {
       }
 
       // Store embeddings for this chunk
-      const { FileEmbeddingService } =
-        await import("@/services/embedding/file-embedding-service");
       const embeddingService = new FileEmbeddingService(
         this.env.VECTORIZE,
-        this.env.OPENAI_API_KEY || ""
+        this.env.OPENAI_API_KEY,
+        this.env as unknown as Record<string, unknown>
       );
 
       const vectorId = await embeddingService.storeEmbeddings(

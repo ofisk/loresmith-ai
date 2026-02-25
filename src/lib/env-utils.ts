@@ -11,7 +11,6 @@ import {
 } from "@/lib/errors";
 import { createLogger } from "@/lib/logger";
 import type { ToolResult } from "@/app-constants";
-import { createToolError } from "@/tools/utils";
 
 export interface EnvWithBindings {
   DB?: unknown;
@@ -141,7 +140,14 @@ export function validatePlanningContextDependencies(
   if (!env.VECTORIZE) {
     throw new VectorizeIndexRequiredError("Vectorize index not configured");
   }
-  if (!env.OPENAI_API_KEY || typeof env.OPENAI_API_KEY !== "string") {
+  const keyBinding = env.OPENAI_API_KEY;
+  const hasKey =
+    (typeof keyBinding === "string" && keyBinding.trim() !== "") ||
+    (keyBinding &&
+      typeof keyBinding === "object" &&
+      "get" in keyBinding &&
+      typeof (keyBinding as { get?: unknown }).get === "function");
+  if (!hasKey) {
     throw new OpenAIAPIKeyError("OpenAI API key not configured");
   }
 }
@@ -160,28 +166,45 @@ export function validatePlanningContextDependenciesForTool(
   toolCallId: string,
   contextMessage?: string
 ): ToolResult | null {
+  const toolError = (
+    message: string,
+    error: string,
+    errorCode: number
+  ): ToolResult => ({
+    toolCallId,
+    result: {
+      success: false,
+      message,
+      data: { error, errorCode },
+    },
+  });
+
   if (!env.DB) {
-    return createToolError(
+    return toolError(
       "Database not configured",
       contextMessage || "Planning context search requires database access",
-      500,
-      toolCallId
+      500
     );
   }
   if (!env.VECTORIZE) {
-    return createToolError(
+    return toolError(
       "Vectorize index not configured",
       contextMessage || "Planning context search requires vector index access",
-      500,
-      toolCallId
+      500
     );
   }
-  if (!env.OPENAI_API_KEY || typeof env.OPENAI_API_KEY !== "string") {
-    return createToolError(
+  const keyBinding = env.OPENAI_API_KEY;
+  const hasKey =
+    (typeof keyBinding === "string" && keyBinding.trim() !== "") ||
+    (keyBinding &&
+      typeof keyBinding === "object" &&
+      "get" in keyBinding &&
+      typeof (keyBinding as { get?: unknown }).get === "function");
+  if (!hasKey) {
+    return toolError(
       "OpenAI API key not configured",
       contextMessage || "Planning context search requires OpenAI API key",
-      500,
-      toolCallId
+      500
     );
   }
   return null;

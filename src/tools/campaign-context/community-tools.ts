@@ -16,6 +16,7 @@ import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { CommunityDetectionService } from "@/services/graph/community-detection-service";
 import { buildCommunityHierarchyTree } from "@/lib/graph/community-utils";
+import { getEnvVar } from "@/lib/env-utils";
 
 const detectCommunitiesSchema = z.object({
   campaignId: commonSchemas.campaignId,
@@ -129,11 +130,18 @@ export const detectCommunitiesTool = tool({
             );
           }
 
+          const openaiApiKeyRaw = await getEnvVar(
+            env as any,
+            "OPENAI_API_KEY",
+            false
+          );
+          const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
+
           const communityDetectionService = new CommunityDetectionService(
             daoFactory.entityDAO,
             daoFactory.communityDAO,
             daoFactory.communitySummaryDAO,
-            (env as { OPENAI_API_KEY?: string })?.OPENAI_API_KEY
+            openaiApiKey
           );
 
           const useMultiLevel = maxLevels && maxLevels > 1;

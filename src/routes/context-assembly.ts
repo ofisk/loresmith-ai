@@ -36,7 +36,7 @@ export async function handleAssembleContext(c: ContextWithAuth) {
     console.log(
       `[ContextAssembly] Starting context assembly with query: "${body.query.substring(0, 100)}"`
     );
-    const service = getContextAssemblyService(c);
+    const service = await getContextAssemblyService(c);
     const options: ContextAssemblyOptions = body.options || {};
 
     const context = await service.assembleContext(

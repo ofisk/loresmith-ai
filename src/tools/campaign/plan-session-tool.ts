@@ -20,6 +20,7 @@ import type { SessionScriptContext } from "@/lib/prompts/session-script-prompts"
 import { getEntitiesWithRelationships } from "@/lib/graph/entity-utils";
 import { MODEL_CONFIG } from "@/app-constants";
 import { getFileTypeFromName } from "@/lib/file-utils";
+import { getEnvVar } from "@/lib/env-utils";
 import {
   getPlayerCharacterEntities,
   analyzeGaps,
@@ -158,14 +159,13 @@ export const planSession = tool({
         );
       }
 
-      const openaiApiKey =
-        env.OPENAI_API_KEY || (await daoFactory.getOpenAIKey(userId));
-
+      const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
+      const openaiApiKey = openaiApiKeyRaw.trim();
       if (!openaiApiKey) {
         return createToolError(
-          "OpenAI API key required",
-          "An OpenAI API key is required for session planning. Please provide one in your settings.",
-          400,
+          "OpenAI API key not configured",
+          "AI is not configured for this environment.",
+          503,
           toolCallId
         );
       }

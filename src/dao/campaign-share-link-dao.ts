@@ -50,7 +50,7 @@ export class CampaignShareLinkDAO extends BaseDAOClass {
 
   async redeemShareLink(
     token: string,
-    username: string
+    _username: string
   ): Promise<{ campaignId: string; role: CampaignMemberRole } | null> {
     const link = await this.getShareLink(token);
     if (!link) return null;

@@ -10,6 +10,7 @@ import type {
   EntitySearchResult,
 } from "@/types/graph-visualization";
 import type { ShardStatus } from "@/types/shard";
+import { getEnvVar } from "@/lib/env-utils";
 import {
   toCommunityNodeBasic,
   toEntityEdge,
@@ -444,8 +445,8 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
     } else if (entityName) {
       const primaryIds = new Set<string>();
 
-      const openaiApiKey =
-        userAuth.openaiApiKey || (c.env.OPENAI_API_KEY as string | undefined);
+      const openaiApiKeyRaw = await getEnvVar(c.env, "OPENAI_API_KEY", false);
+      const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
       if (c.env.VECTORIZE && openaiApiKey) {
         const openaiEmbeddingService = new OpenAIEmbeddingService(openaiApiKey);
         const getQueryEmbedding = async (q: string) => {

@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   getExtension,
-  isExtensionAllowed,
   isFileAllowedForProposal,
   validateFileContent,
   ALLOWED_EXTENSIONS,

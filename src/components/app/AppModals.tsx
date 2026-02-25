@@ -65,14 +65,13 @@ export function AppModals({
     log.debug("Auth modal state changed", {
       showAuthModal: modalState.showAuthModal,
       username: authState.username,
-      hasStoredKey: !!authState.storedOpenAIKey,
     });
     if (modalState.showAuthModal) {
       log.info("Auth modal should be visible");
     } else {
       log.debug("Auth modal should be hidden");
     }
-  }, [modalState.showAuthModal, authState.username, authState.storedOpenAIKey]);
+  }, [modalState.showAuthModal, authState.username]);
 
   // Ensure modal shows on initial load if no JWT exists
   useEffect(() => {
@@ -88,31 +87,6 @@ export function AppModals({
     const timer = setTimeout(checkInitialAuth, 100);
     return () => clearTimeout(timer);
   }, [authState, modalState]);
-
-  const handleAuthenticationSubmit = useCallback(
-    async (username: string, adminKey: string, openaiApiKey: string) => {
-      const log = logger.scope("[AppModals]");
-      try {
-        log.debug("Starting authentication");
-        const success = await authState.handleAuthenticationSubmit(
-          username,
-          adminKey,
-          openaiApiKey
-        );
-        if (success) {
-          log.info("Authentication successful, closing modal");
-          modalState.setShowAuthModal(false);
-        } else {
-          log.warn("Authentication returned false, keeping modal open");
-        }
-      } catch (error) {
-        log.error("Authentication error", error);
-        // Don't close modal on error - let BlockingAuthenticationModal show the error
-        throw error;
-      }
-    },
-    [authState, modalState]
-  );
 
   const handleCampaignDelete = useCallback(
     async (campaignId: string) => {
@@ -248,9 +222,7 @@ export function AppModals({
       <BlockingAuthenticationModal
         isOpen={modalState.showAuthModal}
         username={authState.username}
-        storedOpenAIKey={authState.storedOpenAIKey}
         googlePendingToken={modalState.googlePendingToken}
-        onSubmit={handleAuthenticationSubmit}
         onLoginSuccess={async (token) => {
           await authState.acceptToken(token);
           modalState.setGooglePendingToken(null);

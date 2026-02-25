@@ -40,7 +40,7 @@ export async function handleSearchPlanningContext(c: ContextWithAuth) {
     console.log(
       `[PlanningContext] Starting search with query: "${body.query.substring(0, 100)}"`
     );
-    const service = getPlanningContextService(c);
+    const service = await getPlanningContextService(c);
     const searchOptions: PlanningContextSearchOptions = {
       campaignId,
       query: body.query,

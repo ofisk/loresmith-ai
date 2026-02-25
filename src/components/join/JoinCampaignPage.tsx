@@ -33,7 +33,7 @@ export function JoinCampaignPage({
         const url = `${API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.JOIN)}?token=${encodeURIComponent(token)}`;
         const headers: Record<string, string> = {};
         if (jwt) {
-          headers["Authorization"] = `Bearer ${jwt}`;
+          headers.Authorization = `Bearer ${jwt}`;
         }
         const res = await fetch(url, { headers });
 
@@ -75,7 +75,7 @@ export function JoinCampaignPage({
 
         setError(data.error ?? "Invalid or expired link");
         setStatus("error");
-      } catch (err) {
+      } catch (_err) {
         if (cancelled) return;
         setError("Failed to load invite");
         setStatus("error");

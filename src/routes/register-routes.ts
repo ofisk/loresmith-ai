@@ -6,11 +6,6 @@ import {
   handleModuleIntegration,
 } from "@/routes/assessment";
 import {
-  handleAuthenticate,
-  handleCheckOpenAIKey,
-  handleCheckUserOpenAIKey,
-  handleDeleteOpenAIKey,
-  handleGetOpenAIKey,
   handleGoogleAuth,
   handleGoogleCallback,
   handleGoogleCompleteSignup,
@@ -18,8 +13,6 @@ import {
   handleLogout,
   handleRegister,
   handleResendVerification,
-  handleSetOpenAIApiKey,
-  handleStoreOpenAIKey,
   handleVerifyEmail,
   optionalUserJwt,
   requireUserJwt,
@@ -200,8 +193,8 @@ import { API_CONFIG } from "@/shared-config";
 import { routeAgentRequest } from "agents";
 
 export interface Env extends AuthEnv, EnvWithSecrets {
-  ADMIN_SECRET?: string;
-  OPENAI_API_KEY?: string;
+  JWT_SECRET?: string;
+  OPENAI_API_KEY?: unknown;
   R2: R2Bucket;
   DB: D1Database;
   VECTORIZE: VectorizeIndex;
@@ -218,23 +211,6 @@ export interface Env extends AuthEnv, EnvWithSecrets {
 const toApiRoutePath = (path: string) => API_CONFIG.apiRoute(path);
 
 export function registerRoutes(app: Hono<{ Bindings: Env }>) {
-  app.get(
-    toApiRoutePath(API_CONFIG.ENDPOINTS.OPENAI.CHECK_KEY),
-    handleCheckOpenAIKey
-  );
-  app.get(
-    toApiRoutePath(API_CONFIG.ENDPOINTS.OPENAI.CHECK_USER_KEY),
-    handleCheckUserOpenAIKey
-  );
-  app.post(
-    toApiRoutePath(API_CONFIG.ENDPOINTS.CHAT.SET_OPENAI_KEY),
-    handleSetOpenAIApiKey
-  );
-
-  app.post(
-    toApiRoutePath(API_CONFIG.ENDPOINTS.AUTH.AUTHENTICATE),
-    handleAuthenticate
-  );
   app.post(toApiRoutePath(API_CONFIG.ENDPOINTS.AUTH.LOGOUT), handleLogout);
   // Auth OAuth routes at root (not under /api)
   app.get(API_CONFIG.ENDPOINTS.AUTH.GOOGLE, handleGoogleAuth);
@@ -249,18 +225,6 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
   app.post(
     API_CONFIG.ENDPOINTS.AUTH.RESEND_VERIFICATION,
     handleResendVerification
-  );
-  app.get(
-    toApiRoutePath(API_CONFIG.ENDPOINTS.AUTH.GET_OPENAI_KEY),
-    handleGetOpenAIKey
-  );
-  app.post(
-    toApiRoutePath(API_CONFIG.ENDPOINTS.AUTH.STORE_OPENAI_KEY),
-    handleStoreOpenAIKey
-  );
-  app.delete(
-    toApiRoutePath(API_CONFIG.ENDPOINTS.AUTH.DELETE_OPENAI_KEY),
-    handleDeleteOpenAIKey
   );
 
   app.post(

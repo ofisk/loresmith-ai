@@ -156,7 +156,11 @@ export default function Chat() {
         window.location.pathname + window.location.search
       );
     }
-  }, []);
+  }, [
+    authState.acceptToken,
+    modalState.setGooglePendingToken,
+    modalState.setShowAuthModal,
+  ]);
 
   // Start tour after authentication (only if not completed)
   useEffect(() => {
@@ -187,7 +191,7 @@ export default function Chat() {
     } else {
       console.log("[Tour] Not authenticated yet");
     }
-  }, [authState.isAuthenticated, tourCompleted]);
+  }, [authState.isAuthenticated, tourCompleted, authState.getStoredJwt]);
 
   // Debug: Add global function to manually start tour
   useEffect(() => {
@@ -504,7 +508,7 @@ export default function Chat() {
     return () => {
       cancelled = true;
     };
-  }, [authReady, sessionId, setChatMessages]);
+  }, [authReady, sessionId, setChatMessages, authState.getStoredJwt]);
 
   useEffect(() => {
     void agentMessages;
