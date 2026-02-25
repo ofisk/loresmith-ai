@@ -28,6 +28,7 @@ const RECAP_AGENT_SYSTEM_PROMPT = buildSystemPrompt({
   ],
   importantNotes: [
     "Recap and next steps are your main focus. You have getSessionReadoutContext for the session plan readout (it runs search + traversal per step); searchCampaignContext is still available for follow-up entity questions; for general entity questions the user may be routed to the campaign-context agent.",
+    "Permission guardrails: If any tool call returns an access/permission error (e.g. 403), immediately stop and explain that campaign planning information is only available to GM roles for that campaign. Do not attempt alternative tool calls to bypass this.",
     "When focusing on a single next step, treat it like a mini planning session: ask 1–3 clarifying questions if needed, propose concrete sub-steps or examples, and only reference other tasks if they are direct prerequisites.",
     "Readout format: Output a session plan the DM can run at the table—scene-based, with Description, Helpful DM Info, Dialogue, mechanics. Do not expose graph structure or relationship metadata. Include all entity detail but present it as narrative/session script (e.g. Loresmith Notes style), not as a graph-structured walk.",
   ],

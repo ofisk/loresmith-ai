@@ -4,6 +4,10 @@ import {
   type AuthRequest,
   AuthService,
 } from "../../src/services/core/auth-service";
+import {
+  EnvironmentVariableError,
+  SecretStoreAccessError,
+} from "../../src/lib/errors";
 
 // Mock process.env to prevent interference with actual environment variables
 const originalEnv = process.env;
@@ -85,16 +89,14 @@ describe("AuthService", () => {
       expect(mockCloudflareEnv.JWT_SECRET.get).toHaveBeenCalled();
     });
 
-    it("should return fallback secret when no JWT secret configured", async () => {
+    it("should throw when no JWT secret configured", async () => {
       const noJwtSecretAuthService = new AuthService(mockNoJwtSecretEnv);
-      const secret = await noJwtSecretAuthService.getJwtSecret();
-      expect(secret).toBeInstanceOf(Uint8Array);
-      expect(new TextDecoder().decode(secret)).toBe(
-        "fallback-jwt-secret-for-non-admin-users"
-      );
+      await expect(
+        noJwtSecretAuthService.getJwtSecret()
+      ).rejects.toBeInstanceOf(EnvironmentVariableError);
     });
 
-    it("should handle Cloudflare secrets store errors gracefully", async () => {
+    it("should surface Cloudflare secrets store errors", async () => {
       const errorEnv = {
         JWT_SECRET: {
           get: vi.fn().mockRejectedValue(new Error("Secrets store error")),
@@ -111,10 +113,8 @@ describe("AuthService", () => {
         FILE_PROCESSING_DLQ: {} as any,
       };
       const errorAuthService = new AuthService(errorEnv);
-      const secret = await errorAuthService.getJwtSecret();
-      expect(secret).toBeInstanceOf(Uint8Array);
-      expect(new TextDecoder().decode(secret)).toBe(
-        "fallback-jwt-secret-for-non-admin-users"
+      await expect(errorAuthService.getJwtSecret()).rejects.toBeInstanceOf(
+        SecretStoreAccessError
       );
     });
   });

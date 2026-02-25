@@ -4,9 +4,8 @@ import {
   commonSchemas,
   createToolSuccess,
   createToolError,
-  requireGMRole,
+  canSeeSpoilersForCampaignRole,
   runWithEnvOrApi,
-  type ToolEnv,
   type ToolExecuteOptions,
 } from "../utils";
 import { getDAOFactory } from "../../dao/dao-factory";
@@ -156,13 +155,15 @@ Total tracked items: ${statusRecords.length}`;
             );
           }
 
-          const gmError = await requireGMRole(
-            env as ToolEnv,
-            campaignId,
-            userId,
-            toolCallId
-          );
-          if (gmError) return gmError;
+          const role = await campaignDAO.getCampaignRole(campaignId, userId);
+          if (!canSeeSpoilersForCampaignRole(role)) {
+            return createToolError(
+              "This action is not available.",
+              "This action is limited to GM tools.",
+              403,
+              toolCallId
+            );
+          }
 
           const statusRecords = await checklistStatusDAO.getChecklistStatus(
             campaignId as string

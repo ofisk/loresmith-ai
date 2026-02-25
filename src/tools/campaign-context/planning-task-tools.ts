@@ -4,9 +4,9 @@ import {
   commonSchemas,
   createToolError,
   createToolSuccess,
-  extractUsernameFromJwt,
   getEnvFromContext,
   requireGMRole,
+  requireCanSeeSpoilersForTool,
   type ToolExecuteOptions,
 } from "../utils";
 import type { ToolResult } from "@/app-constants";
@@ -70,15 +70,16 @@ export const recordPlanningTasks = tool({
         );
       }
 
-      const userId = extractUsernameFromJwt(jwt);
-      if (!userId) {
-        return createToolError(
-          "Invalid authentication token",
-          "Authentication failed",
-          401,
-          toolCallId
-        );
+      const access = await requireCanSeeSpoilersForTool({
+        env,
+        campaignId,
+        jwt,
+        toolCallId,
+      });
+      if (!("userId" in access)) {
+        return access;
       }
+      const { userId } = access;
 
       const daoFactory = getDAOFactory(env);
       const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
@@ -189,15 +190,16 @@ export const getPlanningTaskProgress = tool({
         );
       }
 
-      const userId = extractUsernameFromJwt(jwt);
-      if (!userId) {
-        return createToolError(
-          "Invalid authentication token",
-          "Authentication failed",
-          401,
-          toolCallId
-        );
+      const access = await requireCanSeeSpoilersForTool({
+        env,
+        campaignId,
+        jwt,
+        toolCallId,
+      });
+      if (!("userId" in access)) {
+        return access;
       }
+      const { userId } = access;
 
       const daoFactory = getDAOFactory(env);
       const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
@@ -305,15 +307,16 @@ export const completePlanningTask = tool({
         );
       }
 
-      const userId = extractUsernameFromJwt(jwt);
-      if (!userId) {
-        return createToolError(
-          "Invalid authentication token",
-          "Authentication failed",
-          401,
-          toolCallId
-        );
+      const access = await requireCanSeeSpoilersForTool({
+        env,
+        campaignId,
+        jwt,
+        toolCallId,
+      });
+      if (!("userId" in access)) {
+        return access;
       }
+      const { userId } = access;
 
       const daoFactory = getDAOFactory(env);
       const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(

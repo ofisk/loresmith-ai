@@ -8,9 +8,9 @@ import {
   commonSchemas,
   createToolError,
   createToolSuccess,
-  extractUsernameFromJwt,
   getEnvFromContext,
   requireGMRole,
+  requireCanSeeSpoilersForTool,
   type ToolExecuteOptions,
 } from "../utils";
 import { RecapService } from "../../services/core/recap-service";
@@ -65,17 +65,17 @@ export const generateContextRecapTool = tool({
         );
       }
 
-      const userId = extractUsernameFromJwt(jwt);
-      if (!userId) {
-        return createToolError(
-          "Invalid authentication token",
-          "Authentication failed",
-          401,
-          toolCallId
-        );
+      const access = await requireCanSeeSpoilersForTool({
+        env,
+        campaignId,
+        jwt,
+        toolCallId,
+      });
+      if (!("userId" in access)) {
+        return access;
       }
+      const { userId } = access;
 
-      const { getDAOFactory } = await import("../../dao/dao-factory");
       const daoFactory = getDAOFactory(env);
       const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
         campaignId,
@@ -231,15 +231,16 @@ export const getSessionReadoutContext = tool({
         );
       }
 
-      const userId = extractUsernameFromJwt(jwt);
-      if (!userId) {
-        return createToolError(
-          "Invalid authentication token",
-          "Authentication failed",
-          401,
-          toolCallId
-        );
+      const access = await requireCanSeeSpoilersForTool({
+        env,
+        campaignId,
+        jwt,
+        toolCallId,
+      });
+      if (!("userId" in access)) {
+        return access;
       }
+      const { userId } = access;
 
       const daoFactory = getDAOFactory(env);
       const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
