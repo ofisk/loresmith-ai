@@ -1,36 +1,17 @@
-import { useEffect, useState } from "react";
 import { Loader } from "../loader/Loader";
 
 type ThinkingSpinnerProps = {
   className?: string;
   size?: number;
   showText?: boolean;
-  /** When provided, shown instead of the random mystical message */
+  /** Live status from the agent (e.g. "Searching campaign..."); when omitted, shows a neutral loading message */
   status?: string | null;
 };
 
-const mysticalMessages = [
-  {
-    primary: "🧙‍♂️ Consulting the ancient scrolls...",
-    secondary: "✨ Weaving wisdom from the ethereal realm",
-  },
-  {
-    primary: "🔮 Gazing into the crystal ball...",
-    secondary: "🌟 Divining the perfect tale for your quest",
-  },
-  {
-    primary: "📜 Deciphering mystical runes...",
-    secondary: "⚡ Channeling the power of storytelling",
-  },
-  {
-    primary: "🏰 Summoning knowledge from distant realms...",
-    secondary: "🗡️ Forging the perfect campaign wisdom",
-  },
-  {
-    primary: "🌙 Communing with the spirits of lore...",
-    secondary: "🎭 Crafting epic adventures from moonlight",
-  },
-];
+const DEFAULT_LOADING = {
+  primary: "Preparing your response...",
+  secondary: "This may take a moment...",
+};
 
 export const ThinkingSpinner = ({
   className = "",
@@ -38,19 +19,12 @@ export const ThinkingSpinner = ({
   showText = true,
   status,
 }: ThinkingSpinnerProps) => {
-  const [messageIndex, setMessageIndex] = useState(0);
-
-  useEffect(() => {
-    setMessageIndex(Math.floor(Math.random() * mysticalMessages.length));
-  }, []);
-
-  const currentMessage = mysticalMessages[messageIndex];
   const primaryText =
-    status && status.trim().length > 0 ? status : currentMessage.primary;
+    status && status.trim().length > 0 ? status : DEFAULT_LOADING.primary;
   const secondaryText =
     status && status.trim().length > 0
       ? "This may take a moment..."
-      : currentMessage.secondary;
+      : DEFAULT_LOADING.secondary;
 
   return (
     <div className={`flex items-center gap-3 p-3 ${className}`}>
