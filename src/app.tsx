@@ -813,7 +813,10 @@ export default function Chat() {
     });
   }, [globalShards, campaignIdsWithShardApprovalPermission]);
 
-  const canReviewShards = campaignIdsWithShardApprovalPermission.size > 0;
+  const canReviewShards =
+    campaignIdsWithShardApprovalPermission.size > 0 &&
+    (!selectedCampaignId ||
+      campaignIdsWithShardApprovalPermission.has(selectedCampaignId));
 
   useAppEventHandlers({
     modalState,
