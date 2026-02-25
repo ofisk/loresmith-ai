@@ -98,7 +98,7 @@
     "@radix-ui/react-dropdown-menu": "^2.1.15",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-switch": "^1.2.5",
-    "@types/cytoscape": "^3.21.9",
+    "@types/cytoscape": "^3.31.0",
     "@types/marked": "^6.0.0",
     "agents": "^0.6.0",
     "ai": "^6.0.67",
