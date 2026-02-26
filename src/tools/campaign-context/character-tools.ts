@@ -43,7 +43,7 @@ const storeCharacterInfoSchema = z.object({
 		.optional()
 		.describe("Array of relationships with other characters/NPCs"),
 	metadata: z
-		.record(z.any())
+		.record(z.string(), z.any())
 		.optional()
 		.describe("Additional character metadata"),
 	jwt: commonSchemas.jwt,

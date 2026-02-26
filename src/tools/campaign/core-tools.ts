@@ -288,7 +288,7 @@ const updateCampaignSchema = z.object({
 	name: z.string().optional().describe("Campaign name"),
 	description: z.string().optional().describe("Campaign description"),
 	metadata: z
-		.record(z.unknown())
+		.record(z.string(), z.unknown())
 		.optional()
 		.describe(
 			"Campaign metadata as a JSON object. Extract from user messages: world name ('world is named X' or 'world name is X') → worldName, starting location ('starting location is X' or 'starting location will be X') → startingLocation. Other campaign-specific information can also be included. This will be merged with existing metadata."

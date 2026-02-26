@@ -657,7 +657,7 @@ async function analyzeMetadataCoverage(
 	try {
 		const coverageSchema = z.object({
 			coverage: z
-				.record(z.boolean())
+				.record(z.string(), z.boolean())
 				.describe(
 					"Object mapping checklist item keys to boolean values indicating if they are covered by the metadata"
 				),
@@ -693,7 +693,7 @@ async function analyzeMetadataCoverage(
 			);
 			return coverage;
 		}
-		return parsed.data.coverage;
+		return parsed.data.coverage as Record<string, boolean>;
 	} catch (error) {
 		console.warn(
 			"[MetadataAnalysis] Failed to analyze metadata with LLM:",

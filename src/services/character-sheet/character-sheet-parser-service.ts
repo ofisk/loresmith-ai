@@ -35,13 +35,13 @@ const CharacterDataSchema = z.object({
 
 	// Flexible stats/attributes (accommodates any system)
 	stats: z
-		.record(z.union([z.number(), z.string()]))
+		.record(z.string(), z.union([z.number(), z.string()]))
 		.optional()
 		.describe(
 			"Character statistics or attributes as key-value pairs (e.g., { 'STR': 16, 'DEX': 14 } or { 'Strength': '3d6', 'Intelligence': 65 })"
 		),
 	attributes: z
-		.record(z.union([z.number(), z.string()]))
+		.record(z.string(), z.union([z.number(), z.string()]))
 		.optional()
 		.describe("Alternative field name for stats/characteristics"),
 
