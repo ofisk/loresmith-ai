@@ -56,7 +56,10 @@ describe("AssessmentService", () => {
 		};
 
 		// Mock the AssessmentDAO constructor (Vitest 4: use function, not arrow)
-		(AssessmentDAO as any).mockImplementation(() => mockDAO);
+		// biome-ignore lint/complexity/useArrowFunction: arrow cannot be used with `new` in Vitest 4
+		(AssessmentDAO as any).mockImplementation(function () {
+			return mockDAO;
+		});
 
 		assessmentService = new AssessmentService(mockEnv);
 	});

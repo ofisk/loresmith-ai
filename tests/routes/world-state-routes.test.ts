@@ -11,9 +11,10 @@ vi.mock("@/dao/dao-factory", () => ({
 }));
 
 vi.mock("@/services/graph/world-state-changelog-service", () => ({
-	WorldStateChangelogService: vi
-		.fn()
-		.mockImplementation(() => mockWorldStateService),
+	// biome-ignore lint/complexity/useArrowFunction: arrow cannot be used with `new` in Vitest 4
+	WorldStateChangelogService: vi.fn().mockImplementation(function () {
+		return mockWorldStateService;
+	}),
 }));
 
 import { getDAOFactory } from "@/dao/dao-factory";
