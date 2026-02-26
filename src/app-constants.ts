@@ -170,6 +170,15 @@ export const VALIDATION_PATTERNS = {
 	FILE_NAME: /^[a-zA-Z0-9\s._-]{1,255}$/,
 } as const;
 
+// Reasoning models (gpt-5-mini, gpt-5.2, etc.) do not support the temperature parameter
+const REASONING_MODELS = new Set([
+	"gpt-5-mini",
+	"gpt-5.2",
+	"o4-mini",
+	"o1",
+	"o1-mini",
+]);
+
 // Model configuration - Change models here!
 export const MODEL_CONFIG = {
 	// OpenAI Models
@@ -209,6 +218,9 @@ export const MODEL_CONFIG = {
 		// Default provider for LLM operations
 		DEFAULT: "openai" as const,
 	},
+	// Check if model is a reasoning model (temperature not supported)
+	isReasoningModel: (modelId: string): boolean =>
+		REASONING_MODELS.has(modelId.toLowerCase()),
 } as const;
 
 // Default values

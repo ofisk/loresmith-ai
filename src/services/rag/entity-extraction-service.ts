@@ -316,6 +316,20 @@ CONTENT END`;
 				customError: (msg) => new EntityExtractionError(msg),
 			});
 		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error";
+			const isNoOutput =
+				errorMessage.includes("No output generated") ||
+				errorMessage.includes("AI_NoOutputGeneratedError");
+
+			// No output from model: return null so caller can treat as empty extraction
+			if (isNoOutput) {
+				console.warn(
+					"[EntityExtractionService] Model returned no structured output, treating as empty extraction"
+				);
+				return null;
+			}
+
 			console.error(
 				"[EntityExtractionService] Error calling OpenAI API with structured output:",
 				error
@@ -323,9 +337,7 @@ CONTENT END`;
 			if (error instanceof EntityExtractionError) {
 				throw error;
 			}
-			throw new EntityExtractionError(
-				error instanceof Error ? error.message : "Unknown error"
-			);
+			throw new EntityExtractionError(errorMessage);
 		}
 	}
 

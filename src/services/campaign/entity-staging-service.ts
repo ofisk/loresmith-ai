@@ -74,6 +74,54 @@ export interface EntityStagingOptions {
 }
 
 /**
+ * Send a notification to campaign members when entity extraction completes with 0 entities.
+ * Ensures the UI surfaces this outcome so users know extraction finished but found nothing.
+ */
+async function notifyZeroEntitiesFound(
+	env: Env,
+	campaignId: string,
+	campaignName: string,
+	resourceId: string,
+	fileName: string,
+	detail?: string
+): Promise<void> {
+	try {
+		const messageSuffix = detail ? ` ${detail}` : "";
+		await notifyCampaignMembers(
+			env,
+			campaignId,
+			campaignName,
+			() => ({
+				type: NOTIFICATION_TYPES.SHARDS_GENERATED,
+				title: "No entities found",
+				message: `🔎 No entities were discovered from "${fileName}" in "${campaignName}".${messageSuffix}`,
+				data: {
+					campaignName,
+					fileName,
+					shardCount: 0,
+					campaignId,
+					resourceId,
+					ui_hint: {
+						type: "shards_ready",
+						data: {
+							campaignId,
+							resourceId,
+							groups: undefined,
+						},
+					},
+				},
+			}),
+			[]
+		);
+	} catch (notifyError) {
+		console.error(
+			"[EntityStaging] Failed to send zero-entities notification:",
+			notifyError
+		);
+	}
+}
+
+/**
  * Extract entities from file content and stage them for approval.
  * Entities are stored with shardStatus='staging' in metadata (UI uses "shard" terminology).
  *
@@ -110,6 +158,15 @@ export async function stageEntitiesFromResource(
 			console.warn(
 				`[EntityStaging] No OpenAI API key provided, skipping entity extraction for resource: ${resource.id}`
 			);
+			const normalizedResource = normalizeResourceForShardGeneration(resource);
+			await notifyZeroEntitiesFound(
+				env,
+				campaignId,
+				campaignName,
+				normalizedResource.id,
+				normalizedResource.file_name || normalizedResource.id,
+				"OpenAI API key was not configured."
+			);
 			return {
 				success: true,
 				entityCount: 0,
@@ -136,6 +193,14 @@ export async function stageEntitiesFromResource(
 			console.warn(
 				`[EntityStaging] Content extraction failed for resource: ${normalizedResource.id}`,
 				extractionResult.error
+			);
+			await notifyZeroEntitiesFound(
+				env,
+				campaignId,
+				campaignName,
+				normalizedResource.id,
+				normalizedResource.file_name || normalizedResource.id,
+				"The file content could not be extracted (e.g. PDF parsing failed or the document is empty)."
 			);
 			return {
 				success: true,
@@ -415,6 +480,17 @@ export async function stageEntitiesFromResource(
 					errorMessage.includes("rate limit") ||
 					errorMessage.includes("429") ||
 					errorMessage.includes("Too Many Requests");
+				const isNoOutput =
+					errorMessage.includes("No output generated") ||
+					errorMessage.includes("AI_NoOutputGeneratedError");
+
+				// No output from model: treat as empty chunk (0 entities), don't retry
+				if (isNoOutput) {
+					console.warn(
+						`[EntityStaging] Chunk ${chunkNumber} returned no structured output, treating as empty`
+					);
+					return true;
+				}
 
 				if (isRetry) {
 					console.error(
@@ -510,6 +586,18 @@ export async function stageEntitiesFromResource(
 		if (extractedEntities.length === 0) {
 			console.log(
 				`[EntityStaging] No entities extracted from resource: ${normalizedResource.id}`
+			);
+			const notificationDetail =
+				failedChunks.length > 0
+					? "Some parts of the file could not be processed. You can retry to process the remaining content."
+					: undefined;
+			await notifyZeroEntitiesFound(
+				env,
+				campaignId,
+				campaignName,
+				normalizedResource.id,
+				normalizedResource.file_name || normalizedResource.id,
+				notificationDetail
 			);
 			return {
 				success: true,
@@ -876,16 +964,24 @@ export async function stageEntitiesFromResource(
 				notificationMessage = ` ❌ We couldn't extract any shards from this file. This may be due to the file being too large or temporary processing issues. Please try again later.`;
 			}
 
-			const shardCount = stagedEntities.length;
+			const totalProcessed = stagedEntities.length;
+			const newForApproval = stagedEntities.filter(
+				(e) =>
+					(e.metadata as Record<string, unknown>)?.shardStatus === "staging"
+			).length;
+			const shardCount = newForApproval; // UI expects shardCount = pending for approval
 			const fileName = normalizedResource.file_name || normalizedResource.id;
 			let title: string;
 			let message: string;
-			if (!shardCount || shardCount === 0) {
+			if (!totalProcessed || totalProcessed === 0) {
 				title = "No shards found";
 				message = `🔎 No shards were discovered from "${fileName}" in "${campaignName}".${notificationMessage}`;
+			} else if (totalProcessed === newForApproval) {
+				title = "New shards ready";
+				message = `🎉 ${newForApproval} new shard${newForApproval === 1 ? "" : "s"} generated from "${fileName}" in "${campaignName}"!${notificationMessage}`;
 			} else {
 				title = "New shards ready";
-				message = `🎉 ${shardCount} new shard${shardCount === 1 ? "" : "s"} generated from "${fileName}" in "${campaignName}"!${notificationMessage}`;
+				message = `🎉 ${totalProcessed} entities processed; ${newForApproval} new shard${newForApproval === 1 ? "" : "s"} ready for approval from "${fileName}" in "${campaignName}".${notificationMessage}`;
 			}
 
 			await notifyCampaignMembers(
