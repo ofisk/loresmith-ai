@@ -92,8 +92,8 @@ vi.mock("../../src/tools/utils", () => ({
 	}),
 }));
 
-// Mock the toolAuth module
-vi.mock("../../src/lib/toolAuth", () => ({
+// Mock the tool-auth module
+vi.mock("../../src/lib/tool-auth", () => ({
 	authenticatedFetch: vi.fn(),
 	handleAuthError: vi.fn(),
 }));
@@ -235,7 +235,7 @@ describe("Character Sheet Tools", () => {
 			const { uploadCharacterSheet } = await import(
 				"../../src/tools/character-sheet/upload-tools"
 			);
-			const { authenticatedFetch } = await import("../../src/lib/toolAuth");
+			const { authenticatedFetch } = await import("../../src/lib/tool-auth");
 
 			const expectedResult = {
 				toolCallId: "test-call-123",

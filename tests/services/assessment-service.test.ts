@@ -55,7 +55,7 @@ describe("AssessmentService", () => {
 			storeConflicts: vi.fn(),
 		};
 
-		// Mock the AssessmentDAO constructor
+		// Mock the AssessmentDAO constructor (Vitest 4: use function, not arrow)
 		(AssessmentDAO as any).mockImplementation(() => mockDAO);
 
 		assessmentService = new AssessmentService(mockEnv);

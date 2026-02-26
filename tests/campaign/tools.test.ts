@@ -44,27 +44,11 @@ describe("Campaign Tools", () => {
 		it("should validate campaign name parameter", async () => {
 			const { tools } = await import("../../src/tools");
 
-			console.log("DEBUG tools object:", tools);
-			console.log("DEBUG tools.createCampaign:", tools.createCampaign);
-			console.log(
-				"DEBUG typeof tools.createCampaign:",
-				typeof tools.createCampaign
-			);
-
 			// Test that the tool exists and has the correct structure
 			expect(tools.createCampaign).toBeDefined();
 
 			// The tool should require a name parameter
 			const toolDefinition = tools.createCampaign as any;
-			console.log("DEBUG toolDefinition:", toolDefinition);
-			console.log(
-				"DEBUG toolDefinition.description:",
-				toolDefinition.description
-			);
-			console.log(
-				"DEBUG toolDefinition.inputSchema:",
-				toolDefinition.inputSchema
-			);
 
 			expect(toolDefinition.description).toContain("Create a new campaign");
 			expect(

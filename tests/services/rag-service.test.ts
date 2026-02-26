@@ -8,7 +8,6 @@ vi.mock("../../src/dao/dao-factory", () => ({
 }));
 
 // Mock FileExtractionService (Vitest 4: constructor mock must use function/class, not arrow)
-// biome-ignore lint/complexity/useArrowFunction: arrow functions cannot be used with `new` in Vitest 4
 vi.mock("../../src/services/file/file-extraction-service", () => ({
 	FileExtractionService: vi.fn().mockImplementation(() => ({
 		extractText: vi.fn().mockResolvedValue({
