@@ -241,7 +241,7 @@ describe("Character Sheet Tools", () => {
 				toolCallId: "test-call-123",
 				result: {
 					success: true,
-					message: "Successfully uploaded character sheet via API",
+					message: "Successfully uploaded character sheet: character-sheet.pdf",
 					data: {
 						id: "char-123",
 						fileName: "character-sheet.pdf",
