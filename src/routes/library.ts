@@ -6,6 +6,7 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import { getLibraryService, LibraryRAGService } from "@/lib/service-factory";
 import { requireUserJwt } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
+import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import type { SearchQuery } from "@/types/upload";
 
 const library = new Hono<{
@@ -133,6 +134,51 @@ export const handleGetStorageUsage = async (
 	} catch (error) {
 		console.error("[Library] Error getting storage usage:", error);
 		return c.json({ error: "Failed to get storage usage" }, 500);
+	}
+};
+
+export const handleGetLlmUsage = async (
+	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
+) => {
+	try {
+		const userAuth = (c as any).userAuth;
+		if (!userAuth) {
+			return c.json({ error: "Authentication required" }, 401);
+		}
+
+		const rateLimitService = getLLMRateLimitService(c.env);
+		const usage = await rateLimitService.getUsageStatus(
+			userAuth.username,
+			userAuth.isAdmin ?? false
+		);
+
+		const limits = {
+			tpm: usage.tpmLimit,
+			qpm: usage.qpmLimit,
+			tpd: usage.tpdLimit,
+			qpd: usage.qpdLimit,
+		};
+
+		return c.json({
+			success: true,
+			usage: {
+				tpm: usage.tpm,
+				qpm: usage.qpm,
+				tpd: usage.tpd,
+				qpd: usage.qpd,
+				tpmLimit: usage.tpmLimit,
+				qpmLimit: usage.qpmLimit,
+				tpdLimit: usage.tpdLimit,
+				qpdLimit: usage.qpdLimit,
+				nextResetAt: usage.nextResetAt,
+				atLimit: usage.atLimit,
+				limitType: usage.limitType,
+			},
+			limits,
+		});
+	} catch (error) {
+		console.error("[Library] Error getting LLM usage:", error);
+		return c.json({ error: "Failed to get LLM usage" }, 500);
 	}
 };
 

@@ -292,6 +292,14 @@ export async function scheduled(
 	_event: ScheduledController,
 	env: Env
 ): Promise<void> {
+	// Prune LLM usage log (rows older than 25 hours) - runs every cron cycle
+	try {
+		const daoFactory = getDAOFactory(env);
+		await daoFactory.llmUsageDAO.pruneOldRows();
+	} catch (error) {
+		console.error("[Scheduled] Failed to prune LLM usage log:", error);
+	}
+
 	// Clean up old staging files every hour
 	const processor = new FileProcessingQueue(env);
 	await processor.cleanupStaging();

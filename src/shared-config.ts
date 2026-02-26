@@ -335,6 +335,7 @@ export const API_CONFIG = {
 			FILE_REGENERATE: (fileId: string) =>
 				`/library/files/${fileId}/regenerate`,
 			STORAGE_USAGE: "/library/storage-usage",
+			LLM_USAGE: "/library/llm-usage",
 
 			// Route patterns for parameterized routes (these are used internally by the server)
 			FILE_DETAILS_PATTERN: "/library/:fileId",

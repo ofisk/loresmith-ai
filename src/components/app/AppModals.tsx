@@ -3,6 +3,10 @@ import { TelemetryDashboard } from "@/components/admin/TelemetryDashboard";
 import { BlockingAuthenticationModal } from "@/components/BlockingAuthenticationModal";
 import { FormButton } from "@/components/button/FormButton";
 import { Modal } from "@/components/modal/Modal";
+import {
+	RateLimitReachedModal,
+	UsageLimitsModal,
+} from "@/components/rate-limit";
 import { CampaignDetailsModal } from "@/components/resource-side-panel/CampaignDetailsModal";
 import { CreateCampaignModal } from "@/components/resource-side-panel/CreateCampaignModal";
 import { MultiSelect } from "@/components/select/MultiSelect";
@@ -523,6 +527,20 @@ export function AppModals({
 			>
 				<TelemetryDashboard />
 			</Modal>
+
+			{/* Rate limit reached modal */}
+			<RateLimitReachedModal
+				isOpen={modalState.showRateLimitModal}
+				onClose={modalState.hideRateLimitModal}
+				nextResetAt={modalState.rateLimitNextResetAt}
+				reason={modalState.rateLimitReason}
+			/>
+
+			{/* Usage limits modal */}
+			<UsageLimitsModal
+				isOpen={modalState.showUsageLimitsModal}
+				onClose={modalState.handleUsageLimitsClose}
+			/>
 		</>
 	);
 }

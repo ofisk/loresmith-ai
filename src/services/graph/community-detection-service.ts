@@ -329,7 +329,8 @@ export class CommunityDetectionService {
 			}
 		}
 
-		// Generate summaries asynchronously if enabled
+		// Generate summaries (including natural language names) synchronously so
+		// communities have names when returned and the graph visualization shows them
 		if (
 			this.summaryService &&
 			createdCommunities.length > 0 &&
@@ -338,16 +339,14 @@ export class CommunityDetectionService {
 			const openaiApiKey =
 				(options as any).openaiApiKey || this.defaultOpenAIKey;
 			if (openaiApiKey) {
-				// Generate summaries asynchronously (don't block return)
-				// The generateSummariesAsync method will verify communities exist before generating summaries
-				this.generateSummariesAsync(createdCommunities, openaiApiKey).catch(
-					(error) => {
-						console.error(
-							`[CommunityDetection] Error generating summaries:`,
-							error
-						);
-					}
-				);
+				try {
+					await this.generateSummariesAsync(createdCommunities, openaiApiKey);
+				} catch (error) {
+					console.error(
+						`[CommunityDetection] Error generating summaries:`,
+						error
+					);
+				}
 			}
 		}
 
@@ -459,6 +458,23 @@ export class CommunityDetectionService {
 			);
 
 			if (created) {
+				// Generate summary (including natural language name) for this sub-community
+				const openaiApiKey =
+					(options as any).openaiApiKey || this.defaultOpenAIKey;
+				if (
+					this.summaryService &&
+					openaiApiKey &&
+					(options as any).generateSummaries !== false
+				) {
+					try {
+						await this.generateSummariesAsync([created], openaiApiKey);
+					} catch (error) {
+						console.error(
+							`[CommunityDetection] Error generating summary for sub-community ${created.id}:`,
+							error
+						);
+					}
+				}
 				// Recursively build children
 				const childHierarchy = await this.buildCommunityHierarchy(
 					campaignId,
@@ -576,7 +592,7 @@ export class CommunityDetectionService {
 					}
 				}
 
-				// Generate summaries for affected communities if enabled
+				// Generate summaries (including natural language names) synchronously
 				if (
 					this.summaryService &&
 					createdCommunities.length > 0 &&
@@ -585,15 +601,17 @@ export class CommunityDetectionService {
 					const openaiApiKey =
 						(options as any).openaiApiKey || this.defaultOpenAIKey;
 					if (openaiApiKey) {
-						// Generate summaries asynchronously
-						this.generateSummariesAsync(createdCommunities, openaiApiKey).catch(
-							(error) => {
-								console.error(
-									`[CommunityDetection] Error generating summaries for incremental update:`,
-									error
-								);
-							}
-						);
+						try {
+							await this.generateSummariesAsync(
+								createdCommunities,
+								openaiApiKey
+							);
+						} catch (error) {
+							console.error(
+								`[CommunityDetection] Error generating summaries for incremental update:`,
+								error
+							);
+						}
 					}
 				}
 

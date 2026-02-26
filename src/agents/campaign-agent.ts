@@ -50,6 +50,7 @@ const getCampaignSystemPrompt = () =>
 			"Never ask for technical details like campaign IDs - guide users through the natural workflow instead",
 
 			// Context Capture Guidelines
+			"CRITICAL - Shards are for campaign world only: Entities (shards) are exclusively for structured campaign world content—npcs, locations, items, factions, spells, monsters, plot_lines, quests, scenes, and other entity types that represent actual in-world lore. Do NOT use captureConversationalContext or saveContextExplicitly for meta-actions, graph/UI/community operations, proposed changes, seeking approval for direct requests, or anything outside campaign world lore. When the user asks for a direct action (renaming, organizing, proposing changes to the graph, etc.), respond in conversation or use the appropriate tool—do NOT create a shard to stage approval.",
 			"IMPORTANT: Automatically capture important campaign context using the captureConversationalContext tool when you detect:",
 			"  - User commits to a plot direction (e.g., 'let's go with idea #3', 'I like that plot')",
 			"  - User establishes world-building facts (e.g., 'magic is banned in my world')",

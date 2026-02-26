@@ -56,7 +56,11 @@ const captureConversationalContextSchema = z.object({
 });
 
 export const captureConversationalContext = tool({
-	description: `Capture important campaign information from the conversation that should be saved for future reference.
+	description: `Capture important campaign world content from the conversation that should be saved for future reference.
+  
+  Shards/entities are ONLY for structured campaign world content—npcs, locations, items, factions, spells, monsters,
+  plot_lines, quests, scenes, and other entity types representing actual in-world lore. They are NOT for meta-actions
+  or seeking approval for non-lore operations.
   
   Use this when you detect:
   - User commits to a plot direction or decision
@@ -67,6 +71,9 @@ export const captureConversationalContext = tool({
   - User provides detailed descriptions of locations, NPCs, factions, or world elements
   - User describes specific scenes, quests, or plot hooks they want to use
   - Any information that would be useful to remember for this campaign
+  
+  DO NOT use for: meta-actions; graph/UI/community operations; proposed changes; seeking approval for direct
+  requests; or anything outside campaign world lore.
   
   IMPORTANT: Capture rich descriptive content in full - multi-paragraph location descriptions, NPC backstories,
   faction details, etc. The shard system is designed to handle detailed campaign content.
@@ -310,7 +317,11 @@ const saveContextExplicitlySchema = z.object({
 });
 
 export const saveContextExplicitly = tool({
-	description: `Save campaign context when the user explicitly asks to remember or save something.
+	description: `Save campaign world content when the user explicitly asks to remember or save something.
+  
+  Shards/entities are ONLY for structured campaign world content—npcs, locations, items, factions, spells, monsters,
+  plot_lines, quests, scenes, etc. Do NOT use for meta-actions, graph/UI/community operations, proposed changes,
+  or seeking approval for direct requests.
   
   Use this when user says things like:
   - "Remember this"
@@ -318,7 +329,7 @@ export const saveContextExplicitly = tool({
   - "Don't forget that"
   - "Save this for later"
   
-  This creates a staging shard for user review (allows them to verify content was captured correctly).`,
+  The content must be campaign world lore. This creates a staging shard for user review.`,
 
 	inputSchema: saveContextExplicitlySchema,
 

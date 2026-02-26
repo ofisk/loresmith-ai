@@ -107,6 +107,7 @@ import {
 	handleDeleteFile,
 	handleGetFileDetails,
 	handleGetFileDownload,
+	handleGetLlmUsage,
 	handleGetStorageUsage,
 	handleRegenerateFileMetadata,
 	handleSearchFiles,
@@ -190,6 +191,7 @@ import {
 } from "@/routes/world-state";
 import type { AuthEnv } from "@/services/core/auth-service";
 import { AuthService } from "@/services/core/auth-service";
+import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { API_CONFIG } from "@/shared-config";
 
 export interface Env extends AuthEnv, EnvWithSecrets {
@@ -1119,6 +1121,11 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
 		handleGetStorageUsage
 	);
 	app.get(
+		toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.LLM_USAGE),
+		requireUserJwt,
+		handleGetLlmUsage
+	);
+	app.get(
 		toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.FILE_DETAILS(":fileId")),
 		requireUserJwt,
 		handleGetFileDetails
@@ -1252,6 +1259,28 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
 			authHeader,
 			c.env
 		);
+
+		// Rate limit check for non-admin users before processing agent request
+		if (authPayload?.username && !authPayload?.isAdmin) {
+			const rateLimitService = getLLMRateLimitService(c.env);
+			const check = await rateLimitService.checkLimit(
+				authPayload.username,
+				authPayload.isAdmin ?? false
+			);
+			if (!check.allowed && check.nextResetAt) {
+				const retryAfterSeconds = Math.ceil(
+					(new Date(check.nextResetAt).getTime() - Date.now()) / 1000
+				);
+				c.header("Retry-After", String(Math.max(1, retryAfterSeconds)));
+				return c.json(
+					{
+						error: check.reason ?? "Rate limit exceeded",
+						nextResetAt: check.nextResetAt,
+					},
+					429
+				);
+			}
+		}
 
 		const modifiedRequest = AuthService.createRequestWithAuthContext(
 			c.req.raw,

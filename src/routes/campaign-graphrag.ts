@@ -14,6 +14,7 @@ import { EntityImportanceService } from "@/services/graph/entity-importance-serv
 import { RebuildQueueService } from "@/services/graph/rebuild-queue-service";
 import { RebuildTriggerService } from "@/services/graph/rebuild-trigger-service";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
+import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 
 interface PendingRelation {
@@ -443,8 +444,20 @@ export async function handleApproveShards(c: ContextWithAuth) {
 						`[Server] Creating embedding for approved entity: ${entityId} (${entity.name})`
 					);
 
-					const embedding =
-						await openaiEmbeddingService.generateEmbedding(entityText);
+					const rateLimitService = getLLMRateLimitService(c.env);
+					const embedding = await openaiEmbeddingService.generateEmbedding(
+						entityText,
+						{
+							username: userAuth.username,
+							onUsage: async (usage) => {
+								await rateLimitService.recordUsage(
+									userAuth.username,
+									usage.tokens,
+									usage.queryCount
+								);
+							},
+						}
+					);
 					await embeddingService.upsertEmbedding({
 						entityId: entity.id,
 						campaignId: entity.campaignId,
@@ -945,7 +958,17 @@ Rules:
 			apiKey: openaiApiKey,
 			defaultMaxTokens: 500,
 		});
-		const value = await provider.generateSummary(prompt);
+		const rateLimitService = getLLMRateLimitService(c.env);
+		const value = await provider.generateSummary(prompt, {
+			username: userAuth.username,
+			onUsage: async (usage) => {
+				await rateLimitService.recordUsage(
+					userAuth.username,
+					usage.tokens,
+					usage.queryCount
+				);
+			},
+		});
 
 		const trimmed = value?.trim() ?? "";
 		return c.json({ value: trimmed });

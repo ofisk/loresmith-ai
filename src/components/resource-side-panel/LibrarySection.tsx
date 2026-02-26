@@ -2,6 +2,7 @@ import { CaretDown, CaretRight, Plus } from "@phosphor-icons/react";
 import { useEffect } from "react";
 import libraryIcon from "@/assets/library.png";
 import { Card } from "@/components/card/Card";
+import { RateLimitIndicator } from "@/components/rate-limit";
 import { StorageTracker } from "@/components/storage-tracker";
 import { ResourceList } from "@/components/upload/ResourceList";
 import { useAuthReady } from "@/hooks/useAuthReady";
@@ -20,6 +21,8 @@ interface LibrarySectionProps {
 	campaigns?: Campaign[];
 	campaignAdditionProgress?: Record<string, number>;
 	isAddingToCampaigns?: boolean;
+	addLocalNotification?: (type: string, title: string, message: string) => void;
+	onShowUsageLimits?: () => void;
 }
 
 export function LibrarySection({
@@ -31,6 +34,8 @@ export function LibrarySection({
 	campaigns = [],
 	campaignAdditionProgress = {},
 	isAddingToCampaigns = false,
+	addLocalNotification,
+	onShowUsageLimits,
 }: LibrarySectionProps) {
 	const authReady = useAuthReady();
 	const {
@@ -164,6 +169,12 @@ export function LibrarySection({
 							_isAddingToCampaigns={isAddingToCampaigns}
 						/>
 						<StorageTracker />
+						{addLocalNotification && onShowUsageLimits && (
+							<RateLimitIndicator
+								addLocalNotification={addLocalNotification}
+								onShowUsageLimits={onShowUsageLimits}
+							/>
+						)}
 					</div>
 				</div>
 			)}

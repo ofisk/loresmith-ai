@@ -12,6 +12,8 @@ import {
 	getSafeContextLimit,
 } from "@/lib/token-utils";
 import { trimToolResultsByRelevancy } from "@/lib/tool-result-trimming";
+import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
+import { submitSupportRequestTool } from "@/tools/common/support-tools";
 import type { CampaignRole } from "@/types/campaign";
 import type { Explainability } from "@/types/explainability";
 import { type ChatMessage, SimpleChatAgent } from "./simple-chat-agent";
@@ -635,6 +637,40 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 									);
 								}
 							}
+							// Record LLM usage for rate limiting (chat consumes quota)
+							if (clientJwt) {
+								try {
+									const part = clientJwt.split(".")[1] || "";
+									let base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+									const pad = base64.length % 4;
+									if (pad) base64 += "=".repeat(4 - pad);
+									const jwtPayload = JSON.parse(atob(base64));
+									const username = jwtPayload.username;
+									const usage = (args?.totalUsage ?? args?.usage) as
+										| {
+												totalTokens?: number;
+												promptTokens?: number;
+												completionTokens?: number;
+										  }
+										| undefined;
+									if (username && usage) {
+										const tokens =
+											usage.totalTokens ??
+											(usage.promptTokens ?? 0) + (usage.completionTokens ?? 0);
+										if (tokens > 0 && this.env?.DB) {
+											const rateLimitService = getLLMRateLimitService(
+												this.env as Parameters<typeof getLLMRateLimitService>[0]
+											);
+											await rateLimitService.recordUsage(username, tokens, 1);
+										}
+									}
+								} catch (err) {
+									console.warn(
+										`[${this.constructor.name}] Failed to record LLM usage:`,
+										err
+									);
+								}
+							}
 							// Convert the finish args to ChatMessage format
 							await (onFinish ?? (() => {}))(args);
 						},
@@ -850,7 +886,11 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		toolsOverride?: Record<string, any>,
 		options?: { onToolStart?: (toolName: string) => void }
 	): Record<string, any> {
-		const tools = toolsOverride ?? this.tools;
+		const baseTools = toolsOverride ?? this.tools;
+		const tools = {
+			...baseTools,
+			submitSupportRequest: submitSupportRequestTool,
+		};
 		// Track tool calls to prevent infinite loops
 		const toolCallCounts = new Map<string, number>();
 
@@ -982,6 +1022,20 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 							console.log(
 								`[${this.constructor.name}] About to execute tool ${toolName}`
 							);
+
+							if (!tool.execute) {
+								console.warn(
+									`[${this.constructor.name}] Tool ${toolName} has no execute function`
+								);
+								return {
+									toolCallId: context?.toolCallId || "unknown",
+									result: {
+										success: false,
+										message: `Tool ${toolName} is not executable`,
+										data: null,
+									},
+								};
+							}
 
 							// Pass environment and sessionId to tools that need it
 							const enhancedContext = {

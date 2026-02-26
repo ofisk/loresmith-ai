@@ -30,6 +30,12 @@ export function useModalState() {
 		useState(false);
 	const [proposalConfirmLegalNotice, setProposalConfirmLegalNotice] =
 		useState("");
+	const [showRateLimitModal, setShowRateLimitModal] = useState(false);
+	const [rateLimitNextResetAt, setRateLimitNextResetAt] = useState<
+		string | null
+	>(null);
+	const [rateLimitReason, setRateLimitReason] = useState<string | undefined>();
+	const [showUsageLimitsModal, setShowUsageLimitsModal] = useState(false);
 
 	// Modal data state
 	const [campaignName, setCampaignName] = useState("");
@@ -111,6 +117,29 @@ export function useModalState() {
 		setProposalConfirmLegalNotice("");
 	}, []);
 
+	const showRateLimitReachedModal = useCallback(
+		(reason?: string, nextResetAt?: string | null) => {
+			setRateLimitReason(reason);
+			setRateLimitNextResetAt(nextResetAt ?? null);
+			setShowRateLimitModal(true);
+		},
+		[]
+	);
+
+	const hideRateLimitModal = useCallback(() => {
+		setShowRateLimitModal(false);
+		setRateLimitNextResetAt(null);
+		setRateLimitReason(undefined);
+	}, []);
+
+	const handleUsageLimitsOpen = useCallback(() => {
+		setShowUsageLimitsModal(true);
+	}, []);
+
+	const handleUsageLimitsClose = useCallback(() => {
+		setShowUsageLimitsModal(false);
+	}, []);
+
 	return {
 		// Modal state
 		showAuthModal,
@@ -130,6 +159,14 @@ export function useModalState() {
 		proposalConfirmLegalNotice,
 		showProposalConfirmModal,
 		hideProposalConfirmModal,
+		showRateLimitModal,
+		showRateLimitReachedModal,
+		hideRateLimitModal,
+		rateLimitNextResetAt,
+		rateLimitReason,
+		showUsageLimitsModal,
+		handleUsageLimitsOpen,
+		handleUsageLimitsClose,
 
 		// Modal data state
 		campaignName,

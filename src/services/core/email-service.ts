@@ -44,4 +44,35 @@ export class EmailService {
 
 		return { ok: true };
 	}
+
+	async sendSupportEmail(params: {
+		subject: string;
+		body: string;
+		userEmail?: string;
+		fromAddress: string;
+	}): Promise<EmailServiceResult> {
+		const resend = new Resend(this.apiKey);
+
+		const replyTo = params.userEmail ? [params.userEmail] : undefined;
+		const bodyWithReply = params.userEmail
+			? `${params.body}\n\n---\nSubmitted by: ${params.userEmail}`
+			: params.body;
+
+		const { error } = await resend.emails.send({
+			from: params.fromAddress,
+			to: ["support@loresmith.ai"],
+			replyTo,
+			subject: params.subject,
+			text: bodyWithReply,
+		});
+
+		if (error) {
+			return {
+				ok: false,
+				error: typeof error === "string" ? error : JSON.stringify(error),
+			};
+		}
+
+		return { ok: true };
+	}
 }

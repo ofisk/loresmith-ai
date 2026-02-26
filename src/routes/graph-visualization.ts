@@ -22,6 +22,7 @@ import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
+import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { EntitySemanticSearchService } from "@/services/vectorize/entity-semantic-search-service";
 import type {
 	CommunityGraphData,
@@ -125,14 +126,15 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
 			relationshipMap
 		);
 
-		// Load community summaries
+		// Load community summaries (including natural language names)
 		const communitySummaryMap = new Map<string, CommunitySummary>();
 		if (daoFactory.communitySummaryDAO) {
 			for (const community of filteredCommunities) {
 				try {
 					const summary =
 						await daoFactory.communitySummaryDAO.getSummaryByCommunityId(
-							community.id
+							community.id,
+							campaignId
 						);
 					if (summary) {
 						communitySummaryMap.set(community.id, summary);
@@ -336,13 +338,14 @@ export async function handleGetCommunityEntityGraph(c: ContextWithAuth) {
 			}
 		}
 
-		// Get community name/summary
+		// Get community name/summary (natural language name from LLM)
 		let communityName: string;
 		if (daoFactory.communitySummaryDAO) {
 			try {
 				const summary =
 					await daoFactory.communitySummaryDAO.getSummaryByCommunityId(
-						communityId
+						communityId,
+						campaignId
 					);
 				communityName = getCommunityName(community, summary);
 			} catch {
@@ -449,8 +452,18 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
 			const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
 			if (c.env.VECTORIZE && openaiApiKey) {
 				const openaiEmbeddingService = new OpenAIEmbeddingService(openaiApiKey);
+				const rateLimitService = getLLMRateLimitService(c.env);
 				const getQueryEmbedding = async (q: string) => {
-					const [emb] = await openaiEmbeddingService.generateEmbeddings([q]);
+					const [emb] = await openaiEmbeddingService.generateEmbeddings([q], {
+						username: userAuth.username,
+						onUsage: async (usage) => {
+							await rateLimitService.recordUsage(
+								userAuth.username,
+								usage.tokens,
+								usage.queryCount
+							);
+						},
+					});
 					return emb;
 				};
 				const semanticSearch = new EntitySemanticSearchService(
@@ -555,7 +568,10 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
 			for (const cid of allCommunityIds) {
 				try {
 					const summary =
-						await daoFactory.communitySummaryDAO.getSummaryByCommunityId(cid);
+						await daoFactory.communitySummaryDAO.getSummaryByCommunityId(
+							cid,
+							campaignId
+						);
 					if (summary) communitySummaryMap.set(cid, summary);
 				} catch {
 					// Ignore

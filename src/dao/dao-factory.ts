@@ -11,6 +11,7 @@ import { CommunitySummaryDAO } from "./community-summary-dao";
 import { EntityDAO } from "./entity-dao";
 import { EntityImportanceDAO } from "./entity-importance-dao";
 import { FileDAO } from "./file/file-dao";
+import { LLMUsageDAO } from "./llm-usage-dao";
 import { MessageHistoryDAO } from "./message-history-dao";
 import { PlanningTaskDAO } from "./planning-task-dao";
 import { RebuildStatusDAO } from "./rebuild-status-dao";
@@ -35,6 +36,7 @@ export interface DAOFactory {
 	fileDAO: FileDAO;
 	shardDAO: ShardDAO;
 	entityDAO: EntityDAO;
+	llmUsageDAO: LLMUsageDAO;
 	communityDAO: CommunityDAO;
 	communitySummaryDAO: CommunitySummaryDAO;
 	entityImportanceDAO: EntityImportanceDAO;
@@ -58,6 +60,7 @@ export class DAOFactoryImpl implements DAOFactory {
 	public readonly fileDAO: FileDAO;
 	public readonly shardDAO: ShardDAO;
 	public readonly entityDAO: EntityDAO;
+	public readonly llmUsageDAO: LLMUsageDAO;
 	public readonly communityDAO: CommunityDAO;
 	public readonly communitySummaryDAO: CommunitySummaryDAO;
 	public readonly entityImportanceDAO: EntityImportanceDAO;
@@ -78,6 +81,7 @@ export class DAOFactoryImpl implements DAOFactory {
 		this.fileDAO = new FileDAO(db);
 		this.shardDAO = new ShardDAO(db);
 		this.entityDAO = new EntityDAO(db);
+		this.llmUsageDAO = new LLMUsageDAO(db);
 		this.communityDAO = new CommunityDAO(db);
 		this.communitySummaryDAO = new CommunitySummaryDAO(db);
 		this.entityImportanceDAO = new EntityImportanceDAO(db);

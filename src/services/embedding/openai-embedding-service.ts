@@ -5,6 +5,14 @@ const EMBEDDING_TEXT_LIMIT = 8191; // Max input tokens for text-embedding-3-smal
 const OPENAI_EMBEDDINGS_API_URL = "https://api.openai.com/v1/embeddings";
 const EXPECTED_DIMENSIONS = 1536; // OpenAI text-embedding-3-small returns 1536 dimensions
 
+export interface EmbeddingOptions {
+	username?: string;
+	onUsage?: (
+		usage: { tokens: number; queryCount: number },
+		context?: { model?: string }
+	) => void | Promise<void>;
+}
+
 export class OpenAIEmbeddingService {
 	static readonly EXPECTED_DIMENSIONS = EXPECTED_DIMENSIONS;
 	static readonly EMBEDDINGS_API_URL = OPENAI_EMBEDDINGS_API_URL;
@@ -15,7 +23,10 @@ export class OpenAIEmbeddingService {
 	/**
 	 * Generate embedding for a single text string
 	 */
-	async generateEmbedding(text: string): Promise<number[]> {
+	async generateEmbedding(
+		text: string,
+		options?: EmbeddingOptions
+	): Promise<number[]> {
 		if (!this.openaiApiKey) {
 			throw new OpenAIAPIKeyError();
 		}
@@ -54,6 +65,14 @@ export class OpenAIEmbeddingService {
 				);
 			}
 
+			const tokens = result.usage?.total_tokens ?? 0;
+			if (tokens > 0 && options?.onUsage) {
+				await options.onUsage(
+					{ tokens, queryCount: 1 },
+					{ model: EMBEDDING_MODEL }
+				);
+			}
+
 			return embedding;
 		} catch (error) {
 			console.error("Error generating embeddings with OpenAI:", error);
@@ -70,7 +89,10 @@ export class OpenAIEmbeddingService {
 	/**
 	 * Generate embeddings for multiple texts in a single API call
 	 */
-	async generateEmbeddings(texts: string[]): Promise<number[][]> {
+	async generateEmbeddings(
+		texts: string[],
+		options?: EmbeddingOptions
+	): Promise<number[][]> {
 		if (!this.openaiApiKey) {
 			throw new OpenAIAPIKeyError();
 		}
@@ -98,7 +120,17 @@ export class OpenAIEmbeddingService {
 			}
 
 			const result = (await response.json()) as any;
-			return result.data.map((item: any) => item.embedding);
+			const embeddings = result.data.map((item: any) => item.embedding);
+
+			const tokens = result.usage?.total_tokens ?? 0;
+			if (tokens > 0 && options?.onUsage) {
+				await options.onUsage(
+					{ tokens, queryCount: 1 },
+					{ model: EMBEDDING_MODEL }
+				);
+			}
+
+			return embeddings;
 		} catch (error) {
 			console.error("Error generating embeddings with OpenAI:", error);
 			if (

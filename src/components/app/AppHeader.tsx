@@ -1,4 +1,10 @@
-import { ChartBar, Lightbulb, List, NotePencil } from "@phosphor-icons/react";
+import {
+	ChartBar,
+	EnvelopeSimple,
+	Lightbulb,
+	List,
+	NotePencil,
+} from "@phosphor-icons/react";
 import loresmith from "@/assets/loresmith.png";
 import { Button } from "@/components/button/Button";
 import { HelpButton } from "@/components/help/HelpButton";
@@ -128,6 +134,19 @@ export function AppHeader({
 			)}
 
 			<HelpButton onActionClick={onHelpAction} />
+
+			<Button
+				as="a"
+				href="mailto:support@loresmith.ai"
+				variant="ghost"
+				size="md"
+				shape="square"
+				className="!h-8 !w-8 rounded-full flex items-center justify-center"
+				tooltip="Contact support"
+				aria-label="Contact support"
+			>
+				<EnvelopeSimple size={18} />
+			</Button>
 
 			{isAdmin && onAdminDashboardOpen && (
 				<Button
