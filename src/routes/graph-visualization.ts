@@ -126,14 +126,15 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
 			relationshipMap
 		);
 
-		// Load community summaries
+		// Load community summaries (including natural language names)
 		const communitySummaryMap = new Map<string, CommunitySummary>();
 		if (daoFactory.communitySummaryDAO) {
 			for (const community of filteredCommunities) {
 				try {
 					const summary =
 						await daoFactory.communitySummaryDAO.getSummaryByCommunityId(
-							community.id
+							community.id,
+							campaignId
 						);
 					if (summary) {
 						communitySummaryMap.set(community.id, summary);
@@ -337,13 +338,14 @@ export async function handleGetCommunityEntityGraph(c: ContextWithAuth) {
 			}
 		}
 
-		// Get community name/summary
+		// Get community name/summary (natural language name from LLM)
 		let communityName: string;
 		if (daoFactory.communitySummaryDAO) {
 			try {
 				const summary =
 					await daoFactory.communitySummaryDAO.getSummaryByCommunityId(
-						communityId
+						communityId,
+						campaignId
 					);
 				communityName = getCommunityName(community, summary);
 			} catch {
@@ -566,7 +568,10 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
 			for (const cid of allCommunityIds) {
 				try {
 					const summary =
-						await daoFactory.communitySummaryDAO.getSummaryByCommunityId(cid);
+						await daoFactory.communitySummaryDAO.getSummaryByCommunityId(
+							cid,
+							campaignId
+						);
 					if (summary) communitySummaryMap.set(cid, summary);
 				} catch {
 					// Ignore

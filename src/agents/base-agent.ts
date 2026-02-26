@@ -13,6 +13,7 @@ import {
 } from "@/lib/token-utils";
 import { trimToolResultsByRelevancy } from "@/lib/tool-result-trimming";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
+import { submitSupportRequestTool } from "@/tools/common/support-tools";
 import type { CampaignRole } from "@/types/campaign";
 import type { Explainability } from "@/types/explainability";
 import { type ChatMessage, SimpleChatAgent } from "./simple-chat-agent";
@@ -885,7 +886,11 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		toolsOverride?: Record<string, any>,
 		options?: { onToolStart?: (toolName: string) => void }
 	): Record<string, any> {
-		const tools = toolsOverride ?? this.tools;
+		const baseTools = toolsOverride ?? this.tools;
+		const tools = {
+			...baseTools,
+			submitSupportRequest: submitSupportRequestTool,
+		};
 		// Track tool calls to prevent infinite loops
 		const toolCallCounts = new Map<string, number>();
 
@@ -1017,6 +1022,20 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 							console.log(
 								`[${this.constructor.name}] About to execute tool ${toolName}`
 							);
+
+							if (!tool.execute) {
+								console.warn(
+									`[${this.constructor.name}] Tool ${toolName} has no execute function`
+								);
+								return {
+									toolCallId: context?.toolCallId || "unknown",
+									result: {
+										success: false,
+										message: `Tool ${toolName} is not executable`,
+										data: null,
+									},
+								};
+							}
 
 							// Pass environment and sessionId to tools that need it
 							const enhancedContext = {
