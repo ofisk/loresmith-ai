@@ -376,8 +376,24 @@ export default function Chat() {
 		() =>
 			new DefaultChatTransport({
 				api: `${API_CONFIG.getApiBaseUrl()}/agents/chat/${conversationId}`,
-				fetch: createStatusInterceptingFetch(fetch, (msg) =>
-					setAgentStatus(msg)
+				fetch: createStatusInterceptingFetch(
+					fetch,
+					(msg) => setAgentStatus(msg),
+					{
+						onRateLimitExceeded: (params) => {
+							modalState.showRateLimitReachedModal(
+								params.error,
+								params.nextResetAt ?? undefined
+							);
+							addLocalNotification(
+								NOTIFICATION_TYPES.ERROR,
+								"Rate limit reached",
+								params.nextResetAt
+									? `${params.error} Next reset: ${new Date(params.nextResetAt).toLocaleString()}.`
+									: params.error
+							);
+						},
+					}
 				),
 				headers: () => ({
 					Authorization: `Bearer ${chatAuthRef.current.jwt ?? ""}`,
@@ -423,7 +439,7 @@ export default function Chat() {
 					};
 				},
 			}),
-		[conversationId]
+		[conversationId, modalState.showRateLimitReachedModal, addLocalNotification]
 	);
 
 	const {
@@ -679,6 +695,10 @@ export default function Chat() {
 				setInput("");
 				return;
 			}
+			if (action === "usage_limits") {
+				modalState.handleUsageLimitsOpen();
+				return;
+			}
 			// Legacy: specific topic from elsewhere (e.g. future dropdown) → static content
 			const jwt = authState.getStoredJwt();
 			const response = getHelpContent(action);
@@ -691,7 +711,12 @@ export default function Chat() {
 			});
 			setInput("");
 		},
-		[append, authState.getStoredJwt, selectedCampaignId]
+		[
+			append,
+			authState.getStoredJwt,
+			selectedCampaignId,
+			modalState.handleUsageLimitsOpen,
+		]
 	);
 
 	// Handle session recap request
@@ -1218,6 +1243,8 @@ export default function Chat() {
 							onEditFile={modalState.handleEditFile}
 							campaignAdditionProgress={campaignAdditionProgress}
 							isAddingToCampaigns={isAddingToCampaigns}
+							addLocalNotification={addLocalNotification}
+							onShowUsageLimits={modalState.handleUsageLimitsOpen}
 						/>
 
 						{/* Mobile resource side panel drawer */}
@@ -1245,6 +1272,8 @@ export default function Chat() {
 									onEditFile={modalState.handleEditFile}
 									campaignAdditionProgress={campaignAdditionProgress}
 									isAddingToCampaigns={isAddingToCampaigns}
+									addLocalNotification={addLocalNotification}
+									onShowUsageLimits={modalState.handleUsageLimitsOpen}
 								/>
 							</>
 						)}

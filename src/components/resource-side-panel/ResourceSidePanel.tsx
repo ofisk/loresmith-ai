@@ -24,6 +24,8 @@ interface ResourceSidePanelProps {
 	onEditFile?: (file: ResourceFileWithCampaigns) => void;
 	campaignAdditionProgress?: Record<string, number>;
 	isAddingToCampaigns?: boolean;
+	addLocalNotification?: (type: string, title: string, message: string) => void;
+	onShowUsageLimits?: () => void;
 }
 
 export function ResourceSidePanel({
@@ -43,6 +45,8 @@ export function ResourceSidePanel({
 	onEditFile,
 	campaignAdditionProgress = {},
 	isAddingToCampaigns = false,
+	addLocalNotification,
+	onShowUsageLimits,
 }: ResourceSidePanelProps) {
 	const [isLibraryOpen, setIsLibraryOpen] = useState(false);
 	const [isCampaignsOpen, setIsCampaignsOpen] = useState(false);
@@ -106,6 +110,8 @@ export function ResourceSidePanel({
 					campaigns={campaigns}
 					campaignAdditionProgress={campaignAdditionProgress}
 					isAddingToCampaigns={isAddingToCampaigns}
+					addLocalNotification={addLocalNotification}
+					onShowUsageLimits={onShowUsageLimits}
 				/>
 			</div>
 

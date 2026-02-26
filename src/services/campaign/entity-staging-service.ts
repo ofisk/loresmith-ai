@@ -20,6 +20,7 @@ import { CharacterSheetDetectionService } from "@/services/character-sheet/chara
 import { CharacterSheetParserService } from "@/services/character-sheet/character-sheet-parser-service";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { EntityImportanceService } from "@/services/graph/entity-importance-service";
+import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import type { ExtractedEntity } from "@/services/rag/entity-extraction-service";
 import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
 import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";
@@ -215,8 +216,20 @@ export async function stageEntitiesFromResource(
 		// Check if this is a character sheet before normal entity extraction
 		try {
 			const detectionService = new CharacterSheetDetectionService(openaiApiKey);
-			const detectionResult =
-				await detectionService.detectCharacterSheet(fileContent);
+			const rateLimitService = getLLMRateLimitService(env);
+			const detectionResult = await detectionService.detectCharacterSheet(
+				fileContent,
+				{
+					username,
+					onUsage: async (usage) => {
+						await rateLimitService.recordUsage(
+							username,
+							usage.tokens,
+							usage.queryCount
+						);
+					},
+				}
+			);
 
 			if (detectionService.isConfidentDetection(detectionResult)) {
 				console.log(
@@ -412,6 +425,7 @@ export async function stageEntitiesFromResource(
 			}
 
 			try {
+				const rateLimitService = getLLMRateLimitService(env);
 				const chunkEntities = await extractionService.extractEntities({
 					content: chunk,
 					sourceName: normalizedResource.file_name || normalizedResource.id,
@@ -419,6 +433,15 @@ export async function stageEntitiesFromResource(
 					sourceId: normalizedResource.id,
 					sourceType: "file_upload",
 					openaiApiKey,
+					username,
+					onUsage: async (usage, ctx) => {
+						await rateLimitService.recordUsage(
+							username,
+							usage.tokens,
+							usage.queryCount,
+							ctx?.model
+						);
+					},
 					metadata: {
 						fileKey: normalizedResource.file_key || normalizedResource.id,
 						resourceId: normalizedResource.id,

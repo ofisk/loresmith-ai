@@ -83,6 +83,13 @@ export interface ExtractEntitiesOptions {
 	sourceType: string;
 	metadata?: Record<string, unknown>;
 	openaiApiKey?: string;
+	/** Username for rate limit attribution */
+	username?: string;
+	/** Callback to record usage (tokens, queryCount) for rate limiting */
+	onUsage?: (
+		usage: { tokens: number; queryCount: number },
+		context?: { model?: string }
+	) => void | Promise<void>;
 }
 
 export interface ExtractedRelationship {
@@ -128,7 +135,10 @@ ${options.content}
 CONTENT END`;
 
 		// Use OpenAIProvider to generate structured JSON output
-		const parsed = await this.callOpenAIModelStructured(fullPrompt, apiKey);
+		const parsed = await this.callOpenAIModelStructured(fullPrompt, apiKey, {
+			username: options.username,
+			onUsage: options.onUsage,
+		});
 
 		if (!parsed) {
 			console.warn(
@@ -287,7 +297,11 @@ CONTENT END`;
 	 */
 	private async callOpenAIModelStructured(
 		prompt: string,
-		apiKey: string
+		apiKey: string,
+		usageOptions?: {
+			username?: string;
+			onUsage?: ExtractEntitiesOptions["onUsage"];
+		}
 	): Promise<z.infer<typeof EntityExtractionSchema> | null> {
 		try {
 			// Create LLM provider with OpenAI
@@ -307,6 +321,8 @@ CONTENT END`;
 				model: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
 				temperature: 0.1,
 				maxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
+				username: usageOptions?.username,
+				onUsage: usageOptions?.onUsage,
 			});
 
 			// Validate the result against our Zod schema (LLM output may be malformed)

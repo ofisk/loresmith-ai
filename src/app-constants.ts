@@ -223,6 +223,14 @@ export const MODEL_CONFIG = {
 		REASONING_MODELS.has(modelId.toLowerCase()),
 } as const;
 
+// Rate limits for non-admin users (admin users bypass all limits)
+export const RATE_LIMITS = {
+	NON_ADMIN_TPM: 10_000,
+	NON_ADMIN_QPM: 10,
+	NON_ADMIN_TPD: 500_000,
+	NON_ADMIN_QPD: 500,
+} as const;
+
 // Default values
 export const DEFAULTS = {
 	CAMPAIGN_NAME: "Untitled Campaign",

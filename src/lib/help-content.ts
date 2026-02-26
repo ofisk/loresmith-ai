@@ -48,6 +48,17 @@ export function getHelpContent(action: string): string {
 				"• Get AI assistance tailored to your campaign\n\n" +
 				"**Pro Tip:** Create separate campaigns for different stories to keep contexts clean and focused."
 			);
+		case "usage_limits":
+			return (
+				"## Usage limits\n\n" +
+				"These limits apply to non-admin users. Limits reset on a sliding window.\n\n" +
+				"| Limit | Amount |\n|-------|--------|\n" +
+				"| Tokens per minute | 10,000 |\n" +
+				"| Queries per minute | 10 |\n" +
+				"| Tokens per day | 500,000 |\n" +
+				"| Queries per day | 500 |\n\n" +
+				"Use the **View limits** link in the sidebar (under your library) to see your current usage and limits."
+			);
 		case "start_chat":
 			return (
 				"## 💬 Using the AI Assistant\n\n" +

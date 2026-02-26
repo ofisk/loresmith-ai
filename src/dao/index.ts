@@ -44,6 +44,8 @@ export { EntityImportanceDAO } from "./entity-importance-dao";
 export type { FileMetadata, FileWithChunks, PDFChunk } from "./file/file-dao";
 // File DAO (library file metadata + chunk pipeline; see src/dao/file/)
 export { FileDAO } from "./file/file-dao";
+export type { UsageInWindow } from "./llm-usage-dao";
+export { LLMUsageDAO } from "./llm-usage-dao";
 export type {
 	CreateShardRegistryInput,
 	ShardRegistryRecord,

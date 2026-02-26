@@ -69,19 +69,57 @@ function createStatusFilteringTransform(
 	});
 }
 
+export interface RateLimitExceededParams {
+	error: string;
+	nextResetAt?: string | null;
+}
+
 /**
  * Create a fetch wrapper that intercepts SSE status chunks from the response
  * and calls onStatus for each, while forwarding the transformed stream to the caller.
+ * When response status is 429, parses the JSON body and calls onRateLimitExceeded.
  */
 export function createStatusInterceptingFetch(
 	originalFetch: typeof fetch,
-	onStatus: (message: string) => void
+	onStatus: (message: string) => void,
+	options?: {
+		onRateLimitExceeded?: (params: RateLimitExceededParams) => void;
+	}
 ): typeof fetch {
 	return async (
 		input: RequestInfo | URL,
 		init?: RequestInit
 	): Promise<Response> => {
 		const response = await originalFetch(input, init);
+
+		// Handle 429 rate limit - parse body and notify before returning
+		if (response.status === 429 && options?.onRateLimitExceeded) {
+			try {
+				const contentType = response.headers.get("content-type") ?? "";
+				if (contentType.includes("application/json")) {
+					const cloned = response.clone();
+					const data = (await cloned.json()) as {
+						error?: string;
+						nextResetAt?: string | null;
+					};
+					options.onRateLimitExceeded({
+						error: data.error ?? "Rate limit exceeded",
+						nextResetAt: data.nextResetAt ?? null,
+					});
+				} else {
+					options.onRateLimitExceeded({
+						error: "Rate limit exceeded",
+						nextResetAt: null,
+					});
+				}
+			} catch (_e) {
+				options.onRateLimitExceeded({
+					error: "Rate limit exceeded",
+					nextResetAt: null,
+				});
+			}
+		}
+
 		const contentType = response.headers.get("content-type") ?? "";
 		if (!contentType.includes("text/event-stream") || !response.body) {
 			return response;

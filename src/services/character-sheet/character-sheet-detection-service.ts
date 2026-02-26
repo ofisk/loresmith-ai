@@ -55,10 +55,18 @@ export class CharacterSheetDetectionService {
 	 * Detect if the provided text content is a character sheet
 	 * Uses paging to analyze the full document without losing content
 	 * @param textContent - Extracted text from any file type
+	 * @param options - Optional username and onUsage for rate limit attribution
 	 * @returns Detection result with confidence score and character name if found
 	 */
 	async detectCharacterSheet(
-		textContent: string
+		textContent: string,
+		options?: {
+			username?: string;
+			onUsage?: (usage: {
+				tokens: number;
+				queryCount: number;
+			}) => void | Promise<void>;
+		}
 	): Promise<CharacterSheetDetectionResult> {
 		if (!textContent || textContent.trim().length === 0) {
 			return {
@@ -72,7 +80,7 @@ export class CharacterSheetDetectionService {
 
 		// If content is small enough, analyze it directly
 		if (textContent.length <= MAX_CHUNK_SIZE) {
-			return await this.analyzeChunk(textContent);
+			return await this.analyzeChunk(textContent, options);
 		}
 
 		// For larger content, split into chunks and analyze strategically
@@ -105,7 +113,7 @@ export class CharacterSheetDetectionService {
 		const results: CharacterSheetDetectionResult[] = [];
 		for (const { chunk, position } of chunksToAnalyze) {
 			try {
-				const result = await this.analyzeChunk(chunk);
+				const result = await this.analyzeChunk(chunk, options);
 				results.push(result);
 				console.log(
 					`[CharacterSheetDetection] ${position} chunk: isCharacterSheet=${result.isCharacterSheet}, confidence=${result.confidence}`
@@ -127,7 +135,14 @@ export class CharacterSheetDetectionService {
 	 * Analyze a single chunk of text for character sheet detection
 	 */
 	private async analyzeChunk(
-		chunkContent: string
+		chunkContent: string,
+		options?: {
+			username?: string;
+			onUsage?: (usage: {
+				tokens: number;
+				queryCount: number;
+			}) => void | Promise<void>;
+		}
 	): Promise<CharacterSheetDetectionResult> {
 		const prompt = formatCharacterSheetDetectionPrompt(chunkContent);
 
@@ -148,6 +163,8 @@ export class CharacterSheetDetectionService {
 						model: MODEL_CONFIG.OPENAI.ANALYSIS,
 						temperature: 0.1,
 						maxTokens: 500,
+						username: options?.username,
+						onUsage: options?.onUsage,
 					}
 				);
 

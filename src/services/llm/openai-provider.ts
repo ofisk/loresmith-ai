@@ -65,6 +65,17 @@ export class OpenAIProvider implements LLMProvider {
 			if (text === undefined || text === null) {
 				throw new Error("OpenAI API returned empty response");
 			}
+			const tokens =
+				(result.usage as { totalTokens?: number })?.totalTokens ??
+				((result.usage as { promptTokens?: number })?.promptTokens ?? 0) +
+					((result.usage as { completionTokens?: number })?.completionTokens ??
+						0);
+			if (tokens > 0 && options.onUsage) {
+				await options.onUsage(
+					{ tokens, queryCount: 1 },
+					{ username: options.username, model: modelId }
+				);
+			}
 			return text;
 		} catch (error) {
 			console.error("[OpenAIProvider] Error generating summary:", error);
@@ -128,6 +139,17 @@ export class OpenAIProvider implements LLMProvider {
 			const output = result.output;
 			if (output === undefined || output === null) {
 				throw new Error("OpenAI API returned empty structured output");
+			}
+			const tokens =
+				(result.usage as { totalTokens?: number })?.totalTokens ??
+				((result.usage as { promptTokens?: number })?.promptTokens ?? 0) +
+					((result.usage as { completionTokens?: number })?.completionTokens ??
+						0);
+			if (tokens > 0 && options.onUsage) {
+				await options.onUsage(
+					{ tokens, queryCount: 1 },
+					{ username: options.username, model: modelId }
+				);
 			}
 			return output as T;
 		} catch (error) {

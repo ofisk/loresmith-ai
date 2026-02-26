@@ -1,10 +1,25 @@
 /**
+ * Usage callback for recording LLM token/query usage (rate limiting, analytics)
+ */
+export interface UsageCallbackContext {
+	username?: string;
+	model?: string;
+}
+
+/**
  * Options for LLM generation
  */
 export interface LLMOptions {
 	model?: string;
 	temperature?: number;
 	maxTokens?: number;
+	/** Username for rate limit attribution (passed to onUsage context) */
+	username?: string;
+	/** Callback invoked after generation with token and query counts (for rate limiting) */
+	onUsage?: (
+		usage: { tokens: number; queryCount: number },
+		context?: UsageCallbackContext
+	) => void | Promise<void>;
 }
 
 /**
