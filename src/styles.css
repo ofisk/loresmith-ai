@@ -5,8 +5,8 @@
 html,
 body,
 #app {
-  overflow-x: hidden;
-  max-width: 100%;
+	overflow-x: hidden;
+	max-width: 100%;
 }
 
 html {
