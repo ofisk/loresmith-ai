@@ -8,6 +8,7 @@ import { GraphVisualizationModal } from "@/components/graph/GraphVisualizationMo
 import { Modal } from "@/components/modal/Modal";
 import { SessionDigestBulkImport } from "@/components/session/SessionDigestBulkImport";
 import { SessionDigestModal } from "@/components/session/SessionDigestModal";
+import { Tooltip } from "@/components/tooltip/Tooltip";
 import { CAMPAIGN_ROLES, PLAYER_ROLES } from "@/constants/campaign-roles";
 import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
@@ -210,6 +211,49 @@ export function CampaignDetailsModal({
 		await retryEntityExtraction.execute(campaign.campaignId, resourceId);
 		// After queuing, mark as processing and start polling
 		setProcessingResources((prev) => new Set(prev).add(resourceId));
+	};
+
+	const removeResourceFromCampaign = useBaseAsync(
+		useMemo(
+			() => async (campaignId: string, resourceId: string) => {
+				await makeRequestWithData(
+					API_CONFIG.buildUrl(
+						API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_DELETE(
+							campaignId,
+							resourceId
+						)
+					),
+					{ method: "DELETE" }
+				);
+			},
+			[makeRequestWithData]
+		),
+		useMemo(
+			() => ({
+				onSuccess: () => {
+					if (campaign) {
+						fetchCampaignResources.execute(campaign.campaignId);
+					}
+				},
+				onError: (error: string) => {
+					console.error("Failed to remove resource from campaign:", error);
+					alert(`Failed to remove resource: ${error}`);
+				},
+			}),
+			[campaign, fetchCampaignResources]
+		)
+	);
+
+	const handleRemoveResource = async (resourceId: string) => {
+		if (!campaign) return;
+		if (
+			!window.confirm(
+				"Remove this resource from the campaign? The file will remain in your library."
+			)
+		) {
+			return;
+		}
+		await removeResourceFromCampaign.execute(campaign.campaignId, resourceId);
 	};
 
 	// Check queue status for a resource
@@ -539,28 +583,42 @@ export function CampaignDetailsModal({
 							</button>
 							<button
 								type="button"
-								onClick={() => setActiveTab("digests")}
+								onClick={() => !isPlayerRole && setActiveTab("digests")}
+								disabled={isPlayerRole}
+								title={
+									isPlayerRole
+										? "Session digests are only available to GMs"
+										: undefined
+								}
 								className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-									activeTab === "digests"
-										? "border-blue-500 text-blue-600 dark:text-blue-400"
-										: "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+									isPlayerRole
+										? "border-transparent text-gray-400 dark:text-gray-500 cursor-not-allowed"
+										: activeTab === "digests"
+											? "border-blue-500 text-blue-600 dark:text-blue-400"
+											: "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
 								}`}
 							>
 								Session digests
 							</button>
-							{!isPlayerRole && (
-								<button
-									type="button"
-									onClick={() => setActiveTab("nextSteps")}
-									className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-										activeTab === "nextSteps"
+							<button
+								type="button"
+								onClick={() => !isPlayerRole && setActiveTab("nextSteps")}
+								disabled={isPlayerRole}
+								title={
+									isPlayerRole
+										? "Next steps are only available to GMs"
+										: undefined
+								}
+								className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+									isPlayerRole
+										? "border-transparent text-gray-400 dark:text-gray-500 cursor-not-allowed"
+										: activeTab === "nextSteps"
 											? "border-blue-500 text-blue-600 dark:text-blue-400"
 											: "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-									}`}
-								>
-									Next steps
-								</button>
-							)}
+								}`}
+							>
+								Next steps
+							</button>
 							<button
 								type="button"
 								onClick={() => setActiveTab("resources")}
@@ -626,7 +684,11 @@ export function CampaignDetailsModal({
 									processingResources={processingResources}
 									retryingResourceId={retryingResourceId}
 									onRetry={handleRetryEntityExtraction}
+									canRetryEntityExtraction={isOwner}
 									onAddResource={() => setIsAddResourceModalOpen(true)}
+									canAddResource={canShare}
+									onRemoveResource={handleRemoveResource}
+									canDeleteResource={isOwner}
 								/>
 							</div>
 						)}
@@ -656,12 +718,29 @@ export function CampaignDetailsModal({
 									</>
 								) : (
 									<>
-										<FormButton
-											onClick={() => setIsEditing(true)}
-											icon={<PencilSimple size={16} />}
-										>
-											Edit
-										</FormButton>
+										{isOwner ? (
+											<FormButton
+												onClick={() => setIsEditing(true)}
+												icon={<PencilSimple size={16} />}
+											>
+												Edit
+											</FormButton>
+										) : (
+											<Tooltip
+												content="Only the campaign owner can edit campaign details"
+												contentClassName="left-4"
+											>
+												<span className="inline-flex">
+													<FormButton
+														disabled
+														icon={<PencilSimple size={16} />}
+														className="opacity-50 cursor-not-allowed"
+													>
+														Edit
+													</FormButton>
+												</span>
+											</Tooltip>
+										)}
 										{canShare && (
 											<FormButton
 												onClick={() => setIsShareModalOpen(true)}
