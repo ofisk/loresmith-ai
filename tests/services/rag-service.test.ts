@@ -7,15 +7,18 @@ vi.mock("../../src/dao/dao-factory", () => ({
 	getDAOFactory: vi.fn(),
 }));
 
-// Mock FileExtractionService
+// Mock FileExtractionService (Vitest 4: constructor mock must use function/class, not arrow)
 vi.mock("../../src/services/file/file-extraction-service", () => ({
-	FileExtractionService: vi.fn().mockImplementation(() => ({
-		extractText: vi.fn().mockResolvedValue({
-			text: "Mock extracted text from PDF",
-			pagesExtracted: 1,
-			totalPages: 1,
-		}),
-	})),
+	// biome-ignore lint/complexity/useArrowFunction: arrow cannot be used with `new` in Vitest 4
+	FileExtractionService: vi.fn().mockImplementation(function () {
+		return {
+			extractText: vi.fn().mockResolvedValue({
+				text: "Mock extracted text from PDF",
+				pagesExtracted: 1,
+				totalPages: 1,
+			}),
+		};
+	}),
 }));
 
 // Mock global fetch for OpenAI embedding API calls

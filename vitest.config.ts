@@ -17,15 +17,5 @@ export default defineConfig({
 		// Most tests mock the Workers environment and don't need the actual workerd runtime
 		// This prevents port exhaustion from creating 46+ isolated workerd runtimes
 		pool: "threads",
-		poolOptions: {
-			threads: {
-				singleThread: false,
-			},
-		},
-		// Configure environment for different test types
-		environmentMatchGlobs: [
-			["tests/hooks/**/*.test.tsx", "jsdom"],
-			["tests/components/**/*.test.tsx", "jsdom"],
-		],
 	},
 });
