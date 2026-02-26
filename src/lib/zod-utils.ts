@@ -25,8 +25,8 @@ export function parseOrThrow<T extends z.ZodType>(
 	console.warn(`${prefix} Schema validation failed:`, parsed.error.flatten());
 
 	const message = options.messagePrefix
-		? `${options.messagePrefix}: ${parsed.error.errors.map((e) => e.message).join(", ")}`
-		: parsed.error.errors.map((e) => e.message).join(", ");
+		? `${options.messagePrefix}: ${parsed.error.issues.map((e: z.ZodIssue) => e.message).join(", ")}`
+		: parsed.error.issues.map((e: z.ZodIssue) => e.message).join(", ");
 
 	const ErrorClass = options.customError ?? ((msg: string) => new Error(msg));
 	throw ErrorClass(message);

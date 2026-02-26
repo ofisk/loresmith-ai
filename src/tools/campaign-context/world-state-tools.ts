@@ -26,7 +26,7 @@ const entityUpdateSchema = z.object({
 		.optional()
 		.describe("Narrative description of what changed for this entity."),
 	metadata: z
-		.record(z.unknown())
+		.record(z.string(), z.unknown())
 		.optional()
 		.describe("Additional structured data about the change."),
 });
@@ -43,7 +43,7 @@ const relationshipUpdateSchema = z.object({
 		.optional()
 		.describe("Narrative description of what changed between the entities."),
 	metadata: z
-		.record(z.unknown())
+		.record(z.string(), z.unknown())
 		.optional()
 		.describe("Additional structured data about the relationship change."),
 });
@@ -58,7 +58,7 @@ const newEntitySchema = z.object({
 	status: z.string().optional().describe("Initial status of the entity."),
 	description: z.string().optional().describe("Narrative description."),
 	metadata: z
-		.record(z.unknown())
+		.record(z.string(), z.unknown())
 		.optional()
 		.describe("Additional structured data for the new entity."),
 });
@@ -263,7 +263,7 @@ const updateEntityWorldStateSchema = z.object({
 		.optional()
 		.describe("Narrative description of the change."),
 	metadata: z
-		.record(z.unknown())
+		.record(z.string(), z.unknown())
 		.optional()
 		.describe("Additional structured data about the change."),
 	campaignSessionId: z
@@ -360,7 +360,7 @@ const updateRelationshipWorldStateSchema = z.object({
 		.optional()
 		.describe("Narrative description of how the relationship changed."),
 	metadata: z
-		.record(z.unknown())
+		.record(z.string(), z.unknown())
 		.optional()
 		.describe("Additional structured data about the change."),
 	campaignSessionId: z

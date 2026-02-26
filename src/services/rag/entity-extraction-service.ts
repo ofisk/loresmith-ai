@@ -32,7 +32,7 @@ const MAX_EXTRACTION_RESPONSE_TOKENS = 16384;
 // Zod schema for entity extraction response
 // This matches the structure expected by the RPG extraction prompt
 // Using z.record(z.unknown()) for array items to allow flexible entity structures
-const EntityItemSchema = z.record(z.unknown());
+const EntityItemSchema = z.record(z.string(), z.unknown());
 
 const EntityExtractionSchema = z.object({
 	meta: z.object({

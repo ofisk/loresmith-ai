@@ -47,7 +47,7 @@ const extractEntitiesFromContentSchema = z.object({
 			"Type of source (e.g., 'user_input', 'file_upload', 'document'). Default: 'user_input'"
 		),
 	metadata: z
-		.record(z.unknown())
+		.record(z.string(), z.unknown())
 		.optional()
 		.describe("Optional additional metadata to attach to extracted entities"),
 	jwt: commonSchemas.jwt,
@@ -236,7 +236,7 @@ const createEntityRelationshipSchema = z.object({
 			"Optional relationship strength/confidence (0.0 to 1.0). Higher values indicate stronger relationships."
 		),
 	metadata: z
-		.record(z.unknown())
+		.record(z.string(), z.unknown())
 		.optional()
 		.describe("Optional additional metadata about the relationship"),
 	allowSelfRelation: z
@@ -456,7 +456,7 @@ const updateEntityMetadataSchema = z.object({
 			"The ID of the entity to update. Must be a real entity ID from the database, not a placeholder."
 		),
 	metadata: z
-		.record(z.unknown())
+		.record(z.string(), z.unknown())
 		.describe(
 			"REQUIRED: Metadata to update. This will be merged with existing metadata. Must be an object (e.g., {alignment: 'protagonistic'|'neutral'|'antagonistic'}). For faction alignment, use {alignment: 'protagonistic'|'neutral'|'antagonistic'}."
 		),
