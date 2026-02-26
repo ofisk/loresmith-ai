@@ -34,6 +34,7 @@ const CAMPAIGN_CONTEXT_AGENT_SYSTEM_PROMPT = buildSystemPrompt({
 		"Context recap and 'what should I do next?' are handled by the recap agent. If the user asks for a recap or next steps, give a brief signpost (e.g. 'I can show you what’s in the campaign; for a recap or next steps, use the recap.') and focus on entity/search/world-state requests.",
 	],
 	importantNotes: [
+		"CRITICAL - Shards for campaign world only: Only use captureConversationalContext for structured campaign world content—npcs, locations, items, factions, spells, monsters, plot_lines, quests, scenes, etc. Do NOT use it for meta-actions, graph/UI/community operations, proposed changes, or seeking approval for direct requests.",
 		"You share the campaign context toolset with the recap agent’s domain: recap and next-step suggestions are the recap agent’s job. You focus on entity questions, search, world state, entity CRUD, and capturing world-building from conversation.",
 	],
 });
