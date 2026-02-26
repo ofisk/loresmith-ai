@@ -1,6 +1,14 @@
 @import "tailwindcss";
 
 /* Prevent flash of unstyled content: set html background before app CSS loads */
+/* Constrain to viewport so mobile doesn’t scroll left/right (same idea as modals) */
+html,
+body,
+#app {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 html {
 	background: #000;
 }

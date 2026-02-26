@@ -1344,4 +1344,5 @@ export default function Chat() {
 			/>
 		</>
 	);
+
 }

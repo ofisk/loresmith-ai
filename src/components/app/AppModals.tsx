@@ -522,7 +522,7 @@ export function AppModals({
 			<Modal
 				isOpen={modalState.isAdminDashboardModalOpen}
 				onClose={modalState.handleAdminDashboardClose}
-				cardStyle={STANDARD_MODAL_SIZE_OBJECT}
+				className="w-[96vw] max-w-[720px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
 				showCloseButton={true}
 			>
 				<TelemetryDashboard />
