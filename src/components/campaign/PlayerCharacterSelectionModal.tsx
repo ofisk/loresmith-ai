@@ -15,6 +15,8 @@ interface PlayerCharacterSelectionPanelProps {
 	description?: string;
 	options: PlayerCharacterOption[];
 	submitLabel?: string;
+	skipLabel?: string;
+	onSkip?: () => void;
 	isSubmitting?: boolean;
 	error?: string | null;
 	onSubmit: (entityId: string) => Promise<void>;
@@ -25,6 +27,8 @@ export function PlayerCharacterSelectionPanel({
 	description,
 	options,
 	submitLabel = "Save character",
+	skipLabel = "Skip for now",
+	onSkip,
 	isSubmitting = false,
 	error = null,
 	onSubmit,
@@ -94,12 +98,23 @@ export function PlayerCharacterSelectionPanel({
 				)}
 			</div>
 
-			<PrimaryActionButton
-				onClick={handleSubmit}
-				disabled={isSubmitting || availableOptions.length === 0}
-			>
-				{isSubmitting ? "Saving..." : submitLabel}
-			</PrimaryActionButton>
+			<div className="flex items-center justify-end gap-2">
+				{onSkip && (
+					<button
+						type="button"
+						onClick={onSkip}
+						className="rounded border border-neutral-600 bg-neutral-900 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
+					>
+						{skipLabel}
+					</button>
+				)}
+				<PrimaryActionButton
+					onClick={handleSubmit}
+					disabled={isSubmitting || availableOptions.length === 0}
+				>
+					{isSubmitting ? "Saving..." : submitLabel}
+				</PrimaryActionButton>
+			</div>
 		</div>
 	);
 }
@@ -110,6 +125,8 @@ interface PlayerCharacterSelectionModalProps {
 	options: PlayerCharacterOption[];
 	isSubmitting?: boolean;
 	error?: string | null;
+	allowSkip?: boolean;
+	onSkip?: () => void;
 	onSubmit: (entityId: string) => Promise<void>;
 }
 
@@ -119,15 +136,17 @@ export function PlayerCharacterSelectionModal({
 	options,
 	isSubmitting = false,
 	error = null,
+	allowSkip = false,
+	onSkip,
 	onSubmit,
 }: PlayerCharacterSelectionModalProps) {
 	return (
 		<Modal
 			isOpen={isOpen}
-			onClose={() => {}}
-			showCloseButton={false}
-			clickOutsideToClose={false}
-			allowEscape={false}
+			onClose={() => onSkip?.()}
+			showCloseButton={allowSkip}
+			clickOutsideToClose={allowSkip}
+			allowEscape={allowSkip}
 			className="w-[96vw] max-w-[520px]"
 		>
 			<div className="p-6">
@@ -140,6 +159,7 @@ export function PlayerCharacterSelectionModal({
 					}
 					options={options}
 					submitLabel="Continue to campaign"
+					onSkip={allowSkip ? onSkip : undefined}
 					isSubmitting={isSubmitting}
 					error={error}
 					onSubmit={onSubmit}

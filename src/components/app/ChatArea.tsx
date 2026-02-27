@@ -10,7 +10,7 @@ import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { WelcomeMessage } from "@/components/chat/WelcomeMessage";
 import { ChatInput } from "@/components/input/ChatInput";
 import { ThinkingSpinner } from "@/components/thinking-spinner";
-import { PLAYER_ROLES } from "@/constants/campaign-roles";
+import { CAMPAIGN_ROLES, PLAYER_ROLES } from "@/constants/campaign-roles";
 import { AuthService } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
 import type { Message } from "@/types/ai-message";
@@ -135,6 +135,7 @@ export function ChatArea({
 				const data = (await response.json()) as {
 					requiresCharacterSelection?: boolean;
 					options?: PlayerCharacterOption[];
+					currentClaim?: unknown;
 					error?: string;
 				};
 
@@ -144,7 +145,13 @@ export function ChatArea({
 					throw new Error(data.error ?? "Failed to load player characters");
 				}
 
-				if (data.requiresCharacterSelection) {
+				const hasCurrentClaim = !!data.currentClaim;
+				const hasAvailableClaimOptions = (data.options?.length ?? 0) > 0;
+				const shouldPromptReadonlyPlayer =
+					role === CAMPAIGN_ROLES.READONLY_PLAYER &&
+					!hasCurrentClaim &&
+					hasAvailableClaimOptions;
+				if (data.requiresCharacterSelection || shouldPromptReadonlyPlayer) {
 					setClaimOptions(data.options ?? []);
 					setShowCharacterClaimModal(true);
 					return;
@@ -339,6 +346,8 @@ export function ChatArea({
 				options={claimOptions}
 				isSubmitting={isSubmittingCharacterClaim}
 				error={characterClaimError}
+				allowSkip={selectedCampaign?.role === CAMPAIGN_ROLES.READONLY_PLAYER}
+				onSkip={() => setShowCharacterClaimModal(false)}
 				onSubmit={handleSubmitPlayerCharacterClaim}
 			/>
 		</div>
