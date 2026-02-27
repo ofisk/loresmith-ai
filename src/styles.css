@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@config "../tailwind.config.js";
 
 /* Prevent flash of unstyled content: set html background before app CSS loads */
 html {
