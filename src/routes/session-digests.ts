@@ -168,6 +168,7 @@ export async function handleUpdateSessionDigest(c: ContextWithAuth) {
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
 		}
+		await requireCanSeeSpoilers(c, campaignId);
 
 		const daoFactory = getDAOFactory(c.env);
 		const existing =

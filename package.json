@@ -13,7 +13,7 @@
 	},
 	"lint-staged": {
 		"*.{js,jsx,ts,tsx,json,jsonc,css,mjs}": [
-			"biome check --write --no-errors-on-unmatched"
+			"npx @biomejs/biome check --write --no-errors-on-unmatched"
 		],
 		"*.{ts,tsx}": [
 			"bash -c 'tsc --noEmit'"
