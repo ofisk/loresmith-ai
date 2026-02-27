@@ -583,19 +583,11 @@ export function CampaignDetailsModal({
 							</button>
 							<button
 								type="button"
-								onClick={() => !isPlayerRole && setActiveTab("digests")}
-								disabled={isPlayerRole}
-								title={
-									isPlayerRole
-										? "Session digests are only available to GMs"
-										: undefined
-								}
+								onClick={() => setActiveTab("digests")}
 								className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-									isPlayerRole
-										? "border-transparent text-gray-400 dark:text-gray-500 cursor-not-allowed"
-										: activeTab === "digests"
-											? "border-blue-500 text-blue-600 dark:text-blue-400"
-											: "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+									activeTab === "digests"
+										? "border-blue-500 text-blue-600 dark:text-blue-400"
+										: "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
 								}`}
 							>
 								Session digests
@@ -652,6 +644,7 @@ export function CampaignDetailsModal({
 								digests={digests}
 								loading={digestsLoading}
 								error={digestsError}
+								canManageDigests={canShare}
 								onEdit={handleEditDigest}
 								onDelete={handleDeleteDigest}
 								onCreate={handleCreateDigest}

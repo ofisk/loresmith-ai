@@ -14,6 +14,7 @@ import { FileDAO } from "./file/file-dao";
 import { LLMUsageDAO } from "./llm-usage-dao";
 import { MessageHistoryDAO } from "./message-history-dao";
 import { PlanningTaskDAO } from "./planning-task-dao";
+import { PlayerCharacterClaimDAO } from "./player-character-claim-dao";
 import { RebuildStatusDAO } from "./rebuild-status-dao";
 import { SessionDigestDAO } from "./session-digest-dao";
 import { SessionDigestTemplateDAO } from "./session-digest-template-dao";
@@ -47,6 +48,7 @@ export interface DAOFactory {
 	checklistStatusDAO: ChecklistStatusDAO;
 	characterSheetDAO: CharacterSheetDAO;
 	planningTaskDAO: PlanningTaskDAO;
+	playerCharacterClaimDAO: PlayerCharacterClaimDAO;
 	campaignShareLinkDAO: CampaignShareLinkDAO;
 	campaignResourceProposalDAO: CampaignResourceProposalDAO;
 
@@ -71,6 +73,7 @@ export class DAOFactoryImpl implements DAOFactory {
 	public readonly checklistStatusDAO: ChecklistStatusDAO;
 	public readonly characterSheetDAO: CharacterSheetDAO;
 	public readonly planningTaskDAO: PlanningTaskDAO;
+	public readonly playerCharacterClaimDAO: PlayerCharacterClaimDAO;
 	public readonly campaignShareLinkDAO: CampaignShareLinkDAO;
 	public readonly campaignResourceProposalDAO: CampaignResourceProposalDAO;
 
@@ -92,6 +95,7 @@ export class DAOFactoryImpl implements DAOFactory {
 		this.checklistStatusDAO = new ChecklistStatusDAO(db);
 		this.characterSheetDAO = new CharacterSheetDAO(db);
 		this.planningTaskDAO = new PlanningTaskDAO(db);
+		this.playerCharacterClaimDAO = new PlayerCharacterClaimDAO(db);
 		this.campaignShareLinkDAO = new CampaignShareLinkDAO(db);
 		this.campaignResourceProposalDAO = new CampaignResourceProposalDAO(db);
 	}

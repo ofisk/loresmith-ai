@@ -266,6 +266,14 @@ export const API_CONFIG = {
 				`/campaigns/${campaignId}/share-links/${encodeURIComponent(token)}`,
 			SHARE_LINKS_REVOKE_PATTERN: "/campaigns/:campaignId/share-links/:token",
 			JOIN: "/campaigns/join",
+			PLAYER_CHARACTER_CLAIM_OPTIONS: (campaignId: string) =>
+				`/campaigns/${campaignId}/player-character-claim/options`,
+			PLAYER_CHARACTER_CLAIM: (campaignId: string) =>
+				`/campaigns/${campaignId}/player-character-claim`,
+			PLAYER_CHARACTER_CLAIMS: (campaignId: string) =>
+				`/campaigns/${campaignId}/player-character-claims`,
+			PLAYER_CHARACTER_CLAIM_ASSIGN: (campaignId: string, username: string) =>
+				`/campaigns/${campaignId}/player-character-claims/${encodeURIComponent(username)}`,
 			RESOURCE_PROPOSALS: (campaignId: string) =>
 				`/campaigns/${campaignId}/resource-proposals`,
 			RESOURCE_PROPOSAL_APPROVE: (campaignId: string, id: string) =>

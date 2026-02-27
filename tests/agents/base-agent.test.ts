@@ -3,7 +3,7 @@ import { BaseAgent } from "../../src/agents/base-agent";
 import { SimpleChatAgent } from "../../src/agents/simple-chat-agent";
 
 vi.mock("@/lib/agent-role-utils", () => ({
-	resolveCampaignRole: vi.fn().mockResolvedValue("owner"),
+	resolveClaimedPlayerContext: vi.fn().mockResolvedValue(null),
 }));
 
 // Mock environment (DB undefined so addMessage does not attempt persistence; avoids DAO errors and log noise in tests)

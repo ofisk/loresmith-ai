@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import loresmith from "@/assets/loresmith.png";
 import { PrimaryActionButton } from "@/components/button";
+import {
+	type PlayerCharacterOption,
+	PlayerCharacterSelectionPanel,
+} from "@/components/campaign/PlayerCharacterSelectionModal";
 import { CAMPAIGN_ROLE_LABELS } from "@/constants/campaign-roles";
 import { API_CONFIG } from "@/shared-config";
 
@@ -18,12 +22,52 @@ export function JoinCampaignPage({
 	onJoinSuccess,
 }: JoinCampaignPageProps) {
 	const [status, setStatus] = useState<
-		"loading" | "preview" | "joining" | "success" | "error"
+		| "loading"
+		| "preview"
+		| "joining"
+		| "needsCharacterSelection"
+		| "success"
+		| "error"
 	>("loading");
 	const [campaignName, setCampaignName] = useState<string | null>(null);
 	const [role, setRole] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [campaignId, setCampaignId] = useState<string | null>(null);
+	const [claimOptions, setClaimOptions] = useState<PlayerCharacterOption[]>([]);
+	const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
+
+	const loadClaimOptions = async (
+		resolvedCampaignId: string,
+		authJwt: string
+	) => {
+		const optionsRes = await fetch(
+			API_CONFIG.buildUrl(
+				API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM_OPTIONS(
+					resolvedCampaignId
+				)
+			),
+			{
+				headers: { Authorization: `Bearer ${authJwt}` },
+			}
+		);
+		const optionsData = (await optionsRes.json()) as {
+			options?: PlayerCharacterOption[];
+			requiresCharacterSelection?: boolean;
+			error?: string;
+		};
+		if (!optionsRes.ok) {
+			throw new Error(
+				optionsData.error ?? "Failed to load available player characters"
+			);
+		}
+		if (!optionsData.requiresCharacterSelection) {
+			setStatus("success");
+			onJoinSuccess(resolvedCampaignId);
+			return;
+		}
+		setClaimOptions(optionsData.options ?? []);
+		setStatus("needsCharacterSelection");
+	};
 
 	useEffect(() => {
 		let cancelled = false;
@@ -42,6 +86,7 @@ export function JoinCampaignPage({
 					campaignId?: string;
 					campaignName?: string;
 					role?: string;
+					requiresCharacterSelection?: boolean;
 					url?: string;
 					error?: string;
 					redirectToLogin?: boolean;
@@ -53,6 +98,10 @@ export function JoinCampaignPage({
 					setCampaignId(data.campaignId ?? null);
 					setCampaignName(data.campaignName ?? null);
 					setRole(data.role ?? null);
+					if (data.campaignId && data.requiresCharacterSelection && jwt) {
+						await loadClaimOptions(data.campaignId, jwt);
+						return;
+					}
 					setStatus("success");
 					if (data.campaignId) {
 						onJoinSuccess(data.campaignId);
@@ -104,6 +153,7 @@ export function JoinCampaignPage({
 				campaignId?: string;
 				campaignName?: string;
 				role?: string;
+				requiresCharacterSelection?: boolean;
 				url?: string;
 				error?: string;
 			};
@@ -111,6 +161,10 @@ export function JoinCampaignPage({
 				setCampaignId(data.campaignId);
 				setCampaignName(data.campaignName ?? null);
 				setRole(data.role ?? null);
+				if (data.requiresCharacterSelection) {
+					await loadClaimOptions(data.campaignId, jwt);
+					return;
+				}
 				setStatus("success");
 				onJoinSuccess(data.campaignId);
 			} else {
@@ -120,6 +174,41 @@ export function JoinCampaignPage({
 		} catch {
 			setError("Failed to join campaign");
 			setStatus("error");
+		}
+	};
+
+	const handleSubmitClaim = async (entityId: string) => {
+		if (!jwt || !campaignId) return;
+		setIsSubmittingClaim(true);
+		setError(null);
+		try {
+			const response = await fetch(
+				API_CONFIG.buildUrl(
+					API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM(campaignId)
+				),
+				{
+					method: "POST",
+					headers: {
+						Authorization: `Bearer ${jwt}`,
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({ entityId }),
+				}
+			);
+			const data = (await response.json()) as { error?: string };
+			if (!response.ok) {
+				throw new Error(data.error ?? "Failed to save player character claim");
+			}
+			setStatus("success");
+			onJoinSuccess(campaignId);
+		} catch (claimError) {
+			setError(
+				claimError instanceof Error
+					? claimError.message
+					: "Failed to save player character claim"
+			);
+		} finally {
+			setIsSubmittingClaim(false);
 		}
 	};
 
@@ -174,6 +263,33 @@ export function JoinCampaignPage({
 					>
 						Go to campaign
 					</button>
+				</div>
+			</div>
+		);
+	}
+
+	if (status === "needsCharacterSelection") {
+		return (
+			<div className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 p-6">
+				<img
+					src={loresmith}
+					alt="LoreSmith"
+					className="mb-6 h-12 w-auto opacity-90"
+				/>
+				<div className="w-full max-w-md rounded-lg border border-neutral-700 bg-neutral-900 p-6">
+					<PlayerCharacterSelectionPanel
+						title="Choose your character"
+						description={
+							campaignName
+								? `Select your character for "${campaignName}" before entering the campaign.`
+								: "Select your character before entering the campaign."
+						}
+						options={claimOptions}
+						submitLabel="Continue to campaign"
+						isSubmitting={isSubmittingClaim}
+						error={error}
+						onSubmit={handleSubmitClaim}
+					/>
 				</div>
 			</div>
 		);

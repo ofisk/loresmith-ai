@@ -47,6 +47,12 @@ export { FileDAO } from "./file/file-dao";
 export type { UsageInWindow } from "./llm-usage-dao";
 export { LLMUsageDAO } from "./llm-usage-dao";
 export type {
+	PlayerCharacterClaim,
+	PlayerCharacterClaimRecord,
+	PlayerCharacterOption,
+} from "./player-character-claim-dao";
+export { PlayerCharacterClaimDAO } from "./player-character-claim-dao";
+export type {
 	CreateShardRegistryInput,
 	ShardRegistryRecord,
 } from "./shard-dao";

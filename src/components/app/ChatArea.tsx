@@ -1,11 +1,18 @@
 import { PaperPlaneRight, Stop } from "@phosphor-icons/react";
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+	type PlayerCharacterOption,
+	PlayerCharacterSelectionModal,
+} from "@/components/campaign/PlayerCharacterSelectionModal";
 import { Card } from "@/components/card/Card";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { WelcomeMessage } from "@/components/chat/WelcomeMessage";
 import { ChatInput } from "@/components/input/ChatInput";
 import { ThinkingSpinner } from "@/components/thinking-spinner";
+import { PLAYER_ROLES } from "@/constants/campaign-roles";
+import { AuthService } from "@/services/core/auth-service";
+import { API_CONFIG } from "@/shared-config";
 import type { Message } from "@/types/ai-message";
 import type { Campaign } from "@/types/campaign";
 
@@ -72,6 +79,141 @@ export function ChatArea({
 	agentStatus,
 }: ChatAreaProps) {
 	const [placeholder] = useState(() => getRandomPrompt());
+	const [claimOptions, setClaimOptions] = useState<PlayerCharacterOption[]>([]);
+	const [showCharacterClaimModal, setShowCharacterClaimModal] = useState(false);
+	const [isSubmittingCharacterClaim, setIsSubmittingCharacterClaim] =
+		useState(false);
+	const [characterClaimError, setCharacterClaimError] = useState<string | null>(
+		null
+	);
+
+	const selectedCampaign = useMemo(
+		() =>
+			selectedCampaignId
+				? (campaigns.find(
+						(campaign) => campaign.campaignId === selectedCampaignId
+					) ?? null)
+				: null,
+		[campaigns, selectedCampaignId]
+	);
+
+	useEffect(() => {
+		const campaignId = selectedCampaign?.campaignId;
+		const role = selectedCampaign?.role ?? null;
+		if (!campaignId || !role || !PLAYER_ROLES.has(role)) {
+			setShowCharacterClaimModal(false);
+			setClaimOptions([]);
+			setCharacterClaimError(null);
+			return;
+		}
+
+		const jwt = AuthService.getStoredJwt();
+		if (!jwt) {
+			setShowCharacterClaimModal(false);
+			setClaimOptions([]);
+			return;
+		}
+
+		let cancelled = false;
+
+		const fetchCharacterClaimOptions = async () => {
+			try {
+				setCharacterClaimError(null);
+				const response = await fetch(
+					API_CONFIG.buildUrl(
+						API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM_OPTIONS(
+							campaignId
+						)
+					),
+					{
+						headers: {
+							Authorization: `Bearer ${jwt}`,
+						},
+					}
+				);
+
+				const data = (await response.json()) as {
+					requiresCharacterSelection?: boolean;
+					options?: PlayerCharacterOption[];
+					error?: string;
+				};
+
+				if (cancelled) return;
+
+				if (!response.ok) {
+					throw new Error(data.error ?? "Failed to load player characters");
+				}
+
+				if (data.requiresCharacterSelection) {
+					setClaimOptions(data.options ?? []);
+					setShowCharacterClaimModal(true);
+					return;
+				}
+
+				setShowCharacterClaimModal(false);
+				setClaimOptions([]);
+			} catch (error) {
+				if (cancelled) return;
+				console.error("Failed to load player character claim options:", error);
+				setCharacterClaimError(
+					error instanceof Error
+						? error.message
+						: "Failed to load player characters"
+				);
+				setClaimOptions([]);
+				setShowCharacterClaimModal(true);
+			}
+		};
+
+		fetchCharacterClaimOptions();
+
+		return () => {
+			cancelled = true;
+		};
+	}, [selectedCampaign]);
+
+	const handleSubmitPlayerCharacterClaim = async (entityId: string) => {
+		const campaignId = selectedCampaign?.campaignId;
+		const jwt = AuthService.getStoredJwt();
+		if (!campaignId || !jwt) {
+			setCharacterClaimError("Authentication required");
+			return;
+		}
+
+		setCharacterClaimError(null);
+		setIsSubmittingCharacterClaim(true);
+
+		try {
+			const response = await fetch(
+				API_CONFIG.buildUrl(
+					API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM(campaignId)
+				),
+				{
+					method: "POST",
+					headers: {
+						Authorization: `Bearer ${jwt}`,
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({ entityId }),
+				}
+			);
+			const data = (await response.json()) as { error?: string };
+			if (!response.ok) {
+				throw new Error(data.error ?? "Failed to save player character claim");
+			}
+			setShowCharacterClaimModal(false);
+			setClaimOptions([]);
+			setCharacterClaimError(null);
+		} catch (error) {
+			setCharacterClaimError(
+				error instanceof Error
+					? error.message
+					: "Failed to save player character claim"
+			);
+		} finally {
+			setIsSubmittingCharacterClaim(false);
+		}
+	};
 
 	const handleCampaignChange = (
 		event: React.ChangeEvent<HTMLSelectElement>
@@ -190,6 +332,15 @@ export function ChatArea({
 					</div>
 				</div>
 			</form>
+
+			<PlayerCharacterSelectionModal
+				isOpen={showCharacterClaimModal}
+				campaignName={selectedCampaign?.name}
+				options={claimOptions}
+				isSubmitting={isSubmittingCharacterClaim}
+				error={characterClaimError}
+				onSubmit={handleSubmitPlayerCharacterClaim}
+			/>
 		</div>
 	);
 }
