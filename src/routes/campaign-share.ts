@@ -1,8 +1,10 @@
 import type { Context } from "hono";
 import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
+import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import type { CampaignMemberRole } from "@/dao/campaign-share-link-dao";
 import { type DAOFactory, getDAOFactory } from "@/dao/dao-factory";
 import { nanoid } from "@/lib/nanoid";
+import { notifyUser } from "@/lib/notifications";
 import {
 	ensureCampaignAccess,
 	getCampaignRole,
@@ -37,6 +39,30 @@ async function hasAnyPcEntities(
 		}),
 	]);
 	return pcCount + pcsCount > 0;
+}
+
+async function getCampaignManagerUsernames(
+	daoFactory: DAOFactory,
+	campaignId: string
+): Promise<string[]> {
+	const campaign = await daoFactory.campaignDAO.getCampaignById(campaignId);
+	if (!campaign) return [];
+	const memberUsernames =
+		await daoFactory.campaignDAO.getCampaignMemberUsernames(campaignId);
+	const managerSet = new Set<string>([campaign.username]);
+	await Promise.all(
+		memberUsernames.map(async (username) => {
+			if (username === campaign.username) return;
+			const role = await daoFactory.campaignDAO.getCampaignRole(
+				campaignId,
+				username
+			);
+			if (role === CAMPAIGN_ROLES.EDITOR_GM) {
+				managerSet.add(username);
+			}
+		})
+	);
+	return Array.from(managerSet);
 }
 
 /** POST /campaigns/:campaignId/share-links - create share link (owner, editor_gm) */
@@ -246,6 +272,40 @@ export async function handleCampaignJoin(c: ContextWithAuth) {
 		const campaign = await daoFactory.campaignDAO.getCampaignById(
 			result.campaignId
 		);
+		try {
+			const managerUsernames = await getCampaignManagerUsernames(
+				daoFactory,
+				result.campaignId
+			);
+			const recipients = managerUsernames.filter(
+				(username) => username !== userAuth.username
+			);
+			if (recipients.length > 0) {
+				const campaignName = campaign?.name ?? "Campaign";
+				const roleLabel = result.role.replace(/_/g, " ");
+				await Promise.all(
+					recipients.map((username) =>
+						notifyUser(c.env, username, {
+							type: NOTIFICATION_TYPES.SUCCESS,
+							title: "Campaign member joined",
+							message: `${userAuth.username} joined ${campaignName} as ${roleLabel}.`,
+							data: {
+								campaignId: result.campaignId,
+								campaignName,
+								joinedUsername: userAuth.username,
+								joinedRole: result.role,
+							},
+						})
+					)
+				);
+			}
+		} catch (notificationError) {
+			console.warn(
+				"[CampaignJoin] Failed to notify campaign managers:",
+				notificationError
+			);
+		}
+
 		const isPlayer = isPlayerRole(result.role);
 		const [claim, hasCampaignPcEntities] = isPlayer
 			? await Promise.all([
@@ -470,6 +530,36 @@ export async function handleAssignPlayerCharacterClaim(c: ContextWithAuth) {
 		) {
 			return c.json({ error: message }, 400);
 		}
+		return c.json({ error: "Internal server error" }, 500);
+	}
+}
+
+/** DELETE /campaigns/:campaignId/player-character-claims/:username - clear a player's claimed PC (owner/editor_gm) */
+export async function handleClearPlayerCharacterClaim(c: ContextWithAuth) {
+	try {
+		const campaignId = c.req.param("campaignId");
+		const targetUsername = c.req.param("username");
+		await requireCanEdit(c, campaignId);
+
+		const targetRole = await getCampaignRole(c, campaignId, targetUsername);
+		if (!isPlayerRole(targetRole)) {
+			return c.json(
+				{
+					error:
+						"Character claims can only be managed for users with player roles",
+				},
+				400
+			);
+		}
+
+		const daoFactory = getDAOFactory(c.env);
+		await daoFactory.playerCharacterClaimDAO.clearClaim(
+			campaignId,
+			targetUsername
+		);
+		return c.json({ success: true, username: targetUsername });
+	} catch (error) {
+		console.error("Error clearing player character claim:", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
