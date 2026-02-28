@@ -22,6 +22,7 @@ const LOOT_REWARD_AGENT_SYSTEM_PROMPT = buildSystemPrompt({
 		"For loot generation requests, call generateLootTool first, then present a concise and table-ready reward breakdown.",
 		"For personalized item rewards, call suggestMagicItemTool and explain why the primary recommendation fits the character or moment.",
 		"When the user confirms rewards were given, call trackDistributedLootTool so rewards are persisted in campaign context.",
+		"Never ask the user for campaignId. The runtime injects the currently selected campaign from the top campaign selector.",
 		"If required IDs (recipient/location/npc) are missing, ask for them before tracking.",
 	],
 	importantNotes: [
