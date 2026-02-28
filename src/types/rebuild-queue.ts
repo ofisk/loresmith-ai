@@ -5,6 +5,11 @@ export interface RebuildQueueMessage {
 	campaignId: string;
 	rebuildType: RebuildType;
 	affectedEntityIds?: string[];
+	dirtyEntitySeedIds?: string[];
+	requestedRadius?: number;
+	mode?: "incremental" | "full";
+	fallbackReason?: string;
+	idempotencyToken?: string;
 	triggeredBy: string; // username or 'system' or 'scheduled'
 	options?: {
 		regenerateSummaries?: boolean;

@@ -14,8 +14,17 @@ export class RebuildQueueProcessor {
 	 */
 	async processRebuild(message: RebuildQueueMessage): Promise<void> {
 		const startTime = Date.now();
-		const { rebuildId, campaignId, rebuildType, affectedEntityIds, options } =
-			message;
+		const {
+			rebuildId,
+			campaignId,
+			rebuildType,
+			affectedEntityIds,
+			options,
+			mode,
+			requestedRadius,
+			idempotencyToken,
+			dirtyEntitySeedIds,
+		} = message;
 
 		console.log(
 			`[RebuildQueueProcessor] Starting rebuild ${rebuildId} for campaign ${campaignId} (type: ${rebuildType})`
@@ -43,6 +52,7 @@ export class RebuildQueueProcessor {
 				daoFactory.entityImportanceDAO,
 				daoFactory.campaignDAO,
 				worldStateChangelogDAO,
+				daoFactory.graphRebuildDirtyDAO,
 				openaiApiKey,
 				this.env
 			);
@@ -67,7 +77,13 @@ export class RebuildQueueProcessor {
 				campaignId,
 				rebuildType,
 				affectedEntityIds,
-				options || {}
+				options || {},
+				{
+					mode,
+					requestedRadius,
+					idempotencyToken,
+					dirtyEntitySeedIds,
+				}
 			);
 
 			const processingTime = Date.now() - startTime;
