@@ -89,21 +89,6 @@ export class MessageHistoryDAO extends BaseDAOClass {
 		sessionId: string,
 		keepCount: number = this.MAX_MESSAGES_PER_SESSION
 	): Promise<void> {
-		// First, get total count before trimming (for logging)
-		const countSql = `
-      SELECT COUNT(*) as count
-      FROM message_history
-      WHERE session_id = ?
-    `;
-		const countResult = await this.queryFirst<{ count: number }>(countSql, [
-			sessionId,
-		]);
-		const totalCount = countResult?.count || 0;
-
-		if (totalCount <= keepCount) {
-			return; // No trimming needed
-		}
-
 		// Delete all messages for this session except the most recent keepCount.
 		// Use a subquery to avoid exceeding D1's 100-parameter limit (session_id + N keep IDs would exceed it).
 		const deleteSql = `
@@ -120,13 +105,6 @@ export class MessageHistoryDAO extends BaseDAOClass {
     `;
 
 		await this.execute(deleteSql, [sessionId, sessionId, keepCount]);
-
-		const deletedCount = totalCount - keepCount;
-		if (deletedCount > 0) {
-			console.log(
-				`[MessageHistoryDAO] Trimmed ${deletedCount} old message(s) for session ${sessionId} (kept ${keepCount} most recent)`
-			);
-		}
 	}
 
 	/**
