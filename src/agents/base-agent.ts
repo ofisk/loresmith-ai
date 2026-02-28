@@ -1177,9 +1177,6 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 								// Continue with original result if trimming fails
 							}
 
-							// Add delay to prevent rate limiting
-							await new Promise((resolve) => setTimeout(resolve, 100));
-
 							// Normalize results from ai.tool() to the expected ToolResult envelope
 							const normalized = (() => {
 								// If already in the expected envelope, use trimmed result so LLM gets trimmed content
