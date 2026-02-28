@@ -514,112 +514,142 @@ export class CommunityDetectionService {
 	async incrementalUpdate(
 		campaignId: string,
 		affectedEntityIds: string[],
+		radius = 2,
 		options: CommunityDetectionOptions = {}
 	): Promise<Community[]> {
-		// Find communities containing affected entities using batch lookup
-		// This replaces the loop that was causing "LIKE pattern too complex" errors
-		const communities =
+		const subgraph = await this.buildBoundedSubgraph(
+			campaignId,
+			affectedEntityIds,
+			radius
+		);
+		if (subgraph.entityIds.length === 0 || subgraph.edges.length === 0) {
+			return [];
+		}
+
+		const impactedCommunities =
 			await this.communityDAO.findCommunitiesContainingEntities(
 				campaignId,
-				affectedEntityIds
+				subgraph.entityIds
 			);
-		const affectedCommunities = new Set<string>();
-		for (const community of communities) {
-			affectedCommunities.add(community.id);
+		for (const community of impactedCommunities) {
+			await this.communityDAO.deleteCommunity(community.id);
 		}
 
-		// For simplicity, rebuild all affected communities
-		// A more sophisticated implementation would only recompute the affected parts
-		if (affectedCommunities.size > 0) {
-			// Get all entities in affected communities
-			const allAffectedEntities = new Set<string>();
-			for (const communityId of affectedCommunities) {
-				const community = await this.communityDAO.getCommunityById(communityId);
-				if (community) {
-					for (const entityId of community.entityIds) {
-						allAffectedEntities.add(entityId);
-					}
-				}
+		const assignments = detectCommunities(subgraph.edges, options);
+		const communitiesMap = new Map<number, string[]>();
+		for (const assignment of assignments) {
+			if (!communitiesMap.has(assignment.communityId)) {
+				communitiesMap.set(assignment.communityId, []);
 			}
+			communitiesMap.get(assignment.communityId)!.push(assignment.nodeId);
+		}
 
-			// Delete affected communities
-			for (const communityId of affectedCommunities) {
-				await this.communityDAO.deleteCommunity(communityId);
-			}
+		const minSize = options.minCommunitySize ?? 2;
+		const validCommunities = Array.from(communitiesMap.entries()).filter(
+			([, entityIds]) => entityIds.length >= minSize
+		);
 
-			// Rebuild communities for affected entities
-			const relationships = await this.loadRelationshipsForEntities(
+		const createdCommunities: Community[] = [];
+		for (const [communityId, entityIds] of validCommunities) {
+			const communityInput: CreateCommunityInput = {
+				id: crypto.randomUUID(),
 				campaignId,
-				Array.from(allAffectedEntities)
+				level: 0,
+				entityIds,
+				metadata: {
+					communityId,
+					entityCount: entityIds.length,
+					incremental: true,
+					radius,
+				},
+			};
+
+			await this.communityDAO.createCommunity(communityInput);
+			const created = await this.communityDAO.getCommunityById(
+				communityInput.id
 			);
-
-			if (relationships.length > 0) {
-				const edges = this.convertRelationshipsToEdges(relationships);
-				const assignments = detectCommunities(edges, options);
-
-				const communitiesMap = new Map<number, string[]>();
-				for (const assignment of assignments) {
-					if (!communitiesMap.has(assignment.communityId)) {
-						communitiesMap.set(assignment.communityId, []);
-					}
-					communitiesMap.get(assignment.communityId)!.push(assignment.nodeId);
-				}
-
-				const minSize = options.minCommunitySize ?? 2;
-				const validCommunities = Array.from(communitiesMap.entries()).filter(
-					([, entityIds]) => entityIds.length >= minSize
-				);
-
-				const createdCommunities: Community[] = [];
-				for (const [communityId, entityIds] of validCommunities) {
-					const communityInput: CreateCommunityInput = {
-						id: crypto.randomUUID(),
-						campaignId,
-						level: 0, // Simplified - would need to preserve level in real implementation
-						entityIds,
-						metadata: {
-							communityId,
-							entityCount: entityIds.length,
-						},
-					};
-
-					await this.communityDAO.createCommunity(communityInput);
-					const created = await this.communityDAO.getCommunityById(
-						communityInput.id
-					);
-					if (created) {
-						createdCommunities.push(created);
-					}
-				}
-
-				// Generate summaries (including natural language names) synchronously
-				if (
-					this.summaryService &&
-					createdCommunities.length > 0 &&
-					(options as any).generateSummaries !== false
-				) {
-					const openaiApiKey =
-						(options as any).openaiApiKey || this.defaultOpenAIKey;
-					if (openaiApiKey) {
-						try {
-							await this.generateSummariesAsync(
-								createdCommunities,
-								openaiApiKey
-							);
-						} catch (error) {
-							console.error(
-								`[CommunityDetection] Error generating summaries for incremental update:`,
-								error
-							);
-						}
-					}
-				}
-
-				return createdCommunities;
+			if (created) {
+				createdCommunities.push(created);
 			}
 		}
 
-		return [];
+		if (
+			this.summaryService &&
+			createdCommunities.length > 0 &&
+			(options as any).generateSummaries !== false
+		) {
+			const openaiApiKey =
+				(options as any).openaiApiKey || this.defaultOpenAIKey;
+			if (openaiApiKey) {
+				await this.generateSummariesAsync(createdCommunities, openaiApiKey);
+			}
+		}
+
+		return createdCommunities;
+	}
+
+	private async buildBoundedSubgraph(
+		campaignId: string,
+		seedEntityIds: string[],
+		radius: number
+	): Promise<{ entityIds: string[]; edges: GraphEdge[] }> {
+		if (seedEntityIds.length === 0) {
+			return { entityIds: [], edges: [] };
+		}
+		const relationshipRecords =
+			await this.entityDAO.getMinimalRelationshipsForCampaign(campaignId);
+		const adjacency = new Map<string, Set<string>>();
+		const edgePool: GraphEdge[] = [];
+		for (const rel of relationshipRecords) {
+			let isRejected = false;
+			try {
+				const metadata = rel.metadata
+					? (JSON.parse(rel.metadata) as Record<string, unknown>)
+					: {};
+				isRejected = metadata.ignored === true || metadata.rejected === true;
+			} catch (_error) {
+				isRejected = false;
+			}
+			if (isRejected) continue;
+			if (!adjacency.has(rel.fromEntityId))
+				adjacency.set(rel.fromEntityId, new Set());
+			if (!adjacency.has(rel.toEntityId))
+				adjacency.set(rel.toEntityId, new Set());
+			adjacency.get(rel.fromEntityId)!.add(rel.toEntityId);
+			adjacency.get(rel.toEntityId)!.add(rel.fromEntityId);
+			edgePool.push({
+				from: rel.fromEntityId,
+				to: rel.toEntityId,
+				weight: rel.strength ?? 1,
+			});
+		}
+
+		const visited = new Set<string>(seedEntityIds);
+		let frontier = new Set<string>(seedEntityIds);
+		for (let depth = 0; depth < radius; depth++) {
+			const next = new Set<string>();
+			for (const id of frontier) {
+				const neighbors = adjacency.get(id);
+				if (!neighbors) continue;
+				for (const neighbor of neighbors) {
+					if (!visited.has(neighbor)) {
+						visited.add(neighbor);
+						next.add(neighbor);
+					}
+				}
+			}
+			if (next.size === 0) break;
+			frontier = next;
+		}
+
+		const allowed = visited;
+		const edges = edgePool.filter(
+			(edge) => allowed.has(edge.from) && allowed.has(edge.to)
+		);
+		return {
+			entityIds: Array.from(allowed),
+			edges,
+		};
 	}
 
 	/**

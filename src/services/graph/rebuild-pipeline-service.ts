@@ -3,10 +3,12 @@ import type { CommunityDAO } from "@/dao/community-dao";
 import type { CommunitySummaryDAO } from "@/dao/community-summary-dao";
 import type { EntityDAO } from "@/dao/entity-dao";
 import type { EntityImportanceDAO } from "@/dao/entity-importance-dao";
+import type { GraphRebuildDirtyDAO } from "@/dao/graph-rebuild-dirty-dao";
 import type { RebuildStatusDAO, RebuildType } from "@/dao/rebuild-status-dao";
 import { TelemetryDAO } from "@/dao/telemetry-dao";
 import type { WorldStateChangelogDAO } from "@/dao/world-state-changelog-dao";
 import { TelemetryService } from "@/services/telemetry/telemetry-service";
+import { ChangelogArchiveService } from "./changelog-archive-service";
 import { CommunityDetectionService } from "./community-detection-service";
 import { EntityImportanceService } from "./entity-importance-service";
 import { RebuildTriggerService } from "./rebuild-trigger-service";
@@ -15,6 +17,13 @@ export interface RebuildPipelineOptions {
 	regenerateSummaries?: boolean;
 	recalculateImportance?: boolean;
 	openaiApiKey?: string;
+}
+
+export interface RebuildExecutionContext {
+	mode?: "incremental" | "full";
+	requestedRadius?: number;
+	idempotencyToken?: string;
+	dirtyEntitySeedIds?: string[];
 }
 
 export interface RebuildPipelineResult {
@@ -31,6 +40,7 @@ export class RebuildPipelineService {
 	private entityImportanceService: EntityImportanceService;
 	private rebuildTriggerService: RebuildTriggerService;
 	private readonly worldStateChangelogDAO: WorldStateChangelogDAO;
+	private readonly graphRebuildDirtyDAO?: GraphRebuildDirtyDAO;
 	private telemetryService: TelemetryService | null = null;
 	private readonly env?: any;
 
@@ -43,6 +53,7 @@ export class RebuildPipelineService {
 		entityImportanceDAO: EntityImportanceDAO,
 		campaignDAO: CampaignDAO,
 		worldStateChangelogDAO: WorldStateChangelogDAO,
+		graphRebuildDirtyDAO?: GraphRebuildDirtyDAO,
 		private readonly openaiApiKey?: string,
 		env?: any
 	) {
@@ -60,6 +71,7 @@ export class RebuildPipelineService {
 		);
 		this.rebuildTriggerService = new RebuildTriggerService(campaignDAO);
 		this.worldStateChangelogDAO = worldStateChangelogDAO;
+		this.graphRebuildDirtyDAO = graphRebuildDirtyDAO;
 		try {
 			this.telemetryService = new TelemetryService(new TelemetryDAO(db));
 		} catch (error) {
@@ -78,7 +90,8 @@ export class RebuildPipelineService {
 		campaignId: string,
 		rebuildType: RebuildType,
 		affectedEntityIds?: string[],
-		options: RebuildPipelineOptions = {}
+		options: RebuildPipelineOptions = {},
+		executionContext: RebuildExecutionContext = {}
 	): Promise<RebuildPipelineResult> {
 		const startTime = Date.now();
 		const {
@@ -93,6 +106,17 @@ export class RebuildPipelineService {
 				status: "in_progress",
 				startedAt: new Date().toISOString(),
 			});
+			if (this.graphRebuildDirtyDAO && executionContext.idempotencyToken) {
+				await this.graphRebuildDirtyDAO.upsertDedupeJob({
+					campaignId,
+					idempotencyKey: executionContext.idempotencyToken,
+					rebuildMode:
+						executionContext.mode ??
+						(rebuildType === "full" ? "full" : "incremental"),
+					status: "running",
+					lastRebuildId: rebuildId,
+				});
+			}
 
 			// Record rebuild status transition (fire and forget)
 			this.telemetryService
@@ -133,6 +157,7 @@ export class RebuildPipelineService {
 				communities = await this.executePartialRebuild(
 					campaignId,
 					affectedEntityIds,
+					executionContext.requestedRadius ?? 2,
 					openaiApiKey,
 					regenerateSummaries
 				);
@@ -140,15 +165,24 @@ export class RebuildPipelineService {
 
 			// Update entity importance
 			if (recalculateImportance) {
-				await this.updateEntityImportance(campaignId);
+				if (
+					rebuildType === "partial" &&
+					affectedEntityIds &&
+					affectedEntityIds.length
+				) {
+					await this.updateEntityImportanceIncremental(
+						campaignId,
+						affectedEntityIds,
+						executionContext.requestedRadius ?? 2
+					);
+				} else {
+					await this.updateEntityImportance(campaignId);
+				}
 			}
 
 			// Archive changelog entries that were applied
 			if (unappliedEntryIds.length > 0 && this.env?.R2) {
 				try {
-					const { ChangelogArchiveService } = await import(
-						"@/services/graph/changelog-archive-service"
-					);
 					const archiveService = new ChangelogArchiveService({
 						db: this.env.DB!,
 						r2: this.env.R2,
@@ -258,6 +292,28 @@ export class RebuildPipelineService {
 
 			await Promise.allSettled(telemetryPromises);
 
+			if (this.graphRebuildDirtyDAO) {
+				if (rebuildType === "full") {
+					await this.graphRebuildDirtyDAO.clearDirtyForCampaign(campaignId);
+				} else if (affectedEntityIds && affectedEntityIds.length > 0) {
+					await this.graphRebuildDirtyDAO.clearDirtyForEntities(
+						campaignId,
+						affectedEntityIds
+					);
+				}
+				if (executionContext.idempotencyToken) {
+					await this.graphRebuildDirtyDAO.upsertDedupeJob({
+						campaignId,
+						idempotencyKey: executionContext.idempotencyToken,
+						rebuildMode:
+							executionContext.mode ??
+							(rebuildType === "full" ? "full" : "incremental"),
+						status: "completed",
+						lastRebuildId: rebuildId,
+					});
+				}
+			}
+
 			// Reset impact score after successful rebuild
 			await this.rebuildTriggerService.resetImpact(campaignId);
 
@@ -307,6 +363,17 @@ export class RebuildPipelineService {
 						error
 					);
 				});
+			if (this.graphRebuildDirtyDAO && executionContext.idempotencyToken) {
+				await this.graphRebuildDirtyDAO.upsertDedupeJob({
+					campaignId,
+					idempotencyKey: executionContext.idempotencyToken,
+					rebuildMode:
+						executionContext.mode ??
+						(rebuildType === "full" ? "full" : "incremental"),
+					status: "failed",
+					lastRebuildId: rebuildId,
+				});
+			}
 
 			return {
 				rebuildId,
@@ -346,6 +413,7 @@ export class RebuildPipelineService {
 	private async executePartialRebuild(
 		campaignId: string,
 		affectedEntityIds: string[],
+		radius: number,
 		openaiApiKey?: string,
 		regenerateSummaries = true
 	): Promise<any[]> {
@@ -357,6 +425,7 @@ export class RebuildPipelineService {
 		const communities = await this.communityDetectionService.incrementalUpdate(
 			campaignId,
 			affectedEntityIds,
+			radius,
 			regenerateSummaries && openaiApiKey
 				? ({ generateSummaries: true, openaiApiKey } as any)
 				: {}
@@ -375,6 +444,21 @@ export class RebuildPipelineService {
 
 		await this.entityImportanceService.recalculateImportanceForCampaign(
 			campaignId
+		);
+	}
+
+	private async updateEntityImportanceIncremental(
+		campaignId: string,
+		affectedEntityIds: string[],
+		radius: number
+	): Promise<void> {
+		console.log(
+			`[RebuildPipeline] Recalculating incremental entity importance for campaign ${campaignId} (seeds: ${affectedEntityIds.length}, radius: ${radius})`
+		);
+		await this.entityImportanceService.recalculateImportanceIncremental(
+			campaignId,
+			affectedEntityIds,
+			{ radius }
 		);
 	}
 }

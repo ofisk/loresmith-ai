@@ -6,11 +6,9 @@ import {
 } from "@/lib/entity-required-fields";
 import { getEnvVar } from "@/lib/env-utils";
 import { notifyCampaignMembers } from "@/lib/notifications";
-import { IMPACT_PER_NEW_ENTITY } from "@/lib/rebuild-config";
 import { type ContextWithAuth, verifyCampaignAccess } from "@/lib/route-utils";
 import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
-import { EntityImportanceService } from "@/services/graph/entity-importance-service";
 import { RebuildQueueService } from "@/services/graph/rebuild-queue-service";
 import { RebuildTriggerService } from "@/services/graph/rebuild-trigger-service";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
@@ -24,6 +22,12 @@ interface PendingRelation {
 	metadata?: Record<string, unknown>;
 }
 
+interface DirtyRelationshipRef {
+	fromEntityId: string;
+	toEntityId: string;
+	relationshipType: string;
+}
+
 /**
  * Extract pendingRelations from entity metadata
  */
@@ -34,107 +38,70 @@ function extractPendingRelations(
 }
 
 /**
- * Check if there are remaining staging entities and trigger async rebuild if none remain
+ * Mark dirty graph state and trigger async rebuild in the background.
  */
 async function checkAndRunCommunityDetection(
 	daoFactory: ReturnType<typeof getDAOFactory>,
 	campaignId: string,
 	env: any,
-	affectedEntityIds?: string[],
+	affectedEntityIds: string[],
+	relationshipKeys: DirtyRelationshipRef[] = [],
 	username?: string
 ): Promise<void> {
-	const allEntities =
-		await daoFactory.entityDAO.listEntitiesByCampaign(campaignId);
-	const remainingStagingEntities = allEntities.filter((entity) => {
-		const metadata = (entity.metadata as Record<string, unknown>) || {};
-		return metadata.shardStatus === "staging";
-	});
-
 	const rebuildTriggerService = new RebuildTriggerService(
-		daoFactory.campaignDAO
+		daoFactory.campaignDAO,
+		daoFactory.entityDAO,
+		daoFactory.rebuildStatusDAO,
+		daoFactory.graphRebuildDirtyDAO
 	);
-
-	if (remainingStagingEntities.length === 0) {
-		const decision = await rebuildTriggerService.makeRebuildDecision(
-			campaignId,
-			affectedEntityIds
+	if (!daoFactory.graphRebuildDirtyDAO) {
+		console.warn(
+			`[Server] graphRebuildDirtyDAO unavailable, skipping async rebuild trigger for campaign ${campaignId}`
 		);
+		return;
+	}
+	await daoFactory.graphRebuildDirtyDAO.markEntitiesDirty(
+		campaignId,
+		affectedEntityIds,
+		"approval_mutation"
+	);
+	if (relationshipKeys.length > 0) {
+		await daoFactory.graphRebuildDirtyDAO.markRelationshipsDirty(
+			campaignId,
+			relationshipKeys,
+			"approval_mutation"
+		);
+	}
 
-		if (decision.shouldRebuild) {
-			console.log(
-				`[Server] All pending shards processed for campaign ${campaignId}, rebuild triggered (${decision.rebuildType})`
-			);
+	if (!(env as any).GRAPH_REBUILD_QUEUE) {
+		console.warn(
+			`[Server] GRAPH_REBUILD_QUEUE binding not configured, skipping async rebuild for campaign ${campaignId}`
+		);
+		return;
+	}
 
-			// Check if queue binding is available
-			if (!(env as any).GRAPH_REBUILD_QUEUE) {
-				console.warn(
-					`[Server] GRAPH_REBUILD_QUEUE binding not configured, skipping async rebuild for campaign ${campaignId}`
-				);
-				return;
+	const queueService = new RebuildQueueService(
+		(env as any).GRAPH_REBUILD_QUEUE
+	);
+	const result = await rebuildTriggerService.decideAndEnqueueRebuild({
+		campaignId,
+		triggeredBy: username || "system",
+		requestedRadius: 2,
+		dirtyEntitySeedIds: affectedEntityIds,
+		queueService,
+	});
+	if (result.enqueued) {
+		console.log(
+			`[Server] Enqueued ${result.mode} rebuild ${result.rebuildId} for campaign ${campaignId}`,
+			{
+				dirtyEntityCount: result.dirtyEntityCount,
+				neighborhoodEntityCount: result.neighborhoodEntityCount,
+				fallbackReason: result.fallbackReason,
 			}
-
-			try {
-				// Get username from campaign if not provided
-				let triggeredBy = username || "system";
-				if (!username) {
-					const campaign =
-						await daoFactory.campaignDAO.getCampaignById(campaignId);
-					if (campaign) {
-						triggeredBy = campaign.username;
-					}
-				}
-
-				// Create rebuild status entry
-				// decision.rebuildType is guaranteed to be "full" or "partial" when shouldRebuild is true
-				const rebuildType =
-					decision.rebuildType === "partial" ? "partial" : "full";
-				const rebuildId = crypto.randomUUID();
-				await daoFactory.rebuildStatusDAO.createRebuild({
-					id: rebuildId,
-					campaignId,
-					rebuildType,
-					status: "pending",
-					affectedEntityIds:
-						rebuildType === "partial" ? affectedEntityIds : undefined,
-				});
-
-				// Enqueue rebuild job
-				const queueService = new RebuildQueueService(
-					(env as any).GRAPH_REBUILD_QUEUE
-				);
-				await queueService.enqueueRebuild({
-					rebuildId,
-					campaignId,
-					rebuildType,
-					affectedEntityIds:
-						rebuildType === "partial" ? affectedEntityIds : undefined,
-					triggeredBy,
-					options: {
-						regenerateSummaries: true,
-						recalculateImportance: true,
-					},
-				});
-
-				console.log(
-					`[Server] Rebuild ${rebuildId} enqueued for campaign ${campaignId} (type: ${decision.rebuildType})`
-				);
-			} catch (queueError) {
-				console.error(
-					`[Server] Error enqueueing rebuild for campaign ${campaignId}:`,
-					queueError
-				);
-				await rebuildTriggerService.logRebuildDecision(campaignId, decision, {
-					success: false,
-				});
-			}
-		} else {
-			console.log(
-				`[Server] All pending shards processed for campaign ${campaignId}, but rebuild not needed (impact: ${decision.cumulativeImpact})`
-			);
-		}
+		);
 	} else {
 		console.log(
-			`[Server] ${remainingStagingEntities.length} staging entities remaining for campaign ${campaignId}, skipping rebuild trigger`
+			`[Server] Rebuild not enqueued for campaign ${campaignId}: ${result.reason}`
 		);
 	}
 }
@@ -392,6 +359,8 @@ export async function handleApproveShards(c: ContextWithAuth) {
 
 		let approvedCount = 0;
 		const relationshipCount = 0;
+		const touchedEntityIds = new Set<string>();
+		const touchedRelationships: DirtyRelationshipRef[] = [];
 
 		// Approve each entity (shardIds from UI are entity IDs) and create its relationships
 		for (const entityId of shardIds) {
@@ -420,6 +389,7 @@ export async function handleApproveShards(c: ContextWithAuth) {
 			await daoFactory.entityDAO.updateEntity(entityId, {
 				metadata: updatedMetadata,
 			});
+			touchedEntityIds.add(entityId);
 
 			// Ensure entity embedding is indexed in Vectorize for searchability
 			try {
@@ -518,29 +488,14 @@ export async function handleApproveShards(c: ContextWithAuth) {
 						},
 						allowSelfRelation: false,
 					});
+					touchedEntityIds.add(rel.fromEntityId);
+					touchedEntityIds.add(rel.toEntityId);
+					touchedRelationships.push({
+						fromEntityId: rel.fromEntityId,
+						toEntityId: rel.toEntityId,
+						relationshipType: rel.relationshipType,
+					});
 				}
-			}
-		}
-
-		// Batch recalculate importance for all entities after approval
-		// This is more efficient than calculating per-entity, as it runs PageRank
-		// and Betweenness Centrality once for the entire graph
-		if (approvedCount > 0) {
-			try {
-				const importanceService = new EntityImportanceService(
-					daoFactory.entityDAO,
-					daoFactory.communityDAO,
-					daoFactory.entityImportanceDAO
-				);
-				console.log(
-					`[Server] Batch recalculating importance for ${approvedCount} approved entities`
-				);
-				await importanceService.recalculateImportanceForCampaign(campaignId);
-			} catch (error) {
-				console.warn(
-					`[Server] Failed to recalculate importance after approval:`,
-					error
-				);
 			}
 		}
 
@@ -548,28 +503,17 @@ export async function handleApproveShards(c: ContextWithAuth) {
 			`[Server] Approved ${approvedCount} entities and created ${relationshipCount} relationships for campaign: ${campaignId}`
 		);
 
-		const approvedEntityIds = shardIds;
-
-		// Record impact for net-new entities so community rebuild triggers (cron only considered created_at; approval adds entities to the graph)
-		if (approvedCount > 0) {
-			const rebuildTriggerService = new RebuildTriggerService(
-				daoFactory.campaignDAO
-			);
-			const impact = approvedCount * IMPACT_PER_NEW_ENTITY;
-			await rebuildTriggerService.recordImpact(campaignId, impact);
-			console.log(
-				`[Server] Recorded ${impact} impact for ${approvedCount} newly approved entities`
+		const approvedEntityIds = Array.from(touchedEntityIds);
+		if (approvedEntityIds.length > 0) {
+			await checkAndRunCommunityDetection(
+				daoFactory,
+				campaignId,
+				c.env as any,
+				approvedEntityIds,
+				touchedRelationships,
+				userAuth.username
 			);
 		}
-
-		// Check if there are any remaining staging entities and run Leiden algorithm if none remain
-		await checkAndRunCommunityDetection(
-			daoFactory,
-			campaignId,
-			c.env as any,
-			approvedEntityIds,
-			userAuth.username
-		);
 
 		// Notify all campaign members about entity approval (UI uses "shard" terminology)
 		try {
@@ -638,6 +582,8 @@ export async function handleRejectShards(c: ContextWithAuth) {
 
 		let rejectedCount = 0;
 		const relationshipCount = 0;
+		const touchedEntityIds = new Set<string>();
+		const touchedRelationships: DirtyRelationshipRef[] = [];
 
 		// Reject each entity (shardIds from UI are entity IDs) - mark as rejected but keep in graph with ignore flag
 		for (const entityId of shardIds) {
@@ -668,6 +614,7 @@ export async function handleRejectShards(c: ContextWithAuth) {
 			await daoFactory.entityDAO.updateEntity(entityId, {
 				metadata: updatedMetadata,
 			});
+			touchedEntityIds.add(entityId);
 
 			rejectedCount++;
 
@@ -694,29 +641,14 @@ export async function handleRejectShards(c: ContextWithAuth) {
 						},
 						allowSelfRelation: false,
 					});
+					touchedEntityIds.add(rel.fromEntityId);
+					touchedEntityIds.add(rel.toEntityId);
+					touchedRelationships.push({
+						fromEntityId: rel.fromEntityId,
+						toEntityId: rel.toEntityId,
+						relationshipType: rel.relationshipType,
+					});
 				}
-			}
-		}
-
-		// Batch recalculate importance for all entities after rejection
-		// This is more efficient than calculating per-entity, as it runs PageRank
-		// and Betweenness Centrality once for the entire graph
-		if (rejectedCount > 0) {
-			try {
-				const importanceService = new EntityImportanceService(
-					daoFactory.entityDAO,
-					daoFactory.communityDAO,
-					daoFactory.entityImportanceDAO
-				);
-				console.log(
-					`[Server] Batch recalculating importance for ${rejectedCount} rejected entities`
-				);
-				await importanceService.recalculateImportanceForCampaign(campaignId);
-			} catch (error) {
-				console.warn(
-					`[Server] Failed to recalculate importance after rejection:`,
-					error
-				);
 			}
 		}
 
@@ -724,16 +656,17 @@ export async function handleRejectShards(c: ContextWithAuth) {
 			`[Server] Rejected ${rejectedCount} entities and created ${relationshipCount} relationships (marked as ignored) for campaign: ${campaignId}`
 		);
 
-		const rejectedEntityIds = shardIds;
-
-		// Check if there are any remaining staging entities and run Leiden algorithm if none remain
-		await checkAndRunCommunityDetection(
-			daoFactory,
-			campaignId,
-			c.env as any,
-			rejectedEntityIds,
-			userAuth.username
-		);
+		const rejectedEntityIds = Array.from(touchedEntityIds);
+		if (rejectedEntityIds.length > 0) {
+			await checkAndRunCommunityDetection(
+				daoFactory,
+				campaignId,
+				c.env as any,
+				rejectedEntityIds,
+				touchedRelationships,
+				userAuth.username
+			);
+		}
 
 		// Notify all campaign members about entity rejection (UI uses "shard" terminology)
 		try {

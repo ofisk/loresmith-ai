@@ -18,6 +18,11 @@ interface Graph {
 	edges: Array<{ from: string; to: string; weight: number }>;
 }
 
+interface IncrementalImportanceOptions {
+	radius?: number;
+	maxIncrementalNodes?: number;
+}
+
 export class EntityImportanceService {
 	constructor(
 		private readonly entityDAO: EntityDAO,
@@ -598,6 +603,118 @@ export class EntityImportanceService {
 		return results;
 	}
 
+	async recalculateImportanceIncremental(
+		campaignId: string,
+		seedEntityIds: string[],
+		options: IncrementalImportanceOptions = {}
+	): Promise<Map<string, number>> {
+		if (seedEntityIds.length === 0) {
+			return new Map();
+		}
+		const radius = Math.max(1, options.radius ?? 2);
+		const maxIncrementalNodes = options.maxIncrementalNodes ?? 600;
+		const fullGraph = await this.buildGraph(campaignId, true);
+		if (fullGraph.nodes.size === 0) {
+			return new Map();
+		}
+
+		const affected = new Set<string>(seedEntityIds);
+		let frontier = new Set<string>(seedEntityIds);
+		for (let depth = 0; depth < radius; depth++) {
+			const next = new Set<string>();
+			for (const entityId of frontier) {
+				const node = fullGraph.nodes.get(entityId);
+				if (!node) continue;
+				for (const neighborId of node.neighbors) {
+					if (!affected.has(neighborId)) {
+						affected.add(neighborId);
+						next.add(neighborId);
+					}
+				}
+			}
+			if (next.size === 0) break;
+			frontier = next;
+		}
+
+		if (affected.size > maxIncrementalNodes) {
+			console.warn(
+				`[EntityImportance] Incremental set too large (${affected.size}), falling back to full campaign recalculation`
+			);
+			return this.recalculateImportanceForCampaign(campaignId);
+		}
+
+		const subgraph = this.induceSubgraph(fullGraph, affected);
+		if (subgraph.nodes.size === 0) {
+			return new Map();
+		}
+
+		const previousScores = new Map<string, number>();
+		if (this.importanceDAO) {
+			const allExisting =
+				await this.importanceDAO.getImportanceForCampaign(campaignId);
+			for (const row of allExisting) {
+				previousScores.set(row.entityId, row.pagerank);
+			}
+		}
+
+		const pagerank = this.calculatePageRankOnGraph(subgraph, previousScores);
+		const betweenness = this.calculateBetweennessOnGraph(subgraph);
+		const entityIds = Array.from(subgraph.nodes.keys());
+
+		let communitiesMap: Map<string, Community[]> | undefined;
+		if (this.communityDAO) {
+			const allCommunities =
+				await this.communityDAO.listCommunitiesByCampaign(campaignId);
+			communitiesMap = new Map<string, Community[]>();
+			for (const community of allCommunities) {
+				for (const entityId of community.entityIds) {
+					if (!communitiesMap.has(entityId)) communitiesMap.set(entityId, []);
+					communitiesMap.get(entityId)!.push(community);
+				}
+			}
+		}
+
+		const results = new Map<string, number>();
+		const upserts: Array<{
+			entityId: string;
+			campaignId: string;
+			pagerank: number;
+			betweennessCentrality: number;
+			hierarchyLevel: number;
+			importanceScore: number;
+		}> = [];
+		for (const entityId of entityIds) {
+			const hierarchy = await this.calculateHierarchyLevel(
+				campaignId,
+				entityId,
+				communitiesMap
+			);
+			const pagerankScore = pagerank.get(entityId) ?? 0;
+			const betweennessScore = betweenness.get(entityId) ?? 0;
+			const finalScore = Math.max(
+				0,
+				Math.min(
+					100,
+					pagerankScore * 0.4 + betweennessScore * 0.4 + hierarchy * 0.2
+				)
+			);
+			results.set(entityId, finalScore);
+			upserts.push({
+				entityId,
+				campaignId,
+				pagerank: pagerankScore,
+				betweennessCentrality: betweennessScore,
+				hierarchyLevel: Math.round(hierarchy),
+				importanceScore: finalScore,
+			});
+		}
+
+		if (this.importanceDAO && upserts.length > 0) {
+			await this.importanceDAO.upsertImportanceBatch(upserts);
+		}
+		return results;
+	}
+
 	private async buildGraph(
 		campaignId: string,
 		includeStaging: boolean
@@ -725,5 +842,133 @@ export class EntityImportanceService {
 		});
 
 		return normalized;
+	}
+
+	private induceSubgraph(graph: Graph, included: Set<string>): Graph {
+		const nodes = new Map<string, GraphNode>();
+		const edges: Array<{ from: string; to: string; weight: number }> = [];
+		for (const entityId of included) {
+			const node = graph.nodes.get(entityId);
+			if (!node) continue;
+			nodes.set(entityId, {
+				id: entityId,
+				neighbors: new Set(),
+				inDegree: 0,
+				outDegree: 0,
+			});
+		}
+		for (const edge of graph.edges) {
+			if (!included.has(edge.from) || !included.has(edge.to)) continue;
+			edges.push(edge);
+			const fromNode = nodes.get(edge.from);
+			const toNode = nodes.get(edge.to);
+			if (!fromNode || !toNode) continue;
+			fromNode.neighbors.add(edge.to);
+			fromNode.outDegree += 1;
+			toNode.inDegree += 1;
+		}
+		return { nodes, edges };
+	}
+
+	private calculatePageRankOnGraph(
+		graph: Graph,
+		initialScores?: Map<string, number>
+	): Map<string, number> {
+		const scores = new Map<string, number>();
+		const nodeIds = Array.from(graph.nodes.keys());
+		if (nodeIds.length === 0) return scores;
+		const defaultScore = 1 / nodeIds.length;
+		for (const id of nodeIds) {
+			scores.set(id, initialScores?.get(id) ?? defaultScore);
+		}
+		const dampingFactor = 0.85;
+		const maxIterations = 40;
+		const tolerance = 0.0001;
+		for (let iteration = 0; iteration < maxIterations; iteration++) {
+			const newScores = new Map<string, number>();
+			let maxDiff = 0;
+			for (const nodeId of nodeIds) {
+				const node = graph.nodes.get(nodeId);
+				if (!node) continue;
+				let sum = 0;
+				for (const neighborId of node.neighbors) {
+					const neighbor = graph.nodes.get(neighborId);
+					if (!neighbor || neighbor.outDegree === 0) continue;
+					sum += (scores.get(neighborId) ?? 0) / neighbor.outDegree;
+				}
+				const newScore =
+					(1 - dampingFactor) / nodeIds.length + dampingFactor * sum;
+				newScores.set(nodeId, newScore);
+				maxDiff = Math.max(
+					maxDiff,
+					Math.abs(newScore - (scores.get(nodeId) ?? 0))
+				);
+			}
+			scores.clear();
+			for (const [id, score] of newScores) scores.set(id, score);
+			if (maxDiff < tolerance) break;
+		}
+		return this.normalizeScores(scores);
+	}
+
+	private calculateBetweennessOnGraph(graph: Graph): Map<string, number> {
+		const scores = new Map<string, number>();
+		const nodeIds = Array.from(graph.nodes.keys());
+		for (const id of nodeIds) scores.set(id, 0);
+		for (const sourceId of nodeIds) {
+			const distances = new Map<string, number>();
+			const paths = new Map<string, number>();
+			const predecessors = new Map<string, string[]>();
+			const queue: string[] = [sourceId];
+			distances.set(sourceId, 0);
+			paths.set(sourceId, 1);
+			while (queue.length > 0) {
+				const currentId = queue.shift()!;
+				const currentDist = distances.get(currentId) ?? Infinity;
+				const node = graph.nodes.get(currentId);
+				if (!node) continue;
+				for (const neighborId of node.neighbors) {
+					const known = distances.get(neighborId);
+					const nextDist = currentDist + 1;
+					if (known === undefined) {
+						distances.set(neighborId, nextDist);
+						paths.set(neighborId, paths.get(currentId) ?? 0);
+						predecessors.set(neighborId, [currentId]);
+						queue.push(neighborId);
+					} else if (known === nextDist) {
+						paths.set(
+							neighborId,
+							(paths.get(neighborId) ?? 0) + (paths.get(currentId) ?? 0)
+						);
+						const preds = predecessors.get(neighborId) ?? [];
+						preds.push(currentId);
+						predecessors.set(neighborId, preds);
+					}
+				}
+			}
+			const dependencies = new Map<string, number>();
+			const sorted = Array.from(distances.keys()).sort(
+				(a, b) => (distances.get(b) ?? 0) - (distances.get(a) ?? 0)
+			);
+			for (const nodeId of sorted) {
+				if (nodeId === sourceId) continue;
+				const preds = predecessors.get(nodeId) ?? [];
+				const nodePaths = paths.get(nodeId) ?? 1;
+				for (const predId of preds) {
+					const predPaths = paths.get(predId) ?? 1;
+					const dependency =
+						(predPaths / nodePaths) * (1 + (dependencies.get(nodeId) ?? 0));
+					dependencies.set(
+						predId,
+						(dependencies.get(predId) ?? 0) + dependency
+					);
+				}
+				scores.set(
+					nodeId,
+					(scores.get(nodeId) ?? 0) + (dependencies.get(nodeId) ?? 0)
+				);
+			}
+		}
+		return this.normalizeScores(scores);
 	}
 }
