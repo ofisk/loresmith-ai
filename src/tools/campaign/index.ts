@@ -6,6 +6,7 @@ import {
 } from "../campaign-context/context-capture-tools";
 import {
 	deleteEntityTool,
+	linkInspirationToEntityTool,
 	updateEntityMetadataTool,
 	updateEntityTypeTool,
 } from "../campaign-context/entity-tools";
@@ -34,7 +35,12 @@ import {
 	showCampaignDetails,
 	updateCampaign,
 } from "./core-tools";
-import { getFileLibraryStats, searchFileLibrary } from "./file-tools";
+import {
+	getFileLibraryStats,
+	searchFileLibrary,
+	searchVisualInspirationTool,
+	uploadInspirationImageTool,
+} from "./file-tools";
 import {
 	checkPlanningReadiness,
 	generateSessionHooks,
@@ -69,6 +75,8 @@ export {
 	// Campaign file tools
 	getFileLibraryStats,
 	searchFileLibrary,
+	searchVisualInspirationTool,
+	uploadInspirationImageTool,
 	// File management tools for campaign operations
 	listFiles,
 	getFileStats,
@@ -85,6 +93,7 @@ export {
 	updateEntityMetadataTool,
 	updateEntityTypeTool,
 	deleteEntityTool,
+	linkInspirationToEntityTool,
 	noOpTool,
 };
 
@@ -98,6 +107,8 @@ export const playerCampaignTools = {
 	searchCampaignContext,
 	listAllEntities,
 	searchFileLibrary,
+	searchVisualInspirationTool,
+	uploadInspirationImageTool,
 	getFileLibraryStats,
 	listFiles,
 	getFileStats,
@@ -118,6 +129,8 @@ export const campaignTools = {
 	proposeResourceToCampaign,
 	removeResourceFromCampaign,
 	searchFileLibrary,
+	searchVisualInspirationTool,
+	uploadInspirationImageTool,
 	getFileLibraryStats,
 	// File management tools for campaign operations
 	listFiles,
@@ -138,5 +151,6 @@ export const campaignTools = {
 	updateEntityMetadataTool,
 	updateEntityTypeTool,
 	deleteEntityTool,
+	linkInspirationToEntityTool,
 	noOpTool,
 };

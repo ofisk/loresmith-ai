@@ -14,7 +14,7 @@ A comprehensive file upload and library system built with Cloudflare Workers, R2
 ### Data Flow
 
 ```
-User Upload → Direct/Multipart Upload → R2 Storage → RAG Processing → D1 Database
+User upload -> Direct/Multipart upload -> R2 storage -> Extraction and featurization -> Embeddings -> D1 and Vectorize
 ```
 
 ### Upload path: direct vs multipart
@@ -30,6 +30,14 @@ flowchart TD
   UploadParts --> Complete[POST /upload/complete-large]
   Complete --> R2Multipart[Assemble parts in R2]
   R2Multipart --> DoneMultipart[Return key, metadata]
+  DoneDirect --> ProcessStart[startFileProcessing]
+  DoneMultipart --> ProcessStart
+  ProcessStart --> Extract{Content type}
+  Extract -->|documents| TextExtract[Extract text]
+  Extract -->|images| VisionExtract[Generate visual description]
+  TextExtract --> Embed[Index chunks in Vectorize]
+  VisionExtract --> Embed
+  Embed --> Persist[Persist metadata and status in D1]
 ```
 
 ## Features
@@ -53,7 +61,7 @@ flowchart TD
 
 - **Auto-tagging**: Files are automatically tagged based on content
 - **Description Generation**: AI-generated descriptions for uploaded files
-- **Content Analysis**: Text extraction and analysis for various file types
+- **Content Analysis**: Text extraction for documents and vision-based descriptors for images
 - **Manual Editing**: Users can edit generated metadata
 
 ### 4. Search and Library Management

@@ -16,7 +16,9 @@ const sanitizeFilename = (filename: string): string => {
 		.replace(/[^\w\-_.]/g, "_") // Replace any other non-alphanumeric chars except -_.
 		.replace(/_+/g, "_") // Replace multiple underscores with single
 		.replace(/^_+|_+$/g, "") // Remove leading/trailing underscores
-		.replace(/\.(pdf|txt|doc|docx)$/i, (match) => match.toLowerCase()); // Ensure file extensions are lowercase
+		.replace(/\.(pdf|txt|doc|docx|md|mdx|json|jpg|jpeg|png|webp)$/i, (match) =>
+			match.toLowerCase()
+		); // Ensure supported file extensions are lowercase
 };
 
 interface ResourceUploadProps {
@@ -94,7 +96,12 @@ export const ResourceUpload = ({
 				file.type === "text/plain" ||
 				file.type === "application/msword" ||
 				file.type ===
-					"application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+					"application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+				file.type === "text/markdown" ||
+				file.type === "application/json" ||
+				file.type === "image/jpeg" ||
+				file.type === "image/png" ||
+				file.type === "image/webp"
 		);
 
 		// Filter by file size (100MB max)
@@ -263,7 +270,7 @@ export const ResourceUpload = ({
 							<input
 								ref={fileInputRef}
 								type="file"
-								accept=".pdf,.txt,.doc,.docx"
+								accept=".pdf,.txt,.doc,.docx,.md,.mdx,.json,.jpg,.jpeg,.png,.webp"
 								onChange={handleFileSelect}
 								className="hidden"
 								multiple

@@ -14,6 +14,8 @@ export interface ExtractionResult {
  * Handles PDF, DOCX, text, and JSON files
  */
 export class FileExtractionService {
+	constructor(private readonly openAIApiKey?: string) {}
+
 	/**
 	 * Extract text from a file buffer based on content type
 	 */
@@ -40,9 +42,136 @@ export class FileExtractionService {
 			} catch {
 				return { text };
 			}
+		} else if (this.isImageContentType(contentType)) {
+			return await this.extractImageText(buffer, contentType);
 		}
 
 		return null;
+	}
+
+	private isImageContentType(contentType: string): boolean {
+		const normalized = contentType.toLowerCase();
+		return (
+			normalized.includes("image/jpeg") ||
+			normalized.includes("image/jpg") ||
+			normalized.includes("image/png") ||
+			normalized.includes("image/webp")
+		);
+	}
+
+	private async extractImageText(
+		buffer: ArrayBuffer,
+		contentType: string
+	): Promise<ExtractionResult> {
+		// Keep processing resilient if vision analysis is unavailable.
+		if (!this.openAIApiKey) {
+			return {
+				text: [
+					"Visual inspiration reference",
+					`Source type: ${contentType}`,
+					"Vision analysis unavailable (OPENAI_API_KEY not configured).",
+				].join("\n"),
+			};
+		}
+
+		// Avoid oversized base64 payloads to the vision endpoint.
+		const MAX_VISION_BYTES = 8 * 1024 * 1024;
+		if (buffer.byteLength > MAX_VISION_BYTES) {
+			return {
+				text: [
+					"Visual inspiration reference",
+					`Source type: ${contentType}`,
+					`Image is too large for vision analysis (${(buffer.byteLength / 1024 / 1024).toFixed(2)}MB).`,
+				].join("\n"),
+			};
+		}
+
+		try {
+			const base64 = this.arrayBufferToBase64(buffer);
+			const response = await fetch(
+				"https://api.openai.com/v1/chat/completions",
+				{
+					method: "POST",
+					headers: {
+						Authorization: `Bearer ${this.openAIApiKey}`,
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						model: "gpt-4o-mini",
+						temperature: 0.2,
+						max_tokens: 500,
+						messages: [
+							{
+								role: "system",
+								content:
+									"You extract visual inspiration for tabletop RPG campaign context. Return concise plain text only.",
+							},
+							{
+								role: "user",
+								content: [
+									{
+										type: "text",
+										text: "Analyze this image and describe: mood and atmosphere, dominant colors, setting type, historical or fantasy style cues, notable visual motifs, and how it could inspire worldbuilding. Keep under 220 words.",
+									},
+									{
+										type: "image_url",
+										image_url: {
+											url: `data:${contentType};base64,${base64}`,
+										},
+									},
+								],
+							},
+						],
+					}),
+				}
+			);
+
+			if (!response.ok) {
+				const errorBody = await response.text();
+				throw new Error(
+					`Vision request failed (${response.status}): ${errorBody}`
+				);
+			}
+
+			const data = (await response.json()) as {
+				choices?: Array<{ message?: { content?: string } }>;
+			};
+			const visionText = data.choices?.[0]?.message?.content?.trim();
+
+			if (!visionText) {
+				throw new Error("Vision model returned an empty description");
+			}
+
+			return {
+				text: [
+					"Visual inspiration reference",
+					`Source type: ${contentType}`,
+					"",
+					visionText,
+				].join("\n"),
+			};
+		} catch (error) {
+			console.warn(
+				"[FileExtractionService] Image vision analysis failed:",
+				error
+			);
+			return {
+				text: [
+					"Visual inspiration reference",
+					`Source type: ${contentType}`,
+					"Vision analysis failed; indexed as image reference without generated details.",
+				].join("\n"),
+			};
+		}
+	}
+
+	private arrayBufferToBase64(buffer: ArrayBuffer): string {
+		const bytes = new Uint8Array(buffer);
+		let binary = "";
+		for (const byte of bytes) {
+			binary += String.fromCharCode(byte);
+		}
+		return btoa(binary);
 	}
 
 	/**
