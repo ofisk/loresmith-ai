@@ -28,7 +28,7 @@ export function TelemetryDashboard() {
 
 	if (dashboardLoading || latencyLoading) {
 		return (
-			<div className="p-8">
+			<div className="p-4 md:p-8 min-w-0 overflow-x-hidden">
 				<div className="text-lg font-semibold mb-4">Telemetry dashboard</div>
 				<div>Loading metrics...</div>
 			</div>
@@ -39,7 +39,7 @@ export function TelemetryDashboard() {
 		const errorMessage =
 			dashboardError?.message || latencyError?.message || "Unknown error";
 		return (
-			<div className="p-8">
+			<div className="p-4 md:p-8 min-w-0 overflow-x-hidden">
 				<div className="text-lg font-semibold mb-4">Telemetry dashboard</div>
 				<div className="text-red-600">
 					Error loading dashboard: {errorMessage}
@@ -49,18 +49,18 @@ export function TelemetryDashboard() {
 	}
 
 	return (
-		<div className="p-8 space-y-6">
-			<div className="text-2xl font-bold mb-6">
+		<div className="p-4 md:p-8 space-y-6 min-w-0 overflow-x-hidden h-full flex flex-col overflow-y-auto">
+			<div className="text-xl md:text-2xl font-bold mb-4 md:mb-6 flex-shrink-0">
 				GraphRAG telemetry dashboard
 			</div>
 
 			{/* Query Latency Section */}
-			<div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-				<h2 className="text-xl font-semibold mb-4">
-					Query Latency (Last 7 Days)
+			<div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 md:p-6 flex-shrink-0">
+				<h2 className="text-lg md:text-xl font-semibold mb-4">
+					Query latency (last 7 days)
 				</h2>
 				{queryLatencyMetrics && queryLatencyMetrics.length > 0 ? (
-					<div className="grid grid-cols-4 gap-4">
+					<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 						<div>
 							<div className="text-sm text-gray-600 dark:text-gray-400">
 								P50
@@ -101,9 +101,11 @@ export function TelemetryDashboard() {
 
 			{/* Dashboard summary */}
 			{dashboard && (
-				<div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-					<h2 className="text-xl font-semibold mb-4">Dashboard summary</h2>
-					<div className="grid grid-cols-2 gap-4">
+				<div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 md:p-6 flex-shrink-0">
+					<h2 className="text-lg md:text-xl font-semibold mb-4">
+						Dashboard summary
+					</h2>
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						{dashboard.summary.queryLatency && (
 							<div>
 								<div className="text-sm text-gray-600 dark:text-gray-400">
@@ -154,7 +156,7 @@ export function TelemetryDashboard() {
 				</div>
 			)}
 
-			<div className="text-sm text-gray-500">
+			<div className="text-sm text-gray-500 flex-shrink-0">
 				Note: This dashboard requires admin access. Metrics are updated in
 				real-time.
 			</div>

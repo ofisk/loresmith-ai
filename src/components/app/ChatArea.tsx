@@ -234,7 +234,7 @@ export function ChatArea({
 	};
 
 	return (
-		<div className="flex-1 flex flex-col min-h-0">
+		<div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-x-hidden">
 			{/* Campaign Context Selector - separate div above chat */}
 			<div className="px-4 md:px-8 py-2 md:py-3 flex-shrink-0">
 				<select
@@ -255,7 +255,7 @@ export function ChatArea({
 			{/* Main Content Area */}
 			<div
 				id={chatContainerId}
-				className="flex-1 overflow-y-auto px-4 md:px-8 py-4 md:py-6 space-y-6 pb-8 md:pb-12 min-h-0"
+				className="flex-1 overflow-y-auto overflow-x-hidden px-4 md:px-8 py-4 md:py-6 space-y-6 pb-8 md:pb-12 min-h-0"
 			>
 				{messages.length === 0 && !chatHistoryLoading && (
 					<WelcomeMessage

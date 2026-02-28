@@ -12,7 +12,7 @@ root.render(
 	<Providers>
 		<NotificationProvider>
 			<div
-				className="bg-neutral-50 text-base text-neutral-900 antialiased transition-colors selection:bg-blue-700 selection:text-white dark:bg-neutral-950 dark:text-neutral-100 font-sans"
+				className="bg-neutral-50 text-base text-neutral-900 antialiased transition-colors selection:bg-blue-700 selection:text-white dark:bg-neutral-950 dark:text-neutral-100 font-sans min-w-0 max-w-full overflow-x-hidden"
 				style={{
 					fontFamily:
 						'-apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Roboto", "Helvetica Neue", Arial, "Noto Sans", sans-serif',

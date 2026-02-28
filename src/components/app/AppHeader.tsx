@@ -77,7 +77,7 @@ export function AppHeader({
 			)}
 
 			<div
-				className="flex items-center justify-center"
+				className="hidden md:flex items-center justify-center"
 				style={{ width: 32, height: 32 }}
 			>
 				<img
@@ -90,7 +90,7 @@ export function AppHeader({
 			</div>
 
 			<div className="flex-1 flex items-center gap-3 min-w-0">
-				<h1 className="font-medium text-lg whitespace-nowrap text-neutral-700 dark:text-neutral-300">
+				<h1 className="hidden md:block font-medium text-lg whitespace-nowrap text-neutral-700 dark:text-neutral-300">
 					LoreSmith
 				</h1>
 			</div>

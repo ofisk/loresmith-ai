@@ -85,7 +85,7 @@ export function ResourceSidePanel({
 
 	return (
 		<div
-			className={`tour-sidebar w-80 h-full bg-neutral-50/80 dark:bg-neutral-900/80 border-r border-neutral-200 dark:border-neutral-700 flex flex-col backdrop-blur-sm ${className}`}
+			className={`tour-sidebar w-full md:w-80 h-full bg-neutral-50/80 dark:bg-neutral-900/80 border-r border-neutral-200 dark:border-neutral-700 flex flex-col backdrop-blur-sm ${className}`}
 		>
 			{/* Content */}
 			<div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">

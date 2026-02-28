@@ -16,7 +16,7 @@
 			"npx @biomejs/biome check --write --no-errors-on-unmatched"
 		],
 		"*.{ts,tsx}": [
-			"bash -c 'tsc --noEmit'"
+			"bash -c 'npx tsc --noEmit'"
 		]
 	},
 	"scripts": {
