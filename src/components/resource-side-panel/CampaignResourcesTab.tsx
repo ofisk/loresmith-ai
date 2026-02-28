@@ -3,8 +3,10 @@ import {
 	CaretDownIcon,
 	CaretRightIcon,
 	Plus,
+	Trash,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/button/Button";
+import { Tooltip } from "@/components/tooltip/Tooltip";
 import { getDisplayName } from "@/lib/display-name-utils";
 import type { CampaignResource } from "@/types/campaign";
 
@@ -17,7 +19,11 @@ interface CampaignResourcesTabProps {
 	processingResources: Set<string>;
 	retryingResourceId: string | null;
 	onRetry: (resourceId: string) => void;
+	canRetryEntityExtraction?: boolean;
 	onAddResource: () => void;
+	canAddResource?: boolean;
+	onRemoveResource?: (resourceId: string) => void;
+	canDeleteResource?: boolean;
 }
 
 /**
@@ -32,7 +38,11 @@ export function CampaignResourcesTab({
 	processingResources,
 	retryingResourceId,
 	onRetry,
+	canRetryEntityExtraction = true,
 	onAddResource,
+	canAddResource = true,
+	onRemoveResource,
+	canDeleteResource = false,
 }: CampaignResourcesTabProps) {
 	return (
 		<div className="space-y-4">
@@ -44,7 +54,13 @@ export function CampaignResourcesTab({
 					variant="secondary"
 					size="sm"
 					onClick={onAddResource}
-					className="w-full sm:w-auto !text-purple-600 dark:!text-purple-400"
+					disabled={!canAddResource}
+					tooltip={
+						!canAddResource
+							? "Only the campaign owner or Co-GM can add resources"
+							: undefined
+					}
+					className="w-full sm:w-auto !text-purple-600 dark:!text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					<Plus size={16} weight="bold" />
 					Add resource
@@ -192,38 +208,71 @@ export function CampaignResourcesTab({
 												})()}
 
 											<div className="mt-4 space-y-2">
-												<button
-													type="button"
-													onClick={(e) => {
-														e.stopPropagation();
-														onRetry(resource.id);
-													}}
-													disabled={
-														retryingResourceId === resource.id ||
-														processingResources.has(resource.id)
-													}
-													className="w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-												>
-													{processingResources.has(resource.id) ? (
-														<span className="flex items-center justify-center gap-2">
-															<ArrowClockwise
-																size={16}
-																className="animate-spin"
-															/>
-															Processing...
+												{!canRetryEntityExtraction ? (
+													<Tooltip content="Only the campaign owner can retry entity extraction">
+														<span className="block w-full">
+															<button
+																type="button"
+																disabled
+																className="w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors opacity-50 cursor-not-allowed text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700"
+															>
+																Retry entity extraction
+															</button>
 														</span>
-													) : retryingResourceId === resource.id ? (
-														<span className="flex items-center justify-center gap-2">
-															<ArrowClockwise
-																size={16}
-																className="animate-spin"
-															/>
-															Retrying...
-														</span>
-													) : (
-														"Retry entity extraction"
-													)}
-												</button>
+													</Tooltip>
+												) : (
+													<button
+														type="button"
+														onClick={(e) => {
+															e.stopPropagation();
+															onRetry(resource.id);
+														}}
+														disabled={
+															retryingResourceId === resource.id ||
+															processingResources.has(resource.id)
+														}
+														className="w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+													>
+														{processingResources.has(resource.id) ? (
+															<span className="flex items-center justify-center gap-2">
+																<ArrowClockwise
+																	size={16}
+																	className="animate-spin"
+																/>
+																Processing...
+															</span>
+														) : retryingResourceId === resource.id ? (
+															<span className="flex items-center justify-center gap-2">
+																<ArrowClockwise
+																	size={16}
+																	className="animate-spin"
+																/>
+																Retrying...
+															</span>
+														) : (
+															"Retry entity extraction"
+														)}
+													</button>
+												)}
+												{onRemoveResource && (
+													<button
+														type="button"
+														onClick={(e) => {
+															e.stopPropagation();
+															onRemoveResource(resource.id);
+														}}
+														disabled={!canDeleteResource}
+														title={
+															!canDeleteResource
+																? "Only the campaign owner can remove resources"
+																: undefined
+														}
+														className="w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 border-red-200 dark:border-red-900/50 hover:border-red-300 dark:hover:border-red-800 disabled:text-gray-400 disabled:dark:text-gray-500 disabled:border-gray-200 disabled:dark:border-gray-700 disabled:hover:border-gray-200 disabled:dark:hover:border-gray-700"
+													>
+														<Trash size={16} />
+														Delete resource
+													</button>
+												)}
 											</div>
 										</div>
 									)}

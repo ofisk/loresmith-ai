@@ -12,10 +12,17 @@ export type TooltipProps = {
 	children: React.ReactNode;
 	className?: string;
 	content: string;
+	contentClassName?: string;
 	id?: number | string;
 };
 
-export const Tooltip = ({ children, className, content, id }: TooltipProps) => {
+export const Tooltip = ({
+	children,
+	className,
+	content,
+	contentClassName,
+	id,
+}: TooltipProps) => {
 	const { activeTooltip, showTooltip, hideTooltip } = useTooltip();
 	const [positionX, setPositionX] = useState<"center" | "left" | "right">(
 		"center"
@@ -86,7 +93,8 @@ export const Tooltip = ({ children, className, content, id }: TooltipProps) => {
 								"left-1/2 -translate-x-1/2": positionX === "center",
 								"top-full mt-2": positionY === "bottom",
 								"bottom-full mb-2": positionY === "top",
-							}
+							},
+							contentClassName
 						)}
 						id={tooltipId}
 						ref={tooltipRef}
@@ -140,7 +148,8 @@ export const Tooltip = ({ children, className, content, id }: TooltipProps) => {
 							"left-1/2 -translate-x-1/2": positionX === "center",
 							"top-full mt-2": positionY === "bottom",
 							"bottom-full mb-2": positionY === "top",
-						}
+						},
+						contentClassName
 					)}
 					id={tooltipId}
 					ref={tooltipRef}

@@ -4,17 +4,39 @@ import { CampaignAccessDeniedError } from "@/lib/errors";
 import {
 	type ContextWithAuth,
 	ensureCampaignAccess,
+	getCampaignRole,
 	getPlanningContextService,
 	getUserAuth,
-	requireCanSeeSpoilers,
+	requireCanEdit,
 } from "@/lib/route-utils";
 import { DigestReviewService } from "@/services/session-digest/digest-review-service";
 import type {
 	CreateSessionDigestInput,
 	SessionDigestData,
+	SessionDigestWithData,
 	UpdateSessionDigestInput,
 } from "@/types/session-digest";
 import { validateSessionDigestData } from "@/types/session-digest";
+
+function isPlayerRole(role: string | null): boolean {
+	return role === "editor_player" || role === "readonly_player";
+}
+
+function sanitizeDigestForPlayer(
+	digest: SessionDigestWithData
+): SessionDigestWithData {
+	return {
+		...digest,
+		digestData: {
+			...digest.digestData,
+			next_session_plan: {
+				...digest.digestData.next_session_plan,
+				objectives_dm: [],
+				if_then_branches: [],
+			},
+		},
+	};
+}
 
 // Create a new session digest
 export async function handleCreateSessionDigest(c: ContextWithAuth) {
@@ -25,7 +47,7 @@ export async function handleCreateSessionDigest(c: ContextWithAuth) {
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
 		}
-		await requireCanSeeSpoilers(c, campaignId);
+		await requireCanEdit(c, campaignId);
 
 		const body = (await c.req.json()) as {
 			sessionNumber?: number;
@@ -102,7 +124,10 @@ export async function handleGetSessionDigest(c: ContextWithAuth) {
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
 		}
-		await requireCanSeeSpoilers(c, campaignId);
+		const role = await getCampaignRole(c, campaignId, auth.username);
+		if (!role) {
+			throw new CampaignAccessDeniedError();
+		}
 
 		const daoFactory = getDAOFactory(c.env);
 		const digest =
@@ -117,6 +142,13 @@ export async function handleGetSessionDigest(c: ContextWithAuth) {
 				{ error: "Session digest does not belong to this campaign" },
 				404
 			);
+		}
+
+		if (isPlayerRole(role)) {
+			if (digest.status !== "approved") {
+				return c.json({ error: "Session digest not found" }, 404);
+			}
+			return c.json({ digest: sanitizeDigestForPlayer(digest) });
 		}
 
 		return c.json({ digest });
@@ -139,15 +171,28 @@ export async function handleGetSessionDigests(c: ContextWithAuth) {
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
 		}
-		await requireCanSeeSpoilers(c, campaignId);
+		const role = await getCampaignRole(c, campaignId, auth.username);
+		if (!role) {
+			throw new CampaignAccessDeniedError();
+		}
 
 		const daoFactory = getDAOFactory(c.env);
-		const digests =
-			await daoFactory.sessionDigestDAO.getSessionDigestsByCampaign(campaignId);
+		const digests = isPlayerRole(role)
+			? await daoFactory.sessionDigestDAO.getSessionDigestsByCampaign(
+					campaignId,
+					"approved"
+				)
+			: await daoFactory.sessionDigestDAO.getSessionDigestsByCampaign(
+					campaignId
+				);
 		const nextSessionNumber =
 			await daoFactory.sessionDigestDAO.getNextSessionNumber(campaignId);
 
-		return c.json({ digests, nextSessionNumber });
+		const responseDigests = isPlayerRole(role)
+			? digests.map(sanitizeDigestForPlayer)
+			: digests;
+
+		return c.json({ digests: responseDigests, nextSessionNumber });
 	} catch (error) {
 		console.error("[SessionDigest] Failed to list digests:", error);
 		if (error instanceof CampaignAccessDeniedError) {
@@ -168,6 +213,7 @@ export async function handleUpdateSessionDigest(c: ContextWithAuth) {
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
 		}
+		await requireCanEdit(c, campaignId);
 
 		const daoFactory = getDAOFactory(c.env);
 		const existing =
@@ -241,7 +287,7 @@ export async function handleDeleteSessionDigest(c: ContextWithAuth) {
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
 		}
-		await requireCanSeeSpoilers(c, campaignId);
+		await requireCanEdit(c, campaignId);
 
 		const daoFactory = getDAOFactory(c.env);
 		const existing =
@@ -287,7 +333,7 @@ export async function handleSubmitDigestForReview(c: ContextWithAuth) {
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
 		}
-		await requireCanSeeSpoilers(c, campaignId);
+		await requireCanEdit(c, campaignId);
 
 		if (!c.env.DB) {
 			return c.json({ error: "Database not configured" }, 500);
@@ -334,7 +380,7 @@ export async function handleApproveDigest(c: ContextWithAuth) {
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
 		}
-		await requireCanSeeSpoilers(c, campaignId);
+		await requireCanEdit(c, campaignId);
 
 		if (!c.env.DB) {
 			return c.json({ error: "Database not configured" }, 500);
@@ -385,7 +431,7 @@ export async function handleRejectDigest(c: ContextWithAuth) {
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
 		}
-		await requireCanSeeSpoilers(c, campaignId);
+		await requireCanEdit(c, campaignId);
 
 		const body = (await c.req.json()) as { reviewNotes: string };
 

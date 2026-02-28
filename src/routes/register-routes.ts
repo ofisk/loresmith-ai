@@ -34,8 +34,12 @@ import {
 	handleRejectResourceProposal,
 } from "@/routes/campaign-resource-proposals";
 import {
+	handleAssignPlayerCharacterClaim,
 	handleCampaignJoin,
+	handleCreatePlayerCharacterClaim,
 	handleCreateShareLink,
+	handleGetPlayerCharacterClaimOptions,
+	handleListPlayerCharacterClaims,
 	handleListShareLinks,
 	handleRevokeShareLink,
 } from "@/routes/campaign-share";
@@ -440,6 +444,39 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
 		toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.SHARE_LINKS_REVOKE_PATTERN),
 		requireUserJwt,
 		handleRevokeShareLink
+	);
+	app.get(
+		toApiRoutePath(
+			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM_OPTIONS(
+				":campaignId"
+			)
+		),
+		requireUserJwt,
+		handleGetPlayerCharacterClaimOptions
+	);
+	app.post(
+		toApiRoutePath(
+			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM(":campaignId")
+		),
+		requireUserJwt,
+		handleCreatePlayerCharacterClaim
+	);
+	app.get(
+		toApiRoutePath(
+			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIMS(":campaignId")
+		),
+		requireUserJwt,
+		handleListPlayerCharacterClaims
+	);
+	app.put(
+		toApiRoutePath(
+			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM_ASSIGN(
+				":campaignId",
+				":username"
+			)
+		),
+		requireUserJwt,
+		handleAssignPlayerCharacterClaim
 	);
 
 	// Resource proposals (editor_player proposes; editor_gm/owner approve)

@@ -3,6 +3,7 @@ import { useId, useRef, useState } from "react";
 import { FormButton } from "@/components/button/FormButton";
 import { FormField } from "@/components/input/FormField";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
+import { EDIT_ROLES } from "@/constants/campaign-roles";
 import { cn } from "@/lib/utils";
 import type { Campaign } from "@/types/campaign";
 import type { ProcessingProgress } from "@/types/progress";
@@ -408,11 +409,14 @@ export const ResourceUpload = ({
 														const isSelected = selectedCampaigns.includes(
 															campaign.campaignId
 														);
+														const canAddToCampaign =
+															!campaign.role || EDIT_ROLES.has(campaign.role);
 														return (
 															<button
 																key={campaign.campaignId}
 																type="button"
 																onClick={() => {
+																	if (!canAddToCampaign) return;
 																	if (isSelected) {
 																		// Remove from selection
 																		onCampaignSelectionChange?.(
@@ -428,13 +432,21 @@ export const ResourceUpload = ({
 																		]);
 																	}
 																}}
+																disabled={!canAddToCampaign}
 																className={cn(
 																	"px-3 py-1.5 text-sm transition-colors rounded border-2",
 																	"focus:outline-none",
-																	isSelected
-																		? "font-medium bg-neutral-200 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600"
-																		: "font-normal bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+																	!canAddToCampaign
+																		? "font-normal bg-neutral-100 dark:bg-neutral-900 text-neutral-400 dark:text-neutral-500 border-neutral-200 dark:border-neutral-800 cursor-not-allowed opacity-70"
+																		: isSelected
+																			? "font-medium bg-neutral-200 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600"
+																			: "font-normal bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-700"
 																)}
+																title={
+																	canAddToCampaign
+																		? campaign.name
+																		: "You do not have permission to add resources to this campaign"
+																}
 															>
 																{campaign.name}
 															</button>

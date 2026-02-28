@@ -7,6 +7,7 @@ interface CampaignDigestsTabProps {
 	digests: SessionDigestWithData[];
 	loading: boolean;
 	error: string | null;
+	canManageDigests: boolean;
 	onEdit: (digest: SessionDigestWithData) => void;
 	onDelete: (digest: SessionDigestWithData) => Promise<void>;
 	onCreate: () => void;
@@ -20,6 +21,7 @@ export function CampaignDigestsTab({
 	digests,
 	loading,
 	error,
+	canManageDigests,
 	onEdit,
 	onDelete,
 	onCreate,
@@ -31,29 +33,31 @@ export function CampaignDigestsTab({
 				<h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
 					Session digests
 				</h3>
-				<div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-					<FormButton
-						onClick={onBulkImport}
-						variant="secondary"
-						className="w-full sm:w-auto"
-					>
-						Bulk import
-					</FormButton>
-					<FormButton
-						onClick={onCreate}
-						icon={<Plus size={16} />}
-						className="w-full sm:w-auto"
-					>
-						Create digest
-					</FormButton>
-				</div>
+				{canManageDigests && (
+					<div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+						<FormButton
+							onClick={onBulkImport}
+							variant="secondary"
+							className="w-full sm:w-auto"
+						>
+							Bulk import
+						</FormButton>
+						<FormButton
+							onClick={onCreate}
+							icon={<Plus size={16} />}
+							className="w-full sm:w-auto"
+						>
+							Create digest
+						</FormButton>
+					</div>
+				)}
 			</div>
 			<SessionDigestList
 				digests={digests}
 				loading={loading}
 				error={error}
-				onEdit={onEdit}
-				onDelete={onDelete}
+				onEdit={canManageDigests ? onEdit : undefined}
+				onDelete={canManageDigests ? onDelete : undefined}
 			/>
 		</div>
 	);

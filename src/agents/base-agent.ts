@@ -1,7 +1,11 @@
 import { stepCountIs, streamText } from "ai";
 import { MODEL_CONFIG } from "@/app-constants";
+import { CAMPAIGN_ROLES, PLAYER_ROLES } from "@/constants/campaign-roles";
 import { getDAOFactory } from "@/dao/dao-factory";
-import { resolveCampaignRole } from "@/lib/agent-role-utils";
+import {
+	type ResolvedClaimedPlayerContext,
+	resolveClaimedPlayerContext,
+} from "@/lib/agent-role-utils";
 import { getStatusMessageForTool } from "@/lib/agent-status-messages";
 import { buildExplainabilityFromSteps } from "@/lib/explainability-builder";
 import { getAgentRoleContext } from "@/lib/prompts/agent-role-context";
@@ -31,6 +35,8 @@ const TEXT_PART_ID = "text-1";
 
 /** Max steps per turn so the agent can use tools as needed until it sends a final text response. */
 const MAX_AGENT_STEPS = 20;
+const MISSING_PLAYER_CHARACTER_MESSAGE =
+	"Choose your character before continuing. Open campaign details and select your character.";
 
 /** Write a single text message as UI stream chunks (text-start, text-delta, text-end). */
 function writeTextChunks(
@@ -308,22 +314,78 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 				);
 
 				// Resolve campaign role and build role context for GM vs player tailoring
-				let campaignRole: Awaited<ReturnType<typeof resolveCampaignRole>> =
-					null;
+				let claimedPlayerContext: Awaited<
+					ReturnType<typeof resolveClaimedPlayerContext>
+				> = null;
+				let campaignRole: CampaignRole | null = null;
 				if (selectedCampaignId && clientJwt) {
-					campaignRole = await resolveCampaignRole(
+					claimedPlayerContext = await resolveClaimedPlayerContext(
 						this.env,
 						selectedCampaignId,
 						clientJwt
 					);
+					campaignRole = claimedPlayerContext?.role ?? null;
 					console.log(
 						`[${this.constructor.name}] Resolved campaign role:`,
 						campaignRole
 					);
 				}
-				const roleContextMessage = campaignRole
-					? getAgentRoleContext(campaignRole)
-					: null;
+				const roleContextMessage = getAgentRoleContext(claimedPlayerContext);
+
+				// Player users must select a claimed character before campaign-specific generation.
+				// Short-circuit this turn so we don't execute tools or call the LLM.
+				if (campaignRole && PLAYER_ROLES.has(campaignRole)) {
+					const hasClaimedEntity = !!claimedPlayerContext?.entity;
+					const hasAnyPcEntities =
+						claimedPlayerContext?.hasAnyPcEntities ?? false;
+					const shouldShortCircuit =
+						campaignRole === CAMPAIGN_ROLES.EDITOR_PLAYER &&
+						!hasClaimedEntity &&
+						hasAnyPcEntities;
+					if (shouldShortCircuit) {
+						writeTextChunks(dataStream.write, MISSING_PLAYER_CHARACTER_MESSAGE);
+
+						try {
+							const assistantData: {
+								jwt?: string | null;
+								campaignId?: string | null;
+								sessionId?: string;
+							} = {};
+							if (clientJwt) assistantData.jwt = clientJwt;
+							if (selectedCampaignId)
+								assistantData.campaignId = selectedCampaignId;
+							const sessionIdFromUser = (lastUserMessage as any)?.data
+								?.sessionId;
+							assistantData.sessionId =
+								(typeof sessionIdFromUser === "string" &&
+									sessionIdFromUser.length > 0 &&
+									sessionIdFromUser) ||
+								this.ctx?.id?.toString() ||
+								`session-${Date.now()}`;
+
+							const assistantMessage: ChatMessage = {
+								role: "assistant",
+								content: MISSING_PLAYER_CHARACTER_MESSAGE,
+								data: assistantData,
+							};
+							if (this.env && "DB" in this.env && this.env.DB) {
+								this.storeMessageToDatabase(assistantMessage).catch((error) => {
+									console.error(
+										`[${this.constructor.name}] Failed to store assistant message to database:`,
+										error
+									);
+								});
+							}
+						} catch (persistError) {
+							console.error(
+								`[${this.constructor.name}] Error while persisting assistant message:`,
+								persistError
+							);
+						}
+
+						return;
+					}
+				}
 
 				// Build minimal message context: include current user prompt + agent's previous response
 				// The agent's previous response is included so it can understand conversational references
@@ -493,7 +555,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					selectedCampaignId,
 					{ isStaleCommand },
 					toolsToUse,
-					{ onToolStart }
+					{ onToolStart },
+					claimedPlayerContext
 				);
 
 				// Determine tool choice: use "auto" to allow the agent to call tools when needed
@@ -884,7 +947,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		selectedCampaignId: string | null,
 		staleGuard?: { isStaleCommand?: boolean },
 		toolsOverride?: Record<string, any>,
-		options?: { onToolStart?: (toolName: string) => void }
+		options?: { onToolStart?: (toolName: string) => void },
+		claimedPlayerContext?: ResolvedClaimedPlayerContext | null
 	): Record<string, any> {
 		const baseTools = toolsOverride ?? this.tools;
 		const tools = {
@@ -984,6 +1048,19 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 								);
 							}
 
+							const claimedEntity = claimedPlayerContext?.entity;
+							if (claimedEntity && shape) {
+								if ("playerCharacterEntityId" in shape) {
+									enhancedArgs.playerCharacterEntityId = claimedEntity.id;
+								}
+								if ("claimedEntityId" in shape) {
+									enhancedArgs.claimedEntityId = claimedEntity.id;
+								}
+								if ("playerCharacterName" in shape) {
+									enhancedArgs.playerCharacterName = claimedEntity.name;
+								}
+							}
+
 							// Pass sessionId and env in context for tools that need it (will be merged with existing enhancedContext below)
 							// Handle test environments where ctx.id might not exist
 							const sessionContext = {
@@ -1042,6 +1119,14 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 								...context,
 								env: this.env,
 								...sessionContext,
+								playerCharacter: claimedPlayerContext
+									? {
+											username: claimedPlayerContext.username,
+											role: claimedPlayerContext.role,
+											claim: claimedPlayerContext.claim,
+											entity: claimedPlayerContext.entity,
+										}
+									: null,
 							};
 							const toolResult = await tool.execute(
 								enhancedArgs,

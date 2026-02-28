@@ -8,7 +8,7 @@ import {
 	GM_ROLES,
 	PLAYER_ROLES,
 } from "@/constants/campaign-roles";
-import type { CampaignRole } from "@/types/campaign";
+import type { ResolvedClaimedPlayerContext } from "@/lib/agent-role-utils";
 
 const GM_ROLE_CONTEXT =
 	"Tailor for the game master: world-building, session planning, next steps, readiness, and session readout.";
@@ -23,7 +23,10 @@ const PLAYER_CANNOT_EDIT =
  * Returns the role context string to inject as a system message for the given campaign role.
  * Used in BaseAgent after resolving role from campaignId + username.
  */
-export function getAgentRoleContext(role: CampaignRole | null): string | null {
+export function getAgentRoleContext(
+	playerContext: ResolvedClaimedPlayerContext | null
+): string | null {
+	const role = playerContext?.role ?? null;
 	if (role === null) return null;
 	if (GM_ROLES.has(role)) {
 		return `User role in this campaign: ${role}. ${GM_ROLE_CONTEXT}`;
@@ -31,7 +34,22 @@ export function getAgentRoleContext(role: CampaignRole | null): string | null {
 	if (PLAYER_ROLES.has(role)) {
 		const cannotEdit =
 			role === CAMPAIGN_ROLES.READONLY_PLAYER ? ` ${PLAYER_CANNOT_EDIT}` : "";
-		return `User role in this campaign: ${role}. ${PLAYER_BASE_CONTEXT}${cannotEdit}`;
+		const claimedEntity = playerContext?.entity;
+		if (!claimedEntity) {
+			const hasAnyPcEntities = playerContext?.hasAnyPcEntities ?? false;
+			if (!hasAnyPcEntities && role === CAMPAIGN_ROLES.EDITOR_PLAYER) {
+				return `User role in this campaign: ${role}. ${PLAYER_BASE_CONTEXT}${cannotEdit} This campaign does not have any player characters yet. Help them create their first character for the campaign before proceeding with character-specific guidance.`;
+			}
+			if (role === CAMPAIGN_ROLES.READONLY_PLAYER) {
+				if (!hasAnyPcEntities) {
+					return `User role in this campaign: ${role}. ${PLAYER_BASE_CONTEXT}${cannotEdit} This campaign does not have any player characters yet. Continue helping with general, non-spoiler world and source questions. If character-specific perspective is needed, ask the user to have a GM create and assign a player character first.`;
+				}
+				return `User role in this campaign: ${role}. ${PLAYER_BASE_CONTEXT}${cannotEdit} This player has not selected a character yet. Continue helping with general, non-spoiler tabletop and campaign questions. If character-specific perspective is needed, ask them to choose their character in campaign details first.`;
+			}
+			return `User role in this campaign: ${role}. ${PLAYER_BASE_CONTEXT}${cannotEdit} This player has not selected a character yet. Before any campaign-specific generation, ask them to select their character first and avoid campaign-specific generation until they do. Tell them: "Choose your character before continuing. Open campaign details and select your character."`;
+		}
+
+		return `User role in this campaign: ${role}. ${PLAYER_BASE_CONTEXT}${cannotEdit} Claimed player character: ${claimedEntity.name} (entity ID: ${claimedEntity.id}, type: ${claimedEntity.entityType}). Personalize responses from this character's perspective and use only details this specific character would reasonably know.`;
 	}
 	return null;
 }

@@ -120,7 +120,7 @@ export function useAppEventHandlers({
 
 		const shouldTrigger =
 			checkHasBeenAway() && checkShouldShowRecap(selectedCampaignId);
-		const recapKey = `init-${selectedCampaignId}`;
+		const recapKey = selectedCampaignId;
 
 		if (shouldTrigger && !recapTriggeredRef.current.has(recapKey)) {
 			recapTriggeredRef.current.add(recapKey);
@@ -159,7 +159,7 @@ export function useAppEventHandlers({
 			return;
 		}
 
-		const recapKey = `campaign-${selectedCampaignId}`;
+		const recapKey = selectedCampaignId;
 
 		if (
 			!recapTriggeredRef.current.has(recapKey) &&
