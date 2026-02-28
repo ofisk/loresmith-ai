@@ -1,8 +1,14 @@
 import type { Context } from "hono";
+import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
 import type { CampaignMemberRole } from "@/dao/campaign-share-link-dao";
-import { getDAOFactory } from "@/dao/dao-factory";
+import { type DAOFactory, getDAOFactory } from "@/dao/dao-factory";
 import { nanoid } from "@/lib/nanoid";
-import { getUserAuth, requireCanEdit } from "@/lib/route-utils";
+import {
+	ensureCampaignAccess,
+	getCampaignRole,
+	getUserAuth,
+	requireCanEdit,
+} from "@/lib/route-utils";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { ALLOWED_RETURN_ORIGINS, DEFAULT_APP_ORIGIN } from "@/shared-config";
@@ -10,6 +16,28 @@ import { ALLOWED_RETURN_ORIGINS, DEFAULT_APP_ORIGIN } from "@/shared-config";
 type ContextWithAuth = Context<{ Bindings: Env }> & {
 	userAuth?: AuthPayload;
 };
+
+function isPlayerRole(role: "owner" | CampaignMemberRole | null): boolean {
+	return (
+		role === CAMPAIGN_ROLES.EDITOR_PLAYER ||
+		role === CAMPAIGN_ROLES.READONLY_PLAYER
+	);
+}
+
+async function hasAnyPcEntities(
+	daoFactory: DAOFactory,
+	campaignId: string
+): Promise<boolean> {
+	const [pcCount, pcsCount] = await Promise.all([
+		daoFactory.entityDAO.getEntityCountByCampaign(campaignId, {
+			entityType: "pc",
+		}),
+		daoFactory.entityDAO.getEntityCountByCampaign(campaignId, {
+			entityType: "pcs",
+		}),
+	]);
+	return pcCount + pcsCount > 0;
+}
 
 /** POST /campaigns/:campaignId/share-links - create share link (owner, editor_gm) */
 export async function handleCreateShareLink(c: ContextWithAuth) {
@@ -218,16 +246,230 @@ export async function handleCampaignJoin(c: ContextWithAuth) {
 		const campaign = await daoFactory.campaignDAO.getCampaignById(
 			result.campaignId
 		);
+		const isPlayer = isPlayerRole(result.role);
+		const [claim, hasCampaignPcEntities] = isPlayer
+			? await Promise.all([
+					daoFactory.playerCharacterClaimDAO.getClaimForUser(
+						result.campaignId,
+						userAuth.username
+					),
+					hasAnyPcEntities(daoFactory, result.campaignId),
+				])
+			: [null, false];
+		const requiresCharacterSelection =
+			isPlayer &&
+			!claim &&
+			result.role === CAMPAIGN_ROLES.EDITOR_PLAYER &&
+			hasCampaignPcEntities;
 
 		return c.json({
 			success: true,
 			campaignId: result.campaignId,
 			campaignName: campaign?.name,
 			role: result.role,
+			requiresCharacterSelection,
+			playerCharacterClaim: claim,
 			url: `/campaigns/${result.campaignId}`,
 		});
 	} catch (error) {
 		console.error("Error redeeming campaign join link:", error);
+		return c.json({ error: "Internal server error" }, 500);
+	}
+}
+
+/** GET /campaigns/:campaignId/player-character-claim/options - list unclaimed PCs for player onboarding */
+export async function handleGetPlayerCharacterClaimOptions(c: ContextWithAuth) {
+	try {
+		const auth = getUserAuth(c);
+		const campaignId = c.req.param("campaignId");
+		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
+		if (!hasAccess) {
+			return c.json({ error: "Campaign not found" }, 404);
+		}
+
+		const role = await getCampaignRole(c, campaignId, auth.username);
+		if (!isPlayerRole(role)) {
+			return c.json(
+				{
+					error:
+						"Player character selection is only available for player roles",
+				},
+				403
+			);
+		}
+
+		const daoFactory = getDAOFactory(c.env);
+		const [options, currentClaim, hasCampaignPcEntities] = await Promise.all([
+			daoFactory.playerCharacterClaimDAO.listUnclaimedPcEntities(campaignId),
+			daoFactory.playerCharacterClaimDAO.getClaimForUser(
+				campaignId,
+				auth.username
+			),
+			hasAnyPcEntities(daoFactory, campaignId),
+		]);
+
+		const currentClaimEntity = currentClaim
+			? await daoFactory.entityDAO.getEntityById(currentClaim.entityId)
+			: null;
+
+		return c.json({
+			options,
+			currentClaim:
+				currentClaim && currentClaimEntity
+					? {
+							...currentClaim,
+							entityName: currentClaimEntity.name,
+						}
+					: null,
+			requiresCharacterSelection:
+				!currentClaim &&
+				role === CAMPAIGN_ROLES.EDITOR_PLAYER &&
+				hasCampaignPcEntities,
+		});
+	} catch (error) {
+		console.error("Error getting player character options:", error);
+		return c.json({ error: "Internal server error" }, 500);
+	}
+}
+
+/** POST /campaigns/:campaignId/player-character-claim - self-claim a PC entity */
+export async function handleCreatePlayerCharacterClaim(c: ContextWithAuth) {
+	try {
+		const auth = getUserAuth(c);
+		const campaignId = c.req.param("campaignId");
+		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
+		if (!hasAccess) {
+			return c.json({ error: "Campaign not found" }, 404);
+		}
+
+		const role = await getCampaignRole(c, campaignId, auth.username);
+		if (!isPlayerRole(role)) {
+			return c.json(
+				{ error: "Only players can create a self character claim" },
+				403
+			);
+		}
+
+		const body = (await c.req.json()) as { entityId?: string };
+		if (!body.entityId) {
+			return c.json({ error: "entityId is required" }, 400);
+		}
+
+		const daoFactory = getDAOFactory(c.env);
+		await daoFactory.playerCharacterClaimDAO.upsertClaim(
+			campaignId,
+			auth.username,
+			body.entityId,
+			auth.username
+		);
+
+		const claim = await daoFactory.playerCharacterClaimDAO.getClaimForUser(
+			campaignId,
+			auth.username
+		);
+
+		return c.json({ success: true, claim });
+	} catch (error) {
+		console.error("Error creating player character claim:", error);
+		const message = error instanceof Error ? error.message : "Unknown error";
+		if (message.includes("UNIQUE constraint failed")) {
+			return c.json({ error: "That character is already claimed" }, 409);
+		}
+		if (
+			message.includes("not found") ||
+			message.includes("must be a player character")
+		) {
+			return c.json({ error: message }, 400);
+		}
+		return c.json({ error: "Internal server error" }, 500);
+	}
+}
+
+/** GET /campaigns/:campaignId/player-character-claims - list all campaign claims (owner/editor_gm) */
+export async function handleListPlayerCharacterClaims(c: ContextWithAuth) {
+	try {
+		const auth = getUserAuth(c);
+		const campaignId = c.req.param("campaignId");
+		await requireCanEdit(c, campaignId);
+
+		const daoFactory = getDAOFactory(c.env);
+		const [claims, unclaimedOptions] = await Promise.all([
+			daoFactory.playerCharacterClaimDAO.listClaimsForCampaign(campaignId),
+			daoFactory.playerCharacterClaimDAO.listUnclaimedPcEntities(campaignId),
+		]);
+
+		const entityIds = claims.map((claim) => claim.entityId);
+		const entities =
+			entityIds.length > 0
+				? await daoFactory.entityDAO.getEntitiesByIds(entityIds)
+				: [];
+		const entityNameById = new Map(
+			entities.map((entity) => [entity.id, entity.name])
+		);
+
+		return c.json({
+			claims: claims.map((claim) => ({
+				...claim,
+				entityName: entityNameById.get(claim.entityId) ?? claim.entityId,
+			})),
+			unclaimedOptions,
+			requestedBy: auth.username,
+		});
+	} catch (error) {
+		console.error("Error listing player character claims:", error);
+		return c.json({ error: "Internal server error" }, 500);
+	}
+}
+
+/** PUT /campaigns/:campaignId/player-character-claims/:username - assign/reassign a player's claimed PC (owner/editor_gm) */
+export async function handleAssignPlayerCharacterClaim(c: ContextWithAuth) {
+	try {
+		const auth = getUserAuth(c);
+		const campaignId = c.req.param("campaignId");
+		const targetUsername = c.req.param("username");
+		await requireCanEdit(c, campaignId);
+
+		const body = (await c.req.json()) as { entityId?: string };
+		if (!body.entityId) {
+			return c.json({ error: "entityId is required" }, 400);
+		}
+
+		const targetRole = await getCampaignRole(c, campaignId, targetUsername);
+		if (!isPlayerRole(targetRole)) {
+			return c.json(
+				{
+					error:
+						"Character claims can only be assigned to users with player roles",
+				},
+				400
+			);
+		}
+
+		const daoFactory = getDAOFactory(c.env);
+		await daoFactory.playerCharacterClaimDAO.upsertClaim(
+			campaignId,
+			targetUsername,
+			body.entityId,
+			auth.username
+		);
+
+		const claim = await daoFactory.playerCharacterClaimDAO.getClaimForUser(
+			campaignId,
+			targetUsername
+		);
+		return c.json({ success: true, claim });
+	} catch (error) {
+		console.error("Error assigning player character claim:", error);
+		const message = error instanceof Error ? error.message : "Unknown error";
+		if (message.includes("UNIQUE constraint failed")) {
+			return c.json({ error: "That character is already claimed" }, 409);
+		}
+		if (
+			message.includes("not found") ||
+			message.includes("must be a player character")
+		) {
+			return c.json({ error: message }, 400);
+		}
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }

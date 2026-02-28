@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { PrimaryActionButton } from "@/components/button";
 import { Modal } from "@/components/modal/Modal";
 import { CAMPAIGN_ROLES, SHARE_ROLE_OPTIONS } from "@/constants/campaign-roles";
@@ -11,6 +11,19 @@ interface ShareCampaignModalProps {
 	campaign: Campaign | null;
 	isOpen: boolean;
 	onClose: () => void;
+}
+
+interface PlayerCharacterClaim {
+	username: string;
+	entityId: string;
+	entityName: string;
+	assignedBy: string;
+	updatedAt: string;
+}
+
+interface UnclaimedOption {
+	id: string;
+	name: string;
 }
 
 export function ShareCampaignModal({
@@ -38,6 +51,22 @@ export function ShareCampaignModal({
 	const [listing, setListing] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [copied, setCopied] = useState(false);
+	const [claims, setClaims] = useState<PlayerCharacterClaim[]>([]);
+	const [unclaimedOptions, setUnclaimedOptions] = useState<UnclaimedOption[]>(
+		[]
+	);
+	const [claimSelections, setClaimSelections] = useState<
+		Record<string, string>
+	>({});
+	const [claimsListing, setClaimsListing] = useState(false);
+	const [claimError, setClaimError] = useState<string | null>(null);
+	const [savingClaimFor, setSavingClaimFor] = useState<string | null>(null);
+	const [claimSaveErrorByUser, setClaimSaveErrorByUser] = useState<
+		Record<string, string>
+	>({});
+	const [hasAnyPcEntities, setHasAnyPcEntities] = useState<boolean | null>(
+		null
+	);
 
 	const { makeRequest } = useAuthenticatedRequest();
 
@@ -70,6 +99,99 @@ export function ShareCampaignModal({
 			setListing(false);
 		}
 	}, [campaign?.campaignId, makeRequest]);
+
+	const fetchClaims = useCallback(async () => {
+		if (!campaign?.campaignId) return;
+		setClaimsListing(true);
+		setClaimError(null);
+		setClaimSaveErrorByUser({});
+		try {
+			const res = await makeRequest(
+				API_CONFIG.buildUrl(
+					API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIMS(
+						campaign.campaignId
+					)
+				)
+			);
+			const data = (await res.json()) as {
+				claims?: PlayerCharacterClaim[];
+				unclaimedOptions?: UnclaimedOption[];
+				error?: string;
+			};
+			if (res.ok) {
+				const nextClaims = data.claims ?? [];
+				const nextUnclaimed = data.unclaimedOptions ?? [];
+				setClaims(nextClaims);
+				setUnclaimedOptions(nextUnclaimed);
+				setHasAnyPcEntities(nextClaims.length + nextUnclaimed.length > 0);
+				setClaimSelections(
+					nextClaims.reduce<Record<string, string>>((acc, claim) => {
+						acc[claim.username] = claim.entityId;
+						return acc;
+					}, {})
+				);
+			} else {
+				setHasAnyPcEntities(null);
+				setClaimError(data.error ?? "Failed to load player character claims");
+			}
+		} catch {
+			setHasAnyPcEntities(null);
+			setClaimError("Failed to load player character claims");
+		} finally {
+			setClaimsListing(false);
+		}
+	}, [campaign?.campaignId, makeRequest]);
+
+	const handleClaimSelectionChange = (username: string, entityId: string) => {
+		setClaimSelections((prev) => ({ ...prev, [username]: entityId }));
+		setClaimSaveErrorByUser((prev) => ({ ...prev, [username]: "" }));
+	};
+
+	const handleSaveClaim = async (username: string) => {
+		if (!campaign?.campaignId) return;
+		const selectedEntityId = claimSelections[username];
+		if (!selectedEntityId) {
+			setClaimSaveErrorByUser((prev) => ({
+				...prev,
+				[username]: "Select a player character before saving",
+			}));
+			return;
+		}
+
+		setSavingClaimFor(username);
+		setClaimSaveErrorByUser((prev) => ({ ...prev, [username]: "" }));
+		try {
+			const res = await makeRequest(
+				API_CONFIG.buildUrl(
+					API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM_ASSIGN(
+						campaign.campaignId,
+						username
+					)
+				),
+				{
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ entityId: selectedEntityId }),
+				}
+			);
+			const data = (await res.json()) as { error?: string };
+			if (res.ok) {
+				await fetchClaims();
+			} else {
+				setClaimSaveErrorByUser((prev) => ({
+					...prev,
+					[username]: data.error ?? "Failed to save player character claim",
+				}));
+			}
+		} catch {
+			setClaimSaveErrorByUser((prev) => ({
+				...prev,
+				[username]: "Failed to save player character claim",
+			}));
+		} finally {
+			setSavingClaimFor(null);
+		}
+	};
 
 	const handleGenerate = async () => {
 		if (!campaign?.campaignId) return;
@@ -147,6 +269,17 @@ export function ShareCampaignModal({
 		}
 	}, [isOpen, campaign?.campaignId, fetchLinks]);
 
+	useEffect(() => {
+		if (!isOpen || !campaign?.campaignId) return;
+		void Promise.all([fetchLinks(), fetchClaims()]);
+	}, [isOpen, campaign?.campaignId, fetchLinks, fetchClaims]);
+
+	const isPlayerShareRole =
+		role === CAMPAIGN_ROLES.EDITOR_PLAYER ||
+		role === CAMPAIGN_ROLES.READONLY_PLAYER;
+	const showNoPcShareWarning =
+		isPlayerShareRole && hasAnyPcEntities === false && !claimsListing;
+
 	return (
 		<Modal
 			isOpen={isOpen}
@@ -188,6 +321,13 @@ export function ShareCampaignModal({
 						))}
 					</select>
 				</div>
+				{showNoPcShareWarning && (
+					<div className="rounded border border-amber-600/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+						No player characters exist in this campaign yet. Create at least one
+						PC before sending player share links so players can claim a
+						character when they join.
+					</div>
+				)}
 
 				<div>
 					<label
@@ -280,6 +420,83 @@ export function ShareCampaignModal({
 					>
 						Refresh
 					</button>
+				</div>
+
+				<div className="border-t border-neutral-700 pt-4">
+					<h3 className="mb-2 text-sm font-medium text-neutral-300">
+						Player character claims
+					</h3>
+					{claimError && (
+						<div className="mb-2 rounded bg-red-500/10 px-3 py-2 text-sm text-red-400">
+							{claimError}
+						</div>
+					)}
+					{claimsListing ? (
+						<div className="text-sm text-neutral-500">Loading…</div>
+					) : claims.length === 0 ? (
+						<div className="text-sm text-neutral-500">
+							No player character claims
+						</div>
+					) : (
+						<ul className="space-y-2">
+							{claims.map((claim) => {
+								const selectedEntityId =
+									claimSelections[claim.username] ?? claim.entityId;
+								const options = [
+									{ id: claim.entityId, name: claim.entityName },
+									...unclaimedOptions.filter(
+										(opt) => opt.id !== claim.entityId
+									),
+								];
+								const isSavingThisRow = savingClaimFor === claim.username;
+								const hasSelectionChanged =
+									selectedEntityId &&
+									selectedEntityId.length > 0 &&
+									selectedEntityId !== claim.entityId;
+								return (
+									<li
+										key={claim.username}
+										className="rounded border border-neutral-700 bg-neutral-800/50 px-3 py-3 text-sm"
+									>
+										<div className="mb-2 text-neutral-300">
+											<span className="font-medium">{claim.username}</span>
+											{" · "}
+											<span>{claim.entityName}</span>
+										</div>
+										<div className="flex items-center gap-2">
+											<select
+												value={selectedEntityId}
+												onChange={(e) =>
+													handleClaimSelectionChange(
+														claim.username,
+														e.target.value
+													)
+												}
+												className="flex-1 rounded border border-neutral-600 bg-neutral-800 px-3 py-2 text-neutral-100"
+											>
+												{options.map((opt) => (
+													<option key={opt.id} value={opt.id}>
+														{opt.name}
+													</option>
+												))}
+											</select>
+											<PrimaryActionButton
+												onClick={() => handleSaveClaim(claim.username)}
+												disabled={!hasSelectionChanged || isSavingThisRow}
+											>
+												{isSavingThisRow ? "Saving…" : "Save"}
+											</PrimaryActionButton>
+										</div>
+										{claimSaveErrorByUser[claim.username] && (
+											<div className="mt-2 text-xs text-red-400">
+												{claimSaveErrorByUser[claim.username]}
+											</div>
+										)}
+									</li>
+								);
+							})}
+						</ul>
+					)}
 				</div>
 			</div>
 		</Modal>
