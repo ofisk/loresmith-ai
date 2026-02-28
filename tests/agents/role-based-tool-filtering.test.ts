@@ -45,6 +45,11 @@ describe("Role-based tool filtering", () => {
 			expect(
 				campaignContextToolsBundle.captureConversationalContext
 			).toBeDefined();
+			expect(campaignContextToolsBundle.defineHouseRuleTool).toBeDefined();
+			expect(campaignContextToolsBundle.updateHouseRuleTool).toBeDefined();
+			expect(
+				campaignContextToolsBundle.checkHouseRuleConflictTool
+			).toBeDefined();
 		});
 
 		it("playerCampaignContextToolsBundle should exclude GM-only tools", () => {
@@ -56,8 +61,18 @@ describe("Role-based tool filtering", () => {
 				playerCampaignContextToolsBundle.showCampaignDetails
 			).toBeDefined();
 			expect(playerCampaignContextToolsBundle.getMessageHistory).toBeDefined();
+			expect(playerCampaignContextToolsBundle.listHouseRulesTool).toBeDefined();
 			expect(
 				(playerCampaignContextToolsBundle as any).recordWorldEventTool
+			).toBeUndefined();
+			expect(
+				(playerCampaignContextToolsBundle as any).defineHouseRuleTool
+			).toBeUndefined();
+			expect(
+				(playerCampaignContextToolsBundle as any).updateHouseRuleTool
+			).toBeUndefined();
+			expect(
+				(playerCampaignContextToolsBundle as any).checkHouseRuleConflictTool
 			).toBeUndefined();
 			expect(
 				(playerCampaignContextToolsBundle as any).captureConversationalContext
@@ -85,11 +100,17 @@ describe("Role-based tool filtering", () => {
 			expect(playerCampaignTools.createCampaign).toBeDefined();
 			expect(playerCampaignTools.showCampaignDetails).toBeDefined();
 			expect(playerCampaignTools.proposeResourceToCampaign).toBeDefined();
+			expect(playerCampaignTools.listHouseRulesTool).toBeDefined();
 			expect((playerCampaignTools as any).planSession).toBeUndefined();
 			expect(
 				(playerCampaignTools as any).checkPlanningReadiness
 			).toBeUndefined();
 			expect((playerCampaignTools as any).recordWorldEventTool).toBeUndefined();
+			expect((playerCampaignTools as any).defineHouseRuleTool).toBeUndefined();
+			expect((playerCampaignTools as any).updateHouseRuleTool).toBeUndefined();
+			expect(
+				(playerCampaignTools as any).checkHouseRuleConflictTool
+			).toBeUndefined();
 			expect((playerCampaignTools as any).updateCampaign).toBeUndefined();
 			expect((playerCampaignTools as any).deleteCampaign).toBeUndefined();
 		});

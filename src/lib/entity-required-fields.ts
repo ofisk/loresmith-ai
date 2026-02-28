@@ -52,6 +52,7 @@ const REQUIRED_FIELDS_BY_TYPE: Record<string, string[]> = {
 	pcs: ["summary"],
 	rule: ["text"],
 	rules: ["text"],
+	house_rule: ["text"],
 	downtime: ["procedure"],
 	table: ["rows"],
 	tables: ["rows"],

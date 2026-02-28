@@ -5,10 +5,14 @@ import {
 	saveContextExplicitly,
 } from "../campaign-context/context-capture-tools";
 import {
+	checkHouseRuleConflictTool,
+	defineHouseRuleTool,
 	deleteEntityTool,
 	linkInspirationToEntityTool,
+	listHouseRulesTool,
 	updateEntityMetadataTool,
 	updateEntityTypeTool,
+	updateHouseRuleTool,
 } from "../campaign-context/entity-tools";
 import {
 	getPlanningTaskProgress,
@@ -94,6 +98,10 @@ export {
 	updateEntityTypeTool,
 	deleteEntityTool,
 	linkInspirationToEntityTool,
+	defineHouseRuleTool,
+	listHouseRulesTool,
+	updateHouseRuleTool,
+	checkHouseRuleConflictTool,
 	noOpTool,
 };
 
@@ -109,6 +117,7 @@ export const playerCampaignTools = {
 	searchFileLibrary,
 	searchVisualInspirationTool,
 	uploadInspirationImageTool,
+	listHouseRulesTool,
 	getFileLibraryStats,
 	listFiles,
 	getFileStats,
@@ -131,6 +140,7 @@ export const campaignTools = {
 	searchFileLibrary,
 	searchVisualInspirationTool,
 	uploadInspirationImageTool,
+	listHouseRulesTool,
 	getFileLibraryStats,
 	// File management tools for campaign operations
 	listFiles,
@@ -152,5 +162,8 @@ export const campaignTools = {
 	updateEntityTypeTool,
 	deleteEntityTool,
 	linkInspirationToEntityTool,
+	defineHouseRuleTool,
+	updateHouseRuleTool,
+	checkHouseRuleConflictTool,
 	noOpTool,
 };

@@ -53,6 +53,30 @@ flowchart TD
   LinkTool --> EntityGraph[Entity graph relationship write]
 ```
 
+### Rules-aware generation flow
+
+```mermaid
+flowchart TD
+  UserMessage[User message] --> AgentSelect[Targeted core agent]
+  AgentSelect --> LoadRules[Load campaign rules context]
+  LoadRules --> ResolveRules[Resolve conflicts and priority]
+  ResolveRules --> InjectRules[Inject rules and warnings into system context]
+  InjectRules --> Generate[Generate response with tools]
+```
+
+Rule resolution details:
+
+- Rule sources include `house_rule`, source `rules`, and rule-tagged conversational context.
+- All rule inputs are normalized into one internal shape before injection.
+- Conflict handling is contextual: agents keep both sides, emit warnings, and prefer table-specific rulings for generation.
+- The same resolver is shared by agents and rule-aware tools to avoid behavior drift.
+
+Why this helps game masters:
+
+- House rulings stay sticky across sessions and agents.
+- Conflicts are explicit, reducing silent contradictions in prep and play support.
+- Responses remain transparent when multiple valid interpretations exist.
+
 ## Agent types and routing
 
 - **AgentRouter** (`src/lib/agent-router.ts`) maintains a registry of agent types (campaign, campaign-context, character, session-digest, etc.).
@@ -64,6 +88,7 @@ flowchart TD
 - **Constructor**: Takes Durable Object state (`ctx`), env (Cloudflare bindings), model, and tools. Subclasses pass their own tools and often override `agentMetadata`.
 - **Message handling**: `addMessage` appends to in-memory history and persists to the database (message-history DAO) when `env.DB` is available.
 - **Chat flow**: `onChatMessage` builds a minimal message context (current user message, last assistant message, essential system context), then calls `streamText` with the agent’s tools. JWT and `campaignId` are taken from the last user message’s `data`.
+- **Rules-aware injection**: For targeted agents (`campaign`, `campaign-context`, `campaign-analysis`, `recap`, `session-digest`), `onChatMessage` resolves campaign rules from multiple sources (`house_rule`, source `rules`, and rule-tagged context) and injects normalized rules plus conflict warnings before generation.
 - **Tool execution**: Tools receive a `context` object that includes `env` when running inside the DO, so they can use the database directly. When `context.env` is missing (e.g. in tests or external calls), tools fall back to HTTP API with `authenticatedFetch`. See [TOOL_PATTERNS.md](./TOOL_PATTERNS.md).
 
 ## Token handling

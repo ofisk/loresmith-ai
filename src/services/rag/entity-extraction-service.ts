@@ -63,6 +63,7 @@ const EntityExtractionSchema = z.object({
 	feats: z.array(EntityItemSchema).default([]),
 	subclasses: z.array(EntityItemSchema).default([]),
 	rules: z.array(EntityItemSchema).default([]),
+	house_rule: z.array(EntityItemSchema).default([]),
 	downtime: z.array(EntityItemSchema).default([]),
 	tables: z.array(EntityItemSchema).default([]),
 	encounter_tables: z.array(EntityItemSchema).default([]),

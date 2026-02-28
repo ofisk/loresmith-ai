@@ -48,6 +48,7 @@ export const ENTITY_TYPE_FEATS = ENTITY_TYPES.feats;
 export const ENTITY_TYPE_SUBCLASSES = ENTITY_TYPES.subclasses;
 export const ENTITY_TYPE_PCS = ENTITY_TYPES.pcs;
 export const ENTITY_TYPE_RULES = ENTITY_TYPES.rules;
+export const ENTITY_TYPE_HOUSE_RULE = ENTITY_TYPES.house_rule;
 export const ENTITY_TYPE_DOWNTIME = ENTITY_TYPES.downtime;
 
 // Reference & generators
