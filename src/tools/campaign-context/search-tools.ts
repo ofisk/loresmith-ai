@@ -477,17 +477,15 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 										const fetchLimit = queryIntent.isListAll
 											? effectiveLimit + 1
 											: 100;
-										const allEntities =
+										entities =
 											await daoFactory.entityDAO.listEntitiesByCampaign(
 												campaignId,
 												{
 													limit: fetchLimit,
 													entityType: targetEntityType || undefined,
+													entityIds,
 												}
 											);
-										entities = allEntities.filter((e) =>
-											entityIds.includes(e.id)
-										);
 
 										// For list-all queries, get total count for accurate reporting
 										if (queryIntent.isListAll && totalCount === undefined) {
@@ -586,17 +584,15 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 
 											if (entityIds.length > 0) {
 												// CRITICAL: Always filter by entityType if specified
-												const allEntities =
+												entities =
 													await daoFactory.entityDAO.listEntitiesByCampaign(
 														campaignId,
 														{
 															limit: 100,
 															entityType: targetEntityType || undefined,
+															entityIds,
 														}
 													);
-												entities = allEntities.filter((e) =>
-													entityIds.includes(e.id)
-												);
 												console.log(
 													`[Tool] searchCampaignContext - Found ${entities.length} entities via PlanningContextService fallback`
 												);
@@ -785,14 +781,6 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 						) {
 							try {
 								const communityDAO = daoFactory.communityDAO;
-								const allCampaignEntities =
-									await daoFactory.entityDAO.listEntitiesByCampaign(
-										campaignId,
-										{ limit: 1000 }
-									);
-								const allEntitiesMap = new Map(
-									allCampaignEntities.map((e) => [e.id, e])
-								);
 
 								// Find communities for each found entity
 								const communityIdsSet = new Set<string>();
@@ -820,6 +808,27 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 										await communityDAO.listCommunitiesByCampaign(campaignId);
 									const relevantCommunities = allCommunities.filter((c) =>
 										communityIdsSet.has(c.id)
+									);
+									const candidateEntityIds = Array.from(
+										new Set(
+											relevantCommunities.flatMap(
+												(community) => community.entityIds
+											)
+										)
+									);
+									const candidateEntities =
+										candidateEntityIds.length > 0
+											? await daoFactory.entityDAO.listEntitiesByCampaign(
+													campaignId,
+													{
+														limit: 1000,
+														entityIds: candidateEntityIds,
+														excludeShardStatuses: ["rejected", "deleted"],
+													}
+												)
+											: [];
+									const allEntitiesMap = new Map(
+										candidateEntities.map((e) => [e.id, e])
 									);
 
 									for (const community of relevantCommunities) {
@@ -964,6 +973,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 						if (relatedEntityIds.size > 0) {
 							const relatedEntities =
 								await daoFactory.entityDAO.listEntitiesByCampaign(campaignId, {
+									entityIds: Array.from(relatedEntityIds),
 									limit: 1000,
 								});
 							for (const relatedEntity of relatedEntities) {
@@ -1320,14 +1330,12 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 							uniqueTraversedEntityIds.length > 0
 						) {
 							// Fetch full entity details for traversed entities
-							const allCampaignEntities =
+							const traversedEntities =
 								await daoFactory.entityDAO.listEntitiesByCampaign(campaignId, {
+									entityIds: uniqueTraversedEntityIds,
 									limit: 1000,
+									excludeShardStatuses: ["rejected", "deleted"],
 								});
-
-							const traversedEntities = allCampaignEntities.filter((entity) =>
-								uniqueTraversedEntityIds.includes(entity.id)
-							);
 
 							// Filter out rejected/ignored/stub entities
 							const approvedTraversedEntities = traversedEntities.filter(
@@ -1399,7 +1407,10 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 								const allRelatedEntities =
 									await daoFactory.entityDAO.listEntitiesByCampaign(
 										campaignId,
-										{ limit: 1000 }
+										{
+											limit: 1000,
+											entityIds: Array.from(traversedRelatedEntityIds),
+										}
 									);
 								for (const relatedEntity of allRelatedEntities) {
 									if (traversedRelatedEntityIds.has(relatedEntity.id)) {
@@ -1417,7 +1428,10 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 								const allSourceEntities =
 									await daoFactory.entityDAO.listEntitiesByCampaign(
 										campaignId,
-										{ limit: 1000 }
+										{
+											limit: 1000,
+											entityIds: traverseFromEntityIds,
+										}
 									);
 								for (const sourceEntity of allSourceEntities) {
 									if (traverseFromEntityIds.includes(sourceEntity.id)) {

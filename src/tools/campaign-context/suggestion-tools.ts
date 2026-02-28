@@ -807,7 +807,9 @@ async function performSemanticChecklistAnalysis(
 			const entityDAO = daoFactory.entityDAO;
 			const graphService = new EntityGraphService(entityDAO);
 
-			const allEntities = await entityDAO.listEntitiesByCampaign(campaignId);
+			const allEntities = await entityDAO.listEntitiesByCampaign(campaignId, {
+				excludeShardStatuses: ["rejected", "deleted"],
+			});
 
 			const entityTypeCounts: Record<string, number> = {};
 			for (const entity of allEntities) {
