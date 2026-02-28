@@ -8,6 +8,7 @@ import {
 } from "@/lib/agent-role-utils";
 import { getStatusMessageForTool } from "@/lib/agent-status-messages";
 import { buildExplainabilityFromSteps } from "@/lib/explainability-builder";
+import { createLogger } from "@/lib/logger";
 import { getAgentRoleContext } from "@/lib/prompts/agent-role-context";
 import {
 	estimateRequestTokens,
@@ -247,30 +248,17 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 	): Promise<Response> {
 		const dataStreamResponse = createDataStreamResponse({
 			execute: async (dataStream) => {
+				const log = createLogger(
+					this.env as Record<string, unknown>,
+					`[${this.constructor.name}]`
+				);
+				const turnStartedAt = Date.now();
+
 				// Extract JWT from the last user message if available
 				const lastUserMessage = this.messages
 					.slice()
 					.reverse()
 					.find((msg) => msg.role === "user");
-
-				console.log(
-					`[${this.constructor.name}] Last user message:`,
-					lastUserMessage
-				);
-				console.log(
-					`[${this.constructor.name}] Last user message keys:`,
-					lastUserMessage ? Object.keys(lastUserMessage) : "no message"
-				);
-				console.log(
-					`[${this.constructor.name}] Last user message has data property:`,
-					lastUserMessage && "data" in lastUserMessage
-				);
-				console.log(
-					`[${this.constructor.name}] Last user message data value:`,
-					lastUserMessage && "data" in lastUserMessage
-						? lastUserMessage.data
-						: "no data"
-				);
 
 				let clientJwt: string | null = null;
 				let selectedCampaignId: string | null = null;
@@ -279,39 +267,14 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					"data" in lastUserMessage &&
 					lastUserMessage.data
 				) {
-					console.log(
-						`[${this.constructor.name}] lastUserMessage.data:`,
-						lastUserMessage.data
-					);
 					const messageData = lastUserMessage.data as MessageData & {
 						campaignId?: string;
 					};
 					clientJwt = messageData.jwt || null;
 					if (typeof messageData.campaignId === "string") {
 						selectedCampaignId = messageData.campaignId;
-						console.log(
-							`[${this.constructor.name}] Extracted campaignId from user message:`,
-							selectedCampaignId
-						);
-					} else {
-						console.log(
-							`[${this.constructor.name}] No campaignId in user message data (value: ${messageData.campaignId}, type: ${typeof messageData.campaignId})`
-						);
 					}
-					console.log(
-						`[${this.constructor.name}] Extracted JWT from user message:`,
-						clientJwt
-					);
-				} else {
-					console.log(
-						`[${this.constructor.name}] No JWT found in user message data.`
-					);
 				}
-
-				console.log(
-					`[${this.constructor.name}] Final selectedCampaignId for this request:`,
-					selectedCampaignId
-				);
 
 				// Resolve campaign role and build role context for GM vs player tailoring
 				let claimedPlayerContext: Awaited<
@@ -325,10 +288,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 						clientJwt
 					);
 					campaignRole = claimedPlayerContext?.role ?? null;
-					console.log(
-						`[${this.constructor.name}] Resolved campaign role:`,
-						campaignRole
-					);
+					log.debug("Resolved campaign role", { campaignRole });
 				}
 				const roleContextMessage = getAgentRoleContext(claimedPlayerContext);
 
@@ -450,22 +410,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					}
 				}
 
-				console.log(
-					`[${this.constructor.name}] Built minimal message context: ${this.messages.length} total -> ${processedMessages.length} messages (current user prompt + agent's previous response + essential system messages). Historical context available via getMessageHistory tool.`
-				);
-				if (lastUserMessage) {
-					const userContent =
-						typeof lastUserMessage.content === "string"
-							? lastUserMessage.content
-							: JSON.stringify(lastUserMessage.content);
-					console.log(
-						`[${this.constructor.name}] User message content:`,
-						userContent
-					);
-				}
-				console.log(
-					`[${this.constructor.name}] About to call streamText with stopWhen: stepCountIs(${MAX_AGENT_STEPS})...`
-				);
+				log.debug("Built minimal message context", {
+					totalMessages: this.messages.length,
+					processedMessages: processedMessages.length,
+				});
 
 				// Determine whether the most recent user command is stale
 				let isStaleCommand = false;
@@ -538,9 +486,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 				);
 
 				if (toolsRequiringCampaignId.length > 0 && !selectedCampaignId) {
-					console.log(
-						`[${this.constructor.name}] No selectedCampaignId available. ${toolsRequiringCampaignId.length} tool(s) will use LLM-inferred campaignId: ${toolsRequiringCampaignId.map(([name]) => name).join(", ")}`
-					);
+					log.debug("No selected campaign ID, allowing inferred campaignId", {
+						toolCount: toolsRequiringCampaignId.length,
+					});
 				}
 
 				// Create enhanced tools with optional status callback for real-time "thinking" updates
@@ -566,27 +514,6 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					Object.keys(enhancedTools).length > 0 ? "auto" : "none";
 
 				// Stream the AI response using the provided model
-				console.log(
-					`[${this.constructor.name}] Starting streamText with toolChoice: ${toolChoice}`
-				);
-				// Debug which tools will be available to the model (names only)
-				try {
-					const toolNames = Object.keys(enhancedTools);
-					console.log(
-						`[${this.constructor.name}] Enhanced tools exposed to model:`,
-						toolNames
-					);
-				} catch (_e) {}
-				console.log(`[${this.constructor.name}] Model: ${this.model}`);
-				console.log(
-					`[${this.constructor.name}] System prompt length: ${(this.constructor as any).agentMetadata.systemPrompt.length}`
-				);
-				console.log(
-					`[${this.constructor.name}] Processed messages count: ${processedMessages.length}`
-				);
-				console.log(
-					`[${this.constructor.name}] Enhanced tools count: ${Object.keys(enhancedTools).length}`
-				);
 
 				// Estimate tokens for logging (no truncation - we rely on targeted graph traversal via tools)
 				const systemPrompt = (this.constructor as any).agentMetadata
@@ -601,15 +528,18 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					enhancedTools
 				);
 
-				console.log(
-					`[${this.constructor.name}] Token estimation: ${estimatedTokens} tokens (limit: ${contextLimit}, system: ${systemPromptTokens}, tools: ${toolsTokens})`
-				);
+				log.debug("Token estimation", {
+					estimatedTokens,
+					contextLimit,
+					systemPromptTokens,
+					toolsTokens,
+				});
 
 				// If we're still over the limit with minimal context, log a warning
 				// The LLM should use tools to fetch targeted context rather than including everything
 				if (estimatedTokens > contextLimit) {
-					console.warn(
-						`[${this.constructor.name}] ⚠️ Context still large (${estimatedTokens} > ${contextLimit}) even with minimal message history. The LLM should use tools for targeted graph traversal to fetch only relevant context.`
+					log.warn(
+						`Context still large (${estimatedTokens} > ${contextLimit}) even with minimal message history.`
 					);
 				}
 
@@ -630,19 +560,16 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 						?.content?.slice(0, 100),
 				};
 
-				// Log compact request summary to avoid log size limits
-				console.log(
-					`[${this.constructor.name}] 🚀 Making OpenAI API request:`,
-					JSON.stringify({
-						agent: requestDetails.agent,
-						model: requestDetails.model,
-						messageCount: requestDetails.messageCount,
-						toolCount: requestDetails.toolCount,
-						toolNames: requestDetails.toolNames,
-						toolChoice: requestDetails.toolChoice,
-						lastUserMessage: requestDetails.lastUserMessage,
-					})
-				);
+				// Keep one compact structured summary per turn for production observability.
+				log.info("Making OpenAI API request", {
+					agent: requestDetails.agent,
+					model: requestDetails.model,
+					messageCount: requestDetails.messageCount,
+					toolCount: requestDetails.toolCount,
+					toolNames: requestDetails.toolNames,
+					toolChoice: requestDetails.toolChoice,
+					lastUserMessage: requestDetails.lastUserMessage,
+				});
 
 				let stepsResolve: (steps: any) => void;
 				const stepsPromise = new Promise<any>((resolve) => {
@@ -666,40 +593,23 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 						stopWhen: stepCountIs(MAX_AGENT_STEPS), // Allow multiple tool-call rounds until final text response
 						onFinish: async (args) => {
 							stepsResolve(args?.steps ?? []);
-							console.log(
-								`[${this.constructor.name}] onFinish called with finishReason: ${args.finishReason}`
+							const steps = args?.steps ?? [];
+							const allToolCalls = steps.flatMap(
+								(step: any) => step.toolCalls || []
 							);
-							console.log(
-								`[${this.constructor.name}] onFinish steps count: ${args.steps?.length || 0}`
-							);
-							// Log tool calls for debugging
-							if (args.steps) {
-								const allToolCalls = args.steps.flatMap(
-									(step) => step.toolCalls || []
-								);
-								if (allToolCalls.length > 0) {
-									console.log(
-										`[${this.constructor.name}] Tools called: ${allToolCalls.map((call) => call.toolName).join(", ")}`
-									);
-									const searchCalls = allToolCalls.filter(
-										(call) => call.toolName === "searchCampaignContext"
-									);
-									if (searchCalls.length > 0) {
-										searchCalls.forEach((call, idx) => {
-											console.log(
-												`[${this.constructor.name}] searchCampaignContext call ${
-													idx + 1
-												}: query="${(call as any).args?.query || "MISSING"}"`
-											);
-										});
-									}
-								} else {
-									// This should not happen with toolChoice: "required", but log it if it does
-									console.warn(
-										`[${this.constructor.name}] ⚠️ WARNING: No tools were called despite toolChoice: "required". This may indicate an issue with the LLM or tool configuration.`
-									);
-								}
-							}
+							log.info("OpenAI API response complete", {
+								finishReason: args?.finishReason ?? "unknown",
+								stepCount: steps.length,
+								toolCallCount: allToolCalls.length,
+								toolNames: [
+									...new Set(
+										allToolCalls
+											.map((call: any) => call?.toolName)
+											.filter((name): name is string => !!name)
+									),
+								],
+								durationMs: Date.now() - turnStartedAt,
+							});
 							// Record LLM usage for rate limiting (chat consumes quota)
 							if (clientJwt) {
 								try {
@@ -728,10 +638,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 										}
 									}
 								} catch (err) {
-									console.warn(
-										`[${this.constructor.name}] Failed to record LLM usage:`,
-										err
-									);
+									log.warn("Failed to record LLM usage", err);
 								}
 							}
 							// Convert the finish args to ChatMessage format
@@ -805,17 +712,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 						},
 					});
 
-					console.log(
-						`[${this.constructor.name}] streamText returned result:`,
-						typeof result
-					);
-
 					// Handle the result using textStream (emit SSE + UIMessageChunk format for useChat)
 					if (result?.textStream) {
-						console.log(
-							`[${this.constructor.name}] Using textStream for response`
-						);
-
 						dataStream.write({ type: "text-start", id: TEXT_PART_ID });
 						let fullText = "";
 						for await (const chunk of result.textStream) {
@@ -828,21 +726,13 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 						}
 						dataStream.write({ type: "text-end", id: TEXT_PART_ID });
 
-						console.log(
-							`[${this.constructor.name}] Completed streaming response:`,
-							`${fullText.substring(0, 100)}...`
-						);
-
 						// Build explainability from tool steps and attach to message data
 						let explainability: Explainability | null = null;
 						try {
 							const steps = await stepsWithTimeout;
 							explainability = buildExplainabilityFromSteps(steps);
 						} catch (e) {
-							console.warn(
-								`[${this.constructor.name}] Failed to build explainability:`,
-								e
-							);
+							log.warn("Failed to build explainability", e);
 						}
 
 						// Persist the assistant's final message to message history.
@@ -895,9 +785,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 							);
 						}
 					} else {
-						console.log(
-							`[${this.constructor.name}] No textStream available, using fallback`
-						);
+						log.warn("No textStream available, using fallback response");
 						writeTextChunks(
 							dataStream.write,
 							"I'm here to help! What would you like to know about LoreSmith AI?"
@@ -950,6 +838,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		options?: { onToolStart?: (toolName: string) => void },
 		claimedPlayerContext?: ResolvedClaimedPlayerContext | null
 	): Record<string, any> {
+		const log = createLogger(
+			this.env as Record<string, unknown>,
+			`[${this.constructor.name}]`
+		);
 		const baseTools = toolsOverride ?? this.tools;
 		const tools = {
 			...baseTools,
@@ -960,7 +852,6 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 
 		return Object.fromEntries(
 			Object.entries(tools).map(([toolName, tool]) => {
-				console.log(`[${this.constructor.name}] Adding tool ${toolName}`);
 				return [
 					toolName,
 					{
@@ -972,8 +863,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 							const callKey = `${toolName}_${JSON.stringify(args)}`;
 							const currentCount = toolCallCounts.get(callKey) || 0;
 							if (currentCount > 2) {
-								console.warn(
-									`[${this.constructor.name}] Tool ${toolName} called ${currentCount} times, preventing infinite loop`
+								log.warn(
+									`Tool ${toolName} called ${currentCount} times, preventing infinite loop`
 								);
 								return {
 									toolCallId: context?.toolCallId || "unknown",
@@ -1000,25 +891,11 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 
 							const hasJwtParam = !!shape && "jwt" in shape;
 							if (hasJwtParam) {
-								const previousJwt = enhancedArgs.jwt;
 								// Always use client JWT when available; never trust LLM-provided jwt (often invalid/placeholder)
 								if (clientJwt) {
 									enhancedArgs.jwt = clientJwt;
-									if (
-										previousJwt &&
-										previousJwt !== clientJwt &&
-										typeof previousJwt === "string" &&
-										!previousJwt.includes(".")
-									) {
-										console.log(
-											`[${this.constructor.name}] Overriding invalid/LLM jwt with client JWT for tool ${toolName}`
-										);
-									}
 								} else if (!("jwt" in enhancedArgs)) {
 									enhancedArgs.jwt = null;
-									console.log(
-										`[${this.constructor.name}] No client JWT available; passing jwt: null to tool ${toolName}`
-									);
 								}
 							}
 
@@ -1031,8 +908,11 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 									previousCampaignId &&
 									previousCampaignId !== selectedCampaignId
 								) {
-									console.log(
-										`[${this.constructor.name}] Overriding LLM-provided campaignId (${previousCampaignId}) with selectedCampaignId (${selectedCampaignId}) for tool ${toolName}`
+									log.debug(
+										"Overriding inferred campaignId with selected campaign",
+										{
+											toolName,
+										}
 									);
 								}
 							}
@@ -1043,9 +923,6 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 								// Inject sessionId from durable object ID
 								const sessionId = this.ctx.id.toString();
 								enhancedArgs.sessionId = sessionId;
-								console.log(
-									`[${this.constructor.name}] Injected sessionId into tool ${toolName} parameters: ${sessionId}`
-								);
 							}
 
 							const claimedEntity = claimedPlayerContext?.entity;
@@ -1070,9 +947,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 							if (hasCampaignIdParam && !selectedCampaignId) {
 								// Valid use case: User may not have a campaign selected but wants to interact with a specific campaign.
 								// In this case, we allow the LLM to infer the campaign ID from the user's request.
-								console.log(
-									`[${this.constructor.name}] No selectedCampaignId available for tool ${toolName}. Using LLM-provided campaignId: ${enhancedArgs.campaignId}`
-								);
+								log.debug("No selected campaign ID for tool execution", {
+									toolName,
+								});
 							}
 
 							// Block mutating tools if the last user command is stale
@@ -1081,8 +958,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 								"createShardsTool", // Keep for backward compatibility if still used
 							]);
 							if (staleGuard?.isStaleCommand && mutatingTools.has(toolName)) {
-								console.warn(
-									`[${this.constructor.name}] Blocking mutating tool '${toolName}' due to stale user command`
+								log.warn(
+									`Blocking mutating tool '${toolName}' due to stale user command`
 								);
 								return {
 									toolCallId: context?.toolCallId || "unknown",
@@ -1095,15 +972,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 								};
 							}
 
-							// Execute the tool
-							console.log(
-								`[${this.constructor.name}] About to execute tool ${toolName}`
-							);
-
 							if (!tool.execute) {
-								console.warn(
-									`[${this.constructor.name}] Tool ${toolName} has no execute function`
-								);
+								log.warn(`Tool ${toolName} has no execute function`);
 								return {
 									toolCallId: context?.toolCallId || "unknown",
 									result: {
@@ -1132,10 +1002,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 								enhancedArgs,
 								enhancedContext
 							);
-
-							console.log(
-								`[${this.constructor.name}] Tool ${toolName} result: ${JSON.stringify(toolResult).substring(0, 200)}...`
-							);
+							log.debug("Tool executed", { toolName });
 
 							// Trim tool results by relevancy if they're too large
 							// This prevents token overflow by keeping highest priority items
@@ -1156,24 +1023,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 										this.env,
 										selectedCampaignId
 									);
-
-									const originalTokens = estimateTokenCount(
-										JSON.stringify(toolResult)
-									);
-									const trimmedTokens = estimateTokenCount(
-										JSON.stringify(trimmedResult)
-									);
-									if (trimmedTokens < originalTokens) {
-										console.log(
-											`[${this.constructor.name}] Trimmed tool ${toolName} result: ${originalTokens} -> ${trimmedTokens} tokens (limit: ${maxToolResultTokens})`
-										);
-									}
 								}
 							} catch (trimError) {
-								console.warn(
-									`[${this.constructor.name}] Failed to trim tool result:`,
-									trimError
-								);
+								log.warn("Failed to trim tool result", trimError);
 								// Continue with original result if trimming fails
 							}
 
