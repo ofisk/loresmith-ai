@@ -9,7 +9,7 @@ import { notifyCampaignMembers } from "@/lib/notifications";
 import { type ContextWithAuth, verifyCampaignAccess } from "@/lib/route-utils";
 import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
-import { RebuildQueueService } from "@/services/graph/rebuild-queue-service";
+import { getGraphServices } from "@/services/graph/graph-service-factory";
 import { RebuildTriggerService } from "@/services/graph/rebuild-trigger-service";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
@@ -80,9 +80,7 @@ async function checkAndRunCommunityDetection(
 		return;
 	}
 
-	const queueService = new RebuildQueueService(
-		(env as any).GRAPH_REBUILD_QUEUE
-	);
+	const queueService = getGraphServices(env as any).rebuildQueue;
 	const result = await rebuildTriggerService.decideAndEnqueueRebuild({
 		campaignId,
 		triggeredBy: username || "system",

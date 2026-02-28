@@ -1,9 +1,7 @@
-import type { VectorizeIndex } from "@cloudflare/workers-types";
 import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, MODEL_CONFIG, type ToolResult } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
-import { getEnvVar } from "@/lib/env-utils";
 import { getFileTypeFromName } from "@/lib/file-utils";
 import { getEntitiesWithRelationships } from "@/lib/graph/entity-utils";
 import type { SessionScriptContext } from "@/lib/prompts/session-script-prompts";
@@ -11,7 +9,7 @@ import { SESSION_SCRIPT_PROMPTS } from "@/lib/prompts/session-script-prompts";
 import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
-import { PlanningContextService } from "@/services/rag/planning-context-service";
+import { getPlanningServices } from "@/services/rag/rag-service-factory";
 import {
 	commonSchemas,
 	createToolError,
@@ -162,8 +160,7 @@ export const planSession = tool({
 			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
 			if (gmError) return gmError;
 
-			const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
-			const openaiApiKey = openaiApiKeyRaw.trim();
+			const { planningContext, openaiApiKey } = await getPlanningServices(env);
 			if (!openaiApiKey) {
 				return createToolError(
 					"OpenAI API key not configured",
@@ -198,12 +195,14 @@ export const planSession = tool({
 				nextSessionPlan: digest.digestData?.next_session_plan,
 			}));
 
-			const planningService = new PlanningContextService(
-				env.DB,
-				env.VECTORIZE as VectorizeIndex,
-				openaiApiKey,
-				env
-			);
+			if (!planningContext) {
+				return createToolError(
+					"Planning context dependencies not configured",
+					"Session planning requires database, vector index, and OpenAI API key.",
+					503,
+					toolCallId
+				);
+			}
 
 			const playerCharacterEntities = await getPlayerCharacterEntities(
 				daoFactory.entityDAO,
@@ -211,7 +210,7 @@ export const planSession = tool({
 			);
 
 			const searchQuery = `${sessionTitle} ${focusAreas?.join(" ") || ""} ${sessionType}`;
-			const contextResults = await planningService.search({
+			const contextResults = await planningContext.search({
 				campaignId,
 				query: searchQuery,
 				limit: 10,

@@ -7,7 +7,8 @@ import { generateId } from "ai";
 import { ChangelogArchiveDAO } from "@/dao/changelog-archive-dao";
 import { WorldStateChangelogDAO } from "@/dao/world-state-changelog-dao";
 import { R2Helper } from "@/lib/r2";
-import { PlanningContextService } from "@/services/rag/planning-context-service";
+import type { PlanningContextService } from "@/services/rag/planning-context-service";
+import { createPlanningContextService } from "@/services/rag/rag-service-factory";
 import type {
 	ChangelogArchiveFile,
 	ChangelogArchiveMetadata,
@@ -39,12 +40,13 @@ export class ChangelogArchiveService {
 		this.r2Helper = new R2Helper(options.env);
 
 		if (options.vectorize && options.openaiApiKey) {
-			this.planningContextService = new PlanningContextService(
-				options.db,
-				options.vectorize,
-				options.openaiApiKey,
-				options.env
-			);
+			this.planningContextService =
+				createPlanningContextService(
+					options.db,
+					options.vectorize,
+					options.openaiApiKey,
+					options.env
+				) ?? undefined;
 		}
 	}
 

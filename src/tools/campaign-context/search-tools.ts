@@ -4,13 +4,13 @@ import { z } from "zod";
 import { PLAYER_ROLES } from "@/constants/campaign-roles";
 import { isEntityStub } from "@/lib/entity-content-merge";
 import { sanitizeEntityContentForPlayer } from "@/lib/entity-content-sanitizer";
-import { getEnvVar } from "@/lib/env-utils";
 import { AUTH_CODES, type ToolResult } from "../../app-constants";
 import { getDAOFactory } from "../../dao/dao-factory";
 import { STRUCTURED_ENTITY_TYPES } from "../../lib/entity-types";
 import { EntityGraphService } from "../../services/graph/entity-graph-service";
 import { WorldStateChangelogService } from "../../services/graph/world-state-changelog-service";
-import { PlanningContextService } from "../../services/rag/planning-context-service";
+import type { PlanningContextService } from "../../services/rag/planning-context-service";
+import { getPlanningServices } from "../../services/rag/rag-service-factory";
 import { EntityEmbeddingService } from "../../services/vectorize/entity-embedding-service";
 import {
 	commonSchemas,
@@ -333,8 +333,9 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 					return fileKeys;
 				};
 
-				const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
-				const openaiApiKey = openaiApiKeyRaw.trim();
+				const { planningContext, openaiApiKey } = await getPlanningServices(
+					env as any
+				);
 				if (requiresPlanningContext && !openaiApiKey) {
 					return createToolError(
 						"OpenAI API key not configured",
@@ -345,26 +346,13 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 				}
 
 				if (openaiApiKey) {
-					try {
-						planningService = new PlanningContextService(
-							env.DB!,
-							env.VECTORIZE as VectorizeIndex,
-							openaiApiKey,
-							env
-						);
-					} catch (error) {
-						// If required, this is an error; if optional, just log and continue
-						if (requiresPlanningContext) {
-							return createToolError(
-								"Failed to initialize PlanningContextService",
-								error instanceof Error ? error.message : String(error),
-								500,
-								toolCallId
-							);
-						}
-						console.warn(
-							"[Tool] searchCampaignContext - PlanningContextService initialization failed (optional for entity search):",
-							error
+					planningService = planningContext;
+					if (!planningService && requiresPlanningContext) {
+						return createToolError(
+							"Failed to initialize PlanningContextService",
+							"Planning context dependencies not configured",
+							500,
+							toolCallId
 						);
 					}
 				}

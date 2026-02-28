@@ -1,10 +1,8 @@
 import { getDAOFactory } from "@/dao/dao-factory";
-import { WorldStateChangelogDAO } from "@/dao/world-state-changelog-dao";
-import { getEnvVar } from "@/lib/env-utils";
 import { notifyRebuildStatus } from "@/lib/notifications-rebuild";
 import type { Env } from "@/middleware/auth";
 import type { RebuildQueueMessage } from "@/types/rebuild-queue";
-import { RebuildPipelineService } from "./rebuild-pipeline-service";
+import { getRebuildPipelineService } from "./graph-service-factory";
 
 export class RebuildQueueProcessor {
 	constructor(private env: Env) {}
@@ -32,30 +30,7 @@ export class RebuildQueueProcessor {
 
 		try {
 			const daoFactory = getDAOFactory(this.env);
-			const openaiApiKeyRaw = await getEnvVar(
-				this.env,
-				"OPENAI_API_KEY",
-				false
-			);
-			const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
-
-			// Instantiate WorldStateChangelogDAO directly (not exposed in DAOFactory)
-			const worldStateChangelogDAO = new WorldStateChangelogDAO(this.env.DB!);
-
-			// Initialize rebuild pipeline service
-			const pipelineService = new RebuildPipelineService(
-				this.env.DB!,
-				daoFactory.rebuildStatusDAO,
-				daoFactory.entityDAO,
-				daoFactory.communityDAO,
-				daoFactory.communitySummaryDAO,
-				daoFactory.entityImportanceDAO,
-				daoFactory.campaignDAO,
-				worldStateChangelogDAO,
-				daoFactory.graphRebuildDirtyDAO,
-				openaiApiKey,
-				this.env
-			);
+			const pipelineService = await getRebuildPipelineService(this.env);
 
 			// Send started notification
 			const rebuildStatusDAO = daoFactory.rebuildStatusDAO;
