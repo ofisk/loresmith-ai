@@ -1,7 +1,6 @@
 // Service Factory - Provides cached service instances to reduce memory usage and initialization overhead
 // Uses per-request caching to reuse services within the same request context
 
-import { getDatabaseKey } from "@/dao/dao-factory";
 import type { Env } from "@/middleware/auth";
 import { CampaignService } from "@/services/campaign/campaign-service";
 import { AssessmentService } from "@/services/core/assessment-service";
@@ -18,11 +17,36 @@ import { ModelManager } from "./model-manager";
 export class ServiceFactory {
 	private static services = new Map<string, any>();
 	private static authServicesByEnv = new WeakMap<object, AuthService>();
+	private static dbKeyByDb = new WeakMap<object, string>();
+	private static dbKeyCounter = 0;
 
 	// Clear services (called between requests to prevent memory leaks)
 	static clearCache(): void {
 		ServiceFactory.services.clear();
 		ServiceFactory.authServicesByEnv = new WeakMap();
+		ServiceFactory.dbKeyByDb = new WeakMap();
+		ServiceFactory.dbKeyCounter = 0;
+	}
+
+	private static getOrCreateDbKey(db: unknown): string {
+		if (db === null || db === undefined) {
+			return "db-missing";
+		}
+
+		if (typeof db !== "object") {
+			return `db-primitive-${String(db)}`;
+		}
+
+		const dbObject = db as object;
+		const existingKey = ServiceFactory.dbKeyByDb.get(dbObject);
+		if (existingKey) {
+			return existingKey;
+		}
+
+		ServiceFactory.dbKeyCounter += 1;
+		const newKey = `db-${ServiceFactory.dbKeyCounter}`;
+		ServiceFactory.dbKeyByDb.set(dbObject, newKey);
+		return newKey;
 	}
 
 	// Get or create AssessmentService
@@ -88,7 +112,7 @@ export class ServiceFactory {
 	// Get or create CampaignService
 	static getCampaignService(env: Env): CampaignService {
 		// Create a more unique key based on environment content and database identity
-		const dbKey = getDatabaseKey(env.DB);
+		const dbKey = ServiceFactory.getOrCreateDbKey(env.DB);
 		const envHash = JSON.stringify({
 			hasDb: !!env.DB,
 			hasJwtSecret: !!env.JWT_SECRET,
@@ -122,7 +146,7 @@ export class ServiceFactory {
 	 */
 	static getAgentRegistryService(env: Env): AgentRegistryService {
 		// Create a more unique key based on database identity
-		const dbKey = getDatabaseKey(env.DB);
+		const dbKey = ServiceFactory.getOrCreateDbKey(env.DB);
 		const key = `agent-registry-${dbKey}`;
 		if (!ServiceFactory.services.has(key)) {
 			ServiceFactory.services.set(key, new AgentRegistryService());
