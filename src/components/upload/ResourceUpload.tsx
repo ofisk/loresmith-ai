@@ -16,7 +16,9 @@ const sanitizeFilename = (filename: string): string => {
 		.replace(/[^\w\-_.]/g, "_") // Replace any other non-alphanumeric chars except -_.
 		.replace(/_+/g, "_") // Replace multiple underscores with single
 		.replace(/^_+|_+$/g, "") // Remove leading/trailing underscores
-		.replace(/\.(pdf|txt|doc|docx)$/i, (match) => match.toLowerCase()); // Ensure file extensions are lowercase
+		.replace(/\.(pdf|txt|doc|docx|md|mdx|json|jpg|jpeg|png|webp)$/i, (match) =>
+			match.toLowerCase()
+		); // Ensure supported file extensions are lowercase
 };
 
 interface ResourceUploadProps {
@@ -87,15 +89,42 @@ export const ResourceUpload = ({
 
 	// Helper function to validate and filter files
 	const validateAndFilterFiles = (files: File[]): File[] => {
-		// Filter by file type
-		const typeValidFiles = files.filter(
-			(file) =>
-				file.type === "application/pdf" ||
-				file.type === "text/plain" ||
-				file.type === "application/msword" ||
-				file.type ===
-					"application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-		);
+		const allowedMimeTypes = new Set([
+			"application/pdf",
+			"text/plain",
+			"application/msword",
+			"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+			"text/markdown",
+			"application/json",
+			"image/jpeg",
+			"image/jpg",
+			"image/png",
+			"image/webp",
+		]);
+		const allowedExtensions = new Set([
+			"pdf",
+			"txt",
+			"doc",
+			"docx",
+			"md",
+			"mdx",
+			"json",
+			"jpg",
+			"jpeg",
+			"png",
+			"webp",
+		]);
+
+		// Some clients provide an empty/non-standard MIME type; fall back to extension.
+		const typeValidFiles = files.filter((file) => {
+			const normalizedMime = file.type.toLowerCase();
+			if (allowedMimeTypes.has(normalizedMime)) {
+				return true;
+			}
+
+			const ext = file.name.split(".").pop()?.toLowerCase() || "";
+			return allowedExtensions.has(ext);
+		});
 
 		// Filter by file size (100MB max)
 		const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
@@ -138,6 +167,11 @@ export const ResourceUpload = ({
 	const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
 		const files = Array.from(event.target.files || []);
 		const validFiles = validateAndFilterFiles(files);
+		if (files.length > 0 && validFiles.length === 0) {
+			alert(
+				"Unsupported file type. Allowed: PDF, TXT, DOC, DOCX, MD, MDX, JSON, JPG, JPEG, PNG, WEBP."
+			);
+		}
 		setSelectedFilesState(validFiles);
 	};
 
@@ -263,7 +297,7 @@ export const ResourceUpload = ({
 							<input
 								ref={fileInputRef}
 								type="file"
-								accept=".pdf,.txt,.doc,.docx"
+								accept=".pdf,.txt,.doc,.docx,.md,.mdx,.json,.jpg,.jpeg,.png,.webp"
 								onChange={handleFileSelect}
 								className="hidden"
 								multiple

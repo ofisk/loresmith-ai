@@ -1,11 +1,13 @@
 // Campaign context search and storage tools bundle
 
 import { showCampaignDetails } from "../campaign/core-tools";
+import { searchVisualInspirationTool } from "../campaign/file-tools";
 import { getMessageHistory } from "../message-history-tools";
 import { getChecklistStatusTool } from "./checklist-tools";
 import { captureConversationalContext } from "./context-capture-tools";
 import {
 	deleteEntityTool,
+	linkInspirationToEntityTool,
 	updateEntityMetadataTool,
 	updateEntityTypeTool,
 } from "./entity-tools";
@@ -30,6 +32,7 @@ import {
 export const campaignContextToolsBundle = {
 	searchCampaignContext,
 	searchExternalResources,
+	searchVisualInspirationTool,
 	listAllEntities,
 	showCampaignDetails,
 	getDocumentContent,
@@ -39,6 +42,7 @@ export const campaignContextToolsBundle = {
 	updateEntityMetadataTool,
 	updateEntityTypeTool,
 	deleteEntityTool,
+	linkInspirationToEntityTool,
 	getMessageHistory,
 	getChecklistStatusTool,
 	recordPlanningTasks,

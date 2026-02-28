@@ -15,6 +15,10 @@ export const ALLOWED_EXTENSIONS = new Set([
 	"md",
 	"mdx",
 	"json",
+	"jpg",
+	"jpeg",
+	"png",
+	"webp",
 ]);
 
 /** Minimum bytes to read for magic-byte detection (file-type needs ~4KB for some formats) */
@@ -71,6 +75,26 @@ function detectMagicType(bytes: Uint8Array, claimedExt: string): string | null {
 		// keep behavior practical for stream/head-only validation.
 		if (claimedExt === "docx") return "docx";
 		return "zip";
+	}
+
+	// JPEG: FF D8 FF
+	if (hasPrefix(bytes, [0xff, 0xd8, 0xff])) return "jpeg";
+
+	// PNG: 89 50 4E 47 0D 0A 1A 0A
+	if (hasPrefix(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
+		return "png";
+	}
+
+	// WebP: "RIFF" .... "WEBP"
+	if (
+		hasPrefix(bytes, [0x52, 0x49, 0x46, 0x46]) &&
+		bytes.length >= 12 &&
+		bytes[8] === 0x57 &&
+		bytes[9] === 0x45 &&
+		bytes[10] === 0x42 &&
+		bytes[11] === 0x50
+	) {
+		return "webp";
 	}
 
 	return null;

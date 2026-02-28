@@ -40,6 +40,19 @@ sequenceDiagram
   BaseAgent-->>User: Streamed reply
 ```
 
+### Media inspiration tool flow
+
+```mermaid
+flowchart TD
+  UserPrompt[User asks for media inspiration action] --> Agent[Campaign or CampaignContext agent]
+  Agent --> UploadTool[uploadInspirationImageTool]
+  Agent --> SearchTool[searchVisualInspirationTool]
+  Agent --> LinkTool[linkInspirationToEntityTool]
+  UploadTool --> UploadApi[Upload pipeline and indexing]
+  SearchTool --> LibrarySearch[Library semantic search]
+  LinkTool --> EntityGraph[Entity graph relationship write]
+```
+
 ## Agent types and routing
 
 - **AgentRouter** (`src/lib/agent-router.ts`) maintains a registry of agent types (campaign, campaign-context, character, session-digest, etc.).

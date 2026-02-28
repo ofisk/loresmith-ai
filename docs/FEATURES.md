@@ -44,13 +44,19 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 **Content Processing**
 
 - Automatic text extraction from PDFs
-- Image processing and OCR
+- Vision-based image description for mood, style, and setting cues
 - Entity extraction from content
 - Semantic indexing for search
 - **AI-powered metadata generation**: Automatic descriptions and tags based on file content
 - Processing status tracking (Ready, Processing, Failed)
 - Real-time status updates during processing
 - Retry capability for failed processing
+
+**Media inspiration tools**
+
+- `uploadInspirationImageTool`: Uploads image references and triggers indexing
+- `searchVisualInspirationTool`: Searches visual references by mood, setting, and style
+- `linkInspirationToEntityTool`: Links inspiration resources to campaign entities via graph relationships
 
 **AI-Generated Metadata**
 

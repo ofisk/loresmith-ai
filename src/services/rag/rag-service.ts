@@ -27,7 +27,9 @@ export class LibraryRAGService extends BaseRAGService {
 
 	constructor(env: Env) {
 		super(env.DB, env.VECTORIZE, env.OPENAI_API_KEY, env);
-		this.extractionService = new FileExtractionService();
+		const openAIApiKey =
+			typeof env.OPENAI_API_KEY === "string" ? env.OPENAI_API_KEY : undefined;
+		this.extractionService = new FileExtractionService(openAIApiKey);
 		this.embeddingService = new FileEmbeddingService(
 			env.VECTORIZE,
 			env.OPENAI_API_KEY,

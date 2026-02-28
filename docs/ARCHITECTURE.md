@@ -156,6 +156,8 @@ sequenceDiagram
     participant R2
     participant DO
     participant D1
+    participant OpenAI
+    participant Vectorize
 
     User->>Frontend: Upload File
     Frontend->>Worker: Request Upload URL
@@ -165,11 +167,15 @@ sequenceDiagram
     R2-->>Frontend: Upload Complete
     Frontend->>Worker: Notify Upload Complete
     Worker->>DO: Create Upload Session
-    Worker->>Worker: Extract Content
+    Worker->>Worker: Extract content
+    alt image inspiration upload
+        Worker->>OpenAI: Vision analysis to text descriptors
+        OpenAI-->>Worker: Mood/style/setting summary
+    end
     Worker->>Worker: Extract Entities
     Worker->>D1: Store File Metadata
     Worker->>D1: Store Entities
-    Worker->>Vectorize: Index Embeddings
+    Worker->>Vectorize: Index embeddings (document and visual descriptors)
     Worker-->>Frontend: Processing Complete
 ```
 
@@ -246,11 +252,13 @@ graph TB
     B -->|Parallel| C[GraphRAG Query]
     B -->|Parallel| D[Planning Context Search]
     C --> E[Entity Semantic Search]
+    C --> M[Visual inspiration search]
     E --> F[Graph Traversal]
     F --> G[Changelog Overlay]
     D --> H[Session Digest Search]
     D --> I[Entity Graph Augmentation]
     G --> J[Unified Context]
+    M --> J
     I --> J
     J --> K[AI Generation]
     K --> L[Response]

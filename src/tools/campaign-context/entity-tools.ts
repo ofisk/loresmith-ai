@@ -441,6 +441,198 @@ export const createEntityRelationshipTool = tool({
 	},
 });
 
+const linkInspirationToEntitySchema = z.object({
+	campaignId: commonSchemas.campaignId,
+	entityId: z
+		.string()
+		.describe("The campaign entity ID that should be linked to inspiration"),
+	resourceId: z
+		.string()
+		.describe("The campaign resource ID for the uploaded inspiration image"),
+	relationshipType: z
+		.enum(RELATIONSHIP_TYPES as unknown as [string, ...string[]])
+		.optional()
+		.default("references")
+		.describe(
+			"Relationship type to use for the entity -> inspiration link (default: references)"
+		),
+	note: z
+		.string()
+		.optional()
+		.describe("Optional note about how this inspiration influences the entity"),
+	jwt: commonSchemas.jwt,
+});
+
+export const linkInspirationToEntityTool = tool({
+	description:
+		"Link a visual inspiration campaign resource to an entity by creating a graph relationship through an inspiration node.",
+	inputSchema: linkInspirationToEntitySchema,
+	execute: async (
+		input: z.infer<typeof linkInspirationToEntitySchema>,
+		options?: ToolExecuteOptions
+	): Promise<ToolResult> => {
+		const { campaignId, entityId, resourceId, relationshipType, note, jwt } =
+			input;
+		const toolCallId = options?.toolCallId ?? "unknown";
+
+		try {
+			const env = getEnvFromContext(options);
+			if (!env) {
+				return createToolError(
+					"Environment not available",
+					"Direct database access is required to link inspiration resources.",
+					500,
+					toolCallId
+				);
+			}
+
+			const userId = extractUsernameFromJwt(jwt);
+			if (!userId) {
+				return createToolError(
+					"Invalid authentication token",
+					"Authentication failed",
+					401,
+					toolCallId
+				);
+			}
+
+			const daoFactory = getDAOFactory(env);
+			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+				campaignId,
+				userId
+			);
+			if (!campaign) {
+				return createToolError(
+					"Campaign not found",
+					"Campaign not found or access denied",
+					404,
+					toolCallId
+				);
+			}
+
+			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+			if (gmError) return gmError;
+
+			const targetEntity = await daoFactory.entityDAO.getEntityById(entityId);
+			if (!targetEntity || targetEntity.campaignId !== campaignId) {
+				return createToolError(
+					"Entity not found",
+					"Target entity was not found in this campaign.",
+					404,
+					toolCallId
+				);
+			}
+
+			const resource = await daoFactory.campaignDAO.getCampaignResourceById(
+				resourceId,
+				campaignId
+			);
+			if (!resource) {
+				return createToolError(
+					"Resource not found",
+					"Inspiration resource was not found in this campaign.",
+					404,
+					toolCallId
+				);
+			}
+
+			const inspirationEntityName = `Inspiration: ${resource.display_name || resource.file_name}`;
+			const existingCandidates = await daoFactory.entityDAO.findEntitiesByName(
+				campaignId,
+				inspirationEntityName
+			);
+
+			let inspirationEntity = existingCandidates.find((candidate) => {
+				const metadata =
+					(candidate.metadata as Record<string, unknown> | null) ?? {};
+				return metadata.inspirationResourceId === resource.id;
+			});
+
+			if (!inspirationEntity) {
+				const inspirationEntityId = crypto.randomUUID();
+				await daoFactory.entityDAO.createEntity({
+					id: inspirationEntityId,
+					campaignId,
+					entityType: "handouts",
+					name: inspirationEntityName,
+					content: {
+						fileKey: resource.file_key,
+						fileName: resource.display_name || resource.file_name,
+					},
+					metadata: {
+						kind: "visual_inspiration",
+						inspirationResourceId: resource.id,
+						fileKey: resource.file_key,
+						fileName: resource.display_name || resource.file_name,
+					},
+					confidence: 1,
+					sourceType: "campaign_resource",
+					sourceId: resource.id,
+				});
+
+				const createdInspirationEntity =
+					await daoFactory.entityDAO.getEntityById(inspirationEntityId);
+				if (createdInspirationEntity) {
+					inspirationEntity = createdInspirationEntity;
+				}
+			}
+
+			if (!inspirationEntity) {
+				return createToolError(
+					"Failed to create inspiration entity",
+					"Could not create or retrieve inspiration node.",
+					500,
+					toolCallId
+				);
+			}
+
+			const relationships = await daoFactory.entityGraphService.upsertEdge({
+				campaignId,
+				fromEntityId: entityId,
+				toEntityId: inspirationEntity.id,
+				relationshipType,
+				strength: 0.8,
+				metadata: {
+					note: note ?? "",
+					source: "inspiration_link_tool",
+					resourceId: resource.id,
+					fileKey: resource.file_key,
+				},
+				allowSelfRelation: false,
+			});
+
+			return createToolSuccess(
+				`Linked "${targetEntity.name}" to inspiration resource "${resource.display_name || resource.file_name}".`,
+				{
+					entity: {
+						id: targetEntity.id,
+						name: targetEntity.name,
+					},
+					inspirationEntity: {
+						id: inspirationEntity.id,
+						name: inspirationEntity.name,
+					},
+					resource: {
+						id: resource.id,
+						fileKey: resource.file_key,
+						fileName: resource.display_name || resource.file_name,
+					},
+					relationships,
+				},
+				toolCallId
+			);
+		} catch (error) {
+			console.error("[linkInspirationToEntityTool] Error:", error);
+			return createToolError(
+				"Failed to link inspiration to entity",
+				error instanceof Error ? error.message : "Unknown error",
+				500,
+				toolCallId
+			);
+		}
+	},
+});
+
 /**
  * Tool: Update entity metadata directly
  * Updates entity metadata in the database (not just changelog).

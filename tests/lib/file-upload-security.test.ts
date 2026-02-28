@@ -42,6 +42,9 @@ describe("file-upload-security", () => {
 			expect(isFileAllowedForProposal("doc.txt")).toBe(true);
 			expect(isFileAllowedForProposal("doc.md")).toBe(true);
 			expect(isFileAllowedForProposal("doc.json")).toBe(true);
+			expect(isFileAllowedForProposal("mood-board.jpg")).toBe(true);
+			expect(isFileAllowedForProposal("city-rain.png")).toBe(true);
+			expect(isFileAllowedForProposal("alley.webp")).toBe(true);
 		});
 
 		it("rejects executable formats", () => {
@@ -85,6 +88,20 @@ describe("file-upload-security", () => {
 			);
 			expect(result.valid).toBe(false);
 		});
+
+		it("validates PNG magic bytes", async () => {
+			const pngHeader = new Uint8Array([
+				0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+			]);
+			const result = await validateFileContent(pngHeader, "png");
+			expect(result.valid).toBe(true);
+		});
+
+		it("validates JPEG magic bytes with jpg extension alias", async () => {
+			const jpgHeader = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+			const result = await validateFileContent(jpgHeader, "jpg");
+			expect(result.valid).toBe(true);
+		});
 	});
 
 	describe("ALLOWED_EXTENSIONS", () => {
@@ -93,6 +110,9 @@ describe("file-upload-security", () => {
 			expect(ALLOWED_EXTENSIONS.has("docx")).toBe(true);
 			expect(ALLOWED_EXTENSIONS.has("txt")).toBe(true);
 			expect(ALLOWED_EXTENSIONS.has("md")).toBe(true);
+			expect(ALLOWED_EXTENSIONS.has("jpg")).toBe(true);
+			expect(ALLOWED_EXTENSIONS.has("png")).toBe(true);
+			expect(ALLOWED_EXTENSIONS.has("webp")).toBe(true);
 		});
 	});
 });
