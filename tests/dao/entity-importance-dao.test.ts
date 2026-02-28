@@ -89,6 +89,75 @@ describe("EntityImportanceDAO", () => {
 		expect(importance).toBeNull();
 	});
 
+	it("gets importance for multiple entity IDs in a single query", async () => {
+		const records = [
+			{
+				entity_id: "entity-1",
+				campaign_id: "campaign-123",
+				pagerank: 0.8,
+				betweenness_centrality: 0.6,
+				hierarchy_level: 90,
+				importance_score: 80.0,
+				computed_at: "2025-01-01T00:00:00Z",
+			},
+			{
+				entity_id: "entity-2",
+				campaign_id: "campaign-123",
+				pagerank: 0.5,
+				betweenness_centrality: 0.3,
+				hierarchy_level: 75,
+				importance_score: 65.0,
+				computed_at: "2025-01-01T00:00:00Z",
+			},
+		];
+		mockStatement.all.mockResolvedValue({ results: records });
+
+		const importanceList = await dao.getImportanceByEntityIds([
+			"entity-1",
+			"entity-2",
+		]);
+
+		expect(mockDB.prepare).toHaveBeenCalledWith(
+			expect.stringContaining("WHERE entity_id IN (?, ?)")
+		);
+		expect(mockStatement.bind).toHaveBeenCalledWith("entity-1", "entity-2");
+		expect(importanceList).toHaveLength(2);
+		expect(importanceList.map((item) => item.entityId)).toEqual([
+			"entity-1",
+			"entity-2",
+		]);
+	});
+
+	it("returns empty array when no entity IDs are provided", async () => {
+		const importanceList = await dao.getImportanceByEntityIds([]);
+
+		expect(importanceList).toEqual([]);
+		expect(mockDB.prepare).not.toHaveBeenCalled();
+	});
+
+	it("returns only matching records for mixed existing and missing IDs", async () => {
+		const records = [
+			{
+				entity_id: "entity-1",
+				campaign_id: "campaign-123",
+				pagerank: 0.8,
+				betweenness_centrality: 0.6,
+				hierarchy_level: 90,
+				importance_score: 80.0,
+				computed_at: "2025-01-01T00:00:00Z",
+			},
+		];
+		mockStatement.all.mockResolvedValue({ results: records });
+
+		const importanceList = await dao.getImportanceByEntityIds([
+			"entity-1",
+			"entity-missing",
+		]);
+
+		expect(importanceList).toHaveLength(1);
+		expect(importanceList[0].entityId).toBe("entity-1");
+	});
+
 	it("gets importance for campaign with options", async () => {
 		const records = [
 			{

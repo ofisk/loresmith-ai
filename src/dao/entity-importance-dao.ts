@@ -126,6 +126,23 @@ export class EntityImportanceDAO extends BaseDAOClass {
 		return record ? this.mapRecord(record) : null;
 	}
 
+	async getImportanceByEntityIds(
+		entityIds: string[]
+	): Promise<EntityImportance[]> {
+		if (entityIds.length === 0) {
+			return [];
+		}
+
+		const placeholders = entityIds.map(() => "?").join(", ");
+		const sql = `
+      SELECT * FROM entity_importance
+      WHERE entity_id IN (${placeholders})
+    `;
+
+		const records = await this.queryAll<EntityImportanceRecord>(sql, entityIds);
+		return records.map((record) => this.mapRecord(record));
+	}
+
 	async getImportanceForCampaign(
 		campaignId: string,
 		options: EntityImportanceQueryOptions = {}
