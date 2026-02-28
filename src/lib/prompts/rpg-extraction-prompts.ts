@@ -161,6 +161,7 @@ TYPES & REQUIRED MINIMUM FIELDS
 - subclasses[]: { id, type:"subclass", name, parent_class, level_features: { [level:number]: string }, spell_list_adds?, restrictions?, tags?, source }
 - pcs[]: { id, type:"pcs", name, race?, class?, level?, background?, alignment?, stats?: {str, dex, con, int, wis, cha}, backstory?, goals?, personalityTraits?, summary, tags?, source, relations? }
 - rules[]: { id, type:"rule", name, modifies?, text, examples?, safety_notes?, tags?, source }
+- house_rule[]: { id, type:"house_rule", name, category?, modifies?, text, examples?, effective_date?, active?, tags?, source, relations? }
 - downtime[]: { id, type:"downtime", name, requirements?, procedure, checks?, time_cost?, outcomes?, complications?, tags?, source }
 - tables[]: { id, type:"table", title, dice, rows: [{range:string, result:string}], usage_notes?, tags?, source }
 - encounter_tables[]: { id, type:"encounter_table", name (or title), environment?, level_band?, dice, rows:[{range:string, result:string}], notes?, tags?, source }

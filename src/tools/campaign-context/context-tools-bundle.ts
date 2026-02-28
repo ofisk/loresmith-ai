@@ -6,10 +6,14 @@ import { getMessageHistory } from "../message-history-tools";
 import { getChecklistStatusTool } from "./checklist-tools";
 import { captureConversationalContext } from "./context-capture-tools";
 import {
+	checkHouseRuleConflictTool,
+	defineHouseRuleTool,
 	deleteEntityTool,
 	linkInspirationToEntityTool,
+	listHouseRulesTool,
 	updateEntityMetadataTool,
 	updateEntityTypeTool,
+	updateHouseRuleTool,
 } from "./entity-tools";
 import { getDocumentContent } from "./get-document-content-tool";
 import {
@@ -43,6 +47,10 @@ export const campaignContextToolsBundle = {
 	updateEntityTypeTool,
 	deleteEntityTool,
 	linkInspirationToEntityTool,
+	defineHouseRuleTool,
+	listHouseRulesTool,
+	updateHouseRuleTool,
+	checkHouseRuleConflictTool,
 	getMessageHistory,
 	getChecklistStatusTool,
 	recordPlanningTasks,
@@ -57,5 +65,6 @@ export const playerCampaignContextToolsBundle = {
 	searchCampaignContext,
 	listAllEntities,
 	showCampaignDetails,
+	listHouseRulesTool,
 	getMessageHistory,
 };

@@ -58,6 +58,28 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 - `searchVisualInspirationTool`: Searches visual references by mood, setting, and style
 - `linkInspirationToEntityTool`: Links inspiration resources to campaign entities via graph relationships
 
+**Homebrew system tracker**
+
+- `defineHouseRuleTool`: Creates a `house_rule` entity with category, text, and optional source mapping
+- `listHouseRulesTool`: Lists active campaign rules across house and source rule types
+- `updateHouseRuleTool`: Edits or deactivates existing house rules
+- `checkHouseRuleConflictTool`: Detects conflicting rule statements and returns contextual warnings
+- Targeted core agents (`campaign`, `campaign-context`, `campaign-analysis`, `recap`, `session-digest`) resolve rules before generation and surface conflict warnings when needed
+
+**Rule resolution behavior**
+
+- Rules are collected from multiple campaign sources, including house rules and source/canonical rules
+- Rules are normalized into a common format before generation, so agents and tools read them consistently
+- When conflicts are detected, the system returns a contextual warning and preserves both interpretations
+- Generation prefers table-specific rules when they conflict with source defaults, while still exposing the conflict
+
+**Benefit for game masters**
+
+- Reduces accidental rules drift between sessions by applying the same resolution logic every time
+- Makes contradictions visible early, so you can decide which ruling is authoritative
+- Keeps assistants aligned with your table’s rulings without having to restate them each prompt
+- Improves trust: responses explain when rules are ambiguous instead of silently picking one
+
 **AI-Generated Metadata**
 
 LoreSmith automatically generates rich metadata for uploaded files:

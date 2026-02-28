@@ -5,6 +5,10 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import { STRUCTURED_ENTITY_TYPES } from "@/lib/entity-types";
 import { RELATIONSHIP_TYPES } from "@/lib/relationship-types";
 import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
+import {
+	type CampaignRule,
+	RulesContextService,
+} from "@/services/campaign/rules-context-service";
 import { EntityExtractionPipeline } from "@/services/rag/entity-extraction-pipeline";
 import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
@@ -18,6 +22,17 @@ import {
 	requireGMRole,
 	type ToolExecuteOptions,
 } from "../utils";
+import { withRulesContext } from "./rules-tools-helper";
+
+const HOUSE_RULE_CATEGORIES = [
+	"healing",
+	"death_dying",
+	"spellcasting",
+	"exploration",
+	"social",
+	"combat",
+	"custom",
+] as const;
 
 const extractEntitiesFromContentSchema = z.object({
 	campaignId: commonSchemas.campaignId,
@@ -433,6 +448,580 @@ export const createEntityRelationshipTool = tool({
 			console.error("[createEntityRelationshipTool] Error:", error);
 			return createToolError(
 				"Failed to create relationship",
+				error instanceof Error ? error.message : "Unknown error",
+				500,
+				toolCallId
+			);
+		}
+	},
+});
+
+const defineHouseRuleSchema = z.object({
+	campaignId: commonSchemas.campaignId,
+	name: z.string().min(1).describe("Short name for this house rule"),
+	text: z
+		.string()
+		.min(1)
+		.describe("The full house rule text that should be enforced"),
+	category: z
+		.enum(HOUSE_RULE_CATEGORIES)
+		.optional()
+		.default("custom")
+		.describe("Rule category"),
+	sourceRule: z
+		.string()
+		.optional()
+		.describe("Optional source rule this house rule modifies"),
+	effectiveDate: z
+		.string()
+		.optional()
+		.describe("Optional effective date (ISO date string)"),
+	tags: z.array(z.string()).optional().default([]).describe("Optional tags"),
+	jwt: commonSchemas.jwt,
+});
+
+export const defineHouseRuleTool = tool({
+	description:
+		"Define a new house rule for the campaign and store it as a house_rule entity.",
+	inputSchema: defineHouseRuleSchema,
+	execute: async (
+		input: z.infer<typeof defineHouseRuleSchema>,
+		options?: ToolExecuteOptions
+	): Promise<ToolResult> => {
+		const {
+			campaignId,
+			name,
+			text,
+			category,
+			sourceRule,
+			effectiveDate,
+			tags,
+			jwt,
+		} = input;
+		const toolCallId = options?.toolCallId ?? "unknown";
+
+		try {
+			const env = getEnvFromContext(options);
+			if (!env) {
+				return createToolError(
+					"Environment not available",
+					"Direct database access is required for house rule creation.",
+					500,
+					toolCallId
+				);
+			}
+
+			const userId = extractUsernameFromJwt(jwt);
+			if (!userId) {
+				return createToolError(
+					"Invalid authentication token",
+					"Authentication failed",
+					401,
+					toolCallId
+				);
+			}
+
+			const daoFactory = getDAOFactory(env);
+			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+				campaignId,
+				userId
+			);
+			if (!campaign) {
+				return createToolError(
+					"Campaign not found",
+					"Campaign not found or access denied",
+					404,
+					toolCallId
+				);
+			}
+
+			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+			if (gmError) return gmError;
+
+			const ruleId = crypto.randomUUID();
+			await daoFactory.entityDAO.createEntity({
+				id: ruleId,
+				campaignId,
+				entityType: "house_rule",
+				name,
+				content: {
+					type: "house_rule",
+					name,
+					text,
+					summary: text,
+					modifies: sourceRule ?? "",
+					effective_date: effectiveDate ?? "",
+				},
+				metadata: {
+					kind: "house_rule",
+					category,
+					sourceRule: sourceRule ?? "",
+					effectiveDate: effectiveDate ?? "",
+					active: true,
+					tags,
+				},
+				confidence: 1,
+				sourceType: "user_input",
+				sourceId: userId,
+			});
+
+			const resolved = await RulesContextService.getResolvedRulesContext(
+				env,
+				campaignId
+			);
+			const createdRule = {
+				id: ruleId,
+				entityId: ruleId,
+				entityType: "house_rule",
+				name,
+				category,
+				text,
+				source: "house",
+				priority: 100,
+				active: true,
+				updatedAt: new Date().toISOString(),
+				metadata: {
+					category,
+					active: true,
+				},
+			} satisfies CampaignRule;
+			const reResolved = RulesContextService.resolveRules([
+				...resolved.rules,
+				createdRule,
+			]);
+			const conflicts = reResolved.conflicts.filter(
+				(c) => c.leftRuleId === ruleId || c.rightRuleId === ruleId
+			);
+
+			return createToolSuccess(
+				`House rule "${name}" created successfully.`,
+				{
+					rule: {
+						id: ruleId,
+						name,
+						text,
+						category,
+						sourceRule: sourceRule ?? "",
+						effectiveDate: effectiveDate ?? "",
+						active: true,
+						tags,
+					},
+					conflicts,
+					warnings: reResolved.warnings,
+				},
+				toolCallId
+			);
+		} catch (error) {
+			console.error("[defineHouseRuleTool] Error:", error);
+			return createToolError(
+				"Failed to define house rule",
+				error instanceof Error ? error.message : "Unknown error",
+				500,
+				toolCallId
+			);
+		}
+	},
+});
+
+const listHouseRulesSchema = z.object({
+	campaignId: commonSchemas.campaignId,
+	category: z
+		.enum(HOUSE_RULE_CATEGORIES)
+		.optional()
+		.describe("Optional rule category filter"),
+	includeInactive: z
+		.boolean()
+		.optional()
+		.default(false)
+		.describe("Include inactive house rules when true"),
+	jwt: commonSchemas.jwt,
+});
+
+export const listHouseRulesTool = tool({
+	description:
+		"List house rules and other active campaign rules with optional category filtering.",
+	inputSchema: listHouseRulesSchema,
+	execute: async (
+		input: z.infer<typeof listHouseRulesSchema>,
+		options?: ToolExecuteOptions
+	): Promise<ToolResult> => {
+		const { campaignId, category, includeInactive, jwt } = input;
+		const toolCallId = options?.toolCallId ?? "unknown";
+
+		try {
+			const env = getEnvFromContext(options);
+			if (!env) {
+				return createToolError(
+					"Environment not available",
+					"Direct database access is required to list rules.",
+					500,
+					toolCallId
+				);
+			}
+
+			const userId = extractUsernameFromJwt(jwt);
+			if (!userId) {
+				return createToolError(
+					"Invalid authentication token",
+					"Authentication failed",
+					401,
+					toolCallId
+				);
+			}
+
+			const daoFactory = getDAOFactory(env);
+			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+				campaignId,
+				userId
+			);
+			if (!campaign) {
+				return createToolError(
+					"Campaign not found",
+					"Campaign not found or access denied",
+					404,
+					toolCallId
+				);
+			}
+
+			const resolved = await RulesContextService.getResolvedRulesContext(
+				env,
+				campaignId
+			);
+			const filtered = resolved.rules.filter((rule) => {
+				if (!includeInactive && !rule.active) return false;
+				if (category && rule.category !== category) return false;
+				return true;
+			});
+
+			return createToolSuccess(
+				`Found ${filtered.length} campaign rule(s).`,
+				{
+					rules: filtered.map((rule) => ({
+						id: rule.id,
+						name: rule.name,
+						text: rule.text,
+						category: rule.category,
+						source: rule.source,
+						entityType: rule.entityType,
+						active: rule.active,
+						updatedAt: rule.updatedAt,
+					})),
+					conflicts: resolved.conflicts,
+					warnings: resolved.warnings,
+					count: filtered.length,
+				},
+				toolCallId
+			);
+		} catch (error) {
+			console.error("[listHouseRulesTool] Error:", error);
+			return createToolError(
+				"Failed to list house rules",
+				error instanceof Error ? error.message : "Unknown error",
+				500,
+				toolCallId
+			);
+		}
+	},
+});
+
+const updateHouseRuleSchema = z.object({
+	campaignId: commonSchemas.campaignId,
+	ruleId: z.string().describe("The ID of the house rule entity to update"),
+	name: z.string().optional().describe("Updated house rule name"),
+	text: z.string().optional().describe("Updated house rule text"),
+	category: z
+		.enum(HOUSE_RULE_CATEGORIES)
+		.optional()
+		.describe("Updated rule category"),
+	sourceRule: z
+		.string()
+		.optional()
+		.describe("Updated source rule this modifies"),
+	effectiveDate: z.string().optional().describe("Updated effective date"),
+	active: z
+		.boolean()
+		.optional()
+		.describe("Set to false to deactivate the rule"),
+	tags: z.array(z.string()).optional().describe("Updated tags"),
+	jwt: commonSchemas.jwt,
+});
+
+export const updateHouseRuleTool = tool({
+	description:
+		"Update or deactivate an existing house rule entity in a campaign.",
+	inputSchema: updateHouseRuleSchema,
+	execute: async (
+		input: z.infer<typeof updateHouseRuleSchema>,
+		options?: ToolExecuteOptions
+	): Promise<ToolResult> => {
+		const {
+			campaignId,
+			ruleId,
+			name,
+			text,
+			category,
+			sourceRule,
+			effectiveDate,
+			active,
+			tags,
+			jwt,
+		} = input;
+		const toolCallId = options?.toolCallId ?? "unknown";
+
+		try {
+			const env = getEnvFromContext(options);
+			if (!env) {
+				return createToolError(
+					"Environment not available",
+					"Direct database access is required for house rule updates.",
+					500,
+					toolCallId
+				);
+			}
+
+			const userId = extractUsernameFromJwt(jwt);
+			if (!userId) {
+				return createToolError(
+					"Invalid authentication token",
+					"Authentication failed",
+					401,
+					toolCallId
+				);
+			}
+
+			const daoFactory = getDAOFactory(env);
+			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+				campaignId,
+				userId
+			);
+			if (!campaign) {
+				return createToolError(
+					"Campaign not found",
+					"Campaign not found or access denied",
+					404,
+					toolCallId
+				);
+			}
+
+			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+			if (gmError) return gmError;
+
+			const entity = await daoFactory.entityDAO.getEntityById(ruleId);
+			if (!entity || entity.campaignId !== campaignId) {
+				return createToolError(
+					"House rule not found",
+					"Rule entity was not found in this campaign.",
+					404,
+					toolCallId
+				);
+			}
+			if (entity.entityType !== "house_rule") {
+				return createToolError(
+					"Invalid rule type",
+					"ruleId must point to a house_rule entity.",
+					400,
+					toolCallId
+				);
+			}
+
+			const existingContent =
+				entity.content &&
+				typeof entity.content === "object" &&
+				!Array.isArray(entity.content)
+					? (entity.content as Record<string, unknown>)
+					: {};
+			const existingMetadata =
+				entity.metadata &&
+				typeof entity.metadata === "object" &&
+				!Array.isArray(entity.metadata)
+					? (entity.metadata as Record<string, unknown>)
+					: {};
+
+			const nextContent = {
+				...existingContent,
+				...(name !== undefined ? { name } : {}),
+				...(text !== undefined ? { text, summary: text } : {}),
+				...(sourceRule !== undefined ? { modifies: sourceRule } : {}),
+				...(effectiveDate !== undefined
+					? { effective_date: effectiveDate }
+					: {}),
+			};
+			const nextMetadata = {
+				...existingMetadata,
+				...(category !== undefined ? { category } : {}),
+				...(sourceRule !== undefined ? { sourceRule } : {}),
+				...(effectiveDate !== undefined ? { effectiveDate } : {}),
+				...(active !== undefined ? { active } : {}),
+				...(tags !== undefined ? { tags } : {}),
+			};
+
+			await daoFactory.entityDAO.updateEntity(ruleId, {
+				name: name ?? entity.name,
+				content: nextContent,
+				metadata: nextMetadata,
+			});
+
+			const resolved = await RulesContextService.getResolvedRulesContext(
+				env,
+				campaignId
+			);
+			const conflicts = resolved.conflicts.filter(
+				(c) => c.leftRuleId === ruleId || c.rightRuleId === ruleId
+			);
+
+			return createToolSuccess(
+				`House rule "${name ?? entity.name}" updated successfully.`,
+				{
+					ruleId,
+					name: name ?? entity.name,
+					active:
+						active ?? (nextMetadata.active as boolean | undefined) ?? true,
+					conflicts,
+					warnings: resolved.warnings,
+				},
+				toolCallId
+			);
+		} catch (error) {
+			console.error("[updateHouseRuleTool] Error:", error);
+			return createToolError(
+				"Failed to update house rule",
+				error instanceof Error ? error.message : "Unknown error",
+				500,
+				toolCallId
+			);
+		}
+	},
+});
+
+const checkHouseRuleConflictSchema = z.object({
+	campaignId: commonSchemas.campaignId,
+	candidateName: z.string().min(1).describe("Candidate rule name"),
+	candidateText: z.string().min(1).describe("Candidate rule text to evaluate"),
+	category: z
+		.enum(HOUSE_RULE_CATEGORIES)
+		.optional()
+		.default("custom")
+		.describe("Candidate rule category"),
+	jwt: commonSchemas.jwt,
+});
+
+export const checkHouseRuleConflictTool = tool({
+	description:
+		"Check a proposed house rule for conflicts with current campaign rules.",
+	inputSchema: checkHouseRuleConflictSchema,
+	execute: async (
+		input: z.infer<typeof checkHouseRuleConflictSchema>,
+		options?: ToolExecuteOptions
+	): Promise<ToolResult> => {
+		const { campaignId, candidateName, candidateText, category, jwt } = input;
+		const toolCallId = options?.toolCallId ?? "unknown";
+
+		try {
+			const env = getEnvFromContext(options);
+			if (!env) {
+				return createToolError(
+					"Environment not available",
+					"Direct database access is required for conflict checks.",
+					500,
+					toolCallId
+				);
+			}
+
+			const userId = extractUsernameFromJwt(jwt);
+			if (!userId) {
+				return createToolError(
+					"Invalid authentication token",
+					"Authentication failed",
+					401,
+					toolCallId
+				);
+			}
+
+			const daoFactory = getDAOFactory(env);
+			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+				campaignId,
+				userId
+			);
+			if (!campaign) {
+				return createToolError(
+					"Campaign not found",
+					"Campaign not found or access denied",
+					404,
+					toolCallId
+				);
+			}
+
+			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+			if (gmError) return gmError;
+
+			return withRulesContext(
+				options,
+				campaignId,
+				toolCallId,
+				async (resolved) => {
+					const candidateId = `candidate-${crypto.randomUUID()}`;
+					const candidateRule = {
+						id: candidateId,
+						entityId: candidateId,
+						entityType: "house_rule",
+						name: candidateName,
+						category,
+						text: candidateText,
+						source: "house",
+						priority: 100,
+						active: true,
+						updatedAt: new Date().toISOString(),
+						metadata: { category },
+					} satisfies CampaignRule;
+
+					const evaluation = RulesContextService.resolveRules([
+						...resolved.rules,
+						candidateRule,
+					]);
+					const conflicts = evaluation.conflicts.filter(
+						(conflict) =>
+							conflict.leftRuleId === candidateId ||
+							conflict.rightRuleId === candidateId
+					);
+
+					const conflictingRuleIds = new Set<string>();
+					for (const conflict of conflicts) {
+						if (conflict.leftRuleId !== candidateId) {
+							conflictingRuleIds.add(conflict.leftRuleId);
+						}
+						if (conflict.rightRuleId !== candidateId) {
+							conflictingRuleIds.add(conflict.rightRuleId);
+						}
+					}
+					const conflictingRules = resolved.rules.filter((rule) =>
+						conflictingRuleIds.has(rule.id)
+					);
+
+					return createToolSuccess(
+						conflicts.length > 0
+							? `Detected ${conflicts.length} potential conflict(s) for this candidate rule.`
+							: "No direct conflicts detected for this candidate rule.",
+						{
+							hasConflict: conflicts.length > 0,
+							conflicts,
+							conflictingRules: conflictingRules.map((rule) => ({
+								id: rule.id,
+								name: rule.name,
+								category: rule.category,
+								text: rule.text,
+								source: rule.source,
+							})),
+							warnings: evaluation.warnings,
+							needsManualReview: conflicts.length > 0,
+						},
+						toolCallId
+					);
+				}
+			);
+		} catch (error) {
+			console.error("[checkHouseRuleConflictTool] Error:", error);
+			return createToolError(
+				"Failed to check house rule conflict",
 				error instanceof Error ? error.message : "Unknown error",
 				500,
 				toolCallId

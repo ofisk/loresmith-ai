@@ -34,6 +34,7 @@ export const STRUCTURED_ENTITY_TYPES = [
 	"subclasses", // Class options and subclasses
 	"pcs", // Player characters (PCs) with backstories and character data
 	"rules", // Variant and optional rules
+	"house_rule", // Table-specific homebrew/override rules
 	"downtime", // Downtime activities and crafting
 
 	// Reference & generators
@@ -79,6 +80,7 @@ export const ENTITY_TYPE_CATEGORIES = {
 		"subclasses",
 		"pcs",
 		"rules",
+		"house_rule",
 		"downtime",
 	],
 	"Reference & generators": ["tables", "encounter_tables", "treasure_tables"],
@@ -125,6 +127,7 @@ const ENTITY_TYPE_ALIASES: Record<string, StructuredEntityType> = {
 	puzzle: "puzzles",
 	timeline: "timelines",
 	travel: "travel",
+	house_rules: "house_rule",
 };
 
 /**
@@ -168,6 +171,7 @@ export function getEntityTypeDisplayName(type: StructuredEntityType): string {
 		subclasses: "Subclasses",
 		pcs: "Player Characters",
 		rules: "Rules",
+		house_rule: "House rules",
 		downtime: "Downtime Activities",
 		tables: "Tables",
 		encounter_tables: "Encounter Tables",
@@ -231,6 +235,7 @@ export const ENTITY_TYPE_EXTRACTION_HINTS: Partial<
 	scenes: 'numbered keys (e.g., "Area 12"), read-aloud boxed text, GM notes',
 	hooks: "imperative requests with stakes and links to NPCs/locations",
 	quests: "imperative requests with stakes and links to NPCs/locations",
+	house_rule: 'table-specific modifications (e.g., "short rests take 8 hours")',
 	tables: "a dice column (d20/d100), range → result rows",
 	encounter_tables: "a dice column (d20/d100), range → result rows",
 	treasure_tables: "a dice column (d20/d100), range → result rows",

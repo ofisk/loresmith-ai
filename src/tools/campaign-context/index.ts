@@ -9,8 +9,12 @@ import {
 	getCommunityHierarchyTool,
 } from "./community-tools";
 import {
+	checkHouseRuleConflictTool,
 	createEntityRelationshipTool,
+	defineHouseRuleTool,
 	extractEntitiesFromContentTool,
+	listHouseRulesTool,
+	updateHouseRuleTool,
 } from "./entity-tools";
 import { generateContextRecapTool } from "./recap-tools";
 import {
@@ -46,6 +50,10 @@ export {
 	// Entity tools
 	extractEntitiesFromContentTool,
 	createEntityRelationshipTool,
+	defineHouseRuleTool,
+	listHouseRulesTool,
+	updateHouseRuleTool,
+	checkHouseRuleConflictTool,
 	// World state tools
 	recordWorldEventTool,
 	updateEntityWorldStateTool,
@@ -68,6 +76,10 @@ export const campaignContextTools = {
 	getCommunityHierarchyTool,
 	extractEntitiesFromContentTool,
 	createEntityRelationshipTool,
+	defineHouseRuleTool,
+	listHouseRulesTool,
+	updateHouseRuleTool,
+	checkHouseRuleConflictTool,
 	recordWorldEventTool,
 	updateEntityWorldStateTool,
 	updateRelationshipWorldStateTool,

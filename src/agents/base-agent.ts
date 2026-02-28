@@ -17,6 +17,7 @@ import {
 	getSafeContextLimit,
 } from "@/lib/token-utils";
 import { trimToolResultsByRelevancy } from "@/lib/tool-result-trimming";
+import { RulesContextService } from "@/services/campaign/rules-context-service";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { submitSupportRequestTool } from "@/tools/common/support-tools";
 import type { CampaignRole } from "@/types/campaign";
@@ -38,6 +39,13 @@ const TEXT_PART_ID = "text-1";
 const MAX_AGENT_STEPS = 20;
 const MISSING_PLAYER_CHARACTER_MESSAGE =
 	"Choose your character before continuing. Open campaign details and select your character.";
+const RULES_AWARE_AGENT_TYPES = new Set([
+	"campaign",
+	"campaign-context",
+	"campaign-analysis",
+	"recap",
+	"session-digest",
+]);
 
 /** Write a single text message as UI stream chunks (text-start, text-delta, text-end). */
 function writeTextChunks(
@@ -407,6 +415,31 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 								processedMessages.push(message);
 							}
 						}
+					}
+				}
+
+				// Inject resolved campaign rules context for targeted core agents.
+				const agentType = ((this.constructor as any).agentMetadata?.type ||
+					"") as string;
+				if (
+					selectedCampaignId &&
+					RULES_AWARE_AGENT_TYPES.has(agentType) &&
+					this.env &&
+					"DB" in this.env &&
+					this.env.DB
+				) {
+					try {
+						const resolvedRules =
+							await RulesContextService.getResolvedRulesContext(
+								this.env,
+								selectedCampaignId
+							);
+						processedMessages.push({
+							role: "system",
+							content: RulesContextService.buildSystemContext(resolvedRules),
+						});
+					} catch (rulesError) {
+						log.warn("Failed to inject campaign rules context", rulesError);
 					}
 				}
 
