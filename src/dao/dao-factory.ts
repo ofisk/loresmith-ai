@@ -32,12 +32,7 @@ import type { UserStorageUsage } from "./user-dao";
 import { UserDAO } from "./user-dao";
 
 // Cache for DAO factory instances
-const daoFactoryCache = new Map<string, DAOFactory>();
-
-// Wrapper to add a stable key to D1Database objects
-interface DatabaseWithKey extends D1Database {
-	_daoKey?: string;
-}
+const daoFactoryCache = new WeakMap<D1Database, DAOFactory>();
 
 export interface DAOFactory {
 	authUserDAO: AuthUserDAO;
@@ -197,46 +192,27 @@ export class DAOFactoryImpl implements DAOFactory {
 	}
 }
 
-// Generate a stable key for a D1Database instance
-export function getDatabaseKey(db: D1Database | undefined): string {
-	if (!db) {
-		// For undefined/null databases, generate a unique key
-		return `db-undefined-${Math.random().toString(36).substr(2, 9)}`;
-	}
-
-	const dbWithKey = db as DatabaseWithKey;
-
-	// If the database already has a key, use it
-	if (dbWithKey._daoKey) {
-		return dbWithKey._daoKey;
-	}
-
-	// Generate a new key and store it on the database object
-	// Use a more stable approach - just use a random string without timestamp
-	const key = `db-${Math.random().toString(36).substr(2, 9)}`;
-	dbWithKey._daoKey = key;
-	return key;
-}
-
 export function createDAOFactory(db: D1Database | undefined): DAOFactory {
 	if (!db) {
 		throw new DAOFactoryError();
 	}
 
 	const factory = new DAOFactoryImpl(db);
-	const key = getDatabaseKey(db);
-	daoFactoryCache.set(key, factory);
+	daoFactoryCache.set(db, factory);
 	return factory;
 }
 
 export function getDAOFactory(env: unknown): DAOFactory {
 	const e = env as { DB?: D1Database };
 	const db = e?.DB;
-	const key = getDatabaseKey(db);
-
-	if (!daoFactoryCache.has(key)) {
-		return createDAOFactory(db!);
+	if (!db) {
+		throw new DAOFactoryError();
 	}
 
-	return daoFactoryCache.get(key)!;
+	const existingFactory = daoFactoryCache.get(db);
+	if (existingFactory) {
+		return existingFactory;
+	}
+
+	return createDAOFactory(db);
 }
