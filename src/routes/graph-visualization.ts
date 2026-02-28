@@ -21,7 +21,6 @@ import {
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
-import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { EntitySemanticSearchService } from "@/services/vectorize/entity-semantic-search-service";
 import type {
@@ -442,7 +441,7 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
 			);
 		}
 
-		const graphService = new EntityGraphService(daoFactory.entityDAO);
+		const graphService = daoFactory.entityGraphService;
 		const primaryEntities: Entity[] = [];
 		const associatedEntityIds = new Set<string>();
 

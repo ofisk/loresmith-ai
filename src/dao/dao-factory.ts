@@ -1,5 +1,9 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import { DAOFactoryError } from "@/lib/errors";
+import { CommunitySummaryService } from "@/services/graph/community-summary-service";
+import { EntityGraphService } from "@/services/graph/entity-graph-service";
+import { EntityImportanceService } from "@/services/graph/entity-importance-service";
+import { RebuildTriggerService } from "@/services/graph/rebuild-trigger-service";
 import { AuthUserDAO } from "./auth-user-dao";
 import { CampaignDAO } from "./campaign-dao";
 import { CampaignResourceProposalDAO } from "./campaign-resource-proposal-dao";
@@ -53,6 +57,10 @@ export interface DAOFactory {
 	playerCharacterClaimDAO: PlayerCharacterClaimDAO;
 	campaignShareLinkDAO: CampaignShareLinkDAO;
 	campaignResourceProposalDAO: CampaignResourceProposalDAO;
+	entityGraphService: EntityGraphService;
+	entityImportanceService: EntityImportanceService;
+	rebuildTriggerService: RebuildTriggerService;
+	communitySummaryService: CommunitySummaryService;
 
 	getStorageUsage(username: string): Promise<UserStorageUsage>;
 }
@@ -79,6 +87,10 @@ export class DAOFactoryImpl implements DAOFactory {
 	public readonly playerCharacterClaimDAO: PlayerCharacterClaimDAO;
 	public readonly campaignShareLinkDAO: CampaignShareLinkDAO;
 	public readonly campaignResourceProposalDAO: CampaignResourceProposalDAO;
+	private _entityGraphService: EntityGraphService | null = null;
+	private _entityImportanceService: EntityImportanceService | null = null;
+	private _rebuildTriggerService: RebuildTriggerService | null = null;
+	private _communitySummaryService: CommunitySummaryService | null = null;
 
 	constructor(db: D1Database) {
 		this.authUserDAO = new AuthUserDAO(db);
@@ -108,9 +120,56 @@ export class DAOFactoryImpl implements DAOFactory {
 		return this.userDAO.getStorageUsage(username);
 	}
 
-	getDAO<T extends keyof Omit<DAOFactory, "getStorageUsage">>(
-		name: T
-	): DAOFactory[T] {
+	get entityGraphService(): EntityGraphService {
+		if (!this._entityGraphService) {
+			this._entityGraphService = new EntityGraphService(this.entityDAO);
+		}
+		return this._entityGraphService;
+	}
+
+	get entityImportanceService(): EntityImportanceService {
+		if (!this._entityImportanceService) {
+			this._entityImportanceService = new EntityImportanceService(
+				this.entityDAO,
+				this.communityDAO,
+				this.entityImportanceDAO
+			);
+		}
+		return this._entityImportanceService;
+	}
+
+	get rebuildTriggerService(): RebuildTriggerService {
+		if (!this._rebuildTriggerService) {
+			this._rebuildTriggerService = new RebuildTriggerService(
+				this.campaignDAO,
+				this.entityDAO,
+				this.rebuildStatusDAO,
+				this.graphRebuildDirtyDAO
+			);
+		}
+		return this._rebuildTriggerService;
+	}
+
+	get communitySummaryService(): CommunitySummaryService {
+		if (!this._communitySummaryService) {
+			this._communitySummaryService = new CommunitySummaryService(
+				this.entityDAO,
+				this.communitySummaryDAO
+			);
+		}
+		return this._communitySummaryService;
+	}
+
+	getDAO<
+		T extends keyof Omit<
+			DAOFactory,
+			| "getStorageUsage"
+			| "entityGraphService"
+			| "entityImportanceService"
+			| "rebuildTriggerService"
+			| "communitySummaryService"
+		>,
+	>(name: T): DAOFactory[T] {
 		return this[name];
 	}
 

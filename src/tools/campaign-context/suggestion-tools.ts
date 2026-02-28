@@ -20,7 +20,6 @@ import { getAssessmentService } from "../../lib/service-factory";
 import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
 import type { Env } from "../../middleware/auth";
 import { CharacterEntitySyncService } from "../../services/campaign/character-entity-sync-service";
-import { EntityGraphService } from "../../services/graph/entity-graph-service";
 import { createLLMProvider } from "../../services/llm/llm-provider-factory";
 import { getPlanningServices } from "../../services/rag/rag-service-factory";
 import {
@@ -801,7 +800,7 @@ async function performSemanticChecklistAnalysis(
 		try {
 			const daoFactory = getDAOFactory(env);
 			const entityDAO = daoFactory.entityDAO;
-			const graphService = new EntityGraphService(entityDAO);
+			const graphService = daoFactory.entityGraphService;
 
 			const allEntities = await entityDAO.listEntitiesByCampaign(campaignId, {
 				excludeShardStatuses: ["rejected", "deleted"],
