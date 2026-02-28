@@ -37,6 +37,7 @@ Routing rules:
 - Character sheet operations (upload character sheet, import character sheet, character sheet file) → "character-sheets"
 - Entity graph operations (extract entities from text, create relationship, detect communities, entity graph) → "entity-graph"
 - Session recaps (record session, session digest, what happened last session, create a new digest for a session that just happened) → "session-digest"
+- Loot and rewards (encounter loot, dragon hoard treasure, meaningful magic item rewards, track distributed loot) → "loot-reward"
 - General help/how-to questions about using the application → "onboarding"
 
 Respond with: agent_name|confidence|reason
@@ -53,6 +54,9 @@ Examples:
 - "upload character sheet" → character-sheets|90|Character sheet upload
 - "extract entities from this text" → entity-graph|90|Entity extraction
 - "record session recap" → session-digest|95|Session recap
+- "What loot should the players find after defeating the bandit captain?" → loot-reward|95|Loot generation
+- "Suggest a meaningful magic item reward for the ranger who completed her quest" → loot-reward|95|Magic item recommendation
+- "Track this distributed item for the party inventory" → loot-reward|95|Loot tracking
 - "let's do a readout" / "construct the readout" / "give me the session plan" / "I'm ready for the readout" → recap|95|Session plan readout (from completed next steps)
 - "how do I upload files?" → onboarding|85|General help`;
 }

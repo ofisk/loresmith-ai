@@ -172,6 +172,13 @@ LoreSmith automatically generates rich metadata for uploaded files:
 - Location discoveries
 - Plot progression tracking
 
+**Loot and reward agent**
+
+- `generateLootTool`: Generates encounter-appropriate treasure packages grounded in campaign context and tone
+- `suggestMagicItemTool`: Suggests story-relevant magic item rewards for characters or situations
+- `trackDistributedLootTool`: Records distributed rewards as `item` entities and links recipients/locations in the entity graph
+- Supports follow-up campaign questions like "what rewards has the party already received?"
+
 ### 🌐 Entity Management
 
 **Automatic Extraction**
