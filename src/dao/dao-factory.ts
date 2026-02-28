@@ -1,4 +1,8 @@
-import type { D1Database } from "@cloudflare/workers-types";
+import type {
+	D1Database,
+	D1PreparedStatement,
+	D1Result,
+} from "@cloudflare/workers-types";
 import { DAOFactoryError } from "@/lib/errors";
 import { CommunitySummaryService } from "@/services/graph/community-summary-service";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
@@ -63,9 +67,12 @@ export interface DAOFactory {
 	communitySummaryService: CommunitySummaryService;
 
 	getStorageUsage(username: string): Promise<UserStorageUsage>;
+	parallel<T>(operations: (() => Promise<T>)[]): Promise<T[]>;
+	batch(statements: D1PreparedStatement[]): Promise<D1Result[]>;
 }
 
 export class DAOFactoryImpl implements DAOFactory {
+	private readonly db: D1Database;
 	public readonly authUserDAO: AuthUserDAO;
 	public readonly userDAO: UserDAO;
 	public readonly campaignDAO: CampaignDAO;
@@ -93,6 +100,7 @@ export class DAOFactoryImpl implements DAOFactory {
 	private _communitySummaryService: CommunitySummaryService | null = null;
 
 	constructor(db: D1Database) {
+		this.db = db;
 		this.authUserDAO = new AuthUserDAO(db);
 		this.userDAO = new UserDAO(db);
 		this.campaignDAO = new CampaignDAO(db);
@@ -164,6 +172,8 @@ export class DAOFactoryImpl implements DAOFactory {
 		T extends keyof Omit<
 			DAOFactory,
 			| "getStorageUsage"
+			| "parallel"
+			| "batch"
 			| "entityGraphService"
 			| "entityImportanceService"
 			| "rebuildTriggerService"
@@ -173,13 +183,17 @@ export class DAOFactoryImpl implements DAOFactory {
 		return this[name];
 	}
 
-	async transaction<T>(operations: (() => Promise<T>)[]): Promise<T[]> {
+	async parallel<T>(operations: (() => Promise<T>)[]): Promise<T[]> {
 		try {
 			return await Promise.all(operations.map((op) => op()));
 		} catch (error) {
-			console.error("DAO transaction error:", error);
+			console.error("DAO parallel error:", error);
 			throw error;
 		}
+	}
+
+	async batch(statements: D1PreparedStatement[]): Promise<D1Result[]> {
+		return await this.db.batch(statements);
 	}
 }
 
