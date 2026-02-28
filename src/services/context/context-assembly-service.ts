@@ -8,7 +8,8 @@ import type {
 import { TelemetryDAO } from "@/dao/telemetry-dao";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
-import { PlanningContextService } from "@/services/rag/planning-context-service";
+import type { PlanningContextService } from "@/services/rag/planning-context-service";
+import { createPlanningContextService } from "@/services/rag/rag-service-factory";
 import { TelemetryService } from "@/services/telemetry/telemetry-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import type {
@@ -66,12 +67,18 @@ export class ContextAssemblyService {
 		this.worldStateChangelogService = new WorldStateChangelogService({
 			db,
 		});
-		this.planningContextService = new PlanningContextService(
+		const planningContextService = createPlanningContextService(
 			db,
 			vectorize,
 			openaiApiKey,
 			env
 		);
+		if (!planningContextService) {
+			throw new Error(
+				"Planning context dependencies not configured (DB, VECTORIZE, or OPENAI_API_KEY missing)"
+			);
+		}
+		this.planningContextService = planningContextService;
 		this.telemetryService = new TelemetryService(new TelemetryDAO(db));
 	}
 

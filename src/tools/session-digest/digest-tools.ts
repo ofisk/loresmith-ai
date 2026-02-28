@@ -1,10 +1,8 @@
-import type { VectorizeIndex } from "@cloudflare/workers-types";
 import { generateId, tool } from "ai";
 import { z } from "zod";
 import type { ToolResult } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
-import { getEnvVar } from "@/lib/env-utils";
-import { PlanningContextService } from "@/services/rag/planning-context-service";
+import { getPlanningServices } from "@/services/rag/rag-service-factory";
 import {
 	createToolError,
 	createToolSuccess,
@@ -237,8 +235,7 @@ export const createSessionDigestTool = tool({
 				);
 			}
 
-			const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
-			const openaiApiKey = openaiApiKeyRaw.trim();
+			const { planningContext, openaiApiKey } = await getPlanningServices(env);
 			if (!openaiApiKey) {
 				return createToolError(
 					"OpenAI API key not configured",
@@ -248,14 +245,15 @@ export const createSessionDigestTool = tool({
 				);
 			}
 
-			// Validation happens automatically in PlanningContextService constructor
-			const planningService = new PlanningContextService(
-				env.DB!,
-				env.VECTORIZE as VectorizeIndex,
-				openaiApiKey,
-				env
-			);
-			await planningService.indexSessionDigest(created);
+			if (!planningContext) {
+				return createToolError(
+					"Planning context dependencies not configured",
+					"Session digest indexing requires database, vector index, and OpenAI API key.",
+					503,
+					toolCallId
+				);
+			}
+			await planningContext.indexSessionDigest(created);
 
 			return createToolSuccess(
 				`Session digest created successfully for session ${sessionNumber}`,
@@ -603,8 +601,7 @@ export const updateSessionDigestTool = tool({
 				);
 			}
 
-			const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
-			const openaiApiKey = openaiApiKeyRaw.trim();
+			const { planningContext, openaiApiKey } = await getPlanningServices(env);
 			if (!openaiApiKey) {
 				return createToolError(
 					"OpenAI API key not configured",
@@ -614,13 +611,15 @@ export const updateSessionDigestTool = tool({
 				);
 			}
 
-			const planningService = new PlanningContextService(
-				env.DB!,
-				env.VECTORIZE as VectorizeIndex,
-				openaiApiKey,
-				env
-			);
-			await planningService.indexSessionDigest(updated);
+			if (!planningContext) {
+				return createToolError(
+					"Planning context dependencies not configured",
+					"Session digest indexing requires database, vector index, and OpenAI API key.",
+					503,
+					toolCallId
+				);
+			}
+			await planningContext.indexSessionDigest(updated);
 
 			return createToolSuccess(
 				"Session digest updated successfully",

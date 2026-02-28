@@ -22,7 +22,7 @@ import type { Env } from "../../middleware/auth";
 import { CharacterEntitySyncService } from "../../services/campaign/character-entity-sync-service";
 import { EntityGraphService } from "../../services/graph/entity-graph-service";
 import { createLLMProvider } from "../../services/llm/llm-provider-factory";
-import { PlanningContextService } from "../../services/rag/planning-context-service";
+import { getPlanningServices } from "../../services/rag/rag-service-factory";
 import {
 	commonSchemas,
 	createToolError,
@@ -755,8 +755,7 @@ async function performSemanticChecklistAnalysis(
 			coverage.campaign_pitch = coverage.campaign_pitch || true;
 		}
 
-		const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
-		const openaiApiKey = openaiApiKeyRaw.trim();
+		const { planningContext, openaiApiKey } = await getPlanningServices(env);
 		if (!env.DB || !env.VECTORIZE || !openaiApiKey) {
 			// Semantic search not available, return coverage from metadata only
 			return { coverage, entityStats };
@@ -764,17 +763,14 @@ async function performSemanticChecklistAnalysis(
 
 		// 1) Check existing planning-context index for checklist coverage
 		try {
-			const planningService = new PlanningContextService(
-				env.DB,
-				env.VECTORIZE,
-				openaiApiKey,
-				env
-			);
+			if (!planningContext) {
+				return { coverage, entityStats };
+			}
 
 			// Use CHECKLIST_ITEMS for semantic search queries
 			for (const { key, description: query } of CHECKLIST_ITEMS) {
 				try {
-					const results = await planningService.search({
+					const results = await planningContext.search({
 						campaignId,
 						query,
 						limit: 3,

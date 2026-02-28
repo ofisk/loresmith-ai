@@ -14,7 +14,8 @@ import type {
 	HistoricalQueryInput,
 } from "@/types/changelog-archive";
 import type { WorldStateChangelogEntry } from "@/types/world-state";
-import { PlanningContextService } from "./planning-context-service";
+import type { PlanningContextService } from "./planning-context-service";
+import { createPlanningContextService } from "./rag-service-factory";
 
 export interface HistoricalContextServiceOptions {
 	db: D1Database;
@@ -47,12 +48,13 @@ export class HistoricalContextService {
 		});
 
 		if (options.vectorize && options.openaiApiKey) {
-			this.planningContextService = new PlanningContextService(
-				options.db,
-				options.vectorize,
-				options.openaiApiKey,
-				options.env
-			);
+			this.planningContextService =
+				createPlanningContextService(
+					options.db,
+					options.vectorize,
+					options.openaiApiKey,
+					options.env
+				) ?? undefined;
 			this.entityEmbeddingService = new EntityEmbeddingService(
 				options.vectorize
 			);

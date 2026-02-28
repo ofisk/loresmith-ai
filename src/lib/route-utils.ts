@@ -12,7 +12,8 @@ import { ContextAssemblyService } from "@/services/context/context-assembly-serv
 import type { AuthPayload } from "@/services/core/auth-service";
 import { RebuildQueueService } from "@/services/graph/rebuild-queue-service";
 import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
-import { PlanningContextService } from "@/services/rag/planning-context-service";
+import type { PlanningContextService } from "@/services/rag/planning-context-service";
+import { getPlanningServices } from "@/services/rag/rag-service-factory";
 
 /**
  * Context type extended with authentication information
@@ -178,13 +179,13 @@ export async function requireCanApproveShards(
 export async function getPlanningContextService(
 	c: ContextWithAuth
 ): Promise<PlanningContextService> {
-	const openaiApiKey = await getEnvVar(c.env, "OPENAI_API_KEY", false);
-	return new PlanningContextService(
-		c.env.DB!,
-		c.env.VECTORIZE!,
-		openaiApiKey,
-		c.env
-	);
+	const { planningContext } = await getPlanningServices(c.env);
+	if (!planningContext) {
+		throw new Error(
+			"Planning context dependencies not configured (DB, VECTORIZE, or OPENAI_API_KEY missing)"
+		);
+	}
+	return planningContext;
 }
 
 /**

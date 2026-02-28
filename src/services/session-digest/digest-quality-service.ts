@@ -9,7 +9,7 @@ import {
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
-import { PlanningContextService } from "@/services/rag/planning-context-service";
+import { createPlanningContextService } from "@/services/rag/rag-service-factory";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import type { SessionDigestData } from "@/types/session-digest";
 
@@ -397,12 +397,15 @@ Return:
 		}
 
 		// Step 2: Query GraphRAG for each entity to get their current state
-		const planningContextService = new PlanningContextService(
+		const planningContextService = createPlanningContextService(
 			this.db,
 			this.vectorize,
 			this.openaiApiKey,
 			this.env
 		);
+		if (!planningContextService) {
+			return [];
+		}
 		const entityEmbeddingService = new EntityEmbeddingService(this.vectorize);
 		const daoFactory = getDAOFactory(this.env);
 		const entityGraphService = new EntityGraphService(daoFactory.entityDAO);
