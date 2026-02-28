@@ -45,6 +45,7 @@ describe("EntityDAO", () => {
 			null,
 			null,
 			null,
+			null,
 			null
 		);
 		expect(mockStmt.run).toHaveBeenCalled();
@@ -106,6 +107,51 @@ describe("EntityDAO", () => {
 			expect.stringContaining("entity_type")
 		);
 		expect(mockStmt.bind).toHaveBeenCalledWith("c1", "location");
+	});
+
+	it("listEntitiesByCampaign supports SQL shard status and source filters", async () => {
+		mockStmt.all.mockResolvedValue({ results: [] });
+
+		await dao.listEntitiesByCampaign("c1", {
+			sourceId: "resource-1",
+			shardStatus: ["staging", "approved"],
+			excludeShardStatuses: ["rejected"],
+			limit: 25,
+		});
+
+		expect(mockDB.prepare).toHaveBeenCalledWith(
+			expect.stringContaining("source_id = ?")
+		);
+		expect(mockDB.prepare).toHaveBeenCalledWith(
+			expect.stringContaining("shard_status IN")
+		);
+		expect(mockDB.prepare).toHaveBeenCalledWith(
+			expect.stringContaining("shard_status NOT IN")
+		);
+		expect(mockStmt.bind).toHaveBeenCalledWith(
+			"c1",
+			"resource-1",
+			"staging",
+			"approved",
+			"rejected",
+			25
+		);
+	});
+
+	it("listEntitiesByCampaign supports entityIds through json_each", async () => {
+		mockStmt.all.mockResolvedValue({ results: [] });
+
+		await dao.listEntitiesByCampaign("c1", {
+			entityIds: ["e1", "e2"],
+		});
+
+		expect(mockDB.prepare).toHaveBeenCalledWith(
+			expect.stringContaining("json_each")
+		);
+		expect(mockStmt.bind).toHaveBeenCalledWith(
+			"c1",
+			JSON.stringify(["e1", "e2"])
+		);
 	});
 
 	it("getEntitiesByIds returns empty array for empty input", async () => {

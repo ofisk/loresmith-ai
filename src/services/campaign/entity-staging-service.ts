@@ -285,6 +285,7 @@ export async function stageEntitiesFromResource(
 					await daoFactory.entityDAO.updateEntity(existingPC.id, {
 						content: characterData,
 						metadata: finalMetadata,
+						shardStatus: "staging",
 						sourceType: "file_upload",
 						sourceId: normalizedResource.id,
 					});
@@ -310,6 +311,7 @@ export async function stageEntitiesFromResource(
 						entityType: "pcs",
 						name: characterName,
 						content: characterData,
+						shardStatus: "staging",
 						metadata: finalMetadata,
 						sourceType: "file_upload",
 						sourceId: normalizedResource.id,
@@ -759,6 +761,10 @@ export async function stageEntitiesFromResource(
 					name: normalizedName,
 					content: mergedContent,
 					metadata: mergedMeta,
+					shardStatus:
+						existingMetadata.shardStatus === "approved"
+							? "approved"
+							: "staging",
 					confidence: (extracted.metadata.confidence as number) ?? null,
 					sourceType: "file_upload",
 					sourceId: normalizedResource.id,
@@ -844,6 +850,10 @@ export async function stageEntitiesFromResource(
 					name: normalizedName,
 					content: mergedContent,
 					metadata: mergedMeta,
+					shardStatus:
+						existingMetadata.shardStatus === "approved"
+							? "approved"
+							: "staging",
 					confidence: (extracted.metadata.confidence as number) ?? null,
 					sourceType: "file_upload",
 					sourceId: normalizedResource.id,
@@ -885,6 +895,7 @@ export async function stageEntitiesFromResource(
 				entityType,
 				name: normalizedName,
 				content: extracted.content,
+				shardStatus: "staging",
 				metadata: newMeta,
 				confidence: (extracted.metadata.confidence as number) ?? null,
 				sourceType: "file_upload",

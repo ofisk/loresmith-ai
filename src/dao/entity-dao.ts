@@ -20,6 +20,7 @@ export interface EntityRecord {
 	confidence: number | null;
 	source_type: string | null;
 	source_id: string | null;
+	shard_status?: string | null;
 	embedding_id: string | null;
 	created_at: string;
 	updated_at: string;
@@ -37,6 +38,7 @@ export interface Entity {
 	confidence?: number;
 	sourceType?: string | null;
 	sourceId?: string | null;
+	shardStatus?: string | null;
 	embeddingId?: string | null;
 	createdAt: string;
 	updatedAt: string;
@@ -54,6 +56,7 @@ export interface CreateEntityInput {
 	confidence?: number | null;
 	sourceType?: string | null;
 	sourceId?: string | null;
+	shardStatus?: string | null;
 	embeddingId?: string | null;
 }
 
@@ -66,6 +69,7 @@ export interface UpdateEntityInput {
 	confidence?: number | null;
 	sourceType?: string | null;
 	sourceId?: string | null;
+	shardStatus?: string | null;
 	embeddingId?: string | null;
 	entityType?: string;
 }
@@ -162,6 +166,10 @@ export interface UpdateEntityDeduplicationInput {
 
 export class EntityDAO extends BaseDAOClass {
 	async createEntity(entity: CreateEntityInput): Promise<void> {
+		const metadataShardStatus = this.extractShardStatusFromMetadata(
+			entity.metadata
+		);
+		const shardStatus = entity.shardStatus ?? metadataShardStatus;
 		const sql = `
       INSERT INTO entities (
         id,
@@ -173,11 +181,12 @@ export class EntityDAO extends BaseDAOClass {
         confidence,
         source_type,
         source_id,
+        shard_status,
         embedding_id,
         created_at,
         updated_at
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
     `;
 
@@ -191,6 +200,7 @@ export class EntityDAO extends BaseDAOClass {
 			entity.confidence ?? null,
 			entity.sourceType ?? null,
 			entity.sourceId ?? null,
+			shardStatus ?? null,
 			entity.embeddingId ?? null,
 		]);
 	}
@@ -232,6 +242,11 @@ export class EntityDAO extends BaseDAOClass {
 			values.push(updates.sourceId);
 		}
 
+		if (updates.shardStatus !== undefined) {
+			setClauses.push("shard_status = ?");
+			values.push(updates.shardStatus);
+		}
+
 		if (updates.embeddingId !== undefined) {
 			setClauses.push("embedding_id = ?");
 			values.push(updates.embeddingId);
@@ -240,6 +255,16 @@ export class EntityDAO extends BaseDAOClass {
 		if (updates.entityType !== undefined) {
 			setClauses.push("entity_type = ?");
 			values.push(updates.entityType);
+		}
+
+		if (updates.metadata !== undefined && updates.shardStatus === undefined) {
+			const metadataShardStatus = this.extractShardStatusFromMetadata(
+				updates.metadata
+			);
+			if (metadataShardStatus !== undefined) {
+				setClauses.push("shard_status = ?");
+				values.push(metadataShardStatus);
+			}
 		}
 
 		if (setClauses.length === 0) {
@@ -278,6 +303,11 @@ export class EntityDAO extends BaseDAOClass {
 		campaignId: string,
 		options: {
 			entityType?: string;
+			sourceId?: string;
+			resourceId?: string;
+			entityIds?: string[];
+			shardStatus?: string | string[];
+			excludeShardStatuses?: string[];
 			limit?: number;
 			offset?: number;
 			orderBy?: "updated_at" | "name";
@@ -289,6 +319,45 @@ export class EntityDAO extends BaseDAOClass {
 		if (options.entityType) {
 			conditions.push("entity_type = ?");
 			params.push(options.entityType);
+		}
+
+		if (options.sourceId) {
+			conditions.push("source_id = ?");
+			params.push(options.sourceId);
+		}
+
+		if (options.resourceId) {
+			conditions.push("json_extract(metadata, '$.resourceId') = ?");
+			params.push(options.resourceId);
+		}
+
+		if (options.entityIds && options.entityIds.length > 0) {
+			conditions.push("id IN (SELECT value FROM json_each(?))");
+			params.push(JSON.stringify(options.entityIds));
+		}
+
+		if (options.shardStatus) {
+			const statuses = Array.isArray(options.shardStatus)
+				? options.shardStatus
+				: [options.shardStatus];
+			if (statuses.length > 0) {
+				const placeholders = statuses.map(() => "?").join(", ");
+				conditions.push(`shard_status IN (${placeholders})`);
+				params.push(...statuses);
+			}
+		}
+
+		if (
+			options.excludeShardStatuses &&
+			options.excludeShardStatuses.length > 0
+		) {
+			const placeholders = options.excludeShardStatuses
+				.map(() => "?")
+				.join(", ");
+			conditions.push(
+				`(shard_status IS NULL OR shard_status NOT IN (${placeholders}))`
+			);
+			params.push(...options.excludeShardStatuses);
 		}
 
 		const orderBy =
@@ -1001,6 +1070,7 @@ export class EntityDAO extends BaseDAOClass {
 			confidence: record.confidence ?? undefined,
 			sourceType: record.source_type,
 			sourceId: record.source_id,
+			shardStatus: record.shard_status ?? undefined,
 			embeddingId: record.embedding_id,
 			createdAt: record.created_at,
 			updatedAt: record.updated_at,
@@ -1029,6 +1099,16 @@ export class EntityDAO extends BaseDAOClass {
 		} catch (_error) {
 			return undefined;
 		}
+	}
+
+	private extractShardStatusFromMetadata(
+		metadata: unknown
+	): string | undefined {
+		if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+			return undefined;
+		}
+		const candidate = (metadata as Record<string, unknown>).shardStatus;
+		return typeof candidate === "string" ? candidate : undefined;
 	}
 
 	async createDeduplicationEntry(

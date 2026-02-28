@@ -93,7 +93,17 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
 		// Load all entities for the campaign to check filters (exclude stubs so they are not rendered)
 		const allEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
 			campaignId,
-			{ limit: 10000 }
+			{
+				limit: 10000,
+				entityType:
+					entityTypes && entityTypes.length === 1 ? entityTypes[0] : undefined,
+				resourceId:
+					resourceIds && resourceIds.length === 1 ? resourceIds[0] : undefined,
+				shardStatus:
+					approvalStatuses && approvalStatuses.length > 0
+						? approvalStatuses
+						: undefined,
+			}
 		);
 		const nonStubEntities = allEntities.filter((e) => !isEntityStub(e));
 
@@ -273,18 +283,15 @@ export async function handleGetCommunityEntityGraph(c: ContextWithAuth) {
 			return c.json({ error: "Community not found" }, 404);
 		}
 
-		// Load entities in the community
-		const entityIdsSet = new Set(community.entityIds);
-		const allEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
-			campaignId,
-			{ limit: 10000 }
-		);
+		// Load entities in the community with coarse SQL-level status filtering.
+		const communityEntitiesRaw =
+			await daoFactory.entityDAO.listEntitiesByCampaign(campaignId, {
+				entityIds: community.entityIds,
+				excludeShardStatuses: ["rejected", "deleted"],
+			});
 
-		// Filter to only entities in this community, not rejected/ignored, and not stubs
-		const communityEntities = allEntities.filter((entity) => {
-			if (!entityIdsSet.has(entity.id)) {
-				return false;
-			}
+		// Preserve ignored/stub filtering behavior in app layer.
+		const communityEntities = communityEntitiesRaw.filter((entity) => {
 			if (isEntityStub(entity)) {
 				return false;
 			}

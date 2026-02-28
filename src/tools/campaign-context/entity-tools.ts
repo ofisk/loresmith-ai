@@ -715,14 +715,9 @@ export const updateEntityTypeTool = tool({
 
 			// Also update ALL other entities with the same name in this campaign
 			// This ensures consistency when there are duplicates
-			const allEntitiesWithSameName =
-				await daoFactory.entityDAO.listEntitiesByCampaign(campaignId, {
-					limit: 1000, // Large limit to catch all duplicates
-				});
-
-			const duplicates = allEntitiesWithSameName.filter(
-				(e) => e.name === entity.name && e.id !== entityId
-			);
+			const duplicates = (
+				await daoFactory.entityDAO.findEntitiesByName(campaignId, entity.name)
+			).filter((e) => e.id !== entityId);
 
 			const updatedDuplicates: string[] = [];
 			for (const duplicate of duplicates) {

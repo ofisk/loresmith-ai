@@ -160,21 +160,13 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
 
 		// Get all entities for the campaign with staging status
 		const daoFactory = getDAOFactory(c.env);
-		const allEntities =
-			await daoFactory.entityDAO.listEntitiesByCampaign(campaignId);
-
-		// Filter to only staging entities (include stubs; they appear in approval pane with required fields)
-		const stagedEntities = allEntities.filter((entity) => {
-			const metadata = (entity.metadata as Record<string, unknown>) || {};
-			const shardStatus = metadata.shardStatus;
-			if (shardStatus !== "staging") {
-				return false;
+		const stagedEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
+			campaignId,
+			{
+				shardStatus: "staging",
+				resourceId: resourceId || undefined,
 			}
-			if (resourceId && metadata.resourceId !== resourceId) {
-				return false;
-			}
-			return true;
-		});
+		);
 
 		console.log(
 			`[Server] Found ${stagedEntities.length} staged entities for campaign ${campaignId}`
@@ -301,13 +293,10 @@ export async function handleApproveShards(c: ContextWithAuth) {
 		const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
 		const openaiEmbeddingService = new OpenAIEmbeddingService(openaiApiKey);
 
-		// Diagnostic: List all entities in campaign to help debug relationship target ID mismatches
-		const allCampaignEntities =
-			await daoFactory.entityDAO.listEntitiesByCampaign(campaignId);
-		console.log(
-			`[Server] Campaign has ${allCampaignEntities.length} total entities. Entity IDs:`,
-			allCampaignEntities.map((e) => `${e.id} (${e.name})`).join(", ")
-		);
+		// Diagnostic: report campaign entity count without materializing all rows.
+		const campaignEntityCount =
+			await daoFactory.entityDAO.getEntityCountByCampaign(campaignId);
+		console.log(`[Server] Campaign has ${campaignEntityCount} total entities.`);
 
 		// Validate first: stub shards must have required fields filled; fail entire request if any are insufficient
 		const insufficientStubs: Array<{
@@ -388,6 +377,7 @@ export async function handleApproveShards(c: ContextWithAuth) {
 
 			await daoFactory.entityDAO.updateEntity(entityId, {
 				metadata: updatedMetadata,
+				shardStatus: "approved",
 			});
 			touchedEntityIds.add(entityId);
 
@@ -613,6 +603,7 @@ export async function handleRejectShards(c: ContextWithAuth) {
 
 			await daoFactory.entityDAO.updateEntity(entityId, {
 				metadata: updatedMetadata,
+				shardStatus: "rejected",
 			});
 			touchedEntityIds.add(entityId);
 

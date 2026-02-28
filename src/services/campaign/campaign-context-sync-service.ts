@@ -340,6 +340,7 @@ export class CampaignContextSyncService {
 					entityType: "conversational_context",
 					name: noteTitle, // Individual shard title appears as entity name
 					content: { text: noteContent },
+					shardStatus: "staging",
 					metadata: {
 						shardStatus: "staging",
 						resourceId,
