@@ -308,8 +308,8 @@ CONTENT END`;
 			const llmProvider = createLLMProvider({
 				provider: "openai",
 				apiKey,
-				// Use centralized session planning / heavy-structured model
-				defaultModel: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
+				// Use non-interactive structured pipeline tier for extraction
+				defaultModel: MODEL_CONFIG.OPENAI.PIPELINE_STRUCTURED,
 				defaultTemperature: 0.1,
 				defaultMaxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
 			});
@@ -318,7 +318,7 @@ CONTENT END`;
 			const result = await llmProvider.generateStructuredOutput<
 				z.infer<typeof EntityExtractionSchema>
 			>(prompt, {
-				model: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
+				model: MODEL_CONFIG.OPENAI.PIPELINE_STRUCTURED,
 				temperature: 0.1,
 				maxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
 				username: usageOptions?.username,

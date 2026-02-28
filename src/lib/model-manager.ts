@@ -45,7 +45,7 @@ export class ModelManager {
 
 		try {
 			// Create the model instance
-			this.model = openai(MODEL_CONFIG.OPENAI.PRIMARY as any);
+			this.model = openai(MODEL_CONFIG.OPENAI.INTERACTIVE as any);
 			this.apiKey = trimmedKey;
 
 			console.log("[ModelManager] Model initialized with user API key");
