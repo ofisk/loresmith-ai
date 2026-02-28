@@ -7,7 +7,6 @@ import { getEntitiesWithRelationships } from "@/lib/graph/entity-utils";
 import type { SessionScriptContext } from "@/lib/prompts/session-script-prompts";
 import { SESSION_SCRIPT_PROMPTS } from "@/lib/prompts/session-script-prompts";
 import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
-import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import { getPlanningServices } from "@/services/rag/rag-service-factory";
 import {
@@ -233,7 +232,7 @@ export const planSession = tool({
 				entityIds.add(pc.id);
 			});
 
-			const entityGraphService = new EntityGraphService(daoFactory.entityDAO);
+			const entityGraphService = daoFactory.entityGraphService;
 			const filteredEntities = await getEntitiesWithRelationships(
 				Array.from(entityIds).slice(0, 30),
 				campaignId,

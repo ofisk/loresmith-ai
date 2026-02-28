@@ -5,7 +5,6 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import { STRUCTURED_ENTITY_TYPES } from "@/lib/entity-types";
 import { RELATIONSHIP_TYPES } from "@/lib/relationship-types";
 import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
-import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { EntityExtractionPipeline } from "@/services/rag/entity-extraction-pipeline";
 import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
@@ -170,7 +169,7 @@ export const extractEntitiesFromContentTool = tool({
 					| import("@cloudflare/workers-types").VectorizeIndex
 					| undefined
 			);
-			const graphService = new EntityGraphService(daoFactory.entityDAO);
+			const graphService = daoFactory.entityGraphService;
 			const pipeline = new EntityExtractionPipeline(
 				daoFactory.entityDAO,
 				extractionService,
@@ -360,7 +359,7 @@ export const createEntityRelationshipTool = tool({
 			if (gmError) return gmError;
 
 			// Initialize graph service
-			const graphService = new EntityGraphService(daoFactory.entityDAO);
+			const graphService = daoFactory.entityGraphService;
 
 			// Check entities exist
 			const fromEntity = await daoFactory.entityDAO.getEntityById(fromEntityId);

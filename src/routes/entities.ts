@@ -17,8 +17,8 @@ import {
 } from "@/lib/text-chunking-utils";
 import { DirectFileContentExtractionProvider } from "@/services/campaign/impl/direct-file-content-extraction-provider";
 import type { AuthPayload } from "@/services/core/auth-service";
-import { EntityGraphService } from "@/services/graph/entity-graph-service";
-import { EntityImportanceService } from "@/services/graph/entity-importance-service";
+import type { EntityGraphService } from "@/services/graph/entity-graph-service";
+import type { EntityImportanceService } from "@/services/graph/entity-importance-service";
 import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
 import { EntityDeduplicationService } from "@/services/rag/entity-deduplication-service";
 import { EntityExtractionPipeline } from "@/services/rag/entity-extraction-pipeline";
@@ -43,14 +43,14 @@ interface CampaignHandlerContext {
 
 function buildEntityServiceAccessor(
 	c: ContextWithAuth,
-	entityDAO: EntityDAO
+	entityDAO: EntityDAO,
+	graphService: EntityGraphService
 ): () => EntityServiceBundle {
 	let bundle: EntityServiceBundle | null = null;
 	return () => {
 		if (!bundle) {
 			const embeddingService = new EntityEmbeddingService(c.env.VECTORIZE);
 			const extractionService = new EntityExtractionService(null);
-			const graphService = new EntityGraphService(entityDAO);
 			bundle = {
 				embeddingService,
 				extractionService,
@@ -106,7 +106,11 @@ async function withCampaignContext(
 
 		const daoFactory = getDAOFactory(c.env);
 		const entityDAO = daoFactory.entityDAO;
-		const getServices = buildEntityServiceAccessor(c, entityDAO);
+		const getServices = buildEntityServiceAccessor(
+			c,
+			entityDAO,
+			daoFactory.entityGraphService
+		);
 
 		return await executor({
 			c,
@@ -194,11 +198,7 @@ export async function handleUpdateEntityImportance(c: ContextWithAuth) {
 			}
 
 			const daoFactory = getDAOFactory(ctx.env);
-			const importanceService = new EntityImportanceService(
-				entityDAO,
-				daoFactory.communityDAO,
-				daoFactory.entityImportanceDAO
-			);
+			const importanceService = daoFactory.entityImportanceService;
 
 			const currentCalculated =
 				await importanceService.calculateCombinedImportance(

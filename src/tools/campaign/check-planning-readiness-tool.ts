@@ -7,8 +7,6 @@ import {
 	ENTITY_TYPE_NPCS,
 	ENTITY_TYPE_PCS,
 } from "@/lib/entity-type-constants";
-import { EntityGraphService } from "@/services/graph/entity-graph-service";
-import { EntityImportanceService } from "@/services/graph/entity-importance-service";
 import {
 	commonSchemas,
 	createToolError,
@@ -156,12 +154,8 @@ export const checkPlanningReadiness = tool({
 						"Adding character backstories and goals as entities can help create more personalized session moments and connect characters to the campaign's entity graph.",
 				});
 			} else {
-				const entityGraphService = new EntityGraphService(daoFactory.entityDAO);
-				const importanceService = new EntityImportanceService(
-					daoFactory.entityDAO,
-					daoFactory.communityDAO,
-					daoFactory.entityImportanceDAO
-				);
+				const entityGraphService = daoFactory.entityGraphService;
+				const importanceService = daoFactory.entityImportanceService;
 				for (const character of playerCharacters) {
 					const characterGaps = await analyzePlayerCharacterCompleteness(
 						character,

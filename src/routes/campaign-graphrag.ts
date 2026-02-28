@@ -8,9 +8,7 @@ import { getEnvVar } from "@/lib/env-utils";
 import { notifyCampaignMembers } from "@/lib/notifications";
 import { type ContextWithAuth, verifyCampaignAccess } from "@/lib/route-utils";
 import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
-import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { getGraphServices } from "@/services/graph/graph-service-factory";
-import { RebuildTriggerService } from "@/services/graph/rebuild-trigger-service";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
@@ -48,12 +46,7 @@ async function checkAndRunCommunityDetection(
 	relationshipKeys: DirtyRelationshipRef[] = [],
 	username?: string
 ): Promise<void> {
-	const rebuildTriggerService = new RebuildTriggerService(
-		daoFactory.campaignDAO,
-		daoFactory.entityDAO,
-		daoFactory.rebuildStatusDAO,
-		daoFactory.graphRebuildDirtyDAO
-	);
+	const rebuildTriggerService = daoFactory.rebuildTriggerService;
 	if (!daoFactory.graphRebuildDirtyDAO) {
 		console.warn(
 			`[Server] graphRebuildDirtyDAO unavailable, skipping async rebuild trigger for campaign ${campaignId}`
@@ -285,7 +278,7 @@ export async function handleApproveShards(c: ContextWithAuth) {
 		}
 
 		const daoFactory = getDAOFactory(c.env);
-		const graphService = new EntityGraphService(daoFactory.entityDAO);
+		const graphService = daoFactory.entityGraphService;
 		const embeddingService = new EntityEmbeddingService(c.env.VECTORIZE);
 		const openaiApiKeyRaw = await getEnvVar(c.env, "OPENAI_API_KEY", false);
 		const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
@@ -566,7 +559,7 @@ export async function handleRejectShards(c: ContextWithAuth) {
 		}
 
 		const daoFactory = getDAOFactory(c.env);
-		const graphService = new EntityGraphService(daoFactory.entityDAO);
+		const graphService = daoFactory.entityGraphService;
 
 		let rejectedCount = 0;
 		const relationshipCount = 0;

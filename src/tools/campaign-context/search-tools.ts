@@ -7,7 +7,6 @@ import { sanitizeEntityContentForPlayer } from "@/lib/entity-content-sanitizer";
 import { AUTH_CODES, type ToolResult } from "../../app-constants";
 import { getDAOFactory } from "../../dao/dao-factory";
 import { STRUCTURED_ENTITY_TYPES } from "../../lib/entity-types";
-import { EntityGraphService } from "../../services/graph/entity-graph-service";
 import { WorldStateChangelogService } from "../../services/graph/world-state-changelog-service";
 import type { PlanningContextService } from "../../services/rag/planning-context-service";
 import { getPlanningServices } from "../../services/rag/rag-service-factory";
@@ -919,7 +918,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 
 						// Fetch relationships for entities to help AI understand actual connections
 						// Relationships are stored separately from entities, so we need to fetch them explicitly
-						const graphService = new EntityGraphService(daoFactory.entityDAO);
+						const graphService = daoFactory.entityGraphService;
 
 						// Collect all relationship data first, then batch-fetch related entity names
 						const entityRelationshipsMap = new Map<
@@ -1246,7 +1245,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 						);
 
 						const daoFactory = getDAOFactory(env);
-						const graphService = new EntityGraphService(daoFactory.entityDAO);
+						const graphService = daoFactory.entityGraphService;
 
 						// Normalize relationship types if provided
 						const normalizedRelationshipTypes = traverseRelationshipTypes?.map(
