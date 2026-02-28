@@ -32,11 +32,10 @@ function estimateToolResultTokens(result: unknown): number {
  * Get priority score for a result item
  * Higher score = higher priority (keep these)
  */
-async function getItemPriority(
+function getItemPriority(
 	item: TrimmableResult,
-	env: any,
-	campaignId?: string | null
-): Promise<number> {
+	importanceByEntityId: Map<string, number>
+): number {
 	let priority = 0;
 
 	// Use similarity/relevancy score if available (from semantic search)
@@ -48,26 +47,38 @@ async function getItemPriority(
 	}
 
 	// Boost priority for entities with high importance scores
-	if (item.entityId && campaignId && env?.DB) {
-		try {
-			const daoFactory = getDAOFactory(env);
-			const importance = await daoFactory.entityImportanceDAO.getImportance(
-				item.entityId
-			);
-			if (importance) {
-				// Add importance score (0-100) to priority
-				priority += importance.importanceScore;
-			}
-		} catch (error) {
-			// Ignore errors - importance lookup is optional
-			console.warn(
-				`[ToolResultTrimming] Failed to get importance for entity ${item.entityId}:`,
-				error
-			);
-		}
+	if (item.entityId) {
+		priority += importanceByEntityId.get(item.entityId) ?? 0;
 	}
 
 	return priority;
+}
+
+function buildTrimmedPayload(
+	result: ToolResultData,
+	isNested: boolean,
+	arrayKey: "results" | "entities",
+	keptItems: TrimmableResult[]
+): ToolResultData {
+	const trimmedPayload = { ...result };
+
+	if (isNested && result.data && typeof result.data === "object") {
+		const trimmedData = { ...(result.data as ToolResultData) };
+		if (arrayKey === "results") {
+			trimmedData.results = keptItems;
+		} else {
+			trimmedData.entities = keptItems;
+		}
+		trimmedPayload.data = trimmedData;
+		return trimmedPayload;
+	}
+
+	if (arrayKey === "results") {
+		trimmedPayload.results = keptItems;
+	} else {
+		trimmedPayload.entities = keptItems;
+	}
+	return trimmedPayload;
 }
 
 /**
@@ -124,6 +135,9 @@ export async function trimToolResultsByRelevancy(
 	if (!itemsToTrim || itemsToTrim.length === 0) {
 		return toolResult; // Nothing to trim
 	}
+	if (!arrayKey) {
+		return toolResult;
+	}
 
 	// Estimate current token count
 	const currentTokens = estimateToolResultTokens(toolResult);
@@ -132,93 +146,86 @@ export async function trimToolResultsByRelevancy(
 		return toolResult; // Within limit, no trimming needed
 	}
 
-	console.log(
-		`[ToolResultTrimming] Tool result exceeds token limit: ${currentTokens} > ${maxTokens}. Trimming ${itemsToTrim.length} items by relevancy...`
-	);
+	const importanceByEntityId = new Map<string, number>();
+	const shouldFetchImportance = Boolean(campaignId && env?.DB);
+	if (shouldFetchImportance) {
+		try {
+			const uniqueEntityIds = Array.from(
+				new Set(
+					itemsToTrim
+						.map((item) => item.entityId)
+						.filter(
+							(entityId): entityId is string => typeof entityId === "string"
+						)
+				)
+			);
 
-	// Calculate priority scores for all items
-	const itemsWithPriority = await Promise.all(
-		itemsToTrim.map(async (item) => ({
-			item,
-			priority: await getItemPriority(item, env, campaignId),
-		}))
-	);
+			if (uniqueEntityIds.length > 0) {
+				const daoFactory = getDAOFactory(env);
+				const importanceRecords =
+					await daoFactory.entityImportanceDAO.getImportanceByEntityIds(
+						uniqueEntityIds
+					);
+				for (const importance of importanceRecords) {
+					importanceByEntityId.set(
+						importance.entityId,
+						importance.importanceScore
+					);
+				}
+			}
+		} catch (error) {
+			// Ignore errors - importance lookup is optional.
+			console.warn(
+				"[ToolResultTrimming] Failed to load batch entity importance:",
+				error
+			);
+		}
+	}
+
+	// Calculate priority scores for all items.
+	const itemsWithPriority = itemsToTrim.map((item) => ({
+		item,
+		priority: getItemPriority(item, importanceByEntityId),
+	}));
 
 	// Sort by priority (highest first)
 	itemsWithPriority.sort((a, b) => b.priority - a.priority);
 
-	// Binary search to find how many items we can keep
-	let left = 0;
-	let right = itemsWithPriority.length;
-	let bestCount = 0;
+	// Greedy trim: remove lowest-priority items until we fit.
+	const keptItems = itemsWithPriority.map((i) => i.item);
+	while (keptItems.length > 0) {
+		const trimmedPayload = buildTrimmedPayload(
+			result,
+			isNested,
+			arrayKey,
+			keptItems
+		);
+		const candidateResult = inner
+			? {
+					...raw,
+					result: {
+						...inner,
+						data: trimmedPayload,
+					},
+				}
+			: trimmedPayload;
 
-	while (left <= right) {
-		const mid = Math.floor((left + right) / 2);
-		const keptItems = itemsWithPriority.slice(0, mid).map((i) => i.item);
+		if (estimateToolResultTokens(candidateResult) <= maxTokens) {
+			return candidateResult;
+		}
 
-		// Reconstruct result with trimmed items
-		const trimmedResult = { ...result };
-		if (isNested && result.data && typeof result.data === "object") {
-			const trimmedData = { ...(result.data as ToolResultData) };
-			if (arrayKey === "results") {
-				trimmedData.results = keptItems;
-			} else if (arrayKey === "entities") {
-				trimmedData.entities = keptItems;
+		keptItems.pop();
+	}
+
+	// Nothing fit within budget; return same shape with an empty result list.
+	const emptyPayload = buildTrimmedPayload(result, isNested, arrayKey, []);
+	return inner
+		? {
+				...raw,
+				result: {
+					...inner,
+					data: emptyPayload,
+				},
 			}
-			trimmedResult.data = trimmedData;
-		} else {
-			if (arrayKey === "results") {
-				trimmedResult.results = keptItems;
-			} else if (arrayKey === "entities") {
-				trimmedResult.entities = keptItems;
-			}
-		}
-
-		const trimmedTokens = estimateToolResultTokens(trimmedResult);
-
-		if (trimmedTokens <= maxTokens) {
-			bestCount = mid;
-			left = mid + 1;
-		} else {
-			right = mid - 1;
-		}
-	}
-
-	// Keep top N items by priority
-	const keptItems = itemsWithPriority.slice(0, bestCount).map((i) => i.item);
-
-	const trimmedCount = itemsToTrim.length - keptItems.length;
-	console.log(
-		`[ToolResultTrimming] Trimmed ${trimmedCount} items (kept ${keptItems.length} highest priority items)`
-	);
-
-	// Reconstruct result with trimmed items
-	const trimmedPayload = { ...result };
-	if (isNested && result.data && typeof result.data === "object") {
-		const trimmedData = { ...(result.data as ToolResultData) };
-		if (arrayKey === "results") {
-			trimmedData.results = keptItems;
-		} else if (arrayKey === "entities") {
-			trimmedData.entities = keptItems;
-		}
-		trimmedPayload.data = trimmedData;
-	} else {
-		if (arrayKey === "results") {
-			trimmedPayload.results = keptItems;
-		} else if (arrayKey === "entities") {
-			trimmedPayload.entities = keptItems;
-		}
-	}
-
-	// If we unwrapped envelope format, rewrap so the agent gets the same shape
-	if (inner) {
-		return {
-			...raw,
-			result: {
-				...inner,
-				data: trimmedPayload,
-			},
-		};
-	}
-	return trimmedPayload;
+		: emptyPayload;
 }
