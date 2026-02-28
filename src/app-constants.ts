@@ -185,8 +185,14 @@ export const MODEL_CONFIG = {
 	OPENAI: {
 		// Primary model for chat and general tasks
 		PRIMARY: "gpt-5-mini",
+		// Model for user-facing interactive chat/tool orchestration
+		INTERACTIVE: "gpt-5-mini",
 		// Model for metadata generation and analysis
 		ANALYSIS: "gpt-5-mini",
+		// Model for non-interactive structured/background pipeline steps
+		PIPELINE_STRUCTURED: "gpt-5-mini",
+		// Model for non-interactive analysis/evaluation pipeline steps
+		PIPELINE_ANALYSIS: "gpt-5-mini",
 		// Model for metadata analysis (checklist coverage, campaign readiness)
 		METADATA_ANALYSIS: "gpt-5-mini",
 		// Model for session planning and script generation

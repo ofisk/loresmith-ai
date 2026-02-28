@@ -67,7 +67,7 @@ describe("DigestQualityService", () => {
 		});
 	});
 
-	describe("checkSpecificity", () => {
+	describe("checkSpecificityAndRelevance", () => {
 		it("should detect vague entries", async () => {
 			const digest: SessionDigestData = {
 				last_session_recap: {
@@ -93,11 +93,14 @@ describe("DigestQualityService", () => {
 				todo_checklist: [],
 			};
 
-			// checkSpecificity is async and requires OpenAI key, returns default score of 10 if no key
-			const result = await (service as any).checkSpecificity(digest);
+			const result = await (service as any).checkSpecificityAndRelevance(
+				digest
+			);
 			// Without OpenAI key, it returns default score of 10
-			expect(result.score).toBeDefined();
-			expect(Array.isArray(result.issues)).toBe(true);
+			expect(result.specificity.score).toBeDefined();
+			expect(Array.isArray(result.specificity.issues)).toBe(true);
+			expect(result.relevance.score).toBeDefined();
+			expect(Array.isArray(result.relevance.issues)).toBe(true);
 		});
 
 		it("should give high score for specific entries", async () => {
@@ -127,10 +130,11 @@ describe("DigestQualityService", () => {
 				todo_checklist: [],
 			};
 
-			// checkSpecificity is async and requires OpenAI key, returns default score of 10 if no key
-			const result = await (service as any).checkSpecificity(digest);
+			const result = await (service as any).checkSpecificityAndRelevance(
+				digest
+			);
 			// Without OpenAI key, it returns default score of 10
-			expect(result.score).toBeDefined();
+			expect(result.specificity.score).toBeDefined();
 		});
 	});
 

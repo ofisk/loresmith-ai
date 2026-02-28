@@ -8,6 +8,23 @@ import type {
 	StructuredOutputOptions,
 } from "./llm-provider";
 
+function parseStructuredSchema(
+	schema?: string
+): Record<string, unknown> | null {
+	if (!schema || !schema.trim()) {
+		return null;
+	}
+	try {
+		const parsed = JSON.parse(schema) as Record<string, unknown>;
+		if (!parsed || typeof parsed !== "object") {
+			return null;
+		}
+		return parsed;
+	} catch (_error) {
+		return null;
+	}
+}
+
 /**
  * OpenAI provider implementation for LLM generation
  */
@@ -30,8 +47,8 @@ export class OpenAIProvider implements LLMProvider {
 		}
 
 		this.apiKey = apiKey;
-		// Default to centralized primary model for general-purpose calls; callers can override per-use.
-		this.defaultModel = options.defaultModel || MODEL_CONFIG.OPENAI.PRIMARY;
+		// Default to interactive tier; background pipelines should pass explicit defaults.
+		this.defaultModel = options.defaultModel || MODEL_CONFIG.OPENAI.INTERACTIVE;
 		this.defaultTemperature = options.defaultTemperature ?? 0.3;
 		this.defaultMaxTokens = options.defaultMaxTokens ?? 2000;
 	}
@@ -118,23 +135,90 @@ export class OpenAIProvider implements LLMProvider {
 			const finalPrompt = hasJsonInstruction
 				? prompt
 				: `Respond with valid JSON only.\n\n${prompt}`;
+			const parsedSchema = parseStructuredSchema(options.schema);
 
 			// Reasoning models (gpt-5-mini, gpt-5.2, etc.) do not support temperature
 			console.log("[OpenAIProvider] Structured output request (AI SDK chat)", {
 				model: modelId,
 				maxTokens,
 				promptLength: finalPrompt.length,
+				hasSchema: Boolean(parsedSchema),
 			});
 
-			const result = await generateText({
-				model,
-				prompt: finalPrompt,
-				maxOutputTokens: maxTokens,
-				output: Output.json(),
-				...(!MODEL_CONFIG.isReasoningModel(modelId) && {
-					temperature,
-				}),
-			});
+			let result: Awaited<ReturnType<typeof generateText>>;
+			if (parsedSchema) {
+				try {
+					// Prefer schema-enforced structured outputs for JSON-only pipeline steps.
+					const requestWithSchema: Parameters<typeof generateText>[0] = {
+						model,
+						prompt: finalPrompt,
+						maxOutputTokens: maxTokens,
+						output: Output.json(),
+						providerOptions: {
+							openai: {
+								responseFormat: {
+									type: "json_schema",
+									json_schema: {
+										name: "structured_output",
+										strict: true,
+										schema: parsedSchema as any,
+									},
+								},
+								response_format: {
+									type: "json_schema",
+									json_schema: {
+										name: "structured_output",
+										strict: true,
+										schema: parsedSchema as any,
+									},
+								},
+							},
+						},
+						...(!MODEL_CONFIG.isReasoningModel(modelId) && {
+							temperature,
+						}),
+					};
+					result = await generateText(requestWithSchema);
+				} catch (schemaError) {
+					console.warn(
+						"[OpenAIProvider] Schema-structured output failed, falling back to json_object path:",
+						schemaError
+					);
+					const fallbackRequest: Parameters<typeof generateText>[0] = {
+						model,
+						prompt: finalPrompt,
+						maxOutputTokens: maxTokens,
+						output: Output.json(),
+						providerOptions: {
+							openai: {
+								responseFormat: { type: "json_object" },
+								response_format: { type: "json_object" },
+							},
+						},
+						...(!MODEL_CONFIG.isReasoningModel(modelId) && {
+							temperature,
+						}),
+					};
+					result = await generateText(fallbackRequest);
+				}
+			} else {
+				const request: Parameters<typeof generateText>[0] = {
+					model,
+					prompt: finalPrompt,
+					maxOutputTokens: maxTokens,
+					output: Output.json(),
+					providerOptions: {
+						openai: {
+							responseFormat: { type: "json_object" },
+							response_format: { type: "json_object" },
+						},
+					},
+					...(!MODEL_CONFIG.isReasoningModel(modelId) && {
+						temperature,
+					}),
+				};
+				result = await generateText(request);
+			}
 
 			const output = result.output;
 			if (output === undefined || output === null) {

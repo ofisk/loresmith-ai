@@ -14,7 +14,7 @@ import { createLLMProvider } from "@/services/llm/llm-provider-factory";
  */
 const SUMMARY_CONFIG = {
 	// LLM Configuration
-	DEFAULT_MODEL: MODEL_CONFIG.OPENAI.ANALYSIS,
+	DEFAULT_MODEL: MODEL_CONFIG.OPENAI.PIPELINE_STRUCTURED,
 	DEFAULT_TEMPERATURE: 0.3,
 	DEFAULT_MAX_TOKENS: 2000,
 	LLM_PROVIDER: "openai" as const,
@@ -418,20 +418,32 @@ export class CommunitySummaryService {
 		options: CommunitySummaryOptions = {}
 	): Promise<CommunitySummaryResult[]> {
 		const results: CommunitySummaryResult[] = [];
-
-		// Generate summaries sequentially to avoid rate limits
-		for (const community of communities) {
-			try {
-				const result = await this.generateOrGetSummary(community, options);
-				results.push(result);
-			} catch (error) {
-				console.error(
-					`[CommunitySummaryService] Failed to generate summary for community ${community.id}:`,
-					error
-				);
-				// Continue with other communities even if one fails
+		// Use bounded concurrency to improve throughput while avoiding bursty spikes.
+		const maxConcurrent = 3;
+		let index = 0;
+		const workers = Array.from(
+			{ length: Math.min(maxConcurrent, communities.length) },
+			async () => {
+				while (true) {
+					const currentIndex = index++;
+					if (currentIndex >= communities.length) {
+						return;
+					}
+					const community = communities[currentIndex];
+					try {
+						const result = await this.generateOrGetSummary(community, options);
+						results.push(result);
+					} catch (error) {
+						console.error(
+							`[CommunitySummaryService] Failed to generate summary for community ${community.id}:`,
+							error
+						);
+						// Continue with remaining communities even if one fails
+					}
+				}
 			}
-		}
+		);
+		await Promise.all(workers);
 
 		return results;
 	}

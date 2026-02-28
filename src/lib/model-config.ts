@@ -39,7 +39,7 @@ export function createModel(
  * Get the primary model for chat and general tasks
  */
 export function getPrimaryModel(apiKey?: string) {
-	return createModel(MODEL_CONFIG.OPENAI.PRIMARY, apiKey);
+	return createModel(MODEL_CONFIG.OPENAI.INTERACTIVE, apiKey);
 }
 
 /**

@@ -62,33 +62,19 @@ export class DigestQualityService {
 	): Promise<DigestQualityResult> {
 		const completeness = this.checkCompleteness(digestData);
 
-		// Specificity check requires LLM, so it's optional
 		let specificity = { score: 10, issues: [] as string[] };
-		if (this.openaiApiKey) {
-			try {
-				specificity = await this.checkSpecificity(digestData);
-			} catch (error) {
-				console.warn(
-					"[DigestQualityService] Failed to check specificity:",
-					error
-				);
-				// Don't fail if specificity check fails, just skip it
-			}
-		}
-
 		const consistency = await this.checkConsistency(digestData, campaignId);
-
-		// Relevance check requires LLM, so it's optional
 		let relevance = { score: 10, issues: [] as string[] };
 		if (this.openaiApiKey) {
 			try {
-				relevance = await this.checkRelevance(digestData);
+				const combined = await this.checkSpecificityAndRelevance(digestData);
+				specificity = combined.specificity;
+				relevance = combined.relevance;
 			} catch (error) {
 				console.warn(
-					"[DigestQualityService] Failed to check relevance:",
+					"[DigestQualityService] Failed to run combined specificity/relevance check:",
 					error
 				);
-				// Don't fail if relevance check fails, just skip it
 			}
 		}
 
@@ -200,49 +186,101 @@ export class DigestQualityService {
 	}
 
 	/**
-	 * Check specificity - ensures entries are specific, not vague
-	 * Uses LLM to assess whether entries are concrete and actionable
+	 * Combined check for specificity + relevance in a single LLM request.
+	 * Reduces round-trips in non-interactive quality evaluation paths.
 	 */
-	private async checkSpecificity(digestData: SessionDigestData): Promise<{
-		score: number;
-		issues: string[];
+	private async checkSpecificityAndRelevance(
+		digestData: SessionDigestData
+	): Promise<{
+		specificity: { score: number; issues: string[] };
+		relevance: { score: number; issues: string[] };
 	}> {
-		// If no OpenAI key, return a default score
 		if (!this.openaiApiKey) {
-			return { score: 10, issues: [] };
+			return {
+				specificity: { score: 10, issues: [] },
+				relevance: { score: 10, issues: [] },
+			};
 		}
+
+		const specificityPrompt = formatSpecificityAssessmentPrompt(digestData);
+		const relevancePrompt = formatRelevanceAssessmentPrompt(digestData);
+		const schema = JSON.stringify({
+			type: "object",
+			properties: {
+				specificity: {
+					type: "object",
+					properties: {
+						score: { type: "number" },
+						issues: { type: "array", items: { type: "string" } },
+					},
+					required: ["score", "issues"],
+				},
+				relevance: {
+					type: "object",
+					properties: {
+						score: { type: "number" },
+						issues: { type: "array", items: { type: "string" } },
+					},
+					required: ["score", "issues"],
+				},
+			},
+			required: ["specificity", "relevance"],
+		});
+		const prompt = `Evaluate session digest quality and return ONLY JSON.
+
+Assess two dimensions:
+1) Specificity: are entries concrete and actionable instead of vague.
+2) Relevance: is content focused on campaign/session planning utility.
+
+Specificity rubric and context:
+${specificityPrompt}
+
+Relevance rubric and context:
+${relevancePrompt}
+
+Return:
+{
+  "specificity": { "score": 0-10, "issues": ["..."] },
+  "relevance": { "score": 0-10, "issues": ["..."] }
+}`;
 
 		try {
 			const llmProvider = createLLMProvider({
 				provider: "openai",
 				apiKey: this.openaiApiKey,
-				defaultModel: MODEL_CONFIG.OPENAI.ANALYSIS,
+				defaultModel: MODEL_CONFIG.OPENAI.PIPELINE_ANALYSIS,
 				defaultTemperature: 0.1,
-				defaultMaxTokens: 2000,
+				defaultMaxTokens: 2200,
 			});
-
-			const prompt = formatSpecificityAssessmentPrompt(digestData);
-
 			const result = await llmProvider.generateStructuredOutput<{
-				score: number;
-				issues: string[];
+				specificity?: { score?: number; issues?: string[] };
+				relevance?: { score?: number; issues?: string[] };
 			}>(prompt, {
-				model: MODEL_CONFIG.OPENAI.ANALYSIS,
+				model: MODEL_CONFIG.OPENAI.PIPELINE_ANALYSIS,
 				temperature: 0.1,
-				maxTokens: 2000,
+				maxTokens: 2200,
+				schema,
 			});
 
 			return {
-				score: Math.max(0, Math.min(10, result.score)),
-				issues: result.issues || [],
+				specificity: {
+					score: Math.max(0, Math.min(10, result.specificity?.score ?? 10)),
+					issues: result.specificity?.issues || [],
+				},
+				relevance: {
+					score: Math.max(0, Math.min(10, result.relevance?.score ?? 10)),
+					issues: result.relevance?.issues || [],
+				},
 			};
 		} catch (error) {
 			console.warn(
-				"[DigestQualityService] Failed to check specificity with AI:",
+				"[DigestQualityService] Combined specificity/relevance check failed:",
 				error
 			);
-			// Return default score if AI check fails
-			return { score: 10, issues: [] };
+			return {
+				specificity: { score: 10, issues: [] },
+				relevance: { score: 10, issues: [] },
+			};
 		}
 	}
 
@@ -486,7 +524,7 @@ export class DigestQualityService {
 		const llmProvider = createLLMProvider({
 			provider: "openai",
 			apiKey: this.openaiApiKey,
-			defaultModel: MODEL_CONFIG.OPENAI.ANALYSIS,
+			defaultModel: MODEL_CONFIG.OPENAI.PIPELINE_ANALYSIS,
 			defaultTemperature: 0.1,
 			defaultMaxTokens: 1500,
 		});
@@ -495,7 +533,7 @@ export class DigestQualityService {
 			const result = await llmProvider.generateStructuredOutput<{
 				issues: string[];
 			}>(consistencyPrompt, {
-				model: MODEL_CONFIG.OPENAI.ANALYSIS,
+				model: MODEL_CONFIG.OPENAI.PIPELINE_ANALYSIS,
 				temperature: 0.1,
 				maxTokens: 1500,
 			});
@@ -507,47 +545,6 @@ export class DigestQualityService {
 				error
 			);
 			return [];
-		}
-	}
-
-	/**
-	 * Check relevance - uses LLM to verify content relevance
-	 */
-	private async checkRelevance(digestData: SessionDigestData): Promise<{
-		score: number;
-		issues: string[];
-	}> {
-		if (!this.openaiApiKey) {
-			return { score: 10, issues: [] };
-		}
-
-		try {
-			const llmProvider = createLLMProvider({
-				provider: "openai",
-				apiKey: this.openaiApiKey,
-				defaultModel: MODEL_CONFIG.OPENAI.ANALYSIS,
-				defaultTemperature: 0.1,
-				defaultMaxTokens: 500,
-			});
-
-			const prompt = formatRelevanceAssessmentPrompt(digestData);
-
-			const result = await llmProvider.generateStructuredOutput<{
-				score: number;
-				issues: string[];
-			}>(prompt, {
-				model: MODEL_CONFIG.OPENAI.ANALYSIS,
-				temperature: 0.1,
-				maxTokens: 500,
-			});
-
-			return {
-				score: Math.max(0, Math.min(10, result.score)),
-				issues: result.issues || [],
-			};
-		} catch (error) {
-			console.error("[DigestQualityService] Relevance check error:", error);
-			return { score: 10, issues: [] }; // Default to no issues if check fails
 		}
 	}
 
