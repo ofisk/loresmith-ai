@@ -36,6 +36,7 @@ import {
 import {
 	handleAssignPlayerCharacterClaim,
 	handleCampaignJoin,
+	handleClearPlayerCharacterClaim,
 	handleCreatePlayerCharacterClaim,
 	handleCreateShareLink,
 	handleGetPlayerCharacterClaimOptions,
@@ -477,6 +478,16 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
 		),
 		requireUserJwt,
 		handleAssignPlayerCharacterClaim
+	);
+	app.delete(
+		toApiRoutePath(
+			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM_ASSIGN(
+				":campaignId",
+				":username"
+			)
+		),
+		requireUserJwt,
+		handleClearPlayerCharacterClaim
 	);
 
 	// Resource proposals (editor_player proposes; editor_gm/owner approve)

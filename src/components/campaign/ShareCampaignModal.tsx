@@ -61,6 +61,7 @@ export function ShareCampaignModal({
 	const [claimsListing, setClaimsListing] = useState(false);
 	const [claimError, setClaimError] = useState<string | null>(null);
 	const [savingClaimFor, setSavingClaimFor] = useState<string | null>(null);
+	const [clearingClaimFor, setClearingClaimFor] = useState<string | null>(null);
 	const [claimSaveErrorByUser, setClaimSaveErrorByUser] = useState<
 		Record<string, string>
 	>({});
@@ -190,6 +191,41 @@ export function ShareCampaignModal({
 			}));
 		} finally {
 			setSavingClaimFor(null);
+		}
+	};
+
+	const handleClearClaim = async (username: string) => {
+		if (!campaign?.campaignId) return;
+		setClearingClaimFor(username);
+		setClaimSaveErrorByUser((prev) => ({ ...prev, [username]: "" }));
+		try {
+			const res = await makeRequest(
+				API_CONFIG.buildUrl(
+					API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM_ASSIGN(
+						campaign.campaignId,
+						username
+					)
+				),
+				{
+					method: "DELETE",
+				}
+			);
+			const data = (await res.json()) as { error?: string };
+			if (res.ok) {
+				await fetchClaims();
+			} else {
+				setClaimSaveErrorByUser((prev) => ({
+					...prev,
+					[username]: data.error ?? "Failed to clear player character claim",
+				}));
+			}
+		} catch {
+			setClaimSaveErrorByUser((prev) => ({
+				...prev,
+				[username]: "Failed to clear player character claim",
+			}));
+		} finally {
+			setClearingClaimFor(null);
 		}
 	};
 
@@ -449,6 +485,7 @@ export function ShareCampaignModal({
 									),
 								];
 								const isSavingThisRow = savingClaimFor === claim.username;
+								const isClearingThisRow = clearingClaimFor === claim.username;
 								const hasSelectionChanged =
 									selectedEntityId &&
 									selectedEntityId.length > 0 &&
@@ -482,10 +519,22 @@ export function ShareCampaignModal({
 											</select>
 											<PrimaryActionButton
 												onClick={() => handleSaveClaim(claim.username)}
-												disabled={!hasSelectionChanged || isSavingThisRow}
+												disabled={
+													!hasSelectionChanged ||
+													isSavingThisRow ||
+													isClearingThisRow
+												}
 											>
 												{isSavingThisRow ? "Saving…" : "Save"}
 											</PrimaryActionButton>
+											<button
+												type="button"
+												onClick={() => handleClearClaim(claim.username)}
+												disabled={isSavingThisRow || isClearingThisRow}
+												className="rounded border border-red-700/50 bg-red-900/20 px-3 py-2 text-sm text-red-200 hover:bg-red-900/30 disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												{isClearingThisRow ? "Clearing…" : "Clear claim"}
+											</button>
 										</div>
 										{claimSaveErrorByUser[claim.username] && (
 											<div className="mt-2 text-xs text-red-400">
