@@ -374,8 +374,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					.find((msg) => msg.role === "assistant");
 
 				// Build minimal context: current user prompt + agent's previous response
-				// The LLM can use getMessageHistory tool to fetch older history if needed
+				// The LLM can use getMessageHistory tool to fetch older history if needed.
+				// Keep only user/assistant messages in `messages` for Anthropic compatibility.
 				const processedMessages: typeof this.messages = [];
+				const supplementalSystemContext: string[] = [];
 
 				// Include agent's previous response first (if exists) so it can understand references
 				if (
@@ -390,12 +392,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					processedMessages.push(currentUserMessage);
 				}
 
-				// Include role context so agents tailor for GM vs player
+				// Include role context so agents tailor for GM vs player.
+				// Anthropic does not support interleaved system messages in history.
 				if (roleContextMessage) {
-					processedMessages.push({
-						role: "system",
-						content: roleContextMessage,
-					});
+					supplementalSystemContext.push(roleContextMessage);
 				}
 
 				// Include essential system messages (campaign context, user state) but exclude tool results
@@ -410,10 +410,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 							content.includes("User State Analysis:") ||
 							content.includes("User role in this campaign:")
 						) {
-							// Only add if not already in processedMessages
-							if (!processedMessages.some((m) => m === message)) {
-								processedMessages.push(message);
-							}
+							supplementalSystemContext.push(content);
 						}
 					}
 				}
@@ -434,10 +431,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 								this.env,
 								selectedCampaignId
 							);
-						processedMessages.push({
-							role: "system",
-							content: RulesContextService.buildSystemContext(resolvedRules),
-						});
+						supplementalSystemContext.push(
+							RulesContextService.buildSystemContext(resolvedRules)
+						);
 					} catch (rulesError) {
 						log.warn("Failed to inject campaign rules context", rulesError);
 					}
@@ -617,9 +613,16 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 				]);
 
 				try {
+					const systemPrompt = (this.constructor as any).agentMetadata
+						.systemPrompt;
+					const mergedSystemPrompt =
+						supplementalSystemContext.length > 0
+							? `${systemPrompt}\n\n${supplementalSystemContext.join("\n\n")}`
+							: systemPrompt;
+
 					const result = streamText({
 						model: this.model,
-						system: (this.constructor as any).agentMetadata.systemPrompt,
+						system: mergedSystemPrompt,
 						toolChoice, // Use the variable instead of hardcoded value
 						messages: processedMessages,
 						tools: enhancedTools,
