@@ -4,6 +4,7 @@ import { MODEL_CONFIG, type ToolResult } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { Entity } from "@/dao/entity-dao";
 import { getEnvVar } from "@/lib/env-utils";
+import { LOOT_REWARD_PROMPTS } from "@/lib/prompts/loot-reward-prompts";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import {
 	commonSchemas,
@@ -54,26 +55,12 @@ const magicItemSuggestionSchema = z.object({
 	usageIdeas: z.array(z.string()).default([]),
 });
 
-function getEntityText(entity: Entity): string {
-	const content = entity.content;
-	if (!content || typeof content !== "object" || Array.isArray(content)) {
-		return "";
-	}
-	try {
-		return JSON.stringify(content);
-	} catch {
-		return "";
-	}
-}
-
-function summarizeEntities(entities: Entity[], max = 16): string {
-	return entities
-		.slice(0, max)
-		.map((entity) => {
-			const content = getEntityText(entity).slice(0, 260);
-			return `- ${entity.name} [${entity.entityType}] ${content}`;
-		})
-		.join("\n");
+function isNoOutputError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return (
+		message.includes("No output generated") ||
+		message.includes("AI_NoOutputGeneratedError")
+	);
 }
 
 async function getLlmProvider(env: unknown, toolCallId: string) {
@@ -103,6 +90,46 @@ async function getLlmProvider(env: unknown, toolCallId: string) {
 		defaultMaxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
 	});
 	return { error: null, provider } as const;
+}
+
+async function generateStructuredWithFallback<T>({
+	provider,
+	primaryPrompt,
+	fallbackPrompt,
+	primaryModel,
+	fallbackModel,
+	temperature,
+	primaryMaxTokens,
+	fallbackMaxTokens,
+}: {
+	provider: Awaited<ReturnType<typeof getLlmProvider>>["provider"];
+	primaryPrompt: string;
+	fallbackPrompt: string;
+	primaryModel: string;
+	fallbackModel: string;
+	temperature: number;
+	primaryMaxTokens: number;
+	fallbackMaxTokens: number;
+}): Promise<T> {
+	try {
+		return await provider!.generateStructuredOutput<T>(primaryPrompt, {
+			model: primaryModel,
+			temperature,
+			maxTokens: primaryMaxTokens,
+		});
+	} catch (error) {
+		if (!isNoOutputError(error)) {
+			throw error;
+		}
+		console.warn(
+			"[loot-reward-tools] Primary structured generation returned no output, retrying with compact fallback prompt"
+		);
+		return await provider!.generateStructuredOutput<T>(fallbackPrompt, {
+			model: fallbackModel,
+			temperature: 0.3,
+			maxTokens: fallbackMaxTokens,
+		});
+	}
 }
 
 const generateLootSchema = z.object({
@@ -183,7 +210,7 @@ export const generateLootTool = tool({
 				campaignId,
 				{
 					excludeShardStatuses: ["staging", "rejected", "deleted"],
-					limit: 80,
+					limit: 40,
 				}
 			);
 			const previousItemEntities = includePreviousLoot
@@ -202,37 +229,42 @@ export const generateLootTool = tool({
 			const llm = await getLlmProvider(env, toolCallId);
 			if (!llm.provider || llm.error) return llm.error;
 
-			const promptText = `
-You are generating tabletop RPG loot for a campaign.
-Return valid JSON only.
+			const promptText = LOOT_REWARD_PROMPTS.formatGenerateLootPrompt({
+				campaignName: campaign.name,
+				campaignDescription: campaign.description || "No description provided.",
+				campaignMetadata: campaign.metadata || "{}",
+				campaignTone: campaignTone || "Use campaign context and prompt.",
+				partyLevel: String(partyLevel ?? "Not provided"),
+				encounterChallenge: encounterChallenge || "Not provided",
+				userPrompt: prompt,
+				recentEntitiesSummary: LOOT_REWARD_PROMPTS.summarizeEntities(
+					contextEntities,
+					10
+				),
+				previousLootSummary:
+					LOOT_REWARD_PROMPTS.summarizeEntities(previousItemEntities, 12) ||
+					"None tracked yet.",
+			});
 
-Campaign name: ${campaign.name}
-Campaign description: ${campaign.description || "No description provided."}
-Campaign metadata: ${campaign.metadata || "{}"}
-Requested campaign tone: ${campaignTone || "Use campaign context and prompt."}
-Party level: ${partyLevel ?? "Not provided"}
-Encounter challenge: ${encounterChallenge || "Not provided"}
+			const fallbackPromptText =
+				LOOT_REWARD_PROMPTS.formatGenerateLootFallbackPrompt({
+					campaignName: campaign.name,
+					campaignTone: campaignTone || "Inferred from request",
+					partyLevel: String(partyLevel ?? "Not provided"),
+					encounterChallenge: encounterChallenge || "Not provided",
+					userPrompt: prompt,
+				});
 
-User request:
-${prompt}
-
-Recent campaign entities:
-${summarizeEntities(contextEntities)}
-
-Previously distributed item entities:
-${summarizeEntities(previousItemEntities, 20) || "None tracked yet."}
-
-Generate loot that is narratively coherent, not repetitive with previous rewards, and suitable for the likely party power level.
-`.trim();
-
-			const generated = await llm.provider.generateStructuredOutput<unknown>(
-				promptText,
-				{
-					model: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
-					temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
-					maxTokens: 2500,
-				}
-			);
+			const generated = await generateStructuredWithFallback<unknown>({
+				provider: llm.provider,
+				primaryPrompt: promptText,
+				fallbackPrompt: fallbackPromptText,
+				primaryModel: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
+				fallbackModel: MODEL_CONFIG.OPENAI.INTERACTIVE,
+				temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
+				primaryMaxTokens: 2500,
+				fallbackMaxTokens: 1800,
+			});
 			const parsed = generatedLootSchema.safeParse(generated);
 			if (!parsed.success) {
 				return createToolError(
@@ -364,37 +396,44 @@ export const suggestMagicItemTool = tool({
 			const llm = await getLlmProvider(env, toolCallId);
 			if (!llm.provider || llm.error) return llm.error;
 
-			const promptText = `
-You are suggesting a meaningful tabletop RPG magic item reward.
-Return valid JSON only.
+			const promptText = LOOT_REWARD_PROMPTS.formatSuggestMagicItemPrompt({
+				campaignName: campaign.name,
+				campaignDescription: campaign.description || "No description provided.",
+				campaignMetadata: campaign.metadata || "{}",
+				campaignTone:
+					campaignTone || "Infer from campaign context and request.",
+				partyLevel: String(partyLevel ?? "Not provided"),
+				request,
+				targetCharacterSummary: characterEntity
+					? `${characterEntity.name} (${characterEntity.entityType})`
+					: "No character target provided.",
+				relevantEntitiesSummary: LOOT_REWARD_PROMPTS.summarizeEntities(
+					nearbyEntities,
+					10
+				),
+			});
 
-Campaign name: ${campaign.name}
-Campaign description: ${campaign.description || "No description provided."}
-Campaign metadata: ${campaign.metadata || "{}"}
-Campaign tone: ${campaignTone || "Infer from campaign context and request."}
-Party level: ${partyLevel ?? "Not provided"}
+			const fallbackPromptText =
+				LOOT_REWARD_PROMPTS.formatSuggestMagicItemFallbackPrompt({
+					campaignName: campaign.name,
+					partyLevel: String(partyLevel ?? "Not provided"),
+					campaignTone: campaignTone || "Inferred",
+					request,
+					characterContext: characterEntity
+						? `${characterEntity.name} (${characterEntity.entityType})`
+						: "None provided",
+				});
 
-Request:
-${request}
-
-Target character (if any):
-${characterEntity ? `${characterEntity.name} [${characterEntity.entityType}] ${getEntityText(characterEntity).slice(0, 500)}` : "No character target provided."}
-
-Relevant campaign entities:
-${summarizeEntities(nearbyEntities)}
-
-Return one primary recommendation and 2-3 alternatives.
-Prioritize narrative tie-ins to known NPCs, locations, factions, or plot threads.
-`.trim();
-
-			const generated = await llm.provider.generateStructuredOutput<unknown>(
-				promptText,
-				{
-					model: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
-					temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
-					maxTokens: 2500,
-				}
-			);
+			const generated = await generateStructuredWithFallback<unknown>({
+				provider: llm.provider,
+				primaryPrompt: promptText,
+				fallbackPrompt: fallbackPromptText,
+				primaryModel: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
+				fallbackModel: MODEL_CONFIG.OPENAI.INTERACTIVE,
+				temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
+				primaryMaxTokens: 2500,
+				fallbackMaxTokens: 1600,
+			});
 			const parsed = magicItemSuggestionSchema.safeParse(generated);
 			if (!parsed.success) {
 				return createToolError(
