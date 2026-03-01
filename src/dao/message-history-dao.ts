@@ -38,7 +38,7 @@ export class MessageHistoryDAO extends BaseDAOClass {
 	 * Only the most recent N messages are retained. Kept high so chat history
 	 * is preserved across page refreshes.
 	 */
-	private readonly MAX_MESSAGES_PER_SESSION = 100;
+	private readonly MAX_MESSAGES_PER_SESSION = 500;
 
 	/**
 	 * Store a chat message in the database

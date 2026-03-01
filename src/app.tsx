@@ -52,6 +52,19 @@ const toolsRequiringConfirmation: (
 	"deleteFile",
 ];
 
+const CHAT_HISTORY_PAGE_SIZE = 50;
+
+interface ChatHistoryResponse {
+	messages?: Message[];
+	pagination?: {
+		limit?: number;
+		offset?: number;
+		returned?: number;
+		hasMore?: boolean;
+		nextOffset?: number;
+	};
+}
+
 export default function Chat() {
 	// Tour state
 	const [runTour, setRunTour] = useState(false);
@@ -455,6 +468,10 @@ export default function Chat() {
 
 	const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
 	const [agentStatus, setAgentStatus] = useState<string | null>(null);
+	const [chatHistoryOffset, setChatHistoryOffset] = useState(0);
+	const [hasMoreHistory, setHasMoreHistory] = useState(false);
+	const isLoadingOlderHistoryRef = useRef(false);
+	const hasAutoScrolledInitialHistoryRef = useRef(false);
 
 	const [agentInput, setInput] = useState("");
 	const handleAgentInputChange = useCallback(
@@ -466,6 +483,33 @@ export default function Chat() {
 
 	const agentMessages = chatMessages as Message[];
 	const isLoading = chatStatus === "submitted" || chatStatus === "streaming";
+
+	const fetchChatHistoryPage = useCallback(
+		async (
+			sessionId: string,
+			jwt: string,
+			offset: number,
+			limit: number
+		): Promise<ChatHistoryResponse> => {
+			const endpoint = API_CONFIG.ENDPOINTS.CHAT.HISTORY(sessionId);
+			const url = new URL(API_CONFIG.buildUrl(endpoint));
+			url.searchParams.set("limit", String(limit));
+			url.searchParams.set("offset", String(offset));
+
+			const response = await fetch(url.toString(), {
+				headers: { Authorization: `Bearer ${jwt}` },
+			});
+			if (response.status === 401) {
+				modalState.setShowAuthModal(true);
+				return { messages: [] };
+			}
+			if (!response.ok) return { messages: [] };
+			return (await response
+				.json()
+				.catch(() => ({ messages: [] }))) as ChatHistoryResponse;
+		},
+		[modalState]
+	);
 
 	// Tracks user message contents to hide in the UI (button-triggered prompts); never cleared so they stay hidden
 	const invisibleUserContentsRef = useRef<Set<string>>(new Set());
@@ -573,6 +617,9 @@ export default function Chat() {
 
 		setChatMessages([]);
 		setChatHistoryLoaded(false);
+		setChatHistoryOffset(0);
+		setHasMoreHistory(false);
+		isLoadingOlderHistoryRef.current = false;
 
 		const jwt = authState.getStoredJwt();
 		if (!jwt || conversationId === "auth-required") {
@@ -582,28 +629,23 @@ export default function Chat() {
 		}
 
 		let cancelled = false;
-		const url = API_CONFIG.buildUrl(
-			API_CONFIG.ENDPOINTS.CHAT.HISTORY(conversationId)
-		);
-		fetch(url, {
-			headers: { Authorization: `Bearer ${jwt}` },
-		})
-			.then((res) => {
-				if (res.status === 401) {
-					setShowAuthModal(true);
-					return { messages: [] };
-				}
-				if (!res.ok) return { messages: [] };
-				return res.json().catch(() => ({ messages: [] }));
-			})
-			.then((data: unknown) => {
+		void fetchChatHistoryPage(conversationId, jwt, 0, CHAT_HISTORY_PAGE_SIZE)
+			.then((data) => {
 				if (cancelled) return;
-				const parsed = data as { messages?: Message[] };
-				const messages = parsed?.messages ?? [];
+				const messages = data?.messages ?? [];
+				const hasMore =
+					typeof data?.pagination?.hasMore === "boolean"
+						? data.pagination.hasMore
+						: messages.length === CHAT_HISTORY_PAGE_SIZE;
 				setChatMessages((_prev) => messages as typeof _prev);
+				setChatHistoryOffset(messages.length);
+				setHasMoreHistory(hasMore);
 			})
 			.catch(() => {
-				if (!cancelled) setChatMessages((_prev) => [] as typeof _prev);
+				if (cancelled) return;
+				setChatMessages((_prev) => [] as typeof _prev);
+				setChatHistoryOffset(0);
+				setHasMoreHistory(false);
 			})
 			.finally(() => {
 				if (!cancelled) setChatHistoryLoaded(true);
@@ -617,34 +659,90 @@ export default function Chat() {
 		setChatMessages,
 		authState.getStoredJwt,
 		setShowAuthModal,
+		fetchChatHistoryPage,
 	]);
 
 	useEffect(() => {
-		void agentMessages;
-	}, [agentMessages]);
+		hasAutoScrolledInitialHistoryRef.current = false;
+	}, [conversationId]);
 
-	// Scroll to bottom on mount - only if there are messages and not loading
 	useEffect(() => {
-		// Scroll to bottom once when the page loads with messages
-		if (agentMessages.length > 0 && !isLoading) {
-			const chatContainer = document.getElementById(chatContainerId);
-			if (chatContainer) {
-				chatContainer.scrollTop = chatContainer.scrollHeight;
-			}
-		}
-	}, [agentMessages.length, isLoading, chatContainerId]);
-
-	// Scroll to bottom when messages change or when agent is responding
-	useEffect(() => {
+		if (!chatHistoryLoaded || hasAutoScrolledInitialHistoryRef.current) return;
 		const chatContainer = document.getElementById(chatContainerId);
-		if (chatContainer) {
-			// Smooth scroll to bottom when messages change
-			chatContainer.scrollTo({
-				top: chatContainer.scrollHeight,
-				behavior: "smooth",
+		if (!chatContainer) return;
+
+		hasAutoScrolledInitialHistoryRef.current = true;
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				chatContainer.scrollTop = chatContainer.scrollHeight;
 			});
-		}
-	}, [chatContainerId]);
+		});
+	}, [chatHistoryLoaded, agentMessages.length, chatContainerId]);
+
+	useEffect(() => {
+		if (!chatHistoryLoaded || !hasMoreHistory) return;
+		const chatContainer = document.getElementById(chatContainerId);
+		if (!chatContainer) return;
+
+		const handleScroll = () => {
+			if (chatContainer.scrollTop > 80) return;
+			if (isLoadingOlderHistoryRef.current) return;
+
+			const jwt = authState.getStoredJwt();
+			if (!jwt || conversationId === "auth-required") return;
+
+			isLoadingOlderHistoryRef.current = true;
+			const previousScrollHeight = chatContainer.scrollHeight;
+			const previousScrollTop = chatContainer.scrollTop;
+
+			void fetchChatHistoryPage(
+				conversationId,
+				jwt,
+				chatHistoryOffset,
+				CHAT_HISTORY_PAGE_SIZE
+			)
+				.then((data) => {
+					const olderMessages = data?.messages ?? [];
+					if (olderMessages.length > 0) {
+						setChatMessages(
+							(prev) =>
+								[...olderMessages, ...(prev as Message[])] as typeof prev
+						);
+						setChatHistoryOffset((prev) => prev + olderMessages.length);
+					}
+
+					const hasMore =
+						typeof data?.pagination?.hasMore === "boolean"
+							? data.pagination.hasMore
+							: olderMessages.length === CHAT_HISTORY_PAGE_SIZE;
+					setHasMoreHistory(hasMore);
+
+					requestAnimationFrame(() => {
+						const newScrollHeight = chatContainer.scrollHeight;
+						chatContainer.scrollTop =
+							newScrollHeight - previousScrollHeight + previousScrollTop;
+					});
+				})
+				.catch(() => {})
+				.finally(() => {
+					isLoadingOlderHistoryRef.current = false;
+				});
+		};
+
+		chatContainer.addEventListener("scroll", handleScroll, { passive: true });
+		return () => {
+			chatContainer.removeEventListener("scroll", handleScroll);
+		};
+	}, [
+		chatHistoryLoaded,
+		hasMoreHistory,
+		chatContainerId,
+		authState.getStoredJwt,
+		conversationId,
+		chatHistoryOffset,
+		fetchChatHistoryPage,
+		setChatMessages,
+	]);
 
 	// Debug modal state changes
 	useEffect(() => {}, []);
@@ -792,18 +890,6 @@ export default function Chat() {
 			console.error("Error requesting next steps:", error);
 		}
 	}, [append, authState.getStoredJwt, selectedCampaignId, selectedCampaign]);
-
-	// Scroll to bottom when messages change
-	useEffect(() => {
-		// Only scroll if there are messages and we're not in the initial load
-		if (agentMessages.length > 0 && !isLoading) {
-			// Add a small delay to ensure the messages are rendered
-			const timer = setTimeout(() => {
-				// messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); // This line is removed
-			}, 100);
-			return () => clearTimeout(timer);
-		}
-	}, [agentMessages.length, isLoading]);
 
 	const pendingToolCallConfirmation = agentMessages.some((m: Message) =>
 		m.parts?.some(

@@ -2,7 +2,8 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import type { ContextWithAuth } from "@/lib/route-utils";
 import { getUserAuth } from "@/lib/route-utils";
 
-const CHAT_HISTORY_LIMIT = 500;
+const DEFAULT_CHAT_HISTORY_LIMIT = 50;
+const MAX_CHAT_HISTORY_LIMIT = 500;
 
 /**
  * GET /chat-history/:sessionId
@@ -21,14 +22,24 @@ export async function handleGetChatHistory(
 	if (!sessionId) {
 		return c.json({ error: "Session ID required" }, 400);
 	}
+	const parsedLimit = Number.parseInt(
+		c.req.query("limit") ?? String(DEFAULT_CHAT_HISTORY_LIMIT),
+		10
+	);
+	const parsedOffset = Number.parseInt(c.req.query("offset") ?? "0", 10);
+	const limit = Number.isFinite(parsedLimit)
+		? Math.min(Math.max(parsedLimit, 1), MAX_CHAT_HISTORY_LIMIT)
+		: DEFAULT_CHAT_HISTORY_LIMIT;
+	const offset =
+		Number.isFinite(parsedOffset) && parsedOffset >= 0 ? parsedOffset : 0;
 
 	try {
 		const daoFactory = getDAOFactory(c.env);
 		const messages = await daoFactory.messageHistoryDAO.getMessages({
 			sessionId,
 			username: auth.username,
-			limit: CHAT_HISTORY_LIMIT,
-			offset: 0,
+			limit,
+			offset,
 		});
 
 		const mapped = messages.map((msg) => {
@@ -55,9 +66,20 @@ export async function handleGetChatHistory(
 			sessionId,
 			username: auth.username,
 			count: mapped.length,
+			limit,
+			offset,
 		});
 
-		return c.json({ messages: mapped });
+		return c.json({
+			messages: mapped,
+			pagination: {
+				limit,
+				offset,
+				returned: mapped.length,
+				hasMore: mapped.length === limit,
+				nextOffset: offset + mapped.length,
+			},
+		});
 	} catch (error) {
 		console.error("[ChatHistory] Failed to fetch history:", error);
 		return c.json({ error: "Failed to load chat history" }, 500);
