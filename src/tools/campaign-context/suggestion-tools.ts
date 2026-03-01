@@ -4,6 +4,7 @@ import { getEnvVar } from "@/lib/env-utils";
 import {
 	API_CONFIG,
 	AUTH_CODES,
+	getGenerationModelForProvider,
 	MODEL_CONFIG,
 	type ToolResult,
 } from "../../app-constants";
@@ -671,7 +672,7 @@ async function analyzeMetadataCoverage(
 		const llmProvider = createLLMProvider({
 			provider: MODEL_CONFIG.PROVIDER.DEFAULT,
 			apiKey: openaiApiKey,
-			defaultModel: MODEL_CONFIG.OPENAI.METADATA_ANALYSIS,
+			defaultModel: getGenerationModelForProvider("METADATA_ANALYSIS"),
 			defaultTemperature: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_TEMPERATURE,
 			defaultMaxTokens: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_MAX_TOKENS,
 		});
@@ -679,7 +680,7 @@ async function analyzeMetadataCoverage(
 		const result = await llmProvider.generateStructuredOutput<
 			z.infer<typeof coverageSchema>
 		>(prompt, {
-			model: MODEL_CONFIG.OPENAI.METADATA_ANALYSIS,
+			model: getGenerationModelForProvider("METADATA_ANALYSIS"),
 			temperature: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_TEMPERATURE,
 			maxTokens: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_MAX_TOKENS,
 		});

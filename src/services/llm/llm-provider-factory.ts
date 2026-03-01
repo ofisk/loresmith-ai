@@ -1,3 +1,4 @@
+import { AnthropicProvider } from "./anthropic-provider";
 import type { LLMProvider } from "./llm-provider";
 import { OpenAIProvider } from "./openai-provider";
 
@@ -27,8 +28,11 @@ export function createLLMProvider(
 				defaultMaxTokens: options.defaultMaxTokens,
 			});
 		case "anthropic":
-			// Future implementation
-			throw new Error("Anthropic provider not yet implemented");
+			return new AnthropicProvider(options.apiKey, {
+				defaultModel: options.defaultModel,
+				defaultTemperature: options.defaultTemperature,
+				defaultMaxTokens: options.defaultMaxTokens,
+			});
 		default:
 			throw new Error(`Unknown provider type: ${providerType}`);
 	}

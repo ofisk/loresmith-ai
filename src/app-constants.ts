@@ -200,6 +200,16 @@ export const MODEL_CONFIG = {
 		// Model for embeddings (if using OpenAI embeddings)
 		EMBEDDINGS: "text-embedding-3-small",
 	},
+	// Anthropic Models
+	ANTHROPIC: {
+		PRIMARY: "claude-sonnet-4-6",
+		INTERACTIVE: "claude-sonnet-4-6",
+		ANALYSIS: "claude-sonnet-4-6",
+		PIPELINE_STRUCTURED: "claude-sonnet-4-6",
+		PIPELINE_ANALYSIS: "claude-sonnet-4-6",
+		METADATA_ANALYSIS: "claude-sonnet-4-6",
+		SESSION_PLANNING: "claude-sonnet-4-6",
+	},
 	// Model parameters
 	PARAMETERS: {
 		// Default temperature for chat responses
@@ -222,12 +232,35 @@ export const MODEL_CONFIG = {
 	// LLM Provider configuration
 	PROVIDER: {
 		// Default provider for LLM operations
-		DEFAULT: "openai" as const,
+		DEFAULT: "anthropic" as const,
 	},
 	// Check if model is a reasoning model (temperature not supported)
 	isReasoningModel: (modelId: string): boolean =>
 		REASONING_MODELS.has(modelId.toLowerCase()),
 } as const;
+
+export type GenerationProviderType = keyof Pick<
+	typeof MODEL_CONFIG,
+	"OPENAI" | "ANTHROPIC"
+>;
+
+export type TextGenerationTier =
+	| "PRIMARY"
+	| "INTERACTIVE"
+	| "ANALYSIS"
+	| "PIPELINE_STRUCTURED"
+	| "PIPELINE_ANALYSIS"
+	| "METADATA_ANALYSIS"
+	| "SESSION_PLANNING";
+
+export function getGenerationModelForProvider(
+	tier: TextGenerationTier,
+	provider: "openai" | "anthropic" = MODEL_CONFIG.PROVIDER.DEFAULT
+): string {
+	return provider === "anthropic"
+		? MODEL_CONFIG.ANTHROPIC[tier]
+		: MODEL_CONFIG.OPENAI[tier];
+}
 
 // Rate limits for non-admin users (admin users bypass all limits)
 export const RATE_LIMITS = {

@@ -1,6 +1,7 @@
-import { openai } from "@ai-sdk/openai";
-import { MODEL_CONFIG } from "../app-constants";
-import { sanitizeOpenAIApiKey } from "./auth-utils";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createOpenAI } from "@ai-sdk/openai";
+import { getGenerationModelForProvider, MODEL_CONFIG } from "../app-constants";
+import { sanitizeApiKey } from "./auth-utils";
 import { OpenAIAPIKeyError } from "./errors";
 
 export class ModelManager {
@@ -22,15 +23,19 @@ export class ModelManager {
 	 */
 	initializeModel(apiKey: string): void {
 		if (!apiKey || typeof apiKey !== "string") {
-			throw new OpenAIAPIKeyError("API key must be a non-empty string");
+			throw new OpenAIAPIKeyError("API key must be a non-empty string.");
 		}
 
-		const trimmedKey = sanitizeOpenAIApiKey(apiKey);
+		const trimmedKey = sanitizeApiKey(apiKey);
+		const provider = MODEL_CONFIG.PROVIDER.DEFAULT;
 
 		// Validate that the API key is not a placeholder
-		if (trimmedKey === "your-openai-api-key-here") {
+		if (
+			trimmedKey === "your-openai-api-key-here" ||
+			trimmedKey === "your-anthropic-api-key-here"
+		) {
 			throw new OpenAIAPIKeyError(
-				"Invalid OpenAI API key detected (placeholder value). Please provide a valid OpenAI API key through the application authentication."
+				"Invalid API key detected (placeholder value). Please provide a valid provider API key through the application authentication."
 			);
 		}
 
@@ -39,23 +44,23 @@ export class ModelManager {
 			return;
 		}
 
-		// Set the API key in the environment for the model creation
-		const originalApiKey = process.env.OPENAI_API_KEY;
-		process.env.OPENAI_API_KEY = trimmedKey;
-
 		try {
-			// Create the model instance
-			this.model = openai(MODEL_CONFIG.OPENAI.INTERACTIVE as any);
+			// Create provider-aware model instance without mutating process environment.
+			if (provider === "anthropic") {
+				const anthropic = createAnthropic({ apiKey: trimmedKey });
+				this.model = anthropic(
+					getGenerationModelForProvider("INTERACTIVE", provider) as any
+				);
+			} else {
+				const openAI = createOpenAI({ apiKey: trimmedKey });
+				this.model = openAI(
+					getGenerationModelForProvider("INTERACTIVE", provider) as any
+				);
+			}
 			this.apiKey = trimmedKey;
 
-			console.log("[ModelManager] Model initialized with user API key");
+			console.log(`[ModelManager] Model initialized with ${provider} API key`);
 		} catch (error) {
-			// Restore the original API key if there was an error
-			if (originalApiKey === undefined) {
-				delete (process.env as any).OPENAI_API_KEY;
-			} else {
-				process.env.OPENAI_API_KEY = originalApiKey;
-			}
 			throw error;
 		}
 	}
@@ -65,9 +70,9 @@ export class ModelManager {
 	 */
 	getModel(): any {
 		if (!this.model) {
-			// Model is initialized once an OpenAI key is available (user key or server key).
+			// Model is initialized once a provider key is available (user key or server key).
 			console.log(
-				"[ModelManager] No model initialized - OpenAI API key not configured"
+				"[ModelManager] No model initialized - provider API key not configured"
 			);
 			return null;
 		}

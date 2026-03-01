@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MODEL_CONFIG } from "@/app-constants";
+import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { Entity, EntityNeighbor } from "@/dao/entity-dao";
 import { TelemetryDAO } from "@/dao/telemetry-dao";
@@ -367,10 +367,10 @@ export class PlanningContextService extends BaseRAGService {
 				PLANNING_CONTEXT_PROMPTS.formatEntityExtractionPrompt(query);
 
 			const llmProvider = createLLMProvider({
-				provider: "openai",
+				provider: MODEL_CONFIG.PROVIDER.DEFAULT,
 				apiKey,
 				// Use centralized analysis model for lightweight structured extraction
-				defaultModel: MODEL_CONFIG.OPENAI.ANALYSIS,
+				defaultModel: getGenerationModelForProvider("ANALYSIS"),
 				defaultTemperature: 0.1,
 				defaultMaxTokens: 500, // Small response for simple extraction
 			});
@@ -378,7 +378,7 @@ export class PlanningContextService extends BaseRAGService {
 			const result = await llmProvider.generateStructuredOutput<
 				z.infer<typeof extractionSchema>
 			>(prompt, {
-				model: MODEL_CONFIG.OPENAI.ANALYSIS,
+				model: getGenerationModelForProvider("ANALYSIS"),
 				temperature: 0.1,
 				maxTokens: 500,
 			});

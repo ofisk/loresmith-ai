@@ -207,7 +207,10 @@ The AI assistant helps you:
 #### Local Development (`.dev.vars`)
 
 ```env
-# OpenAI API Key (optional for development)
+# Anthropic API key (optional for development, default generation provider)
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+
+# OpenAI API key (optional; currently used for embeddings)
 OPENAI_API_KEY=sk-your-key-here
 
 # Admin Secret (required)
@@ -245,7 +248,7 @@ npm run migrate         # Run database migrations
 ## 🔒 Security
 
 - **JWT Authentication**: Secure token-based authentication
-- **API Key Validation**: All OpenAI API keys are validated before use
+- **API key validation**: LLM provider API keys are validated before use
 - **Secure Storage**: Sensitive data stored in Durable Objects
 - **Session Expiration**: Automatic cleanup of expired sessions
 - **Edge Security**: All requests validated at the Cloudflare edge

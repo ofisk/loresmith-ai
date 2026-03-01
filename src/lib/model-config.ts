@@ -1,5 +1,6 @@
-import { openai } from "@ai-sdk/openai";
-import { MODEL_CONFIG } from "../app-constants";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createOpenAI } from "@ai-sdk/openai";
+import { getGenerationModelForProvider, MODEL_CONFIG } from "../app-constants";
 import { OpenAIAPIKeyError } from "./errors";
 
 /**
@@ -14,9 +15,15 @@ import { OpenAIAPIKeyError } from "./errors";
  */
 function validateApiKey(apiKey?: string): string {
 	if (!apiKey) {
-		console.error("OpenAI API key not provided");
+		console.error("LLM API key not provided");
 		throw new OpenAIAPIKeyError(
-			"OpenAI API key is required. Configure OPENAI_API_KEY on the server (or provide a user key)."
+			`${
+				MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"
+			} API key is required. Configure ${
+				MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+					? "ANTHROPIC_API_KEY"
+					: "OPENAI_API_KEY"
+			} on the server (or provide a user key).`
 		);
 	}
 	return apiKey;
@@ -28,32 +35,39 @@ function validateApiKey(apiKey?: string): string {
 export function createModel(
 	modelName: string,
 	apiKey?: string,
-	params: Record<string, any> = {}
+	params: Record<string, any> = {},
+	provider: "openai" | "anthropic" = MODEL_CONFIG.PROVIDER.DEFAULT
 ) {
-	validateApiKey(apiKey);
-	const anyOpenAI = openai as any;
-	return anyOpenAI(modelName as any, params);
+	const validatedApiKey = validateApiKey(apiKey);
+	if (provider === "anthropic") {
+		const anthropic = createAnthropic({ apiKey: validatedApiKey });
+		void params;
+		return anthropic(modelName as any);
+	}
+	const openAI = createOpenAI({ apiKey: validatedApiKey });
+	void params;
+	return openAI(modelName as any);
 }
 
 /**
  * Get the primary model for chat and general tasks
  */
 export function getPrimaryModel(apiKey?: string) {
-	return createModel(MODEL_CONFIG.OPENAI.INTERACTIVE, apiKey);
+	return createModel(getGenerationModelForProvider("INTERACTIVE"), apiKey);
 }
 
 /**
  * Get the analysis model for metadata generation and analysis tasks
  */
 export function getAnalysisModel(apiKey?: string) {
-	return createModel(MODEL_CONFIG.OPENAI.ANALYSIS, apiKey);
+	return createModel(getGenerationModelForProvider("ANALYSIS"), apiKey);
 }
 
 /**
  * Get the embedding model for vector operations
  */
 export function getEmbeddingModel(apiKey?: string) {
-	return createModel(MODEL_CONFIG.OPENAI.EMBEDDINGS, apiKey);
+	return createModel(MODEL_CONFIG.OPENAI.EMBEDDINGS, apiKey, {}, "openai");
 }
 
 /**

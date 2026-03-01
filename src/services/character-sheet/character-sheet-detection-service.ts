@@ -2,7 +2,7 @@
 // Detects if extracted text content is a character sheet (filetype & game-system agnostic)
 
 import { z } from "zod";
-import { MODEL_CONFIG } from "@/app-constants";
+import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
 import { formatCharacterSheetDetectionPrompt } from "@/lib/prompts/character-sheet-prompts";
 import { chunkTextByCharacterCount } from "@/lib/text-chunking-utils";
 import { parseOrThrow } from "@/lib/zod-utils";
@@ -147,10 +147,10 @@ export class CharacterSheetDetectionService {
 		const prompt = formatCharacterSheetDetectionPrompt(chunkContent);
 
 		const llmProvider = createLLMProvider({
-			provider: "openai",
+			provider: MODEL_CONFIG.PROVIDER.DEFAULT,
 			apiKey: this.openaiApiKey,
 			// Use centralized analysis model for efficient detection
-			defaultModel: MODEL_CONFIG.OPENAI.ANALYSIS,
+			defaultModel: getGenerationModelForProvider("ANALYSIS"),
 			defaultTemperature: 0.1,
 			defaultMaxTokens: 500,
 		});
@@ -160,7 +160,7 @@ export class CharacterSheetDetectionService {
 				await llmProvider.generateStructuredOutput<CharacterSheetDetectionResult>(
 					prompt,
 					{
-						model: MODEL_CONFIG.OPENAI.ANALYSIS,
+						model: getGenerationModelForProvider("ANALYSIS"),
 						temperature: 0.1,
 						maxTokens: 500,
 						username: options?.username,
