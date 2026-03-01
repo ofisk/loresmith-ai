@@ -202,20 +202,13 @@ export const MODEL_CONFIG = {
 	},
 	// Anthropic Models
 	ANTHROPIC: {
-		// Primary model for chat and general tasks
-		PRIMARY: "claude-3-5-sonnet-20241022",
-		// Model for user-facing interactive chat/tool orchestration
-		INTERACTIVE: "claude-3-5-sonnet-20241022",
-		// Model for metadata generation and analysis
-		ANALYSIS: "claude-3-5-sonnet-20241022",
-		// Model for non-interactive structured/background pipeline steps
-		PIPELINE_STRUCTURED: "claude-3-5-sonnet-20241022",
-		// Model for non-interactive analysis/evaluation pipeline steps
-		PIPELINE_ANALYSIS: "claude-3-5-sonnet-20241022",
-		// Model for metadata analysis (checklist coverage, campaign readiness)
-		METADATA_ANALYSIS: "claude-3-5-sonnet-20241022",
-		// Model for session planning and script generation
-		SESSION_PLANNING: "claude-3-5-sonnet-20241022",
+		PRIMARY: "claude-sonnet-4-6",
+		INTERACTIVE: "claude-sonnet-4-6",
+		ANALYSIS: "claude-sonnet-4-6",
+		PIPELINE_STRUCTURED: "claude-sonnet-4-6",
+		PIPELINE_ANALYSIS: "claude-sonnet-4-6",
+		METADATA_ANALYSIS: "claude-sonnet-4-6",
+		SESSION_PLANNING: "claude-sonnet-4-6",
 	},
 	// Model parameters
 	PARAMETERS: {
