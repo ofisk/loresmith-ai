@@ -102,6 +102,7 @@ Once you have a campaign:
 - **Resource Library**: Upload and organize campaign files
 - **AI Context**: The AI assistant understands your campaign's context
 - **Session Tracking**: Keep track of sessions and world state
+- **Campaign timeline**: Build chronological timeline views across sessions and world state changes
 - **Entity Graph**: Automatically track NPCs, locations, and relationships
 - **Loot and rewards**: Generate loot ideas, get magic item reward suggestions, and track distributed items in your campaign data
 
@@ -492,6 +493,25 @@ When planning future sessions:
 5. **Run Session**: Play your planned session
 6. **Record Digest**: Document what happened
 7. **Repeat**: Use the new context for next session planning
+
+### Building campaign timelines
+
+You can ask the AI assistant to generate timeline views from your existing campaign history.
+
+Example prompts:
+
+- "Build a campaign timeline for all sessions."
+- "Show timeline events from session 4 to session 9."
+- "Query timeline events involving the Iron Throne faction."
+- "Add a manual timeline event: the baron declared martial law between sessions."
+
+Behind the scenes, timeline views combine:
+
+- Session digests
+- World state changelog entries
+- Archived changelog entries (when available)
+
+This is useful for returning-player recaps, long-arc continuity checks, and prep documents.
 
 ## Tips and Best Practices
 

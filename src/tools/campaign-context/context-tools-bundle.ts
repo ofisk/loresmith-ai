@@ -28,6 +28,11 @@ import {
 	searchExternalResources,
 } from "./search-tools";
 import {
+	addTimelineEventTool,
+	buildTimelineTool,
+	queryTimelineRangeTool,
+} from "./timeline-tools";
+import {
 	recordWorldEventTool,
 	updateEntityWorldStateTool,
 	updateRelationshipWorldStateTool,
@@ -43,6 +48,9 @@ export const campaignContextToolsBundle = {
 	recordWorldEventTool,
 	updateEntityWorldStateTool,
 	updateRelationshipWorldStateTool,
+	buildTimelineTool,
+	addTimelineEventTool,
+	queryTimelineRangeTool,
 	updateEntityMetadataTool,
 	updateEntityTypeTool,
 	deleteEntityTool,

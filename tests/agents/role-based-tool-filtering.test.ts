@@ -43,12 +43,15 @@ describe("Role-based tool filtering", () => {
 	});
 
 	describe("Campaign context tools bundles", () => {
-		it("campaignContextToolsBundle should include entity CRUD and world state tools", () => {
+		it("campaignContextToolsBundle should include entity CRUD, world state, and timeline tools", () => {
 			expect(campaignContextToolsBundle.recordWorldEventTool).toBeDefined();
 			expect(campaignContextToolsBundle.updateEntityMetadataTool).toBeDefined();
 			expect(
 				campaignContextToolsBundle.captureConversationalContext
 			).toBeDefined();
+			expect(campaignContextToolsBundle.buildTimelineTool).toBeDefined();
+			expect(campaignContextToolsBundle.addTimelineEventTool).toBeDefined();
+			expect(campaignContextToolsBundle.queryTimelineRangeTool).toBeDefined();
 			expect(campaignContextToolsBundle.defineHouseRuleTool).toBeDefined();
 			expect(campaignContextToolsBundle.updateHouseRuleTool).toBeDefined();
 			expect(
@@ -68,6 +71,15 @@ describe("Role-based tool filtering", () => {
 			expect(playerCampaignContextToolsBundle.listHouseRulesTool).toBeDefined();
 			expect(
 				(playerCampaignContextToolsBundle as any).recordWorldEventTool
+			).toBeUndefined();
+			expect(
+				(playerCampaignContextToolsBundle as any).buildTimelineTool
+			).toBeUndefined();
+			expect(
+				(playerCampaignContextToolsBundle as any).addTimelineEventTool
+			).toBeUndefined();
+			expect(
+				(playerCampaignContextToolsBundle as any).queryTimelineRangeTool
 			).toBeUndefined();
 			expect(
 				(playerCampaignContextToolsBundle as any).defineHouseRuleTool
