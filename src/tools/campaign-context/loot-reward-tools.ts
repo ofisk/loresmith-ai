@@ -96,6 +96,7 @@ async function generateStructuredWithFallback<T>({
 	provider,
 	primaryPrompt,
 	fallbackPrompt,
+	fallbackJsonHint,
 	primaryModel,
 	fallbackModel,
 	temperature,
@@ -105,6 +106,7 @@ async function generateStructuredWithFallback<T>({
 	provider: Awaited<ReturnType<typeof getLlmProvider>>["provider"];
 	primaryPrompt: string;
 	fallbackPrompt: string;
+	fallbackJsonHint: string;
 	primaryModel: string;
 	fallbackModel: string;
 	temperature: number;
@@ -124,11 +126,40 @@ async function generateStructuredWithFallback<T>({
 		console.warn(
 			"[loot-reward-tools] Primary structured generation returned no output, retrying with compact fallback prompt"
 		);
-		return await provider!.generateStructuredOutput<T>(fallbackPrompt, {
-			model: fallbackModel,
-			temperature: 0.3,
-			maxTokens: fallbackMaxTokens,
-		});
+		try {
+			return await provider!.generateStructuredOutput<T>(fallbackPrompt, {
+				model: fallbackModel,
+				temperature: 0.3,
+				maxTokens: fallbackMaxTokens,
+			});
+		} catch (fallbackError) {
+			if (!isNoOutputError(fallbackError)) {
+				throw fallbackError;
+			}
+			console.warn(
+				"[loot-reward-tools] Structured fallback also returned no output, retrying via text generation with JSON extraction"
+			);
+			const textResponse = await provider!.generateSummary(
+				`${fallbackPrompt}\n\n${fallbackJsonHint}\nRespond with JSON only.`,
+				{
+					model: fallbackModel,
+					temperature: 0.3,
+					maxTokens: fallbackMaxTokens,
+				}
+			);
+			const candidate = textResponse.trim();
+			const fencedMatch = candidate.match(/```(?:json)?\s*([\s\S]*?)```/i);
+			const rawJson = (fencedMatch?.[1] ?? candidate).trim();
+			try {
+				return JSON.parse(rawJson) as T;
+			} catch {
+				const objectMatch = rawJson.match(/\{[\s\S]*\}/);
+				if (objectMatch) {
+					return JSON.parse(objectMatch[0]) as T;
+				}
+				throw fallbackError;
+			}
+		}
 	}
 }
 
@@ -259,6 +290,8 @@ export const generateLootTool = tool({
 				provider: llm.provider,
 				primaryPrompt: promptText,
 				fallbackPrompt: fallbackPromptText,
+				fallbackJsonHint:
+					'JSON shape: {"summary":"string","currency":{"cp":0,"sp":0,"gp":0,"pp":0},"valuables":["..."],"items":[{"name":"...","itemType":"...","rarity":"...","description":"...","mechanicalNotes":"...","storyHook":"...","estimatedValueGp":0}],"distributionNotes":["..."]}',
 				primaryModel: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
 				fallbackModel: MODEL_CONFIG.OPENAI.INTERACTIVE,
 				temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
@@ -428,6 +461,8 @@ export const suggestMagicItemTool = tool({
 				provider: llm.provider,
 				primaryPrompt: promptText,
 				fallbackPrompt: fallbackPromptText,
+				fallbackJsonHint:
+					'JSON shape: {"primaryRecommendation":{"name":"...","itemType":"...","rarity":"...","description":"...","mechanicalNotes":"...","storyHook":"...","estimatedValueGp":0,"reasoning":"..."},"alternatives":[{"name":"...","itemType":"...","rarity":"...","description":"...","mechanicalNotes":"...","storyHook":"...","estimatedValueGp":0,"reasoning":"..."}],"usageIdeas":["..."]}',
 				primaryModel: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
 				fallbackModel: MODEL_CONFIG.OPENAI.INTERACTIVE,
 				temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
