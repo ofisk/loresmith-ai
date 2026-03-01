@@ -6,6 +6,10 @@ import {
 	playerCampaignContextToolsBundle,
 } from "../../src/tools/campaign-context/context-tools-bundle";
 import {
+	gmLootRewardToolsBundle,
+	playerLootRewardToolsBundle,
+} from "../../src/tools/campaign-context/loot-reward-tools-bundle";
+import {
 	gmRecapToolsBundle,
 	playerRecapToolsBundle,
 } from "../../src/tools/campaign-context/recap-agent-tools-bundle";
@@ -113,6 +117,26 @@ describe("Role-based tool filtering", () => {
 			).toBeUndefined();
 			expect((playerCampaignTools as any).updateCampaign).toBeUndefined();
 			expect((playerCampaignTools as any).deleteCampaign).toBeUndefined();
+		});
+	});
+
+	describe("Loot reward tools bundles", () => {
+		it("gmLootRewardToolsBundle should include loot generation and tracking tools", () => {
+			expect(gmLootRewardToolsBundle.generateLootTool).toBeDefined();
+			expect(gmLootRewardToolsBundle.suggestMagicItemTool).toBeDefined();
+			expect(gmLootRewardToolsBundle.trackDistributedLootTool).toBeDefined();
+		});
+
+		it("playerLootRewardToolsBundle should exclude GM-only loot tools", () => {
+			expect(
+				(playerLootRewardToolsBundle as any).generateLootTool
+			).toBeUndefined();
+			expect(
+				(playerLootRewardToolsBundle as any).suggestMagicItemTool
+			).toBeUndefined();
+			expect(
+				(playerLootRewardToolsBundle as any).trackDistributedLootTool
+			).toBeUndefined();
 		});
 	});
 

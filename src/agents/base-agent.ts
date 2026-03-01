@@ -283,6 +283,26 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 						selectedCampaignId = messageData.campaignId;
 					}
 				}
+				if (!selectedCampaignId) {
+					// Fallback: use the most recent campaignId found in message metadata
+					// (including client marker system messages) so tools can use the
+					// active conversation campaign without asking the user for IDs.
+					const recentCampaignMessage = this.messages
+						.slice()
+						.reverse()
+						.find((msg) => {
+							const data = (msg as { data?: unknown }).data as
+								| { campaignId?: unknown }
+								| undefined;
+							return typeof data?.campaignId === "string";
+						});
+					if (recentCampaignMessage) {
+						const data = (recentCampaignMessage as { data?: unknown }).data as {
+							campaignId?: string;
+						};
+						selectedCampaignId = data.campaignId ?? null;
+					}
+				}
 
 				// Resolve campaign role and build role context for GM vs player tailoring
 				let claimedPlayerContext: Awaited<

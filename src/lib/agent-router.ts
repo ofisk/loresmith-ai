@@ -1,4 +1,5 @@
 import { streamText } from "ai";
+import { MODEL_CONFIG } from "@/app-constants";
 import { AgentNotRegisteredError } from "@/lib/errors";
 import { ModelManager } from "./model-manager";
 import { AGENT_ROUTING_PROMPTS } from "./prompts/agent-routing-prompts";
@@ -14,6 +15,7 @@ export type AgentType =
 	| "onboarding"
 	| "resources"
 	| "session-digest"
+	| "loot-reward"
 	| "shards";
 
 export interface AgentIntent {
@@ -230,7 +232,11 @@ Example format: "agent_type|confidence|reason"`;
 				model: modelToUse,
 				system: systemPrompt,
 				messages: [{ role: "user", content: userMessage }],
-				temperature: 0,
+				...(!MODEL_CONFIG.isReasoningModel(
+					((modelToUse as { modelId?: string })?.modelId ?? "").toLowerCase()
+				) && {
+					temperature: 0,
+				}),
 			});
 
 			// Extract the response text

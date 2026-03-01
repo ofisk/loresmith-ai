@@ -50,6 +50,8 @@ export const RELATIONSHIP_TYPES = [
 	"occurs_at",
 	"grants_proficiency",
 	"enables_activity",
+	"found_in",
+	"belonged_to",
 ] as const;
 
 export type RelationshipType = (typeof RELATIONSHIP_TYPES)[number];
@@ -78,11 +80,13 @@ export const RELATIONSHIP_TYPE_CATEGORIES = {
 	"Ownership & Control": [
 		"owns",
 		"owned_by",
+		"belonged_to",
 		"wielded_by",
 		"crafted_by",
 		"blessed_by",
 		"guards",
 		"controls",
+		"found_in",
 	],
 	"Religious & Divine": ["worships", "champion_of", "sacred_to"],
 	"Quest & Narrative": [
@@ -278,6 +282,12 @@ const RELATIONSHIP_SYNONYMS: Record<string, RelationshipType> = {
 	enables_activity: "enables_activity",
 	allows_activity: "enables_activity",
 	enables: "enables_activity",
+	foundin: "found_in",
+	found_in: "found_in",
+	discovered_in: "found_in",
+	belongedto: "belonged_to",
+	belonged_to: "belonged_to",
+	formerly_owned_by: "belonged_to",
 };
 
 /**

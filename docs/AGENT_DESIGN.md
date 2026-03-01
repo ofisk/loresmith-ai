@@ -79,7 +79,7 @@ Why this helps game masters:
 
 ## Agent types and routing
 
-- **AgentRouter** (`src/lib/agent-router.ts`) maintains a registry of agent types (campaign, campaign-context, character, session-digest, etc.).
+- **AgentRouter** (`src/lib/agent-router.ts`) maintains a registry of agent types (campaign, campaign-context, character, loot-reward, session-digest, etc.).
 - Routing uses an LLM to classify user intent and pick an agent type; the DO then instantiates the corresponding agent class with that type’s tools and system prompt.
 - See `AGENT_ROUTING_PROMPTS` and `routeAgentRequest` for how the routing request is built and executed.
 

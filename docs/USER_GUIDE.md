@@ -103,6 +103,7 @@ Once you have a campaign:
 - **AI Context**: The AI assistant understands your campaign's context
 - **Session Tracking**: Keep track of sessions and world state
 - **Entity Graph**: Automatically track NPCs, locations, and relationships
+- **Loot and rewards**: Generate loot ideas, get magic item reward suggestions, and track distributed items in your campaign data
 
 ### Multiple Campaigns
 
