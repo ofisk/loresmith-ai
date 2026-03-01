@@ -1,0 +1,164 @@
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { APICallError, generateText, Output } from "ai";
+import { MODEL_CONFIG } from "@/app-constants";
+import { OpenAIAPIKeyError } from "@/lib/errors";
+import type {
+	LLMOptions,
+	LLMProvider,
+	StructuredOutputOptions,
+} from "./llm-provider";
+
+function parseStructuredSchema(
+	schema?: string
+): Record<string, unknown> | null {
+	if (!schema || !schema.trim()) {
+		return null;
+	}
+	try {
+		const parsed = JSON.parse(schema) as Record<string, unknown>;
+		if (!parsed || typeof parsed !== "object") {
+			return null;
+		}
+		return parsed;
+	} catch (_error) {
+		return null;
+	}
+}
+
+function getUsageTokens(usage: unknown): number {
+	const typed = usage as
+		| {
+				totalTokens?: number;
+				inputTokens?: number;
+				outputTokens?: number;
+		  }
+		| undefined;
+	return (
+		typed?.totalTokens ?? (typed?.inputTokens ?? 0) + (typed?.outputTokens ?? 0)
+	);
+}
+
+/**
+ * Anthropic provider implementation for LLM generation.
+ */
+export class AnthropicProvider implements LLMProvider {
+	private readonly apiKey: string;
+	private readonly defaultModel: string;
+	private readonly defaultTemperature: number;
+	private readonly defaultMaxTokens: number;
+
+	constructor(
+		apiKey: string,
+		options: {
+			defaultModel?: string;
+			defaultTemperature?: number;
+			defaultMaxTokens?: number;
+		} = {}
+	) {
+		if (!apiKey) {
+			throw new OpenAIAPIKeyError(
+				"Anthropic API key is required. Configure ANTHROPIC_API_KEY on the server."
+			);
+		}
+
+		this.apiKey = apiKey;
+		this.defaultModel =
+			options.defaultModel || MODEL_CONFIG.ANTHROPIC.INTERACTIVE;
+		this.defaultTemperature = options.defaultTemperature ?? 0.3;
+		this.defaultMaxTokens = options.defaultMaxTokens ?? 2000;
+	}
+
+	async generateSummary(
+		prompt: string,
+		options: LLMOptions = {}
+	): Promise<string> {
+		const modelId = options.model || this.defaultModel;
+		const temperature = options.temperature ?? this.defaultTemperature;
+		const maxTokens = options.maxTokens ?? this.defaultMaxTokens;
+
+		try {
+			const anthropic = createAnthropic({ apiKey: this.apiKey });
+			const model = anthropic(modelId as any);
+			const result = await generateText({
+				model,
+				prompt,
+				temperature,
+				maxOutputTokens: maxTokens,
+			});
+
+			const text = result.text;
+			if (text === undefined || text === null) {
+				throw new Error("Anthropic API returned empty response");
+			}
+
+			const tokens = getUsageTokens(result.usage);
+			if (tokens > 0 && options.onUsage) {
+				await options.onUsage(
+					{ tokens, queryCount: 1 },
+					{ username: options.username, model: modelId }
+				);
+			}
+			return text;
+		} catch (error) {
+			console.error("[AnthropicProvider] Error generating summary:", error);
+			throw new Error(
+				`Failed to generate summary: ${error instanceof Error ? error.message : "Unknown error"}`
+			);
+		}
+	}
+
+	async generateStructuredOutput<T = unknown>(
+		prompt: string,
+		options: StructuredOutputOptions = {}
+	): Promise<T> {
+		const modelId = options.model || this.defaultModel;
+		const temperature = options.temperature ?? this.defaultTemperature;
+		const maxTokens = options.maxTokens ?? this.defaultMaxTokens;
+		const parsedSchema = parseStructuredSchema(options.schema);
+		const schemaInstructions = parsedSchema
+			? `\n\nYou MUST return JSON that conforms to this JSON Schema:\n${JSON.stringify(parsedSchema)}`
+			: "";
+		const finalPrompt = `Respond with valid JSON only.\n\n${prompt}${schemaInstructions}`;
+
+		try {
+			const anthropic = createAnthropic({ apiKey: this.apiKey });
+			const model = anthropic(modelId as any);
+			const result = await generateText({
+				model,
+				prompt: finalPrompt,
+				temperature,
+				maxOutputTokens: maxTokens,
+				output: Output.json(),
+			});
+			const output = result.output;
+			if (output === undefined || output === null) {
+				throw new Error("Anthropic API returned empty structured output");
+			}
+
+			const tokens = getUsageTokens(result.usage);
+			if (tokens > 0 && options.onUsage) {
+				await options.onUsage(
+					{ tokens, queryCount: 1 },
+					{ username: options.username, model: modelId }
+				);
+			}
+			return output as T;
+		} catch (error) {
+			if (APICallError.isInstance(error)) {
+				console.error(
+					"[AnthropicProvider] Structured output API error:",
+					error.statusCode,
+					error.responseBody ?? "(no body)"
+				);
+			} else {
+				console.error(
+					"[AnthropicProvider] Error generating structured output:",
+					error
+				);
+			}
+			throw new Error(
+				`Failed to generate structured output: ${error instanceof Error ? error.message : "Unknown error"}`
+			);
+		}
+	}
+}

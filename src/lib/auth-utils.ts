@@ -1,10 +1,10 @@
 import type { Context } from "hono";
 
 /**
- * Sanitize an OpenAI API key by removing invisible/format Unicode characters
- * that can be pasted from some UIs (e.g. U+2068, U+2069) and cause 400 Bad Request.
+ * Sanitize API keys by removing invisible/format Unicode characters
+ * that can be pasted from some UIs (e.g. U+2068, U+2069).
  */
-export function sanitizeOpenAIApiKey(key: string): string {
+export function sanitizeApiKey(key: string): string {
 	if (typeof key !== "string") return "";
 	return key
 		.replace(
@@ -12,6 +12,13 @@ export function sanitizeOpenAIApiKey(key: string): string {
 			""
 		) /* remove format/dir isolates, zero-width, BOM, soft hyphen */
 		.trim();
+}
+
+/**
+ * Backward-compatible alias for existing OpenAI call sites.
+ */
+export function sanitizeOpenAIApiKey(key: string): string {
+	return sanitizeApiKey(key);
 }
 
 /**

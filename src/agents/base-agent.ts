@@ -1,5 +1,5 @@
 import { stepCountIs, streamText } from "ai";
-import { MODEL_CONFIG } from "@/app-constants";
+import { getGenerationModelForProvider } from "@/app-constants";
 import { CAMPAIGN_ROLES, PLAYER_ROLES } from "@/constants/campaign-roles";
 import { getDAOFactory } from "@/dao/dao-factory";
 import {
@@ -594,7 +594,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 				};
 
 				// Keep one compact structured summary per turn for production observability.
-				log.info("Making OpenAI API request", {
+				log.info("Making LLM provider request", {
 					agent: requestDetails.agent,
 					model: requestDetails.model,
 					messageCount: requestDetails.messageCount,
@@ -630,7 +630,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 							const allToolCalls = steps.flatMap(
 								(step: any) => step.toolCalls || []
 							);
-							log.info("OpenAI API response complete", {
+							log.info("LLM provider response complete", {
 								finishReason: args?.finishReason ?? "unknown",
 								stepCount: steps.length,
 								toolCallCount: allToolCalls.length,
@@ -684,7 +684,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 							const errorDetails = {
 								message: errorMessage,
 								name: error?.name || "Unknown",
-								// OpenAI specific fields
+								// Provider error detail fields (vary by SDK/provider)
 								statusCode: error?.statusCode,
 								code: error?.code,
 								type: error?.type,
@@ -692,7 +692,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 							};
 
 							console.error(
-								`[${this.constructor.name}] ❌ OpenAI API Call Failed`
+								`[${this.constructor.name}] ❌ LLM provider call failed`
 							);
 							// Log compact request summary instead of full details to avoid log size limits
 							console.error(
@@ -729,7 +729,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 							if (isQuotaError) {
 								writeTextChunks(
 									dataStream.write,
-									"I'm unable to process your request because your OpenAI API quota has been exceeded. If you've recently updated your billing, it may take a few minutes for the changes to take effect. Please wait 2-3 minutes and try again, or check your OpenAI billing settings at https://platform.openai.com/account/billing"
+									"I'm unable to process your request because your LLM API quota appears to be exceeded. If you recently updated billing, it may take a few minutes for the change to propagate. Please wait 2-3 minutes and try again."
 								);
 							} else if (isContextLengthError) {
 								writeTextChunks(
@@ -1042,7 +1042,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 							let trimmedResult = toolResult;
 							try {
 								const modelId =
-									this.model?.modelId || MODEL_CONFIG.OPENAI.SESSION_PLANNING;
+									this.model?.modelId ||
+									getGenerationModelForProvider("SESSION_PLANNING");
 								const contextLimit = getSafeContextLimit(modelId);
 
 								// Use a conservative limit for tool results: 30% of context limit

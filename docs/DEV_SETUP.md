@@ -19,7 +19,7 @@ The development environment uses separate Cloudflare resources to avoid conflict
    - Billing configured (even for free tier usage)
    - API tokens with appropriate permissions: Workers:Edit, Account:Read, Zone:Read (if using custom domains)
 3. **Wrangler CLI** installed: `npm install -g wrangler`
-4. **OpenAI API key** for AI functionality
+4. **Anthropic API key** for text generation functionality
 
 ## Quick Start
 
@@ -51,8 +51,11 @@ Copy `.dev.vars.template` to `.dev.vars` if the setup script did not create it. 
 # Required values
 ADMIN_SECRET=your-secure-admin-secret
 
-# Optional: OpenAI API key for local development
-# Note: In production, users provide their own OpenAI API key through the application
+# Optional: Anthropic API key for local development (default generation provider)
+# Note: In production, users provide their own provider API key through the application
+# ANTHROPIC_API_KEY=sk-ant-your-anthropic-api-key
+
+# Optional: OpenAI API key for embeddings
 # OPENAI_API_KEY=sk-your-openai-api-key
 
 # CORS settings

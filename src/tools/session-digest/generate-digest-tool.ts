@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { ToolResult } from "@/app-constants";
-import { MODEL_CONFIG } from "@/app-constants";
+import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { getEnvVar } from "@/lib/env-utils";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
@@ -145,16 +145,20 @@ export const generateDigestFromNotesTool = tool({
 				}
 			}
 
-			// Get OpenAI API key
-			const openaiApiKeyRaw = await getEnvVar(
+			// Get provider API key
+			const providerEnvVar =
+				MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+					? "ANTHROPIC_API_KEY"
+					: "OPENAI_API_KEY";
+			const providerApiKeyRaw = await getEnvVar(
 				env as unknown as Record<string, unknown>,
-				"OPENAI_API_KEY",
+				providerEnvVar,
 				false
 			);
-			const openaiApiKey = openaiApiKeyRaw.trim();
-			if (!openaiApiKey) {
+			const providerApiKey = providerApiKeyRaw.trim();
+			if (!providerApiKey) {
 				return createToolError(
-					"OpenAI API key not configured",
+					`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key not configured`,
 					"AI is not configured for this environment.",
 					503,
 					toolCallId
@@ -172,10 +176,10 @@ export const generateDigestFromNotesTool = tool({
 
 			// Create LLM provider and generate structured output
 			const llmProvider = createLLMProvider({
-				provider: "openai",
-				apiKey: openaiApiKey,
+				provider: MODEL_CONFIG.PROVIDER.DEFAULT,
+				apiKey: providerApiKey,
 				// Use centralized session-planning model for high-quality structured digest generation
-				defaultModel: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
+				defaultModel: getGenerationModelForProvider("SESSION_PLANNING"),
 				defaultTemperature: 0.3,
 				defaultMaxTokens: 4000,
 			});
@@ -186,7 +190,7 @@ export const generateDigestFromNotesTool = tool({
 
 			const generatedDigest =
 				await llmProvider.generateStructuredOutput<SessionDigestData>(prompt, {
-					model: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
+					model: getGenerationModelForProvider("SESSION_PLANNING"),
 					temperature: 0.3,
 					maxTokens: 4000,
 				});

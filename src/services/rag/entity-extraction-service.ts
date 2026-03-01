@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MODEL_CONFIG } from "@/app-constants";
+import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
 import {
 	STRUCTURED_ENTITY_TYPES,
 	type StructuredEntityType,
@@ -305,12 +305,12 @@ CONTENT END`;
 		}
 	): Promise<z.infer<typeof EntityExtractionSchema> | null> {
 		try {
-			// Create LLM provider with OpenAI
+			// Create LLM provider using configured default provider
 			const llmProvider = createLLMProvider({
-				provider: "openai",
+				provider: MODEL_CONFIG.PROVIDER.DEFAULT,
 				apiKey,
 				// Use non-interactive structured pipeline tier for extraction
-				defaultModel: MODEL_CONFIG.OPENAI.PIPELINE_STRUCTURED,
+				defaultModel: getGenerationModelForProvider("PIPELINE_STRUCTURED"),
 				defaultTemperature: 0.1,
 				defaultMaxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
 			});
@@ -319,7 +319,7 @@ CONTENT END`;
 			const result = await llmProvider.generateStructuredOutput<
 				z.infer<typeof EntityExtractionSchema>
 			>(prompt, {
-				model: MODEL_CONFIG.OPENAI.PIPELINE_STRUCTURED,
+				model: getGenerationModelForProvider("PIPELINE_STRUCTURED"),
 				temperature: 0.1,
 				maxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
 				username: usageOptions?.username,

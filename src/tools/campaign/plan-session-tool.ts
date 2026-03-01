@@ -1,6 +1,11 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { API_CONFIG, MODEL_CONFIG, type ToolResult } from "@/app-constants";
+import {
+	API_CONFIG,
+	getGenerationModelForProvider,
+	MODEL_CONFIG,
+	type ToolResult,
+} from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { getFileTypeFromName } from "@/lib/file-utils";
 import { getEntitiesWithRelationships } from "@/lib/graph/entity-utils";
@@ -308,14 +313,14 @@ export const planSession = tool({
 			const llmProvider = createLLMProvider({
 				provider: MODEL_CONFIG.PROVIDER.DEFAULT,
 				apiKey: openaiApiKey,
-				defaultModel: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
+				defaultModel: getGenerationModelForProvider("SESSION_PLANNING"),
 				defaultTemperature:
 					MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
 				defaultMaxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
 			});
 
 			const sessionScript = await llmProvider.generateSummary(prompt, {
-				model: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
+				model: getGenerationModelForProvider("SESSION_PLANNING"),
 				temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
 				maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
 			});

@@ -2,7 +2,7 @@
 // Extracts structured character data from character sheet text (filetype & game-system agnostic)
 
 import { z } from "zod";
-import { MODEL_CONFIG } from "@/app-constants";
+import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
 import { formatCharacterSheetParsingPrompt } from "@/lib/prompts/character-sheet-prompts";
 import { chunkTextByCharacterCount } from "@/lib/text-chunking-utils";
 import { parseOrThrow } from "@/lib/zod-utils";
@@ -225,10 +225,10 @@ export class CharacterSheetParserService {
 		);
 
 		const llmProvider = createLLMProvider({
-			provider: "openai",
+			provider: MODEL_CONFIG.PROVIDER.DEFAULT,
 			apiKey: this.openaiApiKey,
 			// Use centralized heavy structured model (session planning) for rich character data
-			defaultModel: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
+			defaultModel: getGenerationModelForProvider("SESSION_PLANNING"),
 			defaultTemperature: 0.1,
 			defaultMaxTokens: 8000, // Allow larger response for comprehensive character data
 		});
@@ -236,7 +236,7 @@ export class CharacterSheetParserService {
 		const result = await llmProvider.generateStructuredOutput<CharacterData>(
 			prompt,
 			{
-				model: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
+				model: getGenerationModelForProvider("SESSION_PLANNING"),
 				temperature: 0.1,
 				maxTokens: 8000,
 			}

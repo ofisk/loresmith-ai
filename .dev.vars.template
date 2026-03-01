@@ -7,6 +7,9 @@
 
 # Local development environment variables
 ADMIN_SECRET=your-dev-admin-secret-here
+# Default text generation provider key
+ANTHROPIC_API_KEY=your-anthropic-api-key-here
+# Embeddings provider key
 OPENAI_API_KEY=your-openai-api-key-here
 
 # JWT signing secret (required for auth - use a random string)

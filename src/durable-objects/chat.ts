@@ -1,10 +1,10 @@
 import type { Schedule } from "agents";
 import { SimpleChatAgent } from "@/agents/simple-chat-agent";
-import { JWT_STORAGE_KEY } from "@/app-constants";
+import { JWT_STORAGE_KEY, MODEL_CONFIG } from "@/app-constants";
 import { AgentRegistryService } from "@/lib/agent-registry";
 import type { AgentType } from "@/lib/agent-router";
 import { AgentRouter } from "@/lib/agent-router";
-import { extractJwtFromHeader, sanitizeOpenAIApiKey } from "@/lib/auth-utils";
+import { extractJwtFromHeader, sanitizeApiKey } from "@/lib/auth-utils";
 import { getEnvVar } from "@/lib/env-utils";
 import { AuthenticationRequiredError, OpenAIAPIKeyError } from "@/lib/errors";
 import { ModelManager } from "@/lib/model-manager";
@@ -15,6 +15,7 @@ import { AuthService } from "@/services/core/auth-service";
 
 interface Env extends AuthEnv {
 	OPENAI_API_KEY?: unknown;
+	ANTHROPIC_API_KEY?: unknown;
 	R2: R2Bucket;
 	DB: D1Database;
 	VECTORIZE: VectorizeIndex;
@@ -49,7 +50,7 @@ export class Chat extends SimpleChatAgent<Env> {
 
 		this.agents = new Map();
 
-		this.loadServerOpenAIKey();
+		this.loadServerProviderKey();
 	}
 
 	/**
@@ -81,26 +82,35 @@ export class Chat extends SimpleChatAgent<Env> {
 		return jwtToken || null;
 	}
 
-	private async getServerOpenAIKey(): Promise<string | null> {
+	private getProviderEnvVarName(): "OPENAI_API_KEY" | "ANTHROPIC_API_KEY" {
+		return MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+			? "ANTHROPIC_API_KEY"
+			: "OPENAI_API_KEY";
+	}
+
+	private async getServerProviderKey(): Promise<string | null> {
+		const envVar = this.getProviderEnvVarName();
 		const raw = await getEnvVar(
 			this.env as unknown as Record<string, unknown>,
-			"OPENAI_API_KEY",
+			envVar,
 			false
 		);
 		const trimmed = raw.trim();
 		if (!trimmed) return null;
-		return sanitizeOpenAIApiKey(trimmed);
+		return sanitizeApiKey(trimmed);
 	}
 
 	/**
-	 * Initialize agents from the server-configured OpenAI API key (if set).
+	 * Initialize agents from the server-configured provider API key (if set).
 	 */
-	private async loadServerOpenAIKey() {
+	private async loadServerProviderKey() {
 		try {
-			const serverKey = await this.getServerOpenAIKey();
+			const serverKey = await this.getServerProviderKey();
 			if (!serverKey) return;
 
-			console.log("[Chat] Using server OpenAI API key from environment");
+			console.log(
+				`[Chat] Using server ${MODEL_CONFIG.PROVIDER.DEFAULT} API key from environment`
+			);
 			await this.initializeAgents(serverKey);
 		} catch (error) {
 			console.error("[Chat] Error initializing agents from server key:", error);
@@ -115,16 +125,18 @@ export class Chat extends SimpleChatAgent<Env> {
 		}
 	}
 
-	private async initializeAgents(openAIAPIKey: string | null) {
+	private async initializeAgents(providerApiKey: string | null) {
 		try {
 			const modelManager = ModelManager.getInstance();
 
-			if (openAIAPIKey) {
-				modelManager.initializeModel(openAIAPIKey);
-				console.log("[Chat] Initialized model with OpenAI API key");
+			if (providerApiKey) {
+				modelManager.initializeModel(providerApiKey);
+				console.log(
+					`[Chat] Initialized model with ${MODEL_CONFIG.PROVIDER.DEFAULT} API key`
+				);
 			} else {
 				throw new OpenAIAPIKeyError(
-					"OpenAI API key is required. Please configure OPENAI_API_KEY on the server."
+					`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key is required. Please configure ${this.getProviderEnvVarName()} on the server.`
 				);
 			}
 
@@ -328,14 +340,16 @@ export class Chat extends SimpleChatAgent<Env> {
 					);
 				}
 
-				const serverKey = await this.getServerOpenAIKey();
+				const serverKey = await this.getServerProviderKey();
 				if (!serverKey) {
 					throw new OpenAIAPIKeyError(
-						"OpenAI API key is required. Please configure OPENAI_API_KEY on the server."
+						`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key is required. Please configure ${this.getProviderEnvVarName()} on the server.`
 					);
 				}
 
-				console.log("[Chat] Initializing agents with server OpenAI API key");
+				console.log(
+					`[Chat] Initializing agents with server ${MODEL_CONFIG.PROVIDER.DEFAULT} API key`
+				);
 				await this.initializeAgents(serverKey);
 			}
 
@@ -455,7 +469,7 @@ export class Chat extends SimpleChatAgent<Env> {
 	private getAgentInstance(targetAgent: string): any {
 		if (this.agents.size === 0) {
 			throw new Error(
-				"Agents not initialized. Please configure OPENAI_API_KEY on the server."
+				`Agents not initialized. Please configure ${this.getProviderEnvVarName()} on the server.`
 			);
 		}
 

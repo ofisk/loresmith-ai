@@ -1,5 +1,5 @@
 import type { D1Database, VectorizeIndex } from "@cloudflare/workers-types";
-import { MODEL_CONFIG } from "@/app-constants";
+import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import {
 	formatConsistencyAssessmentPrompt,
@@ -246,9 +246,9 @@ Return:
 
 		try {
 			const llmProvider = createLLMProvider({
-				provider: "openai",
+				provider: MODEL_CONFIG.PROVIDER.DEFAULT,
 				apiKey: this.openaiApiKey,
-				defaultModel: MODEL_CONFIG.OPENAI.PIPELINE_ANALYSIS,
+				defaultModel: getGenerationModelForProvider("PIPELINE_ANALYSIS"),
 				defaultTemperature: 0.1,
 				defaultMaxTokens: 2200,
 			});
@@ -256,7 +256,7 @@ Return:
 				specificity?: { score?: number; issues?: string[] };
 				relevance?: { score?: number; issues?: string[] };
 			}>(prompt, {
-				model: MODEL_CONFIG.OPENAI.PIPELINE_ANALYSIS,
+				model: getGenerationModelForProvider("PIPELINE_ANALYSIS"),
 				temperature: 0.1,
 				maxTokens: 2200,
 				schema,
@@ -525,9 +525,9 @@ Return:
 		);
 
 		const llmProvider = createLLMProvider({
-			provider: "openai",
+			provider: MODEL_CONFIG.PROVIDER.DEFAULT,
 			apiKey: this.openaiApiKey,
-			defaultModel: MODEL_CONFIG.OPENAI.PIPELINE_ANALYSIS,
+			defaultModel: getGenerationModelForProvider("PIPELINE_ANALYSIS"),
 			defaultTemperature: 0.1,
 			defaultMaxTokens: 1500,
 		});
@@ -536,7 +536,7 @@ Return:
 			const result = await llmProvider.generateStructuredOutput<{
 				issues: string[];
 			}>(consistencyPrompt, {
-				model: MODEL_CONFIG.OPENAI.PIPELINE_ANALYSIS,
+				model: getGenerationModelForProvider("PIPELINE_ANALYSIS"),
 				temperature: 0.1,
 				maxTokens: 1500,
 			});

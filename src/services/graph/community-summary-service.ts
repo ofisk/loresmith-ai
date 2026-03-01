@@ -1,4 +1,4 @@
-import { MODEL_CONFIG } from "@/app-constants";
+import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
 import type { Community } from "@/dao/community-dao";
 import type {
 	CommunitySummary,
@@ -14,10 +14,10 @@ import { createLLMProvider } from "@/services/llm/llm-provider-factory";
  */
 const SUMMARY_CONFIG = {
 	// LLM Configuration
-	DEFAULT_MODEL: MODEL_CONFIG.OPENAI.PIPELINE_STRUCTURED,
+	DEFAULT_MODEL: getGenerationModelForProvider("PIPELINE_STRUCTURED"),
 	DEFAULT_TEMPERATURE: 0.3,
 	DEFAULT_MAX_TOKENS: 2000,
-	LLM_PROVIDER: "openai" as const,
+	LLM_PROVIDER: MODEL_CONFIG.PROVIDER.DEFAULT,
 
 	// Content Limits
 	MAX_ENTITIES_TO_SHOW: 50,
@@ -40,7 +40,7 @@ const SUMMARY_CONFIG = {
 
 	// Error Messages
 	ERRORS: {
-		API_KEY_REQUIRED: "OpenAI API key is required for summary generation",
+		API_KEY_REQUIRED: "LLM API key is required for summary generation",
 		GENERATION_FAILED: "Failed to generate summary",
 		RETRIEVAL_FAILED: "Failed to retrieve created summary",
 		UNKNOWN_ERROR: "Unknown error",
@@ -75,6 +75,7 @@ const SUMMARY_CONFIG = {
 
 export interface CommunitySummaryOptions {
 	openaiApiKey?: string;
+	providerApiKey?: string;
 	model?: string;
 	temperature?: number;
 	maxTokens?: number;
@@ -90,7 +91,7 @@ export class CommunitySummaryService {
 	constructor(
 		private readonly entityDAO: EntityDAO,
 		private readonly summaryDAO: CommunitySummaryDAO,
-		private readonly defaultOpenAIKey?: string
+		private readonly defaultProviderKey?: string
 	) {}
 
 	/**
@@ -125,7 +126,11 @@ export class CommunitySummaryService {
 		community: Community,
 		options: CommunitySummaryOptions = {}
 	): Promise<CommunitySummaryResult> {
-		const apiKey = options.openaiApiKey || this.defaultOpenAIKey || undefined;
+		const apiKey =
+			options.providerApiKey ||
+			options.openaiApiKey ||
+			this.defaultProviderKey ||
+			undefined;
 
 		if (!apiKey) {
 			throw new OpenAIAPIKeyError(SUMMARY_CONFIG.ERRORS.API_KEY_REQUIRED);
