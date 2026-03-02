@@ -54,6 +54,13 @@ function extractJsonObjectText(text: string): string | null {
 	return null;
 }
 
+function truncateForPrompt(text: string, maxChars: number): string {
+	if (text.length <= maxChars) {
+		return text;
+	}
+	return `${text.slice(0, maxChars)}\n/* truncated */`;
+}
+
 /**
  * Anthropic provider implementation for LLM generation.
  */
@@ -136,9 +143,9 @@ export class AnthropicProvider implements LLMProvider {
 			: "";
 		const finalPrompt = `Respond with valid JSON only. Do not wrap the JSON in markdown fences.\n\n${prompt}${schemaInstructions}`;
 
+		const anthropic = createAnthropic({ apiKey: this.apiKey });
+		const model = anthropic(modelId as any);
 		try {
-			const anthropic = createAnthropic({ apiKey: this.apiKey });
-			const model = anthropic(modelId as any);
 			const result = await generateText({
 				model,
 				prompt: finalPrompt,
@@ -154,7 +161,42 @@ export class AnthropicProvider implements LLMProvider {
 			if (!jsonText) {
 				throw new Error("Anthropic API returned non-JSON structured output");
 			}
-			const output = JSON.parse(jsonText) as T;
+			let output: T;
+			try {
+				output = JSON.parse(jsonText) as T;
+			} catch (parseError) {
+				// Anthropic occasionally returns near-valid JSON (e.g. missing commas
+				// or malformed string escaping). Try one constrained repair pass.
+				const repairPrompt = [
+					"You are a JSON repair assistant.",
+					"Fix the JSON so it is strictly valid JSON and preserves semantics.",
+					"Do not add markdown fences, comments, or explanatory text.",
+					"Return only the repaired JSON object.",
+					parsedSchema ? `Target schema:\n${JSON.stringify(parsedSchema)}` : "",
+					`Parse error: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+					"Malformed JSON:",
+					"```",
+					truncateForPrompt(jsonText, 50000),
+					"```",
+				]
+					.filter(Boolean)
+					.join("\n\n");
+
+				const repairResult = await generateText({
+					model,
+					prompt: repairPrompt,
+					temperature: 0,
+					maxOutputTokens: Math.max(maxTokens, 3000),
+				});
+
+				const repairedText = extractJsonObjectText(repairResult.text || "");
+				if (!repairedText) {
+					throw new Error(
+						"Anthropic API returned unrecoverable malformed JSON"
+					);
+				}
+				output = JSON.parse(repairedText) as T;
+			}
 
 			const tokens = getUsageTokens(result.usage);
 			if (tokens > 0 && options.onUsage) {
