@@ -95,7 +95,8 @@ export const ResourceUpload = ({
 	// Helper function to validate and filter files
 	const validateAndFilterFiles = (files: File[]): File[] => {
 		// Filter by file type (must match RAG-supported types: FileExtractionService + file-upload-security ALLOWED_EXTENSIONS)
-		const allowedExtensions = /\.(pdf|txt|doc|docx|md|mdx|json|jpg|jpeg|png|webp)$/i;
+		const allowedExtensions =
+			/\.(pdf|txt|doc|docx|md|mdx|json|jpg|jpeg|png|webp)$/i;
 		const typeValidFiles = files.filter((file) => {
 			const byMime =
 				file.type === "application/pdf" ||
