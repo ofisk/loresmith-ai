@@ -36,6 +36,7 @@ import {
 	requireCanSeeSpoilers,
 } from "@/lib/route-utils";
 import type { Env } from "@/middleware/auth";
+import { getSubscriptionService } from "@/services/billing/subscription-service";
 import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
 import { ChecklistStatusService } from "@/services/campaign/checklist-status-service";
 import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
@@ -85,6 +86,22 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
 
 		if (!name) {
 			return c.json({ error: "Campaign name is required" }, 400);
+		}
+
+		// Check campaign limit for subscription tier (admins bypass)
+		const subService = getSubscriptionService(c.env);
+		const tier = await subService.getTier(userAuth.username, userAuth.isAdmin);
+		const limits = subService.getTierLimits(tier);
+		const campaignDAO = getDAOFactory(c.env).campaignDAO;
+		const campaigns = await campaignDAO.getCampaignsByUser(userAuth.username);
+		if (campaigns.length >= limits.maxCampaigns) {
+			return c.json(
+				{
+					error: `Campaign limit (${limits.maxCampaigns}) reached. Upgrade for more campaigns.`,
+					code: "CAMPAIGN_LIMIT_EXCEEDED",
+				},
+				403
+			);
 		}
 
 		const newCampaign = await createCampaign({

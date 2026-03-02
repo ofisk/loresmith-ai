@@ -22,6 +22,11 @@ function formatResetTime(iso: string): string {
 	}
 }
 
+const TIER_BENEFITS = {
+	basic: "5 campaigns, 25 files, 25MB storage, higher rate limits",
+	pro: "Unlimited campaigns, 100 files, 100MB storage, 2× rate limits",
+} as const;
+
 export function RateLimitReachedModal({
 	isOpen,
 	onClose,
@@ -35,7 +40,7 @@ export function RateLimitReachedModal({
 			isOpen={isOpen}
 			onClose={onClose}
 			showCloseButton={true}
-			className="w-[96vw] max-w-[420px]"
+			className="w-[96vw] max-w-[480px]"
 		>
 			<div className="p-6">
 				<h3 className="text-lg font-semibold mb-2">Rate limit reached</h3>
@@ -48,7 +53,32 @@ export function RateLimitReachedModal({
 						Next reset: <strong>{formattedReset}</strong>
 					</p>
 				)}
-				<div className="flex justify-end">
+				<div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 p-4 mb-5">
+					<p className="text-sm font-medium text-neutral-800 dark:text-neutral-200 mb-2">
+						Upgrade for higher limits
+					</p>
+					<ul className="text-sm text-neutral-600 dark:text-neutral-400 space-y-1">
+						<li>
+							<span className="font-medium text-neutral-700 dark:text-neutral-300">
+								Basic:
+							</span>{" "}
+							{TIER_BENEFITS.basic}
+						</li>
+						<li>
+							<span className="font-medium text-neutral-700 dark:text-neutral-300">
+								Pro:
+							</span>{" "}
+							{TIER_BENEFITS.pro}
+						</li>
+					</ul>
+				</div>
+				<div className="flex justify-end gap-2">
+					<a
+						href="/billing"
+						className="px-4 py-2 text-sm font-medium rounded-md bg-neutral-800 dark:bg-neutral-200 text-neutral-100 dark:text-neutral-900 hover:bg-neutral-700 dark:hover:bg-neutral-300"
+					>
+						View plans
+					</a>
 					<button
 						type="button"
 						onClick={onClose}

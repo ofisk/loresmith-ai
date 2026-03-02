@@ -20,6 +20,12 @@ import {
 	requireUserJwt,
 } from "@/routes/auth";
 import {
+	handleBillingCheckout,
+	handleBillingPortal,
+	handleBillingStatus,
+	handleBillingWebhook,
+} from "@/routes/billing";
+import {
 	handleApproveShards,
 	handleGenerateShardField,
 	handleGetStagedShards,
@@ -232,6 +238,27 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
 	app.post(
 		API_CONFIG.ENDPOINTS.AUTH.RESEND_VERIFICATION,
 		handleResendVerification
+	);
+
+	// Billing (webhook has no auth - verified via Stripe signature)
+	app.post(
+		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.WEBHOOK),
+		handleBillingWebhook
+	);
+	app.get(
+		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.STATUS),
+		requireUserJwt,
+		handleBillingStatus
+	);
+	app.post(
+		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.CHECKOUT),
+		requireUserJwt,
+		handleBillingCheckout
+	);
+	app.post(
+		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.PORTAL),
+		requireUserJwt,
+		handleBillingPortal
 	);
 
 	app.post(

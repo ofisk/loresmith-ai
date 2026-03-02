@@ -22,6 +22,9 @@ export const ALLOWED_RETURN_ORIGINS: readonly string[] = [
 	"http://localhost:3000",
 	"http://localhost:8787",
 	"https://loresmith.ai",
+	"http://loresmith.ai",
+	"https://www.loresmith.ai",
+	"http://www.loresmith.ai",
 ];
 
 /** Google OAuth endpoints */
@@ -307,6 +310,12 @@ export const API_CONFIG = {
 			LIST: (campaignId: string) => `/campaigns/${campaignId}/character-sheets`,
 			DETAILS: (characterSheetId: string) =>
 				`/character-sheets/${characterSheetId}`,
+		},
+		BILLING: {
+			CHECKOUT: "/billing/checkout",
+			PORTAL: "/billing/portal",
+			WEBHOOK: "/billing/webhook",
+			STATUS: "/billing/status",
 		},
 		AUTH: {
 			LOGOUT: "/auth/logout",

@@ -1,6 +1,6 @@
-import { RATE_LIMITS } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { Env } from "@/middleware/auth";
+import { getSubscriptionService } from "@/services/billing/subscription-service";
 
 export interface CheckLimitResult {
 	allowed: boolean;
@@ -47,16 +47,39 @@ export class LLMRateLimitService {
 			return { allowed: true };
 		}
 
+		const subService = getSubscriptionService(this.env);
+		const tier = await subService.getTier(username);
+		const limits = subService.getTierLimits(tier);
+
+		// Free tier: check monthly token cap
+		if (limits.monthlyTokens !== undefined) {
+			const dao = getDAOFactory(this.env);
+			const monthlyUsage =
+				await dao.userMonthlyUsageDAO.getCurrentMonthUsage(username);
+			if (monthlyUsage >= limits.monthlyTokens) {
+				return {
+					allowed: false,
+					reason: `Monthly token limit (${limits.monthlyTokens.toLocaleString()}) exceeded. Upgrade for more.`,
+					nextResetAt: new Date(
+						new Date().getFullYear(),
+						new Date().getMonth() + 1,
+						1
+					).toISOString(),
+					limitType: "daily",
+				};
+			}
+		}
+
 		const dao = getDAOFactory(this.env).llmUsageDAO;
 		const [minute, daily] = await Promise.all([
 			dao.getUsageInLastMinute(username),
 			dao.getUsageInLast24Hours(username),
 		]);
 
-		const tpmLimit = RATE_LIMITS.NON_ADMIN_TPM;
-		const qpmLimit = RATE_LIMITS.NON_ADMIN_QPM;
-		const tpdLimit = RATE_LIMITS.NON_ADMIN_TPD;
-		const qpdLimit = RATE_LIMITS.NON_ADMIN_QPD;
+		const tpmLimit = limits.tpm;
+		const qpmLimit = limits.qpm;
+		const tpdLimit = limits.tpd;
+		const qpdLimit = limits.qpd;
 
 		const tpm = (minute as { tpm?: number }).tpm ?? 0;
 		const qpm = (minute as { qpm?: number }).qpm ?? 0;
@@ -124,18 +147,29 @@ export class LLMRateLimitService {
 		queryCount: number,
 		model?: string
 	): Promise<void> {
-		const dao = getDAOFactory(this.env).llmUsageDAO;
-		await dao.insertUsage(username, tokens, queryCount, model);
+		const dao = getDAOFactory(this.env);
+		await dao.llmUsageDAO.insertUsage(username, tokens, queryCount, model);
+
+		// Free tier: track monthly usage for cap
+		const subService = getSubscriptionService(this.env);
+		const tier = await subService.getTier(username);
+		const limits = subService.getTierLimits(tier);
+		if (limits.monthlyTokens !== undefined) {
+			await dao.userMonthlyUsageDAO.incrementUsage(username, tokens);
+		}
 	}
 
 	async getUsageStatus(
 		username: string,
 		isAdmin: boolean
 	): Promise<UsageStatus> {
-		const tpmLimit = RATE_LIMITS.NON_ADMIN_TPM;
-		const qpmLimit = RATE_LIMITS.NON_ADMIN_QPM;
-		const tpdLimit = RATE_LIMITS.NON_ADMIN_TPD;
-		const qpdLimit = RATE_LIMITS.NON_ADMIN_QPD;
+		const subService = getSubscriptionService(this.env);
+		const tier = await subService.getTier(username);
+		const limits = subService.getTierLimits(tier);
+		const tpmLimit = limits.tpm;
+		const qpmLimit = limits.qpm;
+		const tpdLimit = limits.tpd;
+		const qpdLimit = limits.qpd;
 
 		if (isAdmin) {
 			return {

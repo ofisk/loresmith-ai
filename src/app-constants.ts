@@ -270,6 +270,51 @@ export const RATE_LIMITS = {
 	NON_ADMIN_QPD: 500,
 } as const;
 
+export type SubscriptionTier = "free" | "basic" | "pro";
+
+export interface TierLimits {
+	maxCampaigns: number;
+	maxFiles: number;
+	storageBytes: number;
+	tpm: number;
+	qpm: number;
+	tpd: number;
+	qpd: number;
+	/** Monthly token cap for free tier only; undefined for paid tiers */
+	monthlyTokens?: number;
+}
+
+export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
+	free: {
+		maxCampaigns: 1,
+		maxFiles: 5,
+		storageBytes: 5 * 1024 * 1024, // 5MB
+		tpm: 2_000,
+		qpm: 5,
+		tpd: 10_000,
+		qpd: 50,
+		monthlyTokens: 10_000,
+	},
+	basic: {
+		maxCampaigns: 5,
+		maxFiles: 25,
+		storageBytes: 25 * 1024 * 1024, // 25MB
+		tpm: 10_000,
+		qpm: 10,
+		tpd: 500_000,
+		qpd: 500,
+	},
+	pro: {
+		maxCampaigns: 999_999, // effectively unlimited
+		maxFiles: 100,
+		storageBytes: 100 * 1024 * 1024, // 100MB
+		tpm: 20_000,
+		qpm: 20,
+		tpd: 1_000_000,
+		qpd: 1_000,
+	},
+} as const;
+
 // Default values
 export const DEFAULTS = {
 	CAMPAIGN_NAME: "Untitled Campaign",

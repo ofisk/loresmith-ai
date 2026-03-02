@@ -10,6 +10,7 @@ import {
 import { logger } from "@/lib/logger";
 import { nanoid } from "@/lib/nanoid";
 import { notifyFileUploadFailed } from "@/lib/notifications";
+import { getLibraryService } from "@/lib/service-factory";
 import type { Env } from "@/middleware/auth";
 import { cleanupStuckProcessingFiles } from "@/queue-consumer";
 import { startFileProcessing } from "@/routes/upload-processing";
@@ -110,6 +111,20 @@ export async function handleDirectUpload(c: ContextWithAuth) {
 
 		// Get the file content
 		const fileBuffer = await c.req.arrayBuffer();
+
+		// Check tier-based upload limits (storage + file count)
+		const libraryService = getLibraryService(c.env);
+		const uploadCheck = await libraryService.canUploadFile(
+			userAuth.username,
+			fileBuffer.byteLength,
+			userAuth.isAdmin ?? false
+		);
+		if (!uploadCheck.canUpload) {
+			return c.json(
+				{ error: uploadCheck.reason ?? "Upload limit exceeded" },
+				403
+			);
+		}
 
 		// Check for filename collisions and get a unique filename
 		const fileDAO = getDAOFactory(c.env).fileDAO;
@@ -468,13 +483,27 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
 			return c.json({ error: "User authentication required" }, 401);
 		}
 
-		// Validate file size
+		// Validate file size (large upload requires 100MB+)
 		if (fileSize < LARGE_FILE_THRESHOLD) {
 			return c.json(
 				{
 					error: `File size must be at least ${LARGE_FILE_THRESHOLD / (1024 * 1024)}MB for large file uploads`,
 				},
 				400
+			);
+		}
+
+		// Check tier-based upload limits (storage + file count)
+		const libraryService = getLibraryService(c.env);
+		const uploadCheck = await libraryService.canUploadFile(
+			userAuth.username,
+			fileSize,
+			userAuth.isAdmin ?? false
+		);
+		if (!uploadCheck.canUpload) {
+			return c.json(
+				{ error: uploadCheck.reason ?? "Upload limit exceeded" },
+				403
 			);
 		}
 

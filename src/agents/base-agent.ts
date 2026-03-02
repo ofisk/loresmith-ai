@@ -39,6 +39,10 @@ interface MessageData {
 const TEXT_PART_ID = "text-1";
 const TEMPORARY_UNAVAILABLE_MESSAGE =
 	"We're sorry for the inconvenience but Loresmith is temporarily unavailable.";
+const RATE_LIMIT_UPSELL_MESSAGE =
+	"You've hit your usage limit. Visit /billing to upgrade and get higher limits: " +
+	"Basic ($9/mo) — 5 campaigns, 25 files, 25MB storage, higher rate limits. " +
+	"Pro ($18/mo) — Unlimited campaigns, 100 files, 100MB storage, 2× rate limits.";
 const LOW_BALANCE_SUPPORT_THROTTLE_MS = 30 * 60 * 1000;
 const LOW_BALANCE_SUPPORT_LAST_REPORTED_AT_KEY =
 	"low-balance-support-last-reported-at";
@@ -858,12 +862,16 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 								console.error(`Stack:`, error.stack);
 							}
 
-							// Detect quota errors and provide helpful messaging
+							// Detect quota/rate limit errors and provide helpful messaging
 							const isQuotaError =
 								errorMessage.includes("exceeded your current quota") ||
 								errorMessage.includes("quota") ||
 								errorMessage.includes("billing details") ||
 								errorMessage.includes("insufficient_quota");
+							const isRateLimitError =
+								errorMessage.includes("rate limit") ||
+								errorMessage.includes("429") ||
+								errorMessage.includes("too many requests");
 							const isLowBalanceError = isLowBalanceProviderError(errorMessage);
 
 							// Detect context length errors
@@ -888,11 +896,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 										errorMessage,
 									});
 								}
-							} else if (isQuotaError) {
-								writeTextChunks(
-									dataStream.write,
-									"I'm unable to process your request because your LLM API quota appears to be exceeded. If you recently updated billing, it may take a few minutes for the change to propagate. Please wait 2-3 minutes and try again."
-								);
+							} else if (isQuotaError || isRateLimitError) {
+								writeTextChunks(dataStream.write, RATE_LIMIT_UPSELL_MESSAGE);
 							} else if (isContextLengthError) {
 								writeTextChunks(
 									dataStream.write,
