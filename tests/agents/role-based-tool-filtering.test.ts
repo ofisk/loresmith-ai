@@ -6,6 +6,10 @@ import {
 	playerCampaignContextToolsBundle,
 } from "../../src/tools/campaign-context/context-tools-bundle";
 import {
+	gmEncounterBuilderToolsBundle,
+	playerEncounterBuilderToolsBundle,
+} from "../../src/tools/campaign-context/encounter-builder-tools-bundle";
+import {
 	gmLootRewardToolsBundle,
 	playerLootRewardToolsBundle,
 } from "../../src/tools/campaign-context/loot-reward-tools-bundle";
@@ -171,6 +175,28 @@ describe("Role-based tool filtering", () => {
 			expect(
 				playerRulesReferenceToolsBundle.resolveRulesConflictTool
 			).toBeDefined();
+		});
+	});
+
+	describe("Encounter builder tools bundles", () => {
+		it("gmEncounterBuilderToolsBundle should include encounter generation and scaling tools", () => {
+			expect(gmEncounterBuilderToolsBundle.generateEncounterTool).toBeDefined();
+			expect(gmEncounterBuilderToolsBundle.scaleEncounterTool).toBeDefined();
+			expect(
+				gmEncounterBuilderToolsBundle.getEncounterStatBlocksTool
+			).toBeDefined();
+		});
+
+		it("playerEncounterBuilderToolsBundle should exclude GM-only encounter tools", () => {
+			expect(
+				(playerEncounterBuilderToolsBundle as any).generateEncounterTool
+			).toBeUndefined();
+			expect(
+				(playerEncounterBuilderToolsBundle as any).scaleEncounterTool
+			).toBeUndefined();
+			expect(
+				(playerEncounterBuilderToolsBundle as any).getEncounterStatBlocksTool
+			).toBeUndefined();
 		});
 	});
 

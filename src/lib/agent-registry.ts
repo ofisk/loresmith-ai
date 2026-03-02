@@ -91,6 +91,9 @@ export class AgentRegistryService {
 			const { RulesReferenceAgent } = await import(
 				"../agents/rules-reference-agent"
 			);
+			const { EncounterBuilderAgent } = await import(
+				"../agents/encounter-builder-agent"
+			);
 			const { AgentRouter } = await import("./agent-router");
 
 			// Register Campaign Agent
@@ -199,6 +202,15 @@ export class AgentRegistryService {
 				RulesReferenceAgent.agentMetadata.tools,
 				RulesReferenceAgent.agentMetadata.systemPrompt,
 				RulesReferenceAgent.agentMetadata.description
+			);
+
+			// Register Encounter Builder Agent
+			AgentRouter.registerAgent(
+				EncounterBuilderAgent.agentMetadata.type as AgentType,
+				EncounterBuilderAgent,
+				EncounterBuilderAgent.agentMetadata.tools,
+				EncounterBuilderAgent.agentMetadata.systemPrompt,
+				EncounterBuilderAgent.agentMetadata.description
 			);
 
 			AgentRegistryService.initialized = true;

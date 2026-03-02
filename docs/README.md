@@ -72,6 +72,16 @@ Welcome to the LoreSmith AI documentation! This directory contains comprehensive
   - Changing models
   - Performance tuning
 
+- **[Agent Design](AGENT_DESIGN.md)** - Agent routing and execution design
+  - Agent routing flow
+  - BaseAgent behavior
+  - Tool invocation lifecycle
+
+- **[Tool Patterns](TOOL_PATTERNS.md)** - Shared tool implementation patterns
+  - Env vs API execution paths
+  - Auth and response helpers
+  - Encounter builder tool contracts
+
 #### API & Integration
 
 - **[API Documentation](API.md)** - API endpoint reference

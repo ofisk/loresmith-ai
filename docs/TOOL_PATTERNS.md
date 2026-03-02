@@ -83,3 +83,33 @@ flowchart TD
 - **extractUsernameFromJwt**, **createAuthHeaders**: Used by both DB and API paths for auth and API calls.
 
 See also: [AGENT_DESIGN.md](./AGENT_DESIGN.md) (how agents invoke tools and handle token limits), [GRAPHRAG_INTEGRATION.md](./GRAPHRAG_INTEGRATION.md) (search and context assembly).
+
+## Encounter builder tool contracts
+
+The encounter builder feature uses three GM-only tools:
+
+- `generateEncounterTool`: Builds a campaign-grounded encounter spec from location/entity context, party profile, and target difficulty.
+- `scaleEncounterTool`: Rebalances an existing encounter spec to a new target difficulty and party profile.
+- `getEncounterStatBlocksTool`: Aggregates stat block references for encounter creatures using the rules-reference lookup path.
+
+### Input/output shape expectations
+
+- `generateEncounterTool` input includes `campaignId`, `partyLevel`, `partySize`, `targetDifficulty`, and optional location/theme hints.
+- `generateEncounterTool` output includes an `encounterSpec` object with composition, environment, tactics, hooks, and source context.
+- `scaleEncounterTool` takes an existing `encounterSpec` and returns `scaledEncounterSpec` plus a change summary.
+- `getEncounterStatBlocksTool` takes a list of creature names and returns grouped citation results per creature.
+
+### Encounter tool flow
+
+```mermaid
+flowchart TD
+    Start[Encounter tool called] --> Access[requireCampaignAccessForTool]
+    Access --> GmCheck[requireGMRole]
+    GmCheck --> Branch{Which tool}
+    Branch -->|generateEncounterTool| Build[Assemble graph plus planning context]
+    Branch -->|scaleEncounterTool| Scale[Adjust counts and pacing]
+    Branch -->|getEncounterStatBlocksTool| StatBlocks[Delegate stat block lookups]
+    Build --> ReturnGenerate[createToolSuccess with encounterSpec]
+    Scale --> ReturnScale[createToolSuccess with scaledEncounterSpec]
+    StatBlocks --> ReturnStats[createToolSuccess with grouped citations]
+```

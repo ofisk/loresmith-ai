@@ -46,6 +46,39 @@ export interface SessionScriptContext {
 		type: string;
 	}>;
 	isOneOff?: boolean;
+	encounterSpec?: {
+		encounterSummary?: string;
+		targetDifficulty?: string;
+		location?: {
+			entityId?: string | null;
+			name?: string;
+			reasoning?: string;
+		};
+		composition?: Array<{
+			entityId?: string;
+			name: string;
+			count: number;
+			role?: string;
+			threatEstimate?: string;
+			gmUsageAdvice?: string[];
+		}>;
+		environment?: {
+			terrainFeatures?: string[];
+			hazards?: string[];
+			dynamicElements?: string[];
+		};
+		tactics?: {
+			openingMoves?: string[];
+			midFightTwists?: string[];
+			retreatOrResolve?: string[];
+		};
+		narrativeHooks?: string[];
+		generalCombatAdvice?: string[];
+		sourceContext?: {
+			seedEntityIds?: string[];
+			planningSignals?: string[];
+		};
+	};
 }
 
 /**
@@ -63,6 +96,7 @@ function buildSessionScriptPromptBody(params: {
 	entityContext: string;
 	characterContext: string;
 	campaignResourcesSection: string;
+	encounterContextSection: string;
 	endGoalInstruction: string;
 }): string {
 	const {
@@ -76,6 +110,7 @@ function buildSessionScriptPromptBody(params: {
 		entityContext,
 		characterContext,
 		campaignResourcesSection,
+		encounterContextSection,
 		endGoalInstruction,
 	} = params;
 
@@ -101,6 +136,8 @@ ${entityContext}
 ## Player Characters
 
 ${characterContext}
+
+${encounterContextSection}
 
 ${campaignResourcesSection}
 
@@ -151,6 +188,13 @@ Organize the session into clear scenes with:
 - **Branching Paths**: If-then scenarios showing consequences of different player choices
 - **Session Climax**: A memorable ending moment
 - **Session Resolution**: Wrap-up and hooks for the next session
+
+### 6. Encounter integration
+If an encounter specification is provided, integrate it into scene flow and include:
+- Enemy composition with counts and tactical roles
+- Environmental features and hazards as encounter levers
+- Difficulty pacing notes (why this is easy/medium/hard/deadly for this party)
+- At least one non-combat branch or morale break condition
 
 ## Formatting Guidelines
 
@@ -203,6 +247,9 @@ Generate a complete session script in markdown format following this structure:
 
 [Continue with additional scenes...]
 
+## Encounter Block (when provided)
+[Include a dedicated section that translates the provided encounter spec into GM-ready run notes, preserving composition, tactics, and environmental elements.]
+
 ### Session Climax
 [Memorable ending moment]
 
@@ -229,6 +276,7 @@ export function formatSessionScriptPrompt(
 		characterBackstories,
 		campaignResources,
 		isOneOff,
+		encounterSpec,
 	} = context;
 
 	// Build recent session context
@@ -300,6 +348,43 @@ ${campaignResources.map((r) => `- ${r.title} (${r.type})`).join("\n")}
 These resources may contain relevant information for the session. Reference them when appropriate.`
 			: "";
 
+	const encounterContextSection = encounterSpec
+		? `## Encounter specification provided
+
+Summary: ${encounterSpec.encounterSummary ?? "No summary provided"}
+Target difficulty: ${encounterSpec.targetDifficulty ?? "Not specified"}
+Location: ${encounterSpec.location?.name ?? "Not specified"}
+
+Composition:
+${
+	(encounterSpec.composition ?? [])
+		.map(
+			(entry) =>
+				`- ${entry.name} x${entry.count}${entry.role ? ` (${entry.role})` : ""}${entry.threatEstimate ? ` [${entry.threatEstimate}]` : ""}${entry.gmUsageAdvice && entry.gmUsageAdvice.length > 0 ? `\n  GM usage: ${entry.gmUsageAdvice.join("; ")}` : ""}`
+		)
+		.join("\n") || "- None provided"
+}
+
+Environment:
+- Terrain: ${(encounterSpec.environment?.terrainFeatures ?? []).join("; ") || "None provided"}
+- Hazards: ${(encounterSpec.environment?.hazards ?? []).join("; ") || "None provided"}
+- Dynamic elements: ${(encounterSpec.environment?.dynamicElements ?? []).join("; ") || "None provided"}
+
+Tactics:
+- Opening moves: ${(encounterSpec.tactics?.openingMoves ?? []).join("; ") || "None provided"}
+- Mid-fight twists: ${(encounterSpec.tactics?.midFightTwists ?? []).join("; ") || "None provided"}
+- Retreat/resolve: ${(encounterSpec.tactics?.retreatOrResolve ?? []).join("; ") || "None provided"}
+
+Narrative hooks:
+${(encounterSpec.narrativeHooks ?? []).map((hook) => `- ${hook}`).join("\n") || "- None provided"}
+
+General combat advice:
+${(encounterSpec.generalCombatAdvice ?? []).map((advice) => `- ${advice}`).join("\n") || "- None provided"}
+
+Source signals:
+${(encounterSpec.sourceContext?.planningSignals ?? []).map((signal) => `- ${signal}`).join("\n") || "- None provided"}`
+		: "";
+
 	// Build focus areas string
 	const focusAreasStr =
 		focusAreas && focusAreas.length > 0
@@ -327,6 +412,7 @@ These resources may contain relevant information for the session. Reference them
 		entityContext,
 		characterContext,
 		campaignResourcesSection,
+		encounterContextSection,
 		endGoalInstruction,
 	});
 }
