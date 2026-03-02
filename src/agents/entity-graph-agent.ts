@@ -16,12 +16,14 @@ const ENTITY_GRAPH_SYSTEM_PROMPT = buildSystemPrompt({
 	responsibilities: [
 		"Entity Extraction: Extract structured entities (NPCs, locations, items, monsters, etc.) from text content and add them to the entity graph",
 		"Relationship Management: Create relationships between entities in the graph when users mention connections",
+		"Entity Type Updates: Update existing entities between types (for example npc to pc) when users request corrections",
 		"Community Detection: Analyze entity relationship graphs to identify clusters of related entities using graph algorithms",
 	],
 	tools: createToolMappingFromObjects(entityGraphTools),
 	workflowGuidelines: [
 		"Entity Extraction: When users provide text content (from files or chat) containing entities like NPCs, locations, items, or monsters, use extractEntitiesFromContentTool to extract and add them to the graph",
 		"Relationship Creation: When users mention relationships between entities (e.g., 'NPC X lives in Location Y', 'Character A is allied with Character B'), use createEntityRelationshipTool to create the relationship in the graph",
+		"Entity Type Updates: When users ask to change an existing entity type (e.g., 'make Madam Eva a player character' or 'change npc to pc'), first find the entity with searchCampaignContext, then call updateEntityTypeTool. Do NOT use extractEntitiesFromContentTool for type changes on existing entities.",
 		"Relationship Queries with Graph Traversal: When users ask questions about entity relationships, use searchCampaignContext iteratively: (1) First, search semantically to find the target entity, (2) Check if initial search results provide sufficient context - only traverse if more information is needed, (3) If traversal is needed, extract the entity ID from results and use traverseFromEntityIds, (4) ALWAYS start with traverseDepth=1 (direct neighbors only) for better performance, (5) ALWAYS use traverseRelationshipTypes filter when possible to reduce traversal scope, (6) Only increase to depth 2 or 3 if depth 1 results are insufficient, (7) Answer using accumulated context. Do NOT use getCommunitiesTool for relationship queries - communities are graph clusters, not entity relationships",
 		"Community Detection: When users want to understand how entities cluster or find related groups, use detectCommunitiesTool to analyze the entity graph",
 		"Community Analysis: Use getCommunitiesTool or getCommunityHierarchyTool to show users existing communities and their structure (these show graph clusters, not direct entity relationships)",
