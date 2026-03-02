@@ -66,10 +66,15 @@ function writeTextChunks(
  * Keeps output natural while avoiding "AI-looking" punctuation/styling.
  */
 function sanitizeGeneratedAssistantText(text: string): string {
-	return text
-		.replace(/\s*\u2014\s*/g, " - ")
-		.replace(/\p{Extended_Pictographic}/gu, "")
-		.replace(/[\u200D\uFE0F]/g, "");
+	return (
+		text
+			.replace(/\s*\u2014\s*/g, " - ")
+			// Replace removed emoji with a space so adjacent sentences do not merge.
+			.replace(/\p{Extended_Pictographic}/gu, " ")
+			.replace(/[\u200D\uFE0F]/g, "")
+			// Repair missing sentence spacing like "Now.Done" -> "Now. Done".
+			.replace(/([.!?])([A-Z])/g, "$1 $2")
+	);
 }
 
 function createDataStreamResponse(options: {
