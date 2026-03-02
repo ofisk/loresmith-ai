@@ -378,7 +378,7 @@ export async function stageEntitiesFromResource(
 		// Rate limit: Process chunks with delay to respect TPM limits
 		// If processing multiple chunks, add a delay to stay under 30k tokens per minute
 		const CHUNK_PROCESSING_DELAY_MS = chunks.length > 1 ? 2000 : 0; // 2 second delay between chunks
-		const MAX_CHUNK_RETRIES = 3; // Maximum retry attempts per chunk
+		const MAX_CHUNK_RETRIES = 3; // Maximum retry attempts per chunk (rate limits only)
 		const INITIAL_RETRY_DELAY_MS = 2000; // Initial delay for retries (2 seconds)
 		const MAX_RETRY_DELAY_MS = 30000; // Maximum delay for retries (30 seconds)
 
@@ -535,21 +535,16 @@ export async function stageEntitiesFromResource(
 					);
 				}
 
-				// Check if we should retry
-				if (retryCount < MAX_CHUNK_RETRIES) {
+				// Only retry rate-limit errors. Other model/parsing failures should
+				// be treated as one-shot failures to avoid retry storms and CPU overruns.
+				if (isRateLimit && retryCount < MAX_CHUNK_RETRIES) {
 					// Increment retry count and schedule retry
 					chunkRetryCounts.set(chunkIndex, retryCount + 1);
-
-					// For rate limits, wait longer before continuing to next chunk
-					if (isRateLimit && !isRetry) {
-						const rateLimitWaitMs = 5000; // Wait 5 seconds for rate limit
-						console.log(
-							`[EntityStaging] Rate limit detected, waiting ${rateLimitWaitMs}ms before processing next chunk`
-						);
-						await new Promise((resolve) =>
-							setTimeout(resolve, rateLimitWaitMs)
-						);
-					}
+					const rateLimitWaitMs = 5000; // Wait 5 seconds for rate limit
+					console.log(
+						`[EntityStaging] Rate limit detected, waiting ${rateLimitWaitMs}ms before processing next chunk`
+					);
+					await new Promise((resolve) => setTimeout(resolve, rateLimitWaitMs));
 
 					return false; // Indicates failure but will be retried
 				} else {
