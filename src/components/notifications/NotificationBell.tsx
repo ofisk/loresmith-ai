@@ -40,68 +40,76 @@ export function NotificationBell({
 
 	/** Renders message with campaign name and file/display name bold and unquoted when present in data */
 	function renderMessage(notification: NotificationPayload) {
-		const message = notification.message;
-		if (typeof message !== "string") return message;
-		const campaignName = notification.data?.campaignName as string | undefined;
-		const fileName = notification.data?.fileName as string | undefined;
-		const addedBy = notification.data?.addedBy as string | undefined;
+		try {
+			const message = notification.message;
+			if (typeof message !== "string") return message;
+			const campaignName = notification.data?.campaignName as
+				| string
+				| undefined;
+			const fileName = notification.data?.fileName as string | undefined;
+			const addedBy = notification.data?.addedBy as string | undefined;
 
-		// Helper: split text by quoted name and return [text, bold(name), text, ...]
-		function boldQuoted(
-			text: string,
-			name: string,
-			keyPrefix: string
-		): ReactNode[] {
-			const quoted = `"${name}"`;
-			if (!name || !text.includes(quoted)) return [text];
-			const parts = text.split(quoted);
-			const out: ReactNode[] = [];
-			parts.forEach((part, i) => {
-				if (i > 0)
-					out.push(
-						<strong key={`${keyPrefix}-${i}`} className="font-semibold">
-							{name}
-						</strong>
-					);
-				out.push(part);
-			});
-			return out;
-		}
+			// Helper: split text by quoted name and return [text, bold(name), text, ...]
+			function boldQuoted(
+				text: string,
+				name: string,
+				keyPrefix: string
+			): ReactNode[] {
+				const quoted = `"${name}"`;
+				if (!name || !text.includes(quoted)) return [text];
+				const parts = text.split(quoted);
+				const out: ReactNode[] = [];
+				parts.forEach((part, i) => {
+					if (i > 0)
+						out.push(
+							<strong key={`${keyPrefix}-${i}`} className="font-semibold">
+								{name}
+							</strong>
+						);
+					out.push(part);
+				});
+				return out;
+			}
 
-		// First bold campaign name, then bold file name in any string segments
-		let content: ReactNode[] = [message];
-		if (campaignName && message.includes(`"${campaignName}"`)) {
-			content = content.flatMap((node) =>
-				typeof node === "string"
-					? boldQuoted(node, campaignName, "campaign")
-					: [node]
-			);
+			// First bold campaign name, then bold file name in any string segments
+			let content: ReactNode[] = [message];
+			if (campaignName && message.includes(`"${campaignName}"`)) {
+				content = content.flatMap((node) =>
+					typeof node === "string"
+						? boldQuoted(node, campaignName, "campaign")
+						: [node]
+				);
+			}
+			if (
+				fileName &&
+				typeof message === "string" &&
+				message.includes(`"${fileName}"`)
+			) {
+				content = content.flatMap((node, idx) =>
+					typeof node === "string"
+						? boldQuoted(node, fileName, `file-${idx}`)
+						: [node]
+				);
+			}
+			if (
+				addedBy &&
+				typeof message === "string" &&
+				message.includes(`"${addedBy}"`)
+			) {
+				content = content.flatMap((node, idx) =>
+					typeof node === "string"
+						? boldQuoted(node, addedBy, `addedBy-${idx}`)
+						: [node]
+				);
+			}
+			if (content.length === 1 && typeof content[0] === "string")
+				return content[0];
+			return <span>{content}</span>;
+		} catch {
+			return typeof notification.message === "string"
+				? notification.message
+				: String(notification.message ?? "");
 		}
-		if (
-			fileName &&
-			typeof message === "string" &&
-			message.includes(`"${fileName}"`)
-		) {
-			content = content.flatMap((node, idx) =>
-				typeof node === "string"
-					? boldQuoted(node, fileName, `file-${idx}`)
-					: [node]
-			);
-		}
-		if (
-			addedBy &&
-			typeof message === "string" &&
-			message.includes(`"${addedBy}"`)
-		) {
-			content = content.flatMap((node, idx) =>
-				typeof node === "string"
-					? boldQuoted(node, addedBy, `addedBy-${idx}`)
-					: [node]
-			);
-		}
-		if (content.length === 1 && typeof content[0] === "string")
-			return content[0];
-		return <span>{content}</span>;
 	}
 
 	const getIcon = (type: string) => {

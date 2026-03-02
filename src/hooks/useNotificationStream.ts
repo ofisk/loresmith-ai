@@ -112,7 +112,6 @@ export function useNotificationStream(
 				const padded = base64 + "===".slice((base64.length + 3) % 4);
 				const payload = JSON.parse(atob(padded));
 				if (payload.exp && payload.exp < Date.now() / 1000) {
-					localStorage.removeItem(JWT_STORAGE_KEY);
 					setState((prev) => ({
 						...prev,
 						error: "Authentication expired. Please refresh the page.",
@@ -158,9 +157,8 @@ export function useNotificationStream(
 					errorText
 				);
 
-				// If 401, the JWT is invalid/expired - clear it and show auth error
+				// On 401 do not clear JWT—only the main auth flow should clear it
 				if (mintResponse.status === 401) {
-					localStorage.removeItem(JWT_STORAGE_KEY);
 					setState((prev) => ({
 						...prev,
 						error: "Authentication expired. Please refresh the page.",

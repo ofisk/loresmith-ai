@@ -39,63 +39,65 @@ export function useLocalNotifications() {
 
 	const dismissNotification = useCallback(
 		async (notificationId: string) => {
-			// Server notification (has id from DO history)
-			if (isServerNotificationId(notificationId)) {
-				const token = localStorage.getItem(JWT_STORAGE_KEY);
-				if (token) {
-					try {
-						await fetch(
-							API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.DISMISS),
-							{
-								method: "POST",
-								headers: {
-									Authorization: `Bearer ${token}`,
-									"Content-Type": "application/json",
-								},
-								body: JSON.stringify({ id: notificationId }),
-							}
-						);
-					} catch (_e) {
-						// Best-effort; still remove from UI
-					}
-				}
-				dismissServerNotification(notificationId);
-				return;
-			}
-			// Local or legacy: "timestamp-index"
-			const parts = notificationId.split("-");
-			const ts = parseInt(parts[0], 10);
-			if (Number.isNaN(ts)) return;
-			const local = localNotifications.find((n) => n.timestamp === ts);
-			if (local) {
-				dismissLocalNotification(ts);
-			} else {
-				const server = activeNotifications.find(
-					(n) => n.timestamp === ts || n.id === notificationId
-				);
-				if (server) {
-					if (server.id) {
-						const token = localStorage.getItem(JWT_STORAGE_KEY);
-						if (token) {
-							try {
-								await fetch(
-									API_CONFIG.buildUrl(
-										API_CONFIG.ENDPOINTS.NOTIFICATIONS.DISMISS
-									),
-									{
-										method: "POST",
-										headers: {
-											Authorization: `Bearer ${token}`,
-											"Content-Type": "application/json",
-										},
-										body: JSON.stringify({ id: server.id }),
-									}
-								);
-							} catch (_e) {}
+			try {
+				if (isServerNotificationId(notificationId)) {
+					const token = localStorage.getItem(JWT_STORAGE_KEY);
+					if (token) {
+						try {
+							await fetch(
+								API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.DISMISS),
+								{
+									method: "POST",
+									headers: {
+										Authorization: `Bearer ${token}`,
+										"Content-Type": "application/json",
+									},
+									body: JSON.stringify({ id: notificationId }),
+								}
+							);
+						} catch (_e) {
+							// Best-effort; still remove from UI
 						}
 					}
-					dismissServerNotification(server.id ?? ts);
+					dismissServerNotification(notificationId);
+					return;
 				}
+				const parts = notificationId.split("-");
+				const ts = parseInt(parts[0], 10);
+				if (Number.isNaN(ts)) return;
+				const local = localNotifications.find((n) => n.timestamp === ts);
+				if (local) {
+					dismissLocalNotification(ts);
+				} else {
+					const server = activeNotifications.find(
+						(n) => n.timestamp === ts || n.id === notificationId
+					);
+					if (server) {
+						if (server.id) {
+							const token = localStorage.getItem(JWT_STORAGE_KEY);
+							if (token) {
+								try {
+									await fetch(
+										API_CONFIG.buildUrl(
+											API_CONFIG.ENDPOINTS.NOTIFICATIONS.DISMISS
+										),
+										{
+											method: "POST",
+											headers: {
+												Authorization: `Bearer ${token}`,
+												"Content-Type": "application/json",
+											},
+											body: JSON.stringify({ id: server.id }),
+										}
+									);
+								} catch (_e) {}
+							}
+						}
+						dismissServerNotification(server.id ?? ts);
+					}
+				}
+			} catch (_e) {
+				// Never throw so callers don't get unhandled rejections
 			}
 		},
 		[
@@ -107,25 +109,29 @@ export function useLocalNotifications() {
 	);
 
 	const clearAllNotifications = useCallback(async () => {
-		const token = localStorage.getItem(JWT_STORAGE_KEY);
-		if (token) {
-			try {
-				await fetch(
-					API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.CLEAR),
-					{
-						method: "POST",
-						headers: {
-							Authorization: `Bearer ${token}`,
-							"Content-Type": "application/json",
-						},
-					}
-				);
-			} catch (_e) {
-				// Best-effort
+		try {
+			const token = localStorage.getItem(JWT_STORAGE_KEY);
+			if (token) {
+				try {
+					await fetch(
+						API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.CLEAR),
+						{
+							method: "POST",
+							headers: {
+								Authorization: `Bearer ${token}`,
+								"Content-Type": "application/json",
+							},
+						}
+					);
+				} catch (_e) {
+					// Best-effort
+				}
 			}
+			setLocalNotifications([]);
+			clearActiveNotifications();
+		} catch (_e) {
+			// Never throw so callers don't get unhandled rejections
 		}
-		setLocalNotifications([]);
-		clearActiveNotifications();
 	}, [clearActiveNotifications]);
 
 	// Combine server notifications with local notifications
