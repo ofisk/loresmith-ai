@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { JWT_STORAGE_KEY } from "@/app-constants";
 import loresmith from "@/assets/loresmith.png";
 import { PrimaryActionButton } from "@/components/button";
+import { Modal } from "@/components/modal/Modal";
 import type { BillingLimits, BillingStatus } from "@/hooks/useBillingStatus";
 import { API_CONFIG } from "@/shared-config";
 
@@ -30,6 +31,10 @@ export function BillingPage({ onBack }: BillingPageProps) {
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
 	const [upgrading, setUpgrading] = useState<string | null>(null);
+	const [changingPlan, setChangingPlan] = useState<string | null>(null);
+	const [confirmPlanChange, setConfirmPlanChange] = useState<
+		"basic" | "pro" | null
+	>(null);
 	const [interval, setInterval] = useState<"monthly" | "annual">("monthly");
 
 	const jwt =
@@ -149,6 +154,47 @@ export function BillingPage({ onBack }: BillingPageProps) {
 		}
 	}
 
+	async function handleConfirmPlanChange(tier: "basic" | "pro") {
+		setConfirmPlanChange(null);
+		await handleChangePlan(tier);
+	}
+
+	async function handleChangePlan(tier: "basic" | "pro") {
+		if (!jwt) return;
+		setChangingPlan(tier);
+		setCheckoutMessage(null);
+		try {
+			const res = await fetch(
+				API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.BILLING.CHANGE_PLAN),
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${jwt}`,
+					},
+					body: JSON.stringify({ tier }),
+				}
+			);
+			const json = (await res.json()) as {
+				success?: boolean;
+				error?: string;
+				message?: string;
+			};
+			if (json.success) {
+				setCheckoutMessage(json.message ?? "Plan updated successfully.");
+				fetchStatus();
+			} else {
+				setCheckoutMessage(json.error ?? "Failed to change plan");
+			}
+		} catch (err) {
+			setCheckoutMessage(
+				err instanceof Error ? err.message : "Failed to change plan"
+			);
+		} finally {
+			setChangingPlan(null);
+		}
+	}
+
 	if (!jwt) {
 		return (
 			<div className="min-h-screen flex flex-col items-center justify-center p-6 bg-neutral-50 dark:bg-neutral-950">
@@ -248,14 +294,37 @@ export function BillingPage({ onBack }: BillingPageProps) {
 						</p>
 					)}
 					{isPaid && (
-						<button
-							type="button"
-							onClick={handleManageSubscription}
-							disabled={!!upgrading}
-							className="mt-4 text-sm text-neutral-600 dark:text-neutral-400 hover:underline disabled:opacity-50"
-						>
-							Manage subscription
-						</button>
+						<div className="mt-4 flex flex-wrap items-center gap-3">
+							{status.tier === "basic" && (
+								<PrimaryActionButton
+									onClick={() => setConfirmPlanChange("pro")}
+									disabled={!!changingPlan || !!upgrading}
+									className="text-sm"
+								>
+									{changingPlan === "pro" ? "Updating..." : "Upgrade to Pro"}
+								</PrimaryActionButton>
+							)}
+							{status.tier === "pro" && (
+								<button
+									type="button"
+									onClick={() => setConfirmPlanChange("basic")}
+									disabled={!!status.isAdmin || !!changingPlan || !!upgrading}
+									className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
+								>
+									{changingPlan === "basic"
+										? "Updating..."
+										: "Downgrade to Basic"}
+								</button>
+							)}
+							<button
+								type="button"
+								onClick={handleManageSubscription}
+								disabled={!!upgrading || !!changingPlan}
+								className="text-sm text-neutral-600 dark:text-neutral-400 hover:underline disabled:opacity-50"
+							>
+								Manage subscription
+							</button>
+						</div>
 					)}
 				</div>
 
@@ -366,6 +435,52 @@ export function BillingPage({ onBack }: BillingPageProps) {
 					</div>
 				)}
 			</div>
+
+			<Modal
+				isOpen={confirmPlanChange !== null}
+				onClose={() => setConfirmPlanChange(null)}
+				clickOutsideToClose={true}
+			>
+				<div className="p-4 sm:p-6 max-w-md">
+					<h3 className="text-lg font-semibold mb-3">
+						{confirmPlanChange === "pro"
+							? "Upgrade to Pro"
+							: "Downgrade to Basic"}
+					</h3>
+					{confirmPlanChange === "pro" ? (
+						<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
+							You will be charged a prorated amount immediately for the
+							remainder of your billing period. You will get unlimited
+							campaigns, 100 files, 100MB storage, and higher rate limits.
+						</p>
+					) : (
+						<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
+							You will receive a prorated credit for the unused portion of your
+							Pro subscription. If you have already exceeded Basic tier limits
+							(5 campaigns, 25 files, 25MB storage), you may be locked out of
+							creating new content until you reduce your usage.
+						</p>
+					)}
+					<div className="flex gap-3 justify-end">
+						<button
+							type="button"
+							onClick={() => setConfirmPlanChange(null)}
+							className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+						>
+							Cancel
+						</button>
+						<PrimaryActionButton
+							onClick={() =>
+								confirmPlanChange && handleConfirmPlanChange(confirmPlanChange)
+							}
+							disabled={!confirmPlanChange || !!changingPlan}
+							className="text-sm"
+						>
+							{changingPlan ? "Updating..." : "Confirm"}
+						</PrimaryActionButton>
+					</div>
+				</div>
+			</Modal>
 		</div>
 	);
 }

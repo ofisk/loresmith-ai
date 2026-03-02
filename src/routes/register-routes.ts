@@ -20,6 +20,7 @@ import {
 	requireUserJwt,
 } from "@/routes/auth";
 import {
+	handleBillingChangePlan,
 	handleBillingCheckout,
 	handleBillingPortal,
 	handleBillingStatus,
@@ -254,6 +255,11 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
 		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.CHECKOUT),
 		requireUserJwt,
 		handleBillingCheckout
+	);
+	app.post(
+		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.CHANGE_PLAN),
+		requireUserJwt,
+		handleBillingChangePlan
 	);
 	app.post(
 		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.PORTAL),
