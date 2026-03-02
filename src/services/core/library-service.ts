@@ -7,6 +7,7 @@ import {
 	StorageUsageError,
 } from "@/lib/errors";
 import type { Env } from "@/middleware/auth";
+import { getSubscriptionService } from "@/services/billing/subscription-service";
 import type { FileMetadata } from "@/types/upload";
 
 export interface StorageUsage {
@@ -38,7 +39,6 @@ export interface ProcessingOptions {
 
 export class LibraryService {
 	private readonly env: Env;
-	private readonly STORAGE_LIMIT_BYTES = 20 * 1024 * 1024; // 20MB for regular users
 
 	constructor(env: Env) {
 		this.env = env;
@@ -65,8 +65,11 @@ export class LibraryService {
 			);
 			const fileCount = validFiles.length;
 
-			// Admin users have unlimited storage
-			const limitBytes = isAdmin ? Infinity : this.STORAGE_LIMIT_BYTES;
+			// Admin users have unlimited storage; others use tier-based limits
+			const subService = getSubscriptionService(this.env);
+			const tier = await subService.getTier(username);
+			const limits = subService.getTierLimits(tier);
+			const limitBytes = isAdmin ? Infinity : limits.storageBytes;
 			const remainingBytes = isAdmin
 				? Infinity
 				: Math.max(0, limitBytes - totalBytes);
@@ -111,13 +114,27 @@ export class LibraryService {
 			};
 		}
 
+		const subService = getSubscriptionService(this.env);
+		const tier = await subService.getTier(username);
+		const limits = subService.getTierLimits(tier);
+
+		// Check file count limit
+		if (currentUsage.fileCount >= limits.maxFiles) {
+			return {
+				canUpload: false,
+				reason: `File limit (${limits.maxFiles}) reached. Upgrade for more files.`,
+				currentUsage,
+			};
+		}
+
+		// Check storage limit
 		const wouldExceedLimit =
-			currentUsage.totalBytes + fileSizeBytes > this.STORAGE_LIMIT_BYTES;
+			currentUsage.totalBytes + fileSizeBytes > limits.storageBytes;
 
 		if (wouldExceedLimit) {
 			return {
 				canUpload: false,
-				reason: `Upload would exceed your ${this.formatBytes(this.STORAGE_LIMIT_BYTES)} storage limit. Current usage: ${this.formatBytes(currentUsage.totalBytes)}`,
+				reason: `Upload would exceed your ${this.formatBytes(limits.storageBytes)} storage limit. Current usage: ${this.formatBytes(currentUsage.totalBytes)}`,
 				currentUsage,
 			};
 		}
@@ -167,29 +184,36 @@ export class LibraryService {
 				userUsageMap.set(file.username, current);
 			});
 
-			return Array.from(userUsageMap.entries()).map(([username, usage]) => {
-				// Admin users are managed directly in the users table (is_admin).
-				// For this summary, we don't attempt to look up per-user admin flags.
-				const isAdmin = false; // Default to false for now
+			const entries = Array.from(userUsageMap.entries());
+			const results = await Promise.all(
+				entries.map(async ([username, usage]) => {
+					// Admin users are managed directly in the users table (is_admin).
+					// For this summary, we don't attempt to look up per-user admin flags.
+					const isAdmin = false; // Default to false for now
 
-				const totalBytes = usage.totalBytes;
-				const fileCount = usage.fileCount;
-				const limitBytes = isAdmin ? Infinity : this.STORAGE_LIMIT_BYTES;
-				const remainingBytes = isAdmin
-					? Infinity
-					: Math.max(0, limitBytes - totalBytes);
-				const usagePercentage = isAdmin ? 0 : (totalBytes / limitBytes) * 100;
+					const totalBytes = usage.totalBytes;
+					const fileCount = usage.fileCount;
+					const subService = getSubscriptionService(this.env);
+					const tier = await subService.getTier(username);
+					const limits = subService.getTierLimits(tier);
+					const limitBytes = isAdmin ? Infinity : limits.storageBytes;
+					const remainingBytes = isAdmin
+						? Infinity
+						: Math.max(0, limitBytes - totalBytes);
+					const usagePercentage = isAdmin ? 0 : (totalBytes / limitBytes) * 100;
 
-				return {
-					username,
-					totalBytes,
-					fileCount,
-					isAdmin,
-					limitBytes,
-					remainingBytes,
-					usagePercentage,
-				};
-			});
+					return {
+						username,
+						totalBytes,
+						fileCount,
+						isAdmin,
+						limitBytes,
+						remainingBytes,
+						usagePercentage,
+					};
+				})
+			);
+			return results;
 		} catch (error) {
 			console.error(
 				"[LibraryService] Error getting all users storage usage:",

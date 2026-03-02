@@ -7,6 +7,7 @@ import { CONTEXT_RECAP_PLACEHOLDER } from "@/app-constants";
 import { AppHeader } from "@/components/app/AppHeader";
 import { AppModals } from "@/components/app/AppModals";
 import { ChatArea } from "@/components/app/ChatArea";
+import { BillingPage } from "@/components/billing/BillingPage";
 import { JoinCampaignPage } from "@/components/join/JoinCampaignPage";
 import { ResourceSidePanel } from "@/components/resource-side-panel";
 import { ShardOverlay } from "@/components/shard/ShardOverlay";
@@ -19,6 +20,7 @@ import { useAppAuthentication } from "@/hooks/useAppAuthentication";
 import { useAppEventHandlers } from "@/hooks/useAppEventHandlers";
 import { useAppState } from "@/hooks/useAppState";
 import { useAuthReady } from "@/hooks/useAuthReady";
+import { useBillingStatus } from "@/hooks/useBillingStatus";
 import { useCampaignAddition } from "@/hooks/useCampaignAddition";
 import { useCampaigns } from "@/hooks/useCampaigns";
 import { useFileUpload } from "@/hooks/useFileUpload";
@@ -253,6 +255,11 @@ export default function Chat() {
 		!joinComplete
 			? new URLSearchParams(window.location.search).get("token")
 			: null;
+
+	const showBillingPage =
+		typeof window !== "undefined" && window.location.pathname === "/billing";
+
+	const { data: billingStatus } = useBillingStatus();
 
 	const handleJoinSuccess = useCallback(
 		(campaignId: string) => {
@@ -1077,6 +1084,12 @@ export default function Chat() {
 		}
 	}, [authState.isAuthenticated, fetchAllStagedShards]);
 
+	if (showBillingPage) {
+		return (
+			<BillingPage onBack={() => window.history.replaceState(null, "", "/")} />
+		);
+	}
+
 	if (joinToken) {
 		return (
 			<>
@@ -1307,6 +1320,7 @@ export default function Chat() {
 						selectedCampaignId={selectedCampaignId}
 						onAdminDashboardOpen={modalState.handleAdminDashboardOpen}
 						selectedCampaignRole={selectedCampaign?.role ?? null}
+						billingTier={billingStatus?.tier}
 					/>
 
 					{/* Main Content Area */}

@@ -308,6 +308,12 @@ export const API_CONFIG = {
 			DETAILS: (characterSheetId: string) =>
 				`/character-sheets/${characterSheetId}`,
 		},
+		BILLING: {
+			CHECKOUT: "/billing/checkout",
+			PORTAL: "/billing/portal",
+			WEBHOOK: "/billing/webhook",
+			STATUS: "/billing/status",
+		},
 		AUTH: {
 			LOGOUT: "/auth/logout",
 			GOOGLE: "/auth/google",

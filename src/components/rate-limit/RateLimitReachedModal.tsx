@@ -48,7 +48,13 @@ export function RateLimitReachedModal({
 						Next reset: <strong>{formattedReset}</strong>
 					</p>
 				)}
-				<div className="flex justify-end">
+				<div className="flex justify-end gap-2">
+					<a
+						href="/billing"
+						className="px-4 py-2 text-sm font-medium rounded-md bg-neutral-800 dark:bg-neutral-200 text-neutral-100 dark:text-neutral-900 hover:bg-neutral-700 dark:hover:bg-neutral-300"
+					>
+						Upgrade to increase limits
+					</a>
 					<button
 						type="button"
 						onClick={onClose}

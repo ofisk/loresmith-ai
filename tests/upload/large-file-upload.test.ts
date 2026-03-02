@@ -5,6 +5,15 @@ import {
 	handleUploadPart,
 } from "../../src/routes/upload";
 
+vi.mock("../../src/lib/service-factory", () => ({
+	getLibraryService: vi.fn(() => ({
+		canUploadFile: vi.fn().mockResolvedValue({
+			canUpload: true,
+			currentUsage: { totalBytes: 0, fileCount: 0 },
+		}),
+	})),
+}));
+
 // Mock environment
 const mockEnv = {
 	R2: {
