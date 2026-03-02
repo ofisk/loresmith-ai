@@ -363,11 +363,16 @@ export class LibraryRAGService extends BaseRAGService {
 				throw new FileNotFoundError(fileKey);
 			}
 
-			// Extract text based on file type
+			// Extract text based on file type (use stored metadata; fallback to PDF for legacy records missing content_type)
 			const buffer = await file.arrayBuffer();
+			const contentType =
+				metadata.content_type ||
+				metadata.contentType ||
+				file.httpMetadata?.contentType ||
+				"application/pdf";
 			const extractionResult = await this.extractionService.extractText(
 				buffer,
-				"application/pdf"
+				contentType
 			);
 
 			if (!extractionResult || !extractionResult.text) {

@@ -22,11 +22,20 @@ export const APP_CONFIG = {
 // File upload constants
 export const UPLOAD_CONFIG = {
 	MAX_FILE_SIZE: 100 * 1024 * 1024, // 100MB max (Cloudflare Workers have 128MB memory limit, leaving buffer for overhead)
-	// Currently only PDFs are supported. To add other file types:
-	// 1. Update this array with MIME types (e.g., "application/msword", "text/plain")
-	// 2. Add extraction logic in file-analysis-service.ts
-	// 3. Update frontend file picker to accept new types
-	ALLOWED_FILE_TYPES: ["application/pdf"],
+	// MIME types supported by RAG (FileExtractionService). Keep in sync with ResourceUpload and file-upload-security ALLOWED_EXTENSIONS.
+	ALLOWED_FILE_TYPES: [
+		"application/pdf",
+		"text/plain",
+		"text/markdown",
+		"text/x-markdown",
+		"application/msword",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"application/json",
+		"image/jpeg",
+		"image/jpg",
+		"image/png",
+		"image/webp",
+	],
 	MAX_FILES_PER_USER: 100,
 } as const;
 

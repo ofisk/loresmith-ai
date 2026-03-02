@@ -291,21 +291,21 @@ export function AppModals({
 				showCloseButton={true}
 			>
 				<ResourceUpload
-					onUpload={async (file, filename, description, tags) => {
+					onUpload={async (file, filename, description, tags, options) => {
 						console.log("Uploading file:", file);
 
-						// Close modal immediately
-						modalState.handleAddResourceClose();
+						// Only close modal when single file or user finished (keep open for multi-file so they can upload rest)
+						if (!options?.keepModalOpen) {
+							modalState.handleAddResourceClose();
+						}
 
-						// Start upload in background
 						try {
 							await handleUpload(file, filename, description, tags);
 						} catch (error) {
 							console.error("Upload failed:", error);
-							// Show error notification since modal is already closed
 							addLocalNotification(
 								NOTIFICATION_TYPES.ERROR,
-								"Upload Failed",
+								"Upload failed",
 								`Failed to upload "${filename}". Please try again.`
 							);
 						}
