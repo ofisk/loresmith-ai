@@ -153,6 +153,7 @@ export async function handleBillingStatus(c: ContextWithAuth) {
 
 	return c.json({
 		tier,
+		isAdmin: auth.isAdmin ?? false,
 		status: sub?.status ?? "active",
 		currentPeriodEnd: sub?.current_period_end ?? null,
 		limits: {
@@ -308,10 +309,13 @@ export async function handleBillingChangePlan(c: ContextWithAuth) {
 		);
 	}
 
+	// Use always_invoice for upgrades so the customer is charged immediately for the
+	// prorated difference. With create_prorations they'd get the upgrade free until
+	// next billing. For downgrades, always_invoice applies the credit immediately.
 	await stripe.subscriptions.update(sub.stripe_subscription_id, {
 		items: [{ id: subscriptionItem.id, price: newPriceId }],
 		metadata: { username: auth.username, tier },
-		proration_behavior: "create_prorations",
+		proration_behavior: "always_invoice",
 	});
 
 	const periodEnd = stripeSub.current_period_end

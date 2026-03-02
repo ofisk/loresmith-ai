@@ -15,6 +15,7 @@ export interface BillingLimits {
 
 export interface BillingStatus {
 	tier: "free" | "basic" | "pro";
+	isAdmin?: boolean;
 	status: string;
 	currentPeriodEnd: string | null;
 	limits: BillingLimits;
