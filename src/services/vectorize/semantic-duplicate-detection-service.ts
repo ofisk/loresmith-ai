@@ -1,7 +1,7 @@
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { Entity } from "@/dao/entity-dao";
 import type { Env } from "@/middleware/auth";
-import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
+import { ProviderEmbeddingService } from "@/services/embedding/provider-embedding-service";
 import { EntityEmbeddingService } from "./entity-embedding-service";
 
 export interface SemanticDuplicateDetectionOptions {
@@ -19,8 +19,8 @@ export interface SemanticDuplicateDetectionOptions {
 	threshold?: number;
 	/** Environment object for database access */
 	env: Env;
-	/** OpenAI API key for generating embeddings */
-	openaiApiKey: string;
+	/** Embedding API key (OpenAI). Optional if Cloudflare AI binding is available. */
+	openaiApiKey?: string;
 	/** Context for logging (e.g., entity name, shard title) */
 	context?: {
 		name?: string;
@@ -57,7 +57,7 @@ export interface FindDuplicateEntityOptions {
 	/** Number of similar entities to check (default: 10) */
 	topK?: number;
 	env: Env;
-	/** OpenAI API key for embeddings; if missing, only lexical fallback is used */
+	/** Embedding API key (OpenAI); if missing, can fall back to Cloudflare AI binding. */
 	openaiApiKey?: string;
 }
 
@@ -89,13 +89,15 @@ export class SemanticDuplicateDetectionService {
 		const daoFactory = getDAOFactory(env);
 		const normalizedName = (name ?? "").trim();
 
-		if (env.VECTORIZE && openaiApiKey && content.trim()) {
+		if (env.VECTORIZE && content.trim()) {
 			try {
 				const embeddingService = new EntityEmbeddingService(env.VECTORIZE);
-				const openaiEmbeddingService = new OpenAIEmbeddingService(openaiApiKey);
-				const contentEmbedding = await openaiEmbeddingService.generateEmbedding(
-					content.trim()
-				);
+				const providerEmbeddingService = new ProviderEmbeddingService({
+					openaiApiKey,
+					aiBinding: (env as any).AI,
+				});
+				const contentEmbedding =
+					await providerEmbeddingService.generateEmbedding(content.trim());
 				const similarEntities = await embeddingService.findSimilarByEmbedding(
 					contentEmbedding,
 					{
@@ -154,11 +156,14 @@ export class SemanticDuplicateDetectionService {
 
 		try {
 			const embeddingService = new EntityEmbeddingService(env.VECTORIZE);
-			const openaiEmbeddingService = new OpenAIEmbeddingService(openaiApiKey);
+			const providerEmbeddingService = new ProviderEmbeddingService({
+				openaiApiKey,
+				aiBinding: (env as any).AI,
+			});
 
 			// Generate embedding for the content
 			const contentEmbedding =
-				await openaiEmbeddingService.generateEmbedding(content);
+				await providerEmbeddingService.generateEmbedding(content);
 
 			// Find similar entities using semantic search
 			const similarEntities = await embeddingService.findSimilarByEmbedding(

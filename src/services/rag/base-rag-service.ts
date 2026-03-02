@@ -7,6 +7,7 @@ import {
 	OpenAIAPIKeyError,
 	VectorizeIndexRequiredError,
 } from "@/lib/errors";
+import { ProviderEmbeddingService } from "@/services/embedding/provider-embedding-service";
 
 /**
  * Base RAG Service that provides shared functionality for different RAG implementations.
@@ -37,32 +38,17 @@ export abstract class BaseRAGService {
 	}
 
 	/**
-	 * Generate embeddings for an array of texts using OpenAI
+	 * Generate embeddings using the configured embedding provider.
 	 */
 	public async generateEmbeddings(texts: string[]): Promise<number[][]> {
-		const apiKey = await this.resolveOpenAIKey();
+		const apiKey = await this.resolveOpenAIKeyOptional();
 
 		try {
-			const response = await fetch("https://api.openai.com/v1/embeddings", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${apiKey}`,
-				},
-				body: JSON.stringify({
-					input: texts,
-					model: "text-embedding-3-small",
-				}),
+			const embeddingProvider = new ProviderEmbeddingService({
+				openaiApiKey: apiKey,
+				aiBinding: this.env?.AI,
 			});
-
-			if (!response.ok) {
-				throw new EmbeddingGenerationError(
-					`OpenAI API error: ${response.statusText}`
-				);
-			}
-
-			const result = (await response.json()) as any;
-			return result.data.map((item: any) => item.embedding);
+			return await embeddingProvider.generateEmbeddings(texts);
 		} catch (error) {
 			console.error("Error generating embeddings:", error);
 			if (
@@ -191,19 +177,19 @@ export abstract class BaseRAGService {
 		throw new OpenAIAPIKeyError("OpenAI API key not configured");
 	}
 
-	private async resolveOpenAIKey(): Promise<string> {
+	private async resolveOpenAIKeyOptional(): Promise<string | undefined> {
 		if (typeof this.openaiApiKey === "string") {
 			const trimmed = this.openaiApiKey.trim();
 			if (trimmed) return trimmed;
 		}
 
 		if (this.env) {
-			const raw = await getEnvVar(this.env, "OPENAI_API_KEY", true);
+			const raw = await getEnvVar(this.env, "OPENAI_API_KEY", false);
 			const trimmed = raw.trim();
 			if (trimmed) return trimmed;
 		}
 
-		throw new OpenAIAPIKeyError();
+		return undefined;
 	}
 
 	/**

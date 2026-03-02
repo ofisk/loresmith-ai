@@ -632,12 +632,15 @@ async function analyzeMetadataCoverage(
 ): Promise<Record<string, boolean>> {
 	const coverage: Record<string, boolean> = {};
 
-	// If no OpenAI API key, return empty coverage
-	const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
-	const openaiApiKey = openaiApiKeyRaw.trim();
-	if (!openaiApiKey) {
+	const providerEnvVar =
+		MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+			? "ANTHROPIC_API_KEY"
+			: "OPENAI_API_KEY";
+	const providerApiKeyRaw = await getEnvVar(env, providerEnvVar, false);
+	const providerApiKey = providerApiKeyRaw.trim();
+	if (!providerApiKey) {
 		console.warn(
-			"[MetadataAnalysis] No OpenAI API key available, skipping metadata analysis"
+			`[MetadataAnalysis] No ${MODEL_CONFIG.PROVIDER.DEFAULT} API key available, skipping metadata analysis`
 		);
 		return coverage;
 	}
@@ -659,7 +662,7 @@ async function analyzeMetadataCoverage(
 
 		const llmProvider = createLLMProvider({
 			provider: MODEL_CONFIG.PROVIDER.DEFAULT,
-			apiKey: openaiApiKey,
+			apiKey: providerApiKey,
 			defaultModel: getGenerationModelForProvider("METADATA_ANALYSIS"),
 			defaultTemperature: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_TEMPERATURE,
 			defaultMaxTokens: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_MAX_TOKENS,
@@ -743,8 +746,8 @@ async function performSemanticChecklistAnalysis(
 			coverage.campaign_pitch = coverage.campaign_pitch || true;
 		}
 
-		const { planningContext, openaiApiKey } = await getPlanningServices(env);
-		if (!env.DB || !env.VECTORIZE || !openaiApiKey) {
+		const { planningContext } = await getPlanningServices(env);
+		if (!env.DB || !env.VECTORIZE || !planningContext) {
 			// Semantic search not available, return coverage from metadata only
 			return { coverage, entityStats };
 		}

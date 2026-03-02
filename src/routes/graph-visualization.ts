@@ -20,7 +20,7 @@ import {
 } from "@/lib/graph/graph-visualization-helpers";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
-import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
+import { ProviderEmbeddingService } from "@/services/embedding/provider-embedding-service";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { EntitySemanticSearchService } from "@/services/vectorize/entity-semantic-search-service";
 import type {
@@ -456,11 +456,14 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
 
 			const openaiApiKeyRaw = await getEnvVar(c.env, "OPENAI_API_KEY", false);
 			const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
-			if (c.env.VECTORIZE && openaiApiKey) {
-				const openaiEmbeddingService = new OpenAIEmbeddingService(openaiApiKey);
+			if (c.env.VECTORIZE && (openaiApiKey || (c.env as any).AI)) {
+				const embeddingProvider = new ProviderEmbeddingService({
+					openaiApiKey,
+					aiBinding: (c.env as any).AI,
+				});
 				const rateLimitService = getLLMRateLimitService(c.env);
 				const getQueryEmbedding = async (q: string) => {
-					const [emb] = await openaiEmbeddingService.generateEmbeddings([q], {
+					const [emb] = await embeddingProvider.generateEmbeddings([q], {
 						username: userAuth.username,
 						onUsage: async (usage) => {
 							await rateLimitService.recordUsage(
