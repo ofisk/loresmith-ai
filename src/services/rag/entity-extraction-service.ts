@@ -83,7 +83,7 @@ export interface ExtractEntitiesOptions {
 	sourceId: string;
 	sourceType: string;
 	metadata?: Record<string, unknown>;
-	openaiApiKey?: string;
+	llmApiKey?: string;
 	/** Username for rate limit attribution */
 	username?: string;
 	/** Callback to record usage (tokens, queryCount) for rate limiting */
@@ -111,17 +111,17 @@ export interface ExtractedEntity {
 
 export class EntityExtractionService {
 	constructor(
-		private readonly openaiApiKey: string | null = null,
+		private readonly llmApiKey: string | null = null,
 		private readonly telemetryService: TelemetryService | null = null
 	) {}
 
 	async extractEntities(
 		options: ExtractEntitiesOptions
 	): Promise<ExtractedEntity[]> {
-		const apiKey = options.openaiApiKey || this.openaiApiKey;
+		const apiKey = options.llmApiKey || this.llmApiKey;
 		if (!apiKey) {
 			throw new OpenAIAPIKeyError(
-				"OpenAI API key is required for entity extraction. Please provide openaiApiKey in options or constructor."
+				`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key is required for entity extraction.`
 			);
 		}
 
@@ -136,7 +136,7 @@ ${options.content}
 CONTENT END`;
 
 		// Use OpenAIProvider to generate structured JSON output
-		const parsed = await this.callOpenAIModelStructured(fullPrompt, apiKey, {
+		const parsed = await this.callStructuredModel(fullPrompt, apiKey, {
 			username: options.username,
 			onUsage: options.onUsage,
 		});
@@ -293,10 +293,10 @@ CONTENT END`;
 	}
 
 	/**
-	 * Call OpenAI with structured output using OpenAIProvider
+	 * Call configured LLM provider with structured output.
 	 * This generates JSON and validates it against our Zod schema
 	 */
-	private async callOpenAIModelStructured(
+	private async callStructuredModel(
 		prompt: string,
 		apiKey: string,
 		usageOptions?: {
@@ -348,7 +348,7 @@ CONTENT END`;
 			}
 
 			console.error(
-				"[EntityExtractionService] Error calling OpenAI API with structured output:",
+				"[EntityExtractionService] Error calling structured extraction model:",
 				error
 			);
 			if (error instanceof EntityExtractionError) {

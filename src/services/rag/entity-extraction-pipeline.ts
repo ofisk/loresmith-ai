@@ -1,3 +1,4 @@
+import { MODEL_CONFIG } from "@/app-constants";
 import type { Entity, EntityDAO, EntityRelationship } from "@/dao/entity-dao";
 import { isStubContent, mergeEntityContent } from "@/lib/entity-content-merge";
 import { normalizeEntityType } from "@/lib/entity-types";
@@ -39,6 +40,12 @@ export class EntityExtractionPipeline {
 	async run(
 		options: EntityExtractionPipelineOptions
 	): Promise<EntityExtractionPipelineResult> {
+		const llmKeyEnvVar =
+			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+				? "ANTHROPIC_API_KEY"
+				: "OPENAI_API_KEY";
+		const llmKeyRaw = await getEnvVar(this.env, llmKeyEnvVar, false);
+		const llmApiKey = llmKeyRaw.trim() || undefined;
 		const openaiKeyRaw = await getEnvVar(this.env, "OPENAI_API_KEY", false);
 		const openaiKey = (this.openaiApiKey ?? openaiKeyRaw).trim() || undefined;
 		if (!this.openaiEmbeddingService) {
@@ -52,7 +59,7 @@ export class EntityExtractionPipeline {
 			sourceType: options.sourceType,
 			campaignId: options.campaignId,
 			metadata: options.metadata,
-			openaiApiKey: openaiKey,
+			llmApiKey,
 		});
 
 		if (extractedEntities.length === 0) {

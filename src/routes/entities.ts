@@ -1,3 +1,4 @@
+import { MODEL_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { EntityDAO } from "@/dao/entity-dao";
 import { getEnvVar } from "@/lib/env-utils";
@@ -622,12 +623,16 @@ export async function handleTestEntityExtractionFromR2(
 			return c.json({ error: "fileKey is required" }, 400);
 		}
 
-		const openaiApiKeyRaw = await getEnvVar(c.env, "OPENAI_API_KEY", false);
-		const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
-		if (!openaiApiKey) {
+		const providerKeyEnvVar =
+			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+				? "ANTHROPIC_API_KEY"
+				: "OPENAI_API_KEY";
+		const llmApiKeyRaw = await getEnvVar(c.env, providerKeyEnvVar, false);
+		const llmApiKey = llmApiKeyRaw.trim() || undefined;
+		if (!llmApiKey) {
 			return c.json(
 				{
-					error: "OpenAI API key is required for entity extraction",
+					error: `${MODEL_CONFIG.PROVIDER.DEFAULT} API key is required for entity extraction`,
 				},
 				400
 			);
@@ -690,7 +695,7 @@ export async function handleTestEntityExtractionFromR2(
 		);
 
 		// Extract entities from each chunk
-		const extractionService = new EntityExtractionService(openaiApiKey);
+		const extractionService = new EntityExtractionService(llmApiKey);
 		const allExtractedEntities: Map<
 			string,
 			Awaited<ReturnType<typeof extractionService.extractEntities>>[0]
@@ -713,7 +718,7 @@ export async function handleTestEntityExtractionFromR2(
 				campaignId,
 				sourceId: fileKey,
 				sourceType: "file_upload",
-				openaiApiKey,
+				llmApiKey,
 				metadata: {
 					fileKey,
 					resourceId: fileKey,

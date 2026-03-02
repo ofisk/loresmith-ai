@@ -1,6 +1,7 @@
 // Entity staging service for campaign resources
 // Extracts entities from file content and stages them for user approval/rejection
 
+import { MODEL_CONFIG } from "@/app-constants";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { isStubContent, mergeEntityContent } from "@/lib/entity-content-merge";
@@ -57,10 +58,9 @@ export interface EntityStagingOptions {
 	campaignName: string;
 	resource: any; // CampaignResource
 	campaignRagBasePath: string;
-	/**
-	 * OpenAI API key for entity extraction.
-	 * Required for entity extraction using GPT-4o.
-	 */
+	/** LLM provider API key used for extraction/detection/parsing. */
+	llmApiKey?: string;
+	/** OpenAI key used for embedding-based duplicate detection (optional). */
 	openaiApiKey?: string;
 	/**
 	 * Optional content extraction provider.
@@ -139,6 +139,7 @@ export async function stageEntitiesFromResource(
 		campaignName,
 		resource,
 		campaignRagBasePath,
+		llmApiKey,
 		openaiApiKey,
 		contentExtractionProvider,
 		attribution,
@@ -155,9 +156,9 @@ export async function stageEntitiesFromResource(
 			campaignRagBasePath,
 		});
 
-		if (!openaiApiKey) {
+		if (!llmApiKey) {
 			console.warn(
-				`[EntityStaging] No OpenAI API key provided, skipping entity extraction for resource: ${resource.id}`
+				`[EntityStaging] No ${MODEL_CONFIG.PROVIDER.DEFAULT} API key provided, skipping entity extraction for resource: ${resource.id}`
 			);
 			const normalizedResource = normalizeResourceForShardGeneration(resource);
 			await notifyZeroEntitiesFound(
@@ -166,7 +167,7 @@ export async function stageEntitiesFromResource(
 				campaignName,
 				normalizedResource.id,
 				normalizedResource.file_name || normalizedResource.id,
-				"OpenAI API key was not configured."
+				`${MODEL_CONFIG.PROVIDER.DEFAULT} API key was not configured.`
 			);
 			return {
 				success: true,
@@ -215,7 +216,7 @@ export async function stageEntitiesFromResource(
 
 		// Check if this is a character sheet before normal entity extraction
 		try {
-			const detectionService = new CharacterSheetDetectionService(openaiApiKey);
+			const detectionService = new CharacterSheetDetectionService(llmApiKey);
 			const rateLimitService = getLLMRateLimitService(env);
 			const detectionResult = await detectionService.detectCharacterSheet(
 				fileContent,
@@ -237,7 +238,7 @@ export async function stageEntitiesFromResource(
 				);
 
 				// Parse the character sheet
-				const parserService = new CharacterSheetParserService(openaiApiKey);
+				const parserService = new CharacterSheetParserService(llmApiKey);
 				const characterData = await parserService.parseCharacterSheet(
 					fileContent,
 					detectionResult.characterName || undefined
@@ -380,7 +381,7 @@ export async function stageEntitiesFromResource(
 		);
 
 		// Extract entities from each chunk and merge results
-		const extractionService = new EntityExtractionService(openaiApiKey);
+		const extractionService = new EntityExtractionService(llmApiKey);
 		const allExtractedEntities: Map<string, ExtractedEntity> = new Map();
 
 		// Rate limit: Process chunks with delay to respect TPM limits
@@ -434,7 +435,7 @@ export async function stageEntitiesFromResource(
 					campaignId,
 					sourceId: normalizedResource.id,
 					sourceType: "file_upload",
-					openaiApiKey,
+					llmApiKey,
 					username,
 					onUsage: async (usage, ctx) => {
 						await rateLimitService.recordUsage(

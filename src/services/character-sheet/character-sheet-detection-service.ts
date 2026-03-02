@@ -49,7 +49,7 @@ export type CharacterSheetDetectionResult = z.infer<
  * Game-system agnostic - works with D&D, Pathfinder, Call of Cthulhu, etc.
  */
 export class CharacterSheetDetectionService {
-	constructor(private openaiApiKey: string) {}
+	constructor(private llmApiKey: string) {}
 
 	/**
 	 * Detect if the provided text content is a character sheet
@@ -148,7 +148,7 @@ export class CharacterSheetDetectionService {
 
 		const llmProvider = createLLMProvider({
 			provider: MODEL_CONFIG.PROVIDER.DEFAULT,
-			apiKey: this.openaiApiKey,
+			apiKey: this.llmApiKey,
 			// Use centralized analysis model for efficient detection
 			defaultModel: getGenerationModelForProvider("ANALYSIS"),
 			defaultTemperature: 0.1,

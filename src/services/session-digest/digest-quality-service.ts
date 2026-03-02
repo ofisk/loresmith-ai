@@ -377,7 +377,7 @@ Return:
 				campaignId,
 				sourceId: `digest-consistency-check-${Date.now()}`,
 				sourceType: "session_digest",
-				openaiApiKey: this.openaiApiKey,
+				llmApiKey: this.openaiApiKey,
 			});
 
 			extractedEntities = extracted.map((entity) => ({

@@ -158,7 +158,7 @@ const MAX_CHUNK_SIZE = 200000; // Characters per chunk for parsing (GPT-5 models
  * Game-system agnostic - extracts whatever fields are present without assuming a specific system.
  */
 export class CharacterSheetParserService {
-	constructor(private openaiApiKey: string) {}
+	constructor(private llmApiKey: string) {}
 
 	/**
 	 * Parse character sheet text into structured character data
@@ -226,7 +226,7 @@ export class CharacterSheetParserService {
 
 		const llmProvider = createLLMProvider({
 			provider: MODEL_CONFIG.PROVIDER.DEFAULT,
-			apiKey: this.openaiApiKey,
+			apiKey: this.llmApiKey,
 			// Use centralized heavy structured model (session planning) for rich character data
 			defaultModel: getGenerationModelForProvider("SESSION_PLANNING"),
 			defaultTemperature: 0.1,

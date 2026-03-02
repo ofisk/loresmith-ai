@@ -1,6 +1,7 @@
 // Entity Extraction Queue Service
 // Handles queuing and processing entity extraction jobs with rate limit handling and exponential backoff
 
+import { MODEL_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import {
 	EntityExtractionQueueDAO,
@@ -181,11 +182,19 @@ export class EntityExtractionQueueService {
 					);
 				}
 
-				const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
-				const openaiApiKey = openaiApiKeyRaw.trim();
-				if (!openaiApiKey) {
-					throw new Error("OpenAI API key not configured");
+				const providerKeyEnvVar =
+					MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+						? "ANTHROPIC_API_KEY"
+						: "OPENAI_API_KEY";
+				const llmApiKeyRaw = await getEnvVar(env, providerKeyEnvVar, false);
+				const llmApiKey = llmApiKeyRaw.trim();
+				if (!llmApiKey) {
+					throw new Error(
+						`${MODEL_CONFIG.PROVIDER.DEFAULT} API key not configured`
+					);
 				}
+				const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
+				const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
 
 				// Get campaign RAG base path (by ID - user already has access via getCampaignByIdWithMapping)
 				const campaignRagBasePath =
@@ -207,6 +216,7 @@ export class EntityExtractionQueueService {
 					campaignName: campaign.name,
 					resource,
 					campaignRagBasePath,
+					llmApiKey,
 					openaiApiKey,
 					attribution:
 						item.proposed_by != null
