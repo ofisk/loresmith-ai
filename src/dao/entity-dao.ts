@@ -7,6 +7,18 @@ import { BaseDAOClass } from "./base-dao";
 
 /** D1 platform limit: max 100 bound params per query. We use 2×N (from + to IN), so N ≤ 49. */
 const RELATIONSHIPS_BATCH_SIZE = 49;
+const MAX_LIKE_TERM_LENGTH = 120;
+
+function sanitizeLikeTerm(input: string): string {
+	// Prevent pathological LIKE patterns and excessive term sizes from causing
+	// SQLITE "LIKE or GLOB pattern too complex" errors in D1.
+	return input
+		.toLowerCase()
+		.replace(/[%_]/g, " ")
+		.replace(/\s+/g, " ")
+		.trim()
+		.slice(0, MAX_LIKE_TERM_LENGTH);
+}
 
 // Raw row shape returned directly from D1 queries against the `entities` table.
 // All fields mirror the database column names and use snake_case to match D1 results.
@@ -462,10 +474,15 @@ export class EntityDAO extends BaseDAOClass {
 		}
 
 		// Build OR conditions for each keyword
-		if (keywords.length > 0) {
-			const keywordConditions = keywords.map(() => "LOWER(name) LIKE ?");
+		const normalizedKeywords = keywords
+			.map((kw) => sanitizeLikeTerm(kw))
+			.filter((kw) => kw.length > 0);
+		if (normalizedKeywords.length > 0) {
+			const keywordConditions = normalizedKeywords.map(
+				() => "LOWER(name) LIKE ?"
+			);
 			conditions.push(`(${keywordConditions.join(" OR ")})`);
-			params.push(...keywords.map((kw) => `%${kw.toLowerCase()}%`));
+			params.push(...normalizedKeywords.map((kw) => `%${kw}%`));
 		}
 
 		let sql = `
@@ -498,7 +515,11 @@ export class EntityDAO extends BaseDAOClass {
 		const fields = options.fields?.length
 			? options.fields
 			: (["name", "content"] as const);
-		const term = `%${searchTerm.trim().toLowerCase()}%`;
+		const normalizedTerm = sanitizeLikeTerm(searchTerm);
+		if (normalizedTerm.length === 0) {
+			return [];
+		}
+		const term = `%${normalizedTerm}%`;
 		const conditions = ["campaign_id = ?"];
 		const params: (string | number)[] = [campaignId];
 

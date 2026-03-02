@@ -207,6 +207,33 @@ sequenceDiagram
     Frontend-->>User: Display Response
 ```
 
+### Encounter builder and session plan flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Worker
+    participant AgentRouter
+    participant EncounterAgent
+    participant EntityGraph
+    participant PlanningContext
+    participant PlanSession
+
+    User->>Frontend: Request encounter build or scale
+    Frontend->>Worker: Chat request
+    Worker->>AgentRouter: Route intent
+    AgentRouter-->>Worker: encounter-builder
+    Worker->>EncounterAgent: Execute encounter tool call
+    EncounterAgent->>EntityGraph: Retrieve monsters, locations, relationships
+    EncounterAgent->>PlanningContext: Retrieve encounter signals
+    EncounterAgent-->>Worker: encounterSpec
+    Worker-->>Frontend: Encounter result for GM
+    Frontend->>PlanSession: Submit encounterSpec with session planning request
+    PlanSession->>Worker: Generate script with encounter context
+    Worker-->>Frontend: Session script including encounter block
+```
+
 ### Authentication Flow
 
 ```mermaid

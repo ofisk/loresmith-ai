@@ -39,6 +39,7 @@ Routing rules:
 - Session recaps (record session, session digest, what happened last session, create a new digest for a session that just happened) → "session-digest"
 - Loot and rewards (encounter loot, dragon hoard treasure, meaningful magic item rewards, track distributed loot) → "loot-reward"
 - Rules reference questions (grappling, concentration checks, action economy, spellcasting rules, stat block lookups, "what does the rule say", "does our house rule apply") → "rules-reference"
+- Encounter building and scaling (build an encounter, scale this fight, medium-difficulty combat near a location, prepare monster lineup and tactics) → "encounter-builder"
 - General help/how-to questions about using the application → "onboarding"
 
 Respond with: agent_name|confidence|reason
@@ -61,6 +62,8 @@ Examples:
 - "How does grappling work in 5e?" → rules-reference|95|Rules lookup
 - "What is the rule for concentration checks?" → rules-reference|95|Rules lookup
 - "Does our house rule on healing apply here?" → rules-reference|95|Rules conflict resolution
+- "Build a medium-difficulty encounter for a level 7 party near Ashfen Marsh" → encounter-builder|95|Encounter generation
+- "Scale this encounter up for five level 9 characters" → encounter-builder|95|Encounter scaling
 - "let's do a readout" / "construct the readout" / "give me the session plan" / "I'm ready for the readout" → recap|95|Session plan readout (from completed next steps)
 - "how do I upload files?" → onboarding|85|General help`;
 }

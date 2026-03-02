@@ -77,9 +77,25 @@ Why this helps game masters:
 - Conflicts are explicit, reducing silent contradictions in prep and play support.
 - Responses remain transparent when multiple valid interpretations exist.
 
+### Encounter builder agent flow
+
+```mermaid
+flowchart TD
+  userRequest[User encounter request] --> router[AgentRouter intent routing]
+  router --> encounterAgent[EncounterBuilderAgent]
+  encounterAgent --> genTool[generateEncounterTool]
+  encounterAgent --> scaleTool[scaleEncounterTool]
+  encounterAgent --> statTool[getEncounterStatBlocksTool]
+  genTool --> graphContext[Entity graph and relationship context]
+  genTool --> planningContext[Planning context signals]
+  genTool --> encounterSpec[Encounter spec output]
+  encounterSpec --> planSession[planSession encounter handoff]
+  statTool --> rulesLookup[Rules stat block lookup]
+```
+
 ## Agent types and routing
 
-- **AgentRouter** (`src/lib/agent-router.ts`) maintains a registry of agent types (campaign, campaign-context, character, loot-reward, session-digest, etc.).
+- **AgentRouter** (`src/lib/agent-router.ts`) maintains a registry of agent types (campaign, campaign-context, character, loot-reward, encounter-builder, session-digest, etc.).
 - Routing uses an LLM to classify user intent and pick an agent type; the DO then instantiates the corresponding agent class with that type’s tools and system prompt.
 - See `AGENT_ROUTING_PROMPTS` and `routeAgentRequest` for how the routing request is built and executed.
 

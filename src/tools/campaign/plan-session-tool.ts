@@ -29,6 +29,54 @@ import {
 	getPlayerCharacterEntities,
 } from "./planning-tools-utils";
 
+const encounterSpecSchema = z
+	.object({
+		encounterSummary: z.string().optional(),
+		targetDifficulty: z.string().optional(),
+		location: z
+			.object({
+				entityId: z.string().nullable().optional(),
+				name: z.string().optional(),
+				reasoning: z.string().optional(),
+			})
+			.optional(),
+		composition: z
+			.array(
+				z.object({
+					entityId: z.string().optional(),
+					name: z.string(),
+					count: z.number().int().min(1),
+					role: z.string().optional(),
+					threatEstimate: z.string().optional(),
+					gmUsageAdvice: z.array(z.string()).optional(),
+				})
+			)
+			.optional(),
+		environment: z
+			.object({
+				terrainFeatures: z.array(z.string()).optional(),
+				hazards: z.array(z.string()).optional(),
+				dynamicElements: z.array(z.string()).optional(),
+			})
+			.optional(),
+		tactics: z
+			.object({
+				openingMoves: z.array(z.string()).optional(),
+				midFightTwists: z.array(z.string()).optional(),
+				retreatOrResolve: z.array(z.string()).optional(),
+			})
+			.optional(),
+		narrativeHooks: z.array(z.string()).optional(),
+		generalCombatAdvice: z.array(z.string()).optional(),
+		sourceContext: z
+			.object({
+				seedEntityIds: z.array(z.string()).optional(),
+				planningSignals: z.array(z.string()).optional(),
+			})
+			.optional(),
+	})
+	.passthrough();
+
 const planSessionSchema = z.object({
 	campaignId: commonSchemas.campaignId,
 	sessionTitle: z.string().describe("The title of the session"),
@@ -50,6 +98,11 @@ const planSessionSchema = z.object({
 		.describe(
 			"Whether this is a one-off session (shopping, side quest, seasonal, etc.) that doesn't need to connect to the main campaign arc"
 		),
+	encounterSpec: encounterSpecSchema
+		.optional()
+		.describe(
+			"Optional prebuilt encounter spec to include in session planning context."
+		),
 	jwt: commonSchemas.jwt,
 });
 
@@ -68,6 +121,7 @@ export const planSession = tool({
 			estimatedDuration = 4,
 			focusAreas,
 			isOneOff = false,
+			encounterSpec,
 			jwt,
 		} = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
@@ -80,6 +134,7 @@ export const planSession = tool({
 			estimatedDuration,
 			focusAreas,
 			isOneOff,
+			encounterSpecProvided: !!encounterSpec,
 		});
 
 		try {
@@ -100,6 +155,7 @@ export const planSession = tool({
 							estimatedDuration,
 							focusAreas,
 							isOneOff,
+							encounterSpec,
 						}),
 					}
 				);
@@ -301,6 +357,7 @@ export const planSession = tool({
 					type: getFileTypeFromName(r.file_name),
 				})),
 				isOneOff,
+				encounterSpec,
 			};
 
 			const prompt =
@@ -340,6 +397,7 @@ export const planSession = tool({
 						sessionDigestsUsed: recentDigests.length,
 						entitiesReferenced: filteredEntities.length,
 						charactersIncluded: characterBackstories.length,
+						encounterSpecIncluded: !!encounterSpec,
 					},
 				},
 				toolCallId

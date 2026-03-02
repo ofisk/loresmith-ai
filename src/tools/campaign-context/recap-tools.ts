@@ -240,6 +240,16 @@ type SearchResultItem = { entityId?: string; text?: string; title?: string };
 
 const ENTITY_CONTENT_MARKER =
 	"ENTITY CONTENT (may contain unverified mentions):";
+const MAX_READOUT_STEPS = 8;
+const MAX_READOUT_ENTITIES_PER_STEP = 14;
+const MAX_READOUT_ENTITY_TEXT_CHARS = 3500;
+
+function extractTargetSessionFromTitle(title: string): number | null {
+	const match = /\(\s*target\s*:\s*session\s*(\d+)\s*\)/i.exec(title);
+	if (!match) return null;
+	const parsed = Number.parseInt(match[1], 10);
+	return Number.isInteger(parsed) && parsed >= 1 ? parsed : null;
+}
 
 /**
  * Strip graph-RAG metadata (relationship headers, MEMBER_OF lines, etc.) from
@@ -307,19 +317,31 @@ export const getSessionReadoutContext = tool({
 			if (gmError) return gmError;
 
 			const planningTaskDAO = daoFactory.planningTaskDAO;
+			const sessionDigestDAO = daoFactory.sessionDigestDAO;
 			const communityDAO = daoFactory.communityDAO;
+			const nextSessionNumber =
+				await sessionDigestDAO.getNextSessionNumber(campaignId);
 			const allTasks = await planningTaskDAO.listByCampaign(campaignId, {
 				status: ["completed"] as PlanningTaskStatus[],
 			});
-			const completedTasks = [...allTasks].sort(
-				(a, b) =>
-					new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-			);
+			const completedTasksForUpcomingSession = allTasks.filter((task) => {
+				if (task.targetSessionNumber != null) {
+					return task.targetSessionNumber === nextSessionNumber;
+				}
+				const targetFromTitle = extractTargetSessionFromTitle(task.title);
+				return targetFromTitle === nextSessionNumber;
+			});
+			const completedTasks = [...completedTasksForUpcomingSession]
+				.sort(
+					(a, b) =>
+						new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+				)
+				.slice(-MAX_READOUT_STEPS);
 
 			if (completedTasks.length === 0) {
 				return createToolSuccess(
-					"No completed next steps for this campaign; nothing to build readout from.",
-					{ steps: [] },
+					`No completed next steps for upcoming session ${nextSessionNumber}; nothing to build readout from.`,
+					{ steps: [], nextSessionNumber },
 					toolCallId
 				);
 			}
@@ -455,13 +477,16 @@ export const getSessionReadoutContext = tool({
 					}
 				}
 
-				const entityResults = Array.from(byId.entries()).map(
-					([entityId, v]) => ({
+				const entityResults = Array.from(byId.entries())
+					.slice(0, MAX_READOUT_ENTITIES_PER_STEP)
+					.map(([entityId, v]) => ({
 						entityId,
 						title: v.title,
-						text: v.text,
-					})
-				);
+						text:
+							v.text.length > MAX_READOUT_ENTITY_TEXT_CHARS
+								? `${v.text.slice(0, MAX_READOUT_ENTITY_TEXT_CHARS)}\n\n[truncated for readout context size]`
+								: v.text,
+					}));
 
 				// Debug logging: which entities and communities are feeding this step's readout.
 				// This helps inspect which data points are actually being used when
@@ -527,7 +552,7 @@ export const getSessionReadoutContext = tool({
 
 			return createToolSuccess(
 				`Readout context for ${steps.length} completed step(s). For each step, transform the readoutBlock into part of a session plan: scene-based outline with Description, Helpful DM Info, Dialogue, mechanics. Use the full entity detail but present it as a usable session plan for the DM—no graph structure or relationship metadata. Structure like a session script (e.g. numbered scenes, read-aloud optional, rollable tables if relevant). Do not omit substantive detail.`,
-				{ steps },
+				{ steps, nextSessionNumber },
 				toolCallId
 			);
 		} catch (error) {
