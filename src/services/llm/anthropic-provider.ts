@@ -207,6 +207,24 @@ export class AnthropicProvider implements LLMProvider {
 			}
 			return output as T;
 		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
+			const isJsonParseFailure =
+				error instanceof SyntaxError ||
+				errorMessage.includes("Expected ','") ||
+				errorMessage.includes("Expected ']'") ||
+				errorMessage.includes("Expected '}'") ||
+				errorMessage.includes("JSON at position") ||
+				errorMessage.includes("Unexpected end of JSON input");
+
+			// Surface malformed JSON as "no object generated" so extraction can
+			// treat this chunk as empty instead of triggering expensive retries.
+			if (isJsonParseFailure) {
+				throw new Error(
+					"AI_NoObjectGeneratedError: could not parse the response as JSON"
+				);
+			}
+
 			if (APICallError.isInstance(error)) {
 				console.error(
 					"[AnthropicProvider] Structured output API error:",
@@ -219,9 +237,7 @@ export class AnthropicProvider implements LLMProvider {
 					error
 				);
 			}
-			throw new Error(
-				`Failed to generate structured output: ${error instanceof Error ? error.message : "Unknown error"}`
-			);
+			throw new Error(`Failed to generate structured output: ${errorMessage}`);
 		}
 	}
 }
