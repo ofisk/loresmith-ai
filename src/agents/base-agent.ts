@@ -7,6 +7,7 @@ import {
 	resolveClaimedPlayerContext,
 } from "@/lib/agent-role-utils";
 import { getStatusMessageForTool } from "@/lib/agent-status-messages";
+import { getEnvVar } from "@/lib/env-utils";
 import { buildExplainabilityFromSteps } from "@/lib/explainability-builder";
 import { createLogger } from "@/lib/logger";
 import { getAgentRoleContext } from "@/lib/prompts/agent-role-context";
@@ -18,6 +19,8 @@ import {
 } from "@/lib/token-utils";
 import { trimToolResultsByRelevancy } from "@/lib/tool-result-trimming";
 import { RulesContextService } from "@/services/campaign/rules-context-service";
+import { AuthService } from "@/services/core/auth-service";
+import { EmailService } from "@/services/core/email-service";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { submitSupportRequestTool } from "@/tools/common/support-tools";
 import type { CampaignRole } from "@/types/campaign";
@@ -34,6 +37,11 @@ interface MessageData {
 }
 
 const TEXT_PART_ID = "text-1";
+const TEMPORARY_UNAVAILABLE_MESSAGE =
+	"We're sorry for the inconvenience but Loresmith is temporarily unavailable.";
+const LOW_BALANCE_SUPPORT_THROTTLE_MS = 30 * 60 * 1000;
+const LOW_BALANCE_SUPPORT_LAST_REPORTED_AT_KEY =
+	"low-balance-support-last-reported-at";
 
 /** Max steps per turn so the agent can use tools as needed until it sends a final text response. */
 const MAX_AGENT_STEPS = 20;
@@ -74,6 +82,15 @@ function sanitizeGeneratedAssistantText(text: string): string {
 			.replace(/[\u200D\uFE0F]/g, "")
 			// Repair missing sentence spacing like "Now.Done" -> "Now. Done".
 			.replace(/([.!?])([A-Z])/g, "$1 $2")
+	);
+}
+
+function isLowBalanceProviderError(message: string): boolean {
+	const m = message.toLowerCase();
+	return (
+		m.includes("credit balance is too low") ||
+		m.includes("insufficient_quota") ||
+		(m.includes("quota") && m.includes("billing"))
 	);
 }
 
@@ -141,6 +158,95 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		systemPrompt: "", // Will be set by subclasses
 		tools: {} as Record<string, any>, // Will be set by subclasses
 	};
+
+	private async submitLowBalanceSupportIssue(params: {
+		clientJwt: string | null;
+		campaignId: string | null;
+		lastUserMessage: string;
+		errorMessage: string;
+	}): Promise<void> {
+		try {
+			const now = Date.now();
+			const lastReportedAt =
+				(await this.ctx.storage.get<number>(
+					LOW_BALANCE_SUPPORT_LAST_REPORTED_AT_KEY
+				)) ?? 0;
+			if (now - lastReportedAt < LOW_BALANCE_SUPPORT_THROTTLE_MS) {
+				return;
+			}
+
+			const username = params.clientJwt
+				? AuthService.parseJwtForUsername(params.clientJwt)
+				: null;
+			const subject = "Automatic alert: Loresmith temporarily unavailable";
+			const body = [
+				"Automatic support issue created after a provider low-balance error.",
+				`Agent: ${this.constructor.name}`,
+				`Campaign ID: ${params.campaignId ?? "unknown"}`,
+				`Username: ${username ?? "unknown"}`,
+				`User request: ${(params.lastUserMessage || "").slice(0, 500)}`,
+				`Provider error: ${(params.errorMessage || "").slice(0, 1000)}`,
+			].join("\n");
+
+			// Prefer existing support tool path so behavior stays consistent.
+			const toolExecute = submitSupportRequestTool.execute;
+			if (typeof toolExecute === "function") {
+				const result = await toolExecute(
+					{
+						subject,
+						body,
+						userConfirmed: true,
+						jwt: params.clientJwt,
+					},
+					{
+						env: this.env,
+						toolCallId: `auto-low-balance-${crypto.randomUUID()}`,
+					} as any
+				);
+				const success = Boolean((result as any)?.result?.success);
+				if (success) {
+					await this.ctx.storage.put(
+						LOW_BALANCE_SUPPORT_LAST_REPORTED_AT_KEY,
+						now
+					);
+					return;
+				}
+			}
+
+			// Fallback to direct email if tool path is unavailable/fails.
+			const resendKey = await getEnvVar(
+				this.env as Record<string, unknown>,
+				"RESEND_API_KEY",
+				false
+			);
+			if (!resendKey?.trim()) {
+				return;
+			}
+			const fromAddress =
+				(await getEnvVar(
+					this.env as Record<string, unknown>,
+					"VERIFICATION_EMAIL_FROM",
+					false
+				)) || "LoreSmith <noreply@loresmith.ai>";
+			const emailService = new EmailService(resendKey.trim());
+			const emailResult = await emailService.sendSupportEmail({
+				subject,
+				body,
+				fromAddress,
+			});
+			if (emailResult.ok) {
+				await this.ctx.storage.put(
+					LOW_BALANCE_SUPPORT_LAST_REPORTED_AT_KEY,
+					now
+				);
+			}
+		} catch (supportError) {
+			console.error(
+				`[${this.constructor.name}] Failed to auto-submit low-balance support issue:`,
+				supportError
+			);
+		}
+	}
 
 	/**
 	 * Creates a new BaseAgent instance.
@@ -636,6 +742,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					toolChoice: requestDetails.toolChoice,
 					lastUserMessage: requestDetails.lastUserMessage,
 				});
+				let lowBalanceSupportIssueSubmitted = false;
 
 				let stepsResolve: (steps: any) => void;
 				const stepsPromise = new Promise<any>((resolve) => {
@@ -757,6 +864,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 								errorMessage.includes("quota") ||
 								errorMessage.includes("billing details") ||
 								errorMessage.includes("insufficient_quota");
+							const isLowBalanceError = isLowBalanceProviderError(errorMessage);
 
 							// Detect context length errors
 							const isContextLengthError =
@@ -766,7 +874,21 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 								errorMessage.includes("reduce the length");
 
 							// Send appropriate error message to user
-							if (isQuotaError) {
+							if (isLowBalanceError) {
+								writeTextChunks(
+									dataStream.write,
+									TEMPORARY_UNAVAILABLE_MESSAGE
+								);
+								if (!lowBalanceSupportIssueSubmitted) {
+									lowBalanceSupportIssueSubmitted = true;
+									void this.submitLowBalanceSupportIssue({
+										clientJwt,
+										campaignId: selectedCampaignId,
+										lastUserMessage: requestDetails.lastUserMessage || "",
+										errorMessage,
+									});
+								}
+							} else if (isQuotaError) {
 								writeTextChunks(
 									dataStream.write,
 									"I'm unable to process your request because your LLM API quota appears to be exceeded. If you recently updated billing, it may take a few minutes for the change to propagate. Please wait 2-3 minutes and try again."
@@ -885,6 +1007,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					// Check if it's a context length error
 					const errorMessage =
 						error instanceof Error ? error.message : String(error);
+					const isLowBalanceError = isLowBalanceProviderError(errorMessage);
 					const isContextLengthError =
 						errorMessage.includes("maximum context length") ||
 						errorMessage.includes("context length") ||
@@ -892,7 +1015,18 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 						errorMessage.includes("reduce the length");
 
 					// Write appropriate error message to dataStream
-					if (isContextLengthError) {
+					if (isLowBalanceError) {
+						writeTextChunks(dataStream.write, TEMPORARY_UNAVAILABLE_MESSAGE);
+						if (!lowBalanceSupportIssueSubmitted) {
+							lowBalanceSupportIssueSubmitted = true;
+							await this.submitLowBalanceSupportIssue({
+								clientJwt,
+								campaignId: selectedCampaignId,
+								lastUserMessage: requestDetails.lastUserMessage || "",
+								errorMessage,
+							});
+						}
+					} else if (isContextLengthError) {
 						writeTextChunks(
 							dataStream.write,
 							"I encountered an issue: the context retrieved from your campaign is too large for me to process. I've automatically trimmed the least relevant information, but the request still exceeds my capacity. Please try a more specific query to narrow down the results."
