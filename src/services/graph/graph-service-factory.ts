@@ -1,3 +1,4 @@
+import { MODEL_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { WorldStateChangelogDAO } from "@/dao/world-state-changelog-dao";
 import { getEnvVar } from "@/lib/env-utils";
@@ -6,7 +7,7 @@ import { RebuildPipelineService } from "./rebuild-pipeline-service";
 import { RebuildQueueService } from "./rebuild-queue-service";
 import { WorldStateChangelogService } from "./world-state-changelog-service";
 
-function normalizeOpenAIKey(value: string): string | undefined {
+function normalizeApiKey(value: string): string | undefined {
 	const trimmed = value.trim();
 	return trimmed.length > 0 ? trimmed : undefined;
 }
@@ -36,8 +37,12 @@ export async function getRebuildPipelineService(
 	}
 
 	const daoFactory = getDAOFactory(env);
-	const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
-	const openaiApiKey = normalizeOpenAIKey(openaiApiKeyRaw);
+	const providerKeyEnvVar =
+		MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+			? "ANTHROPIC_API_KEY"
+			: "OPENAI_API_KEY";
+	const providerApiKeyRaw = await getEnvVar(env, providerKeyEnvVar, false);
+	const providerApiKey = normalizeApiKey(providerApiKeyRaw);
 	const worldStateChangelogDAO = new WorldStateChangelogDAO(env.DB);
 
 	return new RebuildPipelineService(
@@ -50,7 +55,7 @@ export async function getRebuildPipelineService(
 		daoFactory.campaignDAO,
 		worldStateChangelogDAO,
 		daoFactory.graphRebuildDirtyDAO,
-		openaiApiKey,
+		providerApiKey,
 		env
 	);
 }

@@ -66,10 +66,15 @@ function writeTextChunks(
  * Keeps output natural while avoiding "AI-looking" punctuation/styling.
  */
 function sanitizeGeneratedAssistantText(text: string): string {
-	return text
-		.replace(/\s*\u2014\s*/g, " - ")
-		.replace(/\p{Extended_Pictographic}/gu, "")
-		.replace(/[\u200D\uFE0F]/g, "");
+	return (
+		text
+			.replace(/\s*\u2014\s*/g, " - ")
+			// Replace removed emoji with a space so adjacent sentences do not merge.
+			.replace(/\p{Extended_Pictographic}/gu, " ")
+			.replace(/[\u200D\uFE0F]/g, "")
+			// Repair missing sentence spacing like "Now.Done" -> "Now. Done".
+			.replace(/([.!?])([A-Z])/g, "$1 $2")
+	);
 }
 
 function createDataStreamResponse(options: {
@@ -785,7 +790,18 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 						dataStream.write({ type: "text-start", id: TEXT_PART_ID });
 						let fullText = "";
 						for await (const chunk of result.textStream) {
-							const sanitizedChunk = sanitizeGeneratedAssistantText(chunk);
+							let sanitizedChunk = sanitizeGeneratedAssistantText(chunk);
+							// Repair sentence spacing across stream chunk boundaries:
+							// if previous chunk ended with punctuation and this one starts with
+							// an uppercase letter, insert a joining space.
+							if (
+								fullText.length > 0 &&
+								sanitizedChunk.length > 0 &&
+								/[.!?]$/.test(fullText) &&
+								/^[A-Z]/.test(sanitizedChunk)
+							) {
+								sanitizedChunk = ` ${sanitizedChunk}`;
+							}
 							fullText += sanitizedChunk;
 							dataStream.write({
 								type: "text-delta",

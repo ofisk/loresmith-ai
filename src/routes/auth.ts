@@ -28,37 +28,24 @@ export async function requireUserJwt(
 	next: () => Promise<void>
 ): Promise<Response | undefined> {
 	const authHeader = c.req.header("Authorization");
-	console.log(
-		"[requireUserJwt] Auth header:",
-		authHeader ? `${authHeader.substring(0, 20)}...` : "undefined"
-	);
-
 	const token = extractJwtFromHeader(authHeader);
 	if (!token) {
-		console.log("[requireUserJwt] Missing or invalid Authorization header");
+		console.error("[requireUserJwt] Missing or invalid Authorization header");
 		return c.json({ error: "Missing or invalid Authorization header" }, 401);
 	}
-	console.log(
-		"[requireUserJwt] Token:",
-		token ? `${token.substring(0, 20)}...` : "undefined"
-	);
 
 	try {
 		const authService = getAuthService(c.env);
 		const jwtSecret = await authService.getJwtSecret();
-		console.log("[requireUserJwt] JWT secret length:", jwtSecret.length);
-
 		const { payload } = await jwtVerify(token, jwtSecret);
-		console.log("[requireUserJwt] JWT payload:", payload);
 
 		if (!payload || payload.type !== "user-auth") {
-			console.log("[requireUserJwt] Invalid token payload:", payload);
+			console.error("[requireUserJwt] Invalid token payload");
 			return c.json({ error: "Invalid token" }, 401);
 		}
 
 		// Attach user info to context
 		setUserAuth(c, payload as AuthPayload);
-		console.log("[requireUserJwt] User auth set:", payload);
 		await next();
 	} catch (err) {
 		console.error("[requireUserJwt] JWT verification error:", err);

@@ -296,7 +296,7 @@ export function getCommunityName(
 	if (name && typeof name === "string" && name.trim().length > 0) {
 		return name;
 	}
-	return `Community ${community.id.slice(0, 8)} (${community.entityIds.length})`;
+	return `Unnamed community (${community.entityIds.length})`;
 }
 
 /**

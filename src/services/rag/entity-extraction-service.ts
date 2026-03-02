@@ -18,16 +18,11 @@ import type { TelemetryService } from "@/services/telemetry/telemetry-service";
 /**
  * Maximum tokens for entity extraction responses.
  *
- * GPT-4o supports up to 128k tokens in the context window, but we limit the response
- * to 16,384 tokens (~12,000 words) to:
- * 1. Keep response sizes manageable for parsing and processing
- * 2. Reduce API costs for large extractions
- * 3. Ensure consistent performance across different document sizes
- *
- * This limit allows for extraction of hundreds of entities while staying well within
- * the model's capabilities and reasonable cost bounds.
+ * Anthropic structured generation is more reliable with smaller output budgets.
+ * Keep OpenAI on the larger budget while using a safer ceiling for Anthropic.
  */
-const MAX_EXTRACTION_RESPONSE_TOKENS = 16384;
+const MAX_EXTRACTION_RESPONSE_TOKENS =
+	MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 2000 : 16384;
 
 // Zod schema for entity extraction response
 // This matches the structure expected by the RPG extraction prompt
@@ -83,7 +78,7 @@ export interface ExtractEntitiesOptions {
 	sourceId: string;
 	sourceType: string;
 	metadata?: Record<string, unknown>;
-	openaiApiKey?: string;
+	llmApiKey?: string;
 	/** Username for rate limit attribution */
 	username?: string;
 	/** Callback to record usage (tokens, queryCount) for rate limiting */
@@ -111,17 +106,17 @@ export interface ExtractedEntity {
 
 export class EntityExtractionService {
 	constructor(
-		private readonly openaiApiKey: string | null = null,
+		private readonly llmApiKey: string | null = null,
 		private readonly telemetryService: TelemetryService | null = null
 	) {}
 
 	async extractEntities(
 		options: ExtractEntitiesOptions
 	): Promise<ExtractedEntity[]> {
-		const apiKey = options.openaiApiKey || this.openaiApiKey;
+		const apiKey = options.llmApiKey || this.llmApiKey;
 		if (!apiKey) {
 			throw new OpenAIAPIKeyError(
-				"OpenAI API key is required for entity extraction. Please provide openaiApiKey in options or constructor."
+				`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key is required for entity extraction.`
 			);
 		}
 
@@ -136,7 +131,7 @@ ${options.content}
 CONTENT END`;
 
 		// Use OpenAIProvider to generate structured JSON output
-		const parsed = await this.callOpenAIModelStructured(fullPrompt, apiKey, {
+		const parsed = await this.callStructuredModel(fullPrompt, apiKey, {
 			username: options.username,
 			onUsage: options.onUsage,
 		});
@@ -293,10 +288,10 @@ CONTENT END`;
 	}
 
 	/**
-	 * Call OpenAI with structured output using OpenAIProvider
+	 * Call configured LLM provider with structured output.
 	 * This generates JSON and validates it against our Zod schema
 	 */
-	private async callOpenAIModelStructured(
+	private async callStructuredModel(
 		prompt: string,
 		apiKey: string,
 		usageOptions?: {
@@ -337,7 +332,12 @@ CONTENT END`;
 				error instanceof Error ? error.message : "Unknown error";
 			const isNoOutput =
 				errorMessage.includes("No output generated") ||
-				errorMessage.includes("AI_NoOutputGeneratedError");
+				errorMessage.includes("AI_NoOutputGeneratedError") ||
+				errorMessage.includes("No object generated") ||
+				errorMessage.includes("AI_NoObjectGeneratedError") ||
+				errorMessage.includes("could not parse the response") ||
+				errorMessage.includes("AI_RetryError") ||
+				errorMessage.includes("Failed after 3 attempts");
 
 			// No output from model: return null so caller can treat as empty extraction
 			if (isNoOutput) {
@@ -348,7 +348,7 @@ CONTENT END`;
 			}
 
 			console.error(
-				"[EntityExtractionService] Error calling OpenAI API with structured output:",
+				"[EntityExtractionService] Error calling structured extraction model:",
 				error
 			);
 			if (error instanceof EntityExtractionError) {

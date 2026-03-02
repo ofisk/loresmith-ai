@@ -1,6 +1,7 @@
 // Entity staging service for campaign resources
 // Extracts entities from file content and stages them for user approval/rejection
 
+import { MODEL_CONFIG } from "@/app-constants";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { isStubContent, mergeEntityContent } from "@/lib/entity-content-merge";
@@ -57,10 +58,9 @@ export interface EntityStagingOptions {
 	campaignName: string;
 	resource: any; // CampaignResource
 	campaignRagBasePath: string;
-	/**
-	 * OpenAI API key for entity extraction.
-	 * Required for entity extraction using GPT-4o.
-	 */
+	/** LLM provider API key used for extraction/detection/parsing. */
+	llmApiKey?: string;
+	/** OpenAI key used for embedding-based duplicate detection (optional). */
 	openaiApiKey?: string;
 	/**
 	 * Optional content extraction provider.
@@ -139,6 +139,7 @@ export async function stageEntitiesFromResource(
 		campaignName,
 		resource,
 		campaignRagBasePath,
+		llmApiKey,
 		openaiApiKey,
 		contentExtractionProvider,
 		attribution,
@@ -155,9 +156,9 @@ export async function stageEntitiesFromResource(
 			campaignRagBasePath,
 		});
 
-		if (!openaiApiKey) {
+		if (!llmApiKey) {
 			console.warn(
-				`[EntityStaging] No OpenAI API key provided, skipping entity extraction for resource: ${resource.id}`
+				`[EntityStaging] No ${MODEL_CONFIG.PROVIDER.DEFAULT} API key provided, skipping entity extraction for resource: ${resource.id}`
 			);
 			const normalizedResource = normalizeResourceForShardGeneration(resource);
 			await notifyZeroEntitiesFound(
@@ -166,7 +167,7 @@ export async function stageEntitiesFromResource(
 				campaignName,
 				normalizedResource.id,
 				normalizedResource.file_name || normalizedResource.id,
-				"OpenAI API key was not configured."
+				`${MODEL_CONFIG.PROVIDER.DEFAULT} API key was not configured.`
 			);
 			return {
 				success: true,
@@ -215,7 +216,7 @@ export async function stageEntitiesFromResource(
 
 		// Check if this is a character sheet before normal entity extraction
 		try {
-			const detectionService = new CharacterSheetDetectionService(openaiApiKey);
+			const detectionService = new CharacterSheetDetectionService(llmApiKey);
 			const rateLimitService = getLLMRateLimitService(env);
 			const detectionResult = await detectionService.detectCharacterSheet(
 				fileContent,
@@ -237,7 +238,7 @@ export async function stageEntitiesFromResource(
 				);
 
 				// Parse the character sheet
-				const parserService = new CharacterSheetParserService(openaiApiKey);
+				const parserService = new CharacterSheetParserService(llmApiKey);
 				const characterData = await parserService.parseCharacterSheet(
 					fileContent,
 					detectionResult.characterName || undefined
@@ -353,20 +354,11 @@ export async function stageEntitiesFromResource(
 			);
 		}
 
-		// Chunk content to respect GPT-4o TPM (tokens per minute) limits: 30,000 tokens per request
-		// Token estimation: ~4 characters per token for English text
-		// We need to account for:
-		// - System prompt: ~3,000 tokens
-		// - Max response: ~16,384 tokens (MAX_EXTRACTION_RESPONSE_TOKENS)
-		// - Content: 30,000 - 3,000 - 16,384 = ~10,616 tokens = ~42,000 characters
-		// Using conservative estimate to leave safety margin for prompt variations
+		// Chunk content conservatively for provider reliability.
+		// Anthropic structured extraction is far more stable with smaller chunks.
+		const MAX_CHUNK_SIZE =
+			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 12000 : 42464;
 		const CHARS_PER_TOKEN = 4;
-		const PROMPT_TOKENS_ESTIMATE = 3000;
-		const MAX_RESPONSE_TOKENS = 16384;
-		const TPM_LIMIT = 30000;
-		const MAX_CONTENT_TOKENS =
-			TPM_LIMIT - PROMPT_TOKENS_ESTIMATE - MAX_RESPONSE_TOKENS;
-		const MAX_CHUNK_SIZE = Math.floor(MAX_CONTENT_TOKENS * CHARS_PER_TOKEN); // ~42k characters (~10.6k tokens)
 
 		const chunks =
 			fileContent.length > MAX_CHUNK_SIZE
@@ -380,13 +372,13 @@ export async function stageEntitiesFromResource(
 		);
 
 		// Extract entities from each chunk and merge results
-		const extractionService = new EntityExtractionService(openaiApiKey);
+		const extractionService = new EntityExtractionService(llmApiKey);
 		const allExtractedEntities: Map<string, ExtractedEntity> = new Map();
 
 		// Rate limit: Process chunks with delay to respect TPM limits
 		// If processing multiple chunks, add a delay to stay under 30k tokens per minute
 		const CHUNK_PROCESSING_DELAY_MS = chunks.length > 1 ? 2000 : 0; // 2 second delay between chunks
-		const MAX_CHUNK_RETRIES = 3; // Maximum retry attempts per chunk
+		const MAX_CHUNK_RETRIES = 3; // Maximum retry attempts per chunk (rate limits only)
 		const INITIAL_RETRY_DELAY_MS = 2000; // Initial delay for retries (2 seconds)
 		const MAX_RETRY_DELAY_MS = 30000; // Maximum delay for retries (30 seconds)
 
@@ -434,7 +426,7 @@ export async function stageEntitiesFromResource(
 					campaignId,
 					sourceId: normalizedResource.id,
 					sourceType: "file_upload",
-					openaiApiKey,
+					llmApiKey,
 					username,
 					onUsage: async (usage, ctx) => {
 						await rateLimitService.recordUsage(
@@ -505,6 +497,12 @@ export async function stageEntitiesFromResource(
 					errorMessage.includes("rate limit") ||
 					errorMessage.includes("429") ||
 					errorMessage.includes("Too Many Requests");
+				const isAuthenticationError =
+					errorMessage.includes("invalid x-api-key") ||
+					errorMessage.includes("authentication_error") ||
+					errorMessage.includes("invalid api key") ||
+					errorMessage.includes("unauthorized") ||
+					(errorMessage.includes("401") && errorMessage.includes("api"));
 				const isNoOutput =
 					errorMessage.includes("No output generated") ||
 					errorMessage.includes("AI_NoOutputGeneratedError");
@@ -515,6 +513,14 @@ export async function stageEntitiesFromResource(
 						`[EntityStaging] Chunk ${chunkNumber} returned no structured output, treating as empty`
 					);
 					return true;
+				}
+
+				// Authentication/configuration errors are unrecoverable for this run.
+				// Fail immediately instead of retrying every chunk.
+				if (isAuthenticationError) {
+					throw new Error(
+						`Authentication/configuration error during extraction for chunk ${chunkNumber}: ${errorMessage}`
+					);
 				}
 
 				if (isRetry) {
@@ -529,21 +535,16 @@ export async function stageEntitiesFromResource(
 					);
 				}
 
-				// Check if we should retry
-				if (retryCount < MAX_CHUNK_RETRIES) {
+				// Only retry rate-limit errors. Other model/parsing failures should
+				// be treated as one-shot failures to avoid retry storms and CPU overruns.
+				if (isRateLimit && retryCount < MAX_CHUNK_RETRIES) {
 					// Increment retry count and schedule retry
 					chunkRetryCounts.set(chunkIndex, retryCount + 1);
-
-					// For rate limits, wait longer before continuing to next chunk
-					if (isRateLimit && !isRetry) {
-						const rateLimitWaitMs = 5000; // Wait 5 seconds for rate limit
-						console.log(
-							`[EntityStaging] Rate limit detected, waiting ${rateLimitWaitMs}ms before processing next chunk`
-						);
-						await new Promise((resolve) =>
-							setTimeout(resolve, rateLimitWaitMs)
-						);
-					}
+					const rateLimitWaitMs = 5000; // Wait 5 seconds for rate limit
+					console.log(
+						`[EntityStaging] Rate limit detected, waiting ${rateLimitWaitMs}ms before processing next chunk`
+					);
+					await new Promise((resolve) => setTimeout(resolve, rateLimitWaitMs));
 
 					return false; // Indicates failure but will be retried
 				} else {

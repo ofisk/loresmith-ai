@@ -7,6 +7,7 @@ import {
 	type ToolResult,
 } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { getEnvVar } from "@/lib/env-utils";
 import { getFileTypeFromName } from "@/lib/file-utils";
 import { getEntitiesWithRelationships } from "@/lib/graph/entity-utils";
 import type { SessionScriptContext } from "@/lib/prompts/session-script-prompts";
@@ -150,15 +151,26 @@ export const planSession = tool({
 			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
 			if (gmError) return gmError;
 
-			const { planningContext, openaiApiKey } = await getPlanningServices(env);
-			if (!openaiApiKey) {
+			const providerEnvVar =
+				MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+					? "ANTHROPIC_API_KEY"
+					: "OPENAI_API_KEY";
+			const providerApiKeyRaw = await getEnvVar(
+				env as any,
+				providerEnvVar,
+				false
+			);
+			const providerApiKey = providerApiKeyRaw.trim() || undefined;
+			if (!providerApiKey) {
 				return createToolError(
-					"OpenAI API key not configured",
+					`${MODEL_CONFIG.PROVIDER.DEFAULT} API key not configured`,
 					"AI is not configured for this environment.",
 					503,
 					toolCallId
 				);
 			}
+
+			const { planningContext } = await getPlanningServices(env);
 
 			console.log("[planSession] Gathering planning context...");
 
@@ -188,7 +200,7 @@ export const planSession = tool({
 			if (!planningContext) {
 				return createToolError(
 					"Planning context dependencies not configured",
-					"Session planning requires database, vector index, and OpenAI API key.",
+					"Session planning requires database, vector index, and embedding provider configuration.",
 					503,
 					toolCallId
 				);
@@ -298,7 +310,7 @@ export const planSession = tool({
 
 			const llmProvider = createLLMProvider({
 				provider: MODEL_CONFIG.PROVIDER.DEFAULT,
-				apiKey: openaiApiKey,
+				apiKey: providerApiKey,
 				defaultModel: getGenerationModelForProvider("SESSION_PLANNING"),
 				defaultTemperature:
 					MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,

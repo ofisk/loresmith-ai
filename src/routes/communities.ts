@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import { MODEL_CONFIG } from "@/app-constants";
 import type { Community } from "@/dao/community-dao";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { getEnvVar } from "@/lib/env-utils";
@@ -56,15 +57,19 @@ export async function handleDetectCommunities(c: ContextWithAuth) {
 			minImprovement: body.minImprovement,
 		};
 
-		const openaiApiKeyRaw = await getEnvVar(c.env, "OPENAI_API_KEY", false);
-		const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
+		const providerKeyEnvVar =
+			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+				? "ANTHROPIC_API_KEY"
+				: "OPENAI_API_KEY";
+		const providerApiKeyRaw = await getEnvVar(c.env, providerKeyEnvVar, false);
+		const providerApiKey = providerApiKeyRaw.trim() || undefined;
 
 		// Create service
 		const communityDetectionService = new CommunityDetectionService(
 			daoFactory.entityDAO,
 			daoFactory.communityDAO,
 			daoFactory.communitySummaryDAO,
-			openaiApiKey
+			providerApiKey
 		);
 
 		// Detect communities (multi-level if maxLevels > 1)
@@ -560,14 +565,16 @@ export async function handleGenerateCommunitySummary(c: ContextWithAuth) {
 			return c.json({ error: "Community not found" }, 404);
 		}
 
-		// Get OpenAI API key
-		const openaiApiKeyRaw = await getEnvVar(c.env, "OPENAI_API_KEY", false);
-		const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
-
-		if (!openaiApiKey) {
+		const providerKeyEnvVar =
+			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+				? "ANTHROPIC_API_KEY"
+				: "OPENAI_API_KEY";
+		const providerApiKeyRaw = await getEnvVar(c.env, providerKeyEnvVar, false);
+		const providerApiKey = providerApiKeyRaw.trim() || undefined;
+		if (!providerApiKey) {
 			return c.json(
 				{
-					error: "OpenAI API key not configured",
+					error: `${MODEL_CONFIG.PROVIDER.DEFAULT} API key not configured`,
 					message: "AI is not configured for this environment.",
 				},
 				503
@@ -587,12 +594,12 @@ export async function handleGenerateCommunitySummary(c: ContextWithAuth) {
 		const summaryService = new CommunitySummaryService(
 			daoFactory.entityDAO,
 			daoFactory.communitySummaryDAO,
-			openaiApiKey
+			providerApiKey
 		);
 
 		// Generate summary
 		const result = await summaryService.generateOrGetSummary(community, {
-			openaiApiKey,
+			providerApiKey,
 			forceRegenerate: options.forceRegenerate,
 			model: options.model,
 			temperature: options.temperature,

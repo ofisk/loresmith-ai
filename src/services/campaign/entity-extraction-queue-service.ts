@@ -1,6 +1,7 @@
 // Entity Extraction Queue Service
 // Handles queuing and processing entity extraction jobs with rate limit handling and exponential backoff
 
+import { MODEL_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import {
 	EntityExtractionQueueDAO,
@@ -65,6 +66,22 @@ function isRateLimitError(error: unknown): boolean {
 	);
 }
 
+/**
+ * Check if an error is an authentication/key configuration error.
+ * These should fail fast (no retries).
+ */
+function isAuthenticationError(error: unknown): boolean {
+	if (!(error instanceof Error)) return false;
+	const message = error.message.toLowerCase();
+	return (
+		message.includes("invalid x-api-key") ||
+		message.includes("authentication_error") ||
+		message.includes("invalid api key") ||
+		message.includes("unauthorized") ||
+		(message.includes("401") && message.includes("api"))
+	);
+}
+
 export class EntityExtractionQueueService {
 	/**
 	 * Add an entity extraction job to the queue
@@ -110,7 +127,8 @@ export class EntityExtractionQueueService {
 	 */
 	static async processQueue(
 		env: Env,
-		username?: string
+		username?: string,
+		maxItems: number = 10
 	): Promise<{ processed: number; failed: number }> {
 		const queueDAO = new EntityExtractionQueueDAO(env.DB);
 		const daoFactory = getDAOFactory(env);
@@ -137,8 +155,8 @@ export class EntityExtractionQueueService {
 
 		// Get pending queue items
 		const queueItems = username
-			? await queueDAO.getPendingQueueItemsForUser(username, 10)
-			: await queueDAO.getPendingQueueItems(10);
+			? await queueDAO.getPendingQueueItemsForUser(username, maxItems)
+			: await queueDAO.getPendingQueueItems(maxItems);
 
 		if (queueItems.length === 0) {
 			return { processed: 0, failed: 0 };
@@ -181,11 +199,19 @@ export class EntityExtractionQueueService {
 					);
 				}
 
-				const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
-				const openaiApiKey = openaiApiKeyRaw.trim();
-				if (!openaiApiKey) {
-					throw new Error("OpenAI API key not configured");
+				const providerKeyEnvVar =
+					MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+						? "ANTHROPIC_API_KEY"
+						: "OPENAI_API_KEY";
+				const llmApiKeyRaw = await getEnvVar(env, providerKeyEnvVar, false);
+				const llmApiKey = llmApiKeyRaw.trim();
+				if (!llmApiKey) {
+					throw new Error(
+						`${MODEL_CONFIG.PROVIDER.DEFAULT} API key not configured`
+					);
 				}
+				const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
+				const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
 
 				// Get campaign RAG base path (by ID - user already has access via getCampaignByIdWithMapping)
 				const campaignRagBasePath =
@@ -207,12 +233,20 @@ export class EntityExtractionQueueService {
 					campaignName: campaign.name,
 					resource,
 					campaignRagBasePath,
+					llmApiKey,
 					openaiApiKey,
 					attribution:
 						item.proposed_by != null
 							? { proposedBy: item.proposed_by, approvedBy: item.username }
 							: undefined,
 				});
+
+				if (!result.success) {
+					throw new Error(
+						result.error ||
+							`Entity extraction failed for resource ${item.resource_id}`
+					);
+				}
 
 				// Mark as completed
 				await queueDAO.markAsCompleted(item.id);
@@ -234,8 +268,17 @@ export class EntityExtractionQueueService {
 					errorMessage
 				);
 
-				// Check if it's a rate limit error
-				if (isRateLimitError(error)) {
+				// Authentication errors should fail fast (do not retry).
+				if (isAuthenticationError(error)) {
+					await queueDAO.markAsFailed(
+						item.id,
+						`Authentication/configuration error: ${errorMessage}`,
+						"AUTHENTICATION_ERROR"
+					);
+					console.error(
+						`[EntityExtractionQueue] Failing fast for resource ${item.resource_id} due to authentication error (no retry)`
+					);
+				} else if (isRateLimitError(error)) {
 					const currentRetryCount = item.retry_count + 1;
 
 					if (currentRetryCount >= MAX_RETRIES) {
@@ -307,6 +350,18 @@ export class EntityExtractionQueueService {
 	static async processPendingQueueItems(env: Env): Promise<void> {
 		try {
 			const queueDAO = new EntityExtractionQueueDAO(env.DB);
+			const MAX_JOBS_PER_SCHEDULED_RUN = 2;
+			const SCHEDULED_RUN_INTERVAL_MINUTES = 5;
+
+			const beforeMetrics = await queueDAO.getQueueMetrics();
+			const estimatedRuns = Math.ceil(
+				beforeMetrics.readyNow / MAX_JOBS_PER_SCHEDULED_RUN
+			);
+			const estimatedEtaMinutes =
+				estimatedRuns * SCHEDULED_RUN_INTERVAL_MINUTES;
+			console.log(
+				`[EntityExtractionQueue] Queue status before run: pending=${beforeMetrics.pending}, processing=${beforeMetrics.processing}, rateLimited=${beforeMetrics.rateLimited}, readyNow=${beforeMetrics.readyNow}, budget=${MAX_JOBS_PER_SCHEDULED_RUN}/run, estETA=${estimatedEtaMinutes}m`
+			);
 
 			// First, clean up stuck processing items
 			await EntityExtractionQueueService.cleanupStuckProcessingItems(env);
@@ -329,10 +384,17 @@ export class EntityExtractionQueueService {
 			let totalFailed = 0;
 
 			for (const username of usernames) {
+				const remainingBudget =
+					MAX_JOBS_PER_SCHEDULED_RUN - (totalProcessed + totalFailed);
+				if (remainingBudget <= 0) {
+					break;
+				}
+
 				try {
 					const result = await EntityExtractionQueueService.processQueue(
 						env,
-						username
+						username,
+						remainingBudget
 					);
 					totalProcessed += result.processed;
 					totalFailed += result.failed;
@@ -349,6 +411,16 @@ export class EntityExtractionQueueService {
 					`[EntityExtractionQueue] Completed processing: ${totalProcessed} processed, ${totalFailed} failed`
 				);
 			}
+
+			const afterMetrics = await queueDAO.getQueueMetrics();
+			const remainingRuns = Math.ceil(
+				afterMetrics.readyNow / MAX_JOBS_PER_SCHEDULED_RUN
+			);
+			const remainingEtaMinutes =
+				remainingRuns * SCHEDULED_RUN_INTERVAL_MINUTES;
+			console.log(
+				`[EntityExtractionQueue] Queue status after run: pending=${afterMetrics.pending}, processing=${afterMetrics.processing}, rateLimited=${afterMetrics.rateLimited}, readyNow=${afterMetrics.readyNow}, estETA=${remainingEtaMinutes}m`
+			);
 		} catch (error) {
 			console.error(
 				"[EntityExtractionQueue] Error processing pending queue items:",

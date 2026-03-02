@@ -1,6 +1,10 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { MODEL_CONFIG, type ToolResult } from "@/app-constants";
+import {
+	getGenerationModelForProvider,
+	MODEL_CONFIG,
+	type ToolResult,
+} from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { Entity } from "@/dao/entity-dao";
 import { getEnvVar } from "@/lib/env-utils";
@@ -64,16 +68,20 @@ function isNoOutputError(error: unknown): boolean {
 }
 
 async function getLlmProvider(env: unknown, toolCallId: string) {
-	const openaiApiKeyRaw = await getEnvVar(
+	const providerEnvVar =
+		MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+			? "ANTHROPIC_API_KEY"
+			: "OPENAI_API_KEY";
+	const providerApiKeyRaw = await getEnvVar(
 		env as Record<string, unknown>,
-		"OPENAI_API_KEY",
+		providerEnvVar,
 		false
 	);
-	const openaiApiKey = openaiApiKeyRaw.trim();
-	if (!openaiApiKey) {
+	const providerApiKey = providerApiKeyRaw.trim();
+	if (!providerApiKey) {
 		return {
 			error: createToolError(
-				"OpenAI API key not configured",
+				`${MODEL_CONFIG.PROVIDER.DEFAULT} API key not configured`,
 				"AI is not configured for this environment.",
 				503,
 				toolCallId
@@ -84,8 +92,8 @@ async function getLlmProvider(env: unknown, toolCallId: string) {
 
 	const provider = createLLMProvider({
 		provider: MODEL_CONFIG.PROVIDER.DEFAULT,
-		apiKey: openaiApiKey,
-		defaultModel: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
+		apiKey: providerApiKey,
+		defaultModel: getGenerationModelForProvider("SESSION_PLANNING"),
 		defaultTemperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
 		defaultMaxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
 	});
@@ -279,8 +287,8 @@ export const generateLootTool = tool({
 				fallbackPrompt: fallbackPromptText,
 				fallbackJsonHint:
 					'JSON shape: {"summary":"string","currency":{"cp":0,"sp":0,"gp":0,"pp":0},"valuables":["..."],"items":[{"name":"...","itemType":"...","rarity":"...","description":"...","mechanicalNotes":"...","storyHook":"...","estimatedValueGp":0}],"distributionNotes":["..."]}',
-				primaryModel: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
-				fallbackModel: MODEL_CONFIG.OPENAI.INTERACTIVE,
+				primaryModel: getGenerationModelForProvider("SESSION_PLANNING"),
+				fallbackModel: getGenerationModelForProvider("INTERACTIVE"),
 				temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
 				primaryMaxTokens: 2500,
 				fallbackMaxTokens: 1800,
@@ -437,8 +445,8 @@ export const suggestMagicItemTool = tool({
 				fallbackPrompt: fallbackPromptText,
 				fallbackJsonHint:
 					'JSON shape: {"primaryRecommendation":{"name":"...","itemType":"...","rarity":"...","description":"...","mechanicalNotes":"...","storyHook":"...","estimatedValueGp":0,"reasoning":"..."},"alternatives":[{"name":"...","itemType":"...","rarity":"...","description":"...","mechanicalNotes":"...","storyHook":"...","estimatedValueGp":0,"reasoning":"..."}],"usageIdeas":["..."]}',
-				primaryModel: MODEL_CONFIG.OPENAI.SESSION_PLANNING,
-				fallbackModel: MODEL_CONFIG.OPENAI.INTERACTIVE,
+				primaryModel: getGenerationModelForProvider("SESSION_PLANNING"),
+				fallbackModel: getGenerationModelForProvider("INTERACTIVE"),
 				temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
 				primaryMaxTokens: 2500,
 				fallbackMaxTokens: 1600,
