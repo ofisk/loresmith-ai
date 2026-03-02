@@ -1,5 +1,5 @@
 import { ArrowLeft } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { JWT_STORAGE_KEY } from "@/app-constants";
 import loresmith from "@/assets/loresmith.png";
 import { PrimaryActionButton } from "@/components/button";
@@ -27,6 +27,7 @@ interface BillingPageProps {
 export function BillingPage({ onBack }: BillingPageProps) {
 	const [status, setStatus] = useState<BillingStatus | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [loadError, setLoadError] = useState<string | null>(null);
 	const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
 	const [upgrading, setUpgrading] = useState<string | null>(null);
 	const [interval, setInterval] = useState<"monthly" | "annual">("monthly");
@@ -51,35 +52,48 @@ export function BillingPage({ onBack }: BillingPageProps) {
 		}
 	}, []);
 
+	const fetchStatus = useCallback(async () => {
+		if (!jwt) return;
+		setLoading(true);
+		setLoadError(null);
+		try {
+			const res = await fetch(
+				API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.BILLING.STATUS),
+				{ headers: { Authorization: `Bearer ${jwt}` } }
+			);
+			if (res.ok) {
+				const json = (await res.json()) as BillingStatus;
+				setStatus(json);
+				setLoadError(null);
+			} else {
+				const data = (await res.json().catch(() => ({}))) as {
+					error?: string;
+				};
+				setLoadError(
+					data.error ??
+						(res.status === 403
+							? "Access denied"
+							: res.status === 401
+								? "Session expired"
+								: "Failed to load billing")
+				);
+			}
+		} catch (err) {
+			setLoadError(
+				err instanceof Error ? err.message : "Failed to load billing"
+			);
+		} finally {
+			setLoading(false);
+		}
+	}, [jwt]);
+
 	useEffect(() => {
 		if (!jwt) {
 			setLoading(false);
 			return;
 		}
-
-		let cancelled = false;
-
-		async function fetchStatus() {
-			try {
-				const res = await fetch(
-					API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.BILLING.STATUS),
-					{ headers: { Authorization: `Bearer ${jwt}` } }
-				);
-				if (cancelled) return;
-				if (res.ok) {
-					const json = (await res.json()) as BillingStatus;
-					setStatus(json);
-				}
-			} finally {
-				if (!cancelled) setLoading(false);
-			}
-		}
-
 		fetchStatus();
-		return () => {
-			cancelled = true;
-		};
-	}, [jwt]);
+	}, [jwt, fetchStatus]);
 
 	async function handleCheckout(tier: "basic" | "pro") {
 		if (!jwt) return;
@@ -154,12 +168,44 @@ export function BillingPage({ onBack }: BillingPageProps) {
 		);
 	}
 
-	if (loading || !status) {
+	if (loading && !status) {
 		return (
 			<div className="min-h-screen flex items-center justify-center p-6 bg-neutral-50 dark:bg-neutral-950">
 				<p className="text-neutral-600 dark:text-neutral-400">Loading...</p>
 			</div>
 		);
+	}
+
+	if (loadError) {
+		return (
+			<div className="min-h-screen flex flex-col items-center justify-center p-6 bg-neutral-50 dark:bg-neutral-950">
+				<p className="text-neutral-600 dark:text-neutral-400 mb-4">
+					{loadError}
+				</p>
+				<div className="flex gap-3">
+					<button
+						type="button"
+						onClick={() => fetchStatus()}
+						className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+					>
+						Retry
+					</button>
+					{onBack && (
+						<button
+							type="button"
+							onClick={onBack}
+							className="text-sm text-neutral-600 dark:text-neutral-400 hover:underline"
+						>
+							Back to app
+						</button>
+					)}
+				</div>
+			</div>
+		);
+	}
+
+	if (!status) {
+		return null;
 	}
 
 	const limits = status.limits as BillingLimits;

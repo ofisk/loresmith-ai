@@ -137,19 +137,6 @@ export function AppHeader({
 
 			<HelpButton onActionClick={onHelpAction} />
 
-			{billingTier && (
-				<Button
-					as="a"
-					href="/billing"
-					variant="ghost"
-					size="md"
-					className="!h-8 px-2 rounded-full text-xs font-medium capitalize bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
-					tooltip="View billing and subscription"
-				>
-					{billingTier}
-				</Button>
-			)}
-
 			<Button
 				as="a"
 				href="mailto:support@loresmith.ai"
@@ -174,6 +161,15 @@ export function AppHeader({
 				>
 					<ChartBar size={18} />
 				</Button>
+			)}
+
+			{billingTier && (
+				<span
+					className="h-8 px-2 rounded-full text-xs font-medium capitalize bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 inline-flex items-center cursor-default shrink-0"
+					title="Subscription tier"
+				>
+					{billingTier}
+				</span>
 			)}
 
 			<TopBarNotifications
