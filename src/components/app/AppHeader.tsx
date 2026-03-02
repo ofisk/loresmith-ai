@@ -31,7 +31,7 @@ interface AppHeaderProps {
 				data?: Record<string, unknown>;
 		  }
 	)[];
-	onDismissNotification: (timestamp: number) => void;
+	onDismissNotification: (notificationId: string) => void;
 	onClearAllNotifications: () => void;
 	selectedCampaignId: string | null;
 	onAdminDashboardOpen?: () => void;

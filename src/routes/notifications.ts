@@ -315,3 +315,71 @@ export async function handleNotificationPublish(
 		return new Response("Internal Server Error", { status: 500 });
 	}
 }
+
+/**
+ * Handle dismiss (remove one notification from user's history)
+ */
+export async function handleNotificationDismiss(
+	c: Context<{ Bindings: Env }>
+): Promise<Response> {
+	try {
+		const authResult = await AuthService.extractAuthFromHeader(
+			c.req.header("Authorization") || "",
+			c.env
+		);
+		if (!authResult?.username) {
+			return new Response("Unauthorized", {
+				status: 401,
+				headers: { "WWW-Authenticate": "Bearer" },
+			});
+		}
+		const body = (await c.req.json()) as { id?: string };
+		const id = body?.id;
+		if (!id || typeof id !== "string") {
+			return c.json({ success: false, error: "Missing id" }, 400);
+		}
+		const userId = authResult.username;
+		const notificationHubId = c.env.NOTIFICATIONS.idFromName(`user-${userId}`);
+		const notificationHub = c.env.NOTIFICATIONS.get(notificationHubId);
+		const doRequest = new Request("http://localhost/dismiss", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ id }),
+		});
+		return await notificationHub.fetch(doRequest);
+	} catch (error) {
+		console.error("[Notifications] Error handling dismiss:", error);
+		return new Response("Internal Server Error", { status: 500 });
+	}
+}
+
+/**
+ * Handle clear (remove all notifications from user's history)
+ */
+export async function handleNotificationClear(
+	c: Context<{ Bindings: Env }>
+): Promise<Response> {
+	try {
+		const authResult = await AuthService.extractAuthFromHeader(
+			c.req.header("Authorization") || "",
+			c.env
+		);
+		if (!authResult?.username) {
+			return new Response("Unauthorized", {
+				status: 401,
+				headers: { "WWW-Authenticate": "Bearer" },
+			});
+		}
+		const userId = authResult.username;
+		const notificationHubId = c.env.NOTIFICATIONS.idFromName(`user-${userId}`);
+		const notificationHub = c.env.NOTIFICATIONS.get(notificationHubId);
+		const doRequest = new Request("http://localhost/clear", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+		});
+		return await notificationHub.fetch(doRequest);
+	} catch (error) {
+		console.error("[Notifications] Error handling clear:", error);
+		return new Response("Internal Server Error", { status: 500 });
+	}
+}

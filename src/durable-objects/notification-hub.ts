@@ -3,8 +3,8 @@ import { type CorsEnv, getCorsHeaders } from "@/lib/cors";
 import { createLogger, type RequestLogger } from "@/lib/logger";
 
 const PING_INTERVAL_MS = 30000; // 30 seconds
-const NOTIFICATION_QUEUE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-const QUEUE_KEY_PREFIX = "queued_notification:";
+const NOTIFICATION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const HISTORY_KEY_PREFIX = "history:";
 
 export interface NotificationPayload {
 	type: string;
@@ -12,6 +12,8 @@ export interface NotificationPayload {
 	message: string;
 	data?: Record<string, any>;
 	timestamp: number;
+	/** Set by server for durable history; used for dismiss */
+	id?: string;
 }
 
 export interface NotificationSubscriber {
@@ -42,99 +44,69 @@ export class NotificationHub extends DurableObject {
 	}
 
 	/**
-	 * Queue a notification for later delivery
+	 * Add a notification to durable history (replayed on connect until cleared or TTL).
+	 * Assigns payload.id and returns the payload with id set.
 	 */
-	private async queueNotification(payload: NotificationPayload): Promise<void> {
-		const timestamp = Date.now();
+	private async addToHistory(
+		payload: NotificationPayload
+	): Promise<NotificationPayload> {
+		const ts = payload.timestamp;
 		const randomId = crypto.randomUUID();
-		const key = `${QUEUE_KEY_PREFIX}${timestamp}:${randomId}`;
+		const id = `${ts}:${randomId}`;
+		const key = `${HISTORY_KEY_PREFIX}${id}`;
+		const withId = { ...payload, id };
 
 		try {
-			await this.ctx.storage.put(key, payload);
-			this.logger.trace(`Queued notification: ${payload.type} (key: ${key})`);
+			await this.ctx.storage.put(key, withId);
+			this.logger.trace(`History added: ${payload.type} (id: ${id})`);
 		} catch (error) {
-			this.logger.error("Failed to queue notification:", error);
+			this.logger.error("Failed to add to history:", error);
 			throw error;
 		}
+		return withId;
 	}
 
 	/**
-	 * Get all queued notifications that haven't expired
+	 * Get all notifications in history that are within the TTL window (newest first).
 	 */
-	private async getQueuedNotifications(): Promise<
-		Array<{ key: string; payload: NotificationPayload }>
-	> {
+	private async getHistory(): Promise<NotificationPayload[]> {
 		const now = Date.now();
-		const cutoffTime = now - NOTIFICATION_QUEUE_TTL_MS;
-		const queuedNotifications: Array<{
-			key: string;
-			payload: NotificationPayload;
-		}> = [];
+		const cutoffTime = now - NOTIFICATION_TTL_MS;
+		const list: NotificationPayload[] = [];
 
 		try {
-			// List all queued notifications
-			const allQueued = await this.ctx.storage.list<NotificationPayload>({
-				prefix: QUEUE_KEY_PREFIX,
+			const all = await this.ctx.storage.list<NotificationPayload>({
+				prefix: HISTORY_KEY_PREFIX,
 			});
-
-			for (const [key, payload] of allQueued.entries()) {
-				// Filter by expiration based on notification timestamp
+			for (const [, payload] of all.entries()) {
 				if (payload.timestamp >= cutoffTime) {
-					queuedNotifications.push({ key, payload });
+					list.push(payload);
 				}
 			}
-
-			// Sort by timestamp (oldest first)
-			queuedNotifications.sort(
-				(a, b) => a.payload.timestamp - b.payload.timestamp
-			);
+			list.sort((a, b) => b.timestamp - a.timestamp);
 		} catch (error) {
-			this.logger.error("Failed to get queued notifications:", error);
+			this.logger.error("Failed to get history:", error);
 		}
-
-		return queuedNotifications;
+		return list;
 	}
 
 	/**
-	 * Delete queued notifications by their keys
-	 */
-	private async deleteQueuedNotifications(
-		notifications: Array<{ key: string; payload: NotificationPayload }>
-	): Promise<void> {
-		if (notifications.length === 0) {
-			return;
-		}
-
-		const keys = notifications.map((n) => n.key);
-		try {
-			await this.ctx.storage.delete(keys);
-			this.logger.debug(`Deleted ${keys.length} queued notifications`);
-		} catch (error) {
-			this.logger.error("Failed to delete queued notifications:", error);
-		}
-	}
-
-	/**
-	 * Clean up expired notifications from storage
+	 * Clean up expired notifications from history (older than TTL).
 	 */
 	private async cleanupExpiredNotifications(): Promise<void> {
 		const now = Date.now();
-		const cutoffTime = now - NOTIFICATION_QUEUE_TTL_MS;
+		const cutoffTime = now - NOTIFICATION_TTL_MS;
 		const expiredKeys: string[] = [];
 
 		try {
-			// List all queued notifications
-			const allQueued = await this.ctx.storage.list<NotificationPayload>({
-				prefix: QUEUE_KEY_PREFIX,
+			const all = await this.ctx.storage.list<NotificationPayload>({
+				prefix: HISTORY_KEY_PREFIX,
 			});
-
-			for (const [key, payload] of allQueued.entries()) {
-				// Check if notification has expired
+			for (const [key, payload] of all.entries()) {
 				if (payload.timestamp < cutoffTime) {
 					expiredKeys.push(key);
 				}
 			}
-
 			if (expiredKeys.length > 0) {
 				await this.ctx.storage.delete(expiredKeys);
 				this.logger.debug(
@@ -158,6 +130,14 @@ export class NotificationHub extends DurableObject {
 
 		if (url.pathname.endsWith("/publish")) {
 			return this.handlePublish(request);
+		}
+
+		if (url.pathname.endsWith("/dismiss")) {
+			return this.handleDismiss(request);
+		}
+
+		if (url.pathname.endsWith("/clear")) {
+			return this.handleClear(request);
 		}
 
 		return new Response("Not Found", { status: 404 });
@@ -194,8 +174,8 @@ export class NotificationHub extends DurableObject {
 			// Ignore errors during cleanup
 		});
 
-		// Get queued notifications before creating the connection
-		const queuedNotifications = await this.getQueuedNotifications();
+		// Get durable history (replay until cleared or TTL)
+		const history = await this.getHistory();
 
 		// Create SSE stream
 		const { readable, writable } = new TransformStream();
@@ -221,76 +201,40 @@ export class NotificationHub extends DurableObject {
 			);
 		}
 
-		// Deliver queued notifications FIRST (before connection message)
-		// This ensures users get missed notifications immediately upon reconnection
-		// Note: We deliver synchronously to ensure proper ordering, but we start delivery
-		// immediately so the Response can be returned while delivery is in progress
+		// Replay history first (newest first), then send "connected"
 		const deliveryPromise =
-			queuedNotifications.length > 0
+			history.length > 0
 				? (async () => {
 						this.logger.debug(
-							`Delivering ${queuedNotifications.length} queued notifications to ${userId}`
+							`Replaying ${history.length} notifications to ${userId}`
 						);
-
-						const successfullyDelivered: Array<{
-							key: string;
-							payload: NotificationPayload;
-						}> = [];
-
-						for (let i = 0; i < queuedNotifications.length; i++) {
-							const { key, payload } = queuedNotifications[i];
+						for (let i = 0; i < history.length; i++) {
+							const payload = history[i];
 							try {
 								await this.sendSSEMessage(writer, encoder, payload);
-								successfullyDelivered.push({ key, payload });
-								this.logger.trace(
-									`Delivered queued notification ${i + 1}/${queuedNotifications.length}: ${payload.type} (key: ${key})`
-								);
 							} catch (error) {
-								// If delivery fails, keep it in the queue for next reconnection
 								const errorMessage =
 									error instanceof Error ? error.message : String(error);
-								const errorName =
-									error instanceof Error ? error.name : "UnknownError";
 								this.logger.error(
-									`Failed to deliver queued notification ${i + 1}/${queuedNotifications.length} ${key} (${payload.type}): ${errorName}: ${errorMessage}`
+									`Failed to replay notification ${i + 1}/${history.length}: ${errorMessage}`
 								);
-								// If the writer is closed or the stream is broken, stop trying to deliver more
 								if (
 									errorMessage.includes("writer") ||
 									errorMessage.includes("stream") ||
 									errorMessage.includes("closed")
 								) {
-									this.logger.warn(
-										`Stream appears broken, stopping queued notification delivery. ${queuedNotifications.length - i - 1} notifications remain undelivered.`
-									);
 									break;
 								}
 							}
 						}
-
-						// Delete successfully delivered notifications from queue
-						if (successfullyDelivered.length > 0) {
-							await this.deleteQueuedNotifications(successfullyDelivered);
-							this.logger.debug(
-								`Delivered and removed ${successfullyDelivered.length}/${queuedNotifications.length} queued notifications`
-							);
-						} else {
-							this.logger.warn(
-								`Failed to deliver any of ${queuedNotifications.length} queued notifications - all remain in queue`
-							);
-						}
 					})()
 				: Promise.resolve();
 
-		// Start delivery (don't await - let it run in parallel with Response creation)
-		// Writes to the same writer are queued, so order is preserved
 		deliveryPromise.catch((error) => {
-			this.logger.error("Error delivering queued notifications:", error);
+			this.logger.error("Error replaying history:", error);
 		});
 
-		// Send initial connection message after starting queued notification delivery
-		// (fire-and-forget to avoid hanging tests)
-		// Writes are queued to the writer, so queued notifications will arrive first
+		// Send connection message after history replay (writes are queued)
 		this.sendSSEMessage(writer, encoder, {
 			type: "connected",
 			title: "Connected",
@@ -331,7 +275,15 @@ export class NotificationHub extends DurableObject {
 
 		try {
 			const payload: NotificationPayload = await request.json();
-			await this.broadcastNotification(payload);
+			// Ensure timestamp for history
+			const withTs = {
+				...payload,
+				timestamp: payload.timestamp ?? Date.now(),
+			};
+			// Always add to durable history (assigns id); replay on next connect until cleared or TTL
+			const withId = await this.addToHistory(withTs);
+			// Broadcast to connected subscribers so they see it live
+			await this.broadcastNotification(withId);
 
 			return new Response(JSON.stringify({ success: true }), {
 				headers: { "Content-Type": "application/json" },
@@ -342,47 +294,85 @@ export class NotificationHub extends DurableObject {
 	}
 
 	/**
-	 * Broadcast notification to all subscribers
+	 * Handle dismiss (remove one notification from history)
+	 */
+	private async handleDismiss(request: Request): Promise<Response> {
+		if (request.method !== "POST") {
+			return new Response("Method not allowed", { status: 405 });
+		}
+		try {
+			const body = (await request.json()) as { id?: string };
+			const id = body?.id;
+			if (!id || typeof id !== "string") {
+				return new Response(
+					JSON.stringify({ success: false, error: "Missing id" }),
+					{ status: 400, headers: { "Content-Type": "application/json" } }
+				);
+			}
+			const key = `${HISTORY_KEY_PREFIX}${id}`;
+			await this.ctx.storage.delete(key);
+			this.logger.debug(`Dismissed notification: ${id}`);
+			return new Response(JSON.stringify({ success: true }), {
+				headers: { "Content-Type": "application/json" },
+			});
+		} catch (_error) {
+			return new Response("Invalid JSON", { status: 400 });
+		}
+	}
+
+	/**
+	 * Handle clear (remove all notifications from history)
+	 */
+	private async handleClear(request: Request): Promise<Response> {
+		if (request.method !== "POST") {
+			return new Response("Method not allowed", { status: 405 });
+		}
+		try {
+			const all = await this.ctx.storage.list({ prefix: HISTORY_KEY_PREFIX });
+			const keys = Array.from(all.keys());
+			if (keys.length > 0) {
+				await this.ctx.storage.delete(keys);
+				this.logger.debug(`Cleared ${keys.length} notifications`);
+			}
+			return new Response(JSON.stringify({ success: true }), {
+				headers: { "Content-Type": "application/json" },
+			});
+		} catch (error) {
+			this.logger.error("Failed to clear notifications:", error);
+			return new Response("Internal Server Error", { status: 500 });
+		}
+	}
+
+	/**
+	 * Broadcast notification to all connected subscribers (live delivery only).
 	 */
 	async broadcastNotification(payload: NotificationPayload): Promise<void> {
-		// If no active subscribers, queue the notification for later delivery
 		if (this.subscribers.size === 0) {
-			await this.queueNotification(payload);
-			this.logger.debug(`No subscribers, queued notification: ${payload.type}`);
+			this.logger.debug(
+				`No subscribers, notification stored in history: ${payload.type}`
+			);
 			return;
 		}
 
 		const encoder = new TextEncoder();
 		const deadSubscribers: string[] = [];
-		let successCount = 0;
 
 		this.logger.debug(
 			`Broadcasting: ${payload.type}. Subscribers: ${this.subscribers.size}`
 		);
 
 		for (const [userId, subscriber] of this.subscribers.entries()) {
-			// Check if request was aborted
 			if (subscriber.abortSignal?.aborted) {
-				this.logger.trace(
-					`Detected aborted request for subscriber: ${userId} (during broadcast)`
-				);
 				deadSubscribers.push(userId);
 				continue;
 			}
-
-			// Check if writer is closed before attempting to write
 			if (subscriber.writer.desiredSize === null) {
-				this.logger.trace(
-					`Detected closed writer for subscriber: ${userId} (during broadcast)`
-				);
 				deadSubscribers.push(userId);
 				continue;
 			}
-
 			try {
 				await this.sendSSEMessage(subscriber.writer, encoder, payload);
 				subscriber.lastPing = Date.now();
-				successCount++;
 			} catch (error) {
 				const errorMessage =
 					error instanceof Error ? error.message : String(error);
@@ -393,17 +383,8 @@ export class NotificationHub extends DurableObject {
 			}
 		}
 
-		// Clean up dead subscribers
 		for (const userId of deadSubscribers) {
 			this.subscribers.delete(userId);
-		}
-
-		// If all subscribers failed (dead connections), queue the notification for later delivery
-		if (successCount === 0 && this.subscribers.size === 0) {
-			await this.queueNotification(payload);
-			this.logger.warn(
-				`All subscribers failed, queued notification: ${payload.type}`
-			);
 		}
 	}
 

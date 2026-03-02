@@ -190,11 +190,8 @@ export function useCampaignAddition(
 					console.log(
 						`Successfully added "${fileName}" to ${addedCampaignIds.length} campaign(s)`
 					);
-					addLocalNotification(
-						NOTIFICATION_TYPES.SUCCESS,
-						"File added to campaign",
-						`Successfully added "${fileName}" to ${addedCampaignIds.length} campaign(s)`
-					);
+					// No local notification here: the server sends a campaign-specific
+					// notification (with campaign name) via notifyCampaignMembers.
 
 					window.dispatchEvent(
 						new CustomEvent(APP_EVENT_TYPE.CAMPAIGN_FILE_ADDED, {

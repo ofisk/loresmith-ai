@@ -3,6 +3,7 @@
 
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { getDisplayName } from "@/lib/display-name-utils";
 import { isStubContent, mergeEntityContent } from "@/lib/entity-content-merge";
 import { normalizeEntityType } from "@/lib/entity-types";
 import { notifyCampaignMembers } from "@/lib/notifications";
@@ -165,7 +166,7 @@ export async function stageEntitiesFromResource(
 				campaignId,
 				campaignName,
 				normalizedResource.id,
-				normalizedResource.file_name || normalizedResource.id,
+				getDisplayName(resource),
 				"OpenAI API key was not configured."
 			);
 			return {
@@ -200,7 +201,7 @@ export async function stageEntitiesFromResource(
 				campaignId,
 				campaignName,
 				normalizedResource.id,
-				normalizedResource.file_name || normalizedResource.id,
+				getDisplayName(resource),
 				"The file content could not be extracted (e.g. PDF parsing failed or the document is empty)."
 			);
 			return {
@@ -621,7 +622,7 @@ export async function stageEntitiesFromResource(
 				campaignId,
 				campaignName,
 				normalizedResource.id,
-				normalizedResource.file_name || normalizedResource.id,
+				getDisplayName(resource),
 				notificationDetail
 			);
 			return {
@@ -1004,18 +1005,18 @@ export async function stageEntitiesFromResource(
 					(e.metadata as Record<string, unknown>)?.shardStatus === "staging"
 			).length;
 			const shardCount = newForApproval; // UI expects shardCount = pending for approval
-			const fileName = normalizedResource.file_name || normalizedResource.id;
+			const displayName = getDisplayName(resource);
 			let title: string;
 			let message: string;
 			if (!totalProcessed || totalProcessed === 0) {
 				title = "No shards found";
-				message = `🔎 No shards were discovered from "${fileName}" in "${campaignName}".${notificationMessage}`;
+				message = `🔎 No shards were discovered from "${displayName}" in "${campaignName}".${notificationMessage}`;
 			} else if (totalProcessed === newForApproval) {
 				title = "New shards ready";
-				message = `🎉 ${newForApproval} new shard${newForApproval === 1 ? "" : "s"} generated from "${fileName}" in "${campaignName}"!${notificationMessage}`;
+				message = `🎉 ${newForApproval} new shard${newForApproval === 1 ? "" : "s"} generated from "${displayName}" in "${campaignName}"!${notificationMessage}`;
 			} else {
 				title = "New shards ready";
-				message = `🎉 ${totalProcessed} entities processed; ${newForApproval} new shard${newForApproval === 1 ? "" : "s"} ready for approval from "${fileName}" in "${campaignName}".${notificationMessage}`;
+				message = `🎉 ${totalProcessed} entities processed; ${newForApproval} new shard${newForApproval === 1 ? "" : "s"} ready for approval from "${displayName}" in "${campaignName}".${notificationMessage}`;
 			}
 
 			await notifyCampaignMembers(
@@ -1028,7 +1029,7 @@ export async function stageEntitiesFromResource(
 					message,
 					data: {
 						campaignName,
-						fileName,
+						fileName: displayName,
 						shardCount,
 						campaignId,
 						resourceId: normalizedResource.id,

@@ -2,7 +2,7 @@ import { NotificationBell } from "./NotificationBell";
 
 interface TopBarNotificationsProps {
 	notifications: any[];
-	onDismiss: (timestamp: number) => void;
+	onDismiss: (notificationId: string) => void;
 	onDismissAll: () => void;
 }
 
@@ -15,10 +15,7 @@ export function TopBarNotifications({
 		<div className="ml-1">
 			<NotificationBell
 				notifications={notifications}
-				onDismiss={(notificationId) => {
-					const ts = parseInt(notificationId.split("-")[0], 10);
-					onDismiss(ts);
-				}}
+				onDismiss={onDismiss}
 				onDismissAll={onDismissAll}
 			/>
 		</div>

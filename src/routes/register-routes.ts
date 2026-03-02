@@ -120,6 +120,8 @@ import {
 } from "@/routes/library";
 import {
 	handleMintStreamToken,
+	handleNotificationClear,
+	handleNotificationDismiss,
 	handleNotificationPublish,
 	handleNotificationStream,
 } from "@/routes/notifications";
@@ -1215,6 +1217,16 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
 	app.post(
 		toApiRoutePath(API_CONFIG.ENDPOINTS.NOTIFICATIONS.PUBLISH),
 		handleNotificationPublish
+	);
+	app.post(
+		toApiRoutePath(API_CONFIG.ENDPOINTS.NOTIFICATIONS.DISMISS),
+		requireUserJwt,
+		handleNotificationDismiss
+	);
+	app.post(
+		toApiRoutePath(API_CONFIG.ENDPOINTS.NOTIFICATIONS.CLEAR),
+		requireUserJwt,
+		handleNotificationClear
 	);
 
 	app.put(
