@@ -49,6 +49,8 @@ export interface EntityStagingResult {
 	failedChunks?: number[];
 	successfulChunks?: number;
 	totalChunks?: number;
+	completed?: boolean;
+	nextChunkIndex?: number;
 }
 
 export interface EntityStagingOptions {
@@ -72,6 +74,15 @@ export interface EntityStagingOptions {
 	 * approvedBy = GM who approved. Stored in entity metadata for "co-authored by X and Y" display.
 	 */
 	attribution?: { proposedBy: string; approvedBy: string };
+	/** Resume extraction from this chunk index (0-based). */
+	resumeFromChunk?: number;
+	/** Maximum chunks to process for this invocation. */
+	maxChunksPerRun?: number;
+	/** Optional callback for durable chunk checkpoints. */
+	onChunkCheckpoint?: (progress: {
+		processedChunks: number;
+		totalChunks: number;
+	}) => Promise<void> | void;
 }
 
 /**
@@ -143,6 +154,9 @@ export async function stageEntitiesFromResource(
 		openaiApiKey,
 		contentExtractionProvider,
 		attribution,
+		resumeFromChunk = 0,
+		maxChunksPerRun,
+		onChunkCheckpoint,
 	} = options;
 
 	try {
@@ -366,9 +380,23 @@ export async function stageEntitiesFromResource(
 					? chunkTextByPages(fileContent, MAX_CHUNK_SIZE)
 					: chunkTextByCharacterCount(fileContent, MAX_CHUNK_SIZE)
 				: [fileContent];
+		const startChunkIndex = Math.max(
+			0,
+			Math.min(resumeFromChunk, Math.max(chunks.length - 1, 0))
+		);
+		const endChunkExclusive = maxChunksPerRun
+			? Math.min(chunks.length, startChunkIndex + Math.max(1, maxChunksPerRun))
+			: chunks.length;
+		const chunksToProcess = chunks
+			.slice(startChunkIndex, endChunkExclusive)
+			.map((chunk, localIndex) => ({
+				chunk,
+				globalIndex: startChunkIndex + localIndex,
+			}));
+		const hasMoreChunks = endChunkExclusive < chunks.length;
 
 		console.log(
-			`[EntityStaging] Processing ${chunks.length} chunk(s) for resource: ${normalizedResource.id} (max chunk size: ${MAX_CHUNK_SIZE} chars, ~${Math.floor(MAX_CHUNK_SIZE / CHARS_PER_TOKEN)} tokens)`
+			`[EntityStaging] Processing ${chunksToProcess.length}/${chunks.length} chunk(s) for resource: ${normalizedResource.id} (start=${startChunkIndex + 1}, end=${endChunkExclusive}, max chunk size: ${MAX_CHUNK_SIZE} chars, ~${Math.floor(MAX_CHUNK_SIZE / CHARS_PER_TOKEN)} tokens)`
 		);
 
 		// Extract entities from each chunk and merge results
@@ -488,6 +516,10 @@ export async function stageEntitiesFromResource(
 						`[EntityStaging] Successfully retried chunk ${chunkNumber} after ${retryCount} failed attempts`
 					);
 				}
+				await onChunkCheckpoint?.({
+					processedChunks: chunkNumber,
+					totalChunks: chunks.length,
+				});
 				return true;
 			} catch (chunkError) {
 				// Log error
@@ -560,15 +592,15 @@ export async function stageEntitiesFromResource(
 		};
 
 		// Initial pass: process all chunks
-		for (let i = 0; i < chunks.length; i++) {
-			const success = await processChunk(i, chunks[i], false);
+		for (const { chunk, globalIndex } of chunksToProcess) {
+			const success = await processChunk(globalIndex, chunk, false);
 			if (success) {
 				successfulChunks++;
 			} else {
 				// Check if it will be retried (retry count hasn't exceeded max)
-				const retryCount = chunkRetryCounts.get(i) || 0;
+				const retryCount = chunkRetryCounts.get(globalIndex) || 0;
 				if (retryCount < MAX_CHUNK_RETRIES) {
-					chunksToRetry.push(i);
+					chunksToRetry.push(globalIndex);
 				}
 			}
 		}
@@ -613,6 +645,16 @@ export async function stageEntitiesFromResource(
 			console.log(
 				`[EntityStaging] No entities extracted from resource: ${normalizedResource.id}`
 			);
+			if (hasMoreChunks) {
+				return {
+					success: true,
+					entityCount: 0,
+					stagedEntities: [],
+					completed: false,
+					nextChunkIndex: endChunkExclusive,
+					totalChunks: chunks.length,
+				};
+			}
 			const notificationDetail =
 				failedChunks.length > 0
 					? "Some parts of the file could not be processed. You can retry to process the remaining content."
@@ -954,7 +996,7 @@ export async function stageEntitiesFromResource(
 		// Calculate importance for all entities in batch (including newly staged entities)
 		// This is much more efficient than calculating per-entity, as it runs PageRank
 		// and Betweenness Centrality once for the entire graph instead of N times
-		if (stagedEntities.length > 0) {
+		if (stagedEntities.length > 0 && !hasMoreChunks) {
 			try {
 				const importanceService = new EntityImportanceService(
 					daoFactory.entityDAO,
@@ -987,69 +1029,71 @@ export async function stageEntitiesFromResource(
 			`[EntityStaging] Staged ${stagedEntities.length} entities for resource: ${normalizedResource.id} (${createdCount} created, ${updatedCount} updated, ${skippedCount} skipped - already approved, ${duplicateCount} skipped - semantic duplicates)`
 		);
 
-		// Notify all campaign members about staged entities
-		try {
-			let notificationMessage = "";
-			if (failedChunks.length > 0 && stagedEntities.length > 0) {
-				const successRate = Math.round(
-					(successfulChunks / chunks.length) * 100
-				);
-				notificationMessage = ` ⚠️ We extracted ${stagedEntities.length} shards, but couldn't process some parts of the file (${successRate}% processed successfully). This usually happens when processing very large files. You can retry to process the remaining content.`;
-			} else if (failedChunks.length > 0 && stagedEntities.length === 0) {
-				notificationMessage = ` ❌ We couldn't extract any shards from this file. This may be due to the file being too large or temporary processing issues. Please try again later.`;
-			}
+		// Notify all campaign members only when all chunks are complete.
+		if (!hasMoreChunks) {
+			try {
+				let notificationMessage = "";
+				if (failedChunks.length > 0 && stagedEntities.length > 0) {
+					const successRate = Math.round(
+						(successfulChunks / chunks.length) * 100
+					);
+					notificationMessage = ` ⚠️ We extracted ${stagedEntities.length} shards, but couldn't process some parts of the file (${successRate}% processed successfully). This usually happens when processing very large files. You can retry to process the remaining content.`;
+				} else if (failedChunks.length > 0 && stagedEntities.length === 0) {
+					notificationMessage = ` ❌ We couldn't extract any shards from this file. This may be due to the file being too large or temporary processing issues. Please try again later.`;
+				}
 
-			const totalProcessed = stagedEntities.length;
-			const newForApproval = stagedEntities.filter(
-				(e) =>
-					(e.metadata as Record<string, unknown>)?.shardStatus === "staging"
-			).length;
-			const shardCount = newForApproval; // UI expects shardCount = pending for approval
-			const fileName = normalizedResource.file_name || normalizedResource.id;
-			let title: string;
-			let message: string;
-			if (!totalProcessed || totalProcessed === 0) {
-				title = "No shards found";
-				message = `🔎 No shards were discovered from "${fileName}" in "${campaignName}".${notificationMessage}`;
-			} else if (totalProcessed === newForApproval) {
-				title = "New shards ready";
-				message = `🎉 ${newForApproval} new shard${newForApproval === 1 ? "" : "s"} generated from "${fileName}" in "${campaignName}"!${notificationMessage}`;
-			} else {
-				title = "New shards ready";
-				message = `🎉 ${totalProcessed} entities processed; ${newForApproval} new shard${newForApproval === 1 ? "" : "s"} ready for approval from "${fileName}" in "${campaignName}".${notificationMessage}`;
-			}
+				const totalProcessed = stagedEntities.length;
+				const newForApproval = stagedEntities.filter(
+					(e) =>
+						(e.metadata as Record<string, unknown>)?.shardStatus === "staging"
+				).length;
+				const shardCount = newForApproval; // UI expects shardCount = pending for approval
+				const fileName = normalizedResource.file_name || normalizedResource.id;
+				let title: string;
+				let message: string;
+				if (!totalProcessed || totalProcessed === 0) {
+					title = "No shards found";
+					message = `🔎 No shards were discovered from "${fileName}" in "${campaignName}".${notificationMessage}`;
+				} else if (totalProcessed === newForApproval) {
+					title = "New shards ready";
+					message = `🎉 ${newForApproval} new shard${newForApproval === 1 ? "" : "s"} generated from "${fileName}" in "${campaignName}"!${notificationMessage}`;
+				} else {
+					title = "New shards ready";
+					message = `🎉 ${totalProcessed} entities processed; ${newForApproval} new shard${newForApproval === 1 ? "" : "s"} ready for approval from "${fileName}" in "${campaignName}".${notificationMessage}`;
+				}
 
-			await notifyCampaignMembers(
-				env,
-				campaignId,
-				campaignName,
-				() => ({
-					type: NOTIFICATION_TYPES.SHARDS_GENERATED,
-					title,
-					message,
-					data: {
-						campaignName,
-						fileName,
-						shardCount,
-						campaignId,
-						resourceId: normalizedResource.id,
-						ui_hint: {
-							type: "shards_ready",
-							data: {
-								campaignId,
-								resourceId: normalizedResource.id,
-								groups: undefined,
+				await notifyCampaignMembers(
+					env,
+					campaignId,
+					campaignName,
+					() => ({
+						type: NOTIFICATION_TYPES.SHARDS_GENERATED,
+						title,
+						message,
+						data: {
+							campaignName,
+							fileName,
+							shardCount,
+							campaignId,
+							resourceId: normalizedResource.id,
+							ui_hint: {
+								type: "shards_ready",
+								data: {
+									campaignId,
+									resourceId: normalizedResource.id,
+									groups: undefined,
+								},
 							},
 						},
-					},
-				}),
-				[]
-			);
-		} catch (notifyError) {
-			console.error(
-				"[EntityStaging] Failed to send notification:",
-				notifyError
-			);
+					}),
+					[]
+				);
+			} catch (notifyError) {
+				console.error(
+					"[EntityStaging] Failed to send notification:",
+					notifyError
+				);
+			}
 		}
 
 		// Return success if we got any entities, even if some chunks failed
@@ -1057,12 +1101,14 @@ export async function stageEntitiesFromResource(
 			success: stagedEntities.length > 0 || failedChunks.length === 0,
 			entityCount: stagedEntities.length,
 			stagedEntities,
+			completed: !hasMoreChunks,
+			nextChunkIndex: hasMoreChunks ? endChunkExclusive : undefined,
+			totalChunks: chunks.length,
 			...(failedChunks.length > 0
 				? {
 						warning: `Some chunks failed to process: ${failedChunks.join(", ")}`,
 						failedChunks,
 						successfulChunks,
-						totalChunks: chunks.length,
 					}
 				: {}),
 		};
